@@ -1,4 +1,4 @@
-School,Cradle of Wisdom
-Morning Assembly1, The heartbeat of the school
-Excursion,Beyond the Classroom walls
-Morning Assembly2, Setting the day's intentions
+1.jpg,School,Cradle of Wisdom
+2.jpg,Morning Assembly1, The heartbeat of the school
+3.jpg,Excursion,Beyond the Classroom walls
+4.jpg,Morning Assembly2, Setting the day's intentions

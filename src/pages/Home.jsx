@@ -3,7 +3,6 @@ import { Users, Award, BookOpen, GraduationCap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
-import bgImage from '../images/logo.png';
 import Slideshow from '../components/Slideshow';
 
 // Modern Counter Animation Component
@@ -40,22 +39,18 @@ export default function Home() {
       {/* Hero Section */}
       <div className="relative h-[500px] w-full bg-slate-900 flex items-center justify-center text-center">
         
-        {/* Background slideshow: replace or extend the URLs below with your own images. */}
-        <Slideshow images={[
-          bgImage,
-          'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1920&q=60',
-          'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1920&q=60'
-        ]} interval={6000} />
+        {/* Background slideshow: using `public/slides/slides.txt` mapping file */}
+        <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" interval={6000} />
         
-        <div className="relative z-10 px-4">
+        <div className="relative z-20 px-4">
           <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 drop-shadow-lg italic tracking-wider">
             nurturing minds, <span className="text-red-400">shaping futures</span>
           </h2>
-          <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <Link to="/admissions" className="px-8 py-3 bg-teal-700 text-white font-bold rounded-md hover:bg-teal-600 transition-colors shadow-lg inline-block">
+          <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-3">
+            <Link to="/admissions" className="px-6 py-2 sm:px-8 sm:py-3 bg-teal-700 text-white font-bold rounded-md hover:bg-teal-600 transition-colors shadow-lg inline-block text-sm sm:text-base">
               Admissions Open 2025
             </Link>
-            <Link to="/about" className="px-8 py-3 bg-slate-900 text-white font-bold rounded-md hover:bg-slate-800 border border-slate-700 transition-colors shadow-lg inline-block">
+            <Link to="/about" className="px-6 py-2 sm:px-8 sm:py-3 bg-slate-900 text-white font-bold rounded-md hover:bg-slate-800 border border-slate-700 transition-colors shadow-lg inline-block text-sm sm:text-base">
               Learn More
             </Link>
           </div>

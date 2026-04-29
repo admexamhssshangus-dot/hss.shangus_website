@@ -97,12 +97,13 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
           key={i}
           role="img"
           aria-label={`slide-${i}`}
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-out ${i === index ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-out ${i === index ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
           style={{ backgroundImage: `url(${s.image})` }}
         />
       ))}
 
-      <div className="absolute inset-0 bg-black/45 pointer-events-none" />
+      {/* dark overlay above slides but below page content */}
+      <div className="absolute inset-0 bg-black/45 z-10 pointer-events-none" />
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

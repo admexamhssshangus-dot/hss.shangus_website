@@ -70,7 +70,10 @@ export default function Navbar() {
             <Link to="/" className="flex items-center">
               <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-12 w-12 md:h-14 md:w-14 mr-3 object-contain" />
               <div>
-                <h1 className="text-xl md:text-2xl font-extrabold text-teal-800 tracking-tight">Govt. Higher Secondary School Shangus</h1>
+                <h1 className="text-xl md:text-2xl font-extrabold text-teal-800 tracking-tight">
+                  <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
+                  <span className="inline md:hidden">Govt. HSS Shangus</span>
+                </h1>
                 <p className="text-sm md:text-base text-slate-500 italic mt-0.5">nurturing minds, shaping futures</p>
               </div>
             </Link>
