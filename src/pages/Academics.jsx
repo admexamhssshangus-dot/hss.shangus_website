@@ -6,7 +6,7 @@ export default function Academics() {
       <div className="max-w-6xl mx-auto px-4">
         
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-slate-800">Academics</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">Academics</h2>
           <div className="h-1 w-24 bg-teal-600 mx-auto mt-4 rounded"></div>
         </div>
 

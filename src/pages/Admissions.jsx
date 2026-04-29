@@ -9,7 +9,7 @@ export default function Admissions() {
         
         {/* Header */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-800 mb-4">Admission Process 2025</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4">Admission Process 2025</h2>
           <p className="text-slate-600">Follow these 4 simple steps to join our academic community.<br/>Applications are now open for the upcoming academic year.</p>
         </div>
 
@@ -123,10 +123,10 @@ export default function Admissions() {
         </div>
 
         {/* Final CTA */}
-        <div className="text-center pb-12">
-           <button className="bg-teal-700 hover:bg-teal-800 text-white text-lg px-8 py-4 rounded-full font-bold transition-all transform hover:scale-105 shadow-xl">
-              Register to Apply Online
-           </button>
+         <div className="text-center pb-12">
+          <button className="bg-teal-700 hover:bg-teal-800 text-white text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 rounded-full font-bold transition-all transform hover:scale-105 shadow-xl">
+            Register to Apply Online
+          </button>
         </div>
 
       </div>

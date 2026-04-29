@@ -10,7 +10,7 @@ export default function About() {
   return (
     <div className="w-full mb-20">
       {/* Hero */}
-      <div className="relative h-[400px] w-full bg-slate-900 flex items-center justify-center text-center">
+      <div className="relative h-[320px] sm:h-[400px] w-full bg-slate-900 flex items-center justify-center text-center">
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-30"
           style={{ backgroundImage: `url(${aboutBg})` }}
@@ -19,8 +19,8 @@ export default function About() {
         <div className="absolute inset-0 bg-black/50"></div>
         
         <div className="relative z-10 px-4 max-w-4xl mx-auto">
-          <h2 className="text-4xl font-bold text-white mb-2">About Our Institution</h2>
-          <h3 className="text-2xl font-semibold text-slate-200 mb-6">A Beacon of Knowledge</h3>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">About Our Institution</h2>
+          <h3 className="text-xl sm:text-2xl font-semibold text-slate-200 mb-6">A Beacon of Knowledge</h3>
           <p className="text-slate-100 text-sm md:text-base leading-relaxed">
             Government Higher Secondary School Shangus has been a beacon of knowledge in the Anantnag district for decades. Our mission is to foster an environment where every student is encouraged to explore their potential. We believe in a holistic approach to education that goes beyond textbooks.
           </p>
