@@ -64,8 +64,8 @@ export default function Admissions() {
               <thead>
                 <tr>
                   <th className="bg-slate-900 text-white p-3 w-1/5 border border-slate-800" rowSpan={2}>Class</th>
-                  <th className="bg-orange-500 text-white p-3 border border-orange-600" colSpan={2}>Medical / Science</th>
-                  <th className="bg-blue-500 text-white p-3 border border-blue-600" colSpan={2}>Humanities / Arts</th>
+                  <th className="bg-orange-500 text-white p-3 border border-orange-600" colSpan={2}>Science</th>
+                  <th className="bg-blue-500 text-white p-3 border border-blue-600" colSpan={2}>Humanities</th>
                 </tr>
                 <tr className="bg-slate-100 text-slate-600 text-xs font-bold uppercase">
                   <th className="p-3 border border-slate-300">Boys</th>
@@ -78,16 +78,16 @@ export default function Admissions() {
                 <tr>
                   <td className="p-4 font-bold border border-slate-200">11th</td>
                   <td className="p-4 border border-slate-200 text-slate-600">Rs. 1900</td>
-                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1750</td>
+                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1700</td>
                   <td className="p-4 border border-slate-200 text-slate-600">Rs. 1800</td>
-                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1650</td>
+                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1600</td>
                 </tr>
                 <tr className="bg-slate-50">
                   <td className="p-4 font-bold border border-slate-200">12th</td>
-                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1750</td>
-                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1750</td>
                   <td className="p-4 border border-slate-200 text-slate-600">Rs. 1650</td>
                   <td className="p-4 border border-slate-200 text-slate-600">Rs. 1650</td>
+                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1550</td>
+                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1550</td>
                 </tr>
               </tbody>
             </table>
@@ -105,11 +105,11 @@ export default function Admissions() {
               <tbody>
                 <tr>
                   <td className="p-4 font-bold border border-slate-200">9th</td>
-                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1600</td>
+                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1700</td>
                 </tr>
                 <tr className="bg-slate-50">
                   <td className="p-4 font-bold border border-slate-200">10th</td>
-                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1600</td>
+                  <td className="p-4 border border-slate-200 text-slate-600">Rs. 1700</td>
                 </tr>
               </tbody>
             </table>
