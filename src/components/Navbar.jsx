@@ -55,10 +55,9 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="w-full shadow-md z-40 sticky top-0 bg-white transition-all duration-300">
-        
-        {/* WRAPPER: This div collapses when isVisible is false */}
-        <div className={`transition-all duration-300 overflow-hidden ${isVisible ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'}`}>
+      <header className={`w-full shadow-md z-40 sticky top-0 bg-white transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+        {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
+        <div className="overflow-hidden">
           
           {/* ROW 1: Top Contact Bar */}
           <div className="bg-slate-900 text-slate-300 text-xs py-1 px-4 flex justify-end space-x-6 border-b border-slate-700">
