@@ -56,11 +56,7 @@ export default function Home() {
           </div>
         </div>
         
-        {/* Bottom Banner from screenshot */}
-        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/80 to-transparent p-6 text-left">
-           <h3 className="text-2xl font-bold text-teal-300">Playground</h3>
-           <p className="text-white italic">where students engage in physical activities</p>
-        </div>
+          {/* (Removed legacy bottom banner to avoid overlapping with slideshow captions) */}
       </div>
 
       {/* Main Content Area: Notices & Principal */}
@@ -76,7 +72,7 @@ export default function Home() {
             <ul className="divide-y divide-slate-100 p-4">
               <li className="py-3 flex items-start">
                 <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">Nov 23</span>
-                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">jkbose datesheet</a>
+                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">JKBOSE Datesheet</a>
               </li>
               <li className="py-3 flex items-start">
                 <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">Nov 23</span>
@@ -84,7 +80,7 @@ export default function Home() {
               </li>
               <li className="py-3 flex items-start">
                 <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">Nov 23</span>
-                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">admit cards</a>
+                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">Admit Cards</a>
               </li>
             </ul>
             <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
