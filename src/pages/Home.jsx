@@ -43,7 +43,10 @@ export default function Home() {
         <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" interval={6000} />
         
         <div className="relative z-20 px-4">
-          <h2 className="text-[26px] sm:text-[32px] md:text-[56px] font-bold text-white mb-4 sm:mb-6 drop-shadow-lg italic tracking-wider leading-tight sm:leading-snug">
+          <h2
+            className="text-[26px] sm:text-[32px] md:text-[56px] font-bold text-white mb-4 sm:mb-6 drop-shadow-lg italic tracking-wider leading-tight sm:leading-snug"
+            style={{ textShadow: '0 0 8px rgba(255,255,255,0.32)' }}
+          >
             nurturing minds, <span className="text-red-400">shaping futures</span>
           </h2>
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-3">
