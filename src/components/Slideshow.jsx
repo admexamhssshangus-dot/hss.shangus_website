@@ -107,7 +107,7 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-3 absolute bottom-3 sm:bottom-8 pointer-events-auto">
+        <div className="flex items-center gap-3 absolute bottom-3 sm:bottom-8 pointer-events-auto z-40">
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
@@ -127,9 +127,9 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
       {/* Left caption (matches screenshot) */}
       <div className="absolute left-6 right-6 sm:right-auto bottom-14 sm:bottom-6 text-left text-white z-30 pointer-events-none sm:max-w-[60%]">
-        <div className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm inline-flex items-center gap-2 whitespace-nowrap overflow-hidden w-full">
-          <h3 className="text-[11px] sm:text-sm font-bold text-teal-300">{slides[index].title || 'School'}</h3>
-          <span className="text-[11px] sm:text-xs italic text-white/90">{slides[index].caption || 'the beacon of knowledge'}</span>
+        <div className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm flex flex-wrap items-center gap-2 whitespace-normal overflow-visible w-full">
+          <h3 className="text-[11px] sm:text-sm font-bold text-teal-300 w-full sm:w-auto">{slides[index].title || 'School'}</h3>
+          <span className="text-[11px] sm:text-xs italic text-white/90 w-full sm:w-auto">{slides[index].caption || 'the beacon of knowledge'}</span>
         </div>
       </div>
     </div>
