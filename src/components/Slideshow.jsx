@@ -127,9 +127,9 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
       {/* Left caption (matches screenshot) */}
       <div className="absolute left-6 bottom-6 text-left text-white z-20 pointer-events-none max-w-[60%]">
-        <div className="bg-black/40 p-3 rounded-md backdrop-blur-sm inline-block">
-          <h3 className="text-sm sm:text-2xl font-bold text-teal-300">{slides[index].title || 'School'}</h3>
-          <p className="text-xs sm:text-sm italic">{slides[index].caption || 'the beacon of knowledge'}</p>
+        <div className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm inline-flex items-center gap-2 max-w-[95%]">
+          <h3 className="text-xs sm:text-sm font-bold text-teal-300 truncate">{slides[index].title || 'School'}</h3>
+          <span className="text-[10px] sm:text-xs italic text-white/90 truncate">{slides[index].caption || 'the beacon of knowledge'}</span>
         </div>
       </div>
     </div>
