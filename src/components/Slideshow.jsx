@@ -107,7 +107,7 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-3 bottom-8 absolute pointer-events-auto">
+        <div className="flex items-center gap-3 absolute bottom-3 sm:bottom-8 pointer-events-auto">
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
@@ -126,7 +126,7 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
       </div>
 
       {/* Left caption (matches screenshot) */}
-      <div className="absolute left-6 bottom-6 text-left text-white z-20 pointer-events-none max-w-[60%]">
+      <div className="absolute left-6 bottom-14 sm:bottom-6 text-left text-white z-30 pointer-events-none max-w-[60%]">
         <div
           className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm inline-flex items-center gap-2 whitespace-nowrap overflow-x-auto"
           style={{ width: 'calc(100% - 3rem)' }}
