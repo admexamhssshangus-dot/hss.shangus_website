@@ -126,11 +126,8 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
       </div>
 
       {/* Left caption (matches screenshot) */}
-      <div className="absolute left-6 bottom-14 sm:bottom-6 text-left text-white z-30 pointer-events-none max-w-[60%]">
-        <div
-          className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm inline-flex items-center gap-2 whitespace-nowrap overflow-x-auto"
-          style={{ width: 'calc(100% - 3rem)' }}
-        >
+      <div className="absolute left-6 right-6 sm:right-auto bottom-14 sm:bottom-6 text-left text-white z-30 pointer-events-none sm:max-w-[60%]">
+        <div className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm inline-flex items-center gap-2 whitespace-nowrap overflow-hidden w-full">
           <h3 className="text-[11px] sm:text-sm font-bold text-teal-300">{slides[index].title || 'School'}</h3>
           <span className="text-[11px] sm:text-xs italic text-white/90">{slides[index].caption || 'the beacon of knowledge'}</span>
         </div>
