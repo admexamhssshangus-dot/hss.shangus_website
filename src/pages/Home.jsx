@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import bgImage from '../images/logo.png';
+import Slideshow from '../components/Slideshow';
 
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
@@ -39,11 +40,12 @@ export default function Home() {
       {/* Hero Section */}
       <div className="relative h-[500px] w-full bg-slate-900 flex items-center justify-center text-center">
         
-        {/* 2. USE YOUR IMPORTED IMAGE IN THE STYLE OBJECT USING BACKTICKS ` ` */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-40"
-          style={{ backgroundImage: `url(${bgImage})` }}
-        ></div>
+        {/* Background slideshow: replace or extend the URLs below with your own images. */}
+        <Slideshow images={[
+          bgImage,
+          'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1920&q=60',
+          'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1920&q=60'
+        ]} interval={6000} />
         
         <div className="relative z-10 px-4">
           <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 drop-shadow-lg italic tracking-wider">

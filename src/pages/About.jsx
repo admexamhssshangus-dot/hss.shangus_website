@@ -1,13 +1,19 @@
 import React from 'react';
 
 export default function About() {
+  // To use a local background image, add a file under `src/images` (eg. `about-bg.jpg`) and
+  // uncomment the import below then set `aboutBg` to the imported variable.
+  // Example:
+  // import aboutBgLocal from '../images/about-bg.jpg'
+  // const aboutBg = aboutBgLocal
+  const aboutBg = 'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1920&q=80';
   return (
     <div className="w-full mb-20">
       {/* Hero */}
       <div className="relative h-[400px] w-full bg-slate-900 flex items-center justify-center text-center">
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-30"
-          style={{ backgroundImage: 'url("[https://images.unsplash.com/photo-1577896851231-70ef18881754?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80](https://images.unsplash.com/photo-1577896851231-70ef18881754?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80)")' }}
+          style={{ backgroundImage: `url(${aboutBg})` }}
         ></div>
         {/* ADDED: Dark overlay to ensure white text has high contrast */}
         <div className="absolute inset-0 bg-black/50"></div>
