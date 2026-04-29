@@ -75,7 +75,7 @@ export default function Navbar() {
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
                   <span className="inline md:hidden">Govt. HSS Shangus</span>
                 </h1>
-                <p className="text-xs md:text-base text-slate-500 italic mt-0.5">nurturing minds, shaping futures</p>
+                <p className="text-[11px] md:text-[14px] text-slate-500 not-italic mt-0">nurturing minds, shaping futures</p>
               </div>
             </Link>
 
