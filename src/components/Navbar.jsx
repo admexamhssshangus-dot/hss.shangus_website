@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, Mail, X } from 'lucide-react';
+import { Phone, Mail, X, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
@@ -10,6 +10,8 @@ export default function Navbar() {
   const [isVisible, setIsVisible] = useState(true);
   // State for the Apps Script Login Pop-up
   const [showLoginModal, setShowLoginModal] = useState(false);
+  // Mobile menu open
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   // close modal on Escape key
   useEffect(() => {
@@ -58,39 +60,52 @@ export default function Navbar() {
       <header className={`w-full shadow-md z-40 sticky top-0 bg-white transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
-          
-          {/* ROW 1: Top Contact Bar */}
-          <div className="bg-slate-900 text-slate-300 text-xs py-1 px-4 flex justify-end space-x-6 border-b border-slate-700">
+          {/* ROW 1: Top Contact Bar (hidden on small screens) */}
+          <div className="bg-slate-900 text-slate-300 text-xs py-1 px-4 hidden md:flex justify-end space-x-6 border-b border-slate-700">
             <div className="flex items-center"><Phone size={12} className="mr-2 text-teal-500" /> +91-9682-547-458</div>
             <div className="flex items-center"><Mail size={12} className="mr-2 text-teal-500" /> adm.exam.hss.shangus@gmail.com</div>
           </div>
 
           {/* ROW 2: Logo and School Name */}
-          <div className="max-w-7xl mx-auto px-4 py-2 md:py-3 flex flex-col md:flex-row items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 py-2 md:py-3 flex items-center justify-between">
             <Link to="/" className="flex items-center">
-              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-12 w-12 md:h-14 md:w-14 mr-3 object-contain" />
+              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-10 w-10 md:h-14 md:w-14 mr-3 object-contain" />
               <div>
-                <h1 className="text-xl md:text-2xl font-extrabold text-teal-800 tracking-tight">
+                <h1 className="text-lg md:text-2xl font-extrabold text-teal-800 tracking-tight leading-tight">
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
                   <span className="inline md:hidden">Govt. HSS Shangus</span>
                 </h1>
-                <p className="text-sm md:text-base text-slate-500 italic mt-0.5">nurturing minds, shaping futures</p>
+                <p className="text-xs md:text-base text-slate-500 italic mt-0.5">nurturing minds, shaping futures</p>
               </div>
             </Link>
+
+            {/* Mobile hamburger */}
+            <div className="md:hidden flex items-center">
+              <button
+                aria-label="Toggle menu"
+                onClick={() => setMobileOpen((s) => !s)}
+                className="p-2 rounded text-slate-800 bg-slate-100 border border-slate-200"
+              >
+                {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* ROW 3: Navigation Menu */}
         <div className="bg-slate-800 border-b-[3px] border-orange-500">
           <div className="max-w-7xl mx-auto px-4">
-            <nav className="flex flex-wrap items-center justify-center w-full">
-              <Link to="/" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">Home</Link>
-              <Link to="/about" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">About Us</Link>
-              <Link to="/academics" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">Academics</Link>
-              <Link to="/admissions" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">Admissions</Link>
-              
-              {/* Login Button Area (Triggers the Apps Script Modal) */}
-              <div className="ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600 flex items-center h-full py-1">
+            <nav className="flex items-center justify-center w-full">
+              {/* Desktop menu */}
+              <div className="hidden md:flex items-center gap-2">
+                <Link to="/" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">Home</Link>
+                <Link to="/about" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">About Us</Link>
+                <Link to="/academics" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">Academics</Link>
+                <Link to="/admissions" className="px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors border-t-2 border-transparent hover:border-orange-400">Admissions</Link>
+              </div>
+
+              {/* Login Button Area (Desktop) */}
+              <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600 flex items-center h-full py-1">
                 <button 
                   onClick={() => setShowLoginModal(true)}
                   className="px-4 py-1 text-sm font-bold bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors shadow"
@@ -100,6 +115,25 @@ export default function Navbar() {
               </div>
             </nav>
           </div>
+
+          {/* Mobile slide-down menu */}
+          {mobileOpen && (
+            <div className="md:hidden bg-slate-800 text-white border-t border-slate-700">
+              <div className="px-4 py-4 space-y-3">
+                <Link to="/" onClick={() => setMobileOpen(false)} className="block font-semibold">Home</Link>
+                <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold">About Us</Link>
+                <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold">Academics</Link>
+                <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold">Admissions</Link>
+                <div className="pt-2 border-t border-slate-700">
+                  <div className="flex items-center gap-2 text-sm"><Phone size={14} className="text-teal-400"/> +91-9682-547-458</div>
+                  <div className="flex items-center gap-2 text-sm mt-1"><Mail size={14} className="text-teal-400"/> adm.exam.hss.shangus@gmail.com</div>
+                </div>
+                <div className="pt-3">
+                  <button onClick={() => { setShowLoginModal(true); setMobileOpen(false); }} className="w-full px-4 py-2 bg-teal-600 rounded font-bold">Login</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
