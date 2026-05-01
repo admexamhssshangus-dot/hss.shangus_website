@@ -49,11 +49,11 @@ export default function Home() {
           >
             nurturing minds, <span className="text-red-400">shaping futures</span>
           </h2>
-          <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-3">
+          <div className="flex flex-col sm:flex-row justify-center items-center space-y-[6px] sm:space-y-0 sm:space-x-[6px]">
             <Link to="/admissions" className="px-3 py-1.5 sm:px-5 sm:py-2 bg-teal-700 text-white font-bold rounded-md hover:bg-red-600 hover:text-white transition-colors shadow-lg inline-block text-[12px] sm:text-[14px]">
               Admissions Open 2026
             </Link>
-            <Link to="/about" className="px-3 py-1.5 sm:px-5 sm:py-2 bg-slate-900 text-white font-bold rounded-md hover:bg-white hover:text-black hover:border-slate-300 border border-slate-700 transition-colors shadow-lg inline-block text-[12px] sm:text-[14px]">
+            <Link to="/about" className="px-[6px] py-[3px] sm:px-[10px] sm:py-[4px] bg-slate-900 text-white font-bold rounded-md hover:bg-white hover:text-black hover:border-slate-300 border border-slate-700 transition-colors shadow-lg inline-block text-[10px] sm:text-[12px]">
               Learn More
             </Link>
           </div>
