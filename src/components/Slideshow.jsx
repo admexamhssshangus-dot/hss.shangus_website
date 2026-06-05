@@ -111,14 +111,16 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-            className="bg-black/50 text-white rounded-full p-2 hover:bg-black/60 shadow"
+            className="bg-black/60 text-white rounded-full p-2 sm:p-2.5 border border-white shadow-lg hover:bg-black/70 text-lg flex items-center justify-center"
+            style={{ width: 26, height: 26 }}
           >
             ‹
           </button>
           <button
             aria-label="next"
             onClick={() => setIndex((i) => (i + 1) % slides.length)}
-            className="bg-black/50 text-white rounded-full p-2 hover:bg-black/60 shadow"
+            className="bg-black/60 text-white rounded-full p-2 sm:p-2.5 border border-white shadow-lg hover:bg-black/70 text-lg flex items-center justify-center"
+            style={{ width: 26, height: 26 }}
           >
             ›
           </button>

@@ -37,17 +37,23 @@ export default function Home() {
   return (
     <div className="w-full">
       {/* Hero Section */}
-      <div className="relative h-[420px] sm:h-[500px] w-full bg-slate-900 flex items-center justify-center text-center">
+      <div className="relative h-[504px] sm:h-[591px] w-full bg-slate-900 flex items-center justify-center text-center">
         
         {/* Background slideshow: using `public/slides/slides.txt` mapping file */}
         <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" interval={6000} />
         
         <div className="relative z-20 px-4">
           <h2
-            className="text-[26px] sm:text-[32px] md:text-[56px] font-bold text-white mb-4 sm:mb-6 drop-shadow-lg italic tracking-wider leading-tight sm:leading-snug"
-            style={{ textShadow: '0 0 8px rgba(255,255,255,0.32)' }}
+            className="text-[26px] sm:text-[32px] md:text-[56px] font-bold text-white mb-4 sm:mb-6 italic tracking-wider leading-tight sm:leading-snug"
           >
-            nurturing minds, <span className="text-red-400">shaping futures</span>
+            <span style={{
+              WebkitTextStroke: '0.5px rgba(0,0,0,0.35)',
+              textShadow: '0 2px 0 rgba(0,0,0,0.6), 0 8px 20px rgba(16,185,129,0.06)'
+            }}>nurturing minds, </span>
+            <span className="text-red-400" style={{
+              WebkitTextStroke: '0.7px rgba(0,0,0,0.6)',
+              textShadow: '0 2px 0 rgba(0,0,0,0.85), 0 6px 18px rgba(0,0,0,0.45), 0 0 18px rgba(239,68,68,0.9)'
+            }}>shaping futures</span>
           </h2>
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-[6px] sm:space-y-0 sm:space-x-[6px]">
             <Link to="/admissions" className="px-3 py-1.5 sm:px-5 sm:py-2 bg-teal-700 text-white font-bold rounded-md hover:bg-red-600 hover:text-white transition-colors shadow-lg inline-block text-[12px] sm:text-[14px]">
@@ -63,7 +69,7 @@ export default function Home() {
       </div>
 
       {/* Main Content Area: Notices & Principal */}
-      <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
         
         {/* Notices Sidebar */}
         <div className="col-span-1">
@@ -96,17 +102,17 @@ export default function Home() {
         <div className="col-span-1 md:col-span-2">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-800 border-l-4 border-teal-800 pl-4 mb-6">Principal's Message</h2>
-            <div className="flex flex-col sm:flex-row bg-white p-6 rounded-lg shadow-sm border border-slate-100 items-start">
-              <div className="w-32 h-32 flex-shrink-0 bg-slate-200 rounded-lg overflow-hidden border-2 border-slate-300 mr-6 mb-4 sm:mb-0 shadow-md">
-                {/* Note: You can import a local principal image just like the background image and place the variable in the src={} below! */}
-                <img src="[https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=256&q=80](https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=256&q=80)" alt="Principal" className="w-full h-full object-cover" />
+            <div className="flex flex-col sm:flex-row bg-white p-6 rounded-lg shadow-lg border-2 border-teal-100 items-center">
+              <div className="w-32 h-32 flex-shrink-0 rounded-md overflow-hidden mx-auto mb-4 sm:mb-0 shadow-inner" style={{ border: '6px solid #0ea5a3' }}>
+                <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=256&q=80" alt="Principal" className="w-full h-full object-cover" />
               </div>
-              <div>
-                <p className="text-slate-600 italic text-sm leading-relaxed">
-                  "Welcome to <strong className="text-slate-800">Govt HSS Shangus</strong>.<br/><br/>
-                  Our mandate is to <strong>empower leaders</strong> defined by <strong>academic excellence and ethics</strong>. We offer a learning environment where <strong>cutting-edge resources</strong> in <strong>Science and Humanities</strong> meet <strong>value-based education</strong> — equipping you with the <strong>skills to thrive</strong> and the <strong>character to lead</strong> in a global society."
-                </p>
-                <p className="text-right text-xs text-slate-500 mt-4">Mr. Principal Name<br/>Principal, HSS Shangus</p>
+              <div className="flex-1 border-l-2 border-teal-100 pl-4">
+                <div className="bg-white p-4 rounded shadow-sm border border-slate-100">
+                  <p className="text-slate-700 italic text-sm leading-relaxed">
+                    "Welcome to <strong className="text-slate-800">Govt HSS Shangus</strong>. Our mandate is to <strong>empower leaders</strong> defined by <strong>academic excellence and ethics</strong>. We offer a learning environment where <strong>cutting-edge resources</strong> in <strong>Science and Humanities</strong> meet <strong>value-based education</strong> — equipping you with the skills to thrive and the character to lead in a global society."
+                  </p>
+                  <p className="text-right text-xs text-slate-500 mt-4">Mr. Principal Name<br/>Principal, HSS Shangus</p>
+                </div>
               </div>
             </div>
           </div>
