@@ -16,8 +16,8 @@ export default function Navbar() {
 
   const openLoginWindow = () => {
     try {
-      const w = window.screen.width || screen.width;
-      const h = window.screen.height || screen.height;
+      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
+      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
       const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
       const newWin = window.open(LOGIN_URL, '_blank', features);
       if (newWin) newWin.focus();

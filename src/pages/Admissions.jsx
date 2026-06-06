@@ -15,11 +15,11 @@ export default function Admissions() {
   }, []);
 
   function DocumentsModal() {
-    if (!docOpen) return null;
     const closeBtnRef = useRef(null);
     useEffect(() => {
       if (closeBtnRef.current) closeBtnRef.current.focus();
     }, []);
+    if (!docOpen) return null;
     return (
       <div ref={docRef} onMouseDown={(e) => { if (e.target === docRef.current) setDocOpen(false); }} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="docs-title" className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl max-h-[80vh] overflow-auto" tabIndex={-1}>
@@ -187,8 +187,8 @@ export default function Admissions() {
             onClick={() => {
               const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
               try {
-                const w = window.screen.width || screen.width;
-                const h = window.screen.height || screen.height;
+                const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
+                const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
                 const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
                 const newWin = window.open(LOGIN_URL, '_blank', features);
                 if (newWin) newWin.focus(); else window.open(LOGIN_URL, '_blank');

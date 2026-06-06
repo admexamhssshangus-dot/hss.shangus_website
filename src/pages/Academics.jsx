@@ -102,8 +102,7 @@ export default function Academics() {
     URL.revokeObjectURL(url);
   }
 
-  function CombinationsModal() {
-    if (!modalOpen) return null;
+    function CombinationsModal() {
     const overlayRef = useRef(null);
     const [entered, setEntered] = useState(false);
 
@@ -115,6 +114,8 @@ export default function Academics() {
       setEntered(true);
       return () => document.removeEventListener('keydown', onKey);
     }, []);
+
+    if (!modalOpen) return null;
 
     return (
       <div ref={overlayRef} onMouseDown={(e) => { if (e.target === overlayRef.current) setModalOpen(false); }} className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-3">
