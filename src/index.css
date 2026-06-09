@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Playfair+Display:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Cinzel:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,6 +7,8 @@
 :root {
 	--font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 	--font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+	--font-slogan: 'Outfit', sans-serif;
+	--font-title: 'Cinzel', serif;
 }
 
 @layer base {
@@ -20,4 +22,367 @@
 		letter-spacing: -0.01em;
 	}
 	.font-heading { font-family: var(--font-serif); }
+}
+
+@layer utilities {
+	.font-slogan {
+		font-family: var(--font-slogan);
+	}
+	.font-title {
+		font-family: var(--font-title);
+	}
+}
+
+/* Theme Custom Variables */
+:root {
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --border-ui: #e2e8f0;
+  --teal-accent: #0d9488;
+  --navbar-bg: #1e293b;
+}
+
+/* Dark Mode Overrides */
+.theme-dark {
+  --bg-page: #0f172a;
+  --bg-card: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-ui: #334155;
+  --teal-accent: #2dd4bf;
+  --navbar-bg: #0f172a;
+}
+
+/* Royal Navy & Gold Overrides */
+.theme-royal {
+  --bg-page: #0a1128;
+  --bg-card: #101f42;
+  --text-main: #f8fafc;
+  --text-muted: #8da9c4;
+  --border-ui: #23345c;
+  --teal-accent: #d4af37;
+  --navbar-bg: #0a1128;
+}
+
+/* Forest Green Overrides */
+.theme-forest {
+  --bg-page: #081c15;
+  --bg-card: #1b4332;
+  --text-main: #f5fbf8;
+  --text-muted: #95d5b2;
+  --border-ui: #2d6a4f;
+  --teal-accent: #52b788;
+  --navbar-bg: #081c15;
+}
+
+/* Apply CSS variable classes globally when a custom theme is active */
+.theme-dark, .theme-royal, .theme-forest {
+  background-color: var(--bg-page);
+  color: var(--text-main);
+}
+
+.theme-dark body, .theme-royal body, .theme-forest body {
+  background-color: var(--bg-page);
+  color: var(--text-main);
+}
+
+.theme-dark main, .theme-royal main, .theme-forest main {
+  background-color: var(--bg-page) !important;
+}
+
+/* Modal and card overrides */
+.theme-dark .bg-white,
+.theme-royal .bg-white,
+.theme-forest .bg-white {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+.theme-dark .bg-slate-50,
+.theme-royal .bg-slate-50,
+.theme-forest .bg-slate-50 {
+  background-color: var(--bg-page) !important;
+}
+
+.theme-dark .bg-slate-100,
+.theme-royal .bg-slate-100,
+.theme-forest .bg-slate-100 {
+  background-color: var(--bg-page) !important;
+}
+
+/* Text color overrides */
+.theme-dark .text-slate-900, .theme-dark .text-slate-800, .theme-dark .text-slate-700,
+.theme-royal .text-slate-900, .theme-royal .text-slate-800, .theme-royal .text-slate-700,
+.theme-forest .text-slate-900, .theme-forest .text-slate-800, .theme-forest .text-slate-700 {
+  color: var(--text-main) !important;
+}
+
+.theme-dark .text-slate-600, .theme-dark .text-slate-500,
+.theme-royal .text-slate-600, .theme-royal .text-slate-500,
+.theme-forest .text-slate-600, .theme-forest .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Border overrides */
+.theme-dark .border-slate-200, .theme-dark .border-slate-100,
+.theme-royal .border-slate-200, .theme-royal .border-slate-100,
+.theme-forest .border-slate-200, .theme-forest .border-slate-100 {
+  border-color: var(--border-ui) !important;
+}
+
+.theme-dark .border-teal-100,
+.theme-royal .border-teal-100,
+.theme-forest .border-teal-100 {
+  border-color: var(--border-ui) !important;
+}
+
+/* Navbar active background overrides */
+.theme-dark .bg-slate-800,
+.theme-royal .bg-slate-800,
+.theme-forest .bg-slate-800 {
+  background-color: var(--navbar-bg) !important;
+}
+
+/* Link active background overrides */
+.theme-dark .bg-slate-900,
+.theme-royal .bg-slate-900,
+.theme-forest .bg-slate-900 {
+  background-color: var(--bg-page) !important;
+}
+
+/* Accent teal colors */
+.theme-dark .text-teal-800, .theme-dark .text-teal-700, .theme-dark .text-teal-600, .theme-dark .text-teal-500,
+.theme-royal .text-teal-800, .theme-royal .text-teal-700, .theme-royal .text-teal-600, .theme-royal .text-teal-500,
+.theme-forest .text-teal-800, .theme-forest .text-teal-700, .theme-forest .text-teal-600, .theme-forest .text-teal-500 {
+  color: var(--teal-accent) !important;
+}
+
+.theme-dark .bg-teal-800, .theme-dark .bg-teal-700, .theme-dark .bg-teal-600, .theme-dark .bg-teal-500,
+.theme-royal .bg-teal-800, .theme-royal .bg-teal-700, .theme-royal .bg-teal-600, .theme-royal .bg-teal-500,
+.theme-forest .bg-teal-800, .theme-forest .bg-teal-700, .theme-forest .bg-teal-600, .theme-forest .bg-teal-500 {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+/* Input and form control overrides */
+.theme-dark input, .theme-dark textarea, .theme-dark select,
+.theme-royal input, .theme-royal textarea, .theme-royal select,
+.theme-forest input, .theme-forest textarea, .theme-forest select {
+  background-color: var(--bg-page) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-ui) !important;
+}
+
+/* Custom Primary Button styling for perfect theme integration */
+.btn-primary-custom {
+  background-color: #0f766e; /* teal-700 */
+  color: #ffffff !important;
+  transition: all 0.2s ease;
+}
+
+.btn-primary-custom:hover {
+  background-color: #961c14 !important; /* school brand red */
+  color: #ffffff !important;
+}
+
+.theme-dark .btn-primary-custom,
+.theme-royal .btn-primary-custom,
+.theme-forest .btn-primary-custom {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+.theme-dark .btn-primary-custom:hover,
+.theme-royal .btn-primary-custom:hover,
+.theme-forest .btn-primary-custom:hover {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Custom Secondary Button (Learn More) styling for perfect contrast */
+.btn-secondary-custom {
+  background-color: #0f172a;
+  color: #ffffff !important;
+  border: 1px solid #334155 !important;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary-custom:hover {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.theme-dark .btn-secondary-custom,
+.theme-royal .btn-secondary-custom,
+.theme-forest .btn-secondary-custom {
+  background-color: transparent !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-ui) !important;
+}
+
+.theme-dark .btn-secondary-custom:hover,
+.theme-royal .btn-secondary-custom:hover,
+.theme-forest .btn-secondary-custom:hover {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+  border-color: var(--teal-accent) !important;
+}
+
+/* Navbar active and hover border line overrides */
+.theme-dark .border-orange-500, .theme-dark .hover\:border-orange-400:hover,
+.theme-royal .border-orange-500, .theme-royal .hover\:border-orange-400:hover,
+.theme-forest .border-orange-500, .theme-forest .hover\:border-orange-400:hover {
+  border-color: var(--teal-accent) !important;
+}
+
+/* Header and Footer links hover override */
+.theme-dark footer a:hover, .theme-dark footer button:hover, .theme-dark header a:hover,
+.theme-royal footer a:hover, .theme-royal footer button:hover, .theme-royal header a:hover,
+.theme-forest footer a:hover, .theme-forest footer button:hover, .theme-forest header a:hover {
+  color: var(--teal-accent) !important;
+}
+
+/* Disable page gradients in custom themes */
+.theme-dark .bg-gradient-to-b,
+.theme-royal .bg-gradient-to-b,
+.theme-forest .bg-gradient-to-b {
+  background-image: none !important;
+  background-color: var(--bg-page) !important;
+}
+
+/* Stepper step circular badges override in custom themes */
+.theme-dark .from-teal-600, .theme-dark .to-teal-500,
+.theme-royal .from-teal-600, .theme-royal .to-teal-500,
+.theme-forest .from-teal-600, .theme-forest .to-teal-500 {
+  background-image: none !important;
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+/* Badge rings override in custom themes */
+.theme-dark .ring-teal-200, .theme-dark .ring-orange-100,
+.theme-royal .ring-teal-200, .theme-royal .ring-orange-100,
+.theme-forest .ring-teal-200, .theme-forest .ring-orange-100 {
+  box-shadow: 0 0 0 2px var(--border-ui) !important;
+}
+
+/* Active tab styles for Academics page in custom themes */
+.theme-dark .bg-teal-600, .theme-dark .bg-amber-600, .theme-dark .bg-violet-600,
+.theme-royal .bg-teal-600, .theme-royal .bg-amber-600, .theme-royal .bg-violet-600,
+.theme-forest .bg-teal-600, .theme-forest .bg-amber-600, .theme-forest .bg-violet-600 {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+/* Modal mini button overrides for Academics modal */
+.theme-dark .bg-slate-100:hover, .theme-dark .bg-slate-50:hover,
+.theme-royal .bg-slate-100:hover, .theme-royal .bg-slate-50:hover,
+.theme-forest .bg-slate-100:hover, .theme-forest .bg-slate-50:hover {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+/* Table header overrides for Admissions page */
+.theme-dark .bg-slate-900,
+.theme-royal .bg-slate-900,
+.theme-forest .bg-slate-900 {
+  background-color: var(--bg-page) !important;
+}
+
+.theme-dark .bg-orange-500,
+.theme-royal .bg-orange-500,
+.theme-forest .bg-orange-500 {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+.theme-dark .bg-blue-500,
+.theme-royal .bg-blue-500,
+.theme-forest .bg-blue-500 {
+  background-color: var(--border-ui) !important;
+  color: var(--text-main) !important;
+}
+
+/* Fallback success alert overrides for custom themes */
+.theme-dark .bg-emerald-50,
+.theme-royal .bg-emerald-50,
+.theme-forest .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+.theme-dark .text-emerald-900, .theme-dark .text-emerald-700,
+.theme-royal .text-emerald-900, .theme-royal .text-emerald-700,
+.theme-forest .text-emerald-900, .theme-forest .text-emerald-700 {
+  color: var(--teal-accent) !important;
+}
+
+/* Hero Section Premium Theme-Aware Buttons */
+.btn-hero-primary {
+  background-color: #0f766e !important; /* teal-700 */
+  color: #ffffff !important;
+  border: 1px solid #0f766e !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-hero-primary:hover {
+  background-color: #961c14 !important; /* school brand red */
+  border-color: #961c14 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(150, 28, 20, 0.45) !important;
+}
+
+.btn-hero-secondary {
+  background-color: rgba(15, 23, 42, 0.75) !important; /* dark slate semi-transparent */
+  color: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-hero-secondary:hover {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #ffffff !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Custom Theme Overrides for Hero Buttons */
+.theme-dark .btn-hero-primary,
+.theme-royal .btn-hero-primary,
+.theme-forest .btn-hero-primary {
+  background-color: var(--teal-accent) !important;
+  color: var(--bg-page) !important;
+  border-color: var(--teal-accent) !important;
+}
+
+.theme-dark .btn-hero-primary:hover,
+.theme-royal .btn-hero-primary:hover,
+.theme-forest .btn-hero-primary:hover {
+  background-color: var(--text-main) !important;
+  color: var(--bg-page) !important;
+  border-color: var(--text-main) !important;
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.18) !important;
+}
+
+.theme-dark .btn-hero-secondary,
+.theme-royal .btn-hero-secondary,
+.theme-forest .btn-hero-secondary {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-main) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.theme-dark .btn-hero-secondary:hover,
+.theme-royal .btn-hero-secondary:hover,
+.theme-forest .btn-hero-secondary:hover {
+  background-color: var(--teal-accent) !important;
+  color: var(--bg-page) !important;
+  border-color: var(--teal-accent) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
 }

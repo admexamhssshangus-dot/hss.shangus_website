@@ -37,6 +37,7 @@ export default function Academics() {
   function showCombinations(stream, levelLabel) {
     let groupA = [];
     let groupB = [];
+    // Group C varies by stream: exclude Environmental Science and Physical Education for secondary (9th & 10th)
     let groupC = ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'];
 
     if (stream === 'science') {
@@ -52,7 +53,9 @@ export default function Academics() {
 
     const base = [...groupA];
     const need = Math.max(0, 5 - base.length);
-    const options = [...groupB, ...groupC];
+    // For secondary (9th & 10th) exclude some Group C subjects
+    const effectiveGroupC = stream === 'secondary' ? ['Healthcare', 'IT and ITES'] : groupC;
+    const options = [...groupB, ...effectiveGroupC];
     const chosen = combine(options, need);
     // enforce selection rules:
     // - humanities: require exactly 3 from groupB and 1 from groupC
@@ -217,14 +220,14 @@ export default function Academics() {
                 <div className="text-xs uppercase text-slate-500 font-semibold mb-2">Group C (Options)</div>
                 <div className="bg-white p-2 rounded border border-slate-100">
                   <ul className="space-y-2">
-                    {['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'].map(s => (
+                    {(activeTab === 'secondary' ? ['Healthcare', 'IT and ITES'] : ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES']).map(s => (
                       <li key={s} className="text-slate-700 text-sm flex items-start gap-2"><CheckCircle className="text-teal-500 mt-0.5 flex-shrink-0" size={14} />{s}</li>
                     ))}
                   </ul>
                 </div>
 
                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                  <button onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')} className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-teal-500 text-white px-3 py-2 rounded-lg font-semibold text-sm shadow">View List</button>
+                  <button onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')} className="w-full sm:w-auto btn-primary-custom px-3 py-2 rounded-lg font-semibold text-sm shadow transition-all duration-200">View List</button>
                   <div className="text-xs text-slate-500 mt-2 sm:mt-0">
                     {activeTab === 'science' && 'Compulsory (3). Choose 2 more: either both from Group B, or 1 from Group B and 1 from Group C (both from Group C not allowed).'}
                     {activeTab === 'humanities' && 'Compulsory (1). Choose 3 from Group B and 1 from Group C.'}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, Award, BookOpen, GraduationCap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -8,58 +8,95 @@ import Slideshow from '../components/Slideshow';
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
   const [count, setCount] = useState(0);
+  const elementRef = useRef(null);
 
   useEffect(() => {
-    let startTime = null;
-    const duration = 2000; // 2 seconds animation duration
+    const el = elementRef.current;
+    if (!el) return;
 
-    const animate = (timestamp) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      
-      // Smooth ease-out animation formula
-      const easeOut = 1 - Math.pow(1 - progress, 4);
-      
-      setCount(Math.floor(easeOut * end));
+    let animationFrameId = null;
 
-      if (progress < 1) {
-        window.requestAnimationFrame(animate);
-      }
+    const startAnimation = () => {
+      let startTime = null;
+      const duration = 2000; // 2 seconds animation duration
+
+      const animate = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const progress = Math.min((timestamp - startTime) / duration, 1);
+        
+        // Smooth ease-out animation formula
+        const easeOut = 1 - Math.pow(1 - progress, 4);
+        
+        setCount(Math.floor(easeOut * end));
+
+        if (progress < 1) {
+          animationFrameId = window.requestAnimationFrame(animate);
+        }
+      };
+
+      animationFrameId = window.requestAnimationFrame(animate);
     };
 
-    window.requestAnimationFrame(animate);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          // Reset count and start animation when it enters viewport
+          setCount(0);
+          if (animationFrameId) {
+            window.cancelAnimationFrame(animationFrameId);
+          }
+          startAnimation();
+        } else {
+          // Reset count when it goes out of view, so it animates again next time
+          setCount(0);
+          if (animationFrameId) {
+            window.cancelAnimationFrame(animationFrameId);
+          }
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(el);
+
+    return () => {
+      observer.unobserve(el);
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [end]);
 
-  return <span>{prefix}{count}{suffix}</span>;
+  return <span ref={elementRef}>{prefix}{count}{suffix}</span>;
 };
 
 export default function Home() {
   return (
     <div className="w-full">
       {/* Hero Section */}
-      <div className="relative h-[504px] sm:h-[591px] w-full bg-slate-900 flex items-center justify-center text-center">
+      <div 
+        className="relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden min-h-[380px]"
+        style={{ height: 'calc(100vh - var(--site-header-height, 120px))' }}
+      >
         
         {/* Background slideshow: using `public/slides/slides.txt` mapping file */}
         <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" interval={6000} />
         
         <div className="relative z-20 px-4">
           <h2
-            className="text-[26px] sm:text-[32px] md:text-[56px] font-bold text-white mb-4 sm:mb-6 italic tracking-wider leading-tight sm:leading-snug"
+            className="text-[24px] sm:text-[31px] md:text-[48px] font-semibold mb-4 sm:mb-6 italic tracking-wider leading-tight sm:leading-snug font-slogan"
+            style={{
+              color: '#961c14',
+              textShadow: '0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.85), 0 0 35px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
+            }}
           >
-            <span style={{
-              WebkitTextStroke: '0.5px rgba(0,0,0,0.35)',
-              textShadow: '0 2px 0 rgba(0,0,0,0.6), 0 8px 20px rgba(16,185,129,0.06)'
-            }}>nurturing minds, </span>
-            <span className="text-red-400" style={{
-              WebkitTextStroke: '0.7px rgba(0,0,0,0.6)',
-              textShadow: '0 2px 0 rgba(0,0,0,0.85), 0 6px 18px rgba(0,0,0,0.45), 0 0 18px rgba(239,68,68,0.9)'
-            }}>shaping futures</span>
+            nurturing minds, shaping futures
           </h2>
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-[6px] sm:space-y-0 sm:space-x-[6px]">
-            <Link to="/admissions" className="px-3 py-1.5 sm:px-5 sm:py-2 bg-teal-700 text-white font-bold rounded-md hover:bg-red-600 hover:text-white transition-colors shadow-lg inline-block text-[12px] sm:text-[14px]">
+            <Link to="/admissions" className="px-3 py-1.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[12px] sm:text-[14px] btn-hero-primary">
               Admissions Open 2026
             </Link>
-            <Link to="/about" className="px-[6px] py-[3px] sm:px-[10px] sm:py-[4px] bg-slate-900 text-white font-bold rounded-md hover:bg-white hover:text-black hover:border-slate-300 border border-slate-700 transition-colors shadow-lg inline-block text-[10px] sm:text-[12px]">
+            <Link to="/about" className="px-[10px] py-[5px] sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[12px] btn-hero-secondary">
               Learn More
             </Link>
           </div>
@@ -101,17 +138,17 @@ export default function Home() {
         {/* Principal Message & Stats */}
         <div className="col-span-1 md:col-span-2">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-800 border-l-4 border-teal-800 pl-4 mb-6">Principal's Message</h2>
+            <h2 className="text-2xl font-bold text-slate-800 md:border-l-4 md:border-teal-800 md:pl-4 mb-6">Principal's Message</h2>
             <div className="flex flex-col sm:flex-row bg-white p-6 rounded-lg shadow-lg border-2 border-teal-100 items-center">
-              <div className="w-32 h-32 flex-shrink-0 rounded-md overflow-hidden mx-auto mb-4 sm:mb-0 shadow-inner" style={{ border: '6px solid #0ea5a3' }}>
-                <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=256&q=80" alt="Principal" className="w-full h-full object-cover" />
+              <div className="w-32 h-32 flex-shrink-0 rounded-md overflow-hidden mx-auto mb-4 sm:mb-0 shadow-md" style={{ border: '2px solid #0ea5a3' }}>
+                <img src="/slides/Principal.jpg" alt="Principal Mr. Aijaz Ahmad Wagay" className="w-full h-full object-cover" />
               </div>
-              <div className="flex-1 border-l-2 border-teal-100 pl-4">
+              <div className="flex-1 lg:border-l-2 lg:border-teal-100 lg:pl-4 pl-0">
                 <div className="bg-white p-4 rounded shadow-sm border border-slate-100">
                   <p className="text-slate-700 italic text-sm leading-relaxed">
                     "Welcome to <strong className="text-slate-800">Govt HSS Shangus</strong>. Our mandate is to <strong>empower leaders</strong> defined by <strong>academic excellence and ethics</strong>. We offer a learning environment where <strong>cutting-edge resources</strong> in <strong>Science and Humanities</strong> meet <strong>value-based education</strong> — equipping you with the skills to thrive and the character to lead in a global society."
                   </p>
-                  <p className="text-right text-xs text-slate-500 mt-4">Mr. Principal Name<br/>Principal, HSS Shangus</p>
+                  <p className="text-right text-xs text-slate-500 mt-4">Mr. Aijaz Ahmad Wagay<br/>Principal, HSS Shangus</p>
                 </div>
               </div>
             </div>

@@ -99,7 +99,7 @@ export default function About() {
           <div className="bg-white rounded-xl shadow p-6 border border-slate-100">
             <h4 className="text-lg font-semibold mb-3">Get Involved</h4>
             <p className="text-sm text-slate-600 mb-4">Admissions are open — join a community that values academic rigour and character formation.</p>
-            <Link to="/admissions" className="inline-block bg-gradient-to-r from-teal-600 to-teal-500 text-white px-5 py-2 rounded-full font-semibold shadow">Apply Now</Link>
+            <Link to="/admissions" className="inline-block btn-primary-custom px-5 py-2 rounded-full font-semibold shadow transition-all duration-200">Apply Now</Link>
           </div>
         </div>
       </div>

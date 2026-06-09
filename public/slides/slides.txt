@@ -2,3 +2,4 @@
 2.jpg,Morning Assembly1, The heartbeat of the school
 3.jpg,Excursion,Beyond the Classroom walls
 4.jpg,Morning Assembly2, Setting the day's intentions
+5.jpg,Industrial Visit, The classroom in motion

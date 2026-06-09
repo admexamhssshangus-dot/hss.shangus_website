@@ -14,6 +14,19 @@ export default function Admissions() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
+  function openLoginWindow() {
+    const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
+    try {
+      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
+      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
+      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
+      const newWin = window.open(LOGIN_URL, '_blank', features);
+      if (newWin) newWin.focus(); else window.open(LOGIN_URL, '_blank');
+    } catch (e) {
+      window.open(LOGIN_URL, '_blank');
+    }
+  }
+
   function DocumentsModal() {
     const closeBtnRef = useRef(null);
     useEffect(() => {
@@ -37,7 +50,7 @@ export default function Admissions() {
             </div>
           </div>
           <div className="mt-4 text-right">
-            <button ref={closeBtnRef} onClick={() => setDocOpen(false)} className="px-4 py-2 bg-teal-600 text-white rounded-md">Close</button>
+            <button ref={closeBtnRef} onClick={() => setDocOpen(false)} className="px-4 py-2 btn-primary-custom rounded-md text-sm font-semibold shadow transition-all duration-200">Close</button>
           </div>
         </div>
       </div>
@@ -71,8 +84,13 @@ export default function Admissions() {
                 </div>
                 <h4 className="font-bold text-slate-800 mb-1 text-sm">{item.title}</h4>
                 <p className="text-[13px] text-slate-500 leading-relaxed px-1">{item.desc}</p>
+                {item.step === 1 && (
+                  <div className="mt-2">
+                    <button onClick={openLoginWindow} className="btn-primary-custom px-4 py-1.5 rounded-full text-sm font-semibold shadow transition-all duration-200">Register to Apply Online</button>
+                  </div>
+                )}
                 {item.step === 2 && (
-                  <button onClick={() => setDocOpen(true)} aria-expanded={docOpen} aria-controls="docs-title" className="mt-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-5 py-2 rounded-full text-sm font-semibold shadow-lg ring-1 ring-orange-100">Documents Required</button>
+                  <button onClick={() => setDocOpen(true)} aria-expanded={docOpen} aria-controls="docs-title" className="btn-secondary-custom px-4 py-1.5 rounded-full text-sm font-semibold shadow transition-all duration-200">Documents Required</button>
                 )}
             </div>
           ))}
@@ -149,16 +167,19 @@ export default function Admissions() {
             {/* Mobile stacked cards (visible < sm) */}
             <div className="sm:hidden">
               <h4 className="text-lg font-semibold text-slate-700 mb-3">Subject Combinations</h4>
-              {[{
-                cls: '11th', vals: ['Science Boys: Rs. 1900', 'Science Girls: Rs. 1700', 'Humanities Boys: Rs. 1800', 'Humanities Girls: Rs. 1600']
-              },{
-                cls: '12th', vals: ['Science Boys: Rs. 1650', 'Science Girls: Rs. 1650', 'Humanities Boys: Rs. 1550', 'Humanities Girls: Rs. 1550']
-              }].map(row => (
-                <div key={row.cls} className="bg-white p-3 rounded-lg mb-3 border border-slate-100">
-                  <div className="font-bold text-slate-800 mb-2">{row.cls}</div>
-                  <ul className="text-sm text-slate-600 space-y-1">
-                    {row.vals.map(v => <li key={v}>• {v}</li>)}
-                  </ul>
+              {[
+                { label: '11th Science (Boys)', fee: 'Rs. 1900' },
+                { label: '11th Science (Girls)', fee: 'Rs. 1700' },
+                { label: '11th Humanities (Boys)', fee: 'Rs. 1800' },
+                { label: '11th Humanities (Girls)', fee: 'Rs. 1600' },
+                { label: '12th Science (Boys)', fee: 'Rs. 1650' },
+                { label: '12th Science (Girls)', fee: 'Rs. 1650' },
+                { label: '12th Humanities (Boys)', fee: 'Rs. 1550' },
+                { label: '12th Humanities (Girls)', fee: 'Rs. 1550' }
+              ].map(r => (
+                <div key={r.label} className="bg-white p-3 rounded-lg mb-3 border border-slate-100 flex justify-between items-center">
+                  <div className="font-bold text-slate-800">{r.label}</div>
+                  <div className="text-slate-600">{r.fee}</div>
                 </div>
               ))}
             </div>
@@ -175,32 +196,12 @@ export default function Admissions() {
           </div>
 
           <div className="text-center">
-            <Link to="/academics" className="inline-block mt-6 -mb-6 relative z-20 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white px-8 py-3 rounded-full font-semibold transition-colors shadow-xl text-sm">
+            <Link to="/academics" className="inline-block mt-5 -mb-4 relative z-20 btn-primary-custom px-6 py-2 rounded-full font-semibold shadow text-sm transition-all duration-200">
               View Subject Combinations
             </Link>
           </div>
         </div>
-
-        {/* Final CTA */}
-          <div className="text-center pb-8">
-          <button
-            onClick={() => {
-              const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
-              try {
-                const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
-                const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
-                const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
-                const newWin = window.open(LOGIN_URL, '_blank', features);
-                if (newWin) newWin.focus(); else window.open(LOGIN_URL, '_blank');
-              } catch (e) {
-                window.open('https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec', '_blank');
-              }
-            }}
-            className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white text-sm px-5 py-2 rounded-full font-bold transition-colors shadow-md"
-          >
-            Register to Apply Online
-          </button>
-        </div>
+          {/* Final CTA removed — button moved to step 1 above */}
 
       </div>
     </div>

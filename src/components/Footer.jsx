@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, X, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+// Smart email link handler (opens Gmail web on desktop, uses mailto on mobile)
+function handleEmailClick(e, email, subject = '', body = '') {
+  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile) {
+    e.preventDefault();
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}${subject ? `&su=${encodeURIComponent(subject)}` : ''}${body ? `&body=${encodeURIComponent(body)}` : ''}`;
+    window.open(gmailUrl, '_blank');
+  }
+}
+
 export default function Footer() {
   // This state controls which popup is open ('privacy', 'terms', or null for closed)
   const [activeModal, setActiveModal] = useState(null);
@@ -16,7 +26,7 @@ export default function Footer() {
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
             <div className="flex items-center mb-4">
               <BookOpen className="text-teal-500 mr-2" size={24} />
-              <h4 className="text-white font-bold text-lg tracking-wide">Govt HSS Shangus</h4>
+              <h4 className="text-white font-bold text-lg tracking-wide font-title">Govt. H.S.S. Shangus</h4>
             </div>
             <p className="text-sm text-slate-500 leading-relaxed max-w-xl">
               Since 1971, Govt HSS Shangus provides Science, Humanities and Secondary education with experienced faculty, well-equipped labs, a library and active sports programs.
@@ -28,10 +38,10 @@ export default function Footer() {
           <div className="text-center">
             <h4 className="text-white font-bold mb-4">Quick Links</h4>
             <ul className="space-y-2 text-sm flex flex-col">
-              <Link to="/" className="hover:text-teal-400 transition-colors">Home</Link>
-              <Link to="/about" className="hover:text-teal-400 transition-colors">About Us</Link>
-              <Link to="/academics" className="hover:text-teal-400 transition-colors">Academics</Link>
-              <Link to="/admissions" className="hover:text-teal-400 transition-colors">Admissions</Link>
+              <Link to="/" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Home</Link>
+              <Link to="/about" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">About Us</Link>
+              <Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Academics</Link>
+              <Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Admissions</Link>
             </ul>
           </div>
 
@@ -43,7 +53,7 @@ export default function Footer() {
               <button
                 onClick={() => setActiveModal('contactForm')}
                 aria-label="Open contact form"
-                className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white rounded-md px-3 py-1 text-xs font-bold shadow-md flex items-center justify-center"
+                className="btn-primary-custom rounded-md px-3 py-1 text-xs font-bold shadow-md flex items-center justify-center transition-all duration-200"
                 style={{ boxShadow: '0 6px 18px rgba(16,185,129,0.12)' }}
               >
                 <Mail size={14} />
@@ -92,9 +102,10 @@ export default function Footer() {
 
         {/* Bottom Bar - Centered with Top Horizontal Line, White Text & Interactive Email Link */}
         <div className="max-w-7xl mx-auto px-4 pt-5 border-t border-slate-700 flex flex-col items-center justify-center text-center text-xs text-white">
-          <p className="mb-1">© 2025 Govt HSS Shangus | Developed by NexLifTech</p>
-          <a 
-            href="mailto:sheikhgulfam91@gmail.com" 
+          <p className="mb-1">© 2023 Govt HSS Shangus | Developed by NexLifTech</p>
+          <a
+            href="mailto:sheikhgulfam91@gmail.com"
+            onClick={(e) => handleEmailClick(e, 'sheikhgulfam91@gmail.com')}
             className="transition-colors hover:text-teal-400 focus:outline-none"
           >
             (sheikhgulfam91@gmail.com)
@@ -105,10 +116,16 @@ export default function Footer() {
       {/* --- MODAL POPUPS --- */}
       {/* If activeModal is NOT null, draw this dark background overlay */}
       {activeModal && (
-      <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-3">
+      <div 
+        className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-3"
+        onClick={() => setActiveModal(null)}
+      >
           
           {/* The white popup box */}
-          <div className="bg-white text-slate-800 rounded-lg shadow-2xl max-w-xl w-full p-3 md:p-5 relative animate-in fade-in zoom-in duration-200 max-h-[85vh] overflow-auto">
+          <div 
+            className="bg-white text-slate-800 rounded-lg shadow-2xl max-w-xl w-full p-3 md:p-5 relative animate-in fade-in zoom-in duration-200 max-h-[85vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             
             {/* Close Button */}
             <button
@@ -166,6 +183,7 @@ function ContactForm({ onClose }) {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [backendAvailable, setBackendAvailable] = useState(null);
+  const [showFallback, setShowFallback] = useState(false);
 
   const subjects = [
     'Admissions',
@@ -223,7 +241,7 @@ function ContactForm({ onClose }) {
       // ignore localStorage errors
     }
 
-    // Try sending to backend; if it fails, fall back to mailto
+    // Try sending to backend; if it fails, fall back to fallback choice modal state
     fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -233,10 +251,80 @@ function ContactForm({ onClose }) {
       alert('Message sent successfully.');
       onClose();
     }).catch(() => {
-      // fallback: open mail client
-      window.location.href = `mailto:${to}?subject=${mailSubject}&body=${body}`;
-      onClose();
+      setShowFallback(true);
     });
+  }
+
+  if (showFallback) {
+    const to = 'adm.exam.hss.shangus@gmail.com';
+    const mailSubject = encodeURIComponent(`${subject} - Website Contact`);
+    const body = encodeURIComponent(
+      `Name: ${name}\nPhone: ${phone}\nEmail: ${email || 'N/A'}\n\nMessage:\n${message}`
+    );
+    const wsBody = encodeURIComponent(
+      `*Website Inquiry*\n*Name:* ${name}\n*Phone:* ${phone}\n*Email:* ${email || 'N/A'}\n*Subject:* ${subject}\n\n*Message:*\n${message}`
+    );
+
+    return (
+      <div className="space-y-6 text-slate-700 py-2">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-start gap-3">
+          <div className="bg-emerald-500 text-white rounded-full p-1 mt-0.5 flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="font-bold text-emerald-900 text-[15px]">Logged to Admin Messages Panel</h4>
+            <p className="text-xs text-emerald-700 mt-1">
+              Your inquiry has been successfully logged on this system's Admin Messages board.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 font-medium">
+            Since the database server is currently offline, please choose a method below to deliver your message to the <strong>Admissions & Exams</strong> department:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <a
+              href={`https://wa.me/917006034501?text=${wsBody}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="bg-[#25D366] text-white hover:bg-[#20ba5a] font-bold px-4 py-3.5 rounded-lg flex items-center justify-center gap-2.5 w-full transition-all shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-center text-sm"
+            >
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z"/>
+              </svg>
+              WhatsApp
+            </a>
+
+            <a
+              href={`mailto:${to}?subject=${mailSubject}&body=${body}`}
+              onClick={(e) => {
+                handleEmailClick(e, to, subject + ' - Website Contact', `Name: ${name}\nPhone: ${phone}\nEmail: ${email || 'N/A'}\n\nMessage:\n${message}`);
+                onClose();
+              }}
+              className="bg-[#ea4335] text-white hover:bg-[#d93025] font-bold px-4 py-3.5 rounded-lg flex items-center justify-center gap-2.5 w-full transition-all shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-center text-sm"
+            >
+              <Mail size={18} />
+              Email App
+            </a>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-200 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold rounded-md transition-all text-sm"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -274,7 +362,7 @@ function ContactForm({ onClose }) {
         <p className="text-xs text-slate-400 italic mt-2">When you click "Send Message", your mail client will open with the message prefilled; click Send in the mail app to deliver it to adm.exam.hss.shangus@gmail.com.</p>
       )}
       <div className="flex items-center gap-3">
-        <button type="submit" className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white font-bold px-4 py-2 rounded w-full shadow-md">
+        <button type="submit" className="btn-primary-custom font-bold px-4 py-2 rounded w-full shadow-md transition-all duration-200">
           Send Message
         </button>
         <button type="button" onClick={onClose} className="px-4 py-2 border rounded w-32">
