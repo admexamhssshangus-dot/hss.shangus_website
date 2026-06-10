@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Mr. Aijaz Ahmad Wagay",
+    "designation": "Principal",
+    "subject": "Education",
+    "email": "ghssshangus74@gmail.com",
+    "mobile": "+91-7006034501",
+    "photo": "/slides/Principal.jpg",
+    "department": "Administration"
+  },
+  {
+    "name": "Dr. Tariq Ahmad",
+    "designation": "Lecturer",
+    "subject": "Physics",
+    "email": "tariq.physics@gmail.com",
+    "mobile": "+91-7006123456",
+    "photo": "",
+    "department": "Science"
+  },
+  {
+    "name": "Mrs. Shazia Kouser",
+    "designation": "Lecturer",
+    "subject": "Chemistry",
+    "email": "shazia.chem@gmail.com",
+    "mobile": "+91-7006234567",
+    "photo": "",
+    "department": "Science"
+  },
+  {
+    "name": "Mr. Mohammad Yousuf",
+    "designation": "Lecturer",
+    "subject": "Economics",
+    "email": "yousuf.econ@gmail.com",
+    "mobile": "+91-7006345678",
+    "photo": "",
+    "department": "Humanities"
+  },
+  {
+    "name": "Mrs. Rukhsana Akhtar",
+    "designation": "Lecturer",
+    "subject": "English",
+    "email": "rukhsana.eng@gmail.com",
+    "mobile": "+91-7006456789",
+    "photo": "",
+    "department": "Humanities"
+  },
+  {
+    "name": "Mr. Fayaz Ahmad",
+    "designation": "Teacher",
+    "subject": "Information Technology",
+    "email": "fayaz.it@gmail.com",
+    "mobile": "+91-7006567890",
+    "photo": "",
+    "department": "Secondary"
+  }
+]

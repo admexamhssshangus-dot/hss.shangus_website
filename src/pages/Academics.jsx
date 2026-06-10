@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Phone, Mail, User } from 'lucide-react';
 import SEO from '../components/SEO';
+
+// WhatsApp SVG Icon component
+function WhatsAppIcon({ size = 14, className = '' }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z" />
+    </svg>
+  );
+}
 
 export default function Academics() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -9,6 +24,86 @@ export default function Academics() {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('science');
   const [tabAnimating, setTabAnimating] = useState(false);
+  const [faculty, setFaculty] = useState([]);
+  const [selectedDept, setSelectedDept] = useState('All');
+
+  useEffect(() => {
+    let active = true;
+    async function loadFaculty() {
+      try {
+        const res = await fetch('/slides/faculty.json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error('Faculty config file not found');
+        const data = await res.json();
+        if (active) setFaculty(data);
+      } catch (err) {
+        console.error('Failed to load faculty config:', err);
+        if (active) {
+          setFaculty([
+            {
+              "name": "Mr. Aijaz Ahmad Wagay",
+              "designation": "Principal",
+              "subject": "Education",
+              "email": "ghssshangus74@gmail.com",
+              "mobile": "+91-7006034501",
+              "photo": "/slides/Principal.jpg",
+              "department": "Administration"
+            },
+            {
+              "name": "Dr. Tariq Ahmad",
+              "designation": "Lecturer",
+              "subject": "Physics",
+              "email": "tariq.physics@gmail.com",
+              "mobile": "+91-7006123456",
+              "photo": "",
+              "department": "Science"
+            },
+            {
+              "name": "Mrs. Shazia Kouser",
+              "designation": "Lecturer",
+              "subject": "Chemistry",
+              "email": "shazia.chem@gmail.com",
+              "mobile": "+91-7006234567",
+              "photo": "",
+              "department": "Science"
+            },
+            {
+              "name": "Mr. Mohammad Yousuf",
+              "designation": "Lecturer",
+              "subject": "Economics",
+              "email": "yousuf.econ@gmail.com",
+              "mobile": "+91-7006345678",
+              "photo": "",
+              "department": "Humanities"
+            },
+            {
+              "name": "Mrs. Rukhsana Akhtar",
+              "designation": "Lecturer",
+              "subject": "English",
+              "email": "rukhsana.eng@gmail.com",
+              "mobile": "+91-7006456789",
+              "photo": "",
+              "department": "Humanities"
+            },
+            {
+              "name": "Mr. Fayaz Ahmad",
+              "designation": "Teacher",
+              "subject": "Information Technology",
+              "email": "fayaz.it@gmail.com",
+              "mobile": "+91-7006567890",
+              "photo": "",
+              "department": "Secondary"
+            }
+          ]);
+        }
+      }
+    }
+    loadFaculty();
+    return () => { active = false; };
+  }, []);
+
+  const filteredFaculty = selectedDept === 'All'
+    ? faculty
+    : faculty.filter(f => f.department.toLowerCase() === selectedDept.toLowerCase());
 
   function switchTab(tab) {
     if (tab === activeTab) return;
@@ -240,6 +335,71 @@ export default function Academics() {
             </div>
           </div>
         </div>
+
+        {/* Faculty & Staff Directory Section */}
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+            <div>
+              <h3 className="text-xl font-bold text-teal-800 font-heading">Our Distinguished Faculty</h3>
+              <p className="text-sm text-slate-500 mt-1">Meet our dedicated lecturers, educators, and department heads.</p>
+            </div>
+            {/* Filter controls */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0">
+              {['All', 'Science', 'Humanities', 'Secondary', 'Administration'].map((dept) => (
+                <button
+                  key={dept}
+                  onClick={() => setSelectedDept(dept)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 ${selectedDept === dept ? 'bg-teal-800 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                >
+                  {dept}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredFaculty.map((member, idx) => (
+              <div key={idx} className="bg-slate-50 rounded-xl border border-slate-200 p-5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
+                {/* Background accent line on hover */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-transparent group-hover:bg-teal-500 transition-colors" />
+
+                {/* Photo container */}
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 group-hover:border-teal-500 transition-colors shadow-sm mb-4 bg-white flex items-center justify-center">
+                  {member.photo ? (
+                    <img src={member.photo} alt={member.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={40} className="text-slate-400" />
+                  )}
+                </div>
+
+                {/* Details */}
+                <span className="text-[10px] uppercase font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full mb-2 border border-teal-100">{member.department}</span>
+                <h4 className="font-bold text-slate-800 text-base mb-1">{member.name}</h4>
+                <p className="text-xs text-slate-500 font-semibold mb-4">{member.designation} in {member.subject}</p>
+
+                {/* Actions */}
+                <div className="mt-auto w-full border-t border-slate-200 pt-3 flex items-center justify-center gap-4">
+                  {member.mobile && (
+                    <a href={`tel:${member.mobile}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
+                      <Phone size={14} />
+                    </a>
+                  )}
+                  {member.mobile && (
+                    <a href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow flex items-center justify-center transition-all" title="WhatsApp">
+                      <WhatsAppIcon size={14} />
+                    </a>
+                  )}
+                  {member.email && (
+                    <a href={`mailto:${member.email}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Email">
+                      <Mail size={14} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
