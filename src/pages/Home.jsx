@@ -89,10 +89,10 @@ export default function Home() {
             nurturing minds,<br className="sm:hidden" /> shaping futures
           </h2>
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-[6px] sm:space-y-0 sm:space-x-[6px]">
-            <Link to="/admissions" className="px-3 py-1.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[12px] sm:text-[14px] btn-hero-primary">
+            <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[12px] sm:text-[14px] btn-hero-primary">
               Admissions Open 2026
             </Link>
-            <Link to="/about" className="px-[10px] py-[5px] sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[12px] btn-hero-secondary">
+            <Link to="/about" className="px-1.5 py-0.5 sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[12px] btn-hero-secondary">
               Learn More
             </Link>
           </div>
