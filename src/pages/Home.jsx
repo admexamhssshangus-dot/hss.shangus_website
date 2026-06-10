@@ -80,7 +80,7 @@ export default function Home() {
         
         <div className="relative z-20 px-4">
           <h2
-            className="text-[24px] sm:text-[31px] md:text-[48px] font-semibold mb-4 sm:mb-6 italic tracking-wider leading-tight sm:leading-snug font-slogan"
+            className="text-[24px] sm:text-[31px] md:text-[48px] font-semibold mb-4 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
             style={{
               color: '#961c14',
               textShadow: '0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.85), 0 0 35px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
