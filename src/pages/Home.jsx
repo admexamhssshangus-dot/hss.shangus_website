@@ -73,11 +73,7 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
 export default function Home() {
   return (
     <div className="w-full">
-      {/* Hero Section */}
-      <div 
-        className="relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden min-h-[380px]"
-        style={{ height: 'calc(100vh - var(--site-header-height, 120px))' }}
-      >
+      <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden">
         
         {/* Background slideshow: using `public/slides/slides.txt` mapping file */}
         <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" interval={6000} />
@@ -90,7 +86,7 @@ export default function Home() {
               textShadow: '0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.85), 0 0 35px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
             }}
           >
-            nurturing minds, shaping futures
+            nurturing minds,<br className="sm:hidden" /> shaping futures
           </h2>
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-[6px] sm:space-y-0 sm:space-x-[6px]">
             <Link to="/admissions" className="px-3 py-1.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[12px] sm:text-[14px] btn-hero-primary">
@@ -160,7 +156,7 @@ export default function Home() {
               { icon: Users, end: 700, suffix: "+", label: "STUDENTS" },
               { icon: Award, end: 25, suffix: "+", label: "TEACHERS" },
               { icon: BookOpen, end: 22, suffix: "+", label: "SUBJECTS" },
-              { icon: GraduationCap, end: 90, prefix: ">", suffix: "%", label: "RESULT" }
+              { icon: GraduationCap, end: 90, suffix: "%+", label: "RESULT" }
             ].map((stat, i) => (
               <div key={i} className="bg-white p-6 rounded-lg shadow-sm border border-slate-100 text-center flex flex-col items-center justify-center">
                 <h4 className="text-3xl font-bold text-teal-700">

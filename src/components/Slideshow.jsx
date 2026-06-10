@@ -107,7 +107,7 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-3 absolute bottom-3 sm:bottom-8 pointer-events-auto z-40">
+        <div className="flex items-center gap-3 absolute bottom-3 right-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 pointer-events-auto z-40">
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
@@ -128,11 +128,15 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
       </div>
 
       {/* Left caption (matches screenshot) */}
-      <div className="hidden sm:block absolute left-6 right-6 sm:right-auto bottom-14 sm:bottom-6 text-left text-white z-30 pointer-events-none sm:max-w-[60%]">
-        <div className="bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm flex flex-wrap items-center gap-2 whitespace-normal overflow-visible w-full">
-          <h3 className="text-[11px] sm:text-sm font-bold text-teal-300 w-full sm:w-auto">{slides[index].title || 'School'}</h3>
-          <span className="text-[11px] sm:text-xs italic text-white/90 w-full sm:w-auto">{slides[index].caption || 'the beacon of knowledge'}</span>
-        </div>
+      <div className="absolute left-3 right-auto bottom-3 sm:bottom-6 sm:left-6 text-left text-white z-30 pointer-events-none max-w-[calc(100%-92px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
+        {slides[index].title && (
+          <h3 className="text-[11px] sm:text-sm font-bold text-teal-300 leading-none m-0 p-0 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.85)] pl-0.5">{slides[index].title}</h3>
+        )}
+        {slides[index].caption && (
+          <div className="-skew-x-12 bg-black/45 px-1 py-[1.5px] sm:px-2 sm:py-0.5 rounded-sm backdrop-blur-sm">
+            <span className="skew-x-12 block text-[11px] sm:text-xs italic text-white/90 leading-none m-0 p-0">{slides[index].caption}</span>
+          </div>
+        )}
       </div>
     </div>
   );

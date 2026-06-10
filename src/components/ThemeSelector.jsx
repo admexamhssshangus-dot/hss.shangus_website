@@ -36,7 +36,7 @@ export default function ThemeSelector() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-3 right-3 md:bottom-6 md:right-6 z-50 flex flex-col items-end">
       {/* Theme Options Card */}
       {isOpen && (
         <>
@@ -72,11 +72,11 @@ export default function ThemeSelector() {
       {/* Floating Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-12 h-12 bg-[#961c14] text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all focus:outline-none z-50"
+        className="w-10 h-10 md:w-12 md:h-12 bg-[#961c14] text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all focus:outline-none z-50"
         title="Change Theme"
         aria-label="Theme Selector"
       >
-        <Palette size={22} className={isOpen ? 'rotate-45 transition-transform' : 'transition-transform'} />
+        <Palette size={20} className={isOpen ? 'rotate-45 transition-transform' : 'transition-transform'} />
       </button>
     </div>
   );

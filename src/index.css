@@ -386,3 +386,23 @@
   border-color: var(--teal-accent) !important;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
 }
+
+/* Responsive Hero Slider Height */
+.hero-container {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 220px;
+}
+
+@media (min-width: 640px) {
+  .hero-container {
+    aspect-ratio: auto;
+    height: 380px;
+  }
+}
+
+@media (min-width: 768px) {
+  .hero-container {
+    height: calc(100vh - var(--site-header-height, 120px));
+  }
+}

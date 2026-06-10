@@ -19,7 +19,7 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="bg-slate-950 text-slate-300 pt-12 pb-6 mt-10">
+      <footer className="bg-slate-950 text-slate-300 pt-12 pb-16 md:pb-6 mt-10">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           
           {/* Brand */}
