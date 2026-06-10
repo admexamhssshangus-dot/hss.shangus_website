@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
+import SEO from '../components/SEO';
 
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
@@ -123,6 +124,7 @@ export default function Home() {
 
   return (
     <div className="w-full">
+      <SEO title="Home" description="Official website of Govt. Higher Secondary School Shangus. Explore latest notices, school admissions process, student/teacher ERP portals, and details from Principal." />
       <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden">
         
         {/* Background slideshow: using `public/slides/slides.txt` mapping file */}

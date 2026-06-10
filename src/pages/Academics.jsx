@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle } from 'lucide-react';
+import SEO from '../components/SEO';
 
 export default function Academics() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -146,6 +147,7 @@ export default function Academics() {
   // reduce whitespace above/below heading by ~40%: smaller paddings/margins
   return (
     <div className="w-full bg-gradient-to-b from-teal-50 to-white py-4 sm:py-6">
+      <SEO title="Academic Streams & Combinations" description="Explore the school departments, subjects, and curriculum choices for secondary and higher secondary levels at Govt. Higher Secondary School Shangus." />
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="hidden">
           <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">Subject Combinations & Streams</h2>

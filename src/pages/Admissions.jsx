@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function Admissions() {
   const [docOpen, setDocOpen] = useState(false);
@@ -59,6 +60,7 @@ export default function Admissions() {
 
   return (
     <div className="w-full bg-gradient-to-b from-teal-50 to-white py-6 sm:py-10">
+      <SEO title="Admissions 2026" description="Learn about the step-by-step admissions process at Govt. Higher Secondary School Shangus. Register online, check required documents, and explore our session fee structure." />
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
         {/* Header */}

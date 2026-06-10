@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users, BookOpen, Award, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function About() {
   // To use a local background image, add a file under `src/images` (eg. `about-bg.jpg`) and
@@ -11,6 +12,7 @@ export default function About() {
   const aboutBg = 'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1920&q=80';
   return (
     <div className="w-full mb-20">
+      <SEO title="About Us & Institution" description="Discover the history, vision, mission, and principal's message of Govt. Higher Secondary School Shangus in Anantnag. Meet our faculty and explore our campus legacy." />
       {/* Hero */}
       <div className="relative h-[304px] sm:h-[378px] w-full bg-slate-900 flex items-center justify-center text-center">
         <div 
