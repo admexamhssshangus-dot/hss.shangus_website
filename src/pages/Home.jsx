@@ -71,6 +71,56 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
 };
 
 export default function Home() {
+  const [notices, setNotices] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadNotices() {
+      try {
+        const res = await fetch('/slides/notices.txt', { cache: 'no-cache' });
+        if (!res.ok) throw new Error('Notices config file not found');
+        const text = await res.text();
+        
+        const parsed = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const firstComma = line.indexOf(',');
+            if (firstComma === -1) return null;
+            const date = line.substring(0, firstComma).trim();
+            const rest = line.substring(firstComma + 1);
+            
+            const secondComma = rest.indexOf(',');
+            if (secondComma === -1) {
+              return { date, title: rest.trim(), link: '#' };
+            }
+            const title = rest.substring(0, secondComma).trim();
+            const link = rest.substring(secondComma + 1).trim();
+            return { date, title, link };
+          })
+          .filter(Boolean);
+          
+        if (active) {
+          setNotices(parsed);
+        }
+      } catch (err) {
+        console.error('Failed to load notices configuration:', err);
+        if (active) {
+          setNotices([
+            { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
+            { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
+            { date: 'Nov 23', title: 'Admit Cards', link: '#' }
+          ]);
+        }
+      }
+    }
+    loadNotices();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="w-full">
       <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden">
@@ -112,18 +162,24 @@ export default function Home() {
               <span className="bg-teal-600 text-xs px-2 py-1 rounded">UPDATES</span>
             </div>
             <ul className="divide-y divide-slate-100 p-4">
-              <li className="py-3 flex items-start">
-                <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">Nov 23</span>
-                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">JKBOSE Datesheet</a>
-              </li>
-              <li className="py-3 flex items-start">
-                <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">Nov 23</span>
-                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">PreBoard Results</a>
-              </li>
-              <li className="py-3 flex items-start">
-                <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">Nov 23</span>
-                <a href="#" className="text-sm font-medium hover:text-teal-700 hover:underline">Admit Cards</a>
-              </li>
+              {notices.map((n, idx) => (
+                <li key={idx} className="py-3 flex items-start">
+                  <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">{n.date}</span>
+                  {n.link && n.link !== '#' ? (
+                    n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
+                      <a href={n.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-teal-700 hover:underline">
+                        {n.title}
+                      </a>
+                    ) : (
+                      <Link to={n.link} className="text-sm font-medium hover:text-teal-700 hover:underline">
+                        {n.title}
+                      </Link>
+                    )
+                  ) : (
+                    <span className="text-sm font-medium text-slate-700">{n.title}</span>
+                  )}
+                </li>
+              ))}
             </ul>
             <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
               <a href="#" className="text-sm font-bold text-teal-800 hover:underline">View All Archives</a>
