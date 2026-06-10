@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://your-school-domain.example/</loc>
+    <loc>https://hssshangus.netlify.app/</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.00</priority>
   </url>
   <url>
-    <loc>https://your-school-domain.example/about</loc>
+    <loc>https://hssshangus.netlify.app/about</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://your-school-domain.example/academics</loc>
+    <loc>https://hssshangus.netlify.app/academics</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://your-school-domain.example/admissions</loc>
+    <loc>https://hssshangus.netlify.app/admissions</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://your-school-domain.example/admin/messages</loc>
+    <loc>https://hssshangus.netlify.app/admin/messages</loc>
     <lastmod>2026-06-05</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.40</priority>
