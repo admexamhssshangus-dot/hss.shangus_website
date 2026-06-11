@@ -8,6 +8,7 @@ import About from './pages/About';
 import Academics from './pages/Academics';
 import Admissions from './pages/Admissions';
 import AdminMessages from './pages/AdminMessages';
+import AdminPortal from './pages/AdminPortal';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -35,6 +36,7 @@ function App() {
             <Route path="/academics" element={<Academics />} />
             <Route path="/admissions" element={<Admissions />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
+            <Route path="/admin/portal" element={<AdminPortal />} />
           </Routes>
         </main>
 

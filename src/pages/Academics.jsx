@@ -30,6 +30,21 @@ export default function Academics() {
   useEffect(() => {
     let active = true;
     async function loadFaculty() {
+      // 1. Check local storage override first (for admin instant testing)
+      const local = localStorage.getItem('site_faculty');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && active) {
+            setFaculty(parsed);
+            return;
+          }
+        } catch (e) {
+          console.warn('Error reading site_faculty from localStorage:', e);
+        }
+      }
+
+      // 2. Fetch from server
       try {
         const res = await fetch('/slides/faculty.json', { cache: 'no-cache' });
         if (!res.ok) throw new Error('Faculty config file not found');
@@ -42,11 +57,20 @@ export default function Academics() {
             {
               "name": "Mr. Aijaz Ahmad Wagay",
               "designation": "Principal",
-              "subject": "Education",
+              "subject": "Chemistry",
               "email": "ghssshangus74@gmail.com",
               "mobile": "+91-7006034501",
               "photo": "/slides/Principal.jpg",
               "department": "Administration"
+            },
+            {
+              "name": "Mr. Sheikh Gulfam",
+              "designation": "Lecturer",
+              "subject": "Botany",
+              "email": "sheikhgulfam91@gmail.com",
+              "mobile": "+91-9682547458",
+              "photo": "/slides/Gulfam.jpg",
+              "department": "Science"
             },
             {
               "name": "Dr. Tariq Ahmad",

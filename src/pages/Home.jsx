@@ -73,35 +73,56 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
 
 export default function Home() {
   const [notices, setNotices] = useState([]);
+  const [settings, setSettings] = useState(null);
+
+  useEffect(() => {
+    import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+      loadSiteSettings().then(setSettings);
+    });
+  }, []);
+
+  const parseNotices = (text) => {
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const firstComma = line.indexOf(',');
+        if (firstComma === -1) return null;
+        const date = line.substring(0, firstComma).trim();
+        const rest = line.substring(firstComma + 1);
+        
+        const secondComma = rest.indexOf(',');
+        if (secondComma === -1) {
+          return { date, title: rest.trim(), link: '#' };
+        }
+        const title = rest.substring(0, secondComma).trim();
+        const link = rest.substring(secondComma + 1).trim();
+        return { date, title, link };
+      })
+      .filter(Boolean);
+  };
 
   useEffect(() => {
     let active = true;
     async function loadNotices() {
+      // 1. Check local storage override first (for admin instant testing)
+      const local = localStorage.getItem('site_notices');
+      if (local) {
+        const parsed = parseNotices(local);
+        if (parsed.length > 0 && active) {
+          setNotices(parsed);
+          return;
+        }
+      }
+
+      // 2. Fetch from server
       try {
         const res = await fetch('/slides/notices.txt', { cache: 'no-cache' });
         if (!res.ok) throw new Error('Notices config file not found');
         const text = await res.text();
+        const parsed = parseNotices(text);
         
-        const parsed = text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map((line) => {
-            const firstComma = line.indexOf(',');
-            if (firstComma === -1) return null;
-            const date = line.substring(0, firstComma).trim();
-            const rest = line.substring(firstComma + 1);
-            
-            const secondComma = rest.indexOf(',');
-            if (secondComma === -1) {
-              return { date, title: rest.trim(), link: '#' };
-            }
-            const title = rest.substring(0, secondComma).trim();
-            const link = rest.substring(secondComma + 1).trim();
-            return { date, title, link };
-          })
-          .filter(Boolean);
-          
         if (active) {
           setNotices(parsed);
         }
@@ -124,7 +145,7 @@ export default function Home() {
 
   return (
     <div className="w-full">
-      <SEO title="Home" description="Official website of Govt. Higher Secondary School Shangus. Explore latest notices, school admissions process, student/teacher ERP portals, and details from Principal." />
+      <SEO title="Home" description="Official website of Govt. Higher Secondary School Shangus. Explore latest notices, school admissions process, ERP portals, and details from Principal." />
       <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden">
         
         {/* Background slideshow: using `public/slides/slides.txt` mapping file */}
@@ -142,7 +163,7 @@ export default function Home() {
           </h2>
           <div className="flex flex-row justify-center items-center space-x-1.5">
             <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[14px] btn-hero-primary">
-              Admissions Open 2026
+              {settings?.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open 2026'}
             </Link>
             <Link to="/about" className="px-1.5 py-0.5 sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[9px] sm:text-[12px] btn-hero-secondary">
               Learn More

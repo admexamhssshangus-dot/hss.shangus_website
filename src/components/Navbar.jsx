@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Phone, Mail, X, Menu } from 'lucide-react';
+import { Phone, Mail, X, Menu, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
@@ -148,8 +148,16 @@ export default function Navbar() {
               </div>
             </Link>
 
-            {/* Mobile hamburger */}
-            <div className="md:hidden flex items-center">
+            {/* Mobile hamburger & admin lock */}
+            <div className="md:hidden flex items-center gap-2">
+              <Link
+                to="/admin/portal"
+                title="Administrative Portal"
+                className="p-1.5 rounded text-slate-600 hover:text-orange-500 bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors"
+                aria-label="Admin Portal"
+              >
+                <Lock size={15} className="stroke-[2.5]" />
+              </Link>
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}
@@ -164,7 +172,7 @@ export default function Navbar() {
         {/* ROW 3: Navigation Menu */}
         <div className="bg-slate-800 border-b-[3px] md:py-0.5" style={{ borderBottomColor: '#961c14' }}>
           <div className="max-w-7xl mx-auto px-4">
-            <nav className="flex items-center justify-center w-full">
+            <nav className="flex items-center justify-center w-full relative">
               {/* Desktop menu */}
               <div className="hidden md:flex items-center gap-2">
                 <Link to="/" className={`px-3 py-0.5 text-xs md:text-sm font-semibold transition-all ${isActive('/') ? 'bg-slate-900 text-white border-t-4 border-orange-500 rounded-t-sm -mt-1' : 'text-slate-300 hover:text-white border-t-2 border-transparent hover:border-orange-400'}`} onClick={() => window.scrollTo(0, 0)}>Home</Link>
@@ -181,6 +189,18 @@ export default function Navbar() {
                 >
                   Login
                 </button>
+              </div>
+
+              {/* Admin Lock Icon (Far Right Extreme of Row) */}
+              <div className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 items-center">
+                <Link
+                  to="/admin/portal"
+                  title="Administrative Portal"
+                  className="text-slate-400 hover:text-orange-400 transition-colors duration-200 p-1.5 rounded-md flex items-center justify-center"
+                  aria-label="Admin Portal"
+                >
+                  <Lock size={14} className="stroke-[2.5]" />
+                </Link>
               </div>
             </nav>
           </div>

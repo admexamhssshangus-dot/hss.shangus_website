@@ -2,10 +2,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
 
 export default function Admissions() {
   const [docOpen, setDocOpen] = useState(false);
   const docRef = useRef(null);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    loadSiteSettings().then(setSettings);
+  }, []);
+
+  const isGlobalClosed = settings?.globalAdmissionsClosed;
+  const isClassClosed = (cls) => isGlobalClosed || settings?.admissionsClosed?.[cls];
+
+  const getFee = (key, fallback) => {
+    return settings?.fees?.[key] !== undefined ? `Rs. ${settings.fees[key]}` : fallback;
+  };
 
   useEffect(() => {
     function onKey(e) {
@@ -63,14 +76,41 @@ export default function Admissions() {
       <SEO title="Admissions 2026" description="Learn about the step-by-step admissions process at Govt. Higher Secondary School Shangus. Register online, check required documents, and explore our session fee structure." />
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
+        {/* Admissions Status Warning Banner */}
+        {isGlobalClosed && (
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-8 text-center text-sm font-semibold shadow-sm flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+            Admissions for the 2026 Session are currently closed.
+          </div>
+        )}
+
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4">Admission Process 2026</h2>
           <p className="text-slate-600">Follow these 4 simple steps to join our academic community.<br/>Applications are now open for the upcoming academic year.</p>
         </div>
 
+        {/* Class-wise Admission Status Badge Row */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-10">
+          <h4 className="text-center font-bold text-slate-800 mb-3 text-xs uppercase tracking-wider">Class-Wise Registration Status</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {['9th', '10th', '11th', '12th'].map((cls) => {
+              const closed = isClassClosed(cls);
+              return (
+                <div key={cls} className={`p-2 rounded-lg border text-center transition-all ${closed ? 'bg-red-50/50 border-red-100 text-red-700' : 'bg-emerald-50/50 border-emerald-100 text-emerald-700'}`}>
+                  <div className="font-bold text-sm">{cls} Class</div>
+                  <div className="text-[11px] font-semibold mt-0.5 flex items-center justify-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${closed ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                    {closed ? 'Closed' : 'Open'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Process Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 relative">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 relative">
           {/* Connector Line (Desktop) */}
           <div className="hidden md:block absolute top-6 left-12 right-12 h-0.5 bg-teal-200 z-0"></div>
           
@@ -88,7 +128,13 @@ export default function Admissions() {
                 <p className="text-[13px] text-slate-500 leading-relaxed px-1">{item.desc}</p>
                 {item.step === 1 && (
                   <div className="mt-2">
-                    <button onClick={openLoginWindow} className="btn-primary-custom px-4 py-1.5 rounded-full text-sm font-semibold shadow transition-all duration-200">Register to Apply Online</button>
+                    {isGlobalClosed ? (
+                      <span className="inline-block bg-slate-200 text-slate-500 px-4 py-1.5 rounded-full text-xs font-semibold shadow-inner">
+                        Registration Closed
+                      </span>
+                    ) : (
+                      <button onClick={openLoginWindow} className="btn-primary-custom px-4 py-1.5 rounded-full text-sm font-semibold shadow transition-all duration-200">Register to Apply Online</button>
+                    )}
                   </div>
                 )}
                 {item.step === 2 && (
@@ -100,8 +146,6 @@ export default function Admissions() {
 
         {/* Render Documents modal when requested */}
         <DocumentsModal />
-
-        {/* Documents are shown only when requested via the Documents modal */}
 
         {/* Fee Structure Table */}
         <div className="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 mb-10 relative">
@@ -128,17 +172,17 @@ export default function Admissions() {
                 <tbody>
                   <tr>
                     <td className="p-3 font-bold border border-slate-200">11th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1900</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1700</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1800</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1600</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_science_boys', 'Rs. 1900')}</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_science_girls', 'Rs. 1700')}</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_humanities_boys', 'Rs. 1800')}</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_humanities_girls', 'Rs. 1600')}</td>
                   </tr>
                   <tr className="bg-slate-50">
                     <td className="p-3 font-bold border border-slate-200">12th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1650</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1650</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1550</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1550</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_science_boys', 'Rs. 1650')}</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_science_girls', 'Rs. 1650')}</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_humanities_boys', 'Rs. 1550')}</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_humanities_girls', 'Rs. 1550')}</td>
                   </tr>
                 </tbody>
               </table>
@@ -156,11 +200,11 @@ export default function Admissions() {
                 <tbody>
                   <tr>
                     <td className="p-3 font-bold border border-slate-200">9th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1700</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('9th', 'Rs. 1700')}</td>
                   </tr>
                   <tr className="bg-slate-50">
                     <td className="p-3 font-bold border border-slate-200">10th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">Rs. 1700</td>
+                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('10th', 'Rs. 1700')}</td>
                   </tr>
                 </tbody>
               </table>
@@ -170,14 +214,14 @@ export default function Admissions() {
             <div className="sm:hidden">
               <h4 className="text-lg font-semibold text-slate-700 mb-3">Subject Combinations</h4>
               {[
-                { label: '11th Science (Boys)', fee: 'Rs. 1900' },
-                { label: '11th Science (Girls)', fee: 'Rs. 1700' },
-                { label: '11th Humanities (Boys)', fee: 'Rs. 1800' },
-                { label: '11th Humanities (Girls)', fee: 'Rs. 1600' },
-                { label: '12th Science (Boys)', fee: 'Rs. 1650' },
-                { label: '12th Science (Girls)', fee: 'Rs. 1650' },
-                { label: '12th Humanities (Boys)', fee: 'Rs. 1550' },
-                { label: '12th Humanities (Girls)', fee: 'Rs. 1550' }
+                { label: '11th Science (Boys)', fee: getFee('11th_science_boys', 'Rs. 1900') },
+                { label: '11th Science (Girls)', fee: getFee('11th_science_girls', 'Rs. 1700') },
+                { label: '11th Humanities (Boys)', fee: getFee('11th_humanities_boys', 'Rs. 1800') },
+                { label: '11th Humanities (Girls)', fee: getFee('11th_humanities_girls', 'Rs. 1600') },
+                { label: '12th Science (Boys)', fee: getFee('12th_science_boys', 'Rs. 1650') },
+                { label: '12th Science (Girls)', fee: getFee('12th_science_girls', 'Rs. 1650') },
+                { label: '12th Humanities (Boys)', fee: getFee('12th_humanities_boys', 'Rs. 1550') },
+                { label: '12th Humanities (Girls)', fee: getFee('12th_humanities_girls', 'Rs. 1550') }
               ].map(r => (
                 <div key={r.label} className="bg-white p-3 rounded-lg mb-3 border border-slate-100 flex justify-between items-center">
                   <div className="font-bold text-slate-800">{r.label}</div>
@@ -188,7 +232,10 @@ export default function Admissions() {
 
             <div className="sm:hidden">
               <h4 className="text-lg font-semibold text-slate-700 mb-3">Secondary Subjects</h4>
-              {[{cls: '9th', fee: 'Rs. 1700'}, {cls: '10th', fee: 'Rs. 1700'}].map(r => (
+              {[
+                {cls: '9th', fee: getFee('9th', 'Rs. 1700')},
+                {cls: '10th', fee: getFee('10th', 'Rs. 1700')}
+              ].map(r => (
                 <div key={r.cls} className="bg-white p-3 rounded-lg mb-3 border border-slate-100 flex justify-between items-center">
                   <div className="font-bold text-slate-800">{r.cls}</div>
                   <div className="text-slate-600">{r.fee}</div>
@@ -203,7 +250,6 @@ export default function Admissions() {
             </Link>
           </div>
         </div>
-          {/* Final CTA removed — button moved to step 1 above */}
 
       </div>
     </div>
