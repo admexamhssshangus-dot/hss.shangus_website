@@ -1,0 +1,21 @@
+{
+  "globalAdmissionsClosed": false,
+  "admissionsClosed": {
+    "9th": false,
+    "10th": false,
+    "11th": false,
+    "12th": false
+  },
+  "fees": {
+    "11th_science_boys": 1900,
+    "11th_science_girls": 1700,
+    "11th_humanities_boys": 1800,
+    "11th_humanities_girls": 1600,
+    "12th_science_boys": 1650,
+    "12th_science_girls": 1650,
+    "12th_humanities_boys": 1550,
+    "12th_humanities_girls": 1550,
+    "9th": 1700,
+    "10th": 1700
+  }
+}

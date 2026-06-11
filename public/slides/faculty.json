@@ -61,5 +61,14 @@
     "mobile": "+91-7006567890",
     "photo": "",
     "department": "Secondary"
+  },
+  {
+    "name": "Mr. Nawaz Ahmad Shah",
+    "designation": "Teacher",
+    "subject": "Social Studies",
+    "email": "shahnawaz13678@gmail.com",
+    "mobile": "7006034501",
+    "department": "Secondary",
+    "photo": ""
   }
 ]

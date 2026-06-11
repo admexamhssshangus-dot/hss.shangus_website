@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen } from 'lucide-react';
+import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings } from '../utils/settingsLoader';
 
 // ==========================================
@@ -41,6 +41,34 @@ async function getFolderHandle() {
   });
 }
 
+// Custom iOS-style Toggle Switch Component
+function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', labelRight = '' }) {
+  return (
+    <div className="flex items-center gap-1.5 select-none">
+      {labelLeft && (
+        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${!checked ? 'text-emerald-400' : 'text-slate-500'}`}>
+          {labelLeft}
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-slate-700' : 'bg-emerald-600'}`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
+        />
+      </button>
+      {labelRight && (
+        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${checked ? 'text-red-400' : 'text-slate-500'}`}>
+          {labelRight}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
@@ -58,6 +86,13 @@ export default function AdminPortal() {
 
   // File System Handle State
   const [folderHandle, setFolderHandle] = useState(null);
+
+  // Inline Editing States
+  const [editingNoticeIdx, setEditingNoticeIdx] = useState(null);
+  const [editNoticeData, setEditNoticeData] = useState({ date: '', title: '', link: '' });
+
+  const [editingFacultyIdx, setEditingFacultyIdx] = useState(null);
+  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '' });
 
   // Password for admin access
   const ADMIN_PASSWORD = 'admin123';
@@ -231,6 +266,25 @@ export default function AdminPortal() {
 
   const handleDeleteNotice = (idx) => {
     setNotices((prev) => prev.filter((_, i) => i !== idx));
+    if (editingNoticeIdx === idx) setEditingNoticeIdx(null);
+  };
+
+  const startEditNotice = (idx) => {
+    setEditingNoticeIdx(idx);
+    setEditNoticeData({ ...notices[idx] });
+  };
+
+  const saveNoticeEdit = (idx) => {
+    setNotices((prev) => {
+      const updated = [...prev];
+      updated[idx] = editNoticeData;
+      return updated;
+    });
+    setEditingNoticeIdx(null);
+  };
+
+  const cancelNoticeEdit = () => {
+    setEditingNoticeIdx(null);
   };
 
   // Faculty Handlers
@@ -239,18 +293,40 @@ export default function AdminPortal() {
   const handleAddTeacher = () => {
     if (!newTeacher.name || !newTeacher.designation) return;
     
-    // Auto-prepend /slides/ if user supplies just a file name
     let photoPath = newTeacher.photo.trim();
     if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http')) {
       photoPath = `/slides/${photoPath}`;
     }
 
-    setFaculty((prev) => [...prev, { ...newTeacher, photo: photoPath, id: Date.now() }]);
+    setFaculty((prev) => [...prev, { ...newTeacher, photo: photoPath }]);
     setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '' });
   };
 
-  const handleDeleteTeacher = (name) => {
-    setFaculty((prev) => prev.filter((t) => t.name !== name));
+  const handleDeleteTeacher = (idx) => {
+    setFaculty((prev) => prev.filter((_, i) => i !== idx));
+    if (editingFacultyIdx === idx) setEditingFacultyIdx(null);
+  };
+
+  const startEditFaculty = (idx) => {
+    setEditingFacultyIdx(idx);
+    setEditFacultyData({ ...faculty[idx] });
+  };
+
+  const saveFacultyEdit = (idx) => {
+    setFaculty((prev) => {
+      const updated = [...prev];
+      let photoPath = editFacultyData.photo.trim();
+      if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http')) {
+        photoPath = `/slides/${photoPath}`;
+      }
+      updated[idx] = { ...editFacultyData, photo: photoPath };
+      return updated;
+    });
+    setEditingFacultyIdx(null);
+  };
+
+  const cancelFacultyEdit = () => {
+    setEditingFacultyIdx(null);
   };
 
   // Central Save & Sync
@@ -479,40 +555,40 @@ export default function AdminPortal() {
             
             {/* TAB 1: ADMISSIONS AND FEES */}
             {activeTab === 'admissions' && (
-              <div className="space-y-8 animate-in fade-in duration-200">
+              <div className="space-y-6 animate-in fade-in duration-200">
                 {/* Global admissions open/close */}
-                <div className="bg-slate-900/60 p-5 rounded-lg border border-slate-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="bg-slate-900/60 p-4 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
-                    <h3 className="text-base font-bold text-slate-200">Global Enrollment System</h3>
-                    <p className="text-xs text-slate-400 mt-1">Enable or disable registration online across all streams and classes.</p>
+                    <h3 className="text-sm font-bold text-slate-200">Global Enrollment System</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Enable or disable registration online across all streams and classes.</p>
                   </div>
-                  <button
-                    onClick={handleGlobalToggle}
-                    className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${settings.globalAdmissionsClosed ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
-                  >
-                    {settings.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open'}
-                  </button>
+                  <ToggleSwitch
+                    checked={settings.globalAdmissionsClosed}
+                    onChange={handleGlobalToggle}
+                    labelLeft="Open"
+                    labelRight="Closed"
+                  />
                 </div>
 
                 {/* Class admissions flags */}
                 <div>
-                  <h3 className="text-sm font-semibold uppercase text-slate-400 tracking-wider mb-4">Class-Wise Admission Flags</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">Class-Wise Admission Flags</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {['9th', '10th', '11th', '12th'].map((cls) => {
                       const isClosed = settings.globalAdmissionsClosed || settings.admissionsClosed[cls];
                       return (
-                        <div key={cls} className="bg-slate-900/30 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-center text-center">
-                          <span className="font-bold text-slate-300">{cls} Class</span>
-                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mt-1.5 ${isClosed ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-emerald-950 text-emerald-400 border border-emerald-900'}`}>
+                        <div key={cls} className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 flex flex-col items-center justify-between text-center gap-2">
+                          <span className="font-bold text-xs text-slate-300">{cls} Class</span>
+                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${isClosed ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-emerald-950 text-emerald-400 border border-emerald-900'}`}>
                             {isClosed ? 'Closed' : 'Open'}
                           </span>
-                          <button
-                            disabled={settings.globalAdmissionsClosed}
-                            onClick={() => handleClassToggle(cls)}
-                            className="mt-4 w-full py-1 text-[11px] font-bold rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 transition-colors"
-                          >
-                            Toggle Status
-                          </button>
+                          <div className="mt-2">
+                            <ToggleSwitch
+                              checked={settings.admissionsClosed[cls]}
+                              onChange={() => handleClassToggle(cls)}
+                              disabled={settings.globalAdmissionsClosed}
+                            />
+                          </div>
                         </div>
                       );
                     })}
@@ -521,12 +597,12 @@ export default function AdminPortal() {
 
                 {/* Fee structure configuration */}
                 <div>
-                  <h3 className="text-sm font-semibold uppercase text-slate-400 tracking-wider mb-4">Fee Structure Configuration (INR)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">Fee Structure Configuration (INR)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Senior Secondary */}
-                    <div className="bg-slate-900/30 p-5 rounded-lg border border-slate-800">
-                      <h4 className="font-bold text-slate-300 border-b border-slate-800 pb-2 mb-4">11th & 12th Combinations</h4>
-                      <div className="space-y-4">
+                    <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800">
+                      <h4 className="font-bold text-slate-300 border-b border-slate-800 pb-1.5 mb-3 text-xs">11th & 12th Combinations</h4>
+                      <div className="space-y-2.5">
                         {[
                           { key: '11th_science_boys', label: '11th Science (Boys)' },
                           { key: '11th_science_girls', label: '11th Science (Girls)' },
@@ -537,15 +613,15 @@ export default function AdminPortal() {
                           { key: '12th_humanities_boys', label: '12th Humanities (Boys)' },
                           { key: '12th_humanities_girls', label: '12th Humanities (Girls)' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-4">
-                            <span className="text-xs text-slate-400">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 w-32">
-                              <span className="text-xs text-slate-500 mr-1.5">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-4 text-xs">
+                            <span className="text-slate-400">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 w-28">
+                              <span className="text-[10px] text-slate-500 mr-1">Rs.</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none py-0.5 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -554,22 +630,22 @@ export default function AdminPortal() {
                     </div>
 
                     {/* Secondary Subjects */}
-                    <div className="bg-slate-900/30 p-5 rounded-lg border border-slate-800 h-fit">
-                      <h4 className="font-bold text-slate-300 border-b border-slate-800 pb-2 mb-4">Secondary Classes</h4>
-                      <div className="space-y-4">
+                    <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800 h-fit">
+                      <h4 className="font-bold text-slate-300 border-b border-slate-800 pb-1.5 mb-3 text-xs">Secondary Classes</h4>
+                      <div className="space-y-2.5">
                         {[
                           { key: '9th', label: '9th Class Subjects' },
                           { key: '10th', label: '10th Class Subjects' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-4">
-                            <span className="text-xs text-slate-400">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 w-32">
-                              <span className="text-xs text-slate-500 mr-1.5">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-4 text-xs">
+                            <span className="text-slate-400">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 w-28">
+                              <span className="text-[10px] text-slate-500 mr-1">Rs.</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none py-0.5 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -583,52 +659,52 @@ export default function AdminPortal() {
 
             {/* TAB 2: LATEST NOTICES */}
             {activeTab === 'notices' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="flex justify-between items-center">
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="flex justify-between items-center mb-1">
                   <div>
-                    <h3 className="text-base font-bold text-slate-200">Latest Notices Configuration</h3>
-                    <p className="text-xs text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
+                    <h3 className="text-sm font-bold text-slate-200">Latest Notices Configuration</h3>
+                    <p className="text-[11px] text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
                   </div>
                 </div>
 
                 {/* Add new notice form */}
-                <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-4 items-end">
-                  <div className="w-full md:w-32">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Date</label>
+                <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-3 items-end">
+                  <div className="w-full md:w-28">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Date</label>
                     <input
                       type="text"
                       placeholder="e.g. Nov 23"
                       value={newNotice.date}
                       onChange={(e) => setNewNotice({ ...newNotice, date: e.target.value })}
-                      className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Title</label>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Title</label>
                     <input
                       type="text"
                       placeholder="Notice Title Description"
                       value={newNotice.title}
                       onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                      className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Link (Optional)</label>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Link (Optional)</label>
                     <input
                       type="text"
                       placeholder="e.g. /admissions, https://jkbose.nic.in, or #"
                       value={newNotice.link}
                       onChange={(e) => setNewNotice({ ...newNotice, link: e.target.value })}
-                      className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <button
                     onClick={handleAddNotice}
-                    className="px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1 flex-shrink-0 transition-colors h-[34px]"
+                    className="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1 flex-shrink-0 transition-colors h-[32px]"
                   >
-                    <Plus size={14} />
-                    Add Notice
+                    <Plus size={13} />
+                    Add
                   </button>
                 </div>
 
@@ -636,34 +712,92 @@ export default function AdminPortal() {
                 <div className="overflow-x-auto border border-slate-800 rounded-lg">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] font-bold">
-                        <th className="p-3 w-28">Date</th>
-                        <th className="p-3">Notice Title</th>
-                        <th className="p-3 w-48">Link</th>
-                        <th className="p-3 w-20 text-center">Action</th>
+                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
+                        <th className="p-2.5 w-24">Date</th>
+                        <th className="p-2.5">Notice Title</th>
+                        <th className="p-2.5 w-48">Link</th>
+                        <th className="p-2.5 w-24 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {notices.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="p-8 text-center text-slate-500 italic">No notices configured. Add some above.</td>
+                          <td colSpan={4} className="p-6 text-center text-slate-500 italic">No notices configured. Add some above.</td>
                         </tr>
                       ) : (
-                        notices.map((n, i) => (
-                          <tr key={i} className="hover:bg-slate-900/30">
-                            <td className="p-3 font-semibold text-slate-400">{n.date}</td>
-                            <td className="p-3 text-slate-200">{n.title}</td>
-                            <td className="p-3 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
-                            <td className="p-3 text-center">
-                              <button
-                                onClick={() => handleDeleteNotice(i)}
-                                className="p-1 rounded text-red-400 hover:bg-red-950 hover:text-red-300 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                        notices.map((n, i) => {
+                          const isEditing = editingNoticeIdx === i;
+                          return (
+                            <tr key={i} className="hover:bg-slate-900/20">
+                              {isEditing ? (
+                                <>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={editNoticeData.date}
+                                      onChange={(e) => setEditNoticeData({ ...editNoticeData, date: e.target.value })}
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-semibold focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={editNoticeData.title}
+                                      onChange={(e) => setEditNoticeData({ ...editNoticeData, title: e.target.value })}
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={editNoticeData.link}
+                                      onChange={(e) => setEditNoticeData({ ...editNoticeData, link: e.target.value })}
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-2 text-center flex items-center justify-center gap-1.5">
+                                    <button
+                                      onClick={() => saveNoticeEdit(i)}
+                                      className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
+                                      title="Save"
+                                    >
+                                      <Check size={13} />
+                                    </button>
+                                    <button
+                                      onClick={cancelNoticeEdit}
+                                      className="p-1 rounded bg-slate-950 text-slate-400 hover:bg-slate-900 transition-colors"
+                                      title="Cancel"
+                                    >
+                                      <X size={13} />
+                                    </button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="p-2.5 font-semibold text-slate-400">{n.date}</td>
+                                  <td className="p-2.5 text-slate-200">{n.title}</td>
+                                  <td className="p-2.5 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
+                                  <td className="p-2.5 text-center flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => startEditNotice(i)}
+                                      className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
+                                      title="Edit inline"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteNotice(i)}
+                                      className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -673,54 +807,54 @@ export default function AdminPortal() {
 
             {/* TAB 3: FACULTY DIRECTORY */}
             {activeTab === 'faculty' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
-                <div>
-                  <h3 className="text-base font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
-                  <p className="text-xs text-slate-400">Configure cards, department settings, and contacts inside the dynamic directory.</p>
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="mb-1">
+                  <h3 className="text-sm font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
+                  <p className="text-[11px] text-slate-400">Configure cards, department settings, and contacts inside the dynamic directory.</p>
                 </div>
 
                 {/* Add new faculty form */}
-                <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
                       <input
                         type="text"
                         placeholder="e.g. Mr. Sheikh Gulfam"
                         value={newTeacher.name}
                         onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Designation</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Designation</label>
                       <input
                         type="text"
                         placeholder="e.g. Lecturer, Teacher, Vice Principal"
                         value={newTeacher.designation}
                         onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Subject</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Subject</label>
                       <input
                         type="text"
                         placeholder="e.g. Physics, Chemistry, Botany"
                         value={newTeacher.subject}
                         onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Department</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Department</label>
                       <select
                         value={newTeacher.department}
                         onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       >
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
@@ -729,33 +863,33 @@ export default function AdminPortal() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Email Address</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Email Address</label>
                       <input
                         type="email"
                         placeholder="e.g. example@gmail.com"
                         value={newTeacher.email}
                         onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mobile No</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Mobile No</label>
                       <input
                         type="text"
                         placeholder="e.g. +91-7006XXXXXX"
                         value={newTeacher.mobile}
                         onChange={(e) => setNewTeacher({ ...newTeacher, mobile: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Photo Filename (Optional)</label>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Photo Filename (Optional)</label>
                       <input
                         type="text"
                         placeholder="e.g. Gulfam.jpg"
                         value={newTeacher.photo}
                         onChange={(e) => setNewTeacher({ ...newTeacher, photo: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
                       />
                     </div>
                   </div>
@@ -763,10 +897,10 @@ export default function AdminPortal() {
                   <div className="text-right">
                     <button
                       onClick={handleAddTeacher}
-                      className="px-4 py-2 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1.5 inline-flex transition-colors"
+                      className="px-3.5 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1.5 inline-flex transition-colors"
                     >
-                      <UserPlus size={14} />
-                      Add Faculty Member
+                      <UserPlus size={13} />
+                      Add Teacher
                     </button>
                   </div>
                 </div>
@@ -775,45 +909,143 @@ export default function AdminPortal() {
                 <div className="overflow-x-auto border border-slate-800 rounded-lg">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px] font-bold">
-                        <th className="p-3">Name</th>
-                        <th className="p-3">Role / Subject</th>
-                        <th className="p-3">Department</th>
-                        <th className="p-3">Contact</th>
-                        <th className="p-3">Photo URL</th>
-                        <th className="p-3 w-20 text-center">Action</th>
+                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
+                        <th className="p-2.5">Name</th>
+                        <th className="p-2.5">Role / Subject</th>
+                        <th className="p-2.5">Department</th>
+                        <th className="p-2.5">Contact</th>
+                        <th className="p-2.5">Photo URL</th>
+                        <th className="p-2.5 w-24 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {faculty.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500 italic">No faculty members configured. Add some above.</td>
+                          <td colSpan={6} className="p-6 text-center text-slate-500 italic">No faculty members configured. Add some above.</td>
                         </tr>
                       ) : (
-                        faculty.map((t, index) => (
-                          <tr key={t.name + index} className="hover:bg-slate-900/30">
-                            <td className="p-3 font-semibold text-slate-200">{t.name}</td>
-                            <td className="p-3 text-slate-300">{t.designation} {t.subject ? `in ${t.subject}` : ''}</td>
-                            <td className="p-3">
-                              <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 text-[10px] font-semibold">{t.department}</span>
-                            </td>
-                            <td className="p-3 text-slate-400">
-                              <div className="space-y-0.5">
-                                <div>{t.email || '-'}</div>
-                                <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
-                              </div>
-                            </td>
-                            <td className="p-3 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
-                            <td className="p-3 text-center">
-                              <button
-                                onClick={() => handleDeleteTeacher(t.name)}
-                                className="p-1 rounded text-red-400 hover:bg-red-950 hover:text-red-300 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                        faculty.map((t, index) => {
+                          const isEditing = editingFacultyIdx === index;
+                          return (
+                            <tr key={t.name + index} className="hover:bg-slate-900/20">
+                              {isEditing ? (
+                                <>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={editFacultyData.name}
+                                      onChange={(e) => setEditFacultyData({ ...editFacultyData, name: e.target.value })}
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-semibold focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <div className="space-y-1">
+                                      <input
+                                        type="text"
+                                        placeholder="Role/Designation"
+                                        value={editFacultyData.designation}
+                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, designation: e.target.value })}
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Subject"
+                                        value={editFacultyData.subject}
+                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, subject: e.target.value })}
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="p-2">
+                                    <select
+                                      value={editFacultyData.department}
+                                      onChange={(e) => setEditFacultyData({ ...editFacultyData, department: e.target.value })}
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                    >
+                                      <option value="Administration">Administration</option>
+                                      <option value="Science">Science</option>
+                                      <option value="Humanities">Humanities</option>
+                                      <option value="Secondary">Secondary (9th-10th)</option>
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <div className="space-y-1">
+                                      <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={editFacultyData.email}
+                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, email: e.target.value })}
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="Mobile"
+                                        value={editFacultyData.mobile}
+                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, mobile: e.target.value })}
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={editFacultyData.photo}
+                                      onChange={(e) => setEditFacultyData({ ...editFacultyData, photo: e.target.value })}
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-2 text-center flex items-center justify-center gap-1.5">
+                                    <button
+                                      onClick={() => saveFacultyEdit(index)}
+                                      className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
+                                      title="Save"
+                                    >
+                                      <Check size={13} />
+                                    </button>
+                                    <button
+                                      onClick={cancelFacultyEdit}
+                                      className="p-1 rounded bg-slate-950 text-slate-400 hover:bg-slate-900 transition-colors"
+                                      title="Cancel"
+                                    >
+                                      <X size={13} />
+                                    </button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="p-2.5 font-semibold text-slate-200">{t.name}</td>
+                                  <td className="p-2.5 text-slate-300">{t.designation} {t.subject ? `in ${t.subject}` : ''}</td>
+                                  <td className="p-2.5">
+                                    <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 text-[10px] font-semibold">{t.department}</span>
+                                  </td>
+                                  <td className="p-2.5 text-slate-400">
+                                    <div className="space-y-0.5">
+                                      <div>{t.email || '-'}</div>
+                                      <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
+                                  <td className="p-2.5 text-center flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => startEditFaculty(index)}
+                                      className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
+                                      title="Edit inline"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteTeacher(index)}
+                                      className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                                      title="Delete"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
