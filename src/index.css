@@ -427,3 +427,109 @@
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+
+/* ==========================================================================
+   Theme Overrides for Admin Portal & Notice Board
+   ========================================================================== */
+
+/* Page Background, Tables & Form Inputs */
+.theme-dark .bg-slate-950,
+.theme-royal .bg-slate-950,
+.theme-forest .bg-slate-950 {
+  background-color: var(--bg-page) !important;
+  color: var(--text-main) !important;
+}
+
+.theme-dark .bg-slate-900,
+.theme-royal .bg-slate-900,
+.theme-forest .bg-slate-900 {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+/* Translucent Card/Row Backgrounds in Admin Portal */
+.theme-dark .bg-slate-900\/30, .theme-dark .bg-slate-900\/40, .theme-dark .bg-slate-900\/50, .theme-dark .bg-slate-900\/60,
+.theme-royal .bg-slate-900\/30, .theme-royal .bg-slate-900\/40, .theme-royal .bg-slate-900\/50, .theme-royal .bg-slate-900\/60,
+.theme-forest .bg-slate-900\/30, .theme-forest .bg-slate-900\/40, .theme-forest .bg-slate-900\/50, .theme-forest .bg-slate-900\/60 {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-ui) !important;
+}
+
+.theme-dark .hover\:bg-slate-900\/20:hover,
+.theme-royal .hover\:bg-slate-900\/20:hover,
+.theme-forest .hover\:bg-slate-900\/20:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Form inputs & selections inside tables */
+.theme-dark input, .theme-dark select,
+.theme-royal input, .theme-royal select,
+.theme-forest input, .theme-forest select {
+  background-color: var(--bg-page) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-ui) !important;
+}
+
+/* Border UI colors */
+.theme-dark .border-slate-800, .theme-dark .border-slate-700, .theme-dark .divide-slate-800\/60,
+.theme-royal .border-slate-800, .theme-royal .border-slate-700, .theme-royal .divide-slate-800\/60,
+.theme-forest .border-slate-800, .theme-forest .border-slate-700, .theme-forest .divide-slate-800\/60 {
+  border-color: var(--border-ui) !important;
+}
+
+/* Accent Highlighting (Orange -> Accent Teal/Gold/Mint) */
+.theme-dark .text-orange-400, .theme-dark .text-orange-500,
+.theme-royal .text-orange-400, .theme-royal .text-orange-500,
+.theme-forest .text-orange-400, .theme-forest .text-orange-500 {
+  color: var(--teal-accent) !important;
+}
+
+.theme-dark .border-orange-500,
+.theme-royal .border-orange-500,
+.theme-forest .border-orange-500 {
+  border-color: var(--teal-accent) !important;
+}
+
+/* Buttons (Orange, Sky, Emerald -> Accent colors) */
+.theme-dark .bg-orange-600, .theme-dark .bg-sky-600,
+.theme-royal .bg-orange-600, .theme-royal .bg-sky-600,
+.theme-forest .bg-orange-600, .theme-forest .bg-sky-600 {
+  background-color: var(--teal-accent) !important;
+  color: #000000 !important;
+}
+
+.theme-dark .bg-orange-600:hover, .theme-dark .bg-sky-600:hover, .theme-dark .hover\:bg-orange-500:hover, .theme-dark .hover\:bg-sky-500:hover,
+.theme-royal .bg-orange-600:hover, .theme-royal .bg-sky-600:hover, .theme-royal .hover\:bg-orange-500:hover, .theme-royal .hover\:bg-sky-500:hover,
+.theme-forest .bg-orange-600:hover, .theme-forest .bg-sky-600:hover, .theme-forest .hover\:bg-orange-500:hover, .theme-forest .hover\:bg-sky-500:hover {
+  background-color: var(--text-main) !important;
+  color: var(--bg-page) !important;
+}
+
+/* Text gray scale */
+.theme-dark .text-slate-100, .theme-dark .text-slate-200, .theme-dark .text-slate-300,
+.theme-royal .text-slate-100, .theme-royal .text-slate-200, .theme-royal .text-slate-300,
+.theme-forest .text-slate-100, .theme-forest .text-slate-200, .theme-forest .text-slate-300 {
+  color: var(--text-main) !important;
+}
+
+.theme-dark .text-slate-400, .theme-dark .text-slate-500,
+.theme-royal .text-slate-400, .theme-royal .text-slate-500,
+.theme-forest .text-slate-400, .theme-forest .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Notice Board Page Background Override */
+.theme-dark .from-teal-50, .theme-dark .to-white,
+.theme-royal .from-teal-50, .theme-royal .to-white,
+.theme-forest .from-teal-50, .theme-forest .to-white {
+  background-image: none !important;
+  background-color: var(--bg-page) !important;
+}
+
+/* Notice Board Calendar Badge Override */
+.theme-dark .bg-teal-55,
+.theme-royal .bg-teal-55,
+.theme-forest .bg-teal-55 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: var(--border-ui) !important;
+}
