@@ -238,7 +238,7 @@ export default function Home() {
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-800 md:border-l-4 md:border-teal-800 md:pl-4 mb-6">Principal's Message</h2>
             <div className="flex flex-col sm:flex-row bg-white p-6 rounded-lg shadow-lg border-2 border-teal-100 items-center">
-              <div className="w-32 h-32 flex-shrink-0 rounded-md overflow-hidden mx-auto mb-4 sm:mb-0 shadow-md" style={{ border: '2px solid #0ea5a3' }}>
+              <div className="w-32 h-32 flex-shrink-0 rounded-md overflow-hidden mx-auto mb-4 sm:mb-0 shadow-md border-2 border-teal-500">
                 <img src="/slides/Principal.jpg" alt="Principal Mr. Aijaz Ahmad Wagay" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 lg:border-l-2 lg:border-teal-100 lg:pl-4 pl-0">

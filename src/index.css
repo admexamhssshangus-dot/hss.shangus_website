@@ -429,10 +429,11 @@
 }
 
 /* ==========================================================================
-   Theme Overrides for Admin Portal & Notice Board
+   Theme Overrides for Admin Portal, Notice Board & Messages
    ========================================================================== */
 
 /* Page Background, Tables & Form Inputs */
+.theme-light .bg-slate-950,
 .theme-dark .bg-slate-950,
 .theme-royal .bg-slate-950,
 .theme-forest .bg-slate-950 {
@@ -440,6 +441,7 @@
   color: var(--text-main) !important;
 }
 
+.theme-light .bg-slate-900,
 .theme-dark .bg-slate-900,
 .theme-royal .bg-slate-900,
 .theme-forest .bg-slate-900 {
@@ -448,11 +450,16 @@
 }
 
 /* Translucent Card/Row Backgrounds in Admin Portal */
+.theme-light .bg-slate-900\/30, .theme-light .bg-slate-900\/40, .theme-light .bg-slate-900\/50, .theme-light .bg-slate-900\/60,
 .theme-dark .bg-slate-900\/30, .theme-dark .bg-slate-900\/40, .theme-dark .bg-slate-900\/50, .theme-dark .bg-slate-900\/60,
 .theme-royal .bg-slate-900\/30, .theme-royal .bg-slate-900\/40, .theme-royal .bg-slate-900\/50, .theme-royal .bg-slate-900\/60,
 .theme-forest .bg-slate-900\/30, .theme-forest .bg-slate-900\/40, .theme-forest .bg-slate-900\/50, .theme-forest .bg-slate-900\/60 {
   background-color: var(--bg-card) !important;
   border-color: var(--border-ui) !important;
+}
+
+.theme-light .hover\:bg-slate-900\/20:hover {
+  background-color: rgba(15, 23, 42, 0.04) !important;
 }
 
 .theme-dark .hover\:bg-slate-900\/20:hover,
@@ -462,35 +469,92 @@
 }
 
 /* Form inputs & selections inside tables */
-.theme-dark input, .theme-dark select,
-.theme-royal input, .theme-royal select,
-.theme-forest input, .theme-forest select {
+.theme-light input, .theme-light select, .theme-light textarea,
+.theme-dark input, .theme-dark select, .theme-dark textarea,
+.theme-royal input, .theme-royal select, .theme-royal textarea,
+.theme-forest input, .theme-forest select, .theme-forest textarea {
   background-color: var(--bg-page) !important;
   color: var(--text-main) !important;
   border-color: var(--border-ui) !important;
 }
 
-/* Border UI colors */
-.theme-dark .border-slate-800, .theme-dark .border-slate-700, .theme-dark .divide-slate-800\/60,
-.theme-royal .border-slate-800, .theme-royal .border-slate-700, .theme-royal .divide-slate-800\/60,
-.theme-forest .border-slate-800, .theme-forest .border-slate-700, .theme-forest .divide-slate-800\/60 {
+/* Input Focus States Overrides */
+.theme-light .focus\:border-orange-500:focus,
+.theme-dark .focus\:border-orange-500:focus,
+.theme-royal .focus\:border-orange-500:focus,
+.theme-forest .focus\:border-orange-500:focus {
+  border-color: var(--teal-accent) !important;
+}
+
+.theme-light .focus\:ring-orange-500:focus,
+.theme-dark .focus\:ring-orange-500:focus,
+.theme-royal .focus\:ring-orange-500:focus,
+.theme-forest .focus\:ring-orange-500:focus {
+  --tw-ring-color: var(--teal-accent) !important;
+  box-shadow: 0 0 0 1px var(--teal-accent) !important;
+}
+
+/* Border UI & divide colors */
+.theme-light .border, .theme-light .border-slate-800, .theme-light .border-slate-700, .theme-light .divide-slate-800\/60,
+.theme-dark .border, .theme-dark .border-slate-800, .theme-dark .border-slate-700, .theme-dark .divide-slate-800\/60,
+.theme-royal .border, .theme-royal .border-slate-800, .theme-royal .border-slate-700, .theme-royal .divide-slate-800\/60,
+.theme-forest .border, .theme-forest .border-slate-800, .theme-forest .border-slate-700, .theme-forest .divide-slate-800\/60 {
   border-color: var(--border-ui) !important;
 }
 
 /* Accent Highlighting (Orange -> Accent Teal/Gold/Mint) */
+.theme-light .text-orange-400, .theme-light .text-orange-500,
 .theme-dark .text-orange-400, .theme-dark .text-orange-500,
 .theme-royal .text-orange-400, .theme-royal .text-orange-500,
 .theme-forest .text-orange-400, .theme-forest .text-orange-500 {
   color: var(--teal-accent) !important;
 }
 
+.theme-light .border-orange-500,
 .theme-dark .border-orange-500,
 .theme-royal .border-orange-500,
 .theme-forest .border-orange-500 {
   border-color: var(--teal-accent) !important;
 }
 
+/* Custom lock badge class for login */
+.theme-accent-badge {
+  background-color: rgba(150, 28, 20, 0.1) !important;
+  border-color: rgba(150, 28, 20, 0.2) !important;
+  color: #961c14 !important;
+}
+.theme-light .theme-accent-badge {
+  background-color: rgba(13, 148, 136, 0.1) !important;
+  border-color: rgba(13, 148, 136, 0.2) !important;
+  color: var(--teal-accent) !important;
+}
+.theme-dark .theme-accent-badge {
+  background-color: rgba(56, 189, 248, 0.1) !important;
+  border-color: rgba(56, 189, 248, 0.2) !important;
+  color: var(--teal-accent) !important;
+}
+.theme-royal .theme-accent-badge {
+  background-color: rgba(212, 175, 55, 0.1) !important;
+  border-color: rgba(212, 175, 55, 0.2) !important;
+  color: var(--teal-accent) !important;
+}
+.theme-forest .theme-accent-badge {
+  background-color: rgba(52, 211, 153, 0.1) !important;
+  border-color: rgba(52, 211, 153, 0.2) !important;
+  color: var(--teal-accent) !important;
+}
+
 /* Buttons (Orange, Sky, Emerald -> Accent colors) */
+.theme-light .bg-orange-600, .theme-light .bg-sky-600 {
+  background-color: var(--teal-accent) !important;
+  color: #ffffff !important;
+}
+.theme-light .bg-orange-600:hover, .theme-light .bg-sky-600:hover,
+.theme-light .hover\:bg-orange-500:hover, .theme-light .hover\:bg-sky-500:hover {
+  background-color: #961c14 !important;
+  color: #ffffff !important;
+}
+
 .theme-dark .bg-orange-600, .theme-dark .bg-sky-600,
 .theme-royal .bg-orange-600, .theme-royal .bg-sky-600,
 .theme-forest .bg-orange-600, .theme-forest .bg-sky-600 {
@@ -505,13 +569,33 @@
   color: var(--bg-page) !important;
 }
 
+/* Success & Directory Sync Banner in Light Mode */
+.theme-light .bg-emerald-950 {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border-color: rgba(52, 211, 153, 0.3) !important;
+}
+.theme-light .bg-emerald-950\/80 {
+  background-color: rgba(209, 250, 229, 0.9) !important;
+  color: #065f46 !important;
+  border-color: rgba(52, 211, 153, 0.3) !important;
+}
+.theme-light .text-emerald-400 {
+  color: #047857 !important;
+}
+.theme-light .border-emerald-500\/30, .theme-light .border-emerald-900 {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
 /* Text gray scale */
+.theme-light .text-slate-100, .theme-light .text-slate-200, .theme-light .text-slate-300,
 .theme-dark .text-slate-100, .theme-dark .text-slate-200, .theme-dark .text-slate-300,
 .theme-royal .text-slate-100, .theme-royal .text-slate-200, .theme-royal .text-slate-300,
 .theme-forest .text-slate-100, .theme-forest .text-slate-200, .theme-forest .text-slate-300 {
   color: var(--text-main) !important;
 }
 
+.theme-light .text-slate-400, .theme-light .text-slate-500,
 .theme-dark .text-slate-400, .theme-dark .text-slate-500,
 .theme-royal .text-slate-400, .theme-royal .text-slate-500,
 .theme-forest .text-slate-400, .theme-forest .text-slate-500 {
@@ -519,6 +603,7 @@
 }
 
 /* Notice Board Page Background Override */
+.theme-light .from-teal-50, .theme-light .to-white,
 .theme-dark .from-teal-50, .theme-dark .to-white,
 .theme-royal .from-teal-50, .theme-royal .to-white,
 .theme-forest .from-teal-50, .theme-forest .to-white {
@@ -527,9 +612,30 @@
 }
 
 /* Notice Board Calendar Badge Override */
+.theme-light .bg-teal-55,
 .theme-dark .bg-teal-55,
 .theme-royal .bg-teal-55,
 .theme-forest .bg-teal-55 {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  background-color: rgba(13, 148, 136, 0.08) !important;
   border-color: var(--border-ui) !important;
+}
+
+/* Override bg-teal-50 badges in dark themes */
+.theme-dark .bg-teal-55,
+.theme-dark .bg-teal-50,
+.theme-royal .bg-teal-55,
+.theme-royal .bg-teal-50,
+.theme-forest .bg-teal-55,
+.theme-forest .bg-teal-50 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-ui) !important;
+}
+
+/* Custom theme overrides for general border-teal classes (Principal border, vision cards etc) */
+.theme-light .border-teal-500, .theme-light .border-teal-800,
+.theme-dark .border-teal-500, .theme-dark .border-teal-800,
+.theme-royal .border-teal-500, .theme-royal .border-teal-800,
+.theme-forest .border-teal-500, .theme-forest .border-teal-800 {
+  border-color: var(--teal-accent) !important;
 }

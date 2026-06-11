@@ -23,9 +23,7 @@ export default function ThemeSelector() {
     const html = document.documentElement;
     // Remove all custom theme classes
     html.classList.remove('theme-light', 'theme-dark', 'theme-royal', 'theme-forest');
-    if (themeId !== 'light') {
-      html.classList.add(`theme-${themeId}`);
-    }
+    html.classList.add(`theme-${themeId}`);
   };
 
   const handleSelect = (themeId) => {

@@ -428,10 +428,10 @@ export default function AdminPortal() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700 p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="flex flex-col items-center mb-6">
-            <div className="w-16 h-16 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mb-4 text-orange-500">
+            <div className="w-16 h-16 rounded-full theme-accent-badge border flex items-center justify-center mb-4 text-orange-500">
               <Lock size={32} />
             </div>
             <h2 className="text-xl font-bold text-center font-title tracking-wide text-orange-400">Govt. HSS Shangus</h2>
@@ -446,7 +446,7 @@ export default function AdminPortal() {
                 placeholder="Enter password..."
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 autoFocus
               />
             </div>
@@ -676,7 +676,7 @@ export default function AdminPortal() {
                       placeholder="e.g. Nov 23"
                       value={newNotice.date}
                       onChange={(e) => setNewNotice({ ...newNotice, date: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <div className="flex-1">
@@ -686,7 +686,7 @@ export default function AdminPortal() {
                       placeholder="Notice Title Description"
                       value={newNotice.title}
                       onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <div className="flex-1">
@@ -696,7 +696,7 @@ export default function AdminPortal() {
                       placeholder="e.g. /admissions, https://jkbose.nic.in, or #"
                       value={newNotice.link}
                       onChange={(e) => setNewNotice({ ...newNotice, link: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <button
@@ -736,7 +736,7 @@ export default function AdminPortal() {
                                       type="text"
                                       value={editNoticeData.date}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, date: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-semibold focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-2">
@@ -744,7 +744,7 @@ export default function AdminPortal() {
                                       type="text"
                                       value={editNoticeData.title}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, title: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-2">
@@ -752,7 +752,7 @@ export default function AdminPortal() {
                                       type="text"
                                       value={editNoticeData.link}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, link: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-2 text-center flex items-center justify-center gap-1.5">
@@ -823,7 +823,7 @@ export default function AdminPortal() {
                         placeholder="e.g. Mr. Sheikh Gulfam"
                         value={newTeacher.name}
                         onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
@@ -833,7 +833,7 @@ export default function AdminPortal() {
                         placeholder="e.g. Lecturer, Teacher, Vice Principal"
                         value={newTeacher.designation}
                         onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
@@ -843,7 +843,7 @@ export default function AdminPortal() {
                         placeholder="e.g. Physics, Chemistry, Botany"
                         value={newTeacher.subject}
                         onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                   </div>
@@ -854,7 +854,7 @@ export default function AdminPortal() {
                       <select
                         value={newTeacher.department}
                         onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       >
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
@@ -869,7 +869,7 @@ export default function AdminPortal() {
                         placeholder="e.g. example@gmail.com"
                         value={newTeacher.email}
                         onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
@@ -879,7 +879,7 @@ export default function AdminPortal() {
                         placeholder="e.g. +91-7006XXXXXX"
                         value={newTeacher.mobile}
                         onChange={(e) => setNewTeacher({ ...newTeacher, mobile: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
@@ -889,7 +889,7 @@ export default function AdminPortal() {
                         placeholder="e.g. Gulfam.jpg"
                         value={newTeacher.photo}
                         onChange={(e) => setNewTeacher({ ...newTeacher, photo: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                   </div>
@@ -935,7 +935,7 @@ export default function AdminPortal() {
                                       type="text"
                                       value={editFacultyData.name}
                                       onChange={(e) => setEditFacultyData({ ...editFacultyData, name: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-semibold focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-2">
@@ -945,14 +945,14 @@ export default function AdminPortal() {
                                         placeholder="Role/Designation"
                                         value={editFacultyData.designation}
                                         onChange={(e) => setEditFacultyData({ ...editFacultyData, designation: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                       />
                                       <input
                                         type="text"
                                         placeholder="Subject"
                                         value={editFacultyData.subject}
                                         onChange={(e) => setEditFacultyData({ ...editFacultyData, subject: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                       />
                                     </div>
                                   </td>
@@ -960,7 +960,7 @@ export default function AdminPortal() {
                                     <select
                                       value={editFacultyData.department}
                                       onChange={(e) => setEditFacultyData({ ...editFacultyData, department: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                     >
                                       <option value="Administration">Administration</option>
                                       <option value="Science">Science</option>
@@ -975,14 +975,14 @@ export default function AdminPortal() {
                                         placeholder="Email"
                                         value={editFacultyData.email}
                                         onChange={(e) => setEditFacultyData({ ...editFacultyData, email: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                       />
                                       <input
                                         type="text"
                                         placeholder="Mobile"
                                         value={editFacultyData.mobile}
                                         onChange={(e) => setEditFacultyData({ ...editFacultyData, mobile: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-orange-500"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                       />
                                     </div>
                                   </td>
@@ -991,7 +991,7 @@ export default function AdminPortal() {
                                       type="text"
                                       value={editFacultyData.photo}
                                       onChange={(e) => setEditFacultyData({ ...editFacultyData, photo: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-2 text-center flex items-center justify-center gap-1.5">

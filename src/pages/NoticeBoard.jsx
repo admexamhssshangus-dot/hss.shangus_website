@@ -99,7 +99,7 @@ export default function NoticeBoard() {
           <div className="relative z-10">
             <span className="px-2.5 py-1 rounded bg-teal-600 text-[10px] font-bold tracking-widest uppercase">Official Notice Board</span>
             <h2 className="text-2xl md:text-3xl font-bold mt-3 font-heading">Announcements & Archives</h2>
-            <p className="text-teal-100 text-xs md:text-sm mt-2 max-w-xl">
+            <p className="opacity-90 text-xs md:text-sm mt-2 max-w-xl">
               Stay up-to-date with exam timetables, notifications, guidelines, and other circulars published by school administration.
             </p>
           </div>
