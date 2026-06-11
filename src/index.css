@@ -71,7 +71,7 @@
   --bg-page: #062e1b;
   --bg-card: #0b4f35;
   --text-main: #f0fdf4;
-  --text-muted: #a7f3d0;
+  --text-muted: #78a890;
   --border-ui: #146e49;
   --teal-accent: #34d399;
   --navbar-bg: #062e1b;
@@ -450,12 +450,46 @@
 }
 
 /* Translucent Card/Row Backgrounds in Admin Portal */
-.theme-light .bg-slate-900\/30, .theme-light .bg-slate-900\/40, .theme-light .bg-slate-900\/50, .theme-light .bg-slate-900\/60,
-.theme-dark .bg-slate-900\/30, .theme-dark .bg-slate-900\/40, .theme-dark .bg-slate-900\/50, .theme-dark .bg-slate-900\/60,
-.theme-royal .bg-slate-900\/30, .theme-royal .bg-slate-900\/40, .theme-royal .bg-slate-900\/50, .theme-royal .bg-slate-900\/60,
-.theme-forest .bg-slate-900\/30, .theme-forest .bg-slate-900\/40, .theme-forest .bg-slate-900\/50, .theme-forest .bg-slate-900\/60 {
+.theme-light .bg-slate-900\/40,
+.theme-dark .bg-slate-900\/40,
+.theme-royal .bg-slate-900\/40,
+.theme-forest .bg-slate-900\/40 {
   background-color: var(--bg-card) !important;
   border-color: var(--border-ui) !important;
+}
+
+/* Inner containers (e.g. Global Enrollment block, notice creation form background, etc.) */
+.theme-light .bg-slate-900\/60 {
+  background-color: rgba(15, 23, 42, 0.02) !important;
+  border-color: var(--border-ui) !important;
+}
+.theme-dark .bg-slate-900\/60,
+.theme-royal .bg-slate-900\/60,
+.theme-forest .bg-slate-900\/60 {
+  background-color: rgba(255, 255, 255, 0.035) !important;
+  border-color: var(--border-ui) !important;
+}
+
+/* Inner sub-cards (e.g. class selection blocks, table hover lists, etc.) */
+.theme-light .bg-slate-900\/30 {
+  background-color: rgba(15, 23, 42, 0.01) !important;
+  border-color: var(--border-ui) !important;
+}
+.theme-dark .bg-slate-900\/30,
+.theme-royal .bg-slate-900\/30,
+.theme-forest .bg-slate-900\/30 {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+  border-color: var(--border-ui) !important;
+}
+
+/* Tab active backgrounds */
+.theme-light .bg-slate-900\/50 {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+.theme-dark .bg-slate-900\/50,
+.theme-royal .bg-slate-900\/50,
+.theme-forest .bg-slate-900\/50 {
+  background-color: rgba(255, 255, 255, 0.07) !important;
 }
 
 .theme-light .hover\:bg-slate-900\/20:hover {
