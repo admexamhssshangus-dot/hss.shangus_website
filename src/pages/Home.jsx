@@ -184,28 +184,51 @@ export default function Home() {
               <h3 className="font-bold text-lg">Latest Notices</h3>
               <span className="bg-teal-600 text-xs px-2 py-1 rounded">UPDATES</span>
             </div>
-            <ul className="divide-y divide-slate-100 p-4">
-              {notices.map((n, idx) => (
-                <li key={idx} className="py-3 flex items-start">
-                  <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12">{n.date}</span>
-                  {n.link && n.link !== '#' ? (
-                    n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
-                      <a href={n.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-teal-700 hover:underline">
-                        {n.title}
-                      </a>
-                    ) : (
-                      <Link to={n.link} className="text-sm font-medium hover:text-teal-700 hover:underline">
-                        {n.title}
-                      </Link>
-                    )
-                  ) : (
-                    <span className="text-sm font-medium text-slate-700">{n.title}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-[300px] overflow-y-auto custom-scrollbar px-4">
+              <ul className="divide-y divide-slate-100">
+                {notices.map((n, idx) => (
+                  <li key={idx} className="py-3 flex items-start">
+                    <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12 flex-shrink-0">{n.date}</span>
+                    <div className="flex-1">
+                      {n.link && n.link !== '#' ? (
+                        n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
+                          <a href={n.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-teal-700 hover:underline inline-flex items-center flex-wrap">
+                            {n.title}
+                            {idx < 2 && (
+                              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider">
+                                New
+                              </span>
+                            )}
+                          </a>
+                        ) : (
+                          <Link to={n.link} className="text-sm font-medium hover:text-teal-700 hover:underline inline-flex items-center flex-wrap">
+                            {n.title}
+                            {idx < 2 && (
+                              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider">
+                                New
+                              </span>
+                            )}
+                          </Link>
+                        )
+                      ) : (
+                        <span className="text-sm font-medium text-slate-700 inline-flex items-center flex-wrap">
+                          {n.title}
+                          {idx < 2 && (
+                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider">
+                              New
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
             <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
-              <a href="#" className="text-sm font-bold text-teal-800 hover:underline">View All Archives</a>
+              <Link to="/notices" className="text-sm font-bold text-teal-800 hover:underline">
+                View All Archives
+              </Link>
             </div>
           </div>
         </div>
