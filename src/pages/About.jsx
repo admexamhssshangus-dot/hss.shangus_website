@@ -9,7 +9,7 @@ export default function About() {
   // Example:
   // import aboutBgLocal from '../images/about-bg.jpg'
   // const aboutBg = aboutBgLocal
-  const aboutBg = 'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1920&q=80';
+  const aboutBg = '/slides/aboutus.jpg';
   return (
     <div className="w-full mb-20">
       <SEO title="About Us & Institution" description="Discover the history, vision, mission, and principal's message of Govt. Higher Secondary School Shangus in Anantnag. Meet our faculty and explore our campus legacy." />
