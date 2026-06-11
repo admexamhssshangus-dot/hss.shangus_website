@@ -3,9 +3,9 @@ import { Palette, Sun, Moon, Sparkles, Check } from 'lucide-react';
 
 const themes = [
   { id: 'light', name: 'Light Mode', icon: Sun, color: '#f8fafc', accent: '#0d9488' },
-  { id: 'dark', name: 'Dark Slate', icon: Moon, color: '#0f172a', accent: '#2dd4bf' },
+  { id: 'dark', name: 'Dark Slate', icon: Moon, color: '#0f172a', accent: '#38bdf8' },
   { id: 'royal', name: 'Royal Gold', icon: Sparkles, color: '#0a1128', accent: '#d4af37' },
-  { id: 'forest', name: 'Forest Emerald', icon: Sparkles, color: '#081c15', accent: '#52b788' }
+  { id: 'forest', name: 'Forest Emerald', icon: Sparkles, color: '#062e1b', accent: '#34d399' }
 ];
 
 export default function ThemeSelector() {

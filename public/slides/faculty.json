@@ -9,6 +9,15 @@
     "department": "Administration"
   },
   {
+    "name": "Mr. Sheikh Gulfam",
+    "designation": "Lecturer",
+    "subject": "Botany",
+    "email": "sheikhgulfam91@gmail.com",
+    "mobile": "+91-9682547458",
+    "photo": "/slides/Gulfam.jpg",
+    "department": "Science"
+  },
+  {
     "name": "Dr. Tariq Ahmad",
     "designation": "Lecturer",
     "subject": "Physics",

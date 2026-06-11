@@ -51,7 +51,7 @@
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --border-ui: #334155;
-  --teal-accent: #2dd4bf;
+  --teal-accent: #38bdf8;
   --navbar-bg: #0f172a;
 }
 
@@ -68,13 +68,13 @@
 
 /* Forest Green Overrides */
 .theme-forest {
-  --bg-page: #081c15;
-  --bg-card: #1b4332;
-  --text-main: #f5fbf8;
-  --text-muted: #95d5b2;
-  --border-ui: #2d6a4f;
-  --teal-accent: #52b788;
-  --navbar-bg: #081c15;
+  --bg-page: #062e1b;
+  --bg-card: #0b4f35;
+  --text-main: #f0fdf4;
+  --text-muted: #a7f3d0;
+  --border-ui: #146e49;
+  --teal-accent: #34d399;
+  --navbar-bg: #062e1b;
 }
 
 /* Apply CSS variable classes globally when a custom theme is active */
