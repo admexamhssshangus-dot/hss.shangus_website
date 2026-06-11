@@ -1,6 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw } from 'lucide-react';
+import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings } from '../utils/settingsLoader';
+
+// ==========================================
+// IndexedDB Helpers for Storing Folder Handle
+// ==========================================
+const DB_NAME = 'HSS_Shangus_AdminDB';
+const STORE_NAME = 'folder_handles';
+
+function getDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(STORE_NAME);
+    };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveFolderHandle(handle) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(handle, 'slides_folder');
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getFolderHandle() {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get('slides_folder');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
 
 export default function AdminPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -17,6 +56,9 @@ export default function AdminPortal() {
   const [loading, setLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState('');
 
+  // File System Handle State
+  const [folderHandle, setFolderHandle] = useState(null);
+
   // Password for admin access
   const ADMIN_PASSWORD = 'admin123';
 
@@ -32,17 +74,29 @@ export default function AdminPortal() {
     }
   };
 
-  // Check session on mount
+  // Check session and load folder handle on mount
   useEffect(() => {
     if (sessionStorage.getItem('isAdminAuthenticated') === 'true') {
       setIsAuthenticated(true);
     }
   }, []);
 
-  // Fetch configs on login
+  // Fetch configs and folder handle on login
   useEffect(() => {
     if (!isAuthenticated) return;
     setLoading(true);
+
+    // Retrieve folder handle from IndexedDB
+    getFolderHandle().then((handle) => {
+      if (handle) {
+        // Query if permission is already granted
+        handle.queryPermission({ mode: 'readwrite' }).then((status) => {
+          if (status === 'granted') {
+            setFolderHandle(handle);
+          }
+        }).catch(err => console.warn('Could not query handle permission:', err));
+      }
+    }).catch(err => console.warn('Could not retrieve folder handle from DB:', err));
 
     // 1. Load admissions settings
     loadSiteSettings().then((loadedSettings) => {
@@ -98,6 +152,47 @@ export default function AdminPortal() {
       .finally(() => setLoading(false));
 
   }, [isAuthenticated]);
+
+  // Request directory access picker
+  const handleLinkFolder = async () => {
+    try {
+      if (!window.showDirectoryPicker) {
+        alert('Your browser does not support the File System Access API. Please use a modern version of Chrome, Edge, or Opera.');
+        return;
+      }
+      const handle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+        startIn: 'documents'
+      });
+      
+      // Verify write permission
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        await saveFolderHandle(handle);
+        setFolderHandle(handle);
+        setSaveSuccess('Local slides folder linked and synced successfully!');
+        setTimeout(() => setSaveSuccess(''), 4000);
+      } else {
+        alert('Write permission is required to automatically save changes to your files.');
+      }
+    } catch (e) {
+      console.error('Error selecting directory:', e);
+    }
+  };
+
+  // Helper function to write to linked local folder
+  const writeLocalFile = async (handle, filename, content) => {
+    try {
+      const fileHandle = await handle.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return true;
+    } catch (e) {
+      console.error(`Error writing file ${filename} directly:`, e);
+      return false;
+    }
+  };
 
   // Settings handlers
   const handleGlobalToggle = () => {
@@ -158,19 +253,72 @@ export default function AdminPortal() {
     setFaculty((prev) => prev.filter((t) => t.name !== name));
   };
 
-  // Central Save & Exporter
-  const handleSaveToLocalStorage = () => {
+  // Central Save & Sync
+  const handleSaveToLocalStorage = async () => {
+    // 1. Update localStorage for instant preview
     localStorage.setItem('site_settings', JSON.stringify(settings));
     
-    // Save notices.txt representation to local storage
     const noticesText = notices.map(n => `${n.date},${n.title},${n.link || '#'}`).join('\n');
     localStorage.setItem('site_notices', noticesText);
     
-    // Save faculty to local storage
     localStorage.setItem('site_faculty', JSON.stringify(faculty));
 
-    setSaveSuccess('Configurations updated successfully in your current browser! Go to the "Export" tab to download files for global updates.');
-    setTimeout(() => setSaveSuccess(''), 4000);
+    let fileSyncStatus = '';
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    // 2. Write directly to files if running locally
+    if (isLocalhost) {
+      try {
+        const res = await fetch('/api/save-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            settings,
+            noticesText,
+            faculty
+          })
+        });
+        if (res.ok) {
+          fileSyncStatus = ' and successfully written to your local slides/ files!';
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn('Local proxy save failed:', errData);
+        }
+      } catch (err) {
+        console.warn('Local proxy server is not running or encountered an error:', err);
+      }
+    }
+
+    // 3. Fallback to folderHandle if not localhost or if proxy write was not successful
+    if (!fileSyncStatus && folderHandle) {
+      try {
+        // Request/verify readwrite permission on active session
+        const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+          const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
+          
+          const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
+          const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
+          const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
+
+          if (ok1 && ok2 && ok3) {
+            fileSyncStatus = ' and successfully written to your local slides/ files!';
+          } else {
+            fileSyncStatus = ' but failed to write files. Check directory write locks.';
+          }
+        } else {
+          fileSyncStatus = ' but file sync was skipped (permission denied).';
+        }
+      } catch (err) {
+        console.error('Error during auto-sync writing:', err);
+        fileSyncStatus = ' but file write failed (access restricted).';
+      }
+    }
+
+    setSaveSuccess(`Configurations updated successfully in your browser${fileSyncStatus}!`);
+    setTimeout(() => setSaveSuccess(''), 5000);
   };
 
   // Downloader utilities
@@ -197,7 +345,6 @@ export default function AdminPortal() {
   };
 
   const downloadFacultyJson = () => {
-    // Exclude 'id' helper property from JSON output to keep it clean
     const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
     const content = JSON.stringify(cleanedFaculty, null, 2);
     downloadFile('faculty.json', content, 'application/json');
@@ -261,10 +408,19 @@ export default function AdminPortal() {
             </div>
             <p className="text-xs text-slate-400 mt-1">Govt. Higher Secondary School Shangus Control Center</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Direct filesystem sync trigger */}
+            <button
+              onClick={handleLinkFolder}
+              className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${folderHandle ? 'bg-emerald-950 border-emerald-500/30 text-emerald-400' : 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300'}`}
+              title="Select your public/slides/ folder on your computer to auto-write files directly."
+            >
+              <FolderOpen size={14} />
+              {folderHandle ? 'Slides Linked' : 'Link slides/ folder'}
+            </button>
             <button
               onClick={handleSaveToLocalStorage}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow transition-colors"
+              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-colors"
             >
               <Save size={14} />
               Apply & Save
