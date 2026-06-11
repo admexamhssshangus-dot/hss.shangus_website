@@ -132,19 +132,19 @@ export default function Home() {
         
         <div className="relative z-20 px-4">
           <h2
-            className="text-[24px] sm:text-[31px] md:text-[48px] font-semibold mb-4 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
+            className="text-[15px] sm:text-[31px] md:text-[48px] font-semibold mb-3.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
             style={{
               color: '#961c14',
               textShadow: '0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.85), 0 0 35px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
             }}
           >
-            nurturing minds,<br className="sm:hidden" /> shaping futures
+            nurturing minds, shaping futures
           </h2>
-          <div className="flex flex-col sm:flex-row justify-center items-center space-y-[6px] sm:space-y-0 sm:space-x-[6px]">
-            <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[12px] sm:text-[14px] btn-hero-primary">
+          <div className="flex flex-row justify-center items-center space-x-1.5">
+            <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[14px] btn-hero-primary">
               Admissions Open 2026
             </Link>
-            <Link to="/about" className="px-1.5 py-0.5 sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[12px] btn-hero-secondary">
+            <Link to="/about" className="px-1.5 py-0.5 sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[9px] sm:text-[12px] btn-hero-secondary">
               Learn More
             </Link>
           </div>
