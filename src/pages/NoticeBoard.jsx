@@ -5,8 +5,50 @@ import SEO from '../components/SEO';
 
 export default function NoticeBoard() {
   const [notices, setNotices] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const parseNoticeDate = (dateStr) => {
+    if (!dateStr) return null;
+    const cleaned = dateStr.trim();
+    const currentYear = new Date().getFullYear();
+
+    let parsed = Date.parse(`${cleaned}, ${currentYear}`);
+    if (!isNaN(parsed)) {
+      const d = new Date(parsed);
+      const now = new Date();
+      if (d > now && (d - now) > 30 * 24 * 60 * 60 * 1000) {
+        d.setFullYear(currentYear - 1);
+      }
+      return d;
+    }
+
+    parsed = Date.parse(cleaned);
+    if (!isNaN(parsed)) return new Date(parsed);
+
+    return null;
+  };
+
+  const isNoticeNew = (dateStr, customDays, defaultDays) => {
+    const date = parseNoticeDate(dateStr);
+    if (!date) return false;
+    const days = customDays !== undefined && !isNaN(customDays) ? customDays : defaultDays;
+    const diffTime = new Date() - date;
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays <= days;
+  };
+
+  const formatDate = (dateStr) => {
+    const date = parseNoticeDate(dateStr);
+    if (!date) return dateStr;
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleString('default', { month: 'short' });
+    const year = String(date.getFullYear()).slice(-2);
+    
+    return `${day}-${month}-${year}`;
+  };
 
   const parseNotices = (text) => {
     return text
@@ -18,17 +60,30 @@ export default function NoticeBoard() {
         if (firstComma === -1) return null;
         const date = line.substring(0, firstComma).trim();
         const rest = line.substring(firstComma + 1);
-        
+
         const secondComma = rest.indexOf(',');
         if (secondComma === -1) {
           return { date, title: rest.trim(), link: '#' };
         }
         const title = rest.substring(0, secondComma).trim();
-        const link = rest.substring(secondComma + 1).trim();
-        return { date, title, link };
+        const rest2 = rest.substring(secondComma + 1).trim();
+
+        const thirdComma = rest2.indexOf(',');
+        if (thirdComma === -1) {
+          return { date, title, link: rest2 };
+        }
+        const link = rest2.substring(0, thirdComma).trim();
+        const days = rest2.substring(thirdComma + 1).trim();
+        return { date, title, link, days: days ? parseInt(days, 10) : undefined };
       })
       .filter(Boolean);
   };
+
+  useEffect(() => {
+    import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+      loadSiteSettings().then(setSettings);
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +125,27 @@ export default function NoticeBoard() {
     return () => { active = false; };
   }, []);
 
+  // Listen to cross-tab data sync broadcasts
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type === 'UPDATE_DATA') {
+          import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+            loadSiteSettings().then(setSettings);
+          });
+          const local = localStorage.getItem('site_notices');
+          if (local) {
+            setNotices(parseNotices(local));
+          }
+        }
+      };
+      return () => channel.close();
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
   const filteredNotices = notices.filter(
     (n) =>
       n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -79,9 +155,9 @@ export default function NoticeBoard() {
   return (
     <div className="w-full bg-gradient-to-b from-teal-50 to-white py-8 min-h-screen">
       <SEO title="Notice Board & Updates" description="Official Notice Board of Govt. Higher Secondary School Shangus. Stay updated with dynamic bulletins, board result declarations, exam schedules, and circulars." />
-      
+
       <div className="max-w-4xl mx-auto px-4">
-        
+
         {/* Navigation Breadcrumb */}
         <div className="mb-6 flex items-center justify-between">
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 hover:text-teal-950 hover:underline">
@@ -139,6 +215,7 @@ export default function NoticeBoard() {
               </div>
             ) : (
               filteredNotices.map((n, idx) => {
+                const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                 const isExternal = n.link && (n.link.startsWith('http') || n.link.startsWith('mailto:'));
                 return (
                   <div
@@ -146,14 +223,16 @@ export default function NoticeBoard() {
                     className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm flex items-start gap-4 hover:border-teal-500 hover:shadow-md transition-all group"
                   >
                     {/* Calendar Badge */}
-                    <div className="w-14 h-14 rounded-lg bg-teal-55 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0 group-hover:bg-teal-100/40 transition-colors" style={{ backgroundColor: 'rgba(13, 148, 136, 0.08)' }}>
+                    <div className="w-16 h-16 rounded-lg bg-teal-55 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0 group-hover:bg-teal-100/40 transition-colors" style={{ backgroundColor: 'rgba(13, 148, 136, 0.08)' }}>
                       <Calendar size={16} className="text-teal-700 mb-0.5" />
-                      <span className="text-[9px] font-bold text-teal-800 uppercase tracking-tight text-center">{n.date}</span>
+                      <span className="text-[7px] font-bold text-teal-800 uppercase tracking-tight text-center whitespace-nowrap">{formatDate(n.date)}</span>
                     </div>
 
                     {/* Announcement text & links */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-800 text-sm md:text-base leading-snug break-words">
+                      <h4 className="font-bold text-slate-800 text-xs sm:text-sm md:text-base leading-snug break-words line-clamp-2"
+                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        title={n.title}>
                         {n.title}
                       </h4>
                       <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -180,10 +259,9 @@ export default function NoticeBoard() {
                         ) : (
                           <span className="text-[10px] text-slate-400 font-medium italic">Standard Announcement</span>
                         )}
-                        
-                        {/* New Tag for the top 2 notices in index */}
-                        {idx < 2 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 uppercase tracking-wider animate-pulse">
+
+                        {isNew && (
+                          <span className="inline-flex items-center px-1 sm:px-1.5 py-0 sm:py-0.5 rounded text-[7px] sm:text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 uppercase tracking-wider animate-pulse">
                             New
                           </span>
                         )}

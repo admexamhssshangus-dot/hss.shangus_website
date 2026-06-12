@@ -81,6 +81,67 @@ export default function Home() {
     });
   }, []);
 
+  const parseNoticeDate = (dateStr) => {
+    if (!dateStr) return null;
+    const cleaned = dateStr.trim();
+
+    // Robust parser: match any of "Jun 9", "June 9", "9 Jun", "9 June", "Nov 25" etc.
+    const MONTHS = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+      january: 0, february: 1, march: 2, april: 3, june: 5,
+      july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+    };
+    // Matches: "Jun 9", "June 9", "9 Jun", "9 June" (with optional year)
+    const re = /^([a-z]+)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$|^(\d{1,2})\s+([a-z]+)(?:\s*,?\s*(\d{4}))?$/i;
+    const m = cleaned.match(re);
+    if (m) {
+      const monthStr = (m[1] || m[5]).toLowerCase();
+      const day = parseInt(m[2] || m[4], 10);
+      const yearStr = m[3] || m[6];
+      const monthIdx = MONTHS[monthStr];
+      if (monthIdx !== undefined && !isNaN(day)) {
+        const currentYear = new Date().getFullYear();
+        const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+        const d = new Date(year, monthIdx, day);
+        // If no year given and date is in the future by >30 days, assume last year
+        if (!yearStr) {
+          const now = new Date();
+          if (d > now && (d - now) > 30 * 24 * 60 * 60 * 1000) {
+            d.setFullYear(currentYear - 1);
+          }
+        }
+        return d;
+      }
+    }
+
+    // Fallback: Try ISO / fully-qualified dates (e.g. "2026-06-09")
+    let parsed = Date.parse(cleaned);
+    if (!isNaN(parsed)) return new Date(parsed);
+
+    return null;
+  };
+
+  const formatDate = (dateStr) => {
+    const date = parseNoticeDate(dateStr);
+    if (!date) return dateStr;
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleString('default', { month: 'short' });
+    const year = String(date.getFullYear()).slice(-2);
+    
+    return `${day}-${month}-${year}`;
+  };
+
+  const isNoticeNew = (dateStr, customDays, defaultDays) => {
+    const date = parseNoticeDate(dateStr);
+    if (!date) return false;
+    const days = customDays !== undefined && !isNaN(customDays) ? customDays : defaultDays;
+    const diffTime = new Date() - date;
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays <= days;
+  };
+
   const parseNotices = (text) => {
     return text
       .split(/\r?\n/)
@@ -97,8 +158,15 @@ export default function Home() {
           return { date, title: rest.trim(), link: '#' };
         }
         const title = rest.substring(0, secondComma).trim();
-        const link = rest.substring(secondComma + 1).trim();
-        return { date, title, link };
+        const rest2 = rest.substring(secondComma + 1).trim();
+
+        const thirdComma = rest2.indexOf(',');
+        if (thirdComma === -1) {
+          return { date, title, link: rest2 };
+        }
+        const link = rest2.substring(0, thirdComma).trim();
+        const days = rest2.substring(thirdComma + 1).trim();
+        return { date, title, link, days: days ? parseInt(days, 10) : undefined };
       })
       .filter(Boolean);
   };
@@ -141,6 +209,27 @@ export default function Home() {
     return () => {
       active = false;
     };
+  }, []);
+
+  // Listen to cross-tab data sync broadcasts
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type === 'UPDATE_DATA') {
+          import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+            loadSiteSettings().then(setSettings);
+          });
+          const local = localStorage.getItem('site_notices');
+          if (local) {
+            setNotices(parseNotices(local));
+          }
+        }
+      };
+      return () => channel.close();
+    } catch (err) {
+      // ignore
+    }
   }, []);
 
   return (
@@ -186,43 +275,47 @@ export default function Home() {
             </div>
             <div className="max-h-[300px] overflow-y-auto custom-scrollbar px-4">
               <ul className="divide-y divide-slate-100">
-                {notices.map((n, idx) => (
-                  <li key={idx} className="py-3 flex items-start">
-                    <span className="text-xs font-bold text-slate-400 mr-4 mt-1 w-12 flex-shrink-0">{n.date}</span>
-                    <div className="flex-1">
-                      {n.link && n.link !== '#' ? (
-                        n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
-                          <a href={n.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-teal-700 hover:underline inline-flex items-center flex-wrap">
-                            {n.title}
-                            {idx < 2 && (
-                              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider">
-                                New
-                              </span>
-                            )}
-                          </a>
-                        ) : (
-                          <Link to={n.link} className="text-sm font-medium hover:text-teal-700 hover:underline inline-flex items-center flex-wrap">
-                            {n.title}
-                            {idx < 2 && (
-                              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider">
-                                New
-                              </span>
-                            )}
-                          </Link>
-                        )
-                      ) : (
-                        <span className="text-sm font-medium text-slate-700 inline-flex items-center flex-wrap">
-                          {n.title}
-                          {idx < 2 && (
-                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider">
+                {notices.map((n, idx) => {
+                  const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
+                  return (
+                    <li key={idx} className="py-3 flex items-start">
+                      <span className="text-[10px] font-bold text-slate-400 mr-4 mt-1 w-16 flex-shrink-0 whitespace-nowrap">{formatDate(n.date)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-1.5 flex-wrap sm:flex-nowrap justify-between">
+                          {n.link && n.link !== '#' ? (
+                            n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
+                              <a href={n.link} target="_blank" rel="noopener noreferrer" 
+                                 className="text-xs sm:text-sm font-medium text-slate-800 hover:text-teal-700 hover:underline line-clamp-2 flex-grow"
+                                 style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                 title={n.title}>
+                                {n.title}
+                              </a>
+                            ) : (
+                              <Link to={n.link} 
+                                    className="text-xs sm:text-sm font-medium text-slate-800 hover:text-teal-700 hover:underline line-clamp-2 flex-grow"
+                                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                    title={n.title}>
+                                {n.title}
+                              </Link>
+                            )
+                          ) : (
+                            <span className="text-xs sm:text-sm font-medium text-slate-700 line-clamp-2 flex-grow"
+                                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                  title={n.title}>
+                              {n.title}
+                            </span>
+                          )}
+                          
+                          {isNew && (
+                            <span className="inline-flex items-center px-1 sm:px-1.5 py-0.5 rounded text-[7px] sm:text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse uppercase tracking-wider flex-shrink-0 mt-0.5">
                               New
                             </span>
                           )}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
             <div className="bg-slate-50 p-3 text-center border-t border-slate-100">

@@ -184,6 +184,8 @@ function ContactForm({ onClose }) {
   const [message, setMessage] = useState('');
   const [backendAvailable, setBackendAvailable] = useState(null);
   const [showFallback, setShowFallback] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState(false);
 
   const subjects = [
     'Admissions',
@@ -211,8 +213,9 @@ function ContactForm({ onClose }) {
 
   function handleSubmit(e) {
     e.preventDefault();
+    setFormError('');
     if (!name.trim() || !phone.trim() || !message.trim() || subject === '') {
-      alert('Please fill required fields: Name, Phone, Subject, Message');
+      setFormError('Please fill required fields: Name, Phone, Subject, Message');
       return;
     }
 
@@ -248,8 +251,7 @@ function ContactForm({ onClose }) {
       body: JSON.stringify(payload),
     }).then((res) => {
       if (!res.ok) throw new Error('Failed');
-      alert('Message sent successfully.');
-      onClose();
+      setFormSuccess(true);
     }).catch(() => {
       setShowFallback(true);
     });
@@ -266,23 +268,23 @@ function ContactForm({ onClose }) {
     );
 
     return (
-      <div className="space-y-6 text-slate-700 py-2">
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-start gap-3">
+      <div className="space-y-6 py-2">
+        <div className="banner-teal-custom p-4 rounded-lg flex items-start gap-3 border text-xs">
           <div className="bg-emerald-500 text-white rounded-full p-1 mt-0.5 flex-shrink-0">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
-            <h4 className="font-bold text-emerald-900 text-[15px]">Logged to Admin Messages Panel</h4>
-            <p className="text-xs text-emerald-700 mt-1">
+            <h4 className="font-bold text-[15px]">Logged to Admin Messages Panel</h4>
+            <p className="text-xs mt-1">
               Your inquiry has been successfully logged on this system's Admin Messages board.
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 font-medium">
+          <p className="text-sm font-medium">
             Since the database server is currently offline, please choose a method below to deliver your message to the <strong>Admissions & Exams</strong> department:
           </p>
 
@@ -318,7 +320,7 @@ function ContactForm({ onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold rounded-md transition-all text-sm"
+            className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold rounded-md transition-all text-sm btn-cancel-custom"
           >
             Done
           </button>
@@ -327,8 +329,46 @@ function ContactForm({ onClose }) {
     );
   }
 
+  if (formSuccess) {
+    return (
+      <div className="space-y-6 py-2">
+        <div className="banner-teal-custom p-4 rounded-lg flex items-start gap-3 border text-xs">
+          <div className="bg-emerald-500 text-white rounded-full p-1 mt-0.5 flex-shrink-0 animate-pulse">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="font-bold text-[15px]">Message Sent Successfully</h4>
+            <p className="text-xs mt-1">
+              Your inquiry has been successfully delivered and saved to the administration console.
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-250 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold rounded-md transition-all text-sm btn-cancel-custom"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4 text-slate-700">
+      {formError && (
+        <div className="banner-red-custom p-3 rounded-lg text-xs flex items-center gap-2 mb-3 border">
+          <svg className="w-4 h-4 flex-shrink-0 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="font-semibold">{formError}</span>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">Your Full Name</label>
@@ -365,7 +405,7 @@ function ContactForm({ onClose }) {
         <button type="submit" className="btn-primary-custom font-bold px-4 py-2 rounded w-full shadow-md transition-all duration-200">
           Send Message
         </button>
-        <button type="button" onClick={onClose} className="px-4 py-2 border rounded w-32">
+        <button type="button" onClick={onClose} className="px-4 py-2 border rounded w-32 btn-cancel-custom">
           Cancel
         </button>
       </div>
