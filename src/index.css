@@ -35,11 +35,21 @@
 
 /* Theme Custom Variables */
 :root {
-  --bg-page: #f8fafc;
+  --bg-page: #f5f3ff; /* Colorful light violet-50 background base */
   --bg-card: #ffffff;
   --text-main: #0f172a;
   --text-muted: #475569;
-  --border-ui: #e2e8f0;
+  --border-ui: #e0e7ff; /* Soft periwinkle border */
+  --teal-accent: #0d9488;
+  --navbar-bg: #1e293b;
+}
+
+.theme-light {
+  --bg-page: #f5f3ff;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --border-ui: #e0e7ff;
   --teal-accent: #0d9488;
   --navbar-bg: #1e293b;
 }
@@ -77,91 +87,135 @@
   --navbar-bg: #062e1b;
 }
 
+/* Midnight Black (True Dark) Overrides */
+.theme-midnight {
+  --bg-page: #000000;
+  --bg-card: #0a0a0f;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-ui: #1e1b4b; /* Deep indigo border */
+  --teal-accent: #a78bfa; /* Electric violet-indigo */
+  --navbar-bg: #000000;
+}
+
+
+/* Colorful Light Theme Visual Enhancements */
+.theme-light .bg-gradient-to-b {
+  background-image: linear-gradient(180deg, #f5f3ff 0%, #e0f2fe 50%, #ffffff 100%) !important;
+}
+.theme-light .shadow-md, .theme-light .shadow-lg, .theme-light .shadow-xl {
+  box-shadow: 0 10px 30px -10px rgba(139, 92, 246, 0.08), 0 1px 10px -2px rgba(14, 165, 233, 0.06) !important;
+}
+
 /* Apply CSS variable classes globally when a custom theme is active */
-.theme-dark, .theme-royal, .theme-forest {
+.theme-dark, .theme-royal, .theme-forest ,
+.theme-midnight {
   background-color: var(--bg-page);
   color: var(--text-main);
 }
 
-.theme-dark body, .theme-royal body, .theme-forest body {
+.theme-dark body, .theme-royal body, .theme-forest body ,
+.theme-midnight body {
   background-color: var(--bg-page);
   color: var(--text-main);
 }
 
-.theme-dark main, .theme-royal main, .theme-forest main {
+.theme-dark main, .theme-royal main, .theme-forest main ,
+.theme-midnight main {
   background-color: var(--bg-page) !important;
 }
 
 /* Modal and card overrides */
 .theme-dark .bg-white,
 .theme-royal .bg-white,
-.theme-forest .bg-white {
+.theme-forest .bg-white ,
+.theme-midnight .bg-white {
   background-color: var(--bg-card) !important;
   color: var(--text-main) !important;
 }
 
 .theme-dark .bg-slate-50,
 .theme-royal .bg-slate-50,
-.theme-forest .bg-slate-50 {
+.theme-forest .bg-slate-50 ,
+.theme-midnight .bg-slate-50 {
   background-color: var(--bg-page) !important;
 }
 
 .theme-dark .bg-slate-100,
 .theme-royal .bg-slate-100,
-.theme-forest .bg-slate-100 {
+.theme-forest .bg-slate-100 ,
+.theme-midnight .bg-slate-100 {
   background-color: var(--bg-page) !important;
 }
 
 /* Text color overrides */
 .theme-dark .text-slate-900, .theme-dark .text-slate-800, .theme-dark .text-slate-700,
 .theme-royal .text-slate-900, .theme-royal .text-slate-800, .theme-royal .text-slate-700,
-.theme-forest .text-slate-900, .theme-forest .text-slate-800, .theme-forest .text-slate-700 {
+.theme-forest .text-slate-900,
+.theme-midnight .text-slate-900, .theme-forest .text-slate-800,
+.theme-midnight .text-slate-800, .theme-forest .text-slate-700 ,
+.theme-midnight .text-slate-700 {
   color: var(--text-main) !important;
 }
 
 .theme-dark .text-slate-600, .theme-dark .text-slate-500,
 .theme-royal .text-slate-600, .theme-royal .text-slate-500,
-.theme-forest .text-slate-600, .theme-forest .text-slate-500 {
+.theme-forest .text-slate-600,
+.theme-midnight .text-slate-600, .theme-forest .text-slate-500 ,
+.theme-midnight .text-slate-500 {
   color: var(--text-muted) !important;
 }
 
 /* Border overrides */
 .theme-dark .border-slate-200, .theme-dark .border-slate-100,
 .theme-royal .border-slate-200, .theme-royal .border-slate-100,
-.theme-forest .border-slate-200, .theme-forest .border-slate-100 {
+.theme-forest .border-slate-200,
+.theme-midnight .border-slate-200, .theme-forest .border-slate-100 ,
+.theme-midnight .border-slate-100 {
   border-color: var(--border-ui) !important;
 }
 
 .theme-dark .border-teal-100,
 .theme-royal .border-teal-100,
-.theme-forest .border-teal-100 {
+.theme-forest .border-teal-100 ,
+.theme-midnight .border-teal-100 {
   border-color: var(--border-ui) !important;
 }
 
 /* Navbar active background overrides */
 .theme-dark .bg-slate-800,
 .theme-royal .bg-slate-800,
-.theme-forest .bg-slate-800 {
+.theme-forest .bg-slate-800 ,
+.theme-midnight .bg-slate-800 {
   background-color: var(--navbar-bg) !important;
 }
 
 /* Link active background overrides */
 .theme-dark .bg-slate-900,
 .theme-royal .bg-slate-900,
-.theme-forest .bg-slate-900 {
+.theme-forest .bg-slate-900 ,
+.theme-midnight .bg-slate-900 {
   background-color: var(--bg-page) !important;
 }
 
 /* Accent teal colors */
 .theme-dark .text-teal-800, .theme-dark .text-teal-700, .theme-dark .text-teal-600, .theme-dark .text-teal-500,
 .theme-royal .text-teal-800, .theme-royal .text-teal-700, .theme-royal .text-teal-600, .theme-royal .text-teal-500,
-.theme-forest .text-teal-800, .theme-forest .text-teal-700, .theme-forest .text-teal-600, .theme-forest .text-teal-500 {
+.theme-forest .text-teal-800,
+.theme-midnight .text-teal-800, .theme-forest .text-teal-700,
+.theme-midnight .text-teal-700, .theme-forest .text-teal-600,
+.theme-midnight .text-teal-600, .theme-forest .text-teal-500 ,
+.theme-midnight .text-teal-500 {
   color: var(--teal-accent) !important;
 }
 
 .theme-dark .bg-teal-800, .theme-dark .bg-teal-700, .theme-dark .bg-teal-600, .theme-dark .bg-teal-500,
 .theme-royal .bg-teal-800, .theme-royal .bg-teal-700, .theme-royal .bg-teal-600, .theme-royal .bg-teal-500,
-.theme-forest .bg-teal-800, .theme-forest .bg-teal-700, .theme-forest .bg-teal-600, .theme-forest .bg-teal-500 {
+.theme-forest .bg-teal-800,
+.theme-midnight .bg-teal-800, .theme-forest .bg-teal-700,
+.theme-midnight .bg-teal-700, .theme-forest .bg-teal-600,
+.theme-midnight .bg-teal-600, .theme-forest .bg-teal-500 ,
+.theme-midnight .bg-teal-500 {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
@@ -169,7 +223,10 @@
 /* Input and form control overrides */
 .theme-dark input, .theme-dark textarea, .theme-dark select,
 .theme-royal input, .theme-royal textarea, .theme-royal select,
-.theme-forest input, .theme-forest textarea, .theme-forest select {
+.theme-forest input,
+.theme-midnight input, .theme-forest textarea,
+.theme-midnight textarea, .theme-forest select ,
+.theme-midnight select {
   background-color: var(--bg-page) !important;
   color: var(--text-main) !important;
   border-color: var(--border-ui) !important;
@@ -189,14 +246,16 @@
 
 .theme-dark .btn-primary-custom,
 .theme-royal .btn-primary-custom,
-.theme-forest .btn-primary-custom {
+.theme-forest .btn-primary-custom ,
+.theme-midnight .btn-primary-custom {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
 
 .theme-dark .btn-primary-custom:hover,
 .theme-royal .btn-primary-custom:hover,
-.theme-forest .btn-primary-custom:hover {
+.theme-forest .btn-primary-custom:hover ,
+.theme-midnight .btn-primary-custom:hover {
   background-color: #ffffff !important;
   color: #000000 !important;
 }
@@ -217,7 +276,8 @@
 
 .theme-dark .btn-secondary-custom,
 .theme-royal .btn-secondary-custom,
-.theme-forest .btn-secondary-custom {
+.theme-forest .btn-secondary-custom ,
+.theme-midnight .btn-secondary-custom {
   background-color: transparent !important;
   color: var(--text-main) !important;
   border-color: var(--border-ui) !important;
@@ -225,7 +285,8 @@
 
 .theme-dark .btn-secondary-custom:hover,
 .theme-royal .btn-secondary-custom:hover,
-.theme-forest .btn-secondary-custom:hover {
+.theme-forest .btn-secondary-custom:hover ,
+.theme-midnight .btn-secondary-custom:hover {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
   border-color: var(--teal-accent) !important;
@@ -234,21 +295,27 @@
 /* Navbar active and hover border line overrides */
 .theme-dark .border-orange-500, .theme-dark .hover\:border-orange-400:hover,
 .theme-royal .border-orange-500, .theme-royal .hover\:border-orange-400:hover,
-.theme-forest .border-orange-500, .theme-forest .hover\:border-orange-400:hover {
+.theme-forest .border-orange-500,
+.theme-midnight .border-orange-500, .theme-forest .hover\:border-orange-400:hover ,
+.theme-midnight .hover\:border-orange-400:hover {
   border-color: var(--teal-accent) !important;
 }
 
 /* Header and Footer links hover override */
 .theme-dark footer a:hover, .theme-dark footer button:hover, .theme-dark header a:hover,
 .theme-royal footer a:hover, .theme-royal footer button:hover, .theme-royal header a:hover,
-.theme-forest footer a:hover, .theme-forest footer button:hover, .theme-forest header a:hover {
+.theme-forest footer a:hover,
+.theme-midnight footer a:hover, .theme-forest footer button:hover,
+.theme-midnight footer button:hover, .theme-forest header a:hover ,
+.theme-midnight header a:hover {
   color: var(--teal-accent) !important;
 }
 
 /* Disable page gradients in custom themes */
 .theme-dark .bg-gradient-to-b,
 .theme-royal .bg-gradient-to-b,
-.theme-forest .bg-gradient-to-b {
+.theme-forest .bg-gradient-to-b ,
+.theme-midnight .bg-gradient-to-b {
   background-image: none !important;
   background-color: var(--bg-page) !important;
 }
@@ -256,7 +323,9 @@
 /* Stepper step circular badges override in custom themes */
 .theme-dark .from-teal-600, .theme-dark .to-teal-500,
 .theme-royal .from-teal-600, .theme-royal .to-teal-500,
-.theme-forest .from-teal-600, .theme-forest .to-teal-500 {
+.theme-forest .from-teal-600,
+.theme-midnight .from-teal-600, .theme-forest .to-teal-500 ,
+.theme-midnight .to-teal-500 {
   background-image: none !important;
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
@@ -265,14 +334,19 @@
 /* Badge rings override in custom themes */
 .theme-dark .ring-teal-200, .theme-dark .ring-orange-100,
 .theme-royal .ring-teal-200, .theme-royal .ring-orange-100,
-.theme-forest .ring-teal-200, .theme-forest .ring-orange-100 {
+.theme-forest .ring-teal-200,
+.theme-midnight .ring-teal-200, .theme-forest .ring-orange-100 ,
+.theme-midnight .ring-orange-100 {
   box-shadow: 0 0 0 2px var(--border-ui) !important;
 }
 
 /* Active tab styles for Academics page in custom themes */
 .theme-dark .bg-teal-600, .theme-dark .bg-amber-600, .theme-dark .bg-violet-600,
 .theme-royal .bg-teal-600, .theme-royal .bg-amber-600, .theme-royal .bg-violet-600,
-.theme-forest .bg-teal-600, .theme-forest .bg-amber-600, .theme-forest .bg-violet-600 {
+.theme-forest .bg-teal-600,
+.theme-midnight .bg-teal-600, .theme-forest .bg-amber-600,
+.theme-midnight .bg-amber-600, .theme-forest .bg-violet-600 ,
+.theme-midnight .bg-violet-600 {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
@@ -280,7 +354,9 @@
 /* Modal mini button overrides for Academics modal */
 .theme-dark .bg-slate-100:hover, .theme-dark .bg-slate-50:hover,
 .theme-royal .bg-slate-100:hover, .theme-royal .bg-slate-50:hover,
-.theme-forest .bg-slate-100:hover, .theme-forest .bg-slate-50:hover {
+.theme-forest .bg-slate-100:hover,
+.theme-midnight .bg-slate-100:hover, .theme-forest .bg-slate-50:hover ,
+.theme-midnight .bg-slate-50:hover {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
@@ -288,20 +364,23 @@
 /* Table header overrides for Admissions page */
 .theme-dark .bg-slate-900,
 .theme-royal .bg-slate-900,
-.theme-forest .bg-slate-900 {
+.theme-forest .bg-slate-900 ,
+.theme-midnight .bg-slate-900 {
   background-color: var(--bg-page) !important;
 }
 
 .theme-dark .bg-orange-500,
 .theme-royal .bg-orange-500,
-.theme-forest .bg-orange-500 {
+.theme-forest .bg-orange-500 ,
+.theme-midnight .bg-orange-500 {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
 
 .theme-dark .bg-blue-500,
 .theme-royal .bg-blue-500,
-.theme-forest .bg-blue-500 {
+.theme-forest .bg-blue-500 ,
+.theme-midnight .bg-blue-500 {
   background-color: var(--border-ui) !important;
   color: var(--text-main) !important;
 }
@@ -309,14 +388,17 @@
 /* Fallback success alert overrides for custom themes */
 .theme-dark .bg-emerald-50,
 .theme-royal .bg-emerald-50,
-.theme-forest .bg-emerald-50 {
+.theme-forest .bg-emerald-50 ,
+.theme-midnight .bg-emerald-50 {
   background-color: rgba(16, 185, 129, 0.1) !important;
   border-color: rgba(16, 185, 129, 0.2) !important;
 }
 
 .theme-dark .text-emerald-900, .theme-dark .text-emerald-700,
 .theme-royal .text-emerald-900, .theme-royal .text-emerald-700,
-.theme-forest .text-emerald-900, .theme-forest .text-emerald-700 {
+.theme-forest .text-emerald-900,
+.theme-midnight .text-emerald-900, .theme-forest .text-emerald-700 ,
+.theme-midnight .text-emerald-700 {
   color: var(--teal-accent) !important;
 }
 
@@ -355,7 +437,8 @@
 /* Custom Theme Overrides for Hero Buttons */
 .theme-dark .btn-hero-primary,
 .theme-royal .btn-hero-primary,
-.theme-forest .btn-hero-primary {
+.theme-forest .btn-hero-primary ,
+.theme-midnight .btn-hero-primary {
   background-color: var(--teal-accent) !important;
   color: var(--bg-page) !important;
   border-color: var(--teal-accent) !important;
@@ -363,7 +446,8 @@
 
 .theme-dark .btn-hero-primary:hover,
 .theme-royal .btn-hero-primary:hover,
-.theme-forest .btn-hero-primary:hover {
+.theme-forest .btn-hero-primary:hover ,
+.theme-midnight .btn-hero-primary:hover {
   background-color: var(--text-main) !important;
   color: var(--bg-page) !important;
   border-color: var(--text-main) !important;
@@ -372,7 +456,8 @@
 
 .theme-dark .btn-hero-secondary,
 .theme-royal .btn-hero-secondary,
-.theme-forest .btn-hero-secondary {
+.theme-forest .btn-hero-secondary ,
+.theme-midnight .btn-hero-secondary {
   background-color: rgba(255, 255, 255, 0.08) !important;
   color: var(--text-main) !important;
   border-color: rgba(255, 255, 255, 0.25) !important;
@@ -380,7 +465,8 @@
 
 .theme-dark .btn-hero-secondary:hover,
 .theme-royal .btn-hero-secondary:hover,
-.theme-forest .btn-hero-secondary:hover {
+.theme-forest .btn-hero-secondary:hover ,
+.theme-midnight .btn-hero-secondary:hover {
   background-color: var(--teal-accent) !important;
   color: var(--bg-page) !important;
   border-color: var(--teal-accent) !important;
@@ -436,7 +522,8 @@
 .theme-light .bg-slate-950,
 .theme-dark .bg-slate-950,
 .theme-royal .bg-slate-950,
-.theme-forest .bg-slate-950 {
+.theme-forest .bg-slate-950 ,
+.theme-midnight .bg-slate-950 {
   background-color: var(--bg-page) !important;
   color: var(--text-main) !important;
 }
@@ -444,7 +531,8 @@
 .theme-light .bg-slate-900,
 .theme-dark .bg-slate-900,
 .theme-royal .bg-slate-900,
-.theme-forest .bg-slate-900 {
+.theme-forest .bg-slate-900 ,
+.theme-midnight .bg-slate-900 {
   background-color: var(--bg-card) !important;
   color: var(--text-main) !important;
 }
@@ -453,7 +541,8 @@
 .theme-light .bg-slate-900\/40,
 .theme-dark .bg-slate-900\/40,
 .theme-royal .bg-slate-900\/40,
-.theme-forest .bg-slate-900\/40 {
+.theme-forest .bg-slate-900\/40 ,
+.theme-midnight .bg-slate-900\/40 {
   background-color: var(--bg-card) !important;
   border-color: var(--border-ui) !important;
 }
@@ -465,7 +554,8 @@
 }
 .theme-dark .bg-slate-900\/60,
 .theme-royal .bg-slate-900\/60,
-.theme-forest .bg-slate-900\/60 {
+.theme-forest .bg-slate-900\/60 ,
+.theme-midnight .bg-slate-900\/60 {
   background-color: rgba(255, 255, 255, 0.035) !important;
   border-color: var(--border-ui) !important;
 }
@@ -477,7 +567,8 @@
 }
 .theme-dark .bg-slate-900\/30,
 .theme-royal .bg-slate-900\/30,
-.theme-forest .bg-slate-900\/30 {
+.theme-forest .bg-slate-900\/30 ,
+.theme-midnight .bg-slate-900\/30 {
   background-color: rgba(0, 0, 0, 0.15) !important;
   border-color: var(--border-ui) !important;
 }
@@ -488,7 +579,8 @@
 }
 .theme-dark .bg-slate-900\/50,
 .theme-royal .bg-slate-900\/50,
-.theme-forest .bg-slate-900\/50 {
+.theme-forest .bg-slate-900\/50 ,
+.theme-midnight .bg-slate-900\/50 {
   background-color: rgba(255, 255, 255, 0.07) !important;
 }
 
@@ -498,7 +590,8 @@
 
 .theme-dark .hover\:bg-slate-900\/20:hover,
 .theme-royal .hover\:bg-slate-900\/20:hover,
-.theme-forest .hover\:bg-slate-900\/20:hover {
+.theme-forest .hover\:bg-slate-900\/20:hover ,
+.theme-midnight .hover\:bg-slate-900\/20:hover {
   background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
@@ -506,7 +599,10 @@
 .theme-light input, .theme-light select, .theme-light textarea,
 .theme-dark input, .theme-dark select, .theme-dark textarea,
 .theme-royal input, .theme-royal select, .theme-royal textarea,
-.theme-forest input, .theme-forest select, .theme-forest textarea {
+.theme-forest input,
+.theme-midnight input, .theme-forest select,
+.theme-midnight select, .theme-forest textarea ,
+.theme-midnight textarea {
   background-color: var(--bg-page) !important;
   color: var(--text-main) !important;
   border-color: var(--border-ui) !important;
@@ -516,14 +612,16 @@
 .theme-light .focus\:border-orange-500:focus,
 .theme-dark .focus\:border-orange-500:focus,
 .theme-royal .focus\:border-orange-500:focus,
-.theme-forest .focus\:border-orange-500:focus {
+.theme-forest .focus\:border-orange-500:focus ,
+.theme-midnight .focus\:border-orange-500:focus {
   border-color: var(--teal-accent) !important;
 }
 
 .theme-light .focus\:ring-orange-500:focus,
 .theme-dark .focus\:ring-orange-500:focus,
 .theme-royal .focus\:ring-orange-500:focus,
-.theme-forest .focus\:ring-orange-500:focus {
+.theme-forest .focus\:ring-orange-500:focus ,
+.theme-midnight .focus\:ring-orange-500:focus {
   --tw-ring-color: var(--teal-accent) !important;
   box-shadow: 0 0 0 1px var(--teal-accent) !important;
 }
@@ -532,7 +630,11 @@
 .theme-light .border, .theme-light .border-slate-800, .theme-light .border-slate-700, .theme-light .divide-slate-800\/60,
 .theme-dark .border, .theme-dark .border-slate-800, .theme-dark .border-slate-700, .theme-dark .divide-slate-800\/60,
 .theme-royal .border, .theme-royal .border-slate-800, .theme-royal .border-slate-700, .theme-royal .divide-slate-800\/60,
-.theme-forest .border, .theme-forest .border-slate-800, .theme-forest .border-slate-700, .theme-forest .divide-slate-800\/60 {
+.theme-forest .border,
+.theme-midnight .border, .theme-forest .border-slate-800,
+.theme-midnight .border-slate-800, .theme-forest .border-slate-700,
+.theme-midnight .border-slate-700, .theme-forest .divide-slate-800\/60 ,
+.theme-midnight .divide-slate-800\/60 {
   border-color: var(--border-ui) !important;
 }
 
@@ -540,14 +642,17 @@
 .theme-light .text-orange-400, .theme-light .text-orange-500,
 .theme-dark .text-orange-400, .theme-dark .text-orange-500,
 .theme-royal .text-orange-400, .theme-royal .text-orange-500,
-.theme-forest .text-orange-400, .theme-forest .text-orange-500 {
+.theme-forest .text-orange-400,
+.theme-midnight .text-orange-400, .theme-forest .text-orange-500 ,
+.theme-midnight .text-orange-500 {
   color: var(--teal-accent) !important;
 }
 
 .theme-light .border-orange-500,
 .theme-dark .border-orange-500,
 .theme-royal .border-orange-500,
-.theme-forest .border-orange-500 {
+.theme-forest .border-orange-500 ,
+.theme-midnight .border-orange-500 {
   border-color: var(--teal-accent) !important;
 }
 
@@ -577,6 +682,11 @@
   border-color: rgba(52, 211, 153, 0.2) !important;
   color: var(--teal-accent) !important;
 }
+.theme-midnight .theme-accent-badge {
+  background-color: rgba(167, 139, 250, 0.1) !important;
+  border-color: rgba(167, 139, 250, 0.2) !important;
+  color: var(--teal-accent) !important;
+}
 
 /* Buttons (Orange, Sky, Emerald -> Accent colors) */
 .theme-light .bg-orange-600, .theme-light .bg-sky-600 {
@@ -591,14 +701,20 @@
 
 .theme-dark .bg-orange-600, .theme-dark .bg-sky-600,
 .theme-royal .bg-orange-600, .theme-royal .bg-sky-600,
-.theme-forest .bg-orange-600, .theme-forest .bg-sky-600 {
+.theme-forest .bg-orange-600,
+.theme-midnight .bg-orange-600, .theme-forest .bg-sky-600 ,
+.theme-midnight .bg-sky-600 {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
 
 .theme-dark .bg-orange-600:hover, .theme-dark .bg-sky-600:hover, .theme-dark .hover\:bg-orange-500:hover, .theme-dark .hover\:bg-sky-500:hover,
 .theme-royal .bg-orange-600:hover, .theme-royal .bg-sky-600:hover, .theme-royal .hover\:bg-orange-500:hover, .theme-royal .hover\:bg-sky-500:hover,
-.theme-forest .bg-orange-600:hover, .theme-forest .bg-sky-600:hover, .theme-forest .hover\:bg-orange-500:hover, .theme-forest .hover\:bg-sky-500:hover {
+.theme-forest .bg-orange-600:hover,
+.theme-midnight .bg-orange-600:hover, .theme-forest .bg-sky-600:hover,
+.theme-midnight .bg-sky-600:hover, .theme-forest .hover\:bg-orange-500:hover,
+.theme-midnight .hover\:bg-orange-500:hover, .theme-forest .hover\:bg-sky-500:hover ,
+.theme-midnight .hover\:bg-sky-500:hover {
   background-color: var(--text-main) !important;
   color: var(--bg-page) !important;
 }
@@ -625,14 +741,19 @@
 .theme-light .text-slate-100, .theme-light .text-slate-200, .theme-light .text-slate-300,
 .theme-dark .text-slate-100, .theme-dark .text-slate-200, .theme-dark .text-slate-300,
 .theme-royal .text-slate-100, .theme-royal .text-slate-200, .theme-royal .text-slate-300,
-.theme-forest .text-slate-100, .theme-forest .text-slate-200, .theme-forest .text-slate-300 {
+.theme-forest .text-slate-100,
+.theme-midnight .text-slate-100, .theme-forest .text-slate-200,
+.theme-midnight .text-slate-200, .theme-forest .text-slate-300 ,
+.theme-midnight .text-slate-300 {
   color: var(--text-main) !important;
 }
 
 .theme-light .text-slate-400, .theme-light .text-slate-500,
 .theme-dark .text-slate-400, .theme-dark .text-slate-500,
 .theme-royal .text-slate-400, .theme-royal .text-slate-500,
-.theme-forest .text-slate-400, .theme-forest .text-slate-500 {
+.theme-forest .text-slate-400,
+.theme-midnight .text-slate-400, .theme-forest .text-slate-500 ,
+.theme-midnight .text-slate-500 {
   color: var(--text-muted) !important;
 }
 
@@ -640,7 +761,9 @@
 .theme-light .from-teal-50, .theme-light .to-white,
 .theme-dark .from-teal-50, .theme-dark .to-white,
 .theme-royal .from-teal-50, .theme-royal .to-white,
-.theme-forest .from-teal-50, .theme-forest .to-white {
+.theme-forest .from-teal-50,
+.theme-midnight .from-teal-50, .theme-forest .to-white ,
+.theme-midnight .to-white {
   background-image: none !important;
   background-color: var(--bg-page) !important;
 }
@@ -649,7 +772,8 @@
 .theme-light .bg-teal-55,
 .theme-dark .bg-teal-55,
 .theme-royal .bg-teal-55,
-.theme-forest .bg-teal-55 {
+.theme-forest .bg-teal-55 ,
+.theme-midnight .bg-teal-55 {
   background-color: rgba(13, 148, 136, 0.08) !important;
   border-color: var(--border-ui) !important;
 }
@@ -660,7 +784,9 @@
 .theme-royal .bg-teal-55,
 .theme-royal .bg-teal-50,
 .theme-forest .bg-teal-55,
-.theme-forest .bg-teal-50 {
+.theme-midnight .bg-teal-55,
+.theme-forest .bg-teal-50 ,
+.theme-midnight .bg-teal-50 {
   background-color: rgba(255, 255, 255, 0.05) !important;
   color: var(--text-main) !important;
   border-color: var(--border-ui) !important;
@@ -670,6 +796,340 @@
 .theme-light .border-teal-500, .theme-light .border-teal-800,
 .theme-dark .border-teal-500, .theme-dark .border-teal-800,
 .theme-royal .border-teal-500, .theme-royal .border-teal-800,
-.theme-forest .border-teal-500, .theme-forest .border-teal-800 {
+.theme-forest .border-teal-500,
+.theme-midnight .border-teal-500, .theme-forest .border-teal-800 ,
+.theme-midnight .border-teal-800 {
   border-color: var(--teal-accent) !important;
 }
+
+/* ==========================================================================
+   CRITICAL: Header & Footer Dark-Bar Resets
+   These rules run LAST and have highest specificity to undo any global
+   theme-light text/background overrides that would break the dark navbar/footer.
+   ========================================================================== */
+
+/* --- LIGHT THEME: Keep header & footer dark as designed --- */
+
+/* Top contact bar and nav row stay dark slate */
+.theme-light header .bg-slate-900 {
+  background-color: #0f172a !important;
+}
+.theme-light header .bg-slate-800 {
+  background-color: #1e293b !important;
+}
+
+/* Nav link text: inactive links must stay light (slate-300 = #cbd5e1) on dark navbar */
+.theme-light header nav .text-slate-300,
+.theme-light header .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+/* Active nav link text: must be white */
+.theme-light header nav .text-white,
+.theme-light header .text-white {
+  color: #ffffff !important;
+}
+
+/* Top contact bar text (phone/email) */
+.theme-light header .bg-slate-900 .text-slate-300,
+.theme-light header .bg-slate-900 .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+/* Active tab background in nav (bg-slate-900 inside nav) */
+.theme-light header nav .bg-slate-900 {
+  background-color: #0f172a !important;
+}
+
+/* Mobile slide-down menu stays dark */
+.theme-light header .bg-slate-800.text-white,
+.theme-light header .md\\:hidden.bg-slate-800 {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Admin lock icon in header */
+.theme-light header .text-slate-400 {
+  color: #94a3b8 !important;
+}
+.theme-light header .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+/* --- FOOTER: Keep footer dark as designed --- */
+
+/* Footer base stays dark */
+.theme-light footer.bg-slate-950,
+.theme-light footer .bg-slate-950 {
+  background-color: #020617 !important;
+  color: #cbd5e1 !important;
+}
+
+/* Footer text colors */
+.theme-light footer .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+.theme-light footer .text-slate-400,
+.theme-light footer .text-slate-500 {
+  color: #94a3b8 !important;
+}
+.theme-light footer .text-white {
+  color: #ffffff !important;
+}
+
+/* Footer border */
+.theme-light footer .border-slate-700 {
+  border-color: #334155 !important;
+}
+.theme-light footer .border-slate-800 {
+  border-color: #1e293b !important;
+}
+
+/* --- ALL DARK THEMES: Nav link contrast improvements --- */
+
+/* Inactive nav links in dark themes: use muted accent shade for differentiation */
+.theme-dark header nav .text-slate-300 {
+  color: #94a3b8 !important;
+}
+.theme-royal header nav .text-slate-300 {
+  color: #8da9c4 !important;
+}
+.theme-forest header nav .text-slate-300 {
+  color: #78a890 !important;
+}
+.theme-midnight header nav .text-slate-300 {
+  color: #94a3b8 !important;
+}
+
+/* Active nav links in all themes: always pure white */
+.theme-dark header nav .text-white,
+.theme-royal header nav .text-white,
+.theme-forest header nav .text-white ,
+.theme-midnight header nav .text-white {
+  color: #ffffff !important;
+}
+
+/* Hover text in header nav: accent color from theme */
+.theme-dark header nav a:hover,
+.theme-royal header nav a:hover,
+.theme-forest header nav a:hover ,
+.theme-midnight header nav a:hover {
+  color: var(--teal-accent) !important;
+}
+
+/* Active tab border line stays themed accent */
+.theme-dark header nav .border-orange-500,
+.theme-royal header nav .border-orange-500,
+.theme-forest header nav .border-orange-500 ,
+.theme-midnight header nav .border-orange-500 {
+  border-color: var(--teal-accent) !important;
+}
+
+/* Mobile menu on Light theme: keep dark bg and white text */
+.theme-light header [class*="bg-slate-800"] {
+  background-color: #1e293b !important;
+}
+.theme-light header [class*="bg-slate-700"] {
+  border-color: #334155 !important;
+}
+
+/* ==========================================================================
+   Administrative Theme Contrast Enhancements
+   ========================================================================== */
+
+/* High-contrast outline button adapting to all color themes */
+.btn-outline-theme {
+  background-color: transparent !important;
+  border: 1px solid var(--border-ui) !important;
+  color: var(--text-main) !important;
+  transition: all 0.2s ease;
+}
+.btn-outline-theme:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-main) !important;
+}
+.theme-light .btn-outline-theme:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* High-contrast badge pill for tables adapting to all color themes */
+.badge-theme {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border-ui) !important;
+  color: var(--text-muted) !important;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  display: inline-block;
+  white-space: nowrap;
+}
+.theme-light .badge-theme {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: var(--text-main) !important; /* Rich contrast dark slate text in Light Mode */
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ==========================================================================
+   Smart Merge Modals & Custom Prompt Contrast Overrides
+   ========================================================================== */
+
+/* 1. Cancel buttons override for better contrast in all themes */
+.btn-cancel-custom {
+  background-color: #f1f5f9 !important; /* slate-100 */
+  color: #0f172a !important; /* slate-900 */
+  border-color: #cbd5e1 !important; /* slate-300 */
+}
+.btn-cancel-custom:hover {
+  background-color: #e2e8f0 !important; /* slate-200 */
+}
+
+.theme-dark .btn-cancel-custom,
+.theme-royal .btn-cancel-custom,
+.theme-forest .btn-cancel-custom,
+.theme-midnight .btn-cancel-custom {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-ui) !important;
+}
+.theme-dark .btn-cancel-custom:hover,
+.theme-royal .btn-cancel-custom:hover,
+.theme-forest .btn-cancel-custom:hover,
+.theme-midnight .btn-cancel-custom:hover {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* 2. Banner/alert overrides */
+.banner-teal-custom {
+  background-color: #f0fdf4 !important; /* light green */
+  color: #166534 !important; /* dark green */
+  border-color: #bbf7d0 !important;
+}
+.theme-dark .banner-teal-custom,
+.theme-royal .banner-teal-custom,
+.theme-forest .banner-teal-custom,
+.theme-midnight .banner-teal-custom {
+  background-color: rgba(52, 211, 153, 0.12) !important;
+  color: #34d399 !important; /* emerald-450 */
+  border-color: rgba(52, 211, 153, 0.25) !important;
+}
+
+.banner-red-custom {
+  background-color: #fee2e2 !important; /* red-100 */
+  color: #991b1b !important; /* red-800 */
+  border-color: #fecaca !important; /* red-200 */
+}
+.theme-dark .banner-red-custom,
+.theme-royal .banner-red-custom,
+.theme-forest .banner-red-custom,
+.theme-midnight .banner-red-custom {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important; /* red-400 */
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+/* 3. Status Badges Overrides */
+.badge-status-update {
+  background-color: #fef3c7 !important; /* amber-100 */
+  color: #d97706 !important; /* amber-700 */
+  border: 1px solid #fde68a !important; /* amber-200 */
+}
+.badge-status-new {
+  background-color: #d1fae5 !important; /* emerald-100 */
+  color: #059669 !important; /* emerald-700 */
+  border: 1px solid #a7f3d0 !important; /* emerald-200 */
+}
+
+.theme-dark .badge-status-update,
+.theme-royal .badge-status-update,
+.theme-forest .badge-status-update,
+.theme-midnight .badge-status-update {
+  background-color: rgba(245, 158, 11, 0.15) !important; /* dark amber bg */
+  color: #fbbf24 !important; /* amber-400 text */
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+}
+
+.theme-dark .badge-status-new,
+.theme-royal .badge-status-new,
+.theme-forest .badge-status-new,
+.theme-midnight .badge-status-new {
+  background-color: rgba(16, 185, 129, 0.15) !important; /* dark emerald bg */
+  color: #34d399 !important; /* emerald-400 text */
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+
+/* Row errors numbers */
+.badge-red-custom {
+  background-color: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+.theme-dark .badge-red-custom,
+.theme-royal .badge-red-custom,
+.theme-forest .badge-red-custom,
+.theme-midnight .badge-red-custom {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+}
+
+/* Specific contrast override styles for borders, hovers, and table headers in Light/Dark themes */
+.theme-light .border-slate-850,
+.theme-light .border-slate-855,
+.theme-light .border-slate-900\/50,
+.theme-dark .border-slate-850,
+.theme-dark .border-slate-855,
+.theme-dark .border-slate-900\/50,
+.theme-royal .border-slate-850,
+.theme-royal .border-slate-855,
+.theme-royal .border-slate-900\/50,
+.theme-forest .border-slate-850,
+.theme-forest .border-slate-855,
+.theme-forest .border-slate-900\/50,
+.theme-midnight .border-slate-850,
+.theme-midnight .border-slate-855,
+.theme-midnight .border-slate-900\/50 {
+  border-color: var(--border-ui) !important;
+}
+
+/* Clean hover feedback in Light Theme */
+.theme-light .hover\:bg-orange-950\/40:hover {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+  color: #c2410c !important;
+}
+.theme-light .hover\:bg-red-950\/40:hover {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #b91c1c !important;
+}
+.theme-light .hover\:bg-emerald-950\/40:hover {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  color: #047857 !important;
+}
+.theme-light .hover\:bg-slate-800:hover,
+.theme-light .hover\:bg-slate-750:hover {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Ensure high contrast table headers in Light Theme */
+.theme-light table thead tr,
+.theme-light table thead th {
+  color: var(--text-main) !important;
+  font-weight: 800 !important;
+}
+.theme-light table thead {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+/* Red closed admission badges contrast overrides in Light Mode */
+.theme-light .bg-red-950 {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+.theme-light .text-red-400 {
+  color: #b91c1c !important;
+}
+.theme-light .border-red-900 {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+

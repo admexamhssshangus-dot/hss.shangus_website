@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings } from '../utils/settingsLoader';
 
 // ==========================================
@@ -41,6 +41,32 @@ async function getFolderHandle() {
   });
 }
 
+// ==========================================
+// Cryptographic Password Hash for Security
+// ==========================================
+const ADMIN_PASSWORD_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'; // SHA-256 of 'admin123'
+
+async function hashPassword(plainText) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plainText);
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ==========================================
+// Date Formatting Helper (turns YYYY-MM-DD -> MMM DD)
+// ==========================================
+function formatDateToShort(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  return `${month} ${day}`;
+}
+
 // Custom iOS-style Toggle Switch Component
 function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', labelRight = '' }) {
   return (
@@ -69,11 +95,44 @@ function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', lab
   );
 }
 
+// ==========================================
+// Full Employee Edit Panel Style Constants & Inputs
+// ==========================================
+const STANDARD_DEPTS = ['Administration', 'Science', 'Humanities', 'Secondary', 'MTS'];
+const panelInput = "w-full px-2.5 py-1.5 rounded text-xs font-medium focus:outline-none transition-colors";
+const panelInputStyle = { background: '#020617', border: '1px solid #334155', color: '#f1f5f9' };
+const panelInputFocusStyle = { borderColor: '#f97316' };
+const panelLabel = "block text-[9px] font-extrabold uppercase tracking-wider mb-1";
+const panelLabelStyle = { color: '#7dd3fc' }; /* sky-300 — readable on dark bg */
+const sectionHeader = "text-[10px] font-extrabold uppercase tracking-widest mb-3 flex items-center gap-3";
+const divider = { borderTop: '1px solid rgba(255,255,255,0.08)', flex: 1 };
+const sectionTitleStyle = { color: '#f97316' }; /* orange-400 */
+
+function FInput({ field, label, data, onChange, type = 'text', mono = false, required = false }) {
+  return (
+    <div>
+      <label className={panelLabel} style={panelLabelStyle}>
+        {label}
+        {required && <span style={{ color: '#f87171' }}> *</span>}
+      </label>
+      <input
+        type={type}
+        value={data[field] || ''}
+        onChange={e => onChange(field, e.target.value)}
+        className={panelInput + (mono ? ' font-mono' : '')}
+        style={panelInputStyle}
+        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+      />
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
-  
+
   // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
   const [activeTab, setActiveTab] = useState('admissions');
 
@@ -92,29 +151,388 @@ export default function AdminPortal() {
   const [editNoticeData, setEditNoticeData] = useState({ date: '', title: '', link: '' });
 
   const [editingFacultyIdx, setEditingFacultyIdx] = useState(null);
-  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '' });
+  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false });
 
-  // Password for admin access
-  const ADMIN_PASSWORD = 'admin123';
+  // Full Edit Modal States
+  const [showFullEditModal, setShowFullEditModal] = useState(false);
+  const [fullEditIndex, setFullEditIndex] = useState(null);
+  const [fullEditData, setFullEditData] = useState(null);
+  const [fullEditPhotoFile, setFullEditPhotoFile] = useState(null);
+  const [fullEditPhotoName, setFullEditPhotoName] = useState('');
+  const [fullEditPhotoExt, setFullEditPhotoExt] = useState('.jpg');
 
-  // Login handler
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('isAdminAuthenticated', 'true');
-      setAuthError('');
+  // Bulk PDF Export States
+  const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
+  const [bulkPrintSearch, setBulkPrintSearch] = useState('');
+  const [bulkPrintDept, setBulkPrintDept] = useState('All');
+  const [selectedBulkPrintNames, setSelectedBulkPrintNames] = useState([]);
+
+  // Photo Upload States
+  const [newTeacherPhotoFile, setNewTeacherPhotoFile] = useState(null);
+  const [newTeacherPhotoName, setNewTeacherPhotoName] = useState('');
+  const [newTeacherPhotoExt, setNewTeacherPhotoExt] = useState('.jpg');
+
+  const [editTeacherPhotoFile, setEditTeacherPhotoFile] = useState(null);
+  const [editTeacherPhotoName, setEditTeacherPhotoName] = useState('');
+  const [editTeacherPhotoExt, setEditTeacherPhotoExt] = useState('.jpg');
+
+  // CSV Import Preview and Validation States
+  const [csvPreviewData, setCsvPreviewData] = useState(null);
+  const [csvValidationErrors, setCsvValidationErrors] = useState(null);
+  const [showCsvPreviewModal, setShowCsvPreviewModal] = useState(false);
+  const [showCsvErrorModal, setShowCsvErrorModal] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState(null);
+  const [dataIssues, setDataIssues] = useState([]);
+  const [showIssuesList, setShowIssuesList] = useState(false);
+  // Map of faculty index => { severity: 'error'|'warning', messages: string[] }
+  const [facultyIssueMap, setFacultyIssueMap] = useState({});
+
+  // CAPTCHA and rate-limiting lockout states
+  const [captcha, setCaptcha] = useState({ num1: 0, num2: 0, operation: '+', result: 0 });
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
+  const [isShuffling, setIsShuffling] = useState(false);
+  const [shuffleValue, setShuffleValue] = useState('? + ?');
+  const captchaIntervalRef = useRef(null);
+
+  // Helper to generate a dynamic math challenge with a 1-second randomization animation
+  const generateCaptcha = (shouldShuffle = true) => {
+    if (captchaIntervalRef.current) {
+      clearInterval(captchaIntervalRef.current);
+      captchaIntervalRef.current = null;
+    }
+    setCaptchaInput('');
+
+    const operations = ['+', '-'];
+    const op = operations[Math.floor(Math.random() * operations.length)];
+    let n1, n2, res;
+    if (op === '+') {
+      n1 = Math.floor(Math.random() * 20) + 1;
+      n2 = Math.floor(Math.random() * 20) + 1;
+      res = n1 + n2;
     } else {
-      setAuthError('Incorrect administrative password. Please try again.');
+      n1 = Math.floor(Math.random() * 30) + 10;
+      n2 = Math.floor(Math.random() * n1) + 1;
+      res = n1 - n2;
+    }
+
+    if (!shouldShuffle) {
+      setCaptcha({ num1: n1, num2: n2, operation: op, result: res });
+      setIsShuffling(false);
+      return;
+    }
+
+    setIsShuffling(true);
+    let count = 0;
+    const intervalId = setInterval(() => {
+      const ops = ['+', '-'];
+      const randomOp = ops[ops.length - 1 - Math.floor(Math.random() * ops.length)];
+      const r1 = Math.floor(Math.random() * 40) + 1;
+      const r2 = Math.floor(Math.random() * 30) + 1;
+      setShuffleValue(`${r1} ${randomOp} ${r2}`);
+
+      count += 100;
+      if (count >= 1000) {
+        clearInterval(intervalId);
+        if (captchaIntervalRef.current === intervalId) {
+          captchaIntervalRef.current = null;
+        }
+        setCaptcha({ num1: n1, num2: n2, operation: op, result: res });
+        setIsShuffling(false);
+      }
+    }, 100);
+    captchaIntervalRef.current = intervalId;
+  };
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (captchaIntervalRef.current) {
+        clearInterval(captchaIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Helper to log out
+  const handleLogout = (reason) => {
+    sessionStorage.removeItem('isAdminAuthenticated');
+    sessionStorage.removeItem('admin_session_id');
+    setIsAuthenticated(false);
+    generateCaptcha(false); // Generate fresh CAPTCHA on logout without shaking
+
+    if (reason === 'logged_out_elsewhere') {
+      setAuthError('You have been logged out because a new session was started in another tab.');
+    } else if (reason === 'inactivity') {
+      setAuthError('You have been logged out due to inactivity.');
+    } else {
+      localStorage.removeItem('admin_active_session_id');
+      try {
+        const channel = new BroadcastChannel('hss_admin_session');
+        channel.postMessage({ type: 'LOGOUT' });
+        channel.close();
+      } catch (err) {
+        // ignore
+      }
+      setAuthError('');
     }
   };
 
-  // Check session and load folder handle on mount
-  useEffect(() => {
-    if (sessionStorage.getItem('isAdminAuthenticated') === 'true') {
-      setIsAuthenticated(true);
+  const showAlert = (message, title = 'Notification') => {
+    setCustomPrompt({
+      title,
+      message,
+      type: 'alert',
+      confirmText: 'OK',
+      confirmClass: 'btn-primary-custom shadow-md border-0',
+      onConfirm: () => setCustomPrompt(null)
+    });
+  };
+
+  // Login handler with hash comparison, CAPTCHA check, and lockout limit
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    // Check if lockout active
+    const lockoutUntil = parseInt(localStorage.getItem('admin_lockout_until') || '0');
+    if (lockoutUntil > Date.now()) {
+      setAuthError('Console is locked due to too many failed attempts.');
+      return;
     }
+
+    // Verify CAPTCHA
+    if (captchaInput.trim() !== captcha.result.toString()) {
+      setAuthError('Incorrect CAPTCHA answer. Please verify and try again.');
+      generateCaptcha();
+      return;
+    }
+
+    // Hash password input and compare
+    const inputHash = await hashPassword(password);
+    if (inputHash === ADMIN_PASSWORD_HASH) {
+      localStorage.removeItem('admin_failed_attempts');
+      localStorage.removeItem('admin_lockout_until');
+
+      // Set unique session token for this device/tab
+      const newSessionId = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+      sessionStorage.setItem('admin_session_id', newSessionId);
+      localStorage.setItem('admin_active_session_id', newSessionId);
+      sessionStorage.setItem('isAdminAuthenticated', 'true');
+
+      setIsAuthenticated(true);
+      setAuthError('');
+      setPassword('');
+      setCaptchaInput('');
+
+      // Notify other tabs
+      try {
+        const channel = new BroadcastChannel('hss_admin_session');
+        channel.postMessage({ type: 'LOGIN', sessionId: newSessionId });
+        channel.close();
+      } catch (err) {
+        // ignore
+      }
+    } else {
+      const attempts = (parseInt(localStorage.getItem('admin_failed_attempts') || '0')) + 1;
+      localStorage.setItem('admin_failed_attempts', attempts.toString());
+
+      if (attempts >= 5) {
+        const lockoutUntilTime = Date.now() + 15 * 60 * 1000; // 15 mins
+        localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
+        setAuthError('Too many failed attempts. Console locked for 15 minutes.');
+      } else {
+        setAuthError(`Incorrect administrative password. Attempt ${attempts} of 5. Please try again.`);
+      }
+      generateCaptcha();
+    }
+  };
+
+  // Check session, load folder handle on mount, start cross-tab listening
+  useEffect(() => {
+    const currentSessionId = sessionStorage.getItem('admin_session_id');
+    const activeSessionId = localStorage.getItem('admin_active_session_id');
+
+    if (sessionStorage.getItem('isAdminAuthenticated') === 'true') {
+      if (currentSessionId && activeSessionId && currentSessionId !== activeSessionId) {
+        handleLogout('logged_out_elsewhere');
+      } else {
+        setIsAuthenticated(true);
+      }
+    } else {
+      generateCaptcha(false);
+    }
+
+    // Monitor local storage cross-tab session changes
+    const handleStorageChange = (e) => {
+      if (e.key === 'admin_active_session_id') {
+        const newSessionId = e.newValue;
+        const mySessionId = sessionStorage.getItem('admin_session_id');
+        if (newSessionId && mySessionId && newSessionId !== mySessionId) {
+          handleLogout('logged_out_elsewhere');
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Monitor BroadcastChannel notifications
+    let channel;
+    try {
+      channel = new BroadcastChannel('hss_admin_session');
+      channel.onmessage = (event) => {
+        const mySessionId = sessionStorage.getItem('admin_session_id');
+        if (event.data.type === 'LOGIN' && event.data.sessionId !== mySessionId) {
+          handleLogout('logged_out_elsewhere');
+        } else if (event.data.type === 'LOGOUT') {
+          handleLogout();
+        }
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel not supported:', e);
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      if (channel) {
+        channel.close();
+      }
+    };
   }, []);
+
+  // Monitor lockout countdown
+  useEffect(() => {
+    const checkLockout = () => {
+      const lockoutUntil = parseInt(localStorage.getItem('admin_lockout_until') || '0');
+      const now = Date.now();
+      if (lockoutUntil > now) {
+        setLockoutTimeLeft(Math.ceil((lockoutUntil - now) / 1000));
+      } else {
+        setLockoutTimeLeft(0);
+      }
+    };
+
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Monitor inactivity auto-logout (15 minutes)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let inactivityTimer;
+    const INACTIVITY_LIMIT = 15 * 60 * 1000;
+
+    const resetTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        handleLogout('inactivity');
+      }, INACTIVITY_LIMIT);
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    resetTimer();
+
+    return () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      events.forEach(event => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [isAuthenticated]);
+
+  // Validate existing faculty and notice data on changes
+  useEffect(() => {
+    const issues = [];
+    const rowIssueMap = {}; // index -> { severity, messages[] }
+
+    const addRowIssue = (index, type, msg) => {
+      if (!rowIssueMap[index]) rowIssueMap[index] = { severity: type, messages: [] };
+      if (type === 'error') rowIssueMap[index].severity = 'error';
+      rowIssueMap[index].messages.push(msg);
+    };
+
+    // Build maps for fields that MUST be unique: CPIS No and Mobile No only.
+    // Name, email, etc. are intentionally NOT flagged as duplicates.
+    const cpisMap = new Map();
+    const mobileMap = new Map();
+
+    faculty.forEach((t, index) => {
+      if (t.cpis_no && t.cpis_no.trim()) {
+        const k = t.cpis_no.trim();
+        cpisMap.set(k, [...(cpisMap.get(k) || []), index]);
+      }
+      if (t.mobile && t.mobile.trim()) {
+        const k = t.mobile.replace(/[^0-9]/g, '');
+        mobileMap.set(k, [...(mobileMap.get(k) || []), index]);
+      }
+    });
+
+    faculty.forEach((t, index) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const phoneRegex = /^\+?[0-9\s\-]{10,15}$/;
+
+      // Duplicate CPIS No — must be unique (government identifier)
+      if (t.cpis_no && t.cpis_no.trim()) {
+        const dupeIndices = cpisMap.get(t.cpis_no.trim()) || [];
+        if (dupeIndices.length > 1) {
+          const msg = `Duplicate CPIS No "${t.cpis_no}". CPIS numbers must be unique across all employees.`;
+          if (dupeIndices[0] === index) {
+            issues.push({ type: 'error', category: 'Faculty Roster', message: `Duplicate CPIS No "${t.cpis_no}" found for "${t.name}". CPIS numbers must be unique.` });
+          }
+          addRowIssue(index, 'error', msg);
+        }
+      }
+
+      // Duplicate Mobile No — should be unique per employee
+      if (t.mobile && t.mobile.trim()) {
+        const k = t.mobile.replace(/[^0-9]/g, '');
+        const dupeIndices = mobileMap.get(k) || [];
+        if (dupeIndices.length > 1) {
+          const msg = `Duplicate mobile number "${t.mobile}". Two employees share this number.`;
+          if (dupeIndices[0] === index) {
+            issues.push({ type: 'warning', category: 'Faculty Roster', message: `Duplicate Contact Number "${t.mobile}" found for "${t.name}".` });
+          }
+          addRowIssue(index, 'warning', msg);
+        }
+      }
+
+      // Invalid email format (format check only, duplicates are allowed)
+      if (t.email && t.email.trim() !== '' && !emailRegex.test(t.email.trim())) {
+        const msg = `Invalid email format: "${t.email}".`;
+        issues.push({ type: 'error', category: 'Faculty Roster', message: `Employee "${t.name}" has an invalid email format: "${t.email}".` });
+        addRowIssue(index, 'error', msg);
+      }
+
+      // Invalid phone format
+      if (t.mobile && t.mobile.trim() !== '' && !phoneRegex.test(t.mobile.trim())) {
+        const msg = `Invalid phone format: "${t.mobile}". Must be 10-15 digits.`;
+        issues.push({ type: 'error', category: 'Faculty Roster', message: `Employee "${t.name}" has an invalid phone number format: "${t.mobile}".` });
+        addRowIssue(index, 'error', msg);
+      }
+    });
+
+    // Check notices issues
+    const seenNoticeTitles = new Set();
+    notices.forEach((n) => {
+      if (n.title) {
+        if (seenNoticeTitles.has(n.title.trim())) {
+          issues.push({ type: 'warning', category: 'Notice Board', message: `Duplicate announcement title: "${n.title}".` });
+        } else {
+          seenNoticeTitles.add(n.title.trim());
+        }
+      }
+      if (n.link && n.link.trim() !== '#' && !n.link.startsWith('http') && !n.link.startsWith('/')) {
+        issues.push({ type: 'warning', category: 'Notice Board', message: `Notice "${n.title}" has a potentially broken local link: "${n.link}". It should start with http://, https://, or /.` });
+      }
+    });
+
+    setDataIssues(issues);
+    setFacultyIssueMap(rowIssueMap);
+  }, [faculty, notices]);
+
 
   // Fetch configs and folder handle on login
   useEffect(() => {
@@ -134,57 +552,128 @@ export default function AdminPortal() {
     }).catch(err => console.warn('Could not retrieve folder handle from DB:', err));
 
     // 1. Load admissions settings
-    loadSiteSettings().then((loadedSettings) => {
-      setSettings(loadedSettings);
-    });
+    const localSettings = localStorage.getItem('site_settings');
+    if (localSettings) {
+      try {
+        const parsed = JSON.parse(localSettings);
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          admissionsClosed: { ...DEFAULT_SETTINGS.admissionsClosed, ...parsed.admissionsClosed },
+          fees: { ...DEFAULT_SETTINGS.fees, ...parsed.fees }
+        });
+      } catch (e) {
+        console.error('Error parsing site_settings from localStorage:', e);
+      }
+    } else {
+      loadSiteSettings().then((loadedSettings) => {
+        setSettings(loadedSettings);
+      });
+    }
 
     // 2. Load notices
-    fetch('/slides/notices.txt', { cache: 'no-cache' })
-      .then((r) => r.text())
-      .then((text) => {
-        const parsed = text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map((line) => {
-            const firstComma = line.indexOf(',');
-            if (firstComma === -1) return null;
-            const date = line.substring(0, firstComma).trim();
-            const rest = line.substring(firstComma + 1);
-            
-            const secondComma = rest.indexOf(',');
-            if (secondComma === -1) {
-              return { date, title: rest.trim(), link: '#' };
-            }
-            const title = rest.substring(0, secondComma).trim();
-            const link = rest.substring(secondComma + 1).trim();
-            return { date, title, link };
-          })
-          .filter(Boolean);
-        setNotices(parsed);
-      })
-      .catch(() => {
-        // Use default fallback if missing
-        setNotices([
-          { date: 'Nov 23', title: 'JKBOSE Datesheet', link: 'https://jkbose.nic.in' },
-          { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
-          { date: 'Nov 23', title: 'Admit Cards', link: '/admissions' }
-        ]);
-      });
+    const localNotices = localStorage.getItem('site_notices');
+    if (localNotices) {
+      const parsed = localNotices
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const firstComma = line.indexOf(',');
+          if (firstComma === -1) return null;
+          const date = line.substring(0, firstComma).trim();
+          const rest = line.substring(firstComma + 1);
+
+          const secondComma = rest.indexOf(',');
+          if (secondComma === -1) {
+            return { date, title: rest.trim(), link: '#' };
+          }
+          const title = rest.substring(0, secondComma).trim();
+          const rest2 = rest.substring(secondComma + 1).trim();
+
+          const thirdComma = rest2.indexOf(',');
+          if (thirdComma === -1) {
+            return { date, title, link: rest2 };
+          }
+          const link = rest2.substring(0, thirdComma).trim();
+          const days = rest2.substring(thirdComma + 1).trim();
+          return { date, title, link, days: days ? parseInt(days, 10) : undefined };
+        })
+        .filter(Boolean);
+      setNotices(parsed);
+    } else {
+      fetch('/slides/notices.txt', { cache: 'no-cache' })
+        .then((r) => r.text())
+        .then((text) => {
+          const parsed = text
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+              const firstComma = line.indexOf(',');
+              if (firstComma === -1) return null;
+              const date = line.substring(0, firstComma).trim();
+              const rest = line.substring(firstComma + 1);
+
+              const secondComma = rest.indexOf(',');
+              if (secondComma === -1) {
+                return { date, title: rest.trim(), link: '#' };
+              }
+              const title = rest.substring(0, secondComma).trim();
+              const rest2 = rest.substring(secondComma + 1).trim();
+
+              const thirdComma = rest2.indexOf(',');
+              if (thirdComma === -1) {
+                return { date, title, link: rest2 };
+              }
+              const link = rest2.substring(0, thirdComma).trim();
+              const days = rest2.substring(thirdComma + 1).trim();
+              return { date, title, link, days: days ? parseInt(days, 10) : undefined };
+            })
+            .filter(Boolean);
+          setNotices(parsed);
+        })
+        .catch(() => {
+          setNotices([
+            { date: 'Nov 23', title: 'JKBOSE Datesheet', link: 'https://jkbose.nic.in' },
+            { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
+            { date: 'Nov 23', title: 'Admit Cards', link: '/admissions' }
+          ]);
+        });
+    }
 
     // 3. Load faculty directory
-    fetch('/slides/faculty.json', { cache: 'no-cache' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setFaculty(data);
-      })
-      .catch(() => {
-        // Fetch default fallback faculty from file if fetch fails or is empty
-        setFaculty([
-          { name: "Mr. Aijaz Ahmad Wagay", designation: "Principal", subject: "Chemistry", email: "ghssshangus74@gmail.com", mobile: "+91-7006034501", photo: "/slides/Principal.jpg", department: "Administration" }
-        ]);
-      })
-      .finally(() => setLoading(false));
+    const localFaculty = localStorage.getItem('site_faculty');
+    if (localFaculty) {
+      try {
+        const parsed = JSON.parse(localFaculty);
+        if (Array.isArray(parsed)) {
+          setFaculty(parsed);
+          setLoading(false);
+        } else {
+          throw new Error('Not an array');
+        }
+      } catch (e) {
+        console.warn('Error reading site_faculty from localStorage:', e);
+        fetchFacultyFromServer();
+      }
+    } else {
+      fetchFacultyFromServer();
+    }
+
+    function fetchFacultyFromServer() {
+      fetch('/slides/faculty.json', { cache: 'no-cache' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) setFaculty(data);
+        })
+        .catch(() => {
+          setFaculty([
+            { name: "Mr. Aijaz Ahmad Wagay", designation: "Principal", subject: "Chemistry", email: "ghssshangus74@gmail.com", mobile: "+91-7006034501", photo: "/slides/Principal.jpg", department: "Administration" }
+          ]);
+        })
+        .finally(() => setLoading(false));
+    }
 
   }, [isAuthenticated]);
 
@@ -192,14 +681,14 @@ export default function AdminPortal() {
   const handleLinkFolder = async () => {
     try {
       if (!window.showDirectoryPicker) {
-        alert('Your browser does not support the File System Access API. Please use a modern version of Chrome, Edge, or Opera.');
+        showAlert('Your browser does not support the File System Access API. Please use a modern version of Chrome, Edge, or Opera.', 'API Not Supported');
         return;
       }
       const handle = await window.showDirectoryPicker({
         mode: 'readwrite',
         startIn: 'documents'
       });
-      
+
       // Verify write permission
       const perm = await handle.requestPermission({ mode: 'readwrite' });
       if (perm === 'granted') {
@@ -208,7 +697,7 @@ export default function AdminPortal() {
         setSaveSuccess('Local slides folder linked and synced successfully!');
         setTimeout(() => setSaveSuccess(''), 4000);
       } else {
-        alert('Write permission is required to automatically save changes to your files.');
+        showAlert('Write permission is required to automatically save changes to your files.', 'Permission Required');
       }
     } catch (e) {
       console.error('Error selecting directory:', e);
@@ -256,17 +745,34 @@ export default function AdminPortal() {
   };
 
   // Notice Handlers
-  const [newNotice, setNewNotice] = useState({ date: '', title: '', link: '' });
-  
+  const [newNotice, setNewNotice] = useState({ date: '', title: '', link: '', days: '' });
+
   const handleAddNotice = () => {
     if (!newNotice.date || !newNotice.title) return;
-    setNotices((prev) => [...prev, newNotice]);
-    setNewNotice({ date: '', title: '', link: '' });
+    const formattedNotice = {
+      ...newNotice,
+      days: newNotice.days ? parseInt(newNotice.days, 10) : undefined
+    };
+    setNotices((prev) => [...prev, formattedNotice]);
+    setNewNotice({ date: '', title: '', link: '', days: '' });
   };
 
   const handleDeleteNotice = (idx) => {
-    setNotices((prev) => prev.filter((_, i) => i !== idx));
-    if (editingNoticeIdx === idx) setEditingNoticeIdx(null);
+    const notice = notices[idx];
+    setCustomPrompt({
+      title: 'Delete Announcement',
+      message: `Are you sure you want to delete the notice: "${notice?.title || 'Untitled Notice'}"?`,
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: () => {
+        setNotices((prev) => prev.filter((_, i) => i !== idx));
+        if (editingNoticeIdx === idx) setEditingNoticeIdx(null);
+        setCustomPrompt(null);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
   };
 
   const startEditNotice = (idx) => {
@@ -277,7 +783,10 @@ export default function AdminPortal() {
   const saveNoticeEdit = (idx) => {
     setNotices((prev) => {
       const updated = [...prev];
-      updated[idx] = editNoticeData;
+      updated[idx] = {
+        ...editNoticeData,
+        days: editNoticeData.days ? parseInt(editNoticeData.days, 10) : undefined
+      };
       return updated;
     });
     setEditingNoticeIdx(null);
@@ -288,56 +797,290 @@ export default function AdminPortal() {
   };
 
   // Faculty Handlers
-  const [newTeacher, setNewTeacher] = useState({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '' });
+  const [newTeacher, setNewTeacher] = useState({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {} });
 
-  const handleAddTeacher = () => {
+  // Helper: clean a designation string — strip "in <Subject>" suffix for Principal/Vice Principal/MTS
+  const cleanDesignation = (desig) => {
+    if (!desig) return desig;
+    const desigLower = desig.toLowerCase();
+    if (desigLower.includes('principal') || desigLower.includes('vice principal') || desigLower.includes('mts')) {
+      return desig.replace(/\s+in\s+.+$/i, '').trim();
+    }
+    return desig;
+  };
+
+  // Helper: sanitize photo filename according to user's naming logic
+  const sanitizePhotoFilename = (name) => {
+    if (!name) return '';
+    return name.trim().replace(/[^a-zA-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
+  };
+
+  // Helper: get extension from mime type
+  const getMimeExtension = (type, filename) => {
+    if (type === 'image/png') return '.png';
+    if (type === 'image/jpeg' || type === 'image/jpg') return '.jpg';
+    if (type === 'image/webp') return '.webp';
+    if (type === 'image/gif') return '.gif';
+    if (filename) {
+      const dot = filename.lastIndexOf('.');
+      if (dot !== -1) return filename.substring(dot).toLowerCase();
+    }
+    return '.jpg';
+  };
+
+  // Handler: validate photo size (up to 100KB) and extract naming details
+  const handlePhotoFileChange = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 102400) {
+      showAlert(`Image file size must be 100KB or less. The selected file is ${Math.round(file.size / 1024)}KB.`, 'File Too Large');
+      e.target.value = '';
+      return;
+    }
+
+    const ext = getMimeExtension(file.type, file.name);
+
+    if (type === 'new') {
+      setNewTeacherPhotoFile(file);
+      setNewTeacherPhotoExt(ext);
+      // Auto-set filename if empty
+      if (!newTeacherPhotoName) {
+        const fallback = newTeacher.name ? sanitizePhotoFilename(newTeacher.name) : 'teacher_photo';
+        setNewTeacherPhotoName(fallback);
+      }
+    } else {
+      setEditTeacherPhotoFile(file);
+      setEditTeacherPhotoExt(ext);
+      if (!editTeacherPhotoName) {
+        const fallback = editFacultyData.name ? sanitizePhotoFilename(editFacultyData.name) : 'teacher_photo';
+        setEditTeacherPhotoName(fallback);
+      }
+    }
+  };
+
+  const handleAddTeacher = async () => {
     if (!newTeacher.name || !newTeacher.designation) return;
-    
+
     let photoPath = newTeacher.photo.trim();
-    if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http')) {
+    const dept = newTeacher.department === 'MTS' ? 'MTS' : newTeacher.department;
+    const cleanedDesig = cleanDesignation(newTeacher.designation);
+    const cleanedSubj = (dept === 'Administration' || dept === 'MTS') ? '' : newTeacher.subject.trim();
+
+    if (newTeacherPhotoFile && newTeacherPhotoName) {
+      const sanitizedName = sanitizePhotoFilename(newTeacherPhotoName);
+      const filename = `${sanitizedName}${newTeacherPhotoExt}`;
+      photoPath = `/slides/${filename}`;
+
+      if (folderHandle) {
+        await writeLocalFile(folderHandle, filename, newTeacherPhotoFile);
+      } else {
+        try {
+          const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(newTeacherPhotoFile);
+          });
+          photoPath = base64Data;
+        } catch (err) {
+          console.error('Failed to convert image to Data URL:', err);
+        }
+      }
+    } else if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http') && !photoPath.startsWith('data:')) {
       photoPath = `/slides/${photoPath}`;
     }
 
-    setFaculty((prev) => [...prev, { ...newTeacher, photo: photoPath }]);
-    setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '' });
+    setFaculty((prev) => [...prev, { ...newTeacher, designation: cleanedDesig, subject: cleanedSubj, photo: photoPath, department: dept }]);
+    setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {} });
+
+    setNewTeacherPhotoFile(null);
+    setNewTeacherPhotoName('');
+    setNewTeacherPhotoExt('.jpg');
   };
 
   const handleDeleteTeacher = (idx) => {
-    setFaculty((prev) => prev.filter((_, i) => i !== idx));
-    if (editingFacultyIdx === idx) setEditingFacultyIdx(null);
+    const teacher = faculty[idx];
+    setCustomPrompt({
+      title: 'Delete Employee Record',
+      message: `Are you sure you want to delete the employee record for: "${teacher?.name || 'this employee'}"?`,
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: () => {
+        setFaculty((prev) => prev.filter((_, i) => i !== idx));
+        if (editingFacultyIdx === idx) setEditingFacultyIdx(null);
+        setCustomPrompt(null);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
   };
 
   const startEditFaculty = (idx) => {
     setEditingFacultyIdx(idx);
     setEditFacultyData({ ...faculty[idx] });
+    setEditTeacherPhotoFile(null);
+    setEditTeacherPhotoExt('.jpg');
+    if (faculty[idx].photo) {
+      const match = faculty[idx].photo.match(/\/slides\/([a-zA-Z0-9_]+)\.(\w+)$/);
+      if (match) {
+        setEditTeacherPhotoName(match[1]);
+        setEditTeacherPhotoExt('.' + match[2]);
+      } else {
+        setEditTeacherPhotoName('');
+      }
+    } else {
+      setEditTeacherPhotoName('');
+    }
   };
 
-  const saveFacultyEdit = (idx) => {
+  const saveFacultyEdit = async (idx) => {
+    let photoPath = editFacultyData.photo.trim();
+    const dept = editFacultyData.department;
+    const cleanedDesig = cleanDesignation(editFacultyData.designation);
+    const cleanedSubj = (dept === 'Administration' || dept === 'MTS') ? '' : editFacultyData.subject.trim();
+
+    if (editTeacherPhotoFile && editTeacherPhotoName) {
+      const sanitizedName = sanitizePhotoFilename(editTeacherPhotoName);
+      const filename = `${sanitizedName}${editTeacherPhotoExt}`;
+      photoPath = `/slides/${filename}`;
+
+      if (folderHandle) {
+        await writeLocalFile(folderHandle, filename, editTeacherPhotoFile);
+      } else {
+        try {
+          const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(editTeacherPhotoFile);
+          });
+          photoPath = base64Data;
+        } catch (err) {
+          console.error('Failed to convert image to Data URL:', err);
+        }
+      }
+    } else if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http') && !photoPath.startsWith('data:')) {
+      photoPath = `/slides/${photoPath}`;
+    }
+
     setFaculty((prev) => {
       const updated = [...prev];
-      let photoPath = editFacultyData.photo.trim();
-      if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http')) {
-        photoPath = `/slides/${photoPath}`;
-      }
-      updated[idx] = { ...editFacultyData, photo: photoPath };
+      updated[idx] = { ...editFacultyData, designation: cleanedDesig, subject: cleanedSubj, photo: photoPath };
       return updated;
     });
     setEditingFacultyIdx(null);
+
+    setEditTeacherPhotoFile(null);
+    setEditTeacherPhotoName('');
+    setEditTeacherPhotoExt('.jpg');
   };
 
   const cancelFacultyEdit = () => {
     setEditingFacultyIdx(null);
   };
 
+  // ---- Full Edit Modal Handlers ----
+  const openFullEdit = (index) => {
+    const t = faculty[index];
+    setFullEditIndex(index);
+    setFullEditData({ ...t, postings: (t.postings || []).map(p => ({ ...p })) });
+    setFullEditPhotoFile(null);
+    setFullEditPhotoExt('.jpg');
+    if (t.photo) {
+      const match = t.photo.match(/\/slides\/([a-zA-Z0-9_]+)\.(\w+)$/);
+      setFullEditPhotoName(match ? match[1] : '');
+      if (match) setFullEditPhotoExt('.' + match[2]);
+    } else {
+      setFullEditPhotoName('');
+    }
+    setShowFullEditModal(true);
+  };
+
+  const closeFullEdit = () => {
+    setShowFullEditModal(false);
+    setFullEditIndex(null);
+    setFullEditData(null);
+    setFullEditPhotoFile(null);
+    setFullEditPhotoName('');
+    setFullEditPhotoExt('.jpg');
+  };
+
+  const saveFullEdit = async () => {
+    if (!fullEditData) return;
+    let photoPath = (fullEditData.photo || '').trim();
+    const dept = fullEditData.department;
+    const cleanedDesig = cleanDesignation(fullEditData.designation);
+    const cleanedSubj = (dept === 'Administration' || dept === 'MTS') ? '' : (fullEditData.subject || '').trim();
+
+    if (fullEditPhotoFile && fullEditPhotoName) {
+      const sanitizedName = sanitizePhotoFilename(fullEditPhotoName);
+      const filename = `${sanitizedName}${fullEditPhotoExt}`;
+      photoPath = `/slides/${filename}`;
+      if (folderHandle) {
+        await writeLocalFile(folderHandle, filename, fullEditPhotoFile);
+      } else {
+        try {
+          const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(fullEditPhotoFile);
+          });
+          photoPath = base64Data;
+        } catch (err) {
+          console.error('Failed to convert image to Data URL:', err);
+        }
+      }
+    } else if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http') && !photoPath.startsWith('data:')) {
+      photoPath = `/slides/${photoPath}`;
+    }
+
+    setFaculty((prev) => {
+      const updated = [...prev];
+      updated[fullEditIndex] = { ...fullEditData, designation: cleanedDesig, subject: cleanedSubj, photo: photoPath };
+      return updated;
+    });
+    closeFullEdit();
+    setSaveSuccess('Employee record updated. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
+  const fullEditField = (key, value) => setFullEditData(d => ({ ...d, [key]: value }));
+
+  const addPosting = () => setFullEditData(d => ({
+    ...d, postings: [...(d.postings || []), { office: '', designation: '', from: '', to: '' }]
+  }));
+
+  const updatePosting = (idx, key, value) => setFullEditData(d => {
+    const updated = [...(d.postings || [])];
+    updated[idx] = { ...updated[idx], [key]: value };
+    return { ...d, postings: updated };
+  });
+
+  const removePosting = (idx) => setFullEditData(d => ({
+    ...d, postings: (d.postings || []).filter((_, i) => i !== idx)
+  }));
+
   // Central Save & Sync
   const handleSaveToLocalStorage = async () => {
     // 1. Update localStorage for instant preview
     localStorage.setItem('site_settings', JSON.stringify(settings));
-    
-    const noticesText = notices.map(n => `${n.date},${n.title},${n.link || '#'}`).join('\n');
+
+    const noticesText = notices.map(n => `${n.date},${n.title},${n.link || '#'}${n.days ? `,${n.days}` : ''}`).join('\n');
     localStorage.setItem('site_notices', noticesText);
-    
+
     localStorage.setItem('site_faculty', JSON.stringify(faculty));
+
+    // Broadcast synchronization message to all tabs
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.postMessage({ type: 'UPDATE_DATA' });
+      channel.close();
+    } catch (e) {
+      console.warn('Sync broadcast not supported:', e);
+    }
 
     let fileSyncStatus = '';
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -374,7 +1117,7 @@ export default function AdminPortal() {
         const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
         if (perm === 'granted') {
           const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
-          
+
           const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
           const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
           const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
@@ -426,57 +1169,933 @@ export default function AdminPortal() {
     downloadFile('faculty.json', content, 'application/json');
   };
 
+  // CSV Import/Export & Profile Printing Utilities
+  const parseCSV = (text) => {
+    const lines = [];
+    let row = [""];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          row[row.length - 1] += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        row.push('');
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        lines.push(row);
+        row = [''];
+      } else {
+        row[row.length - 1] += char;
+      }
+    }
+    if (row.length > 1 || row[0] !== '') {
+      lines.push(row);
+    }
+
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].map(h => h.trim().replace(/^"|"$/g, ''));
+    const records = [];
+
+    for (let r = 1; r < lines.length; r++) {
+      const values = lines[r];
+      if (values.length < headers.length) continue;
+
+      const record = {};
+      headers.forEach((header, idx) => {
+        record[header] = (values[idx] || '').trim();
+      });
+
+      // Skip row only if it is completely empty/whitespace
+      const hasAnyData = Object.values(record).some(val => val.trim() !== '');
+      if (!hasAnyData) continue;
+
+      // Extract postings
+      const postings = [];
+      for (let i = 1; i <= 13; i++) {
+        const office = record[`Posting Office-${i}`] || '';
+        const designation = record[`Designation-${i}`] || '';
+        const fromDate = record[`Posting From-${i}`] || '';
+        const toDate = record[`Posting To-${i}`] || '';
+        if (office || designation) {
+          postings.push({ office, designation, from: fromDate, to: toDate });
+        }
+      }
+
+      // Determine department
+      const desig = record['Present Designation'] || '';
+      const subj = record['Subject in PG'] || '';
+      const subjTeaching = record['Subject/s teaching'] || '';
+      let dept = record['Department'] || '';
+      if (!dept || dept.trim() === '') {
+        const desigLower = desig.toLowerCase();
+        if (desigLower.includes('principal')) {
+          dept = 'Administration';
+        } else if (['mts', 'class iv', 'peon', 'safaiwalla', 'chowkidar', 'lab assistant', 'lab bearer', 'library bearer'].some(d => desigLower.includes(d))) {
+          dept = 'MTS';
+        } else if (['botany', 'zoology', 'chemistry', 'mathematics', 'biotechnology', 'physics'].includes((subjTeaching || subj).toLowerCase())) {
+          dept = 'Science';
+        } else if (['teacher', 'master'].some(d => desigLower.includes(d))) {
+          dept = 'Secondary';
+        } else {
+          dept = 'Humanities';
+        }
+      }
+
+      // Clean designations (strip trailing "in <Subject>" for administrative/MTS staff)
+      const cleanedDesig = cleanDesignation(desig);
+
+      // Display subject = what they teach (subjTeaching), fallback to Subject in PG
+      const displaySubj = subjTeaching.toLowerCase() === 'na' ? (subj.toLowerCase() === 'na' ? '' : subj) : subjTeaching || subj;
+
+      // Extract custom fields (any headers that aren't mapped standard fields or posting entries)
+      const standardHeaders = [
+        "S.No.", "Email address", "Parent District", "Present District", "Full Name", "Date of Birth", "Date of 1st Appointment",
+        "Designation at First Appointment", "Present Designation", "Present Place of Posting", "Stay Period", "CPIS No", "Parentage",
+        "Category", "Zone Name", "UDISE/DDO Code", "DDO Code HRMS", "Cadre", "Qualification", "Subject in PG", "Subject/s teaching", "Department", "B.ED",
+        "Total Postings", "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID"
+      ];
+      const customFields = {};
+      headers.forEach((header, hIdx) => {
+        const isStandard = standardHeaders.includes(header) || 
+                           /^Posting Office-\d+$/.test(header) || 
+                           /^Designation-\d+$/.test(header) || 
+                           /^Posting From-\d+$/.test(header) || 
+                           /^Posting To-\d+$/.test(header);
+        if (!isStandard && header.trim() !== '') {
+          customFields[header] = (values[hIdx] || '').trim();
+        }
+      });
+
+      records.push({
+        name: record['Full Name'],
+        designation: cleanedDesig,
+        subject: (dept === 'Administration' || dept === 'MTS') ? '' : (displaySubj),
+        subject_pg: (dept === 'Administration' || dept === 'MTS') ? '' : (subj.toLowerCase() === 'na' ? '' : subj),
+        email: record['Email address'] || '',
+        mobile: record['Contact Number'] || '',
+        photo: record['Full Name'] === 'AIJAZ AHMAD WAGAY' ? '/slides/Principal.jpg' : (record['Full Name'] === 'SHEIKH GULFAM' ? '/slides/Gulfam.jpg' : ''),
+        department: dept,
+        profile: '',
+        hidden: false,
+        
+        parent_district: record['Parent District'] || '',
+        present_district: record['Present District'] || '',
+        present_place_of_posting: record['Present Place of Posting'] || '',
+        customFields,
+
+        // Custom fields preserved
+        dob: record['Date of Birth'] || '',
+        parentage: record['Parentage'] || '',
+        category: record['Category'] || '',
+        cpis_no: record['CPIS No'] || '',
+        date_of_first_appointment: record['Date of 1st Appointment'] || '',
+        designation_at_first_appointment: record['Designation at First Appointment'] || '',
+        stay_period: record['Stay Period'] || '',
+        qualification: record['Qualification'] || '',
+        bed: record['B.ED'] || '',
+        health_issues: record['Health Issues/Security Grounds'] || '',
+        if_deployed: record['If Deployed'] || '',
+        permanent_address: record['Permanent Address'] || '',
+        present_address: record['Present Address'] || '',
+        gov_mail_id: record['Govt. Mail ID'] || '',
+        ddo_code: record['UDISE/DDO Code'] || '',
+        ddo_code_hrms: record['DDO Code HRMS'] || '',
+        cadre: record['Cadre'] || '',
+        zone_name: record['Zone Name'] || '',
+        postings
+      });
+    }
+
+    return records;
+  };
+
+  const validateCSVRecords = (records) => {
+    const errors = [];
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[0-9\s\-]{10,15}$/;
+
+    records.forEach((r, idx) => {
+      const rowNum = idx + 2; // Row 1 is header
+      const name = r.name || 'Unknown Row';
+
+      // 1. Name validation
+      if (!r.name || r.name.trim() === '') {
+        errors.push({ row: rowNum, name, message: 'Full Name is required but was empty.' });
+      }
+
+      // 2. Designation validation
+      if (!r.designation || r.designation.trim() === '') {
+        errors.push({ row: rowNum, name, message: 'Present Designation is required but was empty.' });
+      }
+
+      // 3. Email validation (if provided)
+      if (r.email && r.email.trim() !== '') {
+        if (!emailRegex.test(r.email.trim())) {
+          errors.push({ row: rowNum, name, message: `Invalid Email address format: "${r.email}".` });
+        }
+      }
+
+      // 4. Contact Number validation (if provided)
+      if (r.mobile && r.mobile.trim() !== '') {
+        if (!phoneRegex.test(r.mobile.trim())) {
+          errors.push({ row: rowNum, name, message: `Invalid Contact Number format: "${r.mobile}". Must be 10-15 digits.` });
+        }
+      }
+    });
+
+    return errors;
+  };
+
+  const handleDownloadCSVTemplate = () => {
+    const headers = [
+      "S.No.", "Email address", "Parent District", "Present District", "Full Name", "Date of Birth", "Date of 1st Appointment",
+      "Designation at First Appointment", "Present Designation", "Present Place of Posting", "Stay Period", "CPIS No", "Parentage",
+      "Category", "Zone Name", "UDISE/DDO Code", "DDO Code HRMS", "Cadre", "Qualification", "Subject in PG", "Subject/s teaching", "Department", "B.ED",
+      "Total Postings",
+      "Posting Office-1", "Designation-1", "Posting From-1", "Posting To-1",
+      "Posting Office-2", "Designation-2", "Posting From-2", "Posting To-2",
+      "Posting Office-3", "Designation-3", "Posting From-3", "Posting To-3",
+      "Posting Office-4", "Designation-4", "Posting From-4", "Posting To-4",
+      "Posting Office-5", "Designation-5", "Posting From-5", "Posting To-5",
+      "Posting Office-6", "Designation-6", "Posting From-6", "Posting To-6",
+      "Posting Office-7", "Designation-7", "Posting From-7", "Posting To-7",
+      "Posting Office-8", "Designation-8", "Posting From-8", "Posting To-8",
+      "Posting Office-9", "Designation-9", "Posting From-9", "Posting To-9",
+      "Posting Office-10", "Designation-10", "Posting From-10", "Posting To-10",
+      "Posting Office-11", "Designation-11", "Posting From-11", "Posting To-11",
+      "Posting Office-12", "Designation-12", "Posting From-12", "Posting To-12",
+      "Posting Office-13", "Designation-13", "Posting From-13", "Posting To-13",
+      "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID",
+      "PAN No"
+    ];
+
+    const sampleRow = [
+      "1", "sheikhgulfam@gmail.com", "Anantnag", "Anantnag", "Mr. Sheikh Gulfam", "12-05-1988", "01-04-2015",
+      "Teacher", "Lecturer", "HSS Shangus", "2 Years", "CPIS12345", "Father Name",
+      "General", "Shangus", "1061400618", "SHGEDU0022", "GAZETTED", "M.Sc, B.Ed", "Chemistry", "Chemistry", "Science", "Yes",
+      "2",
+      "HSS Shangus", "Teacher", "01-04-2015", "10-10-2020",
+      "HSS Ranipora", "Lecturer", "11-10-2020", "Present",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "", "", "", "",
+      "No", "No", "Shangus, Anantnag", "Shangus, Anantnag", "+91-7006123456", "gulfam.edu@jk.gov.in",
+      "ABCDE1234F"
+    ];
+
+    const csvContent = [
+      headers.map(h => `"${h}"`).join(','),
+      sampleRow.map(v => `"${v}"`).join(',')
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "faculty_import_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCSVImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      try {
+        const parsed = parseCSV(text);
+        if (parsed.length > 0) {
+          const errors = validateCSVRecords(parsed);
+          if (errors.length > 0) {
+            setCsvValidationErrors(errors);
+            setShowCsvErrorModal(true);
+          } else {
+            setCsvPreviewData(parsed);
+            setShowCsvPreviewModal(true);
+          }
+        } else {
+          showAlert('Could not find valid employee records in the CSV.', 'Empty CSV Roster');
+        }
+      } catch (err) {
+        console.error(err);
+        showAlert('Failed to parse CSV. Please ensure it is a valid format.', 'Parsing Failure');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset file input
+  };
+
+  const handleCSVExport = () => {
+    if (faculty.length === 0) {
+      showAlert('No faculty records to export.', 'Export Empty');
+      return;
+    }
+
+    // Collect all unique custom field keys across all teachers to include in CSV
+    const allCustomKeys = [];
+    faculty.forEach(t => {
+      if (t.customFields) {
+        Object.keys(t.customFields).forEach(k => {
+          if (!allCustomKeys.includes(k)) {
+            allCustomKeys.push(k);
+          }
+        });
+      }
+    });
+
+    const headers = [
+      "S.No.", "Email address", "Parent District", "Present District", "Full Name", "Date of Birth", "Date of 1st Appointment",
+      "Designation at First Appointment", "Present Designation", "Present Place of Posting", "Stay Period", "CPIS No", "Parentage",
+      "Category", "Zone Name", "UDISE/DDO Code", "DDO Code HRMS", "Cadre", "Qualification", "Subject in PG", "Subject/s teaching", "Department", "B.ED",
+      "Total Postings",
+      "Posting Office-1", "Designation-1", "Posting From-1", "Posting To-1",
+      "Posting Office-2", "Designation-2", "Posting From-2", "Posting To-2",
+      "Posting Office-3", "Designation-3", "Posting From-3", "Posting To-3",
+      "Posting Office-4", "Designation-4", "Posting From-4", "Posting To-4",
+      "Posting Office-5", "Designation-5", "Posting From-5", "Posting To-5",
+      "Posting Office-6", "Designation-6", "Posting From-6", "Posting To-6",
+      "Posting Office-7", "Designation-7", "Posting From-7", "Posting To-7",
+      "Posting Office-8", "Designation-8", "Posting From-8", "Posting To-8",
+      "Posting Office-9", "Designation-9", "Posting From-9", "Posting To-9",
+      "Posting Office-10", "Designation-10", "Posting From-10", "Posting To-10",
+      "Posting Office-11", "Designation-11", "Posting From-11", "Posting To-11",
+      "Posting Office-12", "Designation-12", "Posting From-12", "Posting To-12",
+      "Posting Office-13", "Designation-13", "Posting From-13", "Posting To-13",
+      "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID",
+      ...allCustomKeys
+    ];
+
+    const rows = faculty.map((t, idx) => {
+      const postings = t.postings || [];
+      const rowData = [
+        `"${idx + 1}"`,
+        `"${t.email || ''}"`,
+        `"${t.parent_district || 'Anantnag'}"`,
+        `"${t.present_district || 'Anantnag'}"`,
+        `"${t.name || ''}"`,
+        `"${t.dob || ''}"`,
+        `"${t.date_of_first_appointment || ''}"`,
+        `"${t.designation_at_first_appointment || ''}"`,
+        `"${t.designation || ''}"`,
+        `"${t.present_place_of_posting || 'HSS Shangus'}"`,
+        `"${t.stay_period || ''}"`,
+        `"${t.cpis_no || ''}"`,
+        `"${t.parentage || ''}"`,
+        `"${t.category || ''}"`,
+        `"${t.zone_name || 'Shangus'}"`,
+        `"${t.ddo_code || '1061400618'}"`,
+        `"${t.ddo_code_hrms || 'SHGEDU0022'}"`,
+        `"${t.cadre || 'GAZETTED'}"`,
+        `"${t.qualification || ''}"`,
+        `"${t.subject_pg || t.subject || ''}"`,
+        `"${t.subject || ''}"`,
+        `"${t.department || ''}"`,
+        `"${t.bed || ''}"`,
+        `"${postings.length}"`
+      ];
+
+      // Pad postings up to 13
+      for (let i = 0; i < 13; i++) {
+        const p = postings[i] || {};
+        rowData.push(`"${p.office || ''}"`);
+        rowData.push(`"${p.designation || ''}"`);
+        rowData.push(`"${p.from || ''}"`);
+        rowData.push(`"${p.to || ''}"`);
+      }
+
+      rowData.push(`"${t.health_issues || 'No'}"`);
+      rowData.push(`"${t.if_deployed || 'No'}"`);
+      rowData.push(`"${t.permanent_address || ''}"`);
+      rowData.push(`"${t.present_address || ''}"`);
+      rowData.push(`"${t.mobile || ''}"`);
+      rowData.push(`"${t.gov_mail_id || ''}"`);
+
+      // Append custom fields values
+      allCustomKeys.forEach(key => {
+        const val = (t.customFields && t.customFields[key]) || '';
+        rowData.push(`"${val}"`);
+      });
+
+      return rowData.join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    downloadFile('faculty_roster.csv', csvContent, 'text/csv');
+  };
+
+  const printEmployeeProfile = (t) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showAlert('Pop-up blocker is enabled. Please allow pop-ups to print profiles.', 'Pop-up Blocked');
+      return;
+    }
+
+    const postings = t.postings || [];
+    const postingsHtml = postings.map((p, i) => `
+      <tr>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${i + 1}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px;">${p.office || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px;">${p.designation || ''}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${p.from || ''}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${p.to || ''}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="5" style="text-align: center; border: 1px solid #cbd5e1; padding: 12px; color: #64748b;">No posting records available</td></tr>`;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Profile - ${t.name}</title>
+          <style>
+            @media print {
+              body { font-family: 'Segoe UI', sans-serif; color: #1e293b; line-height: 1.5; padding: 20px; }
+              .no-print { display: none; }
+            }
+            body { font-family: 'Segoe UI', sans-serif; color: #1e293b; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; }
+            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; border-bottom: 3px double #0f766e; }
+            .header-title { text-align: center; padding-bottom: 10px; }
+            .header-title h1 { margin: 0; font-size: 20px; color: #961c14; text-transform: uppercase; font-family: 'Georgia', serif; }
+            .header-title h2 { margin: 5px 0 0 0; font-size: 13px; color: #0f766e; letter-spacing: 1px; text-transform: uppercase; }
+            
+            .section-title { font-size: 13px; font-weight: bold; background: #f1f5f9; color: #0f766e; padding: 6px 12px; margin: 20px 0 10px 0; text-transform: uppercase; border-left: 4px solid #961c14; letter-spacing: 0.5px; }
+            
+            .profile-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .profile-grid td { padding: 6px 10px; font-size: 12px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+            .label { font-weight: bold; color: #475569; width: 35%; }
+            .value { color: #0f172a; }
+            
+            .photo-box { width: 130px; height: 160px; border: 2px dashed #cbd5e1; text-align: center; font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; align-items: center; justify-content: center; float: right; margin-left: 20px; border-radius: 4px; overflow: hidden; background: #fafafa; }
+            .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+            
+            .posting-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            .posting-table th { background: #0f766e; color: white; padding: 8px; border: 1px solid #0f766e; text-align: left; text-transform: uppercase; font-size: 10px; }
+            
+            .footer-signatures { width: 100%; margin-top: 60px; border-collapse: collapse; }
+            .footer-signatures td { font-size: 12px; font-weight: bold; width: 50%; padding-top: 50px; border: none; }
+            
+            .print-btn { display: inline-flex; align-items: center; background: #961c14; color: white; border: none; padding: 8px 16px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-bottom: 20px; transition: background 0.2s; }
+            .print-btn:hover { background: #0f766e; }
+          </style>
+        </head>
+        <body>
+          <div class="no-print" style="text-align: right;">
+            <button onclick="window.print()" class="print-btn">Print Profile / Save PDF</button>
+          </div>
+          
+          <table class="header-table">
+            <tr>
+              <td class="header-title">
+                <h1>Government Higher Secondary School Shangus</h1>
+                <h2>Institutional Employee Service Profile Sheet</h2>
+              </td>
+            </tr>
+          </table>
+
+          <div style="overflow: hidden; margin-bottom: 15px;">
+            <div class="photo-box">
+              ${t.photo ? `<img src="${t.photo}" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : 'Affix Passport Photo'}
+            </div>
+            
+            <div style="margin-right: 160px;">
+              <div class="section-title" style="margin-top: 0;">Personal Details</div>
+              <table class="profile-grid">
+                <tr>
+                  <td class="label">Full Name:</td>
+                  <td class="value" style="font-size: 14px; font-weight: bold; color: #961c14;">${t.name || ''}</td>
+                </tr>
+                <tr>
+                  <td class="label">Parentage:</td>
+                  <td class="value">${t.parentage || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Date of Birth:</td>
+                  <td class="value">${t.dob || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Category:</td>
+                  <td class="value">${t.category || 'OM'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Permanent Address:</td>
+                  <td class="value">${t.permanent_address || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Present Address:</td>
+                  <td class="value">${t.present_address || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Contact Number:</td>
+                  <td class="value" style="font-family: monospace; font-weight: 600;">${t.mobile || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Email Address:</td>
+                  <td class="value">${t.email || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Govt. Mail ID:</td>
+                  <td class="value">${t.gov_mail_id || '-'}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-title">Service & Appointment Details</div>
+          <table class="profile-grid">
+            <tr>
+              <td class="label">CPIS No:</td>
+              <td class="value" style="font-family: monospace; font-weight: bold; color: #0f766e;">${t.cpis_no || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Present Place of Posting:</td>
+              <td class="value">${t.present_place_of_posting || 'HSS Shangus'}</td>
+            </tr>
+            <tr>
+              <td class="label">Date of 1st Appointment:</td>
+              <td class="value">${t.date_of_first_appointment || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Stay Period:</td>
+              <td class="value">${t.stay_period || '-'}</td>
+            </tr>
+            <tr>
+              <td class="label">Designation at 1st Appt:</td>
+              <td class="value">${t.designation_at_first_appointment || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Present Designation:</td>
+              <td class="value">${t.designation || '-'}</td>
+            </tr>
+            <tr>
+              <td class="label">Zone Name:</td>
+              <td class="value">${t.zone_name || 'Shangus'}</td>
+              <td class="label" style="padding-left: 20px;">UDISE / DDO Code:</td>
+              <td class="value" style="font-family: monospace;">${t.ddo_code || '1061400618'}</td>
+            </tr>
+            <tr>
+              <td class="label">DDO Code HRMS:</td>
+              <td class="value" style="font-family: monospace;">${t.ddo_code_hrms || 'SHGEDU0022'}</td>
+              <td class="label" style="padding-left: 20px;">Service Cadre:</td>
+              <td class="value" style="text-transform: uppercase;">${t.cadre || 'GAZETTED'}</td>
+            </tr>
+          </table>
+
+          <div class="section-title">Qualifications & Health Credentials</div>
+          <table class="profile-grid">
+            <tr>
+              <td class="label">Qualifications:</td>
+              <td class="value">${t.qualification || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Subject in PG:</td>
+              <td class="value">${t.subject || 'NA'}</td>
+            </tr>
+            <tr>
+              <td class="label">B.Ed Completed:</td>
+              <td class="value">${t.bed || 'NO'}</td>
+              <td class="label" style="padding-left: 20px;">If Deployed / Detached:</td>
+              <td class="value">${t.if_deployed || 'No'}</td>
+            </tr>
+            <tr>
+              <td class="label">Health/Security Grounds:</td>
+              <td class="value" colspan="3">${t.health_issues || 'No'}</td>
+            </tr>
+          </table>
+
+          ${t.customFields && Object.keys(t.customFields).length > 0 ? `
+            <div class="section-title">Additional Details</div>
+            <table class="profile-grid">
+              ${Object.entries(t.customFields).map(([key, val]) => `
+                <tr>
+                  <td class="label">${key}:</td>
+                  <td class="value">${val || '-'}</td>
+                </tr>
+              `).join('')}
+            </table>
+          ` : ''}
+
+          <div class="section-title">Historical Posting Profile</div>
+          <table class="posting-table">
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">S.No</th>
+                <th style="width: 45%;">Posting Office / Institution</th>
+                <th style="width: 25%;">Designation</th>
+                <th style="width: 12.5%; text-align: center;">From Date</th>
+                <th style="width: 12.5%; text-align: center;">To Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${postingsHtml}
+            </tbody>
+          </table>
+
+          <table class="footer-signatures">
+            <tr>
+              <td style="text-align: left; border-top: 1px solid #94a3b8; width: 40%;">Signature of Employee</td>
+              <td style="width: 20%; border: none;"></td>
+              <td style="text-align: right; border-top: 1px solid #94a3b8; width: 40%;">Counter Signature of Principal<br/><span style="font-size: 9px; font-weight: normal; color: #64748b;">(Govt. HSS Shangus)</span></td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const printBulkProfiles = (selectedFaculty) => {
+    if (selectedFaculty.length === 0) {
+      showAlert('Please select at least one employee.', 'No Selection');
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showAlert('Pop-up blocker is enabled. Please allow pop-ups to print profiles.', 'Pop-up Blocked');
+      return;
+    }
+
+    const profilesHtml = selectedFaculty.map((t) => {
+      const postings = t.postings || [];
+      const postingsHtml = postings.map((p, i) => `
+        <tr>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${i + 1}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 6px;">${p.office || ''}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 6px;">${p.designation || ''}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${p.from || ''}</td>
+          <td style="text-align: center; border: 1px solid #cbd5e1; padding: 6px;">${p.to || ''}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="5" style="text-align: center; border: 1px solid #cbd5e1; padding: 12px; color: #64748b;">No posting records available</td></tr>`;
+
+      return `
+        <div class="profile-page">
+          <table class="header-table">
+            <tr>
+              <td class="header-title">
+                <h1>Government Higher Secondary School Shangus</h1>
+                <h2>Institutional Employee Service Profile Sheet</h2>
+              </td>
+            </tr>
+          </table>
+
+          <div style="overflow: hidden; margin-bottom: 15px;">
+            <div class="photo-box">
+              ${t.photo ? `<img src="${t.photo}" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : 'Affix Passport Photo'}
+            </div>
+            
+            <div style="margin-right: 160px;">
+              <div class="section-title" style="margin-top: 0;">Personal Details</div>
+              <table class="profile-grid">
+                <tr>
+                  <td class="label">Full Name:</td>
+                  <td class="value" style="font-size: 14px; font-weight: bold; color: #961c14;">${t.name || ''}</td>
+                </tr>
+                <tr>
+                  <td class="label">Parentage:</td>
+                  <td class="value">${t.parentage || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Date of Birth:</td>
+                  <td class="value">${t.dob || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Category:</td>
+                  <td class="value">${t.category || 'OM'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Permanent Address:</td>
+                  <td class="value">${t.permanent_address || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Present Address:</td>
+                  <td class="value">${t.present_address || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Contact Number:</td>
+                  <td class="value" style="font-family: monospace; font-weight: 600;">${t.mobile || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Email Address:</td>
+                  <td class="value">${t.email || '-'}</td>
+                </tr>
+                <tr>
+                  <td class="label">Govt. Mail ID:</td>
+                  <td class="value">${t.gov_mail_id || '-'}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-title">Service & Appointment Details</div>
+          <table class="profile-grid">
+            <tr>
+              <td class="label">CPIS No:</td>
+              <td class="value" style="font-family: monospace; font-weight: bold; color: #0f766e;">${t.cpis_no || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Present Place of Posting:</td>
+              <td class="value">${t.present_place_of_posting || 'HSS Shangus'}</td>
+            </tr>
+            <tr>
+              <td class="label">Date of 1st Appointment:</td>
+              <td class="value">${t.date_of_first_appointment || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Stay Period:</td>
+              <td class="value">${t.stay_period || '-'}</td>
+            </tr>
+            <tr>
+              <td class="label">Designation at 1st Appt:</td>
+              <td class="value">${t.designation_at_first_appointment || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Present Designation:</td>
+              <td class="value">${t.designation || '-'}</td>
+            </tr>
+            <tr>
+              <td class="label">Zone Name:</td>
+              <td class="value">${t.zone_name || 'Shangus'}</td>
+              <td class="label" style="padding-left: 20px;">UDISE / DDO Code:</td>
+              <td class="value" style="font-family: monospace;">${t.ddo_code || '1061400618'}</td>
+            </tr>
+            <tr>
+              <td class="label">DDO Code HRMS:</td>
+              <td class="value" style="font-family: monospace;">${t.ddo_code_hrms || 'SHGEDU0022'}</td>
+              <td class="label" style="padding-left: 20px;">Service Cadre:</td>
+              <td class="value" style="text-transform: uppercase;">${t.cadre || 'GAZETTED'}</td>
+            </tr>
+          </table>
+
+          <div class="section-title">Qualifications & Health Credentials</div>
+          <table class="profile-grid">
+            <tr>
+              <td class="label">Qualifications:</td>
+              <td class="value">${t.qualification || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Subject in PG:</td>
+              <td class="value">${t.subject || 'NA'}</td>
+            </tr>
+            <tr>
+              <td class="label">B.Ed Completed:</td>
+              <td class="value">${t.bed || 'NO'}</td>
+              <td class="label" style="padding-left: 20px;">If Deployed / Detached:</td>
+              <td class="value">${t.if_deployed || 'No'}</td>
+            </tr>
+            <tr>
+              <td class="label">Health/Security Grounds:</td>
+              <td class="value" colspan="3">${t.health_issues || 'No'}</td>
+            </tr>
+          </table>
+
+          ${t.customFields && Object.keys(t.customFields).length > 0 ? `
+            <div class="section-title">Additional Details</div>
+            <table class="profile-grid">
+              ${Object.entries(t.customFields).map(([key, val]) => `
+                <tr>
+                  <td class="label">${key}:</td>
+                  <td class="value">${val || '-'}</td>
+                </tr>
+              `).join('')}
+            </table>
+          ` : ''}
+
+          <div class="section-title">Historical Posting Profile</div>
+          <table class="posting-table">
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">S.No</th>
+                <th style="width: 45%;">Posting Office / Institution</th>
+                <th style="width: 25%;">Designation</th>
+                <th style="width: 12.5%; text-align: center;">From Date</th>
+                <th style="width: 12.5%; text-align: center;">To Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${postingsHtml}
+            </tbody>
+          </table>
+
+          <table class="footer-signatures" style="width: 100%; margin-top: 60px; border-collapse: collapse;">
+            <tr>
+              <td style="text-align: left; border-top: 1px solid #94a3b8; width: 40%; padding-top: 8px; font-weight: bold; border-bottom: none;">Signature of Employee</td>
+              <td style="width: 20%; border: none;"></td>
+              <td style="text-align: right; border-top: 1px solid #94a3b8; width: 40%; padding-top: 8px; font-weight: bold; border-bottom: none;">Counter Signature of Principal<br/><span style="font-size: 9px; font-weight: normal; color: #64748b;">(Govt. HSS Shangus)</span></td>
+            </tr>
+          </table>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bulk Profiles - Govt HSS Shangus</title>
+          <style>
+            @media print {
+              body { font-family: 'Segoe UI', sans-serif; color: #1e293b; line-height: 1.5; padding: 0; margin: 0; }
+              .no-print { display: none; }
+              .profile-page { page-break-after: always; break-after: page; padding: 20px; }
+              .profile-page:last-child { page-break-after: avoid; break-after: avoid; }
+            }
+            body { font-family: 'Segoe UI', sans-serif; color: #1e293b; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; }
+            .profile-page { border-bottom: 2px dashed #cbd5e1; padding-bottom: 40px; margin-bottom: 40px; }
+            @media print {
+              .profile-page { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+            }
+            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; border-bottom: 3px double #0f766e; }
+            .header-title { text-align: center; padding-bottom: 10px; }
+            .header-title h1 { margin: 0; font-size: 20px; color: #961c14; text-transform: uppercase; font-family: 'Georgia', serif; }
+            .header-title h2 { margin: 5px 0 0 0; font-size: 13px; color: #0f766e; letter-spacing: 1px; text-transform: uppercase; }
+            
+            .section-title { font-size: 13px; font-weight: bold; background: #f1f5f9; color: #0f766e; padding: 6px 12px; margin: 20px 0 10px 0; text-transform: uppercase; border-left: 4px solid #961c14; letter-spacing: 0.5px; }
+            
+            .profile-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .profile-grid td { padding: 6px 10px; font-size: 12px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+            .label { font-weight: bold; color: #475569; width: 35%; }
+            .value { color: #0f172a; }
+            
+            .photo-box { width: 130px; height: 160px; border: 2px dashed #cbd5e1; text-align: center; font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; align-items: center; justify-content: center; float: right; margin-left: 20px; border-radius: 4px; overflow: hidden; background: #fafafa; }
+            .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+            
+            .posting-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            .posting-table th { background: #0f766e; color: white; padding: 8px; border: 1px solid #0f766e; text-align: left; text-transform: uppercase; font-size: 10px; }
+            
+            .footer-signatures { width: 100%; margin-top: 60px; border-collapse: collapse; }
+            .footer-signatures td { font-size: 12px; font-weight: bold; width: 50%; padding-top: 50px; border: none; }
+            
+            .print-btn { display: inline-flex; align-items: center; background: #961c14; color: white; border: none; padding: 8px 16px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-bottom: 20px; transition: background 0.2s; }
+            .print-btn:hover { background: #0f766e; }
+          </style>
+        </head>
+        <body>
+          <div class="no-print" style="text-align: right;">
+            <button onclick="window.print()" class="print-btn">Print Roster / Save PDF</button>
+          </div>
+          ${profilesHtml}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          @keyframes captcha-shake {
+            0%, 100% { transform: rotate(-2deg) scale(1); }
+            20% { transform: rotate(2deg) scale(1.05) translate(1px, -1px); }
+            40% { transform: rotate(-3deg) scale(0.95) translate(-1px, 1px); }
+            60% { transform: rotate(3deg) scale(1.03) translate(1px, 1px); }
+            80% { transform: rotate(-1deg) scale(0.98) translate(-1px, -1px); }
+          }
+          .captcha-animate-shuffle {
+            animation: captcha-shake 0.3s ease-in-out infinite;
+          }
+        `}} />
+        <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 p-5 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="flex flex-col items-center mb-6">
-            <div className="w-16 h-16 rounded-full theme-accent-badge border flex items-center justify-center mb-4 text-orange-500">
+            <div className="w-16 h-16 rounded-full theme-accent-badge border flex items-center justify-center mb-4 text-orange-500 animate-pulse">
               <Lock size={32} />
             </div>
             <h2 className="text-xl font-bold text-center font-title tracking-wide text-orange-400">Govt. HSS Shangus</h2>
             <p className="text-xs text-slate-400 uppercase tracking-widest mt-1">Administrative Portal</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Administrative Password</label>
-              <input
-                type="password"
-                placeholder="Enter password..."
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                autoFocus
-              />
-            </div>
-
-            {authError && (
-              <div className="bg-red-950/50 border border-red-500/30 text-red-400 p-3 rounded-lg text-xs flex items-start gap-2">
-                <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                <span>{authError}</span>
+          {lockoutTimeLeft > 0 ? (
+            <div className="bg-red-950/40 border border-red-500/30 text-red-400 p-5 rounded-xl text-center space-y-3">
+              <AlertCircle size={28} className="mx-auto text-red-500 animate-bounce" />
+              <h3 className="font-bold text-sm">Security Lockout Active</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Too many failed password attempts. The administrative console has been locked for security. Please try again after the timer expires.
+              </p>
+              <div className="font-mono text-xl font-extrabold text-red-400 tracking-widest bg-slate-950/60 py-2 rounded-lg border border-slate-850">
+                {Math.floor(lockoutTimeLeft / 60)}:{(lockoutTimeLeft % 60).toString().padStart(2, '0')}
               </div>
-            )}
+            </div>
+          ) : (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Administrative Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Enter password..."
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  autoFocus
+                />
+              </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
-            >
-              <Unlock size={16} />
-              Unlock Console
-            </button>
-          </form>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Security CAPTCHA</label>
+                <div className="flex items-center gap-2">
+                  <div className={`relative select-none pointer-events-none bg-slate-950 border border-slate-850 rounded-lg flex items-center justify-center overflow-hidden h-[42px] w-24 sm:w-28 flex-shrink-0 transition-transform ${isShuffling ? 'captcha-animate-shuffle' : ''}`}>
+                    <svg className="absolute inset-0 w-full h-full opacity-25" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <pattern id="grid" width="8" height="8" patternUnits="userSpaceOnUse">
+                          <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#334155" strokeWidth="0.5" />
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#grid)" />
+                      <path d="M 0 15 Q 30 5, 60 20 T 120 10 T 180 25" fill="none" stroke="var(--teal-accent)" strokeWidth="1.5" />
+                    </svg>
+                    <span className="font-mono text-base font-black tracking-widest text-slate-200 relative z-10 select-none" style={{ transform: 'rotate(-2deg)' }}>
+                      {isShuffling ? shuffleValue : `${captcha.num1} ${captcha.operation} ${captcha.num2}`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={generateCaptcha}
+                    className="p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-orange-400 transition-colors border border-slate-800 flex items-center justify-center h-[42px] w-[42px]"
+                    title="Refresh CAPTCHA challenge"
+                  >
+                    <RefreshCw size={15} />
+                  </button>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Answer..."
+                    value={captchaInput}
+                    onChange={(e) => setCaptchaInput(e.target.value)}
+                    className="flex-grow min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-mono text-sm h-[42px]"
+                  />
+                </div>
+              </div>
+
+              {authError && (
+                <div className="bg-red-950/50 border border-red-500/30 text-red-400 p-3 rounded-lg text-xs flex items-start gap-2">
+                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-950/20"
+              >
+                <Unlock size={16} />
+                Unlock Console
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 py-4">
       <div className="max-w-6xl mx-auto px-4">
-        
+
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-6 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-800 pb-3 mb-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
@@ -484,11 +2103,11 @@ export default function AdminPortal() {
             </div>
             <p className="text-xs text-slate-400 mt-1">Govt. Higher Secondary School Shangus Control Center</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Direct filesystem sync trigger */}
             <button
               onClick={handleLinkFolder}
-              className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border ${folderHandle ? 'bg-emerald-950 border-emerald-500/30 text-emerald-400' : 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${folderHandle ? 'bg-emerald-950 border-emerald-500/50 text-emerald-400 shadow-sm shadow-emerald-900/10' : 'bg-slate-900 border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 text-slate-200'}`}
               title="Select your public/slides/ folder on your computer to auto-write files directly."
             >
               <FolderOpen size={14} />
@@ -496,17 +2115,14 @@ export default function AdminPortal() {
             </button>
             <button
               onClick={handleSaveToLocalStorage}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-colors"
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-emerald-950/20 border border-emerald-400 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Save size={14} />
+              <Save size={14} className="stroke-[2.5px]" />
               Apply & Save
             </button>
             <button
-              onClick={() => {
-                sessionStorage.removeItem('isAdminAuthenticated');
-                setIsAuthenticated(false);
-              }}
-              className="px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 text-xs font-semibold transition-colors"
+              onClick={() => handleLogout()}
+              className="px-3 py-1.5 rounded-lg btn-outline-theme text-xs font-bold"
             >
               Lock Console
             </button>
@@ -515,14 +2131,52 @@ export default function AdminPortal() {
 
         {/* Global Notifications */}
         {saveSuccess && (
-          <div className="bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 p-4 rounded-xl text-sm mb-6 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-3 duration-300">
+          <div className="bg-emerald-950/80 border border-emerald-200 text-emerald-400 p-4 rounded-xl text-sm mb-4 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-3 duration-300">
             <CheckCircle2 size={18} className="mt-0.5 flex-shrink-0" />
             <span>{saveSuccess}</span>
           </div>
         )}
 
+        {/* Data Integrity Issues Notifications */}
+        {dataIssues.length > 0 && (
+          <div className="bg-amber-950/30 border border-amber-500/40 text-amber-300 p-3 rounded-xl text-xs mb-4 animate-in fade-in slide-in-from-top-3 duration-300">
+            <div className="flex justify-between items-start gap-2 cursor-pointer" onClick={() => setShowIssuesList(!showIssuesList)}>
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-400 flex-shrink-0 animate-pulse" />
+                <div>
+                  <span className="font-extrabold uppercase tracking-wider text-[10px] text-amber-300">Data Consistency Alerts ({dataIssues.length})</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Issues found in your roster or notice board.
+                    {Object.keys(facultyIssueMap).length > 0 && (
+                      <span className="ml-1 text-amber-400/80">
+                        Affected rows are <span className="font-bold">highlighted</span> in the Faculty Directory tab.
+                      </span>
+                    )}
+                    {' '}Click to {showIssuesList ? 'collapse' : 'view details'}.
+                  </p>
+                </div>
+              </div>
+              <button type="button" className="text-[10px] font-bold text-amber-400 hover:text-amber-300 underline flex-shrink-0">
+                {showIssuesList ? 'Hide Details' : 'Show Details'}
+              </button>
+            </div>
+            {showIssuesList && (
+              <div className="mt-2.5 space-y-1.5 border-t border-amber-500/20 pt-2.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                {dataIssues.map((issue, idx) => (
+                  <div key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase border flex-shrink-0 mt-0.5 ${issue.type === 'error' ? 'bg-red-950 text-red-400 border-red-900/40' : 'badge-status-update'}`}>
+                      {issue.category}
+                    </span>
+                    <span className="text-slate-300 font-medium">{issue.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-800 mb-8 overflow-x-auto gap-2">
+        <div className="flex border-b border-slate-800 mb-4 overflow-x-auto gap-2">
           {[
             { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
             { id: 'notices', label: 'Latest Notices', icon: RefreshCw },
@@ -535,7 +2189,7 @@ export default function AdminPortal() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${active ? 'border-orange-500 text-orange-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${active ? 'border-orange-500 text-orange-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
               >
                 <Icon size={14} />
                 {tab.label}
@@ -551,13 +2205,13 @@ export default function AdminPortal() {
             Loading configuration data...
           </div>
         ) : (
-          <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-6 shadow-xl">
-            
+          <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 md:p-5 shadow-xl">
+
             {/* TAB 1: ADMISSIONS AND FEES */}
             {activeTab === 'admissions' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-4 animate-in fade-in duration-200">
                 {/* Global admissions open/close */}
-                <div className="bg-slate-900/60 p-4 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-slate-200">Global Enrollment System</h3>
                     <p className="text-[11px] text-slate-400 mt-0.5">Enable or disable registration online across all streams and classes.</p>
@@ -572,17 +2226,17 @@ export default function AdminPortal() {
 
                 {/* Class admissions flags */}
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">Class-Wise Admission Flags</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">Class-Wise Admission Flags</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {['9th', '10th', '11th', '12th'].map((cls) => {
                       const isClosed = settings.globalAdmissionsClosed || settings.admissionsClosed[cls];
                       return (
-                        <div key={cls} className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 flex flex-col items-center justify-between text-center gap-2">
-                          <span className="font-bold text-xs text-slate-300">{cls} Class</span>
-                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${isClosed ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-emerald-950 text-emerald-400 border border-emerald-900'}`}>
-                            {isClosed ? 'Closed' : 'Open'}
-                          </span>
-                          <div className="mt-2">
+                        <div key={cls} className="bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+                          <span className="font-bold text-xs text-slate-300 whitespace-nowrap">{cls} Class</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${isClosed ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-emerald-950 text-emerald-400 border border-emerald-900'}`}>
+                              {isClosed ? 'Closed' : 'Open'}
+                            </span>
                             <ToggleSwitch
                               checked={settings.admissionsClosed[cls]}
                               onChange={() => handleClassToggle(cls)}
@@ -597,31 +2251,33 @@ export default function AdminPortal() {
 
                 {/* Fee structure configuration */}
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">Fee Structure Configuration (INR)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Senior Secondary */}
-                    <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800">
-                      <h4 className="font-bold text-slate-300 border-b border-slate-800 pb-1.5 mb-3 text-xs">11th & 12th Combinations</h4>
+                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">Fee Structure Configuration (INR)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Science Stream Card */}
+                    <div className="bg-slate-900/30 p-3.5 rounded-xl border border-teal-500/20 shadow-sm relative overflow-hidden transition-all hover:border-teal-500/40">
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-teal-500"></div>
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <span className="p-1 rounded-md bg-teal-500/10 text-teal-500">
+                          <Users size={14} className="stroke-[2.5px]" />
+                        </span>
+                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Science Stream</h4>
+                      </div>
                       <div className="space-y-2.5">
                         {[
                           { key: '11th_science_boys', label: '11th Science (Boys)' },
                           { key: '11th_science_girls', label: '11th Science (Girls)' },
-                          { key: '11th_humanities_boys', label: '11th Humanities (Boys)' },
-                          { key: '11th_humanities_girls', label: '11th Humanities (Girls)' },
                           { key: '12th_science_boys', label: '12th Science (Boys)' },
-                          { key: '12th_science_girls', label: '12th Science (Girls)' },
-                          { key: '12th_humanities_boys', label: '12th Humanities (Boys)' },
-                          { key: '12th_humanities_girls', label: '12th Humanities (Girls)' }
+                          { key: '12th_science_girls', label: '12th Science (Girls)' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-4 text-xs">
-                            <span className="text-slate-400">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 w-28">
-                              <span className="text-[10px] text-slate-500 mr-1">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-3 text-xs">
+                            <span className="text-slate-400 font-medium">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-950 border border-teal-500/35 rounded px-2 w-28 transition-colors focus-within:border-teal-500">
+                              <span className="text-[10px] text-teal-500/70 font-bold mr-1">Rs.</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-0.5 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -629,23 +2285,61 @@ export default function AdminPortal() {
                       </div>
                     </div>
 
-                    {/* Secondary Subjects */}
-                    <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800 h-fit">
-                      <h4 className="font-bold text-slate-300 border-b border-slate-800 pb-1.5 mb-3 text-xs">Secondary Classes</h4>
+                    {/* Humanities Stream Card */}
+                    <div className="bg-slate-900/30 p-3.5 rounded-xl border border-amber-500/20 shadow-sm relative overflow-hidden transition-all hover:border-amber-500/40">
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <span className="p-1 rounded-md bg-amber-500/10 text-amber-500">
+                          <BookOpen size={14} className="stroke-[2.5px]" />
+                        </span>
+                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Humanities Stream</h4>
+                      </div>
+                      <div className="space-y-2.5">
+                        {[
+                          { key: '11th_humanities_boys', label: '11th Humanities (Boys)' },
+                          { key: '11th_humanities_girls', label: '11th Humanities (Girls)' },
+                          { key: '12th_humanities_boys', label: '12th Humanities (Boys)' },
+                          { key: '12th_humanities_girls', label: '12th Humanities (Girls)' }
+                        ].map((feeItem) => (
+                          <div key={feeItem.key} className="flex justify-between items-center gap-3 text-xs">
+                            <span className="text-slate-400 font-medium">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-950 border border-amber-500/35 rounded px-2 w-28 transition-colors focus-within:border-amber-500">
+                              <span className="text-[10px] text-amber-500/70 font-bold mr-1">Rs.</span>
+                              <input
+                                type="number"
+                                value={settings.fees[feeItem.key] || 0}
+                                onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
+                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Secondary Classes Card */}
+                    <div className="bg-slate-900/30 p-3.5 rounded-xl border border-indigo-500/20 shadow-sm relative overflow-hidden transition-all hover:border-indigo-500/40">
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-500">
+                          <Plus size={14} className="stroke-[2.5px]" />
+                        </span>
+                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Secondary Classes</h4>
+                      </div>
                       <div className="space-y-2.5">
                         {[
                           { key: '9th', label: '9th Class Subjects' },
                           { key: '10th', label: '10th Class Subjects' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-4 text-xs">
-                            <span className="text-slate-400">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 w-28">
-                              <span className="text-[10px] text-slate-500 mr-1">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-3 text-xs">
+                            <span className="text-slate-400 font-medium">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-950 border border-indigo-500/35 rounded px-2 w-28 transition-colors focus-within:border-indigo-500">
+                              <span className="text-[10px] text-indigo-500/70 font-bold mr-1">Rs.</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-0.5 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -659,7 +2353,7 @@ export default function AdminPortal() {
 
             {/* TAB 2: LATEST NOTICES */}
             {activeTab === 'notices' && (
-              <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="space-y-3 animate-in fade-in duration-200">
                 <div className="flex justify-between items-center mb-1">
                   <div>
                     <h3 className="text-sm font-bold text-slate-200">Latest Notices Configuration</h3>
@@ -667,17 +2361,61 @@ export default function AdminPortal() {
                   </div>
                 </div>
 
-                {/* Add new notice form */}
-                <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-3 items-end">
-                  <div className="w-full md:w-28">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Date</label>
+                {/* Global default new days setting card */}
+                <div className="bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-200">Global Notice Expiry Settings</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Determine how many days a notice is considered "NEW" on the homepage and notice board.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded px-2.5 py-1">
+                    <span className="text-[10px] text-slate-400 font-bold">Default Days:</span>
                     <input
-                      type="text"
-                      placeholder="e.g. Nov 23"
-                      value={newNotice.date}
-                      onChange={(e) => setNewNotice({ ...newNotice, date: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={settings.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setSettings(s => ({ ...s, defaultNewNoticeDays: isNaN(val) ? 7 : val }));
+                      }}
+                      className="w-12 bg-transparent border-none text-center text-xs font-mono text-white focus:outline-none focus:ring-0"
                     />
+                  </div>
+                </div>
+
+                {/* Add new notice form */}
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-2 items-end">
+                  <div className="w-full md:w-32 flex-shrink-0">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Date</label>
+                    <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[32px]">
+                      <input
+                        type="text"
+                        placeholder="e.g. Nov 23"
+                        value={newNotice.date}
+                        onChange={(e) => setNewNotice({ ...newNotice, date: e.target.value })}
+                        className="w-full bg-transparent border-none px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const dateEl = e.currentTarget.parentElement.querySelector('input[type="date"]');
+                          if (dateEl) dateEl.showPicker();
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-orange-400 transition-colors mr-0.5"
+                        title="Choose date"
+                      >
+                        <Calendar size={13} />
+                      </button>
+                      <input
+                        type="date"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setNewNotice({ ...newNotice, date: formatDateToShort(e.target.value) });
+                          }
+                        }}
+                        className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                      />
+                    </div>
                   </div>
                   <div className="flex-1">
                     <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Title</label>
@@ -699,30 +2437,98 @@ export default function AdminPortal() {
                       className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
+                  <div className="w-full md:w-20 flex-shrink-0">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">New Days</label>
+                    <input
+                      type="number"
+                      placeholder="Default"
+                      value={newNotice.days || ''}
+                      onChange={(e) => setNewNotice({ ...newNotice, days: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500 text-center"
+                    />
+                  </div>
                   <button
                     onClick={handleAddNotice}
-                    className="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1 flex-shrink-0 transition-colors h-[32px]"
+                    className="px-3.5 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-1 flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[32px]"
                   >
                     <Plus size={13} />
                     Add
                   </button>
                 </div>
 
+                {/* Notice Preview Section */}
+                <div className="bg-slate-900/30 p-3.5 rounded-lg border border-slate-800 space-y-4">
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Live Preview</h3>
+                  
+                  {/* Home Page Sidebar Preview */}
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-400 mb-2">Home Page (Sidebar)</h4>
+                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 max-w-xs">
+                      <div className="flex items-start gap-3">
+                        <span className="text-[10px] font-bold text-slate-400 mt-1 w-16 flex-shrink-0 whitespace-nowrap">
+                          {newNotice.date || 'Jun 12'}
+                        </span>
+                        <div className="flex-1 min-w-0 relative">
+                          {/* Single-line text with truncation */}
+                          <span className="text-sm font-medium text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
+                            {newNotice.title || 'Your Notice Title Here'}
+                          </span>
+                        </div>
+                      </div>
+                      {/* Vertical Dotted Line Indicator */}
+                      <div className="mt-2 text-[9px] text-orange-500 font-bold flex items-center gap-2">
+                        <span>┃</span>
+                        <span>← Text beyond this will wrap to a new line</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notice Board Page Preview */}
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-400 mb-2">Notice Board Page</h4>
+                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                      <div className="flex items-start gap-4">
+                        <div className="w-16 h-16 rounded-lg bg-teal-100/40 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0">
+                          <span className="text-[7px] font-bold text-teal-800 uppercase tracking-tight text-center whitespace-nowrap">
+                            {newNotice.date || 'Jun 12'}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0 relative">
+                          {/* Single-line text with truncation */}
+                          <h4 className="font-bold text-slate-800 text-base leading-snug whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
+                            {newNotice.title || 'Your Notice Title Here'}
+                          </h4>
+                        </div>
+                      </div>
+                      {/* Vertical Dotted Line Indicator */}
+                      <div className="mt-2 text-[9px] text-orange-500 font-bold flex items-center gap-2">
+                        <span>┃</span>
+                        <span>← Text beyond this will wrap to a new line</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400">
+                    The dashed line shows the maximum text that fits on a single line.
+                  </p>
+                </div>
+
                 {/* Notices List Table */}
-                <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                  <table className="w-full text-xs text-left border-collapse">
+                <div className="overflow-x-auto border border-slate-800 rounded-lg min-w-0">
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '480px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                        <th className="p-2.5 w-24">Date</th>
-                        <th className="p-2.5">Notice Title</th>
-                        <th className="p-2.5 w-48">Link</th>
-                        <th className="p-2.5 w-24 text-center">Action</th>
+                        <th className="p-1.5 w-24">Date</th>
+                        <th className="p-1.5">Notice Title</th>
+                        <th className="p-1.5 w-48">Link</th>
+                        <th className="p-1.5 w-20 text-center">New Days</th>
+                        <th className="p-1.5 w-24 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {notices.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-500 italic">No notices configured. Add some above.</td>
+                          <td colSpan={5} className="p-4 text-center text-slate-500 italic text-[11px]">No notices configured. Add some above.</td>
                         </tr>
                       ) : (
                         notices.map((n, i) => {
@@ -731,23 +2537,49 @@ export default function AdminPortal() {
                             <tr key={i} className="hover:bg-slate-900/20">
                               {isEditing ? (
                                 <>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={editNoticeData.date}
-                                      onChange={(e) => setEditNoticeData({ ...editNoticeData, date: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
-                                    />
+                                  <td className="p-1 w-32">
+                                    <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[28px]">
+                                      <input
+                                        type="text"
+                                        value={editNoticeData.date}
+                                        onChange={(e) => setEditNoticeData({ ...editNoticeData, date: e.target.value })}
+                                        className="w-full bg-transparent border-none px-1.5 py-1 text-xs text-slate-200 font-semibold focus:outline-none focus:ring-0"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          const dateEl = e.currentTarget.parentElement.querySelector('input[type="date"]');
+                                          if (dateEl) dateEl.showPicker();
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-orange-400 transition-colors mr-0.5"
+                                        title="Choose date"
+                                      >
+                                        <Calendar size={12} />
+                                      </button>
+                                      <input
+                                        type="date"
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            setEditNoticeData({ ...editNoticeData, date: formatDateToShort(e.target.value) });
+                                          }
+                                        }}
+                                        className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                                      />
+                                    </div>
                                   </td>
-                                  <td className="p-2">
+                                  <td className="p-1">
                                     <input
                                       type="text"
                                       value={editNoticeData.title}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, title: e.target.value })}
                                       className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
+                                    {/* Small preview indicator */}
+                                    <div className="mt-1 text-[9px] text-orange-500 font-mono truncate border-t border-dashed border-orange-500 pt-1">
+                                      {editNoticeData.title || 'Preview...'}
+                                    </div>
                                   </td>
-                                  <td className="p-2">
+                                  <td className="p-1">
                                     <input
                                       type="text"
                                       value={editNoticeData.link}
@@ -755,7 +2587,16 @@ export default function AdminPortal() {
                                       className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
-                                  <td className="p-2 text-center flex items-center justify-center gap-1.5">
+                                  <td className="p-1 w-20">
+                                    <input
+                                      type="number"
+                                      value={editNoticeData.days || ''}
+                                      onChange={(e) => setEditNoticeData({ ...editNoticeData, days: e.target.value })}
+                                      placeholder="Default"
+                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 text-center focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-1 text-center flex items-center justify-center gap-1.5">
                                     <button
                                       onClick={() => saveNoticeEdit(i)}
                                       className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
@@ -774,10 +2615,11 @@ export default function AdminPortal() {
                                 </>
                               ) : (
                                 <>
-                                  <td className="p-2.5 font-semibold text-slate-400">{n.date}</td>
-                                  <td className="p-2.5 text-slate-200">{n.title}</td>
-                                  <td className="p-2.5 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
-                                  <td className="p-2.5 text-center flex items-center justify-center gap-1">
+                                  <td className="p-1.5 font-semibold text-slate-200">{n.date}</td>
+                                  <td className="p-1.5 text-slate-200">{n.title}</td>
+                                  <td className="p-1.5 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
+                                  <td className="p-1.5 text-center text-slate-400 font-mono">{n.days !== undefined && n.days !== '' ? `${n.days}d` : 'Default'}</td>
+                                  <td className="p-1.5 text-center flex items-center justify-center gap-1">
                                     <button
                                       onClick={() => startEditNotice(i)}
                                       className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
@@ -807,15 +2649,63 @@ export default function AdminPortal() {
 
             {/* TAB 3: FACULTY DIRECTORY */}
             {activeTab === 'faculty' && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="mb-1">
-                  <h3 className="text-sm font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
-                  <p className="text-[11px] text-slate-400">Configure cards, department settings, and contacts inside the dynamic directory.</p>
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-1.5">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
+                    <p className="text-[11px] text-slate-400">Configure cards, department settings, and contacts inside the dynamic directory.</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={handleDownloadCSVTemplate}
+                      className="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-amber-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      title="Download the standard CSV template with headers and a sample row"
+                    >
+                      <FileSpreadsheet size={13} />
+                      Get CSV Template
+                    </button>
+                    <button
+                      onClick={() => document.getElementById('csv-import-input').click()}
+                      className="px-3 py-1.5 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-blue-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      title="Upload a CSV roster of employees"
+                    >
+                      <Upload size={13} />
+                      Import CSV
+                    </button>
+                    <input
+                      id="csv-import-input"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVImport}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={handleCSVExport}
+                      className="px-3 py-1.5 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      title="Download the entire faculty directory as CSV"
+                    >
+                      <Download size={13} />
+                      Export CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedBulkPrintNames(faculty.map(t => t.name));
+                        setBulkPrintSearch('');
+                        setBulkPrintDept('All');
+                        setShowBulkPrintModal(true);
+                      }}
+                      className="px-3 py-1.5 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      title="Export multiple profile sheets as PDF at once"
+                    >
+                      <Printer size={13} />
+                      Bulk PDF / Print
+                    </button>
+                  </div>
                 </div>
 
                 {/* Add new faculty form */}
-                <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                     <div>
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
                       <input
@@ -840,28 +2730,46 @@ export default function AdminPortal() {
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Subject</label>
                       <input
                         type="text"
-                        placeholder="e.g. Physics, Chemistry, Botany"
+                        placeholder="e.g. Botany"
                         value={newTeacher.subject}
                         onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
                         className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Department</label>
                       <select
-                        value={newTeacher.department}
-                        onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        value={STANDARD_DEPTS.includes(newTeacher.department) ? newTeacher.department : 'Other'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'Other') {
+                            setNewTeacher({ ...newTeacher, department: '' });
+                          } else {
+                            setNewTeacher({ ...newTeacher, department: val });
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
                         <option value="Humanities">Humanities</option>
                         <option value="Secondary">Secondary (9th-10th)</option>
+                        <option value="MTS">MTS (Multi-Tasking Staff)</option>
+                        <option value="Other">Other...</option>
                       </select>
+                      {!STANDARD_DEPTS.includes(newTeacher.department) && (
+                        <input
+                          type="text"
+                          placeholder="Enter department name..."
+                          value={newTeacher.department}
+                          onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
+                          className="w-full mt-1 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        />
+                      )}
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div>
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Email Address</label>
                       <input
@@ -883,21 +2791,62 @@ export default function AdminPortal() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Photo Filename (Optional)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Gulfam.jpg"
-                        value={newTeacher.photo}
-                        onChange={(e) => setNewTeacher({ ...newTeacher, photo: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Photo Upload (Max 100KB)</label>
+                      <div className="flex gap-2">
+                        <div className="flex-grow">
+                          <input
+                            type="text"
+                            placeholder="Filename (e.g. sheikh_gulfam)"
+                            value={newTeacherPhotoName}
+                            onChange={(e) => setNewTeacherPhotoName(sanitizePhotoFilename(e.target.value))}
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                        <label className={`px-3 py-1.5 rounded text-slate-950 text-[10px] font-extrabold cursor-pointer transition-all flex items-center justify-center border whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
+                          {newTeacherPhotoFile ? 'File Loaded' : 'Choose File'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handlePhotoFileChange(e, 'new')}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      {newTeacherPhotoFile && (
+                        <div className="text-[9px] text-emerald-400 mt-1 font-semibold truncate">
+                          Selected: {newTeacherPhotoFile.name} ({Math.round(newTeacherPhotoFile.size / 1024)}KB)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div className="md:col-span-3">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
+                      <textarea
+                        placeholder="Write a brief profile biography or details about this faculty member..."
+                        value={newTeacher.profile || ''}
+                        onChange={(e) => setNewTeacher({ ...newTeacher, profile: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 h-16 resize-none"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Visibility Status</label>
+                      <select
+                        value={newTeacher.hidden ? 'hidden' : 'visible'}
+                        onChange={(e) => setNewTeacher({ ...newTeacher, hidden: e.target.value === 'hidden' })}
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                      >
+                        <option value="visible">Visible (Active on Frontend)</option>
+                        <option value="hidden">Hidden (Transferred / Inactive)</option>
+                      </select>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <button
                       onClick={handleAddTeacher}
-                      className="px-3.5 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1.5 inline-flex transition-colors"
+                      className="px-3.5 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 inline-flex border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
                     >
                       <UserPlus size={13} />
                       Add Teacher
@@ -906,144 +2855,250 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Faculty list */}
-                <div className="overflow-x-auto border border-slate-800 rounded-lg">
-                  <table className="w-full text-xs text-left border-collapse">
+                <div className="overflow-x-auto border border-slate-800 rounded-lg min-w-0">
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '640px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                        <th className="p-2.5">Name</th>
-                        <th className="p-2.5">Role / Subject</th>
-                        <th className="p-2.5">Department</th>
-                        <th className="p-2.5">Contact</th>
-                        <th className="p-2.5">Photo URL</th>
-                        <th className="p-2.5 w-24 text-center">Action</th>
+                        <th className="p-1.5">Name</th>
+                        <th className="p-1.5">Role / Subject</th>
+                        <th className="p-1.5">Department</th>
+                        <th className="p-1.5">Contact</th>
+                        <th className="p-1.5">Photo URL</th>
+                        <th className="p-1.5 w-24 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {faculty.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-6 text-center text-slate-500 italic">No faculty members configured. Add some above.</td>
+                          <td colSpan={6} className="p-4 text-center text-slate-500 italic text-[11px]">No faculty members configured. Add some above.</td>
                         </tr>
                       ) : (
                         faculty.map((t, index) => {
                           const isEditing = editingFacultyIdx === index;
+                          const rowIssue = facultyIssueMap[index];
+                          const rowHasError = rowIssue?.severity === 'error';
+                          const rowHasWarning = rowIssue && rowIssue.severity === 'warning';
                           return (
-                            <tr key={t.name + index} className="hover:bg-slate-900/20">
-                              {isEditing ? (
-                                <>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={editFacultyData.name}
-                                      onChange={(e) => setEditFacultyData({ ...editFacultyData, name: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <div className="space-y-1">
+                            <React.Fragment key={t.name + index}>
+                              <tr
+                                className={`hover:bg-slate-900/20 transition-colors ${
+                                  rowHasError
+                                    ? 'bg-red-950/20 border-l-2 border-l-red-500'
+                                    : rowHasWarning
+                                    ? 'bg-amber-950/20 border-l-2 border-l-amber-500'
+                                    : ''
+                                }`}
+                              >
+                                {isEditing ? (
+                                  <>
+                                    <td className="p-1.5">
                                       <input
                                         type="text"
-                                        placeholder="Role/Designation"
-                                        value={editFacultyData.designation}
-                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, designation: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                        value={editFacultyData.name}
+                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, name: e.target.value })}
+                                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
                                       />
-                                      <input
-                                        type="text"
-                                        placeholder="Subject"
-                                        value={editFacultyData.subject}
-                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, subject: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                                      />
+                                    </td>
+                                    <td className="p-1.5">
+                                      <div className="space-y-1">
+                                        <input
+                                          type="text"
+                                          placeholder="Role/Designation"
+                                          value={editFacultyData.designation}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, designation: e.target.value })}
+                                          className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="Subject"
+                                          value={editFacultyData.subject}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, subject: e.target.value })}
+                                          className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="p-1.5">
+                                      <select
+                                        value={STANDARD_DEPTS.includes(editFacultyData.department) ? editFacultyData.department : 'Other'}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === 'Other') {
+                                            setEditFacultyData({ ...editFacultyData, department: '' });
+                                          } else {
+                                            setEditFacultyData({ ...editFacultyData, department: val });
+                                          }
+                                        }}
+                                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-medium"
+                                      >
+                                        <option value="Administration">Administration</option>
+                                        <option value="Science">Science</option>
+                                        <option value="Humanities">Humanities</option>
+                                        <option value="Secondary">Secondary (9th-10th)</option>
+                                        <option value="MTS">MTS (Multi-Tasking Staff)</option>
+                                        <option value="Other">Other...</option>
+                                      </select>
+                                      {!STANDARD_DEPTS.includes(editFacultyData.department) && (
+                                        <input
+                                          type="text"
+                                          placeholder="Specify dept..."
+                                          value={editFacultyData.department}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, department: e.target.value })}
+                                          className="w-full mt-1 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                                        />
+                                      )}
+                                    </td>
+                                    <td className="p-1.5">
+                                      <div className="space-y-1">
+                                        <input
+                                          type="email"
+                                          placeholder="Email"
+                                          value={editFacultyData.email}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, email: e.target.value })}
+                                          className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="Mobile"
+                                          value={editFacultyData.mobile}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, mobile: e.target.value })}
+                                          className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="p-1.5">
+                                      <div className="flex flex-col gap-1 w-[130px]">
+                                        <input
+                                          type="text"
+                                          placeholder="File name"
+                                          value={editTeacherPhotoName}
+                                          onChange={(e) => setEditTeacherPhotoName(sanitizePhotoFilename(e.target.value))}
+                                          className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                          title="Sanitized custom photo filename"
+                                        />
+                                        <label className={`w-full py-1.5 px-2 rounded font-extrabold cursor-pointer transition-all text-center border text-[9px] block hover:scale-[1.02] active:scale-[0.98] ${editTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 text-slate-950 border-orange-400'}`}>
+                                          {editTeacherPhotoFile ? 'File Loaded' : 'Upload File'}
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => handlePhotoFileChange(e, 'edit')}
+                                            className="hidden"
+                                          />
+                                        </label>
+                                        {editTeacherPhotoFile && (
+                                          <div className="text-[8px] text-emerald-400 font-semibold truncate text-center">
+                                            {editTeacherPhotoFile.name.substring(0, 15)}...
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-1.5 text-center flex items-center justify-center gap-1.5">
+                                      <button
+                                        onClick={() => saveFacultyEdit(index)}
+                                        className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
+                                        title="Save"
+                                      >
+                                        <Check size={13} />
+                                      </button>
+                                      <button
+                                        onClick={cancelFacultyEdit}
+                                        className="p-1 rounded bg-slate-950 text-slate-400 hover:bg-slate-900 transition-colors"
+                                        title="Cancel"
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td className="p-1.5 font-semibold text-slate-200">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span>{t.name}</span>
+                                        {t.hidden && (
+                                          <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight">
+                                            Hidden
+                                          </span>
+                                        )}
+                                        {rowIssue && (
+                                          <span
+                                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight border cursor-help ${
+                                              rowHasError
+                                                ? 'bg-red-950 text-red-400 border-red-800'
+                                                : 'bg-amber-950 text-amber-400 border-amber-800'
+                                            }`}
+                                            title={rowIssue.messages.join('\n')}
+                                          >
+                                            <AlertCircle size={8} />
+                                            {rowHasError ? 'Error' : 'Warning'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-1.5 text-slate-300">{t.designation}{(t.subject && !['Administration', 'MTS'].includes(t.department)) ? ` — ${t.subject}` : ''}</td>
+                                    <td className="p-1.5">
+                                      <span className="badge-theme">{t.department}</span>
+                                    </td>
+                                    <td className="p-1.5 text-slate-400">
+                                      <div className="space-y-0.5">
+                                        <div>{t.email || '-'}</div>
+                                        <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
+                                      </div>
+                                    </td>
+                                    <td className="p-1.5 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
+                                    <td className="p-1.5 text-center flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={() => printEmployeeProfile(t)}
+                                        className="p-1 rounded text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors"
+                                        title="Print Profile / PDF"
+                                      >
+                                        <FileText size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => openFullEdit(index)}
+                                        className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
+                                        title="Edit all fields"
+                                      >
+                                        <Edit2 size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteTeacher(index)}
+                                        className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                              {isEditing && (
+                                <tr className="bg-slate-900/30">
+                                  <td colSpan={6} className="p-2 border-t border-slate-800/50">
+                                    <div className="flex flex-col md:flex-row gap-2.5 items-start">
+                                      <div className="flex-grow w-full md:w-auto">
+                                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
+                                        <textarea
+                                          placeholder="Edit profile biography..."
+                                          value={editFacultyData.profile || ''}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, profile: e.target.value })}
+                                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-855 text-xs text-slate-200 focus:outline-none focus:border-orange-500 h-16 resize-none"
+                                        />
+                                      </div>
+                                      <div className="w-full md:w-48 flex-shrink-0">
+                                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Visibility Status</label>
+                                        <select
+                                          value={editFacultyData.hidden ? 'hidden' : 'visible'}
+                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, hidden: e.target.value === 'hidden' })}
+                                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-855 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                        >
+                                          <option value="visible">Visible (Active)</option>
+                                          <option value="hidden">Hidden (Transferred / Inactive)</option>
+                                        </select>
+                                      </div>
                                     </div>
                                   </td>
-                                  <td className="p-2">
-                                    <select
-                                      value={editFacultyData.department}
-                                      onChange={(e) => setEditFacultyData({ ...editFacultyData, department: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                                    >
-                                      <option value="Administration">Administration</option>
-                                      <option value="Science">Science</option>
-                                      <option value="Humanities">Humanities</option>
-                                      <option value="Secondary">Secondary (9th-10th)</option>
-                                    </select>
-                                  </td>
-                                  <td className="p-2">
-                                    <div className="space-y-1">
-                                      <input
-                                        type="email"
-                                        placeholder="Email"
-                                        value={editFacultyData.email}
-                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, email: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                                      />
-                                      <input
-                                        type="text"
-                                        placeholder="Mobile"
-                                        value={editFacultyData.mobile}
-                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, mobile: e.target.value })}
-                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                                      />
-                                    </div>
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={editFacultyData.photo}
-                                      onChange={(e) => setEditFacultyData({ ...editFacultyData, photo: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-orange-500"
-                                    />
-                                  </td>
-                                  <td className="p-2 text-center flex items-center justify-center gap-1.5">
-                                    <button
-                                      onClick={() => saveFacultyEdit(index)}
-                                      className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
-                                      title="Save"
-                                    >
-                                      <Check size={13} />
-                                    </button>
-                                    <button
-                                      onClick={cancelFacultyEdit}
-                                      className="p-1 rounded bg-slate-950 text-slate-400 hover:bg-slate-900 transition-colors"
-                                      title="Cancel"
-                                    >
-                                      <X size={13} />
-                                    </button>
-                                  </td>
-                                </>
-                              ) : (
-                                <>
-                                  <td className="p-2.5 font-semibold text-slate-200">{t.name}</td>
-                                  <td className="p-2.5 text-slate-300">{t.designation} {t.subject ? `in ${t.subject}` : ''}</td>
-                                  <td className="p-2.5">
-                                    <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 text-[10px] font-semibold">{t.department}</span>
-                                  </td>
-                                  <td className="p-2.5 text-slate-400">
-                                    <div className="space-y-0.5">
-                                      <div>{t.email || '-'}</div>
-                                      <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
-                                    </div>
-                                  </td>
-                                  <td className="p-2.5 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
-                                  <td className="p-2.5 text-center flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => startEditFaculty(index)}
-                                      className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
-                                      title="Edit inline"
-                                    >
-                                      <Edit2 size={13} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteTeacher(index)}
-                                      className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
-                                      title="Delete"
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
-                                  </td>
-                                </>
+                                </tr>
                               )}
-                            </tr>
+                            </React.Fragment>
                           );
                         })
                       )}
@@ -1055,16 +3110,16 @@ export default function AdminPortal() {
 
             {/* TAB 4: EXPORT FILES */}
             {activeTab === 'export' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-4 animate-in fade-in duration-200">
                 <div>
                   <h3 className="text-base font-bold text-slate-200">Export & Update Public Slides Folder</h3>
                   <p className="text-xs text-slate-400 mt-1">Generate and download updated configuration files to copy into your repository/server.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
                   {/* settings.json card */}
-                  <div className="bg-slate-900/40 p-5 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-4">
+                  <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <FileText size={18} className="text-orange-400" />
@@ -1079,7 +3134,7 @@ export default function AdminPortal() {
                     </div>
                     <button
                       onClick={downloadSettingsJson}
-                      className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-orange-400 shadow"
                     >
                       <Download size={14} />
                       Download settings.json
@@ -1087,7 +3142,7 @@ export default function AdminPortal() {
                   </div>
 
                   {/* notices.txt card */}
-                  <div className="bg-slate-900/40 p-5 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-4">
+                  <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <RefreshCw size={18} className="text-emerald-400" />
@@ -1102,7 +3157,7 @@ export default function AdminPortal() {
                     </div>
                     <button
                       onClick={downloadNoticesTxt}
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-emerald-400 shadow"
                     >
                       <Download size={14} />
                       Download notices.txt
@@ -1110,7 +3165,7 @@ export default function AdminPortal() {
                   </div>
 
                   {/* faculty.json card */}
-                  <div className="bg-slate-900/40 p-5 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-4">
+                  <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <Users size={18} className="text-sky-400" />
@@ -1125,7 +3180,7 @@ export default function AdminPortal() {
                     </div>
                     <button
                       onClick={downloadFacultyJson}
-                      className="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-sky-400 shadow"
                     >
                       <Download size={14} />
                       Download faculty.json
@@ -1135,7 +3190,7 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Instructions banner */}
-                <div className="bg-slate-900/20 border border-slate-800/80 p-5 rounded-lg text-xs leading-relaxed text-slate-400">
+                <div className="bg-slate-900/20 border border-slate-800/80 p-4 rounded-lg text-xs leading-relaxed text-slate-400">
                   <h4 className="font-bold text-slate-300 mb-2 uppercase text-[10px] tracking-wider">How to Apply Changes Globally:</h4>
                   <ol className="list-decimal pl-4 space-y-2">
                     <li>Make modifications in the Admissions, Notices, and Faculty tabs.</li>
@@ -1151,6 +3206,763 @@ export default function AdminPortal() {
           </div>
         )}
 
+        {/* BULK PRINT SELECTION MODAL */}
+        {showBulkPrintModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200">
+              <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3">
+                <div>
+                  <h3 className="text-base font-bold text-orange-400">Bulk Profile PDF Export</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Select employees to generate a unified printable PDF. Page breaks are added automatically.</p>
+                </div>
+                <button
+                  onClick={() => setShowBulkPrintModal(false)}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Filters */}
+              <div className="flex gap-2 mb-3">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by name..."
+                    value={bulkPrintSearch}
+                    onChange={(e) => setBulkPrintSearch(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div className="w-40">
+                  <select
+                    value={bulkPrintDept}
+                    onChange={(e) => setBulkPrintDept(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="All">All Departments</option>
+                    {Array.from(new Set([...STANDARD_DEPTS, ...faculty.map(t => t.department).filter(Boolean)])).map(d => (
+                      <option key={d} value={d}>{d === 'Secondary' ? 'Secondary (9th-10th)' : d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Selection List */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-800 rounded-lg bg-slate-950 p-2 space-y-0.5 mb-3 min-h-[200px]">
+                {(() => {
+                  const filtered = faculty.filter(t => {
+                    const matchesSearch = t.name.toLowerCase().includes(bulkPrintSearch.toLowerCase());
+                    const matchesDept = bulkPrintDept === 'All' || t.department === bulkPrintDept;
+                    return matchesSearch && matchesDept;
+                  });
+
+                  if (filtered.length === 0) {
+                    return <div className="text-center text-slate-600 italic text-xs py-10">No employees match filters.</div>;
+                  }
+
+                  const allFilteredSelected = filtered.every(t => selectedBulkPrintNames.includes(t.name));
+
+                  const toggleAllFiltered = () => {
+                    if (allFilteredSelected) {
+                      const filteredNames = filtered.map(t => t.name);
+                      setSelectedBulkPrintNames(selectedBulkPrintNames.filter(name => !filteredNames.includes(name)));
+                    } else {
+                      const newSelections = [...selectedBulkPrintNames];
+                      filtered.forEach(t => {
+                        if (!newSelections.includes(t.name)) {
+                          newSelections.push(t.name);
+                        }
+                      });
+                      setSelectedBulkPrintNames(newSelections);
+                    }
+                  };
+
+                  return (
+                    <>
+                      <label className="flex items-center gap-2.5 px-2 py-1 hover:bg-slate-900/40 rounded cursor-pointer border-b border-slate-800/50 pb-2 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredSelected}
+                          onChange={toggleAllFiltered}
+                          className="rounded border-slate-800 text-orange-600 bg-slate-950 focus:ring-orange-500"
+                        />
+                        <span className="text-xs font-bold text-slate-300">Select All Matching ({filtered.length})</span>
+                      </label>
+
+                      {filtered.map((t, idx) => {
+                        const isChecked = selectedBulkPrintNames.includes(t.name);
+                        const handleCheckChange = () => {
+                          if (isChecked) {
+                            setSelectedBulkPrintNames(selectedBulkPrintNames.filter(name => name !== t.name));
+                          } else {
+                            setSelectedBulkPrintNames([...selectedBulkPrintNames, t.name]);
+                          }
+                        };
+
+                        return (
+                          <label key={t.name + '_' + idx} className="flex items-center justify-between px-2 py-1 hover:bg-slate-900/60 rounded cursor-pointer transition-colors">
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={handleCheckChange}
+                                className="rounded border-slate-800 text-orange-600 bg-slate-950 focus:ring-orange-500"
+                              />
+                              <span className="text-xs font-semibold text-slate-200">{t.name}</span>
+                              {t.hidden && (
+                                <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight">Hidden</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-medium">
+                              {t.designation} <span className="text-slate-600">•</span> {t.department}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex justify-between items-center border-t border-slate-800 pt-2.5">
+                <div className="text-xs text-slate-400 font-semibold">
+                  {selectedBulkPrintNames.length} of {faculty.length} selected
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowBulkPrintModal(false)}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-300 transition-colors border border-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const selected = faculty.filter(t => selectedBulkPrintNames.includes(t.name));
+                      printBulkProfiles(selected);
+                      setShowBulkPrintModal(false);
+                    }}
+                    disabled={selectedBulkPrintNames.length === 0}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-purple-500 hover:bg-purple-400 disabled:opacity-50 disabled:pointer-events-none text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-1.5 shadow border border-purple-400"
+                  >
+                    <Printer size={13} />
+                    Generate PDF / Print
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV IMPORT PREVIEW MODAL */}
+        {showCsvPreviewModal && csvPreviewData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3">
+                <div>
+                  <h3 className="text-base font-bold text-orange-400">CSV Import Preview</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Please review the employee records parsed from your CSV file below before confirming the import.</p>
+                </div>
+                <button
+                  onClick={() => setShowCsvPreviewModal(false)}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="banner-teal-custom p-2.5 rounded-lg text-xs mb-3 font-semibold flex items-start gap-2 border">
+                <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0" />
+                <span>Smart Merge: Existing records will be updated matching by CPIS No or Contact Number (preserving their uploaded photos and custom bios). New records will be appended to the list.</span>
+              </div>
+
+              {/* Preview List Table */}
+              <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar border border-slate-800 rounded-lg bg-slate-950 p-0 mb-3 min-h-[250px]">
+                <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '580px' }}>
+                  <thead>
+                    <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
+                      <th className="p-2">Name</th>
+                      <th className="p-2">Role / Subject</th>
+                      <th className="p-2">Department</th>
+                      <th className="p-2">Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {csvPreviewData.map((t, idx) => {
+                      let isUpdate = false;
+                      if (t.cpis_no && t.cpis_no.trim() !== '') {
+                        isUpdate = faculty.some(f => f.cpis_no && f.cpis_no.trim() === t.cpis_no.trim());
+                      }
+                      if (!isUpdate && t.mobile && t.mobile.trim() !== '') {
+                        isUpdate = faculty.some(f => f.mobile && f.mobile.trim() === t.mobile.trim());
+                      }
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-900/20">
+                          <td className="p-2 font-semibold text-slate-200">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{t.name}</span>
+                              <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider border ${isUpdate ? 'badge-status-update' : 'badge-status-new'}`}>
+                                {isUpdate ? 'Update' : 'New'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-2 text-slate-300">
+                            {t.designation}
+                            {t.subject ? ` — ${t.subject}` : ''}
+                          </td>
+                          <td className="p-2">
+                            <span className="badge-theme">{t.department}</span>
+                          </td>
+                          <td className="p-2 text-slate-400">
+                            <div className="text-[10px] truncate max-w-[150px]">{t.email || '-'}</div>
+                            <div className="text-[9px] font-mono text-slate-500">{t.mobile || '-'}</div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex justify-between items-center border-t border-slate-800 pt-2.5">
+                {(() => {
+                  let updates = 0;
+                  let news = 0;
+                  csvPreviewData.forEach(t => {
+                    let isUpdate = false;
+                    if (t.cpis_no && t.cpis_no.trim() !== '') {
+                      isUpdate = faculty.some(f => f.cpis_no && f.cpis_no.trim() === t.cpis_no.trim());
+                    }
+                    if (!isUpdate && t.mobile && t.mobile.trim() !== '') {
+                      isUpdate = faculty.some(f => f.mobile && f.mobile.trim() === t.mobile.trim());
+                    }
+                    if (isUpdate) updates++;
+                    else news++;
+                  });
+
+                  return (
+                    <div className="text-xs text-slate-400 font-semibold">
+                      {news} new, {updates} updates ready to merge
+                    </div>
+                  );
+                })()}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowCsvPreviewModal(false)}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold btn-cancel-custom transition-colors border"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const mergedFaculty = [...faculty];
+                      let updatedCount = 0;
+                      let addedCount = 0;
+
+                      csvPreviewData.forEach((imported) => {
+                        let matchIdx = -1;
+                        if (imported.cpis_no && imported.cpis_no.trim() !== '') {
+                          matchIdx = mergedFaculty.findIndex(f => f.cpis_no && f.cpis_no.trim() === imported.cpis_no.trim());
+                        }
+                        if (matchIdx === -1 && imported.mobile && imported.mobile.trim() !== '') {
+                          matchIdx = mergedFaculty.findIndex(f => f.mobile && f.mobile.trim() === imported.mobile.trim());
+                        }
+
+                        if (matchIdx !== -1) {
+                          const existing = mergedFaculty[matchIdx];
+                          mergedFaculty[matchIdx] = {
+                            ...existing,
+                            ...imported,
+                            photo: existing.photo || imported.photo,
+                            profile: existing.profile || imported.profile,
+                            hidden: existing.hidden !== undefined ? existing.hidden : imported.hidden
+                          };
+                          updatedCount++;
+                        } else {
+                          mergedFaculty.push(imported);
+                          addedCount++;
+                        }
+                      });
+
+                      setFaculty(mergedFaculty);
+                      setSaveSuccess(`Smart merge complete: added ${addedCount} new, updated ${updatedCount} existing. Remember to click "Apply & Save".`);
+                      setTimeout(() => setSaveSuccess(''), 6000);
+                      setShowCsvPreviewModal(false);
+                    }}
+                    className="px-4 py-1.5 rounded-lg text-xs font-extrabold bg-blue-500 hover:bg-blue-400 text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-1 border border-blue-400 shadow-md shadow-blue-950/20"
+                  >
+                    <Check size={13} />
+                    Confirm Import
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV VALIDATION ERRORS MODAL */}
+        {showCsvErrorModal && csvValidationErrors && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[80vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3">
+                <div>
+                  <h3 className="text-base font-bold text-red-400">CSV Import Failed</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Please fix the following validation errors in your CSV file and try again.</p>
+                </div>
+                <button
+                  onClick={() => setShowCsvErrorModal(false)}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Error banner */}
+              <div className="banner-red-custom border p-2.5 rounded-lg text-xs mb-3 font-medium flex items-start gap-2 animate-in fade-in duration-200">
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                <span>The system found {csvValidationErrors.length} validation errors. Fix them to enable previewing and importing.</span>
+              </div>
+
+              {/* Scrollable Error List */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-850 rounded-lg bg-slate-950 p-2.5 space-y-2 mb-3 min-h-[180px]">
+                {csvValidationErrors.map((err, idx) => (
+                  <div key={idx} className="text-xs border-b border-slate-900/50 pb-1.5 last:border-b-0">
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
+                      <span className="font-bold badge-red-custom px-1.5 py-0.5 rounded border">Row {err.row}</span>
+                      <span className="font-semibold">{err.name}</span>
+                    </div>
+                    <p className="text-slate-300 font-medium">{err.message}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex justify-end border-t border-slate-800 pt-2.5">
+                <button
+                  onClick={() => setShowCsvErrorModal(false)}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold btn-cancel-custom transition-colors border"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FULL EMPLOYEE EDIT MODAL — always dark regardless of active theme */}
+        {showFullEditModal && fullEditData && (
+          <div className="fixed inset-0 z-[90] flex items-stretch justify-end bg-black/70 backdrop-blur-sm">
+            <div className="flex-1" onClick={closeFullEdit} />
+            {/* Panel — hardcoded dark so it's unaffected by theme CSS variables */}
+            <div
+              className="w-full max-w-2xl flex flex-col shadow-2xl animate-in slide-in-from-right-8 duration-300 overflow-hidden border-l border-white/10"
+              style={{ background: '#0f172a', color: '#e2e8f0' }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.4)' }}>
+                <div>
+                  <h3 className="font-bold text-sm font-title tracking-wide" style={{ color: '#fb923c' }}>Edit Employee Record</h3>
+                  <p className="text-[11px] mt-0.5" style={{ color: '#94a3b8' }}>{fullEditData.name || 'Unnamed'} — All fields editable below</p>
+                </div>
+                <button onClick={closeFullEdit} className="p-1.5 rounded-lg transition-colors" style={{ color: '#94a3b8' }}
+                  onMouseEnter={e => { e.currentTarget.style.color='#fff'; e.currentTarget.style.background='rgba(255,255,255,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color='#94a3b8'; e.currentTarget.style.background='transparent'; }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-6" style={{ scrollbarColor: '#334155 #0f172a' }}>
+
+                      {/* Section: Basic Info */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Basic Information</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <FInput field="name" label="Full Name" data={fullEditData} onChange={fullEditField} required />
+                          <FInput field="designation" label="Present Designation" data={fullEditData} onChange={fullEditField} required />
+                          <FInput field="subject" label="Subject/s Teaching (shown on website)" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="email" label="Email Address" data={fullEditData} onChange={fullEditField} type="email" />
+                          <FInput field="mobile" label="Contact Number" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="gov_mail_id" label="Govt. Mail ID" data={fullEditData} onChange={fullEditField} />
+                          <div>
+                            <label className={panelLabel} style={panelLabelStyle}>Department</label>
+                            <select
+                              value={STANDARD_DEPTS.includes(fullEditData.department) ? fullEditData.department : 'Other'}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (val === 'Other') {
+                                  fullEditField('department', '');
+                                } else {
+                                  fullEditField('department', val);
+                                }
+                              }}
+                              className={panelInput}
+                              style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                            >
+                              <option value="Administration">Administration</option>
+                              <option value="Science">Science</option>
+                              <option value="Humanities">Humanities</option>
+                              <option value="Secondary">Secondary (9th–10th)</option>
+                              <option value="MTS">MTS (Multi-Tasking Staff)</option>
+                              <option value="Other">Other...</option>
+                            </select>
+                            {!STANDARD_DEPTS.includes(fullEditData.department) && (
+                              <input
+                                type="text"
+                                placeholder="Enter custom department..."
+                                value={fullEditData.department || ''}
+                                onChange={e => fullEditField('department', e.target.value)}
+                                className={panelInput + " mt-1.5 font-semibold"}
+                                style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
+                            <select value={fullEditData.hidden ? 'hidden' : 'visible'} onChange={e => fullEditField('hidden', e.target.value === 'hidden')}
+                              className={panelInput} style={panelInputStyle}>
+                              <option value="visible">Visible (Active on Website)</option>
+                              <option value="hidden">Hidden (Transferred / Inactive)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Section: Service Details */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Service Details</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <FInput field="cpis_no" label="CPIS No (Unique Govt ID)" data={fullEditData} onChange={fullEditField} mono />
+                          <FInput field="date_of_first_appointment" label="Date of 1st Appointment" data={fullEditData} onChange={fullEditField} mono />
+                          <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="stay_period" label="Stay Period" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="ddo_code" label="UDISE / DDO Code" data={fullEditData} onChange={fullEditField} mono />
+                          <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
+                          <FInput field="cadre" label="Service Cadre" data={fullEditData} onChange={fullEditField} />
+                        </div>
+                      </section>
+
+                      {/* Section: Personal Details */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Personal Details</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <FInput field="dob" label="Date of Birth" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="parentage" label="Parentage (Father's Name)" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="qualification" label="Highest Qualification" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="health_issues" label="Health / Security Grounds" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="if_deployed" label="If Deployed / Detached" data={fullEditData} onChange={fullEditField} />
+                          <div className="sm:col-span-2">
+                            <label className={panelLabel} style={panelLabelStyle}>Permanent Address</label>
+                            <input type="text" value={fullEditData.permanent_address || ''} onChange={e => fullEditField('permanent_address', e.target.value)}
+                              className={panelInput} style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className={panelLabel} style={panelLabelStyle}>Present Address</label>
+                            <input type="text" value={fullEditData.present_address || ''} onChange={e => fullEditField('present_address', e.target.value)}
+                              className={panelInput} style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
+                            <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
+                              className={panelInput + ' resize-none'} style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Section: Photo */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Photo</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="flex gap-4 items-start">
+                          {fullEditData.photo && (
+                            <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid #334155', background: '#020617' }}>
+                              <img src={fullEditData.photo} alt="Preview" className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} />
+                            </div>
+                          )}
+                          <div className="flex-1 space-y-2">
+                            <div>
+                              <label className={panelLabel} style={panelLabelStyle}>Photo URL / Path</label>
+                              <input type="text" value={fullEditData.photo || ''} onChange={e => fullEditField('photo', e.target.value)}
+                                placeholder="/slides/photo.jpg or https://..." className={panelInput + ' font-mono'} style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                            </div>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <label className={panelLabel} style={panelLabelStyle}>Upload New Photo (Max 100KB)</label>
+                                <input type="text" placeholder="Filename (e.g. sheikh_gulfam)" value={fullEditPhotoName}
+                                  onChange={e => setFullEditPhotoName(sanitizePhotoFilename(e.target.value))}
+                                  className={panelInput} style={panelInputStyle}
+                                  onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                  onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                              </div>
+                              <label className="self-end px-3 py-1.5 rounded text-[10px] font-extrabold cursor-pointer transition-all border whitespace-nowrap hover:scale-[1.02]"
+                                style={fullEditPhotoFile
+                                  ? { background: '#10b981', borderColor: '#34d399', color: '#020617' }
+                                  : { background: '#f97316', borderColor: '#fb923c', color: '#020617' }}>
+                                {fullEditPhotoFile ? 'Loaded ✓' : 'Choose File'}
+                                <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                  const file = e.target.files[0]; if (!file) return;
+                                  if (file.size > 102400) { showAlert(`File is ${Math.round(file.size / 1024)}KB — max is 100KB.`, 'File Too Large'); e.target.value = ''; return; }
+                                  setFullEditPhotoFile(file); setFullEditPhotoExt(getMimeExtension(file.type, file.name));
+                                  if (!fullEditPhotoName) setFullEditPhotoName(sanitizePhotoFilename(fullEditData.name || 'teacher_photo'));
+                                }} />
+                              </label>
+                            </div>
+                            {fullEditPhotoFile && <p className="text-[10px] font-semibold" style={{ color: '#34d399' }}>{fullEditPhotoFile.name} ({Math.round(fullEditPhotoFile.size / 1024)}KB)</p>}
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Section: Posting History */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Historical Posting Profile</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="space-y-2">
+                          {(fullEditData.postings || []).map((p, pi) => (
+                            <div key={pi} className="rounded-lg p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2"
+                              style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                              <div className="sm:col-span-2">
+                                <label className={panelLabel} style={panelLabelStyle}>Office / Institution</label>
+                                <input type="text" value={p.office || ''} onChange={e => updatePosting(pi, 'office', e.target.value)}
+                                  className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                                  style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                                  onFocus={e => e.target.style.borderColor = '#f97316'}
+                                  onBlur={e => e.target.style.borderColor = '#334155'} />
+                              </div>
+                              <div>
+                                <label className={panelLabel} style={panelLabelStyle}>Designation</label>
+                                <input type="text" value={p.designation || ''} onChange={e => updatePosting(pi, 'designation', e.target.value)}
+                                  className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                                  style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                                  onFocus={e => e.target.style.borderColor = '#f97316'}
+                                  onBlur={e => e.target.style.borderColor = '#334155'} />
+                              </div>
+                              <div className="flex gap-1.5 items-end">
+                                <div className="flex-1">
+                                  <label className={panelLabel} style={panelLabelStyle}>From</label>
+                                  <input type="text" value={p.from || ''} onChange={e => updatePosting(pi, 'from', e.target.value)}
+                                    className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                                    style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                                    onFocus={e => e.target.style.borderColor = '#f97316'}
+                                    onBlur={e => e.target.style.borderColor = '#334155'} />
+                                </div>
+                                <div className="flex-1">
+                                  <label className={panelLabel} style={panelLabelStyle}>To</label>
+                                  <input type="text" value={p.to || ''} onChange={e => updatePosting(pi, 'to', e.target.value)}
+                                    className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                                    style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                                    onFocus={e => e.target.style.borderColor = '#f97316'}
+                                    onBlur={e => e.target.style.borderColor = '#334155'} />
+                                </div>
+                                <button onClick={() => removePosting(pi)} className="mb-0.5 p-1.5 rounded transition-colors flex-shrink-0"
+                                  style={{ color: '#f87171' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.15)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                  title="Remove this posting">
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={addPosting}
+                            className="w-full py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                            style={{ border: '1px dashed #475569', color: '#94a3b8' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#fb923c'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#475569'; e.currentTarget.style.color = '#94a3b8'; }}>
+                            <Plus size={12} /> Add Posting Entry
+                          </button>
+                        </div>
+                      </section>
+
+                      {/* Section: Custom / Additional Fields */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Additional / Custom Fields</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="space-y-3">
+                          {/* List existing custom fields */}
+                          {Object.keys(fullEditData.customFields || {}).length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {Object.keys(fullEditData.customFields || {}).map((key) => (
+                                <div key={key}>
+                                  <label className={panelLabel} style={panelLabelStyle}>{key}</label>
+                                  <div className="flex gap-1.5 items-center">
+                                    <input
+                                      type="text"
+                                      value={fullEditData.customFields[key] || ''}
+                                      onChange={(e) => {
+                                        const updatedCustom = { ...fullEditData.customFields, [key]: e.target.value };
+                                        fullEditField('customFields', updatedCustom);
+                                      }}
+                                      className={panelInput}
+                                      style={panelInputStyle}
+                                      onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                      onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        const updatedCustom = { ...fullEditData.customFields };
+                                        delete updatedCustom[key];
+                                        fullEditField('customFields', updatedCustom);
+                                      }}
+                                      className="p-1.5 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex-shrink-0"
+                                      style={{ border: '1px solid #334155' }}
+                                      title={`Remove field "${key}"`}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Add a new custom field inline builder */}
+                          <div className="p-3 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 flex flex-col sm:flex-row gap-2.5 items-end">
+                            <div className="flex-grow w-full">
+                              <label className={panelLabel} style={panelLabelStyle}>New Field Name</label>
+                              <input
+                                id="new-custom-field-key"
+                                type="text"
+                                placeholder="e.g. PAN No, Aadhar No, Gender"
+                                className={panelInput}
+                                style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                              />
+                            </div>
+                            <div className="flex-grow w-full">
+                              <label className={panelLabel} style={panelLabelStyle}>Value</label>
+                              <input
+                                id="new-custom-field-val"
+                                type="text"
+                                placeholder="Enter value..."
+                                className={panelInput}
+                                style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                              />
+                            </div>
+                            <button
+                              onClick={() => {
+                                const keyInput = document.getElementById('new-custom-field-key');
+                                const valInput = document.getElementById('new-custom-field-val');
+                                const key = keyInput.value.trim();
+                                const val = valInput.value.trim();
+                                if (!key) {
+                                  showAlert('Please enter a name for the custom field.', 'Field Name Required');
+                                  return;
+                                }
+                                const updatedCustom = { ...(fullEditData.customFields || {}), [key]: val };
+                                fullEditField('customFields', updatedCustom);
+                                keyInput.value = '';
+                                valInput.value = '';
+                              }}
+                              className="px-3.5 py-1.5 rounded font-extrabold text-xs transition-all border shrink-0 text-slate-950 hover:scale-[1.02] active:scale-[0.98]"
+                              style={{ background: '#f97316', borderColor: '#fb923c' }}
+                            >
+                              Add Field
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+
+              </div>{/* end scrollable body */}
+
+              {/* Footer Actions */}
+              <div className="flex justify-between items-center px-5 py-3 flex-shrink-0"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)' }}>
+                <p className="text-[10px] hidden sm:block" style={{ color: '#64748b' }}>
+                  Changes apply in memory. Click{' '}
+                  <strong style={{ color: '#34d399' }}>Apply &amp; Save</strong> in the header to persist.
+                </p>
+                <div className="flex gap-2 ml-auto">
+                  <button onClick={closeFullEdit}
+                    className="px-4 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                    style={{ background: '#1e293b', border: '1px solid #475569', color: '#cbd5e1' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#334155'; e.currentTarget.style.color = '#f1f5f9'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.color = '#cbd5e1'; }}>
+                    Cancel
+                  </button>
+                  <button onClick={saveFullEdit}
+                    className="px-4 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    style={{ background: '#f97316', border: '1px solid #fb923c', color: '#020617' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fb923c'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#f97316'}>
+                    <Check size={14} /> Save Record
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CUSTOM PROMPT/ALERT MODAL */}
+        {customPrompt && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm bg-slate-900 border border-slate-850 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col text-slate-200 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-2.5 text-orange-400 font-bold border-b border-slate-800 pb-2 mb-3">
+                <AlertCircle size={18} className="flex-shrink-0" />
+                <h3 className="text-sm uppercase tracking-wider font-title">{customPrompt.title}</h3>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed mb-4">{customPrompt.message}</p>
+              <div className="flex justify-end gap-2">
+                {customPrompt.type === 'confirm' && (
+                  <button
+                    onClick={customPrompt.onCancel}
+                    className="px-3.5 py-1.5 rounded-lg text-[11px] font-bold btn-cancel-custom transition-colors border"
+                  >
+                    {customPrompt.cancelText || 'Cancel'}
+                  </button>
+                )}
+                <button
+                  onClick={customPrompt.onConfirm}
+                  className={`px-4 py-1.5 rounded-lg text-[11px] font-extrabold transition-all hover:scale-[1.02] active:scale-[0.98] ${customPrompt.confirmClass || 'btn-primary-custom shadow-md'}`}
+                >
+                  {customPrompt.confirmText || 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -13,6 +13,21 @@ export default function Admissions() {
     loadSiteSettings().then(setSettings);
   }, []);
 
+  // Listen to cross-tab data sync broadcasts
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type === 'UPDATE_DATA') {
+          loadSiteSettings().then(setSettings);
+        }
+      };
+      return () => channel.close();
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
   const isGlobalClosed = settings?.globalAdmissionsClosed;
   const isClassClosed = (cls) => isGlobalClosed || settings?.admissionsClosed?.[cls];
 

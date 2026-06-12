@@ -61,34 +61,33 @@ export default function Navbar() {
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
-    const delta = 40; // require a larger scroll to trigger hide/show
-    let hideTimeout = null;
+    const delta = 30; // require a small scroll to trigger hide/show
+    let ticking = false;
 
     const controlNavbar = () => {
       if (typeof window === 'undefined') return;
       const currentScrollY = window.scrollY;
       const diff = currentScrollY - lastScrollY;
 
-      if (Math.abs(diff) < delta) return; // ignore tiny movements
-
-      if (diff > 0 && currentScrollY > 120) {
-        // scrolling down: debounce hide so quick flicks don't toggle
-        clearTimeout(hideTimeout);
-        hideTimeout = setTimeout(() => setIsVisible(false), 120);
-      } else if (diff < 0) {
-        // scrolling up: show immediately
-        clearTimeout(hideTimeout);
+      if (diff > delta && currentScrollY > 100) {
+        setIsVisible(false);
+      } else if (diff < -delta) {
         setIsVisible(true);
       }
 
       lastScrollY = currentScrollY;
+      ticking = false;
     };
 
-    window.addEventListener('scroll', controlNavbar, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', controlNavbar);
-      clearTimeout(hideTimeout);
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(controlNavbar);
+        ticking = true;
+      }
     };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const headerRef = useRef(null);
@@ -98,7 +97,9 @@ export default function Navbar() {
     function updateHeaderHeight() {
       const el = headerRef.current;
       if (!el) return;
-      const h = Math.ceil(el.getBoundingClientRect().height);
+      const menuEl = el.querySelector('[data-mobile-menu]');
+      const menuHeight = menuEl ? menuEl.getBoundingClientRect().height : 0;
+      const h = Math.ceil(el.getBoundingClientRect().height - menuHeight);
       document.documentElement.style.setProperty('--site-header-height', `${h}px`);
     }
     updateHeaderHeight();
@@ -108,7 +109,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header ref={headerRef} className={`w-full shadow-md z-40 fixed top-0 left-0 right-0 bg-white transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+      <header ref={headerRef} className={`w-full shadow-md z-40 fixed top-0 left-0 right-0 bg-white transition-all duration-200 ease-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}
@@ -130,8 +131,8 @@ export default function Navbar() {
               </span>
             </div>
             <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
-              <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">ghssshangus74@gmail.com</a>&nbsp;(Principal)</span>
-              <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:adm.exam.hss.shangus@gmail.com" onClick={(e) => handleEmailClick(e, 'adm.exam.hss.shangus@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">adm.exam.hss.shangus@gmail.com</a>&nbsp;(Adms & Exams)</span>
+              <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">ghssshangus74@gmail.com (Principal)</a></span>
+              <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:adm.exam.hss.shangus@gmail.com" onClick={(e) => handleEmailClick(e, 'adm.exam.hss.shangus@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">adm.exam.hss.shangus@gmail.com (Adms & Exams)</a></span>
             </div>
           </div>
 
@@ -207,38 +208,55 @@ export default function Navbar() {
 
           {/* Mobile slide-down menu */}
           {mobileOpen && (
-              <div className="md:hidden bg-slate-800 text-white border-t border-slate-700">
-              <div className="px-4 py-4 space-y-3">
-                <Link to="/" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-2 rounded" style={isActive('/') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Home</Link>
-                <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-2 rounded" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
-                <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-2 rounded" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
-                <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-2 rounded" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
-                <div className="pt-2 border-t border-slate-700 space-y-2 text-xs">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="font-semibold text-slate-400">Phone:</span>
-                    <a href="tel:+917006912918" className="flex items-center gap-2 text-sm hover:text-teal-400 transition-colors"><Phone size={14} className="text-teal-400"/> +91-7006912918 (Principal)</a>
-                    <a href="tel:+919682641216" className="flex items-center gap-2 text-sm hover:text-teal-400 transition-colors"><Phone size={14} className="text-teal-400"/> +91-9682641216 (Vice Principal)</a>
+              <div data-mobile-menu className="md:hidden bg-slate-800 text-white border-t border-slate-700">
+              <div className="px-4 py-3 space-y-1.5">
+                <Link to="/" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Home</Link>
+                <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
+                <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
+                <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
+                <div className="pt-2 border-t border-slate-700 space-y-1 text-xs">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold text-slate-400 text-[11px]">Contact:</span>
+                    {/* Principal */}
                     <div className="flex items-center justify-between">
-                      <a href="tel:+917006034501" className="flex items-center gap-2 text-sm hover:text-teal-400 transition-colors">
-                        <Phone size={14} className="text-teal-400"/> +91-7006034501 (Adms & Exams)
+                      <a href="tel:+917006912918" className="flex items-center gap-2 text-[13px] hover:text-teal-400 transition-colors">
+                        <Phone size={14} className="text-teal-400"/> +91-7006912918 <span className="text-[10px] text-slate-400">(Principal)</span>
                       </a>
-                      <a href="https://wa.me/917006034501" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 p-1.5 transition-transform hover:scale-110 flex items-center" title="Chat on WhatsApp">
-                        <WhatsAppIcon size={16} className="fill-current" />
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="text-slate-400 hover:text-teal-400 p-1 transition-colors" title="Email Principal">
+                          <Mail size={14} />
+                        </a>
+                      </div>
                     </div>
+                    {/* Vice Principal */}
+                    <a href="tel:+919682641216" className="flex items-center gap-2 text-[13px] hover:text-teal-400 transition-colors">
+                      <Phone size={14} className="text-teal-400"/> +91-9682641216 <span className="text-[10px] text-slate-400">(Vice Principal)</span>
+                    </a>
+                    {/* Adms & Exams 1 */}
                     <div className="flex items-center justify-between">
-                      <a href="tel:+917006537425" className="flex items-center gap-2 text-sm hover:text-teal-400 transition-colors">
-                        <Phone size={14} className="text-teal-400"/> +91-7006537425 (Adms & Exams)
+                      <a href="tel:+917006034501" className="flex items-center gap-2 text-[13px] hover:text-teal-400 transition-colors">
+                        <Phone size={14} className="text-teal-400"/> +91-7006034501 <span className="text-[10px] text-slate-400">(Adms & Exams)</span>
                       </a>
-                      <a href="https://wa.me/917006537425" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 p-1.5 transition-transform hover:scale-110 flex items-center" title="Chat on WhatsApp">
-                        <WhatsAppIcon size={16} className="fill-current" />
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <a href="https://wa.me/917006034501" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 p-1 transition-transform hover:scale-110 flex items-center" title="Chat on WhatsApp">
+                          <WhatsAppIcon size={16} className="fill-current" />
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-700/50">
-                    <span className="font-semibold text-slate-400">Email:</span>
-                    <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="flex items-center gap-2 text-sm hover:text-teal-400 transition-colors"><Mail size={14} className="text-teal-400"/> ghssshangus74@gmail.com (Principal)</a>
-                    <a href="mailto:adm.exam.hss.shangus@gmail.com" onClick={(e) => handleEmailClick(e, 'adm.exam.hss.shangus@gmail.com')} className="flex items-center gap-2 text-sm hover:text-teal-400 transition-colors"><Mail size={14} className="text-teal-400"/> adm.exam.hss.shangus@gmail.com (Adms & Exams)</a>
+                    {/* Adms & Exams 2 */}
+                    <div className="flex items-center justify-between">
+                      <a href="tel:+917006537425" className="flex items-center gap-2 text-[13px] hover:text-teal-400 transition-colors">
+                        <Phone size={14} className="text-teal-400"/> +91-7006537425 <span className="text-[10px] text-slate-400">(Adms & Exams)</span>
+                      </a>
+                      <div className="flex items-center gap-1">
+                        <a href="https://wa.me/917006537425" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 p-1 transition-transform hover:scale-110 flex items-center" title="Chat on WhatsApp">
+                          <WhatsAppIcon size={16} className="fill-current" />
+                        </a>
+                        <a href="mailto:adm.exam.hss.shangus@gmail.com" onClick={(e) => handleEmailClick(e, 'adm.exam.hss.shangus@gmail.com')} className="text-slate-400 hover:text-teal-400 p-1 transition-colors" title="Email Adms & Exams">
+                          <Mail size={14} />
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="pt-3">

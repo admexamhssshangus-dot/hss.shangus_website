@@ -5,7 +5,8 @@ const themes = [
   { id: 'light', name: 'Light Mode', icon: Sun, color: '#f8fafc', accent: '#0d9488' },
   { id: 'dark', name: 'Dark Slate', icon: Moon, color: '#0f172a', accent: '#38bdf8' },
   { id: 'royal', name: 'Royal Gold', icon: Sparkles, color: '#0a1128', accent: '#d4af37' },
-  { id: 'forest', name: 'Forest Emerald', icon: Sparkles, color: '#062e1b', accent: '#34d399' }
+  { id: 'forest', name: 'Forest Emerald', icon: Sparkles, color: '#062e1b', accent: '#34d399' },
+  { id: 'midnight', name: 'Midnight Black', icon: Moon, color: '#000000', accent: '#a78bfa' }
 ];
 
 export default function ThemeSelector() {
@@ -22,7 +23,7 @@ export default function ThemeSelector() {
   const applyTheme = (themeId) => {
     const html = document.documentElement;
     // Remove all custom theme classes
-    html.classList.remove('theme-light', 'theme-dark', 'theme-royal', 'theme-forest');
+    html.classList.remove('theme-light', 'theme-dark', 'theme-royal', 'theme-forest', 'theme-midnight');
     html.classList.add(`theme-${themeId}`);
   };
 

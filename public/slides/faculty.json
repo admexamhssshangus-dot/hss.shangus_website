@@ -1,74 +1,1352 @@
 [
   {
-    "name": "Mr. Aijaz Ahmad Wagay",
+    "name": "AIJAZ AHMAD WAGAY",
     "designation": "Principal",
-    "subject": "Chemistry",
-    "email": "ghssshangus74@gmail.com",
-    "mobile": "+91-7006034501",
+    "subject": "",
+    "email": "aijazwageynowgam@gmail.com",
+    "mobile": "7006912918",
     "photo": "/slides/Principal.jpg",
-    "department": "Administration"
+    "department": "Administration",
+    "profile": "",
+    "hidden": false,
+    "dob": "05.09.1968",
+    "parentage": "MOHD SULTAN WAGAY",
+    "category": "OM",
+    "cpis_no": "SHGEDU00200028",
+    "date_of_first_appointment": "26.08.1991",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "05.12.2025",
+    "qualification": "Msc Bed",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Nowgam",
+    "present_address": "Nowgam",
+    "gov_mail_id": "AIJAZAHMADWAG.6895@JK.GOV.IN",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "MS PRATPUR LEH",
+        "designation": "TEACHER",
+        "from": "25.09.1991",
+        "to": "31.08.1995"
+      },
+      {
+        "office": "HS CHUCHOT LEH",
+        "designation": "TEACHER",
+        "from": "01.09.1995",
+        "to": "20.10.1995"
+      },
+      {
+        "office": "HS TAILWAINE",
+        "designation": "TEACHER",
+        "from": "21.10.1995",
+        "to": "26.031997"
+      },
+      {
+        "office": "HSS NOWGAM",
+        "designation": "TEACHER",
+        "from": "27.03.1997",
+        "to": "02.07.1998"
+      },
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "TEACHER",
+        "from": "02.07.1998",
+        "to": "04.05.2000"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "TEACHER",
+        "from": "04.05.2000",
+        "to": "03.05.2005"
+      },
+      {
+        "office": "GHSS LEH",
+        "designation": "LECTURER",
+        "from": "04.05.2005",
+        "to": "19.06.2007"
+      },
+      {
+        "office": "HSS UTTERSOO",
+        "designation": "LECTURER",
+        "from": "20.06.2007",
+        "to": "18.03.2011"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "SR.LECTURER",
+        "from": "19.03.2011",
+        "to": "13.03.2017"
+      },
+      {
+        "office": "HSS KHARPORA",
+        "designation": "SR.LECTURER",
+        "from": "13.03.2017",
+        "to": "13.09.2017"
+      },
+      {
+        "office": "GGHSS.NOWGAM",
+        "designation": "SR.LECTURER",
+        "from": "13.09.2017",
+        "to": "09.02.2023"
+      },
+      {
+        "office": "HSS AISHMUQAM",
+        "designation": "PRINCIPAL",
+        "from": "09.02.2023",
+        "to": "05.12.2025"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "PRINCIPAL",
+        "from": "05.12.2025",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Chemistry"
   },
   {
-    "name": "Mr. Sheikh Gulfam",
+    "name": "AB MAJID BHAT",
+    "designation": "Senior Lecturer",
+    "subject": "Zoology",
+    "email": "drabmajidbhat@gmail.com",
+    "mobile": "9682641216",
+    "photo": "",
+    "department": "Science",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.12.1973",
+    "parentage": "KHAZIR MOHD BHAT",
+    "category": "OM",
+    "cpis_no": "SHGEDU00220003",
+    "date_of_first_appointment": "21-04-2010",
+    "designation_at_first_appointment": "Lecturer",
+    "stay_period": "05.04.2025",
+    "qualification": "PhD Zoology",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Shangus",
+    "present_address": "Shangus",
+    "gov_mail_id": "ABMAJIDBHA.73121@JK.GOV.IN",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS SHANGUS",
+        "designation": "LECTURER",
+        "from": "14.05.2010",
+        "to": "25.04.2015"
+      },
+      {
+        "office": "GHSS BOYS LEH",
+        "designation": "LECTURER",
+        "from": "26.04.2015",
+        "to": "09.08.2016"
+      },
+      {
+        "office": "DSEK Sgr",
+        "designation": "LECTURER",
+        "from": "10.08.2016",
+        "to": "18.10.2016"
+      },
+      {
+        "office": "Hss Shangus",
+        "designation": "Sr. Lecturer",
+        "from": "18.10.2016",
+        "to": "06.09.2023"
+      },
+      {
+        "office": "HSS YK PORA QAZIGUND",
+        "designation": "Sr. Lecturer",
+        "from": "06.09.2023",
+        "to": "04.04.2025"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "Sr.LECTURER",
+        "from": "04.04.2025",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Zoology"
+  },
+  {
+    "name": "ALI JAN KHAN",
+    "designation": "Senior Lecturer",
+    "subject": "Education",
+    "email": "alijankhan857@gmail.com",
+    "mobile": "9682386294",
+    "photo": "",
+    "department": "Humanities",
+    "profile": "",
+    "hidden": false,
+    "dob": "15.04.1974",
+    "parentage": "GHULAM KHAN",
+    "category": "ST",
+    "cpis_no": "KKNEDU00210024",
+    "date_of_first_appointment": "03.11.1997",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "01.03.2019",
+    "qualification": "M.A., B.Ed.",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Cherpora",
+    "present_address": "Cherpora",
+    "gov_mail_id": "ALI JANKHA.74415@JK.GOV.IN",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "PS POSHNARI",
+        "designation": "TEACHER",
+        "from": "04.11.1997",
+        "to": "20.03.1998"
+      },
+      {
+        "office": "PS CHOWGAM",
+        "designation": "TEACHER",
+        "from": "20.03.1998",
+        "to": "04.02.2024"
+      },
+      {
+        "office": "COLLEGE OF EDUCATION",
+        "designation": "TEACHER",
+        "from": "05.02.2004",
+        "to": "03.01.2005"
+      },
+      {
+        "office": "PS CHOWGAM",
+        "designation": "TEACHER",
+        "from": "04.01.2005",
+        "to": "19.04.2006"
+      },
+      {
+        "office": "HS CHOWGAL HANDWARA",
+        "designation": "Master",
+        "from": "20.04.2006",
+        "to": "14.12.2007"
+      },
+      {
+        "office": "Hss chitergul",
+        "designation": "Master",
+        "from": "15.12.2007",
+        "to": "07.03.2010"
+      },
+      {
+        "office": "MS BRIMMER SHANGUS",
+        "designation": "MASTER",
+        "from": "07.03.2010",
+        "to": "03.05.2010"
+      },
+      {
+        "office": "HSS AKCHAMAL KARGIL",
+        "designation": "LECTURER",
+        "from": "04.05.2010",
+        "to": "05.09.2012"
+      },
+      {
+        "office": "HSS NOWGAM",
+        "designation": "LECTURER",
+        "from": "05.09.2012",
+        "to": "20.03.2017"
+      },
+      {
+        "office": "HSS KHARPORA",
+        "designation": "LECTURER",
+        "from": "21.03.2017",
+        "to": "28.02.2019"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "SR.LECTURER",
+        "from": "01.03.2019",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Education"
+  },
+  {
+    "name": "BILAL AHMAD KHANDY",
+    "designation": "Lecturer",
+    "subject": "Urdu",
+    "email": "bilalhcu@gmail.com",
+    "mobile": "9596165142",
+    "photo": "",
+    "department": "Humanities",
+    "profile": "",
+    "hidden": false,
+    "dob": "10.04.1988",
+    "parentage": "MOHD MAQBOOL KHANDY",
+    "category": "OM",
+    "cpis_no": "KGLEDU00120015",
+    "date_of_first_appointment": "21.04.2017",
+    "designation_at_first_appointment": "Lecturer",
+    "stay_period": "30.07.2022",
+    "qualification": "M.Phil., NET, SET, B.Ed.",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Shangus",
+    "present_address": "Shangus",
+    "gov_mail_id": "bilalhcu.142@JK.GOV.IN",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS YOURBALTAK",
+        "designation": "LECTURER",
+        "from": "04.07.2017",
+        "to": "06.05.2022"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "LECTURER",
+        "from": "07.05.2022",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": "Urdu"
+  },
+  {
+    "name": "SHEIKH GULFAM",
     "designation": "Lecturer",
     "subject": "Botany",
     "email": "sheikhgulfam91@gmail.com",
-    "mobile": "+91-9682547458",
+    "mobile": "9682547458",
     "photo": "/slides/Gulfam.jpg",
-    "department": "Science"
+    "department": "Science",
+    "profile": "",
+    "hidden": false,
+    "dob": "02.03.1991",
+    "parentage": "Gulzar Ahmad Sheikh",
+    "category": "RBA",
+    "cpis_no": "GRZEDU00060041",
+    "date_of_first_appointment": "03.10.2017",
+    "designation_at_first_appointment": "Lecturer",
+    "stay_period": "01.09.2023",
+    "qualification": "M.Sc., B.Ed.; (CSIR JRF)",
+    "bed": "Yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Hardu Shichen",
+    "present_address": "Hardu Shichen",
+    "gov_mail_id": "SHEIKHGUL.9132@JK.GOV.IN",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "Govt Girls HSS Dawar, Gurez",
+        "designation": "Lecturer",
+        "from": "13-11-2017",
+        "to": "30-08-2023"
+      },
+      {
+        "office": "Govt HSS Shangus",
+        "designation": "Lecturer",
+        "from": "1/9/2025",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": "Botany"
   },
   {
-    "name": "Dr. Tariq Ahmad",
-    "designation": "Lecturer",
-    "subject": "Physics",
-    "email": "tariq.physics@gmail.com",
-    "mobile": "+91-7006123456",
-    "photo": "",
-    "department": "Science"
-  },
-  {
-    "name": "Mrs. Shazia Kouser",
-    "designation": "Lecturer",
+    "name": "Gh MOHI-UD DIN ALLIE",
+    "designation": "I/C Lecturer",
     "subject": "Chemistry",
-    "email": "shazia.chem@gmail.com",
-    "mobile": "+91-7006234567",
+    "email": "masterallie1998@gmail.com",
+    "mobile": "9149640738",
     "photo": "",
-    "department": "Science"
+    "department": "Science",
+    "profile": "",
+    "hidden": false,
+    "dob": "12.10.1969",
+    "parentage": "GH RASOOL ALLIE",
+    "category": "OM",
+    "cpis_no": "BIJEDU00180071",
+    "date_of_first_appointment": "17.10.2007",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "30.05.2025",
+    "qualification": "M.Sc., B.Ed.",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Niayeena GundBabakhaleel",
+    "present_address": "Niayeena Gund Babakhaleel",
+    "gov_mail_id": "GHMOHIUDALL.691012@JK.GOV.IN",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS MARHAMA",
+        "designation": "TEACHER",
+        "from": "01.11.2017",
+        "to": "29.03.2016"
+      },
+      {
+        "office": "GHSS BIJBEHARA",
+        "designation": "TEACHER",
+        "from": "30.03.2016",
+        "to": "02.06.2020"
+      },
+      {
+        "office": "HS GB KHALIL",
+        "designation": "TEACHER",
+        "from": "03.06.2020",
+        "to": "17.08.2020"
+      },
+      {
+        "office": "HSS AKINGAM",
+        "designation": "I/C LECTURER",
+        "from": "17.08.2020",
+        "to": "30.05.2025"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "I/C LECTURER",
+        "from": "30.05.2025",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Chemistry"
   },
   {
-    "name": "Mr. Mohammad Yousuf",
-    "designation": "Lecturer",
-    "subject": "Economics",
-    "email": "yousuf.econ@gmail.com",
-    "mobile": "+91-7006345678",
+    "name": "KALI DAS",
+    "designation": "I/C Lecturer",
+    "subject": "Political Science",
+    "email": "dassk757@gmail.com",
+    "mobile": "9149870668",
     "photo": "",
-    "department": "Humanities"
+    "department": "Humanities",
+    "profile": "",
+    "hidden": false,
+    "dob": "14.01.1984",
+    "parentage": "PARKASH CHAND",
+    "category": "SC",
+    "cpis_no": "QZGEDU00280004",
+    "date_of_first_appointment": "15.06.2007",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "19.02.2026",
+    "qualification": "M.A., B.Ed.",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "no",
+    "permanent_address": "GADIAL KATHUA HIRANAGAR",
+    "present_address": "GADIAL KATHUA HIRANAGAR",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "PS QAZIPORA Tangmarg",
+        "designation": "TEACHER",
+        "from": "26.06.2007",
+        "to": "31.08.2012"
+      },
+      {
+        "office": "MURADBAGH KARGIL",
+        "designation": "MASTER",
+        "from": "01.09.2012",
+        "to": "31.10.2014"
+      },
+      {
+        "office": "HS SANGRAN",
+        "designation": "MASTER",
+        "from": "01.11.2014",
+        "to": "28.02.2015"
+      },
+      {
+        "office": "HS DAMJAN",
+        "designation": "MASTER",
+        "from": "01.03.2015",
+        "to": "19.02.2026"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "I/C LECTURER",
+        "from": "19.02.2026",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Political Science"
   },
   {
-    "name": "Mrs. Rukhsana Akhtar",
-    "designation": "Lecturer",
+    "name": "MIR JAVAID",
+    "designation": "I/C Lecturer",
+    "subject": "Physical Education",
+    "email": "hajimir91@gmail.com",
+    "mobile": "6006192112",
+    "photo": "",
+    "department": "Humanities",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.06.1968",
+    "parentage": "GH MOHD MIR",
+    "category": "OM",
+    "cpis_no": "AHBEDU00020012",
+    "date_of_first_appointment": "15.03.1998",
+    "designation_at_first_appointment": "PET",
+    "stay_period": "22.03.2022",
+    "qualification": "MPEd",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Trahpu",
+    "present_address": "Trahpu",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "MS PAYERPORA KUPWARA",
+        "designation": "PET",
+        "from": "15.03.1998",
+        "to": "02.06.1999"
+      },
+      {
+        "office": "MS SULKOOT KUPWARA",
+        "designation": "PET",
+        "from": "03.06.1999",
+        "to": "15.04.2002"
+      },
+      {
+        "office": "MS BUMHIMA",
+        "designation": "PET",
+        "from": "16.04.2002",
+        "to": "15.07.2002"
+      },
+      {
+        "office": "ZEO ACHABAL",
+        "designation": "PET",
+        "from": "16.07.2002",
+        "to": "24.04.2008"
+      },
+      {
+        "office": "HSS ACHABAL",
+        "designation": "PEL",
+        "from": "25.04.2008",
+        "to": "24.02.2020"
+      },
+      {
+        "office": "HSS HARDUTOORU",
+        "designation": "I/C PEL",
+        "from": "25.02.2020",
+        "to": "22.03.2022"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "I/C PEL",
+        "from": "22.03.2022",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": "Physical Education"
+  },
+  {
+    "name": "NAZIR AHMAD WANI",
+    "designation": "Master",
     "subject": "English",
-    "email": "rukhsana.eng@gmail.com",
-    "mobile": "+91-7006456789",
+    "email": "nazirahmad5801@gmail.com",
+    "mobile": "9858431764",
     "photo": "",
-    "department": "Humanities"
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.12.1966",
+    "parentage": "AB AHAD WANI",
+    "category": "RBA",
+    "cpis_no": "SHGEDU00130010",
+    "date_of_first_appointment": "23.03.1999",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "18.04.2018",
+    "qualification": "M.A., B.Ed.",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Ahopaison",
+    "present_address": "Ahopaison",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "TEACHER",
+        "from": "27.03.1999",
+        "to": "04.03.2002"
+      },
+      {
+        "office": "HS DETHU",
+        "designation": "TEACHER",
+        "from": "04.03.2002",
+        "to": "24.03.2008"
+      },
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "TEACHER",
+        "from": "24.03.2008",
+        "to": "07.08.2008"
+      },
+      {
+        "office": "HSS CHITERGUL",
+        "designation": "TEACHER",
+        "from": "07.08.2008",
+        "to": "20.05.2013"
+      },
+      {
+        "office": "GHS BRAH",
+        "designation": "Master",
+        "from": "20.05.2013",
+        "to": "17.04.2018"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "Master",
+        "from": "18.04.2018",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "English"
   },
   {
-    "name": "Mr. Fayaz Ahmad",
+    "name": "AJAZ AHMAD BHAT",
     "designation": "Teacher",
-    "subject": "Information Technology",
-    "email": "fayaz.it@gmail.com",
-    "mobile": "+91-7006567890",
+    "subject": "Mathematics",
+    "email": "ajazbhat6088@gmail.com",
+    "mobile": "7006602831",
     "photo": "",
-    "department": "Secondary"
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.01.1980",
+    "parentage": "GH NABI BHAT",
+    "category": "OM",
+    "cpis_no": "SHGEDU00160006",
+    "date_of_first_appointment": "15.06.2009",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "18.11.2017",
+    "qualification": "B.Sc., M.A., M.Ed.",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "GHS SHANGUS",
+        "designation": "TEACHER",
+        "from": "10.07.2009",
+        "to": "09.03.2017"
+      },
+      {
+        "office": "HS Brariangan",
+        "designation": "Teacher",
+        "from": "09.03.2017",
+        "to": "18.11.2017"
+      },
+      {
+        "office": "Hss shangus",
+        "designation": "TEACHER",
+        "from": "18.11.2017",
+        "to": "TILL DATE"
+      },
+      {
+        "office": "No",
+        "designation": "No",
+        "from": "Nowgam",
+        "to": "Nowgam"
+      }
+    ],
+    "subject_pg": "Psychology"
   },
   {
-    "name": "Mr. Nawaz Ahmad Shah",
+    "name": "MUSHTAQ AHMAD WANI",
+    "designation": "Teacher",
+    "subject": "Science",
+    "email": "mwani1413@gmail.com",
+    "mobile": "7006414253",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "05.05.1981",
+    "parentage": "WALI MOHD WANI",
+    "category": "OM",
+    "cpis_no": "SHGEDU00190027",
+    "date_of_first_appointment": "10.12.2012",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "05.03.2020",
+    "qualification": "M.Sc., M.Ed.",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Tailwani",
+    "present_address": "Tailwani",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS SHANGUS",
+        "designation": "TEACHER",
+        "from": "05.01.2013",
+        "to": "07.03.2017"
+      },
+      {
+        "office": "HS Brariangan",
+        "designation": "Teacher",
+        "from": "08.03.2017",
+        "to": "12.06.2017"
+      },
+      {
+        "office": "HSS Hardtooru",
+        "designation": "TEACHER",
+        "from": "12.06,2017",
+        "to": "05.03.2020"
+      },
+      {
+        "office": "Hss Shangus",
+        "designation": "TEACHER",
+        "from": "05.03.2020",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Chemistry"
+  },
+  {
+    "name": "NAWAZ AHMAD SHAH",
     "designation": "Teacher",
     "subject": "Social Studies",
-    "email": "shahnawaz13678@gmail.com",
+    "email": "shahnawaz13678@gmai.com",
     "mobile": "7006034501",
+    "photo": "",
     "department": "Secondary",
-    "photo": ""
+    "profile": "",
+    "hidden": false,
+    "dob": "05.04.1986",
+    "parentage": "MOHD AYOUB SHAH",
+    "category": "OM/HC",
+    "cpis_no": "SHGEDU00220030",
+    "date_of_first_appointment": "17.10.2014",
+    "designation_at_first_appointment": "Teacher",
+    "stay_period": "25.10.2014",
+    "qualification": "M.A., B.Ed., M.Phil.",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS SHANGUS",
+        "designation": "TEACHER",
+        "from": "31.10.2014",
+        "to": "TILL DATE"
+      },
+      {
+        "office": "No",
+        "designation": "No",
+        "from": "Uttersoo",
+        "to": "Uttersoo"
+      }
+    ],
+    "subject_pg": "Political Science"
+  },
+  {
+    "name": "MAJID HASSAN NAJAR",
+    "designation": "Teacher",
+    "subject": "Urdu",
+    "email": "majidhassannajar@gmail.com",
+    "mobile": "7006537425",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "15.06.1977",
+    "parentage": "GHULAM HASSAN NAJAR",
+    "category": "OBC",
+    "cpis_no": "SHGEDU00220017",
+    "date_of_first_appointment": "13.10.2009",
+    "designation_at_first_appointment": "Lab Bearer",
+    "stay_period": "06.07.2023",
+    "qualification": "10+2, D.El.Ed.",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Shangus",
+    "present_address": "Shangus",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS CHITERGUL",
+        "designation": "LAB BEARER",
+        "from": "13.10.2009",
+        "to": "29.08.2012"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "LAB ASSISTANT",
+        "from": "29.08.2012",
+        "to": "17.03.2016"
+      },
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "TEACHER",
+        "from": "17.03.2016",
+        "to": "06.07.2023"
+      },
+      {
+        "office": "Hss Shangus",
+        "designation": "TEACHER",
+        "from": "07.07.2023",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Political Science"
+  },
+  {
+    "name": "SHAHZADA AKHTER",
+    "designation": "Teacher Grade II",
+    "subject": "Education",
+    "email": "shaziamajidkashmir@gmail.com",
+    "mobile": "9906862355",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "10.03.1982",
+    "parentage": "MOHD RAMZAN GANIE",
+    "category": "OM",
+    "cpis_no": "KKNEDU00110349",
+    "date_of_first_appointment": "05.08.2008",
+    "designation_at_first_appointment": "R.Re.T",
+    "stay_period": "21.10.2021",
+    "qualification": "MA BED",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "NARDSANGAR",
+    "present_address": "SHANGUS",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "ZEO BIDDER",
+        "designation": "RRET",
+        "from": "05.08.2003",
+        "to": "21.10.2021"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "T.grade II",
+        "from": "21.10.2021",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": "Education"
+  },
+  {
+    "name": "SHAHZADA AKHTER",
+    "designation": "Teacher Grade II",
+    "subject": "Education",
+    "email": "shahzadaakhter72@gmail.com",
+    "mobile": "9622918672",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.02.1976",
+    "parentage": "GH NABI KHANDAY",
+    "category": "OM",
+    "cpis_no": "SHGEDU00050012",
+    "date_of_first_appointment": "09.03.2010",
+    "designation_at_first_appointment": "R.Re.T",
+    "stay_period": "08.10.2021",
+    "qualification": "MA BED",
+    "bed": "yes",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Dethu",
+    "present_address": "ISSOO",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "RRET",
+        "from": "09.03.2005",
+        "to": "08.10.2021"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "Tr. Grade II",
+        "from": "08.10.2021",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": "Education"
+  },
+  {
+    "name": "SHABIR AHMAD SHAH",
+    "designation": "Teacher Grade II",
+    "subject": "Mathematics",
+    "email": "shabirkgam@gmail.com",
+    "mobile": "9906896327",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "05.03.1977",
+    "parentage": "MOHD YOUSUF SHAH",
+    "category": "RBA",
+    "cpis_no": "SHGEDU00050527",
+    "date_of_first_appointment": "07.11.2010",
+    "designation_at_first_appointment": "R.Re.T",
+    "stay_period": "21.10.2021",
+    "qualification": "MA BED",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "KAWARIGAM",
+    "present_address": "KAWARIGAM",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "RRET",
+        "from": "07.11.2005",
+        "to": "21.10.2021"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "Tr. Grade II",
+        "from": "21.10.2021",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": "Mathematics"
+  },
+  {
+    "name": "MOHD SHAFI GANIE",
+    "designation": "Teacher Grade II",
+    "subject": "Mathematics",
+    "email": "ganieshafi480@gmail.com",
+    "mobile": "7006316196",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.04.1977",
+    "parentage": "ASSADULLAH GANAIE",
+    "category": "OM",
+    "cpis_no": "SHGEDU0050261",
+    "date_of_first_appointment": "17.12.2009",
+    "designation_at_first_appointment": "R.Re.T",
+    "stay_period": "08.10.2021",
+    "qualification": "MSC BED",
+    "bed": "YES",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Shangus",
+    "present_address": "Shangus",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "SHANGUS ZEO",
+        "designation": "RRET",
+        "from": "17.12.2004",
+        "to": "08.10.2021"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "Tr. Grade II",
+        "from": "08.10.2021",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": "Mathematics"
+  },
+  {
+    "name": "BASHIR AHMAD GANAI",
+    "designation": "Lab Assistant",
+    "subject": "",
+    "email": "bashirahmad0826@gmail.com",
+    "mobile": "9622835593",
+    "photo": "",
+    "department": "MTS",
+    "profile": "",
+    "hidden": true,
+    "dob": "01.05.1966",
+    "parentage": "MOHD KHALIL GANAI",
+    "category": "RBA",
+    "cpis_no": "SHGEDU00220021",
+    "date_of_first_appointment": "16.05.2006",
+    "designation_at_first_appointment": "Library Bearer",
+    "stay_period": "07.06.2022",
+    "qualification": "12th",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Kanganhal",
+    "present_address": "Kanganhal",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS SAGAM",
+        "designation": "LIBRARY BEARER",
+        "from": "16.05.2006",
+        "to": "08.12.2011"
+      },
+      {
+        "office": "HSS HARDUTURA",
+        "designation": "LIBRARY BEARER",
+        "from": "10.12.2011",
+        "to": "16.12.2012"
+      },
+      {
+        "office": "Hss shangus",
+        "designation": "LIBRARY BEARER",
+        "from": "17.06.2012",
+        "to": "27.10.2007"
+      },
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "LIBRARY BEARER",
+        "from": "27.10.2017",
+        "to": "07.06.2022"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "LAB ASSISTANT",
+        "from": "07.06.2022",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": ""
+  },
+  {
+    "name": "SHABIR AHMAD TEELI",
+    "designation": "Lab Assistant",
+    "subject": "",
+    "email": "mehweenashabir@gmail.com",
+    "mobile": "6006064525",
+    "photo": "",
+    "department": "MTS",
+    "profile": "",
+    "hidden": false,
+    "dob": "08.02.1974",
+    "parentage": "AB GANI TEELI",
+    "category": "RBA/OBC",
+    "cpis_no": "SHGEDU00100002",
+    "date_of_first_appointment": "31.05.2001",
+    "designation_at_first_appointment": "Chowkidar",
+    "stay_period": "17.08.2023",
+    "qualification": "10th",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS DEETHU",
+        "designation": "CHOWKIDAR",
+        "from": "01.06.2001",
+        "to": "30.11.2018"
+      },
+      {
+        "office": "HSS DDETHU",
+        "designation": "LAB ASSISTANT",
+        "from": "01.12.2018",
+        "to": "17.08.2023"
+      },
+      {
+        "office": "Hss shangus",
+        "designation": "LAB ASSISTANT",
+        "from": "17.08.2023",
+        "to": "TILL DATE"
+      },
+      {
+        "office": "No",
+        "designation": "No",
+        "from": "Badoora",
+        "to": "Badoora"
+      }
+    ],
+    "subject_pg": ""
+  },
+  {
+    "name": "SHABIR AHMAD KHAN",
+    "designation": "MTS",
+    "subject": "",
+    "email": "shabirah6912@gmail.com",
+    "mobile": "7780905858",
+    "photo": "",
+    "department": "MTS",
+    "profile": "",
+    "hidden": false,
+    "dob": "01.01.1981",
+    "parentage": "GHULAM MOHMAD KHAN",
+    "category": "OM",
+    "cpis_no": "SHGEDU00220035",
+    "date_of_first_appointment": "27.10.2021",
+    "designation_at_first_appointment": "MTS",
+    "stay_period": "27.10.2021",
+    "qualification": "10th",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS SHANGUS",
+        "designation": "MTS",
+        "from": "27.10.2021",
+        "to": "TILL DATE"
+      },
+      {
+        "office": "No",
+        "designation": "No",
+        "from": "Uttersoo",
+        "to": "Uttersoo"
+      }
+    ],
+    "subject_pg": ""
+  },
+  {
+    "name": "SALIM AHMAD KHAN",
+    "designation": "MTS",
+    "subject": "",
+    "email": "saleemak2020@gmail.com",
+    "mobile": "9149647911",
+    "photo": "",
+    "department": "MTS",
+    "profile": "",
+    "hidden": false,
+    "dob": "15.03.1971",
+    "parentage": "BASHARAT AHMAD KHAN",
+    "category": "ST",
+    "cpis_no": "SHGEDU00140022",
+    "date_of_first_appointment": "04.07.2013",
+    "designation_at_first_appointment": "MTS",
+    "stay_period": "01.09.2023",
+    "qualification": "10TH",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Andoo",
+    "present_address": "Andoo",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HS ANDOO",
+        "designation": "SAFAIWALLA",
+        "from": "04.07.2013",
+        "to": "01.09.2023"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "SAFAIWALLA",
+        "from": "01.09.2023",
+        "to": "till date"
+      }
+    ],
+    "subject_pg": ""
+  },
+  {
+    "name": "NIGEENA AKHTER",
+    "designation": "MTS",
+    "subject": "",
+    "email": "nigeenaakhter11@gmail.com",
+    "mobile": "9149593099",
+    "photo": "",
+    "department": "MTS",
+    "profile": "",
+    "hidden": false,
+    "dob": "10.03.1968",
+    "parentage": "ABDUL GANI SHAH",
+    "category": "OM",
+    "cpis_no": "SHGEDU00050126",
+    "date_of_first_appointment": "15.11.2002",
+    "designation_at_first_appointment": "MTS",
+    "stay_period": "07.04.2025",
+    "qualification": "8TH",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "Nowgam",
+    "present_address": "Nowgam",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HS LARNOO",
+        "designation": "PEON",
+        "from": "15.11.2002",
+        "to": "21.08.2003"
+      },
+      {
+        "office": "ZEO SHANGUS",
+        "designation": "PEON",
+        "from": "22.08.2003",
+        "to": "06.09.2023"
+      },
+      {
+        "office": "HS ANDOO",
+        "designation": "CLASS IV",
+        "from": "06.09.2023",
+        "to": "07.04.2025"
+      },
+      {
+        "office": "HSS SHANGUS",
+        "designation": "CLASS IV",
+        "from": "07.04.2005",
+        "to": "TILL DATE"
+      }
+    ],
+    "subject_pg": ""
+  },
+  {
+    "name": "KHUSHBOO JAN",
+    "designation": "MTS",
+    "subject": "",
+    "email": "nishumir49@gmail.com",
+    "mobile": "6006463049",
+    "photo": "",
+    "department": "MTS",
+    "profile": "",
+    "hidden": false,
+    "dob": "25.10.1999",
+    "parentage": "RIYAZ AHMAD MIR",
+    "category": "RBA",
+    "cpis_no": "SHGEDU00220034",
+    "date_of_first_appointment": "27-10-2021",
+    "designation_at_first_appointment": "MTS",
+    "stay_period": "27.10.2021",
+    "qualification": "12th",
+    "bed": "NO",
+    "health_issues": "No",
+    "if_deployed": "No",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "1061400618",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "NON.GAZETED",
+    "zone_name": "Shangus",
+    "postings": [
+      {
+        "office": "HSS SHANGUS",
+        "designation": "MTS",
+        "from": "27.10.2021",
+        "to": "TILL DATE"
+      },
+      {
+        "office": "No",
+        "designation": "No",
+        "from": "Wangam",
+        "to": "Wangam"
+      }
+    ],
+    "subject_pg": ""
+  },
+  {
+    "name": "MIR MOHSIN",
+    "designation": "Teacher",
+    "subject": "Economics",
+    "email": "",
+    "mobile": "",
+    "department": "Humanities",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {},
+    "postings": []
+  },
+  {
+    "name": "MUZAFAR AHMAD GANAI",
+    "designation": "Teacher",
+    "subject": "Social Studies",
+    "email": "",
+    "mobile": "",
+    "department": "Secondary",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {},
+    "postings": []
   }
 ]

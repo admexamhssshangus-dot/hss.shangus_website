@@ -26,6 +26,7 @@ export default function Academics() {
   const [tabAnimating, setTabAnimating] = useState(false);
   const [faculty, setFaculty] = useState([]);
   const [selectedDept, setSelectedDept] = useState('All');
+  const [activeProfileMember, setActiveProfileMember] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -51,7 +52,7 @@ export default function Academics() {
         const data = await res.json();
         if (active) setFaculty(data);
       } catch (err) {
-        console.error('Failed to load faculty config:', err);
+        console.warn('Failed to fetch faculty.json, using fallback mock data:', err);
         if (active) {
           setFaculty([
             {
@@ -125,9 +126,35 @@ export default function Academics() {
     return () => { active = false; };
   }, []);
 
+  // Listen to cross-tab data sync broadcasts
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type === 'UPDATE_DATA') {
+          const local = localStorage.getItem('site_faculty');
+          if (local) {
+            try {
+              const parsed = JSON.parse(local);
+              if (Array.isArray(parsed)) {
+                setFaculty(parsed);
+              }
+            } catch (err) {
+              console.warn('Failed to sync site_faculty:', err);
+            }
+          }
+        }
+      };
+      return () => channel.close();
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
+  const visibleFaculty = faculty.filter(f => !f.hidden);
   const filteredFaculty = selectedDept === 'All'
-    ? faculty
-    : faculty.filter(f => f.department.toLowerCase() === selectedDept.toLowerCase());
+    ? visibleFaculty
+    : visibleFaculty.filter(f => f.department.toLowerCase() === selectedDept.toLowerCase());
 
   function switchTab(tab) {
     if (tab === activeTab) return;
@@ -399,10 +426,17 @@ export default function Academics() {
                 {/* Details */}
                 <span className="text-[10px] uppercase font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full mb-2 border border-teal-100">{member.department}</span>
                 <h4 className="font-bold text-slate-800 text-base mb-1">{member.name}</h4>
-                <p className="text-xs text-slate-500 font-semibold mb-4">{member.designation} in {member.subject}</p>
-
-                {/* Actions */}
+                <p className="text-xs text-slate-500 font-semibold mb-4">{member.designation}{(member.subject && !['Administration', 'MTS'].includes(member.department)) ? ` in ${member.subject}` : ''}</p>                {/* Actions */}
                 <div className="mt-auto w-full border-t border-slate-200 pt-3 flex items-center justify-center gap-4">
+                  {member.profile && (
+                    <button
+                      onClick={() => setActiveProfileMember(member)}
+                      className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer"
+                      title="View Full Profile"
+                    >
+                      <User size={14} />
+                    </button>
+                  )}
                   {member.mobile && (
                     <a href={`tel:${member.mobile}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
                       <Phone size={14} />
@@ -423,6 +457,57 @@ export default function Academics() {
             ))}
           </div>
         </div>
+
+        {/* Profile Modal */}
+        {activeProfileMember && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
+              {/* Colored Accent Header block */}
+              <div className="bg-gradient-to-r from-teal-800 to-teal-700 p-6 text-white relative">
+                <button
+                  onClick={() => setActiveProfileMember(null)}
+                  className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/10 hover:bg-black/20 w-7 h-7 rounded-full flex items-center justify-center transition-colors text-sm font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+                <div className="flex gap-4 items-center">
+                  <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/50 bg-white flex-shrink-0 flex items-center justify-center">
+                    {activeProfileMember.photo ? (
+                      <img src={activeProfileMember.photo} alt={activeProfileMember.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={32} className="text-slate-400" />
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <span className="text-[9px] uppercase tracking-wider font-bold bg-white/20 px-2 py-0.5 rounded-full inline-block mb-1">
+                      {activeProfileMember.department}
+                    </span>
+                    <h4 className="font-bold text-lg leading-tight">{activeProfileMember.name}</h4>
+                    <p className="text-xs text-white/80 mt-0.5">{activeProfileMember.designation}{(activeProfileMember.subject && !['Administration', 'MTS'].includes(activeProfileMember.department)) ? ` in ${activeProfileMember.subject}` : ''}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto max-h-[350px] custom-scrollbar text-left">
+                <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Biography & Professional Profile</h5>
+                <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
+                  {activeProfileMember.profile}
+                </p>
+              </div>
+              
+              {/* Modal Footer */}
+              <div className="border-t border-slate-100 p-4 bg-slate-50 flex justify-end">
+                <button
+                  onClick={() => setActiveProfileMember(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg transition-colors shadow-sm cursor-pointer"
+                >
+                  Close Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
