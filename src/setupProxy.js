@@ -8,7 +8,7 @@ module.exports = function(app) {
 
   app.post('/api/save-config', (req, res) => {
     try {
-      const { settings, noticesText, faculty } = req.body;
+      const { settings, noticesText, faculty, admins } = req.body;
       // Resolve path to frontend/public/slides
       const slidesDir = path.join(__dirname, '..', 'public', 'slides');
 
@@ -37,6 +37,14 @@ module.exports = function(app) {
         fs.writeFileSync(
           path.join(slidesDir, 'faculty.json'),
           JSON.stringify(cleanedFaculty, null, 2),
+          'utf8'
+        );
+      }
+
+      if (admins) {
+        fs.writeFileSync(
+          path.join(slidesDir, 'admins.json'),
+          JSON.stringify(admins, null, 2),
           'utf8'
         );
       }

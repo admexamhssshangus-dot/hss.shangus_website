@@ -101,7 +101,7 @@ export default function NoticeBoard() {
 
       // 2. Fetch from server
       try {
-        const res = await fetch('/slides/notices.txt', { cache: 'no-cache' });
+        const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
         if (!res.ok) throw new Error('Notices file not found');
         const text = await res.text();
         const parsed = parseNotices(text);
@@ -182,7 +182,7 @@ export default function NoticeBoard() {
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 mb-6 focus-within:border-teal-500 transition-colors">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 mb-6 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
           <Search size={18} className="text-slate-400 flex-shrink-0" />
           <input
             type="text"
@@ -220,13 +220,27 @@ export default function NoticeBoard() {
                 return (
                   <div
                     key={idx}
-                    className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm flex items-start gap-4 hover:border-teal-500 hover:shadow-md transition-all group"
+                    className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-teal-800/80 p-4 md:p-5 shadow-sm flex items-start gap-4 hover:border-teal-500 hover:border-l-teal-600 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
                   >
                     {/* Calendar Badge */}
-                    <div className="w-16 h-16 rounded-lg bg-teal-55 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0 group-hover:bg-teal-100/40 transition-colors" style={{ backgroundColor: 'rgba(13, 148, 136, 0.08)' }}>
-                      <Calendar size={16} className="text-teal-700 mb-0.5" />
-                      <span className="text-[7px] font-bold text-teal-800 uppercase tracking-tight text-center whitespace-nowrap">{formatDate(n.date)}</span>
-                    </div>
+                    {(() => {
+                      const formatted = formatDate(n.date);
+                      const parts = formatted.split('-');
+                      const day = parts[0] || n.date;
+                      const month = (parts[1] || '').toUpperCase();
+                      return (
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-sm transition-all group-hover:border-teal-500/50 group-hover:shadow">
+                          {/* Calendar Month Header */}
+                          <div className="bg-teal-800 text-[8px] sm:text-[9px] font-bold text-white py-0.5 uppercase tracking-widest text-center select-none">
+                            {month || 'DATE'}
+                          </div>
+                          {/* Calendar Day Body */}
+                          <div className="flex-grow flex items-center justify-center bg-white font-title text-base sm:text-lg font-bold text-slate-800 leading-none">
+                            {day}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Announcement text & links */}
                     <div className="flex-1 min-w-0">
@@ -261,7 +275,7 @@ export default function NoticeBoard() {
                         )}
 
                         {isNew && (
-                          <span className="inline-flex items-center px-1 sm:px-1.5 py-0 sm:py-0.5 rounded text-[7px] sm:text-[8px] font-bold bg-red-100 text-red-700 border border-red-200 uppercase tracking-wider animate-pulse">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold badge-red-custom uppercase tracking-wider animate-pulse">
                             New
                           </span>
                         )}

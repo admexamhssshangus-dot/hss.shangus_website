@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Phone, Mail, X, Menu, Lock } from 'lucide-react';
+import { Phone, Mail, X, Menu, Lock, Unlock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
@@ -37,6 +37,23 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   // Login URL for external portal
   const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
+    const handleStorage = () => {
+      setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
+    };
+    window.addEventListener('storage', handleStorage);
+    const interval = setInterval(() => {
+      setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
+    }, 1000);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
+  }, []);
 
   const openLoginWindow = () => {
     try {
@@ -153,11 +170,16 @@ export default function Navbar() {
             <div className="md:hidden flex items-center gap-2">
               <Link
                 to="/admin/portal"
-                title="Administrative Portal"
-                className="p-1.5 rounded text-slate-600 hover:text-orange-500 bg-slate-100 border border-slate-200 flex items-center justify-center transition-colors"
+                title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
+                className="p-1.5 rounded bg-slate-100 border border-slate-200 flex items-center justify-center transition-all"
+                style={{ color: isAdmin ? '#10b981' : '#475569' }}
                 aria-label="Admin Portal"
               >
-                <Lock size={15} className="stroke-[2.5]" />
+                {isAdmin ? (
+                  <Unlock size={15} className="stroke-[2.5] animate-pulse" />
+                ) : (
+                  <Lock size={15} className="stroke-[2.5]" />
+                )}
               </Link>
               <button
                 aria-label="Toggle menu"
@@ -196,11 +218,16 @@ export default function Navbar() {
               <div className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 items-center">
                 <Link
                   to="/admin/portal"
-                  title="Administrative Portal"
-                  className="text-slate-400 hover:text-orange-400 transition-colors duration-200 p-1.5 rounded-md flex items-center justify-center"
+                  title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
+                  className="transition-colors duration-200 p-1.5 rounded-md flex items-center justify-center"
+                  style={{ color: isAdmin ? '#34d399' : '#94a3b8' }}
                   aria-label="Admin Portal"
                 >
-                  <Lock size={14} className="stroke-[2.5]" />
+                  {isAdmin ? (
+                    <Unlock size={14} className="stroke-[2.5] animate-pulse" />
+                  ) : (
+                    <Lock size={14} className="stroke-[2.5]" />
+                  )}
                 </Link>
               </div>
             </nav>
@@ -209,12 +236,19 @@ export default function Navbar() {
           {/* Mobile slide-down menu */}
           {mobileOpen && (
               <div data-mobile-menu className="md:hidden bg-slate-800 text-white border-t border-slate-700">
-              <div className="px-4 py-3 space-y-1.5">
-                <Link to="/" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Home</Link>
-                <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
-                <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
-                <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
-                <div className="pt-2 border-t border-slate-700 space-y-1 text-xs">
+              <div className="px-4 py-3">
+                {/* Menu items */}
+                <div className="space-y-1.5">
+                  <Link to="/" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Home</Link>
+                  <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
+                  <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
+                  <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
+                </div>
+              </div>
+
+              {/* Row 2: Contact Details & Login Button */}
+              <div className="px-4 pb-3 pt-2 border-t border-slate-700/60 space-y-3">
+                <div className="space-y-1 text-xs">
                   <div className="flex flex-col gap-1">
                     <span className="font-semibold text-slate-400 text-[11px]">Contact:</span>
                     {/* Principal */}
@@ -240,6 +274,9 @@ export default function Navbar() {
                       <div className="flex items-center gap-1">
                         <a href="https://wa.me/917006034501" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 p-1 transition-transform hover:scale-110 flex items-center" title="Chat on WhatsApp">
                           <WhatsAppIcon size={16} className="fill-current" />
+                        </a>
+                        <a href="mailto:adm.exam.hss.shangus@gmail.com" onClick={(e) => handleEmailClick(e, 'adm.exam.hss.shangus@gmail.com')} className="text-slate-400 hover:text-teal-400 p-1 transition-colors" title="Email Adms & Exams">
+                          <Mail size={14} />
                         </a>
                       </div>
                     </div>

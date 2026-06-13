@@ -1,6 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, X, Mail } from 'lucide-react';
+import { BookOpen, X, Mail, Lock, Unlock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
+
+// Social Media Custom SVG Icons (since brand icons are not exported in this Lucide version)
+function FacebookIcon({ size = 14, className = '' }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+    </svg>
+  );
+}
+
+function YoutubeIcon({ size = 14, className = '' }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/>
+      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
+    </svg>
+  );
+}
+
+function TwitterIcon({ size = 14, className = '' }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
+    </svg>
+  );
+}
+
+function InstagramIcon({ size = 14, className = '' }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+    </svg>
+  );
+}
 
 // Smart email link handler (opens Gmail web on desktop, uses mailto on mobile)
 function handleEmailClick(e, email, subject = '', body = '') {
@@ -16,6 +53,33 @@ export default function Footer() {
   // This state controls which popup is open ('privacy', 'terms', or null for closed)
   const [activeModal, setActiveModal] = useState(null);
   // Contact form state is handled by ContactForm component
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
+    const interval = setInterval(() => {
+      setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    loadSiteSettings().then(setSettings);
+
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type === 'UPDATE_DATA') {
+          loadSiteSettings().then(setSettings);
+        }
+      };
+      return () => channel.close();
+    } catch (err) {
+      // ignore
+    }
+  }, []);
 
   return (
     <>
@@ -32,6 +96,56 @@ export default function Footer() {
               Since 1971, Govt HSS Shangus provides Science, Humanities and Secondary education with experienced faculty, well-equipped labs, a library and active sports programs.
               We emphasise leadership, critical thinking and community engagement to prepare students for higher education and civic life.
             </p>
+
+            {/* Social Media Links */}
+            {settings.socialLinks && (
+              <div className="flex gap-3 mt-4 items-center justify-center md:justify-start flex-wrap">
+                {settings.socialLinks.facebook && settings.socialLinks.facebook !== '#' && (
+                  <a
+                    href={settings.socialLinks.facebook}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    title="Facebook"
+                  >
+                    <FacebookIcon size={14} />
+                  </a>
+                )}
+                {settings.socialLinks.youtube && settings.socialLinks.youtube !== '#' && (
+                  <a
+                    href={settings.socialLinks.youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    title="YouTube"
+                  >
+                    <YoutubeIcon size={14} />
+                  </a>
+                )}
+                {settings.socialLinks.twitter && settings.socialLinks.twitter !== '#' && (
+                  <a
+                    href={settings.socialLinks.twitter}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    title="Twitter / X"
+                  >
+                    <TwitterIcon size={14} />
+                  </a>
+                )}
+                {settings.socialLinks.instagram && settings.socialLinks.instagram !== '#' && (
+                  <a
+                    href={settings.socialLinks.instagram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    title="Instagram"
+                  >
+                    <InstagramIcon size={14} />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Quick Links */}
@@ -60,12 +174,12 @@ export default function Footer() {
               </button>
             </div>
             
-            {/* 2. Map (Height halved to 60) */}
-            <div className="w-full rounded-lg overflow-hidden border-2 border-slate-800 leading-none m-0 mt-4">
+            {/* 2. Map */}
+            <div className="w-full rounded-xl overflow-hidden border-2 border-slate-800 leading-none m-0 mt-4 shadow-md hover:border-teal-500/50 transition-colors duration-300">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d651.5363008761467!2d75.28722872804701!3d33.697775316694695!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e20b9b41c3c13b%3A0xcf46d931eae137a!2sGovt%20Higher%20Secondry%20School%20Shangus!5e1!3m2!1sen!2sin!4v1776567033858!5m2!1sen!2sin"
                 width="100%"
-                height="60"
+                height="110"
                 style={{ border: 0 }}
                 allowFullScreen
                 loading="lazy"
@@ -103,13 +217,29 @@ export default function Footer() {
         {/* Bottom Bar - Centered with Top Horizontal Line, White Text & Interactive Email Link */}
         <div className="max-w-7xl mx-auto px-4 pt-5 border-t border-slate-700 flex flex-col items-center justify-center text-center text-xs text-white">
           <p className="mb-1">© 2023 Govt HSS Shangus | Developed by NexLifTech</p>
-          <a
-            href="mailto:sheikhgulfam91@gmail.com"
-            onClick={(e) => handleEmailClick(e, 'sheikhgulfam91@gmail.com')}
-            className="transition-colors hover:text-teal-400 focus:outline-none"
-          >
-            (sheikhgulfam91@gmail.com)
-          </a>
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            <a
+              href="mailto:sheikhgulfam91@gmail.com"
+              onClick={(e) => handleEmailClick(e, 'sheikhgulfam91@gmail.com')}
+              className="transition-colors hover:text-teal-400 focus:outline-none"
+            >
+              (sheikhgulfam91@gmail.com)
+            </a>
+            {/* Mobile-only Admin Lock Icon in Footer */}
+            <Link
+              to="/admin/portal"
+              className="md:hidden transition-colors p-1 flex items-center justify-center"
+              style={{ color: isAdmin ? '#34d399' : '#94a3b8' }}
+              title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
+              aria-label="Admin Portal"
+            >
+              {isAdmin ? (
+                <Unlock size={12} className="stroke-[2.5] animate-pulse" />
+              ) : (
+                <Lock size={12} className="stroke-[2.5]" />
+              )}
+            </Link>
+          </div>
         </div>
       </footer>
 
