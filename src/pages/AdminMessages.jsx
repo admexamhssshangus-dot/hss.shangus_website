@@ -420,7 +420,7 @@ export default function AdminMessages() {
                     </div>
                     <div className="text-[10px] font-mono text-slate-500">{new Date(m.createdAt || Date.now()).toLocaleString()}</div>
                   </div>
-                  <div className="mt-3 text-xs text-slate-350 whitespace-pre-wrap leading-relaxed border-t border-slate-850/50 pt-2.5">
+                  <div className="mt-3 text-xs text-slate-400 whitespace-pre-wrap leading-relaxed border-t border-slate-850/50 pt-2.5">
                     {m.message}
                   </div>
                 </li>

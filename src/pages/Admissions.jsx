@@ -93,7 +93,7 @@ export default function Admissions() {
         
         {/* Admissions Status Warning Banner */}
         {isGlobalClosed && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-8 text-center text-sm font-semibold shadow-sm flex items-center justify-center gap-2">
+          <div className="banner-red-custom border px-4 py-3 rounded-lg mb-8 text-center text-sm font-semibold shadow-sm flex items-center justify-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
             Admissions for the 2026 Session are currently closed.
           </div>
@@ -112,7 +112,7 @@ export default function Admissions() {
             {['9th', '10th', '11th', '12th'].map((cls) => {
               const closed = isClassClosed(cls);
               return (
-                <div key={cls} className={`p-2 rounded-lg border text-center transition-all ${closed ? 'bg-red-50/50 border-red-100 text-red-700' : 'bg-emerald-50/50 border-emerald-100 text-emerald-700'}`}>
+                <div key={cls} className={`p-2 rounded-lg border text-center transition-all ${closed ? 'bg-red-950 text-red-400 border-red-900' : 'bg-emerald-950 text-emerald-400 border-emerald-900'}`}>
                   <div className="font-bold text-sm">{cls} Class</div>
                   <div className="text-[11px] font-semibold mt-0.5 flex items-center justify-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${closed ? 'bg-red-500' : 'bg-emerald-500'}`} />
@@ -125,9 +125,9 @@ export default function Admissions() {
         </div>
 
         {/* Process Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 relative">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12 relative">
           {/* Connector Line (Desktop) */}
-          <div className="hidden md:block absolute top-6 left-12 right-12 h-0.5 bg-teal-200 z-0"></div>
+          <div className="hidden md:block absolute top-12 left-16 right-16 h-0.5 bg-slate-200 z-0"></div>
           
           {[
             { step: 1, title: 'Register Online', desc: 'Create an account and fill out the admission form with your details.' },
@@ -135,25 +135,27 @@ export default function Admissions() {
             { step: 3, title: 'Fee Payment', desc: 'Pay the admission fee at J&K Bank using the challan provided.' },
             { step: 4, title: 'Final Enrollment', desc: 'Receive your Roll Number and ID Card to complete enrollment.' }
           ].map((item) => (
-            <div key={item.step} className="relative z-10 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-teal-600 to-teal-500 shadow-md flex items-center justify-center mb-3 text-white font-bold text-base ring-2 ring-teal-200">
+            <div key={item.step} className="relative z-10 flex flex-col items-center text-center bg-white p-5 rounded-2xl border border-slate-200/65 shadow-sm hover:shadow-md hover:border-teal-500/35 transition-all duration-300 group">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-600 to-teal-500 shadow-md flex items-center justify-center mb-4 text-white font-extrabold text-lg ring-4 ring-teal-50 transition-transform duration-300 group-hover:scale-105">
                   {item.step}
                 </div>
-                <h4 className="font-bold text-slate-800 mb-1 text-sm">{item.title}</h4>
-                <p className="text-[13px] text-slate-500 leading-relaxed px-1">{item.desc}</p>
+                <h4 className="font-bold text-slate-800 mb-2 text-sm md:text-base leading-snug">{item.title}</h4>
+                <p className="text-xs text-slate-500 leading-relaxed px-1 mb-4 flex-grow">{item.desc}</p>
                 {item.step === 1 && (
-                  <div className="mt-2">
+                  <div className="mt-auto pt-2">
                     {isGlobalClosed ? (
-                      <span className="inline-block bg-slate-200 text-slate-500 px-4 py-1.5 rounded-full text-xs font-semibold shadow-inner">
-                        Registration Closed
+                      <span className="inline-block bg-slate-100 text-slate-400 border border-slate-200 px-4 py-1.5 rounded-full text-xs font-semibold select-none shadow-inner">
+                        Closed
                       </span>
                     ) : (
-                      <button onClick={openLoginWindow} className="btn-primary-custom px-4 py-1.5 rounded-full text-sm font-semibold shadow transition-all duration-200">Register to Apply Online</button>
+                      <button onClick={openLoginWindow} className="btn-primary-custom px-4 py-2 rounded-full text-xs font-bold shadow transition-all duration-200 hover:-translate-y-0.5 tracking-wide uppercase">Register</button>
                     )}
                   </div>
                 )}
                 {item.step === 2 && (
-                  <button onClick={() => setDocOpen(true)} aria-expanded={docOpen} aria-controls="docs-title" className="btn-secondary-custom px-4 py-1.5 rounded-full text-sm font-semibold shadow transition-all duration-200">Documents Required</button>
+                  <div className="mt-auto pt-2">
+                    <button onClick={() => setDocOpen(true)} aria-expanded={docOpen} aria-controls="docs-title" className="btn-secondary-custom px-4 py-2 rounded-full text-xs font-bold shadow transition-all duration-200 hover:-translate-y-0.5 tracking-wide uppercase">Documents</button>
+                  </div>
                 )}
             </div>
           ))}
@@ -163,104 +165,116 @@ export default function Admissions() {
         <DocumentsModal />
 
         {/* Fee Structure Table */}
-        <div className="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 mb-10 relative">
-          <h3 className="text-xl font-bold text-teal-800 mb-2 text-center">Fee Structure (Session 2026)</h3>
-          <div className="h-1 w-16 bg-teal-500 mx-auto mb-8 rounded"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-md border border-slate-200 mb-10 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-teal-500/5 to-transparent rounded-bl-full pointer-events-none" />
+          <h3 className="text-xl font-bold text-teal-800 mb-2 text-center font-heading">Fee Structure (Session 2026)</h3>
+          <div className="h-1 w-16 bg-teal-600 mx-auto mb-8 rounded"></div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             {/* Desktop tables (visible sm+) */}
             <div className="hidden sm:block overflow-x-auto md:col-span-2">
-              <h4 className="text-lg font-semibold text-slate-700 mb-3 text-center md:text-left">Subject Combinations</h4>
-              <table className="w-full text-sm text-center border-collapse">
-                <thead>
-                  <tr>
-                    <th className="bg-slate-900 text-white p-3 w-1/5 border border-slate-800" rowSpan={2}>Class</th>
-                    <th className="bg-orange-500 text-white p-2 border border-orange-600" colSpan={2}>Science</th>
-                    <th className="bg-blue-500 text-white p-2 border border-blue-600" colSpan={2}>Humanities</th>
-                  </tr>
-                  <tr className="bg-slate-100 text-slate-600 text-xs font-bold uppercase">
-                    <th className="p-2 border border-slate-300">Boys</th>
-                    <th className="p-2 border border-slate-300">Girls</th>
-                    <th className="p-2 border border-slate-300">Boys</th>
-                    <th className="p-2 border border-slate-300">Girls</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="p-3 font-bold border border-slate-200">11th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_science_boys', 'Rs. 1900')}</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_science_girls', 'Rs. 1700')}</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_humanities_boys', 'Rs. 1800')}</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('11th_humanities_girls', 'Rs. 1600')}</td>
-                  </tr>
-                  <tr className="bg-slate-50">
-                    <td className="p-3 font-bold border border-slate-200">12th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_science_boys', 'Rs. 1650')}</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_science_girls', 'Rs. 1650')}</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_humanities_boys', 'Rs. 1550')}</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('12th_humanities_girls', 'Rs. 1550')}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <h4 className="text-sm font-extrabold text-slate-400 mb-3 text-center md:text-left uppercase tracking-wider">Subject Combinations</h4>
+              <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-white">
+                <table className="w-full text-sm text-center border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="bg-slate-900 text-white p-3 w-1/5 border-b border-r border-slate-800 font-semibold font-title tracking-wider" rowSpan={2}>Class</th>
+                      <th className="bg-teal-700 text-white p-2 border-b border-r border-teal-800 font-semibold" colSpan={2}>Science</th>
+                      <th className="bg-amber-600 text-white p-2 border-b border-amber-700 font-semibold" colSpan={2}>Humanities</th>
+                    </tr>
+                    <tr className="bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                      <th className="p-2 border-r border-slate-200">Boys</th>
+                      <th className="p-2 border-r border-slate-200">Girls</th>
+                      <th className="p-2 border-r border-slate-200">Boys</th>
+                      <th className="p-2">Girls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3 font-extrabold border-t border-r border-slate-200 text-slate-800">11th</td>
+                      <td className="p-3 border-t border-r border-slate-200 text-slate-600 font-semibold">{getFee('11th_science_boys', 'Rs. 1900')}</td>
+                      <td className="p-3 border-t border-r border-slate-200 text-slate-600 font-semibold">{getFee('11th_science_girls', 'Rs. 1700')}</td>
+                      <td className="p-3 border-t border-r border-slate-200 text-slate-600 font-semibold">{getFee('11th_humanities_boys', 'Rs. 1800')}</td>
+                      <td className="p-3 border-t border-slate-200 text-slate-600 font-semibold">{getFee('11th_humanities_girls', 'Rs. 1600')}</td>
+                    </tr>
+                    <tr className="bg-slate-50/30 hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3 font-extrabold border-t border-r border-slate-200 text-slate-800">12th</td>
+                      <td className="p-3 border-t border-r border-slate-200 text-slate-600 font-semibold">{getFee('12th_science_boys', 'Rs. 1650')}</td>
+                      <td className="p-3 border-t border-r border-slate-200 text-slate-600 font-semibold">{getFee('12th_science_girls', 'Rs. 1650')}</td>
+                      <td className="p-3 border-t border-r border-slate-200 text-slate-600 font-semibold">{getFee('12th_humanities_boys', 'Rs. 1550')}</td>
+                      <td className="p-3 border-t border-slate-200 text-slate-600 font-semibold">{getFee('12th_humanities_girls', 'Rs. 1550')}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="hidden sm:block overflow-x-auto md:col-span-1">
-              <h4 className="text-lg font-semibold text-slate-700 mb-3 text-center md:text-left">Secondary Subjects</h4>
-              <table className="w-full text-sm text-center border-collapse">
-                <thead>
-                  <tr>
-                    <th className="bg-slate-900 text-white p-3 border border-slate-800">Class</th>
-                    <th className="bg-slate-500 text-white p-3 border border-slate-600">Fee</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="p-3 font-bold border border-slate-200">9th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('9th', 'Rs. 1700')}</td>
-                  </tr>
-                  <tr className="bg-slate-50">
-                    <td className="p-3 font-bold border border-slate-200">10th</td>
-                    <td className="p-3 border border-slate-200 text-slate-600">{getFee('10th', 'Rs. 1700')}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <h4 className="text-sm font-extrabold text-slate-400 mb-3 text-center md:text-left uppercase tracking-wider">Secondary</h4>
+              <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-white">
+                <table className="w-full text-sm text-center border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="bg-slate-900 text-white p-3 border-b border-r border-slate-800 font-semibold font-title tracking-wider">Class</th>
+                      <th className="bg-violet-700 text-white p-3 border-b border-violet-850 font-semibold">Fee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3 font-extrabold border-r border-slate-200 text-slate-800">9th</td>
+                      <td className="p-3 text-slate-600 font-semibold">{getFee('9th', 'Rs. 1700')}</td>
+                    </tr>
+                    <tr className="bg-slate-50/30 hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3 font-extrabold border-t border-r border-slate-200 text-slate-800">10th</td>
+                      <td className="p-3 border-t border-slate-200 text-slate-600 font-semibold">{getFee('10th', 'Rs. 1700')}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Mobile stacked cards (visible < sm) */}
-            <div className="sm:hidden">
-              <h4 className="text-lg font-semibold text-slate-700 mb-3">Subject Combinations</h4>
+            <div className="sm:hidden space-y-3 w-full">
+              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Subject Combinations</h4>
               {[
-                { label: '11th Science (Boys)', fee: getFee('11th_science_boys', 'Rs. 1900') },
-                { label: '11th Science (Girls)', fee: getFee('11th_science_girls', 'Rs. 1700') },
-                { label: '11th Humanities (Boys)', fee: getFee('11th_humanities_boys', 'Rs. 1800') },
-                { label: '11th Humanities (Girls)', fee: getFee('11th_humanities_girls', 'Rs. 1600') },
-                { label: '12th Science (Boys)', fee: getFee('12th_science_boys', 'Rs. 1650') },
-                { label: '12th Science (Girls)', fee: getFee('12th_science_girls', 'Rs. 1650') },
-                { label: '12th Humanities (Boys)', fee: getFee('12th_humanities_boys', 'Rs. 1550') },
-                { label: '12th Humanities (Girls)', fee: getFee('12th_humanities_girls', 'Rs. 1550') }
+                { label: '11th Science (Boys)', fee: getFee('11th_science_boys', 'Rs. 1900'), type: 'science' },
+                { label: '11th Science (Girls)', fee: getFee('11th_science_girls', 'Rs. 1700'), type: 'science' },
+                { label: '11th Humanities (Boys)', fee: getFee('11th_humanities_boys', 'Rs. 1800'), type: 'humanities' },
+                { label: '11th Humanities (Girls)', fee: getFee('11th_humanities_girls', 'Rs. 1600'), type: 'humanities' },
+                { label: '12th Science (Boys)', fee: getFee('12th_science_boys', 'Rs. 1650'), type: 'science' },
+                { label: '12th Science (Girls)', fee: getFee('12th_science_girls', 'Rs. 1650'), type: 'science' },
+                { label: '12th Humanities (Boys)', fee: getFee('12th_humanities_boys', 'Rs. 1550'), type: 'humanities' },
+                { label: '12th Humanities (Girls)', fee: getFee('12th_humanities_girls', 'Rs. 1550'), type: 'humanities' }
               ].map(r => (
-                <div key={r.label} className="bg-white p-3 rounded-lg mb-3 border border-slate-100 flex justify-between items-center">
-                  <div className="font-bold text-slate-800">{r.label}</div>
-                  <div className="text-slate-600">{r.fee}</div>
+                <div key={r.label} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center hover:border-teal-500/35 transition-colors shadow-sm w-full">
+                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${r.type === 'science' ? 'bg-teal-600' : 'bg-amber-600'}`} />
+                    {r.label}
+                  </div>
+                  <div className="text-teal-700 font-extrabold text-sm">{r.fee}</div>
                 </div>
               ))}
             </div>
 
-            <div className="sm:hidden">
-              <h4 className="text-lg font-semibold text-slate-700 mb-3">Secondary Subjects</h4>
+            <div className="sm:hidden space-y-3 w-full mt-6">
+              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Secondary Subjects</h4>
               {[
                 {cls: '9th', fee: getFee('9th', 'Rs. 1700')},
                 {cls: '10th', fee: getFee('10th', 'Rs. 1700')}
               ].map(r => (
-                <div key={r.cls} className="bg-white p-3 rounded-lg mb-3 border border-slate-100 flex justify-between items-center">
-                  <div className="font-bold text-slate-800">{r.cls}</div>
-                  <div className="text-slate-600">{r.fee}</div>
+                <div key={r.cls} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center hover:border-teal-500/35 transition-colors shadow-sm w-full">
+                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-violet-600" />
+                    {r.cls} Class
+                  </div>
+                  <div className="text-teal-700 font-extrabold text-sm">{r.fee}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="text-center">
-            <Link to="/academics" className="inline-block mt-5 -mb-4 relative z-20 btn-primary-custom px-6 py-2 rounded-full font-semibold shadow text-sm transition-all duration-200">
+          <div className="text-center w-full">
+            <Link to="/academics" className="inline-block mt-8 relative z-20 btn-primary-custom px-6 py-2.5 rounded-full font-bold shadow text-xs tracking-wider uppercase transition-all duration-200">
               View Subject Combinations
             </Link>
           </div>

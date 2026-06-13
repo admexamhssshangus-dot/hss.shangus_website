@@ -1,0 +1,15 @@
+[
+  {
+    "email": "adm.exam.hss.shangus@gmail.com",
+    "passwordHash": "337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482",
+    "role": "Super Admin",
+    "allowedTabs": [
+      "admissions",
+      "notices",
+      "faculty",
+      "tax",
+      "export",
+      "admins"
+    ]
+  }
+]

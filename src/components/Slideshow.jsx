@@ -19,6 +19,24 @@ import React, { useEffect, useState } from 'react';
 export default function Slideshow({ images = [], interval = 6000, configUrl = null, imageFolder = '/slides/', imageExt = '.jpg' }) {
   const [index, setIndex] = useState(0);
   const [slides, setSlides] = useState([]); // array of { image, title, caption }
+  const [loadedIndices, setLoadedIndices] = useState(new Set([0]));
+
+  // Reset loaded indices if slides list changes
+  useEffect(() => {
+    setLoadedIndices(new Set([0]));
+  }, [slides]);
+
+  // Track loaded indices to lazy load images (current and next slide)
+  useEffect(() => {
+    if (slides && slides.length > 0) {
+      setLoadedIndices((prev) => {
+        const nextSet = new Set(prev);
+        nextSet.add(index);
+        nextSet.add((index + 1) % slides.length);
+        return nextSet.size === prev.size ? prev : nextSet;
+      });
+    }
+  }, [index, slides]);
 
   // Build slides from images prop if provided
   useEffect(() => {
@@ -92,22 +110,25 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {slides.map((s, i) => (
-        <div
-          key={i}
-          role="img"
-          aria-label={`slide-${i}`}
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-out ${i === index ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
-          style={{ backgroundImage: `url(${s.image})` }}
-        />
-      ))}
+      {slides.map((s, i) => {
+        const isLoaded = loadedIndices.has(i);
+        return (
+          <div
+            key={i}
+            role="img"
+            aria-label={`slide-${i}`}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-out ${i === index ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
+            style={isLoaded ? { backgroundImage: `url(${s.image})` } : {}}
+          />
+        );
+      })}
 
       {/* dark overlay above slides but below page content */}
       <div className="absolute inset-0 bg-black/45 z-10 pointer-events-none" />
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-1.5 absolute bottom-3 right-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 pointer-events-auto z-40">
+        <div className="flex items-center gap-1.5 absolute bottom-3 right-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 pointer-events-auto z-20">
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
@@ -126,7 +147,7 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
       </div>
 
       {/* Left caption (matches screenshot) */}
-      <div className="absolute left-3 right-auto bottom-3 sm:bottom-6 sm:left-6 text-left text-white z-30 pointer-events-none max-w-[calc(100%-92px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
+      <div className="absolute left-3 right-auto bottom-3 sm:bottom-6 sm:left-6 text-left text-white z-20 pointer-events-none max-w-[calc(100%-92px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
         {slides[index].title && (
           <h3 className="text-[10px] sm:text-sm font-bold text-teal-300 leading-none m-0 p-0 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.85)] pl-0.5">{slides[index].title}</h3>
         )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen } from 'lucide-react';
-import { DEFAULT_SETTINGS, loadSiteSettings } from '../utils/settingsLoader';
+import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings } from 'lucide-react';
+import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 
 // ==========================================
 // IndexedDB Helpers for Storing Folder Handle
@@ -41,10 +41,16 @@ async function getFolderHandle() {
   });
 }
 
-// ==========================================
-// Cryptographic Password Hash for Security
-// ==========================================
-const ADMIN_PASSWORD_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'; // SHA-256 of 'admin123'
+const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482'; // SHA-256 of 'admin@4737'
+
+const DEFAULT_ADMINS = [
+  {
+    email: 'adm.exam.hss.shangus@gmail.com',
+    passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482', // SHA-256 of 'admin@4737'
+    role: 'Super Admin',
+    allowedTabs: ['admissions', 'notices', 'faculty', 'tax', 'export', 'admins']
+  }
+];
 
 async function hashPassword(plainText) {
   const encoder = new TextEncoder();
@@ -65,6 +71,142 @@ function formatDateToShort(dateStr) {
   const month = months[date.getMonth()];
   const day = date.getDate();
   return `${month} ${day}`;
+}
+
+// ==========================================
+// Formatting Helpers for Employee Profiles
+// ==========================================
+function toTitleCase(str) {
+  if (!str) return '';
+  const val = String(str).trim();
+  if (val.toUpperCase() === 'NA') return 'NA';
+
+  const acronyms = new Set(['PG', 'MTS', 'HSS', 'B.ED', 'CPIS', 'DDO', 'HRMS', 'UDISE', 'JKBOSE', 'ICT', 'IT', 'CS']);
+  
+  const specificMapping = {
+    'b.ed': 'B.Ed',
+    'bed': 'B.Ed',
+    'm.ed': 'M.Ed',
+    'med': 'M.Ed',
+    'b.sc': 'B.Sc',
+    'bsc': 'B.Sc',
+    'm.sc': 'M.Sc',
+    'msc': 'M.Sc',
+    'b.a': 'B.A',
+    'ba': 'B.A',
+    'm.a': 'M.A',
+    'ma': 'M.A',
+    'ph.d': 'Ph.D',
+    'phd': 'Ph.D',
+    'm.phil': 'M.Phil',
+    'mphil': 'M.Phil',
+    'b.tech': 'B.Tech',
+    'btech': 'B.Tech',
+    'm.tech': 'M.Tech',
+    'mtech': 'M.Tech',
+    'bca': 'BCA',
+    'mca': 'MCA',
+    'na': 'NA'
+  };
+
+  const lowerVal = val.toLowerCase();
+  if (specificMapping[lowerVal]) {
+    return specificMapping[lowerVal];
+  }
+
+  return val.split(/(\s+|[,\-\/()])/).map(word => {
+    if (!word || word.trim() === '') return word;
+    if (/^[,\-\/()]+$/.test(word)) return word;
+
+    const upperWord = word.toUpperCase();
+    const lowerWord = word.toLowerCase();
+
+    if (specificMapping[lowerWord]) {
+      return specificMapping[lowerWord];
+    }
+
+    if (acronyms.has(upperWord)) {
+      return upperWord;
+    }
+
+    if (lowerWord.includes('.')) {
+      return word.split('.').map(seg => {
+        if (!seg) return '';
+        if (seg.toLowerCase() === 'ed') return 'Ed';
+        if (seg.toLowerCase() === 'phil') return 'Phil';
+        return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase();
+      }).join('.');
+    }
+
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join('');
+}
+
+function formatUDISECode(val) {
+  if (!val) return '';
+  let str = String(val).trim();
+  if (/^\d+$/.test(str) && str.length < 11) {
+    str = str.padStart(11, '0');
+  }
+  return str;
+}
+
+function parseStayDate(str) {
+  if (!str) return null;
+  const cleaned = String(str).trim();
+  
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    const parts = cleaned.split('-');
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  }
+  
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(cleaned)) {
+    const parts = cleaned.split('.');
+    return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+  }
+  
+  if (/^\d{2}-\d{2}-\d{4}$/.test(cleaned)) {
+    const parts = cleaned.split('-');
+    return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+  }
+
+  const parsed = Date.parse(cleaned);
+  if (!isNaN(parsed)) return new Date(parsed);
+  
+  return null;
+}
+
+function getCalculatedStayPeriod(stayPeriod) {
+  if (!stayPeriod) return '-';
+  const startDate = parseStayDate(stayPeriod);
+  if (!startDate) return stayPeriod;
+
+  const endDate = new Date();
+  if (startDate > endDate) {
+    return stayPeriod;
+  }
+
+  let years = endDate.getFullYear() - startDate.getFullYear();
+  let months = endDate.getMonth() - startDate.getMonth();
+  let days = endDate.getDate() - startDate.getDate();
+
+  if (days < 0) {
+    months--;
+    const prevMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 0);
+    days += prevMonth.getDate();
+  }
+
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+
+  const parts = [];
+  if (years > 0) parts.push(`${years} ${years === 1 ? 'year' : 'years'}`);
+  if (months > 0) parts.push(`${months} ${months === 1 ? 'month' : 'months'}`);
+  if (days > 0 || parts.length === 0) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+
+  return `${stayPeriod} (${parts.join(', ')})`;
 }
 
 // Custom iOS-style Toggle Switch Component
@@ -128,13 +270,270 @@ function FInput({ field, label, data, onChange, type = 'text', mono = false, req
   );
 }
 
+// --- TAX CALCULATION LOGIC (Admin-configurable rules) ---
+const sanitizeTaxConfig = (rawConfig) => {
+  const defaults = DEFAULT_SETTINGS.taxConfig;
+  const source = rawConfig || {};
+
+  const sanitizeRegime = (regimeSource, regimeDefaults) => {
+    const src = regimeSource || {};
+    const slabsSource = Array.isArray(src.slabs) && src.slabs.length > 0 ? src.slabs : regimeDefaults.slabs;
+    const surchargeSource = Array.isArray(src.surchargeBrackets) && src.surchargeBrackets.length > 0
+      ? src.surchargeBrackets
+      : regimeDefaults.surchargeBrackets;
+
+    return {
+      ...regimeDefaults,
+      ...src,
+      standardDeduction: Math.max(0, Number(src.standardDeduction ?? regimeDefaults.standardDeduction) || 0),
+      rebateThreshold: Math.max(0, Number(src.rebateThreshold ?? regimeDefaults.rebateThreshold) || 0),
+      rebateMax: Math.max(0, Number(src.rebateMax ?? regimeDefaults.rebateMax) || 0),
+      marginalReliefEnabled: src.marginalReliefEnabled !== undefined ? !!src.marginalReliefEnabled : regimeDefaults.marginalReliefEnabled,
+      includeSurcharge: src.includeSurcharge !== undefined ? !!src.includeSurcharge : regimeDefaults.includeSurcharge,
+      slabs: slabsSource.map((slab, index) => ({
+        ...(regimeDefaults.slabs[index] || {}),
+        ...slab,
+        label: slab?.label ?? regimeDefaults.slabs[index]?.label ?? `Slab ${index + 1}`,
+        upto: slab?.upto === '' || slab?.upto === null || slab?.upto === undefined
+          ? (regimeDefaults.slabs[index]?.upto ?? null)
+          : Math.max(0, Number(slab.upto) || 0),
+        rate: Math.max(0, Number(slab?.rate ?? regimeDefaults.slabs[index]?.rate) || 0)
+      })),
+      surchargeBrackets: surchargeSource.map((bracket, index) => ({
+        ...(regimeDefaults.surchargeBrackets[index] || {}),
+        ...bracket,
+        label: bracket?.label ?? regimeDefaults.surchargeBrackets[index]?.label ?? `Surcharge ${index + 1}`,
+        threshold: Math.max(0, Number(bracket?.threshold ?? regimeDefaults.surchargeBrackets[index]?.threshold) || 0),
+        rate: Math.max(0, Number(bracket?.rate ?? regimeDefaults.surchargeBrackets[index]?.rate) || 0)
+      })).sort((a, b) => a.threshold - b.threshold)
+    };
+  };
+
+  // Migration for old flat structure
+  let newSource = source.newRegime || {};
+  let oldSource = source.oldRegime || {};
+  if (!source.newRegime && (source.slabs || source.standardDeduction !== undefined)) {
+    newSource = {
+      label: source.regimeLabel || defaults.newRegime.label,
+      standardDeduction: source.standardDeduction,
+      rebateThreshold: source.rebateThreshold,
+      rebateMax: source.rebateMax,
+      marginalReliefEnabled: source.marginalReliefEnabled,
+      includeSurcharge: source.includeSurcharge,
+      slabs: source.slabs,
+      surchargeBrackets: source.surchargeBrackets
+    };
+  }
+
+  return {
+    financialYearLabel: source.financialYearLabel || defaults.financialYearLabel,
+    assessmentYearLabel: source.assessmentYearLabel || defaults.assessmentYearLabel,
+    cessRate: Math.max(0, Number(source.cessRate ?? defaults.cessRate) || 0),
+    newRegime: sanitizeRegime(newSource, defaults.newRegime),
+    oldRegime: sanitizeRegime(oldSource, defaults.oldRegime)
+  };
+};
+
+const calculateTaxFromTaxableIncome = (taxableIncomeInput, rawTaxConfig, regimeType = 'new') => {
+  const fullTaxConfig = sanitizeTaxConfig(rawTaxConfig);
+  const regimeConfig = regimeType === 'old' ? fullTaxConfig.oldRegime : fullTaxConfig.newRegime;
+  const taxableIncome = Math.max(0, Number(taxableIncomeInput) || 0);
+  const slabDetails = [];
+  let lowerLimit = 0;
+  let tax = 0;
+
+  regimeConfig.slabs.forEach((slab) => {
+    const upperLimit = slab.upto === null ? Number.POSITIVE_INFINITY : Math.max(lowerLimit, Number(slab.upto) || 0);
+    const taxablePortion = Math.max(0, Math.min(taxableIncome, upperLimit) - lowerLimit);
+    const taxAmount = taxablePortion * (slab.rate / 100);
+    slabDetails.push({
+      label: slab.label,
+      rate: slab.rate,
+      upto: slab.upto,
+      lowerLimit,
+      taxablePortion,
+      tax: taxAmount
+    });
+    tax += taxAmount;
+    lowerLimit = upperLimit;
+  });
+
+  const rebate = taxableIncome <= regimeConfig.rebateThreshold ? Math.min(tax, regimeConfig.rebateMax) : 0;
+  const taxAfterRebate = Math.max(0, tax - rebate);
+  const marginalRelief = regimeConfig.marginalReliefEnabled && taxableIncome > regimeConfig.rebateThreshold
+    ? Math.max(0, taxAfterRebate - (taxableIncome - regimeConfig.rebateThreshold))
+    : 0;
+  const taxAfterRelief = Math.max(0, taxAfterRebate - marginalRelief);
+
+  let surchargeRate = 0;
+  let surcharge = 0;
+  let surchargeMarginalRelief = 0;
+
+  if (regimeConfig.includeSurcharge && taxAfterRelief > 0) {
+    const applicableSurcharge = [...regimeConfig.surchargeBrackets]
+      .filter((bracket) => taxableIncome > bracket.threshold)
+      .pop();
+
+    if (applicableSurcharge) {
+      surchargeRate = applicableSurcharge.rate;
+      const preliminarySurcharge = taxAfterRelief * (surchargeRate / 100);
+      const preliminaryTaxWithSurcharge = taxAfterRelief + preliminarySurcharge;
+      const thresholdSummary = calculateTaxFromTaxableIncome(applicableSurcharge.threshold, fullTaxConfig, regimeType);
+      const maxTaxWithSurcharge = thresholdSummary.taxBeforeCess + (taxableIncome - applicableSurcharge.threshold);
+
+      surchargeMarginalRelief = Math.max(0, preliminaryTaxWithSurcharge - maxTaxWithSurcharge);
+      surcharge = Math.max(0, preliminarySurcharge - surchargeMarginalRelief);
+    }
+  }
+
+  const taxBeforeCess = taxAfterRelief + surcharge;
+  const cess = taxBeforeCess * (fullTaxConfig.cessRate / 100);
+
+  return {
+    taxConfig: fullTaxConfig,
+    regimeConfig,
+    regimeType,
+    taxableIncome,
+    standardDeduction: regimeConfig.standardDeduction,
+    slabDetails,
+    slabs: slabDetails.map((slab) => slab.tax),
+    tax,
+    rebate,
+    marginalRelief,
+    taxAfterRelief,
+    surchargeRate,
+    surcharge,
+    surchargeMarginalRelief,
+    taxBeforeCess,
+    cess
+  };
+};
+
+const calculateTax = (grossSalary, tdsUpToDate, rawTaxConfig, options = {}) => {
+  const fullTaxConfig = sanitizeTaxConfig(rawTaxConfig);
+  const regimeType = options.regime === 'old' ? 'old' : 'new';
+  const regimeConfig = regimeType === 'old' ? fullTaxConfig.oldRegime : fullTaxConfig.newRegime;
+
+  const gross = Math.max(0, Number(grossSalary) || 0);
+  const tds = Math.max(0, Number(tdsUpToDate) || 0);
+
+  // Deductions for Old Regime
+  const deduction80C = regimeType === 'old' ? Math.min(150000, Math.max(0, Number(options.deduction80C) || 0)) : 0;
+  const deduction80D = regimeType === 'old' ? Math.max(0, Number(options.deduction80D) || 0) : 0;
+  const hraExemption = regimeType === 'old' ? Math.max(0, Number(options.hraExemption) || 0) : 0;
+  const otherDeductions = regimeType === 'old' ? Math.max(0, Number(options.otherDeductions) || 0) : 0;
+
+  const totalDeductions = regimeConfig.standardDeduction + deduction80C + deduction80D + hraExemption + otherDeductions;
+  const taxableIncome = Math.max(0, gross - totalDeductions);
+
+  const calc = calculateTaxFromTaxableIncome(taxableIncome, fullTaxConfig, regimeType);
+  const totalTax = Math.round(calc.taxBeforeCess + calc.cess);
+  const taxPayableNow = Math.max(0, totalTax - tds);
+
+  return {
+    ...calc,
+    grossSalary: gross,
+    tds,
+    deduction80C,
+    deduction80D,
+    hraExemption,
+    otherDeductions,
+    totalDeductions,
+    totalTax,
+    taxPayableNow
+  };
+};
+
+const escapeCSVValue = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+const TAX_CSV_DEFAULT_COLUMNS = [
+  'page', 'name', 'designation', 'cpis_no', 'pan',
+  'gross_salary', 'tax_regime', 'deduction_80c', 'deduction_80d', 'hra_exemption', 'other_deductions',
+  'taxable_income', 'total_tax_payable', 'tds', 'tax_payable_now',
+  'rebate', 'marginal_relief', 'cess'
+];
+
+const formatTaxCsvAmount = (amount) => {
+  const value = Number(amount) || 0;
+  return value > 0 ? value.toLocaleString('en-IN') : 'NIL';
+};
+
+const getEmployeePan = (emp) => {
+  if (!emp) return '';
+  return emp.pan || (emp.customFields && (emp.customFields.PAN || emp.customFields.pan)) || '';
+};
+
+const getEmployeeGross = (emp) => {
+  if (!emp) return 0;
+  const val = emp.grossSalary !== undefined ? emp.grossSalary : (emp.customFields && (emp.customFields['Gross Salary'] || emp.customFields.grossSalary));
+  return val ? parseFloat(val) || 0 : 0;
+};
+
+const getEmployeeTds = (emp) => {
+  if (!emp) return 0;
+  const val = emp.tds !== undefined ? emp.tds : (emp.customFields && (emp.customFields.TDS || emp.customFields.tds || emp.customFields['TDS Paid'] || emp.customFields.TDS_Paid));
+  return val ? parseFloat(val) || 0 : 0;
+};
+
+const getEmployeeRegime = (emp) => {
+  if (!emp) return 'new';
+  const val = emp.taxRegime !== undefined ? emp.taxRegime : (emp.customFields && (emp.customFields['Tax Regime'] || emp.customFields.taxRegime || emp.customFields.Regime || emp.customFields.regime));
+  return val === 'old' ? 'old' : 'new';
+};
+
+const getEmployee80C = (emp) => {
+  if (!emp) return 0;
+  const val = emp.deduction80C !== undefined ? emp.deduction80C : (emp.customFields && (emp.customFields['80C Deductions'] || emp.customFields['80C'] || emp.customFields.deduction80C || emp.customFields.deduction_80c));
+  return val ? parseFloat(val) || 0 : 0;
+};
+
+const getEmployee80D = (emp) => {
+  if (!emp) return 0;
+  const val = emp.deduction80D !== undefined ? emp.deduction80D : (emp.customFields && (emp.customFields['80D Deductions'] || emp.customFields['80D'] || emp.customFields.deduction80D || emp.customFields.deduction_80d));
+  return val ? parseFloat(val) || 0 : 0;
+};
+
+const getEmployeeHra = (emp) => {
+  if (!emp) return 0;
+  const val = emp.hraExemption !== undefined ? emp.hraExemption : (emp.customFields && (emp.customFields['HRA Exemption'] || emp.customFields['HRA'] || emp.customFields.hraExemption || emp.customFields.hra_exemption));
+  return val ? parseFloat(val) || 0 : 0;
+};
+
+const getEmployeeOtherDeductions = (emp) => {
+  if (!emp) return 0;
+  const val = emp.otherDeductions !== undefined ? emp.otherDeductions : (emp.customFields && (emp.customFields['Other Deductions'] || emp.customFields.otherDeductions || emp.customFields.other_deductions));
+  return val ? parseFloat(val) || 0 : 0;
+};
+
+const getEmployeeTaxOptions = (emp) => {
+  return {
+    regime: getEmployeeRegime(emp),
+    deduction80C: getEmployee80C(emp),
+    deduction80D: getEmployee80D(emp),
+    hraExemption: getEmployeeHra(emp),
+    otherDeductions: getEmployeeOtherDeductions(emp)
+  };
+};
+
 export default function AdminPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
+  // Dynamic admin accounts list
+  const [admins, setAdmins] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // New admin creation form states
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminRole, setNewAdminRole] = useState('Admin');
+  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'tax', 'export']);
+
   // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
   const [activeTab, setActiveTab] = useState('admissions');
+  const allowedTabs = currentUser?.allowedTabs || [];
 
   // Configuration States
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -151,7 +550,7 @@ export default function AdminPortal() {
   const [editNoticeData, setEditNoticeData] = useState({ date: '', title: '', link: '' });
 
   const [editingFacultyIdx, setEditingFacultyIdx] = useState(null);
-  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false });
+  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, inactiveReason: '' });
 
   // Full Edit Modal States
   const [showFullEditModal, setShowFullEditModal] = useState(false);
@@ -166,6 +565,7 @@ export default function AdminPortal() {
   const [bulkPrintSearch, setBulkPrintSearch] = useState('');
   const [bulkPrintDept, setBulkPrintDept] = useState('All');
   const [selectedBulkPrintNames, setSelectedBulkPrintNames] = useState([]);
+  const [selectedFaculty, setSelectedFaculty] = useState([]);
 
   // Photo Upload States
   const [newTeacherPhotoFile, setNewTeacherPhotoFile] = useState(null);
@@ -181,6 +581,28 @@ export default function AdminPortal() {
   const [csvValidationErrors, setCsvValidationErrors] = useState(null);
   const [showCsvPreviewModal, setShowCsvPreviewModal] = useState(false);
   const [showCsvErrorModal, setShowCsvErrorModal] = useState(false);
+  const [showCsvExportModal, setShowCsvExportModal] = useState(false);
+  const [csvExportMode, setCsvExportMode] = useState('faculty');
+  const [csvExportSearch, setCsvExportSearch] = useState('');
+  const [csvExportDept, setCsvExportDept] = useState('All');
+  const [selectedCsvEmployeeIndices, setSelectedCsvEmployeeIndices] = useState([]);
+  const [selectedCsvColumns, setSelectedCsvColumns] = useState([]);
+
+  const [editingTaxIdx, setEditingTaxIdx] = useState(null);
+  const [editTaxData, setEditTaxData] = useState({
+    pan: '',
+    grossSalary: '',
+    tds: '',
+    regime: 'new',
+    deduction80C: '',
+    deduction80D: '',
+    hraExemption: '',
+    otherDeductions: ''
+  });
+  const [taxSearch, setTaxSearch] = useState('');
+  const [activeRegimeSettingsTab, setActiveRegimeSettingsTab] = useState('new');
+  const [activeTaxPreviewRegime, setActiveTaxPreviewRegime] = useState('new');
+  const [showTaxRules, setShowTaxRules] = useState(false);
   const [customPrompt, setCustomPrompt] = useState(null);
   const [dataIssues, setDataIssues] = useState([]);
   const [showIssuesList, setShowIssuesList] = useState(false);
@@ -194,6 +616,9 @@ export default function AdminPortal() {
   const [isShuffling, setIsShuffling] = useState(false);
   const [shuffleValue, setShuffleValue] = useState('? + ?');
   const captchaIntervalRef = useRef(null);
+  const taxConfig = sanitizeTaxConfig(settings.taxConfig);
+  const previewRegimeConfig = activeTaxPreviewRegime === 'old' ? taxConfig.oldRegime : taxConfig.newRegime;
+  const previewTaxFreeGross = previewRegimeConfig.standardDeduction + previewRegimeConfig.rebateThreshold;
 
   // Helper to generate a dynamic math challenge with a 1-second randomization animation
   const generateCaptcha = (shouldShuffle = true) => {
@@ -257,15 +682,28 @@ export default function AdminPortal() {
   const handleLogout = (reason) => {
     sessionStorage.removeItem('isAdminAuthenticated');
     sessionStorage.removeItem('admin_session_id');
+    sessionStorage.removeItem('adminUser');
+    sessionStorage.removeItem('activeAdminTab');
+    setCurrentUser(null);
     setIsAuthenticated(false);
     generateCaptcha(false); // Generate fresh CAPTCHA on logout without shaking
 
     if (reason === 'logged_out_elsewhere') {
       setAuthError('You have been logged out because a new session was started in another tab.');
     } else if (reason === 'inactivity') {
+      localStorage.removeItem('admin_active_session_id');
+      localStorage.removeItem('admin_last_active');
+      try {
+        const channel = new BroadcastChannel('hss_admin_session');
+        channel.postMessage({ type: 'LOGOUT', reason: 'inactivity' });
+        channel.close();
+      } catch (err) {
+        // ignore
+      }
       setAuthError('You have been logged out due to inactivity.');
     } else {
       localStorage.removeItem('admin_active_session_id');
+      localStorage.removeItem('admin_last_active');
       try {
         const channel = new BroadcastChannel('hss_admin_session');
         channel.postMessage({ type: 'LOGOUT' });
@@ -306,9 +744,13 @@ export default function AdminPortal() {
       return;
     }
 
-    // Hash password input and compare
+    // Hash password input
     const inputHash = await hashPassword(password);
-    if (inputHash === ADMIN_PASSWORD_HASH) {
+
+    // Look up admin by email
+    const foundAdmin = admins.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
+
+    if (foundAdmin && inputHash === foundAdmin.passwordHash) {
       localStorage.removeItem('admin_failed_attempts');
       localStorage.removeItem('admin_lockout_until');
 
@@ -317,11 +759,19 @@ export default function AdminPortal() {
       sessionStorage.setItem('admin_session_id', newSessionId);
       localStorage.setItem('admin_active_session_id', newSessionId);
       sessionStorage.setItem('isAdminAuthenticated', 'true');
+      sessionStorage.setItem('adminUser', JSON.stringify(foundAdmin));
 
+      setCurrentUser(foundAdmin);
       setIsAuthenticated(true);
       setAuthError('');
+      setEmail('');
       setPassword('');
       setCaptchaInput('');
+
+      // Auto-open first permitted tab
+      const firstTab = foundAdmin.allowedTabs[0] || 'admissions';
+      setActiveTab(firstTab);
+      sessionStorage.setItem('activeAdminTab', firstTab);
 
       // Notify other tabs
       try {
@@ -340,7 +790,7 @@ export default function AdminPortal() {
         localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
         setAuthError('Too many failed attempts. Console locked for 15 minutes.');
       } else {
-        setAuthError(`Incorrect administrative password. Attempt ${attempts} of 5. Please try again.`);
+        setAuthError(`Incorrect credentials. Attempt ${attempts} of 5. Please try again.`);
       }
       generateCaptcha();
     }
@@ -348,14 +798,107 @@ export default function AdminPortal() {
 
   // Check session, load folder handle on mount, start cross-tab listening
   useEffect(() => {
+    // Helper to sync currentUser session with latest admins list
+    const syncCurrentUserSession = (latestAdmins, currentSessionUser) => {
+      if (!currentSessionUser) return;
+      const match = latestAdmins.find(a => a.email.toLowerCase() === currentSessionUser.email.toLowerCase());
+      if (match) {
+        // Check if permissions or role changed
+        const permissionsChanged = JSON.stringify(match.allowedTabs) !== JSON.stringify(currentSessionUser.allowedTabs);
+        const roleChanged = match.role !== currentSessionUser.role;
+        const passChanged = match.passwordHash !== currentSessionUser.passwordHash;
+        
+        if (passChanged) {
+          handleLogout('logged_out_elsewhere');
+          showAlert("Your password has been changed. Please log in again.", "Security Update");
+        } else if (permissionsChanged || roleChanged) {
+          sessionStorage.setItem('adminUser', JSON.stringify(match));
+          setCurrentUser(match);
+          const savedTab = sessionStorage.getItem('activeAdminTab') || 'admissions';
+          if (!match.allowedTabs.includes(savedTab)) {
+            const firstTab = match.allowedTabs[0] || 'admissions';
+            setActiveTab(firstTab);
+            sessionStorage.setItem('activeAdminTab', firstTab);
+          }
+        }
+      } else {
+        handleLogout('logged_out_elsewhere');
+        showAlert("Your administrator account has been deleted.", "Account Deleted");
+      }
+    };
+
+    // 1. Restore session info first to know current logged-in user
+    const sessionUser = sessionStorage.getItem('adminUser');
+    let currentSessionUser = null;
+    if (sessionStorage.getItem('isAdminAuthenticated') === 'true' && sessionUser) {
+      try {
+        currentSessionUser = JSON.parse(sessionUser);
+      } catch (e) {}
+    }
+
+    // 2. Load admins list first
+    const localAdmins = localStorage.getItem('site_admins');
+    if (localAdmins) {
+      try {
+        const parsed = JSON.parse(localAdmins);
+        setAdmins(parsed);
+        if (currentSessionUser) {
+          syncCurrentUserSession(parsed, currentSessionUser);
+        }
+      } catch (e) {
+        fetchAdminsFromServer(currentSessionUser);
+      }
+    } else {
+      fetchAdminsFromServer(currentSessionUser);
+    }
+
+    function fetchAdminsFromServer(sessionUserObj) {
+      fetch('/slides/admins.json?t=' + Date.now(), { cache: 'no-cache' })
+        .then((r) => {
+          if (!r.ok) throw new Error('Not found');
+          return r.json();
+        })
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setAdmins(data);
+            localStorage.setItem('site_admins', JSON.stringify(data));
+            if (sessionUserObj) {
+              syncCurrentUserSession(data, sessionUserObj);
+            }
+          } else {
+            setAdmins(DEFAULT_ADMINS);
+            localStorage.setItem('site_admins', JSON.stringify(DEFAULT_ADMINS));
+            if (sessionUserObj) {
+              syncCurrentUserSession(DEFAULT_ADMINS, sessionUserObj);
+            }
+          }
+        })
+        .catch(() => {
+          setAdmins(DEFAULT_ADMINS);
+          localStorage.setItem('site_admins', JSON.stringify(DEFAULT_ADMINS));
+          if (sessionUserObj) {
+            syncCurrentUserSession(DEFAULT_ADMINS, sessionUserObj);
+          }
+        });
+    }
+
+    // 3. Restore session (tab redirection, etc.)
     const currentSessionId = sessionStorage.getItem('admin_session_id');
     const activeSessionId = localStorage.getItem('admin_active_session_id');
 
-    if (sessionStorage.getItem('isAdminAuthenticated') === 'true') {
+    if (sessionStorage.getItem('isAdminAuthenticated') === 'true' && sessionUser) {
       if (currentSessionId && activeSessionId && currentSessionId !== activeSessionId) {
         handleLogout('logged_out_elsewhere');
       } else {
+        const parsedUser = JSON.parse(sessionUser);
+        setCurrentUser(parsedUser);
         setIsAuthenticated(true);
+        const savedTab = sessionStorage.getItem('activeAdminTab');
+        if (savedTab && parsedUser.allowedTabs.includes(savedTab)) {
+          setActiveTab(savedTab);
+        } else {
+          setActiveTab(parsedUser.allowedTabs[0] || 'admissions');
+        }
       }
     } else {
       generateCaptcha(false);
@@ -382,7 +925,7 @@ export default function AdminPortal() {
         if (event.data.type === 'LOGIN' && event.data.sessionId !== mySessionId) {
           handleLogout('logged_out_elsewhere');
         } else if (event.data.type === 'LOGOUT') {
-          handleLogout();
+          handleLogout(event.data.reason);
         }
       };
     } catch (e) {
@@ -414,31 +957,35 @@ export default function AdminPortal() {
     return () => clearInterval(interval);
   }, []);
 
-  // Monitor inactivity auto-logout (15 minutes)
+  // Monitor inactivity auto-logout (15 minutes) - cross-tab synchronized
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let inactivityTimer;
     const INACTIVITY_LIMIT = 15 * 60 * 1000;
 
-    const resetTimer = () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
-      inactivityTimer = setTimeout(() => {
-        handleLogout('inactivity');
-      }, INACTIVITY_LIMIT);
+    const updateLastActive = () => {
+      localStorage.setItem('admin_last_active', Date.now().toString());
     };
+
+    // Set initial active time
+    updateLastActive();
 
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
     events.forEach(event => {
-      window.addEventListener(event, resetTimer);
+      window.addEventListener(event, updateLastActive);
     });
 
-    resetTimer();
+    const checkInterval = setInterval(() => {
+      const lastActive = parseInt(localStorage.getItem('admin_last_active') || '0');
+      if (Date.now() - lastActive >= INACTIVITY_LIMIT) {
+        handleLogout('inactivity');
+      }
+    }, 5000);
 
     return () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
+      clearInterval(checkInterval);
       events.forEach(event => {
-        window.removeEventListener(event, resetTimer);
+        window.removeEventListener(event, updateLastActive);
       });
     };
   }, [isAuthenticated]);
@@ -556,12 +1103,7 @@ export default function AdminPortal() {
     if (localSettings) {
       try {
         const parsed = JSON.parse(localSettings);
-        setSettings({
-          ...DEFAULT_SETTINGS,
-          ...parsed,
-          admissionsClosed: { ...DEFAULT_SETTINGS.admissionsClosed, ...parsed.admissionsClosed },
-          fees: { ...DEFAULT_SETTINGS.fees, ...parsed.fees }
-        });
+        setSettings(mergeSiteSettings(parsed));
       } catch (e) {
         console.error('Error parsing site_settings from localStorage:', e);
       }
@@ -602,7 +1144,7 @@ export default function AdminPortal() {
         .filter(Boolean);
       setNotices(parsed);
     } else {
-      fetch('/slides/notices.txt', { cache: 'no-cache' })
+      fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' })
         .then((r) => r.text())
         .then((text) => {
           const parsed = text
@@ -662,7 +1204,7 @@ export default function AdminPortal() {
     }
 
     function fetchFacultyFromServer() {
-      fetch('/slides/faculty.json', { cache: 'no-cache' })
+      fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' })
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data)) setFaculty(data);
@@ -744,6 +1286,73 @@ export default function AdminPortal() {
     }));
   };
 
+  const handleTaxConfigFieldChange = (field, value, numeric = false) => {
+    const isGlobal = ['financialYearLabel', 'assessmentYearLabel', 'cessRate'].includes(field);
+    setSettings((s) => {
+      const taxConfig = { ...(s.taxConfig || DEFAULT_SETTINGS.taxConfig) };
+      if (isGlobal) {
+        taxConfig[field] = numeric ? (value === '' ? '' : Math.max(0, Number(value) || 0)) : value;
+      } else {
+        const regimeKey = activeRegimeSettingsTab === 'old' ? 'oldRegime' : 'newRegime';
+        taxConfig[regimeKey] = {
+          ...taxConfig[regimeKey],
+          [field]: numeric ? (value === '' ? '' : Math.max(0, Number(value) || 0)) : value
+        };
+      }
+      return { ...s, taxConfig };
+    });
+  };
+
+  const handleTaxConfigToggle = (field) => {
+    setSettings((s) => {
+      const taxConfig = { ...(s.taxConfig || DEFAULT_SETTINGS.taxConfig) };
+      const regimeKey = activeRegimeSettingsTab === 'old' ? 'oldRegime' : 'newRegime';
+      taxConfig[regimeKey] = {
+        ...taxConfig[regimeKey],
+        [field]: !taxConfig[regimeKey]?.[field]
+      };
+      return { ...s, taxConfig };
+    });
+  };
+
+  const handleTaxSlabChange = (index, field, value) => {
+    setSettings((s) => {
+      const taxConfig = { ...(s.taxConfig || DEFAULT_SETTINGS.taxConfig) };
+      const regimeKey = activeRegimeSettingsTab === 'old' ? 'oldRegime' : 'newRegime';
+      const slabs = [...(taxConfig[regimeKey]?.slabs || DEFAULT_SETTINGS.taxConfig[regimeKey].slabs)];
+      slabs[index] = {
+        ...slabs[index],
+        [field]: field === 'label'
+          ? value
+          : (value === '' ? '' : Math.max(0, Number(value) || 0))
+      };
+      taxConfig[regimeKey] = {
+        ...taxConfig[regimeKey],
+        slabs
+      };
+      return { ...s, taxConfig };
+    });
+  };
+
+  const handleTaxSurchargeChange = (index, field, value) => {
+    setSettings((s) => {
+      const taxConfig = { ...(s.taxConfig || DEFAULT_SETTINGS.taxConfig) };
+      const regimeKey = activeRegimeSettingsTab === 'old' ? 'oldRegime' : 'newRegime';
+      const surchargeBrackets = [...(taxConfig[regimeKey]?.surchargeBrackets || DEFAULT_SETTINGS.taxConfig[regimeKey].surchargeBrackets)];
+      surchargeBrackets[index] = {
+        ...surchargeBrackets[index],
+        [field]: field === 'label'
+          ? value
+          : (value === '' ? '' : Math.max(0, Number(value) || 0))
+      };
+      taxConfig[regimeKey] = {
+        ...taxConfig[regimeKey],
+        surchargeBrackets
+      };
+      return { ...s, taxConfig };
+    });
+  };
+
   // Notice Handlers
   const [newNotice, setNewNotice] = useState({ date: '', title: '', link: '', days: '' });
 
@@ -797,7 +1406,7 @@ export default function AdminPortal() {
   };
 
   // Faculty Handlers
-  const [newTeacher, setNewTeacher] = useState({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {} });
+  const [newTeacher, setNewTeacher] = useState({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {}, inactiveReason: '' });
 
   // Helper: clean a designation string — strip "in <Subject>" suffix for Principal/Vice Principal/MTS
   const cleanDesignation = (desig) => {
@@ -892,11 +1501,13 @@ export default function AdminPortal() {
     }
 
     setFaculty((prev) => [...prev, { ...newTeacher, designation: cleanedDesig, subject: cleanedSubj, photo: photoPath, department: dept }]);
-    setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {} });
+    setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {}, inactiveReason: '' });
 
     setNewTeacherPhotoFile(null);
     setNewTeacherPhotoName('');
     setNewTeacherPhotoExt('.jpg');
+    setSaveSuccess('Employee record added. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
   };
 
   const handleDeleteTeacher = (idx) => {
@@ -911,10 +1522,39 @@ export default function AdminPortal() {
       onConfirm: () => {
         setFaculty((prev) => prev.filter((_, i) => i !== idx));
         if (editingFacultyIdx === idx) setEditingFacultyIdx(null);
+        setSelectedFaculty(prev => prev.filter(i => i !== idx).map(i => i > idx ? i - 1 : i));
         setCustomPrompt(null);
+        setSaveSuccess('Employee record deleted. Click "Apply & Save" to make changes permanent.');
+        setTimeout(() => setSaveSuccess(''), 5000);
       },
       onCancel: () => setCustomPrompt(null)
     });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedFaculty.length === 0) return;
+    setCustomPrompt({
+      title: 'Bulk Delete Employee Records',
+      message: `Are you sure you want to delete the ${selectedFaculty.length} selected employee record(s)?`,
+      type: 'confirm',
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: () => {
+        setFaculty((prev) => prev.filter((_, idx) => !selectedFaculty.includes(idx)));
+        setSelectedFaculty([]);
+        setCustomPrompt(null);
+        setSaveSuccess('Selected employee records deleted. Click "Apply & Save" to make changes permanent.');
+        setTimeout(() => setSaveSuccess(''), 5000);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
+  };
+
+  const handleBulkPrint = () => {
+    if (selectedFaculty.length === 0) return;
+    const selected = faculty.filter((_, idx) => selectedFaculty.includes(idx));
+    printBulkProfiles(selected);
   };
 
   const startEditFaculty = (idx) => {
@@ -975,6 +1615,8 @@ export default function AdminPortal() {
     setEditTeacherPhotoFile(null);
     setEditTeacherPhotoName('');
     setEditTeacherPhotoExt('.jpg');
+    setSaveSuccess('Employee record updated. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
   };
 
   const cancelFacultyEdit = () => {
@@ -1011,8 +1653,8 @@ export default function AdminPortal() {
     if (!fullEditData) return;
     let photoPath = (fullEditData.photo || '').trim();
     const dept = fullEditData.department;
-    const cleanedDesig = cleanDesignation(fullEditData.designation);
-    const cleanedSubj = (dept === 'Administration' || dept === 'MTS') ? '' : (fullEditData.subject || '').trim();
+    const cleanedDesig = toTitleCase(cleanDesignation(fullEditData.designation));
+    const cleanedSubj = (dept === 'Administration' || dept === 'MTS') ? '' : toTitleCase((fullEditData.subject || '').trim());
 
     if (fullEditPhotoFile && fullEditPhotoName) {
       const sanitizedName = sanitizePhotoFilename(fullEditPhotoName);
@@ -1037,9 +1679,33 @@ export default function AdminPortal() {
       photoPath = `/slides/${photoPath}`;
     }
 
+    // Standardize inputs to proper case/casing on save
+    const formattedData = {
+      ...fullEditData,
+      name: toTitleCase(fullEditData.name || ''),
+      parentage: toTitleCase(fullEditData.parentage || ''),
+      designation: cleanedDesig,
+      subject: cleanedSubj,
+      subject_pg: (dept === 'Administration' || dept === 'MTS') ? '' : toTitleCase(fullEditData.subject_pg || ''),
+      parent_district: toTitleCase(fullEditData.parent_district || ''),
+      present_district: toTitleCase(fullEditData.present_district || ''),
+      present_place_of_posting: toTitleCase(fullEditData.present_place_of_posting || ''),
+      qualification: toTitleCase(fullEditData.qualification || ''),
+      permanent_address: toTitleCase(fullEditData.permanent_address || ''),
+      present_address: toTitleCase(fullEditData.present_address || ''),
+      zone_name: toTitleCase(fullEditData.zone_name || ''),
+      ddo_code: formatUDISECode(fullEditData.ddo_code || ''),
+      postings: (fullEditData.postings || []).map(p => ({
+        ...p,
+        office: toTitleCase(p.office || ''),
+        designation: toTitleCase(p.designation || '')
+      })),
+      photo: photoPath
+    };
+
     setFaculty((prev) => {
       const updated = [...prev];
-      updated[fullEditIndex] = { ...fullEditData, designation: cleanedDesig, subject: cleanedSubj, photo: photoPath };
+      updated[fullEditIndex] = formattedData;
       return updated;
     });
     closeFullEdit();
@@ -1048,6 +1714,631 @@ export default function AdminPortal() {
   };
 
   const fullEditField = (key, value) => setFullEditData(d => ({ ...d, [key]: value }));
+
+  const saveEmployeeTaxDetails = (index, pan, grossSalary, tds, regime, deduction80C, deduction80D, hraExemption, otherDeductions) => {
+    setFaculty(prev => {
+      const updated = [...prev];
+      const emp = { ...updated[index] };
+      const cleanPan = (pan || '').toUpperCase().trim();
+      const cleanGross = parseFloat(grossSalary) || 0;
+      const cleanTds = parseFloat(tds) || 0;
+      const cleanRegime = regime === 'old' ? 'old' : 'new';
+      const clean80C = parseFloat(deduction80C) || 0;
+      const clean80D = parseFloat(deduction80D) || 0;
+      const cleanHra = parseFloat(hraExemption) || 0;
+      const cleanOther = parseFloat(otherDeductions) || 0;
+      
+      emp.pan = cleanPan;
+      emp.grossSalary = cleanGross;
+      emp.tds = cleanTds;
+      emp.taxRegime = cleanRegime;
+      emp.deduction80C = clean80C;
+      emp.deduction80D = clean80D;
+      emp.hraExemption = cleanHra;
+      emp.otherDeductions = cleanOther;
+      
+      emp.customFields = {
+        ...(emp.customFields || {}),
+        PAN: cleanPan,
+        'Gross Salary': cleanGross.toString(),
+        TDS: cleanTds.toString(),
+        'Tax Regime': cleanRegime,
+        '80C Deductions': clean80C.toString(),
+        '80D Deductions': clean80D.toString(),
+        'HRA Exemption': cleanHra.toString(),
+        'Other Deductions': cleanOther.toString()
+      };
+      
+      updated[index] = emp;
+      return updated;
+    });
+    setSaveSuccess('Tax details updated. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
+  const printTaxSheets = (emps) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showAlert('Pop-up blocker is enabled. Please allow pop-ups to print tax sheets.', 'Pop-up Blocked');
+      return;
+    }
+
+    const formatSalary = (val) => {
+      return Math.round(Number(val || 0)).toLocaleString('en-IN');
+    };
+
+    const formatSlab = (val) => {
+      if (val === 0 || val === 'Nil' || val === undefined) return 'Nil';
+      return Number(val).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    };
+
+    const formatTax = (val) => {
+      return '₹ ' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const formatTotalTax = (val) => {
+      return '₹ ' + Math.round(Number(val || 0)).toLocaleString('en-IN');
+    };
+
+    const sheetsHtml = emps.map((emp) => {
+      const pan = getEmployeePan(emp);
+      const gross = getEmployeeGross(emp);
+      const tds = getEmployeeTds(emp);
+      const options = getEmployeeTaxOptions(emp);
+      const calc = calculateTax(gross, tds, taxConfig, options);
+
+      // Slabs logic
+      const slabRowsHtml = calc.slabDetails.map((slab, slabIdx) => {
+        const isFirst = slabIdx === 0;
+        const slabTax = slab.tax;
+        const detailsVal = slabTax > 0 ? formatSlab(slabTax) : 'Nil';
+        const rightVal = slabTax > 0 ? formatSlab(slabTax) : '0';
+        return `
+          <tr>
+            <td style="text-align: center;">${isFirst ? '7' : ''}</td>
+            <td>Slab ${slab.rate}% ${slab.label}</td>
+            <td class="text-right">${detailsVal}</td>
+            <td class="text-right">${rightVal}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Intermediate Gross Total Income calculation matching the spreadsheet flow
+      const grossTotalIncome = Math.max(0, gross - calc.standardDeduction - calc.hraExemption - calc.deduction80D);
+
+      // Tax Payable Now formatted
+      const taxPayableNowVal = calc.taxPayableNow > 0
+        ? `₹ ${formatSalary(calc.taxPayableNow)}`
+        : 'NIL';
+      const taxPayableNowClass = calc.taxPayableNow > 0
+        ? 'text-red-600 font-bold text-lg'
+        : 'text-green-600 font-bold text-lg';
+
+      return `
+        <div class="tax-sheet">
+          <div class="tax-sheet-content">
+            <!-- Header section -->
+            <div class="header-top">
+              <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+                <div style="text-align: left; width: 35%;">
+                  <h3 style="margin: 0; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; color: #475569;">OFFICE OF THE PRINCIPAL</h3>
+                  <h1 style="margin: 1px 0 0 0; font-size: 13px; font-weight: 900; color: #000; letter-spacing: -0.2px;">GOVT. HIGHER SECONDARY SCHOOL SHANGUS</h1>
+                </div>
+                <div style="text-align: center; width: 45%;">
+                  <h2 style="margin: 0; font-size: 11px; font-weight: bold; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase;">INCOME TAX CALCULATION SHEET</h2>
+                  <p style="margin: 1px 0 0 0; font-size: 8.5px; font-weight: bold; color: #475569;">Financial Year ${calc.taxConfig.financialYearLabel}; Assessment Year ${calc.taxConfig.assessmentYearLabel}</p>
+                </div>
+                <div style="text-align: right; width: 20%;">
+                  <div style="font-size: 9px; font-weight: bold;">TAN No.: <span style="color: #dc2626; font-family: monospace; font-size: 10px;">AMRG13179F</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Employee Info Grid -->
+            <table class="header-details-table">
+              <tr>
+                <td rowspan="3" class="regime-badge-container">
+                  <div class="regime-badge-inner">${calc.regimeConfig.label}</div>
+                </td>
+                <td class="label-cell">NAME OF THE OFFICIAL</td>
+                <td class="value-cell" colspan="3">${(emp.name || '').toUpperCase()}</td>
+              </tr>
+              <tr>
+                <td class="label-cell">DESIGNATION</td>
+                <td class="value-cell" style="width: 30%;">${(emp.designation || '').toUpperCase()}</td>
+                <td class="label-cell" style="width: 15%;">CPIS ID</td>
+                <td class="value-cell" style="width: 35%; font-family: monospace;">${emp.cpis_no || '-'}</td>
+              </tr>
+              <tr>
+                <td class="label-cell">PAN NO</td>
+                <td class="value-cell" colspan="3" style="font-family: monospace;">${pan || '-'}</td>
+              </tr>
+            </table>
+
+            <!-- Main Calculation Table -->
+            <table class="main-tax-table">
+              <thead>
+                <tr>
+                  <th style="width: 5%; text-align: center;">S.No.</th>
+                  <th style="width: 65%; text-align: left;">PARTICULARS</th>
+                  <th style="width: 15%; text-align: right;">Deductions</th>
+                  <th style="width: 15%; text-align: right;">Gross income</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold">Gross Salary</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600">₹ ${formatSalary(gross)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Add Pay Arrears</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;">1</td>
+                  <td>Add perquisite in respect of reimbursement of Medical Expenses of in excess of Rs.</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">view of section 17(2)(v)</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Add Employers Share</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold">Total Salary Income</td>
+                  <td></td>
+                  <td class="text-right font-bold">₹ ${formatSalary(gross)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-red-600">Less Standard Deduction</td>
+                  <td class="text-right font-bold">${formatSalary(calc.standardDeduction)}</td>
+                  <td class="text-right"></td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-red-600">Salary after deduction of St./ded</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600">₹ ${formatSalary(Math.max(0, gross - calc.standardDeduction))}</td>
+                </tr>
+                
+                <!-- HRA Row -->
+                <tr>
+                  <td style="text-align: center;">2</td>
+                  <td>Less House Rent allowance exempt U/s 10(13A)</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">A. Actual amount of HRA Received</td>
+                  <td class="text-right">${calc.hraExemption > 0 ? formatSalary(calc.hraExemption) : '0'}</td>
+                  <td class="text-right">${calc.hraExemption > 0 ? formatSalary(calc.hraExemption) : '0'}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">B. Expenditure on rent in excess of 10% Salary (including DA)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">C. 40% of Salary (including DA)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- HBA Row -->
+                <tr>
+                  <td style="text-align: center;">3</td>
+                  <td>Less: Interest paid on HBA U/s 24(B), 80EE (Max up to 2.0lakh)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Less: Interest paid on loan taken for higher education, U/s 80E</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold">Capital borrowed for repairs/renewal/reconstruction of house, maximum interest allowable Rs. 30000</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- 80D Row -->
+                <tr>
+                  <td style="text-align: center;">4</td>
+                  <td>Less Deduction U/s 80D (Health insurance- Self & Family Max up to 0.25 lakh)</td>
+                  <td class="text-right">${calc.deduction80D > 0 ? formatSalary(calc.deduction80D) : '0'}</td>
+                  <td class="text-right">${calc.deduction80D > 0 ? formatSalary(calc.deduction80D) : '0'}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Less Deduction U/s 80DD, 80U (Max 1.25 lakh and min 0.75 Lakh)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Less Deduction U/s 80DDB (Medical treatment of specified disease)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr class="text-red-600">
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold">Note: No Deduction shall be allowed unless a new certificate is obtained from medical authority in the prescribed format.</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- 80G Row -->
+                <tr>
+                  <td style="text-align: center;">5</td>
+                  <td>Less: Deduction U/s 80G (M relief Fund, Red Cross Funds, Cancer Fund, etc.)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- Gross Total Income -->
+                <tr class="bg-orange-100 font-bold">
+                  <td style="text-align: center;"></td>
+                  <td>Gross Total Income</td>
+                  <td></td>
+                  <td class="text-right text-red-600" style="background-color: #fed7aa; color: #dc2626;">₹ ${formatSalary(grossTotalIncome)}</td>
+                </tr>
+
+                <!-- 80C Rows -->
+                <tr>
+                  <td style="text-align: center;">6</td>
+                  <td class="font-bold">Less: Deduction U/s 80C, 80CCC, 80CCCD, 80CCD</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">GPF/CPF</td>
+                  <td class="text-right">0</td>
+                  <td rowspan="6" class="text-center font-bold" style="background-color: #a7f3d0; vertical-align: middle;">${formatSalary(calc.deduction80C)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">SLI</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">Repayment of HBA Loan</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">Tuition fee (Restricted to two children)</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">LIC, Metlife, PLI, PPF, etc.</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">Restricted to Rs 1,50,000</td>
+                  <td class="text-right">${calc.deduction80C > 0 ? formatSalary(calc.deduction80C) : '0'}</td>
+                </tr>
+
+                <!-- 80CCD(2) Row -->
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Less: Deduction U/s 80CCD (2)</td>
+                  <td class="text-right">${calc.otherDeductions > 0 ? formatSalary(calc.otherDeductions) : '0'}</td>
+                  <td class="text-right">${calc.otherDeductions > 0 ? formatSalary(calc.otherDeductions) : '0'}</td>
+                </tr>
+
+                <!-- Taxable Income -->
+                <tr style="background-color: #fef08a; font-bold">
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-center">Total Tax Income</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600" style="background-color: #fef08a; color: #dc2626;">₹ ${formatSalary(calc.taxableIncome)}</td>
+                </tr>
+                <tr style="background-color: #fef08a; font-bold">
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-center">Total Tax Income (Rounded Off)</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600" style="background-color: #fef08a; color: #dc2626;">₹ ${formatSalary(calc.taxableIncome)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-center">Income Tax thereon/Payable</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+
+                <!-- Slabs -->
+                ${slabRowsHtml}
+
+                <!-- Tax Calculation Details -->
+                <tr style="background-color: #a7f3d0; font-weight: bold;">
+                  <td style="text-align: center;">8</td>
+                  <td class="text-center">Tax thereon</td>
+                  <td></td>
+                  <td class="text-right">${formatTax(calc.tax)}</td>
+                </tr>
+                <tr style="background-color: #a7f3d0; font-weight: bold;">
+                  <td style="text-align: center;">9</td>
+                  <td class="text-center">Tax Rebate U/s 87(A)</td>
+                  <td></td>
+                  <td class="text-right">${formatTax(calc.rebate)}</td>
+                </tr>
+                <tr style="background-color: #a7f3d0; font-weight: bold;">
+                  <td style="text-align: center;"></td>
+                  <td class="text-center">Marginal Relief</td>
+                  <td></td>
+                  <td class="text-right" style="color: #047857;">${formatTax(calc.marginalRelief)}</td>
+                </tr>
+                <tr style="background-color: #a7f3d0; font-weight: bold;">
+                  <td style="text-align: center;"></td>
+                  <td class="text-center">Total Tax</td>
+                  <td></td>
+                  <td class="text-right">${formatTax(calc.taxBeforeCess)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;">10</td>
+                  <td>Add: Health & Education Cess @${calc.taxConfig.cessRate}%</td>
+                  <td></td>
+                  <td class="text-right font-bold">${formatTax(calc.cess)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;" class="text-red-600 font-bold">11</td>
+                  <td class="font-bold text-red-600 text-center">Total Tax Payable</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600">${formatTotalTax(calc.totalTax)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;" class="text-red-600 font-bold">12</td>
+                  <td class="font-bold text-red-600 text-center">TDS Up to Date</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600">${formatTotalTax(tds)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;" class="text-red-600 font-bold">13</td>
+                  <td class="font-bold text-red-600 text-center">Tax Payable now</td>
+                  <td></td>
+                  <td class="text-right ${taxPayableNowClass}">${taxPayableNowVal}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Footer certification and signatures -->
+          <div class="tax-sheet-footer">
+            <div class="certification-box">
+              I hereby certify that the information/Documents submitted are correct and genuine. If found false or tampered, I shall personally remain responsible for any action as warranted under rules. Additionally, the benefit availed shall be summarily withdrawn.
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; border: none; font-size: 9px; font-weight: bold; margin-top: 15px;">
+              <tbody>
+                <tr>
+                  <td style="border: none; text-align: left; padding: 0; vertical-align: bottom;">Sig. of Employee</td>
+                  <td style="border: none; text-align: right; padding: 0; vertical-align: bottom; width: 200px;">
+                    <div style="border-top: 1px solid black; margin-bottom: 2px; width: 100%;"></div>
+                    Sig. of DDO
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Income Tax Calculation Sheets</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 6mm 8mm;
+            }
+            @media print {
+              body {
+                background: white;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                margin: 0;
+                padding: 0;
+              }
+              .no-print {
+                display: none !important;
+              }
+              .tax-sheet {
+                width: 100% !important;
+                height: 100% !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                page-break-after: always !important;
+                page-break-inside: avoid !important;
+              }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              color: black;
+              background: #f1f5f9;
+              padding: 20px;
+              margin: 0;
+            }
+            .tax-sheet {
+              width: 281mm;
+              height: 196mm;
+              padding: 10px 15px;
+              margin: 0 auto 20px auto;
+              box-sizing: border-box;
+              position: relative;
+              background: white;
+              box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+              border: 3px double black;
+              outline: 1px solid black;
+              outline-offset: -3px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+            }
+            .header-top {
+              width: 100%;
+              margin-bottom: 4px;
+            }
+            .header-details-table {
+              width: 100%;
+              border-collapse: collapse;
+              border: 1px solid black;
+              margin-bottom: 5px;
+            }
+            .header-details-table td {
+              border: 1px solid black;
+              padding: 3px 6px;
+              font-size: 8.5px;
+              vertical-align: middle;
+            }
+            .header-details-table .label-cell {
+              font-weight: bold;
+              background-color: #f8fafc;
+              width: 18%;
+              color: #1e293b;
+            }
+            .header-details-table .value-cell {
+              color: #dc2626;
+              font-weight: bold;
+            }
+            .regime-badge-container {
+              width: 32px;
+              background-color: #dc2626;
+              color: white;
+              text-align: center;
+              font-weight: bold;
+              padding: 0 !important;
+            }
+            .regime-badge-inner {
+              writing-mode: vertical-rl;
+              transform: rotate(180deg);
+              text-transform: uppercase;
+              font-size: 8px;
+              letter-spacing: 0.5px;
+              display: inline-block;
+              white-space: nowrap;
+            }
+            .main-tax-table {
+              width: 100%;
+              border-collapse: collapse;
+              border: 1.5px solid black;
+              font-size: 8.2px;
+              line-height: 1.15;
+            }
+            .main-tax-table th, .main-tax-table td {
+              border: 1px solid black;
+              padding: 2.2px 4px;
+              vertical-align: middle;
+            }
+            .main-tax-table th {
+              font-weight: bold;
+              background-color: #f1f5f9;
+              text-transform: uppercase;
+              font-size: 7.5px;
+            }
+            .text-right {
+              text-align: right;
+            }
+            .text-center {
+              text-align: center;
+            }
+            .font-bold {
+              font-weight: bold;
+            }
+            .text-red-600 {
+              color: #dc2626;
+            }
+            .text-green-600 {
+              color: #16a34a;
+            }
+            .text-lg {
+              font-size: 11px;
+            }
+            .bg-orange-100 {
+              background-color: #ffedd5;
+            }
+            .bg-orange-200 {
+              background-color: #fed7aa;
+            }
+            .certification-box {
+              text-align: justify;
+              font-size: 8px;
+              border: 1px solid black;
+              padding: 4px 6px;
+              line-height: 1.2;
+              margin-top: 5px;
+              background-color: #fafafa;
+            }
+            .no-print-bar {
+              background: #1e293b;
+              color: white;
+              padding: 10px 20px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              position: sticky;
+              top: 0;
+              z-index: 100;
+              margin-bottom: 20px;
+              border-radius: 6px;
+              box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+              max-width: 281mm;
+              margin-left: auto;
+              margin-right: auto;
+            }
+            .print-btn {
+              background: #f97316;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              font-weight: bold;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 12px;
+              transition: all 0.2s;
+            }
+            .print-btn:hover {
+              background: #ea580c;
+              transform: scale(1.02);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print no-print-bar">
+            <span style="font-weight: bold; font-size: 14px;">Govt HSS Shangus — Income Tax Calculation Sheets</span>
+            <button onclick="window.print()" class="print-btn">Print / Save as PDF</button>
+          </div>
+          ${sheetsHtml}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   const addPosting = () => setFullEditData(d => ({
     ...d, postings: [...(d.postings || []), { office: '', designation: '', from: '', to: '' }]
@@ -1063,8 +2354,83 @@ export default function AdminPortal() {
     ...d, postings: (d.postings || []).filter((_, i) => i !== idx)
   }));
 
+  const handleAddAdmin = async () => {
+    if (!newAdminEmail.trim()) {
+      showAlert("Please enter a valid email address.", "Validation Error");
+      return;
+    }
+    if (!newAdminEmail.includes('@') || !newAdminEmail.includes('.')) {
+      showAlert("Please enter a valid email address.", "Validation Error");
+      return;
+    }
+    if (!newAdminPassword || newAdminPassword.length < 6) {
+      showAlert("Password must be at least 6 characters long.", "Validation Error");
+      return;
+    }
+    if (newAdminPermissions.length === 0) {
+      showAlert("Please select at least one tab permission.", "Validation Error");
+      return;
+    }
+    
+    const exists = admins.some(a => a.email.toLowerCase().trim() === newAdminEmail.toLowerCase().trim());
+    if (exists) {
+      showAlert("An admin account with this email address already exists.", "Account Conflict");
+      return;
+    }
+
+    try {
+      const passwordHash = await hashPassword(newAdminPassword);
+      const newAdmin = {
+        email: newAdminEmail.trim().toLowerCase(),
+        passwordHash,
+        role: newAdminRole,
+        allowedTabs: newAdminPermissions
+      };
+
+      const updatedAdmins = [...admins, newAdmin];
+      setAdmins(updatedAdmins);
+
+      // Clear fields
+      setNewAdminEmail('');
+      setNewAdminPassword('');
+      setNewAdminRole('Super Admin');
+      setNewAdminPermissions(['admissions', 'notices', 'faculty', 'tax', 'export', 'admins']);
+
+      // Automatically sync and save
+      await handleSaveToLocalStorage(updatedAdmins);
+      showAlert(`Administrative account for "${newAdmin.email}" created and saved successfully.`, "Account Created");
+    } catch (e) {
+      console.error(e);
+      showAlert("Failed to create admin account due to hashing or write error.", "Execution Error");
+    }
+  };
+
+  const handleDeleteAdmin = (emailToDelete) => {
+    if (currentUser && emailToDelete.toLowerCase() === currentUser.email.toLowerCase()) {
+      showAlert("You cannot delete your own admin account while logged in.", "Self-Deletion Guard");
+      return;
+    }
+    setCustomPrompt({
+      title: 'Delete Admin Account',
+      message: `Are you sure you want to permanently delete the admin account for "${emailToDelete}"?`,
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: async () => {
+        const updated = admins.filter(a => a.email.toLowerCase() !== emailToDelete.toLowerCase());
+        setAdmins(updated);
+        setCustomPrompt(null);
+        // Sync and save immediately
+        await handleSaveToLocalStorage(updated);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
+  };
+
   // Central Save & Sync
-  const handleSaveToLocalStorage = async () => {
+  const handleSaveToLocalStorage = async (customAdminsList = null) => {
+    const activeAdmins = customAdminsList || admins;
     // 1. Update localStorage for instant preview
     localStorage.setItem('site_settings', JSON.stringify(settings));
 
@@ -1072,6 +2438,7 @@ export default function AdminPortal() {
     localStorage.setItem('site_notices', noticesText);
 
     localStorage.setItem('site_faculty', JSON.stringify(faculty));
+    localStorage.setItem('site_admins', JSON.stringify(activeAdmins));
 
     // Broadcast synchronization message to all tabs
     try {
@@ -1096,7 +2463,8 @@ export default function AdminPortal() {
           body: JSON.stringify({
             settings,
             noticesText,
-            faculty
+            faculty,
+            admins: activeAdmins
           })
         });
         if (res.ok) {
@@ -1121,8 +2489,9 @@ export default function AdminPortal() {
           const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
           const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
           const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
+          const ok4 = await writeLocalFile(folderHandle, 'admins.json', JSON.stringify(activeAdmins, null, 2));
 
-          if (ok1 && ok2 && ok3) {
+          if (ok1 && ok2 && ok3 && ok4) {
             fileSyncStatus = ' and successfully written to your local slides/ files!';
           } else {
             fileSyncStatus = ' but failed to write files. Check directory write locks.';
@@ -1228,7 +2597,12 @@ export default function AdminPortal() {
         const fromDate = record[`Posting From-${i}`] || '';
         const toDate = record[`Posting To-${i}`] || '';
         if (office || designation) {
-          postings.push({ office, designation, from: fromDate, to: toDate });
+          postings.push({ 
+            office: toTitleCase(office), 
+            designation: toTitleCase(designation), 
+            from: fromDate, 
+            to: toDate 
+          });
         }
       }
 
@@ -1263,7 +2637,9 @@ export default function AdminPortal() {
         "S.No.", "Email address", "Parent District", "Present District", "Full Name", "Date of Birth", "Date of 1st Appointment",
         "Designation at First Appointment", "Present Designation", "Present Place of Posting", "Stay Period", "CPIS No", "Parentage",
         "Category", "Zone Name", "UDISE/DDO Code", "DDO Code HRMS", "Cadre", "Qualification", "Subject in PG", "Subject/s teaching", "Department", "B.ED",
-        "Total Postings", "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID"
+        "Total Postings", "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID",
+        "Photo URL", "Profile Bio", "Hidden", "Inactive Reason", "PAN", "PAN No", "Gross Salary", "TDS",
+        "Tax Regime", "80C Deductions", "80D Deductions", "HRA Exemption", "Other Deductions"
       ];
       const customFields = {};
       headers.forEach((header, hIdx) => {
@@ -1277,42 +2653,71 @@ export default function AdminPortal() {
         }
       });
 
+      const importedPan = record['PAN'] || record['PAN No'] || '';
+      const importedGross = record['Gross Salary'] || '';
+      const importedTds = record['TDS'] || '';
+      const importedRegime = (record['Tax Regime'] || record['Regime'] || 'new').toLowerCase().trim() === 'old' ? 'old' : 'new';
+      const imported80C = parseFloat(record['80C Deductions'] || record['80C'] || 0) || 0;
+      const imported80D = parseFloat(record['80D Deductions'] || record['80D'] || 0) || 0;
+      const importedHra = parseFloat(record['HRA Exemption'] || record['HRA'] || 0) || 0;
+      const importedOther = parseFloat(record['Other Deductions'] || record['Other'] || 0) || 0;
+
       records.push({
-        name: record['Full Name'],
-        designation: cleanedDesig,
-        subject: (dept === 'Administration' || dept === 'MTS') ? '' : (displaySubj),
-        subject_pg: (dept === 'Administration' || dept === 'MTS') ? '' : (subj.toLowerCase() === 'na' ? '' : subj),
+        name: toTitleCase(record['Full Name']),
+        designation: toTitleCase(cleanedDesig),
+        subject: (dept === 'Administration' || dept === 'MTS') ? '' : toTitleCase(displaySubj),
+        subject_pg: (dept === 'Administration' || dept === 'MTS') ? '' : (subj.toLowerCase() === 'na' ? '' : toTitleCase(subj)),
         email: record['Email address'] || '',
         mobile: record['Contact Number'] || '',
-        photo: record['Full Name'] === 'AIJAZ AHMAD WAGAY' ? '/slides/Principal.jpg' : (record['Full Name'] === 'SHEIKH GULFAM' ? '/slides/Gulfam.jpg' : ''),
+        photo: record['Photo URL'] !== undefined ? record['Photo URL'] : (record['Full Name'] === 'AIJAZ AHMAD WAGAY' ? '/slides/Principal.jpg' : (record['Full Name'] === 'SHEIKH GULFAM' ? '/slides/Gulfam.jpg' : '')),
         department: dept,
-        profile: '',
-        hidden: false,
+        profile: record['Profile Bio'] !== undefined ? record['Profile Bio'] : '',
+        hidden: record['Hidden'] !== undefined ? (record['Hidden'].toLowerCase() === 'true' || record['Hidden'].toLowerCase() === 'yes') : undefined,
+        inactiveReason: record['Inactive Reason'] !== undefined ? record['Inactive Reason'] : undefined,
         
-        parent_district: record['Parent District'] || '',
-        present_district: record['Present District'] || '',
-        present_place_of_posting: record['Present Place of Posting'] || '',
-        customFields,
+        pan: importedPan,
+        grossSalary: importedGross ? parseFloat(importedGross) || 0 : 0,
+        tds: importedTds ? parseFloat(importedTds) || 0 : 0,
+        taxRegime: importedRegime,
+        deduction80C: imported80C,
+        deduction80D: imported80D,
+        hraExemption: importedHra,
+        otherDeductions: importedOther,
+
+        parent_district: toTitleCase(record['Parent District'] || ''),
+        present_district: toTitleCase(record['Present District'] || ''),
+        present_place_of_posting: toTitleCase(record['Present Place of Posting'] || ''),
+        customFields: {
+          ...customFields,
+          PAN: importedPan,
+          'Gross Salary': importedGross,
+          TDS: importedTds,
+          'Tax Regime': importedRegime,
+          '80C Deductions': imported80C.toString(),
+          '80D Deductions': imported80D.toString(),
+          'HRA Exemption': importedHra.toString(),
+          'Other Deductions': importedOther.toString()
+        },
 
         // Custom fields preserved
         dob: record['Date of Birth'] || '',
-        parentage: record['Parentage'] || '',
+        parentage: toTitleCase(record['Parentage'] || ''),
         category: record['Category'] || '',
         cpis_no: record['CPIS No'] || '',
         date_of_first_appointment: record['Date of 1st Appointment'] || '',
-        designation_at_first_appointment: record['Designation at First Appointment'] || '',
+        designation_at_first_appointment: toTitleCase(record['Designation at First Appointment'] || ''),
         stay_period: record['Stay Period'] || '',
-        qualification: record['Qualification'] || '',
+        qualification: toTitleCase(record['Qualification'] || ''),
         bed: record['B.ED'] || '',
         health_issues: record['Health Issues/Security Grounds'] || '',
         if_deployed: record['If Deployed'] || '',
-        permanent_address: record['Permanent Address'] || '',
-        present_address: record['Present Address'] || '',
+        permanent_address: toTitleCase(record['Permanent Address'] || ''),
+        present_address: toTitleCase(record['Present Address'] || ''),
         gov_mail_id: record['Govt. Mail ID'] || '',
-        ddo_code: record['UDISE/DDO Code'] || '',
+        ddo_code: formatUDISECode(record['UDISE/DDO Code'] || ''),
         ddo_code_hrms: record['DDO Code HRMS'] || '',
         cadre: record['Cadre'] || '',
-        zone_name: record['Zone Name'] || '',
+        zone_name: toTitleCase(record['Zone Name'] || ''),
         postings
       });
     }
@@ -1377,7 +2782,8 @@ export default function AdminPortal() {
       "Posting Office-12", "Designation-12", "Posting From-12", "Posting To-12",
       "Posting Office-13", "Designation-13", "Posting From-13", "Posting To-13",
       "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID",
-      "PAN No"
+      "Photo URL", "Profile Bio", "Hidden", "Inactive Reason",
+      "PAN", "Gross Salary", "TDS", "Tax Regime", "80C Deductions", "80D Deductions", "HRA Exemption", "Other Deductions"
     ];
 
     const sampleRow = [
@@ -1399,7 +2805,8 @@ export default function AdminPortal() {
       "", "", "", "",
       "", "", "", "",
       "No", "No", "Shangus, Anantnag", "Shangus, Anantnag", "+91-7006123456", "gulfam.edu@jk.gov.in",
-      "ABCDE1234F"
+      "/slides/Gulfam.jpg", "Senior lecturer with 10+ years of teaching experience.", "false", "",
+      "ABCDE1234F", "1250000", "75000", "old", "150000", "25000", "12000", "0"
     ];
 
     const csvContent = [
@@ -1447,103 +2854,180 @@ export default function AdminPortal() {
     e.target.value = ''; // Reset file input
   };
 
-  const handleCSVExport = () => {
+  const getCsvColumnOptions = () => {
+    const columnOptions = [
+      { key: 'page', label: 'Page', getValue: (_, rowIndex) => rowIndex + 1 },
+      { key: 'serial', label: 'S.No.', getValue: (_, rowIndex) => rowIndex + 1 },
+      { key: 'email', label: 'Email address', getValue: (emp) => emp.email || '' },
+      { key: 'parent_district', label: 'Parent District', getValue: (emp) => emp.parent_district || 'Anantnag' },
+      { key: 'present_district', label: 'Present District', getValue: (emp) => emp.present_district || 'Anantnag' },
+      { key: 'name', label: 'Name', getValue: (emp) => emp.name || '' },
+      { key: 'full_name', label: 'Full Name', getValue: (emp) => emp.name || '' },
+      { key: 'dob', label: 'Date of Birth', getValue: (emp) => emp.dob || '' },
+      { key: 'date_of_first_appointment', label: 'Date of 1st Appointment', getValue: (emp) => emp.date_of_first_appointment || '' },
+      { key: 'designation_at_first_appointment', label: 'Designation at First Appointment', getValue: (emp) => emp.designation_at_first_appointment || '' },
+      { key: 'designation', label: 'Designation', getValue: (emp) => emp.designation || '' },
+      { key: 'present_designation', label: 'Present Designation', getValue: (emp) => emp.designation || '' },
+      { key: 'present_place_of_posting', label: 'Present Place of Posting', getValue: (emp) => emp.present_place_of_posting || 'HSS Shangus' },
+      { key: 'stay_period', label: 'Stay Period', getValue: (emp) => emp.stay_period || '' },
+      { key: 'calculated_stay_period', label: 'Calculated Stay Period', getValue: (emp) => getCalculatedStayPeriod(emp.stay_period || '') },
+      { key: 'cpis_no', label: 'CPIS ID', getValue: (emp) => emp.cpis_no || '' },
+      { key: 'parentage', label: 'Parentage', getValue: (emp) => emp.parentage || '' },
+      { key: 'category', label: 'Category', getValue: (emp) => emp.category || '' },
+      { key: 'zone_name', label: 'Zone Name', getValue: (emp) => emp.zone_name || 'Shangus' },
+      { key: 'ddo_code', label: 'UDISE/DDO Code', getValue: (emp) => emp.ddo_code || '1061400618' },
+      { key: 'ddo_code_hrms', label: 'DDO Code HRMS', getValue: (emp) => emp.ddo_code_hrms || 'SHGEDU0022' },
+      { key: 'cadre', label: 'Cadre', getValue: (emp) => emp.cadre || 'GAZETTED' },
+      { key: 'qualification', label: 'Qualification', getValue: (emp) => emp.qualification || '' },
+      { key: 'subject_pg', label: 'Subject in PG', getValue: (emp) => emp.subject_pg || emp.subject || '' },
+      { key: 'subject', label: 'Subject/s teaching', getValue: (emp) => emp.subject || '' },
+      { key: 'department', label: 'Department', getValue: (emp) => emp.department || '' },
+      { key: 'bed', label: 'B.ED', getValue: (emp) => emp.bed || '' },
+      { key: 'total_postings', label: 'Total Postings', getValue: (emp) => (emp.postings || []).length },
+      { key: 'health_issues', label: 'Health Issues/Security Grounds', getValue: (emp) => emp.health_issues || 'No' },
+      { key: 'if_deployed', label: 'If Deployed', getValue: (emp) => emp.if_deployed || 'No' },
+      { key: 'permanent_address', label: 'Permanent Address', getValue: (emp) => emp.permanent_address || '' },
+      { key: 'present_address', label: 'Present Address', getValue: (emp) => emp.present_address || '' },
+      { key: 'mobile', label: 'Contact Number', getValue: (emp) => emp.mobile || '' },
+      { key: 'gov_mail_id', label: 'Govt. Mail ID', getValue: (emp) => emp.gov_mail_id || '' },
+      { key: 'photo', label: 'Photo URL', getValue: (emp) => emp.photo || '' },
+      { key: 'profile', label: 'Profile Bio', getValue: (emp) => emp.profile || '' },
+      { key: 'hidden', label: 'Hidden', getValue: (emp) => emp.hidden ? 'true' : 'false' },
+      { key: 'inactiveReason', label: 'Inactive Reason', getValue: (emp) => emp.inactiveReason || '' },
+      { key: 'pan', label: 'PAN', getValue: (emp) => getEmployeePan(emp) },
+      { key: 'gross_salary', label: 'Gross Salary (Rs)', getValue: (emp) => getEmployeeGross(emp) },
+      { key: 'tds', label: 'TDS Up to Date (Rs)', getValue: (emp) => getEmployeeTds(emp) },
+      { key: 'tax_regime', label: 'Tax Regime', getValue: (emp) => getEmployeeRegime(emp) },
+      { key: 'deduction_80c', label: '80C Deductions (Rs)', getValue: (emp) => getEmployee80C(emp) },
+      { key: 'deduction_80d', label: '80D Deductions (Rs)', getValue: (emp) => getEmployee80D(emp) },
+      { key: 'hra_exemption', label: 'HRA Exemption (Rs)', getValue: (emp) => getEmployeeHra(emp) },
+      { key: 'other_deductions', label: 'Other Deductions (Rs)', getValue: (emp) => getEmployeeOtherDeductions(emp) },
+      { key: 'taxable_income', label: 'Taxable Income (Rs)', getValue: (_, __, calc) => Math.round(calc.taxableIncome) },
+      { key: 'tax_before_cess', label: 'Tax Before Cess (Rs)', getValue: (_, __, calc) => Math.round(calc.taxBeforeCess) },
+      { key: 'rebate', label: 'Rebate U/s 87A (Rs)', getValue: (_, __, calc) => Math.round(calc.rebate) },
+      { key: 'marginal_relief', label: 'Marginal Relief (Rs)', getValue: (_, __, calc) => Math.round(calc.marginalRelief) },
+      { key: 'surcharge', label: 'Surcharge (Rs)', getValue: (_, __, calc) => Math.round(calc.surcharge) },
+      { key: 'cess', label: 'Health & Education Cess (Rs)', getValue: (_, __, calc) => Math.round(calc.cess) },
+      { key: 'total_tax_payable', label: 'Total Tax Payable (Rs)', getValue: (_, __, calc) => calc.totalTax },
+      { key: 'tax_payable_now', label: 'Tax Payable Now (Rs)', getValue: (_, __, calc) => formatTaxCsvAmount(calc.taxPayableNow) }
+    ];
+
+    for (let i = 1; i <= 13; i++) {
+      const postingIndex = i - 1;
+      columnOptions.push(
+        { key: `posting_office_${i}`, label: `Posting Office-${i}`, getValue: (emp) => emp.postings?.[postingIndex]?.office || '' },
+        { key: `posting_designation_${i}`, label: `Designation-${i}`, getValue: (emp) => emp.postings?.[postingIndex]?.designation || '' },
+        { key: `posting_from_${i}`, label: `Posting From-${i}`, getValue: (emp) => emp.postings?.[postingIndex]?.from || '' },
+        { key: `posting_to_${i}`, label: `Posting To-${i}`, getValue: (emp) => emp.postings?.[postingIndex]?.to || '' }
+      );
+    }
+
+    const excludedCustomKeys = new Set([
+      'PAN', 'PAN No', 'pan', 'Gross Salary', 'Gross', 'gross_salary', 'TDS', 'tds', 'TDS Paid'
+    ]);
+    const customKeys = [];
+    faculty.forEach((emp) => {
+      Object.keys(emp.customFields || {}).forEach((key) => {
+        if (!excludedCustomKeys.has(key) && !customKeys.includes(key)) {
+          customKeys.push(key);
+        }
+      });
+    });
+
+    return [
+      ...columnOptions,
+      ...customKeys.map((key) => ({
+        key: `custom:${key}`,
+        label: key,
+        getValue: (emp) => emp.customFields?.[key] || ''
+      }))
+    ];
+  };
+
+  const openCsvExportModal = (mode = 'faculty') => {
     if (faculty.length === 0) {
       showAlert('No faculty records to export.', 'Export Empty');
       return;
     }
 
-    // Collect all unique custom field keys across all teachers to include in CSV
-    const allCustomKeys = [];
-    faculty.forEach(t => {
-      if (t.customFields) {
-        Object.keys(t.customFields).forEach(k => {
-          if (!allCustomKeys.includes(k)) {
-            allCustomKeys.push(k);
-          }
-        });
-      }
-    });
+    const columns = getCsvColumnOptions();
+    const availableKeys = new Set(columns.map((column) => column.key));
+    const defaultColumnKeys = mode === 'tax'
+      ? TAX_CSV_DEFAULT_COLUMNS.filter((key) => availableKeys.has(key))
+      : columns.map((column) => column.key);
 
-    const headers = [
-      "S.No.", "Email address", "Parent District", "Present District", "Full Name", "Date of Birth", "Date of 1st Appointment",
-      "Designation at First Appointment", "Present Designation", "Present Place of Posting", "Stay Period", "CPIS No", "Parentage",
-      "Category", "Zone Name", "UDISE/DDO Code", "DDO Code HRMS", "Cadre", "Qualification", "Subject in PG", "Subject/s teaching", "Department", "B.ED",
-      "Total Postings",
-      "Posting Office-1", "Designation-1", "Posting From-1", "Posting To-1",
-      "Posting Office-2", "Designation-2", "Posting From-2", "Posting To-2",
-      "Posting Office-3", "Designation-3", "Posting From-3", "Posting To-3",
-      "Posting Office-4", "Designation-4", "Posting From-4", "Posting To-4",
-      "Posting Office-5", "Designation-5", "Posting From-5", "Posting To-5",
-      "Posting Office-6", "Designation-6", "Posting From-6", "Posting To-6",
-      "Posting Office-7", "Designation-7", "Posting From-7", "Posting To-7",
-      "Posting Office-8", "Designation-8", "Posting From-8", "Posting To-8",
-      "Posting Office-9", "Designation-9", "Posting From-9", "Posting To-9",
-      "Posting Office-10", "Designation-10", "Posting From-10", "Posting To-10",
-      "Posting Office-11", "Designation-11", "Posting From-11", "Posting To-11",
-      "Posting Office-12", "Designation-12", "Posting From-12", "Posting To-12",
-      "Posting Office-13", "Designation-13", "Posting From-13", "Posting To-13",
-      "Health Issues/Security Grounds", "If Deployed", "Permanent Address", "Present Address", "Contact Number", "Govt. Mail ID",
-      ...allCustomKeys
-    ];
-
-    const rows = faculty.map((t, idx) => {
-      const postings = t.postings || [];
-      const rowData = [
-        `"${idx + 1}"`,
-        `"${t.email || ''}"`,
-        `"${t.parent_district || 'Anantnag'}"`,
-        `"${t.present_district || 'Anantnag'}"`,
-        `"${t.name || ''}"`,
-        `"${t.dob || ''}"`,
-        `"${t.date_of_first_appointment || ''}"`,
-        `"${t.designation_at_first_appointment || ''}"`,
-        `"${t.designation || ''}"`,
-        `"${t.present_place_of_posting || 'HSS Shangus'}"`,
-        `"${t.stay_period || ''}"`,
-        `"${t.cpis_no || ''}"`,
-        `"${t.parentage || ''}"`,
-        `"${t.category || ''}"`,
-        `"${t.zone_name || 'Shangus'}"`,
-        `"${t.ddo_code || '1061400618'}"`,
-        `"${t.ddo_code_hrms || 'SHGEDU0022'}"`,
-        `"${t.cadre || 'GAZETTED'}"`,
-        `"${t.qualification || ''}"`,
-        `"${t.subject_pg || t.subject || ''}"`,
-        `"${t.subject || ''}"`,
-        `"${t.department || ''}"`,
-        `"${t.bed || ''}"`,
-        `"${postings.length}"`
-      ];
-
-      // Pad postings up to 13
-      for (let i = 0; i < 13; i++) {
-        const p = postings[i] || {};
-        rowData.push(`"${p.office || ''}"`);
-        rowData.push(`"${p.designation || ''}"`);
-        rowData.push(`"${p.from || ''}"`);
-        rowData.push(`"${p.to || ''}"`);
-      }
-
-      rowData.push(`"${t.health_issues || 'No'}"`);
-      rowData.push(`"${t.if_deployed || 'No'}"`);
-      rowData.push(`"${t.permanent_address || ''}"`);
-      rowData.push(`"${t.present_address || ''}"`);
-      rowData.push(`"${t.mobile || ''}"`);
-      rowData.push(`"${t.gov_mail_id || ''}"`);
-
-      // Append custom fields values
-      allCustomKeys.forEach(key => {
-        const val = (t.customFields && t.customFields[key]) || '';
-        rowData.push(`"${val}"`);
-      });
-
-      return rowData.join(',');
-    });
-
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    downloadFile('faculty_roster.csv', csvContent, 'text/csv');
+    setCsvExportMode(mode);
+    setSelectedCsvEmployeeIndices(faculty.map((_, index) => index));
+    setSelectedCsvColumns(defaultColumnKeys);
+    setCsvExportSearch('');
+    setCsvExportDept('All');
+    setShowCsvExportModal(true);
   };
+
+  const handleCSVExport = () => openCsvExportModal('faculty');
+  const handleTaxCSVExport = () => openCsvExportModal('tax');
+
+  const downloadSelectedCSV = () => {
+    const selectedEmployees = [...selectedCsvEmployeeIndices]
+      .sort((a, b) => a - b)
+      .map((index) => faculty[index])
+      .filter(Boolean);
+    const selectedColumnOptions = getCsvColumnOptions().filter((column) => selectedCsvColumns.includes(column.key));
+
+    if (selectedEmployees.length === 0) {
+      showAlert('Select at least one employee before downloading the CSV.', 'No Employees Selected');
+      return;
+    }
+
+    if (selectedColumnOptions.length === 0) {
+      showAlert('Select at least one column before downloading the CSV.', 'No Columns Selected');
+      return;
+    }
+
+    const headerRow = selectedColumnOptions.map((column) => escapeCSVValue(column.label)).join(',');
+    const rows = selectedEmployees.map((emp, rowIndex) => {
+      const calc = calculateTax(getEmployeeGross(emp), getEmployeeTds(emp), taxConfig, getEmployeeTaxOptions(emp));
+      return selectedColumnOptions
+        .map((column) => escapeCSVValue(column.getValue(emp, rowIndex, calc)))
+        .join(',');
+    });
+
+    const exportFileName = csvExportMode === 'tax'
+      ? `tax_summary_${taxConfig.assessmentYearLabel || 'export'}.csv`
+      : 'faculty_roster_custom.csv';
+    downloadFile(exportFileName, [headerRow, ...rows].join('\n'), 'text/csv;charset=utf-8;');
+    setShowCsvExportModal(false);
+  };
+
+  const toggleCsvEmployeeSelection = (index) => {
+    setSelectedCsvEmployeeIndices((current) => (
+      current.includes(index)
+        ? current.filter((item) => item !== index)
+        : [...current, index]
+    ));
+  };
+
+  const toggleCsvColumnSelection = (columnKey) => {
+    setSelectedCsvColumns((current) => (
+      current.includes(columnKey)
+        ? current.filter((item) => item !== columnKey)
+        : [...current, columnKey]
+    ));
+  };
+
+  const csvColumnOptions = getCsvColumnOptions();
+  const csvDepartmentOptions = ['All', ...Array.from(new Set(faculty.map((emp) => emp.department).filter(Boolean))).sort()];
+  const filteredCsvEmployees = faculty
+    .map((emp, index) => ({ emp, index }))
+    .filter(({ emp }) => {
+      const term = csvExportSearch.trim().toLowerCase();
+      const matchesSearch = !term || [emp.name, emp.designation, emp.cpis_no, emp.department]
+        .some((value) => (value || '').toLowerCase().includes(term));
+      const matchesDept = csvExportDept === 'All' || (emp.department || '') === csvExportDept;
+      return matchesSearch && matchesDept;
+    });
+  const activeRegimeConfig = activeRegimeSettingsTab === 'old' ? taxConfig.oldRegime : taxConfig.newRegime;
+  const taxFreeGrossSalary = activeRegimeConfig.standardDeduction + activeRegimeConfig.rebateThreshold;
 
   const printEmployeeProfile = (t) => {
     const printWindow = window.open('', '_blank');
@@ -1671,8 +3155,8 @@ export default function AdminPortal() {
             <tr>
               <td class="label">Date of 1st Appointment:</td>
               <td class="value">${t.date_of_first_appointment || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Stay Period:</td>
-              <td class="value">${t.stay_period || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Stay from (Period):</td>
+              <td class="value">${getCalculatedStayPeriod(t.stay_period)}</td>
             </tr>
             <tr>
               <td class="label">Designation at 1st Appt:</td>
@@ -1683,8 +3167,8 @@ export default function AdminPortal() {
             <tr>
               <td class="label">Zone Name:</td>
               <td class="value">${t.zone_name || 'Shangus'}</td>
-              <td class="label" style="padding-left: 20px;">UDISE / DDO Code:</td>
-              <td class="value" style="font-family: monospace;">${t.ddo_code || '1061400618'}</td>
+              <td class="label" style="padding-left: 20px;">UDISE Code:</td>
+              <td class="value" style="font-family: monospace;">${t.ddo_code || '01061400618'}</td>
             </tr>
             <tr>
               <td class="label">DDO Code HRMS:</td>
@@ -1848,8 +3332,8 @@ export default function AdminPortal() {
             <tr>
               <td class="label">Date of 1st Appointment:</td>
               <td class="value">${t.date_of_first_appointment || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Stay Period:</td>
-              <td class="value">${t.stay_period || '-'}</td>
+              <td class="label" style="padding-left: 20px;">Stay from (Period):</td>
+              <td class="value">${getCalculatedStayPeriod(t.stay_period)}</td>
             </tr>
             <tr>
               <td class="label">Designation at 1st Appt:</td>
@@ -1860,8 +3344,8 @@ export default function AdminPortal() {
             <tr>
               <td class="label">Zone Name:</td>
               <td class="value">${t.zone_name || 'Shangus'}</td>
-              <td class="label" style="padding-left: 20px;">UDISE / DDO Code:</td>
-              <td class="value" style="font-family: monospace;">${t.ddo_code || '1061400618'}</td>
+              <td class="label" style="padding-left: 20px;">UDISE Code:</td>
+              <td class="value" style="font-family: monospace;">${t.ddo_code || '01061400618'}</td>
             </tr>
             <tr>
               <td class="label">DDO Code HRMS:</td>
@@ -2021,6 +3505,19 @@ export default function AdminPortal() {
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Administrative Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Enter admin email..."
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  autoFocus
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Administrative Password</label>
                 <input
                   type="password"
@@ -2029,7 +3526,6 @@ export default function AdminPortal() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                  autoFocus
                 />
               </div>
 
@@ -2181,14 +3677,19 @@ export default function AdminPortal() {
             { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
             { id: 'notices', label: 'Latest Notices', icon: RefreshCw },
             { id: 'faculty', label: 'Faculty Directory', icon: Users },
-            { id: 'export', label: 'Export files', icon: Download }
-          ].map((tab) => {
+            { id: 'tax', label: 'Tax Calculator', icon: Calculator },
+            { id: 'export', label: 'Export files', icon: Download },
+            { id: 'admins', label: 'Admin Management', icon: Settings }
+          ].filter(tab => allowedTabs.includes(tab.id)).map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  sessionStorage.setItem('activeAdminTab', tab.id);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${active ? 'border-orange-500 text-orange-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
               >
                 <Icon size={14} />
@@ -2208,7 +3709,7 @@ export default function AdminPortal() {
           <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 md:p-5 shadow-xl">
 
             {/* TAB 1: ADMISSIONS AND FEES */}
-            {activeTab === 'admissions' && (
+            {activeTab === 'admissions' && allowedTabs.includes('admissions') && (
               <div className="space-y-4 animate-in fade-in duration-200">
                 {/* Global admissions open/close */}
                 <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -2348,11 +3849,54 @@ export default function AdminPortal() {
                     </div>
                   </div>
                 </div>
+
+                {/* Social Media Links Configuration */}
+                <div className="bg-slate-900/30 p-3.5 rounded-xl border border-indigo-500/20 shadow-sm relative overflow-hidden transition-all hover:border-indigo-500/40">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-500">
+                      <BookOpen size={14} className="stroke-[2.5px]" />
+                    </span>
+                    <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Social Media Links</h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {['facebook', 'youtube', 'twitter', 'instagram'].map((platform) => {
+                      const value = (settings.socialLinks && settings.socialLinks[platform]) || '#';
+                      return (
+                        <div key={platform} className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                            {platform === 'twitter' ? 'Twitter / X Link' : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Link`}
+                          </label>
+                          <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 transition-colors focus-within:border-indigo-500">
+                            <input
+                              type="text"
+                              value={value}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setSettings(s => ({
+                                  ...s,
+                                  socialLinks: {
+                                    ...s.socialLinks,
+                                    [platform]: val || '#'
+                                  }
+                                }));
+                              }}
+                              className="w-full bg-transparent border-none py-1.5 text-xs text-white focus:outline-none focus:ring-0"
+                              placeholder="e.g. # or full URL"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+
               </div>
             )}
 
             {/* TAB 2: LATEST NOTICES */}
-            {activeTab === 'notices' && (
+            {activeTab === 'notices' && allowedTabs.includes('notices') && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 <div className="flex justify-between items-center mb-1">
                   <div>
@@ -2648,7 +4192,7 @@ export default function AdminPortal() {
             )}
 
             {/* TAB 3: FACULTY DIRECTORY */}
-            {activeTab === 'faculty' && (
+            {activeTab === 'faculty' && allowedTabs.includes('faculty') && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-1.5">
                   <div>
@@ -2682,7 +4226,7 @@ export default function AdminPortal() {
                     <button
                       onClick={handleCSVExport}
                       className="px-3 py-1.5 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
-                      title="Download the entire faculty directory as CSV"
+                      title="Choose employees and columns, then download a custom CSV roster"
                     >
                       <Download size={13} />
                       Export CSV
@@ -2821,7 +4365,7 @@ export default function AdminPortal() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <div className="md:col-span-3">
+                    <div className={newTeacher.hidden ? "md:col-span-2" : "md:col-span-3"}>
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
                       <textarea
                         placeholder="Write a brief profile biography or details about this faculty member..."
@@ -2834,13 +4378,51 @@ export default function AdminPortal() {
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Visibility Status</label>
                       <select
                         value={newTeacher.hidden ? 'hidden' : 'visible'}
-                        onChange={(e) => setNewTeacher({ ...newTeacher, hidden: e.target.value === 'hidden' })}
+                        onChange={(e) => {
+                          const isHidden = e.target.value === 'hidden';
+                          setNewTeacher({ 
+                            ...newTeacher, 
+                            hidden: isHidden,
+                            inactiveReason: isHidden ? (newTeacher.inactiveReason || 'Transferred') : ''
+                          });
+                        }}
                         className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       >
                         <option value="visible">Visible (Active on Frontend)</option>
-                        <option value="hidden">Hidden (Transferred / Inactive)</option>
+                        <option value="hidden">Hidden (Inactive)</option>
                       </select>
                     </div>
+                    {newTeacher.hidden && (
+                      <div className="animate-in fade-in duration-200">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
+                        <select
+                          value={['Transferred', 'Retired'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'Other') {
+                              const custom = window.prompt("Enter custom reason for inactive status:");
+                              setNewTeacher({ ...newTeacher, inactiveReason: custom || 'Other' });
+                            } else {
+                              setNewTeacher({ ...newTeacher, inactiveReason: val });
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        >
+                          <option value="Transferred">Transferred</option>
+                          <option value="Retired">Retired</option>
+                          <option value="Other">Other...</option>
+                        </select>
+                        {newTeacher.inactiveReason && !['Transferred', 'Retired'].includes(newTeacher.inactiveReason) && (
+                          <input
+                            type="text"
+                            value={newTeacher.inactiveReason}
+                            onChange={(e) => setNewTeacher({ ...newTeacher, inactiveReason: e.target.value })}
+                            placeholder="Enter custom reason..."
+                            className="w-full mt-1.5 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-right">
@@ -2854,11 +4436,52 @@ export default function AdminPortal() {
                   </div>
                 </div>
 
+                {/* Faculty list toolbar */}
+                {selectedFaculty.length > 0 && (
+                  <div className="mb-3 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between animate-in slide-in-from-top duration-200"
+                    style={{ backgroundColor: 'rgba(30, 41, 59, 0.4)', borderColor: '#334155' }}>
+                    <span className="text-xs font-bold text-slate-300">
+                      {selectedFaculty.length} employee(s) selected
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleBulkPrint}
+                        className="px-3.5 py-1.5 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      >
+                        <Printer size={13} />
+                        Print Selected
+                      </button>
+                      <button
+                        onClick={handleBulkDelete}
+                        className="px-3.5 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center gap-1.5 border border-red-500 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      >
+                        <Trash2 size={13} />
+                        Delete Selected
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Faculty list */}
                 <div className="overflow-x-auto border border-slate-800 rounded-lg min-w-0">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '640px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
+                        <th className="p-1.5 w-8 text-center">
+                          <input
+                            type="checkbox"
+                            checked={faculty.length > 0 && selectedFaculty.length === faculty.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedFaculty(faculty.map((_, idx) => idx));
+                              } else {
+                                setSelectedFaculty([]);
+                              }
+                            }}
+                            className="rounded border-slate-800 text-orange-600 bg-slate-950 focus:ring-orange-500"
+                          />
+                        </th>
+                        <th className="p-1.5 w-12 text-center">S.No</th>
                         <th className="p-1.5">Name</th>
                         <th className="p-1.5">Role / Subject</th>
                         <th className="p-1.5">Department</th>
@@ -2870,7 +4493,7 @@ export default function AdminPortal() {
                     <tbody className="divide-y divide-slate-800/60">
                       {faculty.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-4 text-center text-slate-500 italic text-[11px]">No faculty members configured. Add some above.</td>
+                          <td colSpan={8} className="p-4 text-center text-slate-500 italic text-[11px]">No faculty members configured. Add some above.</td>
                         </tr>
                       ) : (
                         faculty.map((t, index) => {
@@ -2889,6 +4512,23 @@ export default function AdminPortal() {
                                     : ''
                                 }`}
                               >
+                                <td className="p-1.5 w-8 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedFaculty.includes(index)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedFaculty([...selectedFaculty, index]);
+                                      } else {
+                                        setSelectedFaculty(selectedFaculty.filter(idx => idx !== index));
+                                      }
+                                    }}
+                                    className="rounded border-slate-800 text-orange-600 bg-slate-950 focus:ring-orange-500"
+                                  />
+                                </td>
+                                <td className="p-1.5 w-12 text-center text-slate-400 font-mono">
+                                  {index + 1}
+                                </td>
                                 {isEditing ? (
                                   <>
                                     <td className="p-1.5">
@@ -3011,25 +4651,32 @@ export default function AdminPortal() {
                                 ) : (
                                   <>
                                     <td className="p-1.5 font-semibold text-slate-200">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span>{t.name}</span>
-                                        {t.hidden && (
-                                          <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight">
-                                            Hidden
-                                          </span>
-                                        )}
-                                        {rowIssue && (
-                                          <span
-                                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight border cursor-help ${
-                                              rowHasError
-                                                ? 'bg-red-950 text-red-400 border-red-800'
-                                                : 'bg-amber-950 text-amber-400 border-amber-800'
-                                            }`}
-                                            title={rowIssue.messages.join('\n')}
-                                          >
-                                            <AlertCircle size={8} />
-                                            {rowHasError ? 'Error' : 'Warning'}
-                                          </span>
+                                      <div>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span>{t.name}</span>
+                                          {t.hidden && (
+                                            <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight" title={`Reason: ${t.inactiveReason || 'Inactive'}`}>
+                                              Hidden ({t.inactiveReason || 'Inactive'})
+                                            </span>
+                                          )}
+                                          {rowIssue && (
+                                            <span
+                                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight border cursor-help ${
+                                                rowHasError
+                                                  ? 'bg-red-950 text-red-400 border-red-800'
+                                                  : 'bg-amber-950 text-amber-400 border-amber-800'
+                                              }`}
+                                              title={rowIssue.messages.join('\n')}
+                                            >
+                                              <AlertCircle size={8} />
+                                              {rowHasError ? 'Error' : 'Warning'}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {faculty.filter(f => f.name && f.name.trim().toLowerCase() === t.name.trim().toLowerCase()).length > 1 && (
+                                          <div className="text-[9px] text-slate-400 font-medium mt-0.5">
+                                            {t.cpis_no ? `CPIS: ${t.cpis_no}` : (t.mobile ? `Mobile: ${t.mobile}` : '')}
+                                          </div>
                                         )}
                                       </div>
                                     </td>
@@ -3072,7 +4719,7 @@ export default function AdminPortal() {
                               </tr>
                               {isEditing && (
                                 <tr className="bg-slate-900/30">
-                                  <td colSpan={6} className="p-2 border-t border-slate-800/50">
+                                  <td colSpan={8} className="p-2 border-t border-slate-800/50">
                                     <div className="flex flex-col md:flex-row gap-2.5 items-start">
                                       <div className="flex-grow w-full md:w-auto">
                                         <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
@@ -3087,13 +4734,51 @@ export default function AdminPortal() {
                                         <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Visibility Status</label>
                                         <select
                                           value={editFacultyData.hidden ? 'hidden' : 'visible'}
-                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, hidden: e.target.value === 'hidden' })}
+                                          onChange={(e) => {
+                                            const isHidden = e.target.value === 'hidden';
+                                            setEditFacultyData({ 
+                                              ...editFacultyData, 
+                                              hidden: isHidden,
+                                              inactiveReason: isHidden ? (editFacultyData.inactiveReason || 'Transferred') : ''
+                                            });
+                                          }}
                                           className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-855 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                         >
                                           <option value="visible">Visible (Active)</option>
-                                          <option value="hidden">Hidden (Transferred / Inactive)</option>
+                                          <option value="hidden">Hidden (Inactive)</option>
                                         </select>
                                       </div>
+                                      {editFacultyData.hidden && (
+                                        <div className="w-full md:w-48 flex-shrink-0 animate-in fade-in duration-200">
+                                          <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
+                                          <select
+                                            value={['Transferred', 'Retired'].includes(editFacultyData.inactiveReason) ? editFacultyData.inactiveReason : (editFacultyData.inactiveReason ? 'Other' : 'Transferred')}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              if (val === 'Other') {
+                                                const custom = window.prompt("Enter custom reason for inactive status:");
+                                                setEditFacultyData({ ...editFacultyData, inactiveReason: custom || 'Other' });
+                                              } else {
+                                                setEditFacultyData({ ...editFacultyData, inactiveReason: val });
+                                              }
+                                            }}
+                                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-855 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                          >
+                                            <option value="Transferred">Transferred</option>
+                                            <option value="Retired">Retired</option>
+                                            <option value="Other">Other...</option>
+                                          </select>
+                                          {editFacultyData.inactiveReason && !['Transferred', 'Retired'].includes(editFacultyData.inactiveReason) && (
+                                            <input
+                                              type="text"
+                                              value={editFacultyData.inactiveReason}
+                                              onChange={(e) => setEditFacultyData({ ...editFacultyData, inactiveReason: e.target.value })}
+                                              placeholder="Enter custom reason..."
+                                              className="w-full mt-1.5 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-855 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                                            />
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
@@ -3108,8 +4793,534 @@ export default function AdminPortal() {
               </div>
             )}
 
+            {/* TAB 5: INCOME TAX CALCULATOR */}
+            {activeTab === 'tax' && allowedTabs.includes('tax') && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-700/60 shadow-sm">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <Calculator className="text-orange-400" size={18} />
+                      Income Tax Auto-Generator
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      FY {taxConfig.financialYearLabel} · AY {taxConfig.assessmentYearLabel} · Manage gross salary, PAN, and TDS. Generate printable tax sheets or custom CSV summaries.
+                    </p>
+                  </div>
+                  <div className="flex flex-row flex-wrap sm:flex-nowrap items-center gap-2 whitespace-nowrap mt-1 md:mt-0 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowTaxRules(!showTaxRules)}
+                      className={`px-4 py-2 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-1.5 border shadow ${
+                        showTaxRules 
+                          ? 'bg-orange-600 hover:bg-orange-500 text-white border-orange-400' 
+                          : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
+                      }`}
+                    >
+                      <Settings size={14} />
+                      {showTaxRules ? 'Hide Tax Rules' : 'Edit Tax Rules'}
+                    </button>
+                    <button
+                      onClick={handleTaxCSVExport}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-1.5 border border-sky-400 shadow"
+                    >
+                      <Download size={14} />
+                      Export Tax CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        const activeFaculty = faculty.filter(t => !t.hidden);
+                        printTaxSheets(activeFaculty);
+                      }}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-1.5 border border-emerald-500 shadow"
+                    >
+                      <Printer size={14} />
+                      Print All Tax Sheets
+                    </button>
+                  </div>
+                </div>
+
+                {/* Regime Preview Selector */}
+                <div className="flex justify-between items-center bg-slate-900/30 px-4 py-2 rounded-xl border border-slate-800/60 mt-1">
+                  <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Active Rules Preview:</div>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setActiveTaxPreviewRegime('new')}
+                      className={`px-3 py-1 text-[10.5px] font-extrabold rounded-lg transition-colors border ${
+                        activeTaxPreviewRegime === 'new'
+                          ? 'bg-orange-500 text-slate-950 border-orange-400 font-extrabold'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      New Tax Regime
+                    </button>
+                    <button
+                      onClick={() => setActiveTaxPreviewRegime('old')}
+                      className={`px-3 py-1 text-[10.5px] font-extrabold rounded-lg transition-colors border ${
+                        activeTaxPreviewRegime === 'old'
+                          ? 'bg-orange-500 text-slate-950 border-orange-400 font-extrabold'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      Old Tax Regime
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-500">Nil-tax gross band</p>
+                    <p className="text-lg font-extrabold text-slate-100 mt-1">Rs. {previewTaxFreeGross.toLocaleString('en-IN')}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Standard deduction Rs. {previewRegimeConfig.standardDeduction.toLocaleString('en-IN')} + 87A threshold Rs. {previewRegimeConfig.rebateThreshold.toLocaleString('en-IN')}</p>
+                  </div>
+                  <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-500">Rebate u/s 87A</p>
+                    <p className="text-lg font-extrabold text-slate-100 mt-1">Up to Rs. {previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Applies when taxable income is Rs. {previewRegimeConfig.rebateThreshold.toLocaleString('en-IN')} or below.</p>
+                  </div>
+                  <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-500">Marginal relief</p>
+                    <p className="text-lg font-extrabold text-slate-100 mt-1">{previewRegimeConfig.marginalReliefEnabled ? 'Enabled' : 'Disabled'}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Caps extra tax above the 87A threshold to the excess income only.</p>
+                  </div>
+                </div>
+
+                {showTaxRules && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    {/* Modal Card */}
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                      {/* Close button */}
+                      <button 
+                        onClick={() => setShowTaxRules(false)}
+                        className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors"
+                        title="Close"
+                      >
+                        <X size={16} />
+                      </button>
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-orange-500"></div>
+                      <div className="flex items-start justify-between gap-3 mb-4 pr-8">
+                        <div>
+                          <h4 className="font-extrabold text-slate-100 text-xs uppercase tracking-wider">Tax Calculator Rules</h4>
+                          <p className="text-[11px] text-slate-300 mt-1">
+                            Admin can update standard deduction, rebate u/s 87A, marginal relief, cess, slabs, and surcharge rules for both regimes.
+                          </p>
+                        </div>
+                        <div className="px-2 py-1 rounded-lg bg-slate-950 border border-orange-500/30 text-[10px] font-bold text-orange-300 whitespace-nowrap">
+                          Gross salary nil-tax band: Rs. {taxFreeGrossSalary.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+
+                    {/* New/Old Regime Tabs Selector */}
+                    <div className="flex border-b border-slate-800 mb-4 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveRegimeSettingsTab('new')}
+                        className={`px-3 py-1.5 text-[11px] font-extrabold rounded-t-lg transition-all border-b-2 ${
+                          activeRegimeSettingsTab === 'new'
+                            ? 'border-orange-500 bg-orange-950/20 text-orange-400 font-extrabold'
+                            : 'border-transparent text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        New Tax Regime
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveRegimeSettingsTab('old')}
+                        className={`px-3 py-1.5 text-[11px] font-extrabold rounded-t-lg transition-all border-b-2 ${
+                          activeRegimeSettingsTab === 'old'
+                            ? 'border-orange-500 bg-orange-950/20 text-orange-400 font-extrabold'
+                            : 'border-transparent text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Old Tax Regime
+                      </button>
+                    </div>
+
+                    {/* Global & Regime Settings Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Regime Label</label>
+                        <input
+                          type="text"
+                          value={activeRegimeConfig.label}
+                          onChange={(e) => handleTaxConfigFieldChange('label', e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Financial Year</label>
+                        <input
+                          type="text"
+                          value={taxConfig.financialYearLabel}
+                          onChange={(e) => handleTaxConfigFieldChange('financialYearLabel', e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Assessment Year</label>
+                        <input
+                          type="text"
+                          value={taxConfig.assessmentYearLabel}
+                          onChange={(e) => handleTaxConfigFieldChange('assessmentYearLabel', e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
+                      {[
+                        { key: 'standardDeduction', label: 'Standard Deduction', isGlobal: false },
+                        { key: 'rebateThreshold', label: '87A Threshold', isGlobal: false },
+                        { key: 'rebateMax', label: '87A Max Rebate', isGlobal: false },
+                        { key: 'cessRate', label: 'Cess %', isGlobal: true }
+                      ].map((field) => (
+                        <div key={field.key} className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">{field.label}</label>
+                          <input
+                            type="number"
+                            value={field.isGlobal ? taxConfig[field.key] : activeRegimeConfig[field.key]}
+                            onChange={(e) => handleTaxConfigFieldChange(field.key, e.target.value, true)}
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500 font-mono"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex flex-col justify-end gap-2">
+                        <div className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">87A Marginal Relief</span>
+                          <ToggleSwitch checked={activeRegimeConfig.marginalReliefEnabled} onChange={() => handleTaxConfigToggle('marginalReliefEnabled')} />
+                        </div>
+                        <div className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Use Surcharge</span>
+                          <ToggleSwitch checked={activeRegimeConfig.includeSurcharge} onChange={() => handleTaxConfigToggle('includeSurcharge')} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-[11px] font-extrabold text-orange-500 uppercase tracking-wide font-mono">Slab Rates</h5>
+                          <span className="text-[10px] text-slate-400 font-semibold">Edit labels, upper limits, and rates</span>
+                        </div>
+                        <div className="space-y-2">
+                          {activeRegimeConfig.slabs.map((slab, index) => (
+                            <div key={`slab-${index}`} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_0.7fr] gap-2 items-center">
+                              <input
+                                type="text"
+                                value={slab.label}
+                                onChange={(e) => handleTaxSlabChange(index, 'label', e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
+                              />
+                              <input
+                                type="number"
+                                value={slab.upto ?? ''}
+                                onChange={(e) => handleTaxSlabChange(index, 'upto', e.target.value)}
+                                placeholder={index === activeRegimeConfig.slabs.length - 1 ? 'Leave blank for final slab' : 'Upper limit'}
+                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                              />
+                              <input
+                                type="number"
+                                value={slab.rate}
+                                onChange={(e) => handleTaxSlabChange(index, 'rate', e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-[11px] font-extrabold text-orange-500 uppercase tracking-wide font-mono">Surcharge Rules</h5>
+                          <span className="text-[10px] text-slate-400 font-semibold">Used only when surcharge toggle is on</span>
+                        </div>
+                        <div className="space-y-2">
+                          {activeRegimeConfig.surchargeBrackets.map((bracket, index) => (
+                            <div key={`surcharge-${index}`} className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_0.7fr] gap-2 items-center">
+                              <input
+                                type="text"
+                                value={bracket.label}
+                                onChange={(e) => handleTaxSurchargeChange(index, 'label', e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
+                              />
+                              <input
+                                type="number"
+                                value={bracket.threshold}
+                                onChange={(e) => handleTaxSurchargeChange(index, 'threshold', e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                              />
+                              <input
+                                type="number"
+                                value={bracket.rate}
+                                onChange={(e) => handleTaxSurchargeChange(index, 'rate', e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+                {/* Filters & search */}
+                <div className="flex gap-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Search employees by name, CPIS, or designation..."
+                      value={taxSearch}
+                      onChange={(e) => setTaxSearch(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-orange-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Database Table */}
+                <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-900/40 shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse tax-table">
+                      <thead>
+                        <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
+                          <th className="p-3 w-12 text-center">S.No</th>
+                          <th className="p-3">CPIS / PAN</th>
+                          <th className="p-3">Name / Designation</th>
+                          <th className="p-3 text-right">Gross Salary (Annual)</th>
+                          <th className="p-3 text-right">Total Tax</th>
+                          <th className="p-3 text-right">TDS (Up-To-Date)</th>
+                          <th className="p-3 text-right">Tax Payable Now</th>
+                          <th className="p-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700 text-xs">
+                        {(() => {
+                          const filtered = faculty.filter(t => {
+                            const term = taxSearch.toLowerCase();
+                            return t.name.toLowerCase().includes(term) ||
+                                   (t.cpis_no || '').toLowerCase().includes(term) ||
+                                   t.designation.toLowerCase().includes(term);
+                          });
+
+                          if (filtered.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="8" className="p-8 text-center text-slate-300 italic">
+                                  No employees found matching your search.
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return filtered.map((emp, index) => {
+                            // Find original index in master faculty array
+                            const origIdx = faculty.indexOf(emp);
+                            const isEditing = editingTaxIdx === origIdx;
+                            const pan = getEmployeePan(emp);
+                            const gross = getEmployeeGross(emp);
+                            const tds = getEmployeeTds(emp);
+                            const calc = calculateTax(gross, tds, taxConfig, getEmployeeTaxOptions(emp));
+
+                            return (
+                              <tr key={origIdx} className="hover:bg-slate-900/20 transition-colors">
+                                <td className="p-3 text-center text-slate-300 font-mono">{index + 1}</td>
+                                <td className="p-3">
+                                  <div className="font-semibold text-slate-100 font-mono">{emp.cpis_no || '-'}</div>
+                                  {isEditing ? (
+                                    <div className="flex flex-col gap-1.5 mt-1">
+                                      <input
+                                        type="text"
+                                        value={editTaxData.pan}
+                                        onChange={e => setEditTaxData({ ...editTaxData, pan: e.target.value.toUpperCase() })}
+                                        placeholder="PAN NO"
+                                        className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-100 font-mono focus:outline-none focus:border-orange-400"
+                                      />
+                                      <select
+                                        value={editTaxData.regime}
+                                        onChange={e => setEditTaxData({ ...editTaxData, regime: e.target.value })}
+                                        className="w-28 px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400 font-bold"
+                                      >
+                                        <option value="new">New Regime</option>
+                                        <option value="old">Old Regime</option>
+                                      </select>
+                                    </div>
+                                  ) : (
+                                    <div className="text-[10px] text-slate-300 font-mono font-semibold">{pan || 'NO PAN'}</div>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-bold text-slate-100">{emp.name}</div>
+                                  <div className="text-[10px] text-slate-300 font-medium">{emp.designation} {emp.subject ? `(${emp.subject})` : ''}</div>
+                                  {isEditing ? (
+                                    editTaxData.regime === 'old' ? (
+                                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1.5 bg-slate-900/30 p-1.5 rounded border border-slate-700/60 w-[240px]">
+                                        <div>
+                                          <div className="text-[9px] text-slate-400 font-bold">80C (Max 1.5L)</div>
+                                          <input
+                                            type="number"
+                                            value={editTaxData.deduction80C}
+                                            onChange={e => setEditTaxData({ ...editTaxData, deduction80C: e.target.value })}
+                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
+                                          />
+                                        </div>
+                                        <div>
+                                          <div className="text-[9px] text-slate-400 font-bold">80D (Health)</div>
+                                          <input
+                                            type="number"
+                                            value={editTaxData.deduction80D}
+                                            onChange={e => setEditTaxData({ ...editTaxData, deduction80D: e.target.value })}
+                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
+                                          />
+                                        </div>
+                                        <div>
+                                          <div className="text-[9px] text-slate-400 font-bold">HRA Exemption</div>
+                                          <input
+                                            type="number"
+                                            value={editTaxData.hraExemption}
+                                            onChange={e => setEditTaxData({ ...editTaxData, hraExemption: e.target.value })}
+                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
+                                          />
+                                        </div>
+                                        <div>
+                                          <div className="text-[9px] text-slate-400 font-bold">Other Deduct.</div>
+                                          <input
+                                            type="number"
+                                            value={editTaxData.otherDeductions}
+                                            onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })}
+                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="mt-1 text-[10px] text-slate-400 italic font-semibold">
+                                        New Regime: standard deduction of ₹75,000 applies automatically.
+                                      </div>
+                                    )
+                                  ) : (
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider ${
+                                        calc.regimeType === 'old'
+                                          ? 'regime-badge-old'
+                                          : 'regime-badge-new'
+                                      }`}>
+                                        {calc.regimeConfig.label}
+                                      </span>
+                                      {calc.regimeType === 'old' && (
+                                        <span 
+                                          className="text-[9.5px] text-slate-400 font-semibold font-mono cursor-help"
+                                          title={`80C: ₹${calc.deduction80C.toLocaleString('en-IN')} | 80D: ₹${calc.deduction80D.toLocaleString('en-IN')} | HRA: ₹${calc.hraExemption.toLocaleString('en-IN')} | Other: ₹${calc.otherDeductions.toLocaleString('en-IN')}`}
+                                        >
+                                          Deductions: ₹{(calc.deduction80C + calc.deduction80D + calc.hraExemption + calc.otherDeductions).toLocaleString('en-IN')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right text-top">
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      value={editTaxData.grossSalary}
+                                      onChange={e => setEditTaxData({ ...editTaxData, grossSalary: e.target.value })}
+                                      className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-slate-100 font-mono">₹{gross.toLocaleString('en-IN')}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right text-top font-semibold text-amber-200 tax-total-highlight font-mono">
+                                  {calc.totalTax > 0 ? `₹${calc.totalTax.toLocaleString('en-IN')}` : 'NIL'}
+                                </td>
+                                <td className="p-3 text-right text-top">
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      value={editTaxData.tds}
+                                      onChange={e => setEditTaxData({ ...editTaxData, tds: e.target.value })}
+                                      className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-slate-100 font-mono">₹{tds.toLocaleString('en-IN')}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right text-top">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold font-mono border ${calc.taxPayableNow > 0 ? 'bg-red-900/50 text-red-200 border-red-700/60' : 'bg-emerald-900/50 text-emerald-200 border-emerald-700/60'}`}>
+                                    {calc.taxPayableNow > 0 ? `₹${calc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center text-top">
+                                  {isEditing ? (
+                                    <div className="flex justify-center gap-1.5">
+                                      <button
+                                        onClick={() => {
+                                          saveEmployeeTaxDetails(
+                                            origIdx, 
+                                            editTaxData.pan, 
+                                            editTaxData.grossSalary, 
+                                            editTaxData.tds,
+                                            editTaxData.regime,
+                                            editTaxData.deduction80C,
+                                            editTaxData.deduction80D,
+                                            editTaxData.hraExemption,
+                                            editTaxData.otherDeductions
+                                          );
+                                          setEditingTaxIdx(null);
+                                        }}
+                                        className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors"
+                                        title="Save Details"
+                                      >
+                                        <Check size={12} />
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingTaxIdx(null)}
+                                        className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors"
+                                        title="Cancel"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex justify-center gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setEditingTaxIdx(origIdx);
+                                          setEditTaxData({
+                                            pan: pan,
+                                            grossSalary: gross.toString(),
+                                            tds: tds.toString(),
+                                            regime: getEmployeeRegime(emp),
+                                            deduction80C: getEmployee80C(emp).toString(),
+                                            deduction80D: getEmployee80D(emp).toString(),
+                                            hraExemption: getEmployeeHra(emp).toString(),
+                                            otherDeductions: getEmployeeOtherDeductions(emp).toString()
+                                          });
+                                        }}
+                                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold uppercase transition-colors"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => printTaxSheets([emp])}
+                                        className="px-2 py-1 bg-orange-600/80 hover:bg-orange-500 text-white rounded text-[10px] font-bold uppercase transition-all flex items-center gap-1"
+                                      >
+                                        <Printer size={10} />
+                                        Print Sheet
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* TAB 4: EXPORT FILES */}
-            {activeTab === 'export' && (
+            {activeTab === 'export' && allowedTabs.includes('export') && (
               <div className="space-y-4 animate-in fade-in duration-200">
                 <div>
                   <h3 className="text-base font-bold text-slate-200">Export & Update Public Slides Folder</h3>
@@ -3199,6 +5410,231 @@ export default function AdminPortal() {
                     <li>Copy and replace these files inside your project's <code className="bg-slate-950 p-0.5 rounded px-1 font-mono text-slate-300">public/slides/</code> directory.</li>
                     <li>Commit/push the files to your repository or rebuild the Netlify site. Once deployed, the updates will be visible to all users globally!</li>
                   </ol>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: ADMIN MANAGEMENT */}
+            {activeTab === 'admins' && allowedTabs.includes('admins') && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <Settings className="text-orange-400" size={18} />
+                      Administrative Accounts Manager
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Create, delete, and configure differential console tab access permissions for administrative accounts.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left/Middle: Admins list */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Active Admin Accounts</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {admins.map((admin) => {
+                        const isSelf = currentUser && admin.email.toLowerCase() === currentUser.email.toLowerCase();
+                        
+                        // Custom styling for role badge
+                        let roleBadgeClass = "bg-slate-800 text-slate-300 border-slate-700";
+                        if (admin.role === 'Super Admin') {
+                          roleBadgeClass = "bg-amber-950/60 text-amber-400 border-amber-500/30";
+                        } else if (admin.role === 'Accounts Assistant') {
+                          roleBadgeClass = "bg-blue-950/60 text-blue-400 border-blue-500/30";
+                        } else if (admin.role === 'Admission Incharge') {
+                          roleBadgeClass = "bg-purple-950/60 text-purple-400 border-purple-500/30";
+                        } else if (admin.role === 'Notice Board Incharge') {
+                          roleBadgeClass = "bg-emerald-950/60 text-emerald-400 border-emerald-500/30";
+                        }
+
+                        return (
+                          <div 
+                            key={admin.email} 
+                            className={`p-4 rounded-xl border bg-slate-900/40 transition-all ${isSelf ? 'border-orange-500/40 shadow-sm shadow-orange-950/10' : 'border-slate-800 hover:border-slate-700'}`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-bold text-slate-200 truncate" title={admin.email}>{admin.email}</span>
+                                  {isSelf && (
+                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase bg-orange-950/50 text-orange-400 border border-orange-500/30">
+                                      You
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${roleBadgeClass}`}>
+                                  {admin.role}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isSelf}
+                                onClick={() => handleDeleteAdmin(admin.email)}
+                                className={`p-1.5 rounded transition-colors ${isSelf ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-red-400 hover:bg-slate-800'}`}
+                                title={isSelf ? "You cannot delete your own active session" : "Delete administrative account"}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-slate-800/80">
+                              <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">Tab Access Permissions:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {admin.allowedTabs.length === 0 ? (
+                                  <span className="text-[10px] text-slate-500 italic">No access granted</span>
+                                ) : (
+                                  admin.allowedTabs.map(t => {
+                                    let label = t;
+                                    if (t === 'admissions') label = 'Admissions';
+                                    if (t === 'notices') label = 'Notices';
+                                    if (t === 'faculty') label = 'Faculty';
+                                    if (t === 'tax') label = 'Tax';
+                                    if (t === 'export') label = 'Export';
+                                    if (t === 'admins') label = 'Admins';
+                                    
+                                    return (
+                                      <span 
+                                        key={t} 
+                                        className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-950 text-slate-400 border border-slate-850"
+                                      >
+                                        {label}
+                                      </span>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right: Add new account Form */}
+                  <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-4 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <UserPlus size={15} className="text-orange-400" />
+                        Create Admin Account
+                      </h4>
+
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Email Address</label>
+                          <input
+                            type="email"
+                            placeholder="e.g. user@shangus.com"
+                            value={newAdminEmail}
+                            onChange={(e) => setNewAdminEmail(e.target.value)}
+                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Password</label>
+                          <input
+                            type="password"
+                            placeholder="At least 6 characters..."
+                            value={newAdminPassword}
+                            onChange={(e) => setNewAdminPassword(e.target.value)}
+                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Default Role Template</label>
+                          <select
+                            value={newAdminRole}
+                            onChange={(e) => {
+                              const role = e.target.value;
+                              setNewAdminRole(role);
+                              // Pre-fill tabs access based on role
+                              if (role === 'Super Admin') {
+                                setNewAdminPermissions(['admissions', 'notices', 'faculty', 'tax', 'export', 'admins']);
+                              } else if (role === 'Accounts Assistant') {
+                                setNewAdminPermissions(['tax', 'faculty']);
+                              } else if (role === 'Admission Incharge') {
+                                setNewAdminPermissions(['admissions']);
+                              } else if (role === 'Notice Board Incharge') {
+                                setNewAdminPermissions(['notices']);
+                              }
+                            }}
+                            className="w-full px-2 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500"
+                          >
+                            <option value="Super Admin">Super Admin</option>
+                            <option value="Accounts Assistant">Accounts Assistant</option>
+                            <option value="Admission Incharge">Admission Incharge</option>
+                            <option value="Notice Board Incharge">Notice Board Incharge</option>
+                            <option value="Custom">Custom Permissions Only</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">Configure Tab Permissions</label>
+                          <div className="bg-slate-950 p-3 rounded border border-slate-850 space-y-2.5">
+                            {[
+                              { id: 'admissions', label: 'Admissions & Fees' },
+                              { id: 'notices', label: 'Latest Notices' },
+                              { id: 'faculty', label: 'Faculty Directory' },
+                              { id: 'tax', label: 'Tax Calculator' },
+                              { id: 'export', label: 'Export files' },
+                              { id: 'admins', label: 'Admin Management' }
+                            ].map((perm) => {
+                              const checked = newAdminPermissions.includes(perm.id);
+                              return (
+                                <label key={perm.id} className="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-slate-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      let updated;
+                                      if (e.target.checked) {
+                                        updated = [...newAdminPermissions, perm.id];
+                                      } else {
+                                        updated = newAdminPermissions.filter(p => p !== perm.id);
+                                      }
+                                      setNewAdminPermissions(updated);
+                                      
+                                      // Set role to custom if it no longer matches templates
+                                      const matchSuper = updated.length === 6;
+                                      const matchAccounts = updated.length === 2 && updated.includes('tax') && updated.includes('faculty');
+                                      const matchAdmissions = updated.length === 1 && updated.includes('admissions');
+                                      const matchNotices = updated.length === 1 && updated.includes('notices');
+                                      
+                                      if (matchSuper) {
+                                        setNewAdminRole('Super Admin');
+                                      } else if (matchAccounts) {
+                                        setNewAdminRole('Accounts Assistant');
+                                      } else if (matchAdmissions) {
+                                        setNewAdminRole('Admission Incharge');
+                                      } else if (matchNotices) {
+                                        setNewAdminRole('Notice Board Incharge');
+                                      } else {
+                                        setNewAdminRole('Custom');
+                                      }
+                                    }}
+                                    className="rounded border-slate-800 bg-slate-900 text-orange-600 focus:ring-orange-500 focus:ring-opacity-25 w-3.5 h-3.5"
+                                  />
+                                  <span className="text-xs font-semibold">{perm.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddAdmin}
+                      className="w-full mt-4 py-2.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] border border-orange-500/20 shadow-md shadow-orange-950/20"
+                    >
+                      <Plus size={14} className="stroke-[2.5px]" />
+                      Add Admin Account
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -3311,7 +5747,9 @@ export default function AdminPortal() {
                               />
                               <span className="text-xs font-semibold text-slate-200">{t.name}</span>
                               {t.hidden && (
-                                <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight">Hidden</span>
+                                <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight">
+                                  Hidden ({t.inactiveReason || 'Inactive'})
+                                </span>
                               )}
                             </div>
                             <div className="text-[10px] text-slate-500 font-medium">
@@ -3355,6 +5793,177 @@ export default function AdminPortal() {
           </div>
         )}
 
+        {/* CSV EXPORT MODAL */}
+        {showCsvExportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[90vh] text-slate-100">
+              <div className="flex justify-between items-start border-b border-slate-700 pb-2.5 mb-3">
+                <div>
+                  <h3 className="text-base font-bold text-orange-300">
+                    {csvExportMode === 'tax' ? 'Custom Tax CSV Export' : 'Custom Faculty CSV Export'}
+                  </h3>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Choose which employees and columns to include. Useful for generating reports for higher authorities.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowCsvExportModal(false)}
+                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+                <div className="flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-sky-300">Employees</h4>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCsvEmployeeIndices(filteredCsvEmployees.map(({ index }) => index))}
+                        className="text-[10px] font-bold text-sky-300 hover:text-sky-200"
+                      >
+                        Select filtered
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCsvEmployeeIndices([])}
+                        className="text-[10px] font-bold text-slate-400 hover:text-slate-200"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Search by name, CPIS, designation..."
+                      value={csvExportSearch}
+                      onChange={(e) => setCsvExportSearch(e.target.value)}
+                      className="flex-1 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    />
+                    <select
+                      value={csvExportDept}
+                      onChange={(e) => setCsvExportDept(e.target.value)}
+                      className="w-40 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
+                    >
+                      {csvDepartmentOptions.map((dept) => (
+                        <option key={dept} value={dept}>{dept === 'All' ? 'All Departments' : dept}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-700 rounded-lg bg-slate-950 p-2 space-y-0.5 min-h-[220px]">
+                    {filteredCsvEmployees.length === 0 ? (
+                      <div className="text-center text-slate-500 italic text-xs py-10">No employees match filters.</div>
+                    ) : (
+                      filteredCsvEmployees.map(({ emp, index }) => {
+                        const isSelected = selectedCsvEmployeeIndices.includes(index);
+                        return (
+                          <label
+                            key={`csv-emp-${index}`}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-sky-900/40 border border-sky-700/50' : 'hover:bg-slate-900 border border-transparent'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCsvEmployeeSelection(index)}
+                              className="accent-sky-500"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-white truncate">{emp.name}</div>
+                              <div className="text-[10px] text-slate-400 truncate">{emp.designation}{emp.cpis_no ? ` · ${emp.cpis_no}` : ''}</div>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-semibold mt-2">
+                    {selectedCsvEmployeeIndices.length} of {faculty.length} employees selected
+                  </div>
+                </div>
+
+                <div className="flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wide text-emerald-300">Columns</h4>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const preset = csvExportMode === 'tax'
+                            ? TAX_CSV_DEFAULT_COLUMNS.filter((key) => csvColumnOptions.some((column) => column.key === key))
+                            : csvColumnOptions.map((column) => column.key);
+                          setSelectedCsvColumns(preset);
+                        }}
+                        className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200"
+                      >
+                        {csvExportMode === 'tax' ? 'Tax preset' : 'Select all'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCsvColumns([])}
+                        className="text-[10px] font-bold text-slate-400 hover:text-slate-200"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-700 rounded-lg bg-slate-950 p-2 min-h-[220px]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                      {csvColumnOptions.map((column) => {
+                        const isSelected = selectedCsvColumns.includes(column.key);
+                        return (
+                          <label
+                            key={`csv-col-${column.key}`}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-emerald-900/30 border border-emerald-700/40' : 'hover:bg-slate-900 border border-transparent'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCsvColumnSelection(column.key)}
+                              className="accent-emerald-500"
+                            />
+                            <span className="text-[11px] text-slate-200">{column.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-semibold mt-2">
+                    {selectedCsvColumns.length} of {csvColumnOptions.length} columns selected
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3">
+                <p className="text-[11px] text-slate-400">
+                  Tax figures use the active rules from Admissions settings ({taxConfig.regimeLabel}, AY {taxConfig.assessmentYearLabel}).
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowCsvExportModal(false)}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors border border-slate-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={downloadSelectedCSV}
+                    disabled={selectedCsvEmployeeIndices.length === 0 || selectedCsvColumns.length === 0}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-extrabold bg-teal-500 hover:bg-teal-400 disabled:opacity-50 disabled:pointer-events-none text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-1.5 shadow border border-teal-400"
+                  >
+                    <Download size={13} />
+                    Download CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CSV IMPORT PREVIEW MODAL */}
         {showCsvPreviewModal && csvPreviewData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -3391,11 +6000,16 @@ export default function AdminPortal() {
                   <tbody className="divide-y divide-slate-800/60">
                     {csvPreviewData.map((t, idx) => {
                       let isUpdate = false;
-                      if (t.cpis_no && t.cpis_no.trim() !== '') {
+                      const hasCpis = t.cpis_no && t.cpis_no.trim() !== '';
+                      const hasMobile = t.mobile && t.mobile.trim() !== '';
+                      if (hasCpis) {
                         isUpdate = faculty.some(f => f.cpis_no && f.cpis_no.trim() === t.cpis_no.trim());
                       }
-                      if (!isUpdate && t.mobile && t.mobile.trim() !== '') {
+                      if (!isUpdate && hasMobile) {
                         isUpdate = faculty.some(f => f.mobile && f.mobile.trim() === t.mobile.trim());
+                      }
+                      if (!isUpdate && !hasCpis && !hasMobile && t.name && t.name.trim() !== '') {
+                        isUpdate = faculty.some(f => f.name && f.name.trim().toLowerCase() === t.name.trim().toLowerCase());
                       }
 
                       return (
@@ -3433,11 +6047,16 @@ export default function AdminPortal() {
                   let news = 0;
                   csvPreviewData.forEach(t => {
                     let isUpdate = false;
-                    if (t.cpis_no && t.cpis_no.trim() !== '') {
+                    const hasCpis = t.cpis_no && t.cpis_no.trim() !== '';
+                    const hasMobile = t.mobile && t.mobile.trim() !== '';
+                    if (hasCpis) {
                       isUpdate = faculty.some(f => f.cpis_no && f.cpis_no.trim() === t.cpis_no.trim());
                     }
-                    if (!isUpdate && t.mobile && t.mobile.trim() !== '') {
+                    if (!isUpdate && hasMobile) {
                       isUpdate = faculty.some(f => f.mobile && f.mobile.trim() === t.mobile.trim());
+                    }
+                    if (!isUpdate && !hasCpis && !hasMobile && t.name && t.name.trim() !== '') {
+                      isUpdate = faculty.some(f => f.name && f.name.trim().toLowerCase() === t.name.trim().toLowerCase());
                     }
                     if (isUpdate) updates++;
                     else news++;
@@ -3464,11 +6083,17 @@ export default function AdminPortal() {
 
                       csvPreviewData.forEach((imported) => {
                         let matchIdx = -1;
-                        if (imported.cpis_no && imported.cpis_no.trim() !== '') {
+                        const hasCpis = imported.cpis_no && imported.cpis_no.trim() !== '';
+                        const hasMobile = imported.mobile && imported.mobile.trim() !== '';
+
+                        if (hasCpis) {
                           matchIdx = mergedFaculty.findIndex(f => f.cpis_no && f.cpis_no.trim() === imported.cpis_no.trim());
                         }
-                        if (matchIdx === -1 && imported.mobile && imported.mobile.trim() !== '') {
+                        if (matchIdx === -1 && hasMobile) {
                           matchIdx = mergedFaculty.findIndex(f => f.mobile && f.mobile.trim() === imported.mobile.trim());
+                        }
+                        if (matchIdx === -1 && !hasCpis && !hasMobile && imported.name && imported.name.trim() !== '') {
+                          matchIdx = mergedFaculty.findIndex(f => f.name && f.name.trim().toLowerCase() === imported.name.trim().toLowerCase());
                         }
 
                         if (matchIdx !== -1) {
@@ -3476,13 +6101,25 @@ export default function AdminPortal() {
                           mergedFaculty[matchIdx] = {
                             ...existing,
                             ...imported,
-                            photo: existing.photo || imported.photo,
-                            profile: existing.profile || imported.profile,
-                            hidden: existing.hidden !== undefined ? existing.hidden : imported.hidden
+                            photo: imported.photo ? imported.photo : existing.photo,
+                            profile: imported.profile ? imported.profile : existing.profile,
+                            hidden: imported.hidden !== undefined ? imported.hidden : existing.hidden,
+                            inactiveReason: imported.inactiveReason !== undefined ? imported.inactiveReason : existing.inactiveReason
                           };
+                          // Normalize undefined values
+                          if (mergedFaculty[matchIdx].hidden === undefined) {
+                            mergedFaculty[matchIdx].hidden = false;
+                          }
+                          if (mergedFaculty[matchIdx].inactiveReason === undefined) {
+                            mergedFaculty[matchIdx].inactiveReason = '';
+                          }
                           updatedCount++;
                         } else {
-                          mergedFaculty.push(imported);
+                          mergedFaculty.push({
+                            ...imported,
+                            hidden: imported.hidden !== undefined ? imported.hidden : false,
+                            inactiveReason: imported.inactiveReason !== undefined ? imported.inactiveReason : ''
+                          });
                           addedCount++;
                         }
                       });
@@ -3631,12 +6268,57 @@ export default function AdminPortal() {
                           </div>
                           <div>
                             <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
-                            <select value={fullEditData.hidden ? 'hidden' : 'visible'} onChange={e => fullEditField('hidden', e.target.value === 'hidden')}
-                              className={panelInput} style={panelInputStyle}>
+                            <select value={fullEditData.hidden ? 'hidden' : 'visible'} 
+                              onChange={e => {
+                                const isHidden = e.target.value === 'hidden';
+                                fullEditField('hidden', isHidden);
+                                if (isHidden && !fullEditData.inactiveReason) {
+                                  fullEditField('inactiveReason', 'Transferred');
+                                }
+                              }}
+                              className={panelInput} style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
                               <option value="visible">Visible (Active on Website)</option>
-                              <option value="hidden">Hidden (Transferred / Inactive)</option>
+                              <option value="hidden">Hidden (Inactive)</option>
                             </select>
                           </div>
+                          {fullEditData.hidden && (
+                            <div className="animate-in fade-in duration-200">
+                              <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
+                              <select 
+                                value={['Transferred', 'Retired'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')} 
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  if (val === 'Other') {
+                                    const custom = window.prompt("Enter custom reason for inactive status:");
+                                    fullEditField('inactiveReason', custom || 'Other');
+                                  } else {
+                                    fullEditField('inactiveReason', val);
+                                  }
+                                }}
+                                className={panelInput} style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                              >
+                                <option value="Transferred">Transferred</option>
+                                <option value="Retired">Retired</option>
+                                <option value="Other">Other...</option>
+                              </select>
+                              {fullEditData.inactiveReason && !['Transferred', 'Retired'].includes(fullEditData.inactiveReason) && (
+                                <input
+                                  type="text"
+                                  placeholder="Enter custom reason..."
+                                  value={fullEditData.inactiveReason || ''}
+                                  onChange={e => fullEditField('inactiveReason', e.target.value)}
+                                  className={panelInput + " mt-1.5 font-semibold"}
+                                  style={panelInputStyle}
+                                  onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                  onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                />
+                              )}
+                            </div>
+                          )}
                         </div>
                       </section>
 
@@ -3651,11 +6333,79 @@ export default function AdminPortal() {
                           <FInput field="cpis_no" label="CPIS No (Unique Govt ID)" data={fullEditData} onChange={fullEditField} mono />
                           <FInput field="date_of_first_appointment" label="Date of 1st Appointment" data={fullEditData} onChange={fullEditField} mono />
                           <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="stay_period" label="Stay Period" data={fullEditData} onChange={fullEditField} />
+                          <FInput field="stay_period" label="Stay from (Period)" data={fullEditData} onChange={fullEditField} />
                           <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="ddo_code" label="UDISE / DDO Code" data={fullEditData} onChange={fullEditField} mono />
+                          <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
                           <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
                           <FInput field="cadre" label="Service Cadre" data={fullEditData} onChange={fullEditField} />
+                        </div>
+                      </section>
+
+                      {/* Section: Tax & Financial Details */}
+                      <section>
+                        <h4 className={sectionHeader}>
+                          <span style={divider} />
+                          <span style={sectionTitleStyle}>Tax & Financial Details</span>
+                          <span style={divider} />
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className={panelLabel} style={panelLabelStyle}>PAN No</label>
+                            <input
+                              type="text"
+                              value={fullEditData.pan || (fullEditData.customFields && (fullEditData.customFields.PAN || fullEditData.customFields.pan)) || ''}
+                              onChange={e => {
+                                const val = e.target.value.toUpperCase();
+                                setFullEditData(d => ({
+                                  ...d,
+                                  pan: val,
+                                  customFields: { ...(d.customFields || {}), PAN: val }
+                                }));
+                              }}
+                              className={panelInput + ' font-mono'}
+                              style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                            />
+                          </div>
+                          <div>
+                            <label className={panelLabel} style={panelLabelStyle}>Gross Salary (Annual)</label>
+                            <input
+                              type="number"
+                              value={fullEditData.grossSalary !== undefined ? fullEditData.grossSalary : (fullEditData.customFields && (fullEditData.customFields['Gross Salary'] || fullEditData.customFields.grossSalary)) || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setFullEditData(d => ({
+                                  ...d,
+                                  grossSalary: val,
+                                  customFields: { ...(d.customFields || {}), 'Gross Salary': val }
+                                }));
+                              }}
+                              className={panelInput}
+                              style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                            />
+                          </div>
+                          <div>
+                            <label className={panelLabel} style={panelLabelStyle}>TDS Paid (Up-To-Date)</label>
+                            <input
+                              type="number"
+                              value={fullEditData.tds !== undefined ? fullEditData.tds : (fullEditData.customFields && (fullEditData.customFields.TDS || fullEditData.customFields.tds || fullEditData.customFields['TDS Paid'])) || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setFullEditData(d => ({
+                                  ...d,
+                                  tds: val,
+                                  customFields: { ...(d.customFields || {}), TDS: val }
+                                }));
+                              }}
+                              className={panelInput}
+                              style={panelInputStyle}
+                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                            />
+                          </div>
                         </div>
                       </section>
 

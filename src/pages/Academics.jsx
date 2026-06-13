@@ -47,7 +47,7 @@ export default function Academics() {
 
       // 2. Fetch from server
       try {
-        const res = await fetch('/slides/faculty.json', { cache: 'no-cache' });
+        const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
         if (!res.ok) throw new Error('Faculty config file not found');
         const data = await res.json();
         if (active) setFaculty(data);
@@ -330,10 +330,37 @@ export default function Academics() {
           <CombinationsModal />
 
           <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
-              <div className="grid grid-cols-3 gap-1 sm:gap-2 mb-3">
-                <button onClick={() => switchTab('science')} className={`w-full text-center px-3 py-1 sm:py-2 rounded-md font-semibold text-sm ${activeTab === 'science' ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-50 text-slate-700'}`}>Science</button>
-                <button onClick={() => switchTab('humanities')} className={`w-full text-center px-3 py-1 sm:py-2 rounded-md font-semibold text-sm ${activeTab === 'humanities' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-50 text-slate-700'}`}>Humanities</button>
-                <button onClick={() => switchTab('secondary')} className={`w-full text-center px-3 py-1 sm:py-2 rounded-md font-semibold text-sm ${activeTab === 'secondary' ? 'bg-violet-600 text-white shadow-sm' : 'bg-slate-50 text-slate-700'}`}>9th & 10th</button>
+              <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1 mb-4 border border-slate-200">
+                <button 
+                  onClick={() => switchTab('science')} 
+                  className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${
+                    activeTab === 'science' 
+                      ? 'bg-teal-600 text-white shadow-sm scale-[1.01]' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  Science
+                </button>
+                <button 
+                  onClick={() => switchTab('humanities')} 
+                  className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${
+                    activeTab === 'humanities' 
+                      ? 'bg-amber-600 text-white shadow-sm scale-[1.01]' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  Humanities
+                </button>
+                <button 
+                  onClick={() => switchTab('secondary')} 
+                  className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${
+                    activeTab === 'secondary' 
+                      ? 'bg-violet-600 text-white shadow-sm scale-[1.01]' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  9th & 10th
+                </button>
               </div>
 
             <div className={`grid md:grid-cols-3 gap-3 transition-all duration-200 ${tabAnimating ? 'opacity-60 -translate-y-1' : 'opacity-100 translate-y-0'}`}>
@@ -373,15 +400,20 @@ export default function Academics() {
                     ))}
                   </ul>
                 </div>
+              </div>
+            </div>
 
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                  <button onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')} className="w-full sm:w-auto btn-primary-custom px-3 py-2 rounded-lg font-semibold text-sm shadow transition-all duration-200">View List</button>
-                  <div className="text-xs text-slate-500 mt-2 sm:mt-0">
-                    {activeTab === 'science' && 'Compulsory (3). Choose 2 more: either both from Group B, or 1 from Group B and 1 from Group C (both from Group C not allowed).'}
-                    {activeTab === 'humanities' && 'Compulsory (1). Choose 3 from Group B and 1 from Group C.'}
-                    {activeTab === 'secondary' && 'Students have to take a maximum of 5 subjects (some may take 6 depending on choices).'}
-                  </div>
-                </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3">
+              <button 
+                onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')} 
+                className="w-fit btn-primary-custom px-4 py-2 rounded-lg font-semibold text-sm shadow transition-all duration-200 whitespace-nowrap flex-shrink-0"
+              >
+                View List
+              </button>
+              <div className="text-xs text-slate-500">
+                {activeTab === 'science' && 'Compulsory (3). Choose 2 more: either both from Group B, or 1 from Group B and 1 from Group C (both from Group C not allowed).'}
+                {activeTab === 'humanities' && 'Compulsory (1). Choose 3 from Group B and 1 from Group C.'}
+                {activeTab === 'secondary' && 'Students have to take a maximum of 5 subjects (some may take 6 depending on choices).'}
               </div>
             </div>
           </div>
@@ -417,15 +449,37 @@ export default function Academics() {
                 {/* Photo container */}
                 <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 group-hover:border-teal-500 transition-colors shadow-sm mb-4 bg-white flex items-center justify-center">
                   {member.photo ? (
-                    <img src={member.photo} alt={member.name} className="w-full h-full object-cover" />
+                    <img src={member.photo} alt={member.name} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <User size={40} className="text-slate-400" />
+                    (() => {
+                      const nameParts = member.name.replace(/^(Mr\.|Mrs\.|Dr\.|Ms\.)\s+/i, '').split(' ');
+                      const initials = (nameParts[0]?.[0] || '') + (nameParts[nameParts.length - 1]?.[0] || '');
+                      const gradients = [
+                        'from-teal-500 to-indigo-600',
+                        'from-rose-500 to-orange-500',
+                        'from-emerald-500 to-teal-600',
+                        'from-blue-500 to-violet-600',
+                        'from-amber-500 to-red-500'
+                      ];
+                      const hash = member.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                      const grad = gradients[hash % gradients.length];
+                      return (
+                        <div className={`w-full h-full bg-gradient-to-tr ${grad} flex items-center justify-center text-white font-extrabold text-xl tracking-wide select-none`}>
+                          {initials.toUpperCase() || 'HSS'}
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
 
                 {/* Details */}
                 <span className="text-[10px] uppercase font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full mb-2 border border-teal-100">{member.department}</span>
                 <h4 className="font-bold text-slate-800 text-base mb-1">{member.name}</h4>
+                {faculty.filter(f => f.name && f.name.trim().toLowerCase() === member.name.trim().toLowerCase()).length > 1 && (
+                  <p className="text-[10px] text-teal-700 font-extrabold mb-1 px-1.5 py-0.5 rounded bg-teal-50/60 border border-teal-100 inline-block w-fit">
+                    {member.cpis_no ? `CPIS: ${member.cpis_no}` : (member.mobile ? `Mobile: ${member.mobile}` : '')}
+                  </p>
+                )}
                 <p className="text-xs text-slate-500 font-semibold mb-4">{member.designation}{(member.subject && !['Administration', 'MTS'].includes(member.department)) ? ` in ${member.subject}` : ''}</p>                {/* Actions */}
                 <div className="mt-auto w-full border-t border-slate-200 pt-3 flex items-center justify-center gap-4">
                   {member.profile && (
@@ -471,11 +525,28 @@ export default function Academics() {
                   ✕
                 </button>
                 <div className="flex gap-4 items-center">
-                  <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/50 bg-white flex-shrink-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/50 bg-white flex-shrink-0 flex items-center justify-center shadow-md">
                     {activeProfileMember.photo ? (
-                      <img src={activeProfileMember.photo} alt={activeProfileMember.name} className="w-full h-full object-cover" />
+                      <img src={activeProfileMember.photo} alt={activeProfileMember.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
-                      <User size={32} className="text-slate-400" />
+                      (() => {
+                        const nameParts = activeProfileMember.name.replace(/^(Mr\.|Mrs\.|Dr\.|Ms\.)\s+/i, '').split(' ');
+                        const initials = (nameParts[0]?.[0] || '') + (nameParts[nameParts.length - 1]?.[0] || '');
+                        const gradients = [
+                          'from-teal-500 to-indigo-600',
+                          'from-rose-500 to-orange-500',
+                          'from-emerald-500 to-teal-600',
+                          'from-blue-500 to-violet-600',
+                          'from-amber-500 to-red-500'
+                        ];
+                        const hash = activeProfileMember.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                        const grad = gradients[hash % gradients.length];
+                        return (
+                          <div className={`w-full h-full bg-gradient-to-tr ${grad} flex items-center justify-center text-white font-extrabold text-base tracking-wide select-none`}>
+                            {initials.toUpperCase() || 'HSS'}
+                          </div>
+                        );
+                      })()
                     )}
                   </div>
                   <div className="text-left">
