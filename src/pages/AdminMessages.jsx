@@ -144,7 +144,7 @@ export default function AdminMessages() {
       const attempts = (parseInt(localStorage.getItem('admin_failed_attempts') || '0')) + 1;
       localStorage.setItem('admin_failed_attempts', attempts.toString());
       
-      if (attempts >= 5) {
+      if (attempts >= 6) {
         const lockoutUntilTime = Date.now() + 15 * 60 * 1000;
         localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
         setAuthError('Too many failed attempts. Console locked for 15 minutes.');
@@ -354,7 +354,7 @@ export default function AdminMessages() {
                     placeholder="Answer..."
                     value={captchaInput}
                     onChange={(e) => setCaptchaInput(e.target.value)}
-                    className="flex-grow px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-mono text-sm h-[42px]"
+                    className="flex-grow min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-mono text-sm h-[42px]"
                   />
                 </div>
               </div>

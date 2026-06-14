@@ -166,21 +166,8 @@ export default function Navbar() {
               </div>
             </Link>
 
-            {/* Mobile hamburger & admin lock */}
+            {/* Mobile hamburger */}
             <div className="md:hidden flex items-center gap-2">
-              <Link
-                to="/admin/portal"
-                title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
-                className="p-1.5 rounded bg-slate-100 border border-slate-200 flex items-center justify-center transition-all"
-                style={{ color: isAdmin ? '#10b981' : '#475569' }}
-                aria-label="Admin Portal"
-              >
-                {isAdmin ? (
-                  <Unlock size={15} className="stroke-[2.5] animate-pulse" />
-                ) : (
-                  <Lock size={15} className="stroke-[2.5]" />
-                )}
-              </Link>
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}

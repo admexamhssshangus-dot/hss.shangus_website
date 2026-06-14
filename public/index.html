@@ -8,11 +8,25 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Playfair+Display:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Cinzel:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <meta
-      name="description"
-      content="Official website of Govt HSS Shangus. Admissions, Academics, and secure Student/Teacher portal."
-    />
+    <meta name="description" content="Official website of Govt HSS Shangus. Admissions, Academics, and secure Student/Teacher portal." />
+    
+    <!-- Site Names in Google Search -->
+    <meta property="og:site_name" content="HSS Shangus" />
+    <meta name="application-name" content="HSS Shangus" />
+    <meta name="apple-mobile-web-app-title" content="HSS Shangus" />
+    
+    <!-- Search Snippet Thumbnail -->
+    <meta name="thumbnail" content="https://hssshangus.netlify.app/slides/searchtn.jpg" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://hssshangus.netlify.app/" />
+
+    <!-- Apple Touch Icon and Favicons -->
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo.png" />
+    <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/logo.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/logo192.png" />
+
     <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
@@ -33,21 +47,24 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Govt. Higher Secondary School Shangus" />
     <meta property="og:description" content="Govt HSS Shangus — Science, Humanities & Secondary education in Anantnag. Admissions and academic programs." />
-    <meta property="og:image" content="%PUBLIC_URL%/slides/1.jpg" />
+    <meta property="og:image" content="https://hssshangus.netlify.app/slides/1.jpg" />
     <meta property="og:url" content="https://hssshangus.netlify.app/" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Govt. Higher Secondary School Shangus" />
     <meta name="twitter:description" content="Govt HSS Shangus — Science, Humanities & Secondary education in Anantnag." />
-    <meta name="twitter:image" content="%PUBLIC_URL%/slides/1.jpg" />
+    <meta name="twitter:image" content="https://hssshangus.netlify.app/slides/1.jpg" />
 
-    <!-- Structured data: Organization and WebSite (update URLs/logo to your real host) -->
+    <!-- Structured data: School and WebSite (using absolute URLs) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "EducationalOrganization",
-      "name": "Govt HSS Shangus",
+      "@type": "School",
+      "name": "HSS Shangus",
+      "alternateName": ["Govt. Higher Secondary School Shangus", "Govt HSS Shangus"],
       "url": "https://hssshangus.netlify.app/",
-      "logo": "%PUBLIC_URL%/logo.png",
+      "logo": "https://hssshangus.netlify.app/logo.png",
+      "image": "https://hssshangus.netlify.app/slides/1.jpg",
+      "priceRange": "INR",
       "telephone": "+91-7006034501",
       "contactPoint": [{
         "@type": "ContactPoint",
@@ -73,14 +90,9 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      "name": "Govt. Higher Secondary School Shangus",
-      "alternateName": ["Govt HSS Shangus", "HSS Shangus"],
-      "url": "https://hssshangus.netlify.app/",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://hssshangus.netlify.app/search?q={search_term_string}",
-        "query-input": "required name=search_term_string"
-      }
+      "name": "HSS Shangus",
+      "alternateName": ["Govt. Higher Secondary School Shangus", "Govt HSS Shangus"],
+      "url": "https://hssshangus.netlify.app/"
     }
     </script>
   </head>
