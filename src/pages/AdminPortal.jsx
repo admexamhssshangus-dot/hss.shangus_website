@@ -785,7 +785,7 @@ export default function AdminPortal() {
       const attempts = (parseInt(localStorage.getItem('admin_failed_attempts') || '0')) + 1;
       localStorage.setItem('admin_failed_attempts', attempts.toString());
 
-      if (attempts >= 5) {
+      if (attempts >= 6) {
         const lockoutUntilTime = Date.now() + 15 * 60 * 1000; // 15 mins
         localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
         setAuthError('Too many failed attempts. Console locked for 15 minutes.');
@@ -3599,26 +3599,26 @@ export default function AdminPortal() {
             </div>
             <p className="text-xs text-slate-400 mt-1">Govt. Higher Secondary School Shangus Control Center</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {/* Direct filesystem sync trigger */}
             <button
               onClick={handleLinkFolder}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border ${folderHandle ? 'bg-emerald-950 border-emerald-500/50 text-emerald-400 shadow-sm shadow-emerald-900/10' : 'bg-slate-900 border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 text-slate-200'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all border w-full sm:w-auto ${folderHandle ? 'bg-emerald-950 border-emerald-500/50 text-emerald-400 shadow-sm shadow-emerald-900/10' : 'bg-slate-900 border-slate-700 hover:border-orange-500/50 hover:bg-slate-800 text-slate-200'}`}
               title="Select your public/slides/ folder on your computer to auto-write files directly."
             >
               <FolderOpen size={14} />
               {folderHandle ? 'Slides Linked' : 'Link slides/ folder'}
             </button>
             <button
-              onClick={handleSaveToLocalStorage}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-emerald-950/20 border border-emerald-400 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => handleSaveToLocalStorage()}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/20 border border-emerald-400 transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"
             >
               <Save size={14} className="stroke-[2.5px]" />
               Apply & Save
             </button>
             <button
               onClick={() => handleLogout()}
-              className="px-3 py-1.5 rounded-lg btn-outline-theme text-xs font-bold"
+              className="px-3 py-1.5 rounded-lg btn-outline-theme text-xs font-bold w-full sm:w-auto flex items-center justify-center gap-1.5"
             >
               Lock Console
             </button>
@@ -3672,7 +3672,7 @@ export default function AdminPortal() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-800 mb-4 overflow-x-auto gap-2">
+        <div className="flex border-b border-slate-800 mb-4 overflow-x-auto custom-scrollbar pb-1.5 gap-2">
           {[
             { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
             { id: 'notices', label: 'Latest Notices', icon: RefreshCw },
@@ -3928,7 +3928,7 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Add new notice form */}
-                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-2 items-end">
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-2 items-stretch md:items-end">
                   <div className="w-full md:w-32 flex-shrink-0">
                     <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Date</label>
                     <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[32px]">
@@ -3993,10 +3993,10 @@ export default function AdminPortal() {
                   </div>
                   <button
                     onClick={handleAddNotice}
-                    className="px-3.5 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-1 flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[32px]"
+                    className="px-3.5 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1 w-full md:w-auto flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[32px]"
                   >
                     <Plus size={13} />
-                    Add
+                    Add Notice
                   </button>
                 </div>
 
@@ -4013,7 +4013,7 @@ export default function AdminPortal() {
                           {newNotice.date || 'Jun 12'}
                         </span>
                         <div className="flex-1 min-w-0 relative">
-                          {/* Single-line text with truncation */}
+                           {/* Single-line text with truncation */}
                           <span className="text-sm font-medium text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
                             {newNotice.title || 'Your Notice Title Here'}
                           </span>
@@ -4038,7 +4038,7 @@ export default function AdminPortal() {
                           </span>
                         </div>
                         <div className="flex-1 min-w-0 relative">
-                          {/* Single-line text with truncation */}
+                           {/* Single-line text with truncation */}
                           <h4 className="font-bold text-slate-800 text-base leading-snug whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
                             {newNotice.title || 'Your Notice Title Here'}
                           </h4>
@@ -4058,7 +4058,7 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Notices List Table */}
-                <div className="overflow-x-auto border border-slate-800 rounded-lg min-w-0">
+                <div className="overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-lg min-w-0">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '480px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
@@ -4199,10 +4199,10 @@ export default function AdminPortal() {
                     <h3 className="text-sm font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
                     <p className="text-[11px] text-slate-400">Configure cards, department settings, and contacts inside the dynamic directory.</p>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full sm:w-auto">
                     <button
                       onClick={handleDownloadCSVTemplate}
-                      className="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-amber-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      className="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-amber-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
                       title="Download the standard CSV template with headers and a sample row"
                     >
                       <FileSpreadsheet size={13} />
@@ -4210,7 +4210,7 @@ export default function AdminPortal() {
                     </button>
                     <button
                       onClick={() => document.getElementById('csv-import-input').click()}
-                      className="px-3 py-1.5 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-blue-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      className="px-3 py-1.5 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-blue-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
                       title="Upload a CSV roster of employees"
                     >
                       <Upload size={13} />
@@ -4225,7 +4225,7 @@ export default function AdminPortal() {
                     />
                     <button
                       onClick={handleCSVExport}
-                      className="px-3 py-1.5 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      className="px-3 py-1.5 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
                       title="Choose employees and columns, then download a custom CSV roster"
                     >
                       <Download size={13} />
@@ -4238,7 +4238,7 @@ export default function AdminPortal() {
                         setBulkPrintDept('All');
                         setShowBulkPrintModal(true);
                       }}
-                      className="px-3 py-1.5 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-extrabold flex items-center gap-1.5 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      className="px-3 py-1.5 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
                       title="Export multiple profile sheets as PDF at once"
                     >
                       <Printer size={13} />
@@ -4463,7 +4463,7 @@ export default function AdminPortal() {
                 )}
 
                 {/* Faculty list */}
-                <div className="overflow-x-auto border border-slate-800 rounded-lg min-w-0">
+                <div className="overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-lg min-w-0">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '640px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
@@ -4806,11 +4806,11 @@ export default function AdminPortal() {
                       FY {taxConfig.financialYearLabel} · AY {taxConfig.assessmentYearLabel} · Manage gross salary, PAN, and TDS. Generate printable tax sheets or custom CSV summaries.
                     </p>
                   </div>
-                  <div className="flex flex-row flex-wrap sm:flex-nowrap items-center gap-2 whitespace-nowrap mt-1 md:mt-0 flex-shrink-0">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto mt-2 md:mt-0 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowTaxRules(!showTaxRules)}
-                      className={`px-4 py-2 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-1.5 border shadow ${
+                      className={`px-4 py-2 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border shadow w-full sm:w-auto ${
                         showTaxRules 
                           ? 'bg-orange-600 hover:bg-orange-500 text-white border-orange-400' 
                           : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
@@ -4821,7 +4821,7 @@ export default function AdminPortal() {
                     </button>
                     <button
                       onClick={handleTaxCSVExport}
-                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-1.5 border border-sky-400 shadow"
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-sky-400 shadow w-full sm:w-auto"
                     >
                       <Download size={14} />
                       Export Tax CSV
@@ -4831,7 +4831,7 @@ export default function AdminPortal() {
                         const activeFaculty = faculty.filter(t => !t.hidden);
                         printTaxSheets(activeFaculty);
                       }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-1.5 border border-emerald-500 shadow"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-emerald-500 shadow w-full sm:w-auto"
                     >
                       <Printer size={14} />
                       Print All Tax Sheets
@@ -5078,7 +5078,7 @@ export default function AdminPortal() {
 
                 {/* Database Table */}
                 <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-900/40 shadow-sm">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto custom-scrollbar pb-1.5">
                     <table className="w-full text-left border-collapse tax-table">
                       <thead>
                         <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
@@ -5660,7 +5660,7 @@ export default function AdminPortal() {
               </div>
 
               {/* Filters */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
                 <div className="flex-1">
                   <input
                     type="text"
@@ -5670,7 +5670,7 @@ export default function AdminPortal() {
                     className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500"
                   />
                 </div>
-                <div className="w-40">
+                <div className="w-full sm:w-40">
                   <select
                     value={bulkPrintDept}
                     onChange={(e) => setBulkPrintDept(e.target.value)}
@@ -5836,18 +5836,18 @@ export default function AdminPortal() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mb-2">
+                  <div className="flex flex-col sm:flex-row gap-2 mb-2">
                     <input
                       type="text"
                       placeholder="Search by name, CPIS, designation..."
                       value={csvExportSearch}
                       onChange={(e) => setCsvExportSearch(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                      className="flex-grow min-w-0 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
                     />
                     <select
                       value={csvExportDept}
                       onChange={(e) => setCsvExportDept(e.target.value)}
-                      className="w-40 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
+                      className="w-full sm:w-40 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
                     >
                       {csvDepartmentOptions.map((dept) => (
                         <option key={dept} value={dept}>{dept === 'All' ? 'All Departments' : dept}</option>
