@@ -52,13 +52,52 @@ const DEFAULT_ADMINS = [
   }
 ];
 
-async function hashPassword(plainText) {
+async function hashPassword(plainText, saltHex = null) {
+  if (saltHex) {
+    try {
+      const encoder = new TextEncoder();
+      const passwordBuffer = encoder.encode(plainText);
+      const saltBuffer = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      
+      const baseKey = await window.crypto.subtle.importKey(
+        'raw',
+        passwordBuffer,
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      
+      const derivedBits = await window.crypto.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: saltBuffer,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        baseKey,
+        256
+      );
+      
+      const hashArray = Array.from(new Uint8Array(derivedBits));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      console.error('PBKDF2 hashing failed, falling back to SHA-256:', e);
+    }
+  }
+
   const encoder = new TextEncoder();
   const data = encoder.encode(plainText);
   const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+function generateRandomSaltHex() {
+  const arr = new Uint8Array(16);
+  window.crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 
 // ==========================================
 // Date Formatting Helper (turns YYYY-MM-DD -> MMM DD)
@@ -791,11 +830,11 @@ export default function AdminPortal() {
       return;
     }
 
-    // Hash password input
-    const inputHash = await hashPassword(password);
-
     // Look up admin by email
     const foundAdmin = admins.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
+
+    // Hash password input using user specific salt if present
+    const inputHash = await hashPassword(password, foundAdmin ? foundAdmin.salt : null);
 
     if (foundAdmin && inputHash === foundAdmin.passwordHash) {
       localStorage.removeItem('admin_failed_attempts');
@@ -1529,8 +1568,11 @@ export default function AdminPortal() {
     const cleanedDesig = cleanDesignation(newTeacher.designation);
     const cleanedSubj = (dept === 'Administration' || dept === 'MTS') ? '' : newTeacher.subject.trim();
 
-    if (newTeacherPhotoFile && newTeacherPhotoName) {
-      const sanitizedName = sanitizePhotoFilename(newTeacherPhotoName);
+    if (newTeacherPhotoFile) {
+      const finalPhotoName = (newTeacherPhotoName && newTeacherPhotoName !== 'teacher_photo')
+        ? newTeacherPhotoName
+        : (newTeacher.name ? sanitizePhotoFilename(newTeacher.name) : 'teacher_photo');
+      const sanitizedName = sanitizePhotoFilename(finalPhotoName);
       const filename = `${sanitizedName}${newTeacherPhotoExt}`;
       photoPath = `/slides/${filename}`;
 
@@ -2472,9 +2514,11 @@ export default function AdminPortal() {
     }
 
     try {
-      const passwordHash = await hashPassword(newAdminPassword);
+      const salt = generateRandomSaltHex();
+      const passwordHash = await hashPassword(newAdminPassword, salt);
       const newAdmin = {
         email: newAdminEmail.trim().toLowerCase(),
+        salt,
         passwordHash,
         role: newAdminRole,
         allowedTabs: newAdminPermissions
@@ -3999,12 +4043,12 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Global default new days setting card */}
-                <div className="bg-slate-900/60 p-3.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
                     <h3 className="text-xs font-bold text-slate-200">Global Notice Expiry Settings</h3>
                     <p className="text-[10px] text-slate-400 mt-0.5">Determine how many days a notice is considered "NEW" on the homepage and notice board.</p>
                   </div>
-                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded px-2.5 py-1">
+                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded px-2 py-0.5">
                     <span className="text-[10px] text-slate-400 font-bold">Default Days:</span>
                     <input
                       type="number"
@@ -4021,16 +4065,16 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Add new notice form */}
-                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-2 items-stretch md:items-end">
+                <div className="bg-slate-900/30 p-1.5 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-1.5 items-stretch md:items-end">
                   <div className="w-full md:w-32 flex-shrink-0">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Date</label>
-                    <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[32px]">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Date</label>
+                    <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[28px]">
                       <input
                         type="text"
                         placeholder="e.g. Nov 23"
                         value={newNotice.date}
                         onChange={(e) => setNewNotice({ ...newNotice, date: e.target.value })}
-                        className="w-full bg-transparent border-none px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-0"
+                        className="w-full bg-transparent border-none px-2 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-0"
                       />
                       <button
                         type="button"
@@ -4038,10 +4082,10 @@ export default function AdminPortal() {
                           const dateEl = e.currentTarget.parentElement.querySelector('input[type="date"]');
                           if (dateEl) dateEl.showPicker();
                         }}
-                        className="p-1.5 text-slate-400 hover:text-orange-400 transition-colors mr-0.5"
+                        className="p-1 text-slate-400 hover:text-orange-400 transition-colors mr-0.5"
                         title="Choose date"
                       >
-                        <Calendar size={13} />
+                        <Calendar size={12} />
                       </button>
                       <input
                         type="date"
@@ -4055,92 +4099,94 @@ export default function AdminPortal() {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Title</label>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Title</label>
                     <input
                       type="text"
                       placeholder="Notice Title Description"
                       value={newNotice.title}
                       onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Link (Optional)</label>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Link (Optional)</label>
                     <input
                       type="text"
                       placeholder="e.g. /admissions, https://jkbose.nic.in, or #"
                       value={newNotice.link}
                       onChange={(e) => setNewNotice({ ...newNotice, link: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
                     />
                   </div>
                   <div className="w-full md:w-20 flex-shrink-0">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">New Days</label>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">New Days</label>
                     <input
                       type="number"
                       placeholder="Default"
                       value={newNotice.days || ''}
                       onChange={(e) => setNewNotice({ ...newNotice, days: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500 text-center"
+                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500 text-center"
                     />
                   </div>
                   <button
                     onClick={handleAddNotice}
-                    className="px-3.5 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1 w-full md:w-auto flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[32px]"
+                    className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1 w-full md:w-auto flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[28px]"
                   >
-                    <Plus size={13} />
+                    <Plus size={12} />
                     Add Notice
                   </button>
                 </div>
 
                 {/* Notice Preview Section */}
-                <div className="bg-slate-900/30 p-3.5 rounded-lg border border-slate-800 space-y-4">
-                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Live Preview</h3>
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2.5">
+                  <h3 className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">Live Preview</h3>
 
-                  {/* Home Page Sidebar Preview */}
-                  <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 mb-2">Home Page (Sidebar)</h4>
-                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 max-w-xs">
-                      <div className="flex items-start gap-3">
-                        <span className="text-[10px] font-bold text-slate-400 mt-1 w-16 flex-shrink-0 whitespace-nowrap">
-                          {newNotice.date || 'Jun 12'}
-                        </span>
-                        <div className="flex-1 min-w-0 relative">
-                          {/* Single-line text with truncation */}
-                          <span className="text-sm font-medium text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
-                            {newNotice.title || 'Your Notice Title Here'}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Vertical Dotted Line Indicator */}
-                      <div className="mt-2 text-[9px] text-orange-500 font-bold flex items-center gap-2">
-                        <span>┃</span>
-                        <span>← Text beyond this will wrap to a new line</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notice Board Page Preview */}
-                  <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 mb-2">Notice Board Page</h4>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                      <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 rounded-lg bg-teal-100/40 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0">
-                          <span className="text-[7px] font-bold text-teal-800 uppercase tracking-tight text-center whitespace-nowrap">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {/* Home Page Sidebar Preview */}
+                    <div>
+                      <h4 className="text-[10px] font-bold text-slate-400 mb-1.5">Home Page (Sidebar)</h4>
+                      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-2.5 w-full">
+                        <div className="flex items-start gap-3">
+                          <span className="text-[10px] font-bold text-slate-400 mt-1 w-14 flex-shrink-0 whitespace-nowrap">
                             {newNotice.date || 'Jun 12'}
                           </span>
+                          <div className="flex-1 min-w-0 relative">
+                            {/* Single-line text with truncation */}
+                            <span className="text-sm font-medium text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
+                              {newNotice.title || 'Your Notice Title Here'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0 relative">
-                          {/* Single-line text with truncation */}
-                          <h4 className="font-bold text-slate-800 text-base leading-snug whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
-                            {newNotice.title || 'Your Notice Title Here'}
-                          </h4>
+                        {/* Vertical Dotted Line Indicator */}
+                        <div className="mt-1.5 text-[9px] text-orange-500 font-bold flex items-center gap-2">
+                          <span>┃</span>
+                          <span>← Text beyond this will wrap to a new line</span>
                         </div>
                       </div>
-                      {/* Vertical Dotted Line Indicator */}
-                      <div className="mt-2 text-[9px] text-orange-500 font-bold flex items-center gap-2">
-                        <span>┃</span>
-                        <span>← Text beyond this will wrap to a new line</span>
+                    </div>
+
+                    {/* Notice Board Page Preview */}
+                    <div>
+                      <h4 className="text-[10px] font-bold text-slate-400 mb-1.5">Notice Board Page</h4>
+                      <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded bg-teal-100/40 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0">
+                            <span className="text-[8px] font-bold text-teal-800 uppercase tracking-tight text-center whitespace-nowrap">
+                              {newNotice.date || 'Jun 12'}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0 relative">
+                            {/* Single-line text with truncation */}
+                            <h4 className="font-bold text-slate-800 text-sm leading-snug whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
+                              {newNotice.title || 'Your Notice Title Here'}
+                            </h4>
+                          </div>
+                        </div>
+                        {/* Vertical Dotted Line Indicator */}
+                        <div className="mt-1.5 text-[9px] text-orange-500 font-bold flex items-center gap-2">
+                          <span>┃</span>
+                          <span>← Text beyond this will wrap to a new line</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4151,21 +4197,21 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Notices List Table */}
-                <div className="overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-lg min-w-0">
+                <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-800 rounded-lg min-w-0">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '480px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                        <th className="p-1.5 w-24">Date</th>
-                        <th className="p-1.5">Notice Title</th>
-                        <th className="p-1.5 w-48">Link</th>
-                        <th className="p-1.5 w-20 text-center">New Days</th>
-                        <th className="p-1.5 w-24 text-center">Action</th>
+                        <th className="p-1 px-1.5 w-24">Date</th>
+                        <th className="p-1 px-1.5">Notice Title</th>
+                        <th className="p-1 px-1.5 w-48">Link</th>
+                        <th className="p-1 px-1.5 w-20 text-center">New Days</th>
+                        <th className="p-1 px-1.5 w-24 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {notices.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center text-slate-500 italic text-[11px]">No notices configured. Add some above.</td>
+                          <td colSpan={5} className="p-3 text-center text-slate-500 italic text-[11px]">No notices configured. Add some above.</td>
                         </tr>
                       ) : (
                         notices.map((n, i) => {
@@ -4252,11 +4298,11 @@ export default function AdminPortal() {
                                 </>
                               ) : (
                                 <>
-                                  <td className="p-1.5 font-semibold text-slate-200">{n.date}</td>
-                                  <td className="p-1.5 text-slate-200">{n.title}</td>
-                                  <td className="p-1.5 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
-                                  <td className="p-1.5 text-center text-slate-400 font-mono">{n.days !== undefined && n.days !== '' ? `${n.days}d` : 'Default'}</td>
-                                  <td className="p-1.5 text-center flex items-center justify-center gap-1">
+                                  <td className="p-1 px-1.5 font-semibold text-slate-200">{n.date}</td>
+                                  <td className="p-1 px-1.5 text-slate-200">{n.title}</td>
+                                  <td className="p-1 px-1.5 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
+                                  <td className="p-1 px-1.5 text-center text-slate-400 font-mono">{n.days !== undefined && n.days !== '' ? `${n.days}d` : 'Default'}</td>
+                                  <td className="p-1 px-1.5 text-center flex items-center justify-center gap-1">
                                     <button
                                       onClick={() => startEditNotice(i)}
                                       className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
@@ -4341,40 +4387,40 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Add new faculty form */}
-                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800 space-y-1.5">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-1.5">
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Full Name</label>
                       <input
                         type="text"
                         placeholder="e.g. Mr. Sheikh Gulfam"
                         value={newTeacher.name}
                         onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Designation</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Designation</label>
                       <input
                         type="text"
                         placeholder="e.g. Lecturer, Teacher, Vice Principal"
                         value={newTeacher.designation}
                         onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Subject</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Subject</label>
                       <input
                         type="text"
                         placeholder="e.g. Botany"
                         value={newTeacher.subject}
                         onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Department</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Department</label>
                       <select
                         value={STANDARD_DEPTS.includes(newTeacher.department) ? newTeacher.department : 'Other'}
                         onChange={(e) => {
@@ -4385,7 +4431,7 @@ export default function AdminPortal() {
                             setNewTeacher({ ...newTeacher, department: val });
                           }
                         }}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
@@ -4400,46 +4446,37 @@ export default function AdminPortal() {
                           placeholder="Enter department name..."
                           value={newTeacher.department}
                           onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                          className="w-full mt-1 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                          className="w-full mt-1 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                         />
                       )}
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Email Address</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Email Address</label>
                       <input
                         type="email"
                         placeholder="e.g. example@gmail.com"
                         value={newTeacher.email}
                         onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
+                  </div>
+
+                  <div className={`grid grid-cols-1 gap-1.5 ${newTeacher.hidden ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Mobile No</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Mobile No</label>
                       <input
                         type="text"
                         placeholder="e.g. +91-7006XXXXXX"
                         value={newTeacher.mobile}
                         onChange={(e) => setNewTeacher({ ...newTeacher, mobile: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Photo Upload (Max 100KB)</label>
-                      <div className="flex gap-2">
-                        <div className="flex-grow">
-                          <input
-                            type="text"
-                            placeholder="Filename (e.g. sheikh_gulfam)"
-                            value={newTeacherPhotoName}
-                            onChange={(e) => setNewTeacherPhotoName(sanitizePhotoFilename(e.target.value))}
-                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                          />
-                        </div>
-                        <label className={`px-3 py-1.5 rounded text-slate-950 text-[10px] font-extrabold cursor-pointer transition-all flex items-center justify-center border whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Photo Upload</label>
+                      <div className="flex h-[23px] items-center">
+                        <label className={`w-full h-full rounded text-slate-950 text-[9px] font-extrabold cursor-pointer transition-all flex items-center justify-center border whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
                           {newTeacherPhotoFile ? 'File Loaded' : 'Choose File'}
                           <input
                             type="file"
@@ -4450,25 +4487,13 @@ export default function AdminPortal() {
                         </label>
                       </div>
                       {newTeacherPhotoFile && (
-                        <div className="text-[9px] text-emerald-400 mt-1 font-semibold truncate">
+                        <div className="text-[8.5px] text-emerald-400 mt-0.5 font-semibold truncate">
                           Selected: {newTeacherPhotoFile.name} ({Math.round(newTeacherPhotoFile.size / 1024)}KB)
                         </div>
                       )}
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <div className="md:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
-                      <textarea
-                        placeholder="Write a brief profile biography or details about this faculty member..."
-                        value={newTeacher.profile || ''}
-                        onChange={(e) => setNewTeacher({ ...newTeacher, profile: e.target.value })}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 h-16 resize-none"
-                      />
-                    </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Visibility Status</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Visibility Status</label>
                       <select
                         value={newTeacher.hidden ? 'hidden' : 'visible'}
                         onChange={(e) => {
@@ -4479,18 +4504,18 @@ export default function AdminPortal() {
                             inactiveReason: isHidden ? (newTeacher.inactiveReason || 'Transferred') : ''
                           });
                         }}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="visible">Visible (Active on Frontend)</option>
                         <option value="hidden">Hidden (Inactive)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Deployment Status</label>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Deployment Status</label>
                       <select
                         value={newTeacher.if_deployed || 'No'}
                         onChange={(e) => setNewTeacher({ ...newTeacher, if_deployed: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-400"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="No">No Deployment</option>
                         <option value="in">Deployed In → (from another school, works here)</option>
@@ -4498,8 +4523,8 @@ export default function AdminPortal() {
                       </select>
                     </div>
                     {newTeacher.hidden && (
-                      <div className="md:col-span-4 animate-in fade-in duration-200">
-                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
+                      <div className="animate-in fade-in duration-200">
+                        <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Reason for Inactive</label>
                         <select
                           value={['Transferred', 'Retired', 'Deployed Out'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
                           onChange={(e) => {
@@ -4511,7 +4536,7 @@ export default function AdminPortal() {
                               setNewTeacher({ ...newTeacher, inactiveReason: val });
                             }
                           }}
-                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                          className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                         >
                           <option value="Transferred">Transferred</option>
                           <option value="Retired">Retired</option>
@@ -4524,7 +4549,7 @@ export default function AdminPortal() {
                             value={newTeacher.inactiveReason}
                             onChange={(e) => setNewTeacher({ ...newTeacher, inactiveReason: e.target.value })}
                             placeholder="Enter custom reason..."
-                            className="w-full mt-1.5 px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                            className="w-full mt-1 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                           />
                         )}
                       </div>
@@ -4534,9 +4559,9 @@ export default function AdminPortal() {
                   <div className="text-right">
                     <button
                       onClick={handleAddTeacher}
-                      className="px-3.5 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 inline-flex border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                      className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-[11px] flex items-center gap-1.5 inline-flex border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
                     >
-                      <UserPlus size={13} />
+                      <UserPlus size={12} />
                       Add Teacher
                     </button>
                   </div>
@@ -4570,10 +4595,10 @@ export default function AdminPortal() {
 
                 {/* Faculty list */}
                 <div className="overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-lg min-w-0">
-                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '640px' }}>
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '1050px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                        <th className="p-1.5 w-8 text-center">
+                        <th className="p-1 w-8 text-center">
                           <input
                             type="checkbox"
                             checked={faculty.length > 0 && selectedFaculty.length === faculty.length}
@@ -4587,14 +4612,14 @@ export default function AdminPortal() {
                             className="rounded border-slate-800 text-orange-600 bg-slate-950 focus:ring-orange-500"
                           />
                         </th>
-                        <th className="p-1.5 w-12 text-center">S.No</th>
-                        <th className="p-1.5">Name</th>
-                        <th className="p-1.5">Role / Subject</th>
-                        <th className="p-1.5">Department</th>
-                        <th className="p-1.5">Contact</th>
-                        <th className="p-1.5 text-center">On Deployment</th>
-                        <th className="p-1.5">Photo URL</th>
-                        <th className="p-1.5 w-24 text-center">Action</th>
+                        <th className="p-1 w-12 text-center">S.No</th>
+                        <th className="p-1" style={{ minWidth: '185px' }}>Name</th>
+                        <th className="p-1" style={{ minWidth: '150px' }}>Role / Subject</th>
+                        <th className="p-1" style={{ minWidth: '110px' }}>Department</th>
+                        <th className="p-1" style={{ minWidth: '180px' }}>Contact</th>
+                        <th className="p-1 text-center" style={{ minWidth: '110px' }}>On Deployment</th>
+                        <th className="p-1" style={{ minWidth: '130px' }}>Photo URL</th>
+                        <th className="p-1 w-24 text-center" style={{ minWidth: '96px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -4618,7 +4643,7 @@ export default function AdminPortal() {
                                     : ''
                                   }`}
                               >
-                                <td className="p-1.5 w-8 text-center">
+                                <td className="p-1 w-8 text-center">
                                   <input
                                     type="checkbox"
                                     checked={selectedFaculty.includes(index)}
@@ -4632,20 +4657,20 @@ export default function AdminPortal() {
                                     className="rounded border-slate-800 text-orange-600 bg-slate-950 focus:ring-orange-500"
                                   />
                                 </td>
-                                <td className="p-1.5 w-12 text-center text-slate-400 font-mono">
+                                <td className="p-1 w-12 text-center text-slate-400 font-mono">
                                   {index + 1}
                                 </td>
                                 {isEditing ? (
                                   <>
-                                    <td className="p-1.5">
+                                    <td className="p-1">
                                       <input
                                         type="text"
                                         value={editFacultyData.name}
                                         onChange={(e) => setEditFacultyData({ ...editFacultyData, name: e.target.value })}
-                                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold focus:outline-none focus:border-orange-500"
                                       />
                                     </td>
-                                    <td className="p-1.5">
+                                    <td className="p-1">
                                       <div className="space-y-1">
                                         <input
                                           type="text"
@@ -4663,7 +4688,7 @@ export default function AdminPortal() {
                                         />
                                       </div>
                                     </td>
-                                    <td className="p-1.5">
+                                    <td className="p-1">
                                       <select
                                         value={STANDARD_DEPTS.includes(editFacultyData.department) ? editFacultyData.department : 'Other'}
                                         onChange={(e) => {
@@ -4674,7 +4699,7 @@ export default function AdminPortal() {
                                             setEditFacultyData({ ...editFacultyData, department: val });
                                           }
                                         }}
-                                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-medium"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-medium"
                                       >
                                         <option value="Administration">Administration</option>
                                         <option value="Science">Science</option>
@@ -4693,7 +4718,7 @@ export default function AdminPortal() {
                                         />
                                       )}
                                     </td>
-                                    <td className="p-1.5">
+                                    <td className="p-1">
                                       <div className="space-y-1">
                                         <input
                                           type="email"
@@ -4711,18 +4736,18 @@ export default function AdminPortal() {
                                         />
                                       </div>
                                     </td>
-                                    <td className="p-1.5 text-center">
+                                    <td className="p-1 text-center">
                                       <select
                                         value={editFacultyData.if_deployed || 'No'}
                                         onChange={(e) => setEditFacultyData({ ...editFacultyData, if_deployed: e.target.value })}
-                                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400"
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400"
                                       >
                                         <option value="No">No</option>
                                         <option value="in">Deployed In (from another school)</option>
                                         <option value="out">Deployed Out (sent elsewhere)</option>
                                       </select>
                                     </td>
-                                    <td className="p-1.5">
+                                    <td className="p-1">
                                       <div className="flex flex-col gap-1 w-[130px]">
                                         <input
                                           type="text"
@@ -4732,7 +4757,7 @@ export default function AdminPortal() {
                                           className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                                           title="Sanitized custom photo filename"
                                         />
-                                        <label className={`w-full py-1.5 px-2 rounded font-extrabold cursor-pointer transition-all text-center border text-[9px] block hover:scale-[1.02] active:scale-[0.98] ${editTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 text-slate-950 border-orange-400'}`}>
+                                        <label className={`w-full py-1 px-1.5 rounded font-extrabold cursor-pointer transition-all text-center border text-[9px] block hover:scale-[1.02] active:scale-[0.98] ${editTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 text-slate-950 border-orange-400'}`}>
                                           {editTeacherPhotoFile ? 'File Loaded' : 'Upload File'}
                                           <input
                                             type="file"
@@ -4748,7 +4773,7 @@ export default function AdminPortal() {
                                         )}
                                       </div>
                                     </td>
-                                    <td className="p-1.5 text-center flex items-center justify-center gap-1.5">
+                                    <td className="p-1 text-center flex items-center justify-center gap-1.5">
                                       <button
                                         onClick={() => saveFacultyEdit(index)}
                                         className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
@@ -4767,9 +4792,9 @@ export default function AdminPortal() {
                                   </>
                                 ) : (
                                   <>
-                                    <td className="p-1.5 font-semibold text-slate-200">
+                                    <td className="p-1 font-semibold text-slate-200">
                                       <div>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                        <div className="flex items-center gap-1 flex-wrap">
                                           <span>{t.name}</span>
                                           {t.hidden && (
                                             <span className="px-1.5 py-0.5 text-[8px] font-bold rounded badge-red-custom uppercase tracking-tight" title={`Reason: ${t.inactiveReason || 'Inactive'}`}>
@@ -4796,27 +4821,27 @@ export default function AdminPortal() {
                                         )}
                                       </div>
                                     </td>
-                                    <td className="p-1.5 text-slate-300">{t.designation}{(t.subject && !['Administration', 'MTS'].includes(t.department)) ? ` — ${t.subject}` : ''}</td>
-                                    <td className="p-1.5">
+                                    <td className="p-1 text-slate-300">{t.designation}{(t.subject && !['Administration', 'MTS'].includes(t.department)) ? ` — ${t.subject}` : ''}</td>
+                                    <td className="p-1">
                                       <span className="badge-theme">{t.department}</span>
                                     </td>
-                                    <td className="p-1.5 text-slate-400">
+                                    <td className="p-1 text-slate-400">
                                       <div className="space-y-0.5">
-                                        <div>{t.email || '-'}</div>
+                                        <div className="truncate max-w-[170px]">{t.email || '-'}</div>
                                         <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
                                       </div>
                                     </td>
-                                    <td className="p-1.5 text-center">
+                                    <td className="p-1 text-center">
                                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.if_deployed === 'in' ? 'bg-blue-950/60 text-blue-300 border border-blue-800/50' :
                                         t.if_deployed === 'out' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/50' :
                                           t.if_deployed === 'Yes' ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50' :
                                             'bg-slate-900/40 text-slate-400 border border-slate-800/30'
                                         }`}>
-                                        {t.if_deployed === 'in' ? '→ Dep. In' : t.if_deployed === 'out' ? '← Dep. Out' : t.if_deployed === 'Yes' ? 'Deployed' : 'No'}
+                                        {t.if_deployed === 'in' ? '→ Deployed In' : t.if_deployed === 'out' ? '← Deployed Out' : t.if_deployed === 'Yes' ? 'Deployed' : 'No'}
                                       </span>
                                     </td>
-                                    <td className="p-1.5 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
-                                    <td className="p-1.5 text-center flex items-center justify-center gap-1">
+                                    <td className="p-1 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
+                                    <td className="p-1 text-center flex items-center justify-center gap-1">
                                       <button
                                         onClick={() => printEmployeeProfile(t)}
                                         className="p-1 rounded text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors"

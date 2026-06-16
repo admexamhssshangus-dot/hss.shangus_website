@@ -34,12 +34,12 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
   const duplicateNames = faculty.filter(f => f.name && f.name.trim().toLowerCase() === member.name.trim().toLowerCase()).length > 1;
 
   return (
-    <div className="bg-slate-50 rounded-xl border border-slate-200 p-3.5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
+    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
       {/* Accent top bar on hover */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-transparent group-hover:bg-teal-500 transition-colors" />
 
       {/* Photo */}
-      <div className="w-18 h-18 rounded-full overflow-hidden border-2 border-slate-200 group-hover:border-teal-500 transition-colors shadow-sm mb-2.5 bg-white flex items-center justify-center">
+      <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 group-hover:border-teal-500 transition-colors shadow-sm mb-4 bg-white flex items-center justify-center">
         {member.photo ? (
           <img src={member.photo} alt={member.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
@@ -53,10 +53,10 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
       <div className="flex gap-1 flex-wrap justify-center mb-1.5">
         <span className="text-[9px] uppercase font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-100">{member.department}</span>
         {(member.if_deployed === 'in' || member.if_deployed === 'Yes') && (
-          <span className="text-[9px] uppercase font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">→ Dep. In</span>
+          <span className="text-[9px] uppercase font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">→ Deployed In</span>
         )}
         {member.if_deployed === 'out' && (
-          <span className="text-[9px] uppercase font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">← Dep. Out</span>
+          <span className="text-[9px] uppercase font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">← Deployed Out</span>
         )}
       </div>
 
@@ -73,23 +73,23 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
       {/* Actions */}
       <div className="mt-auto w-full border-t border-slate-200 pt-2 flex items-center justify-center gap-2">
         {member.profile && (
-          <button onClick={() => setActiveProfileMember(member)} className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer" title="View Full Profile">
-            <User size={12} />
+          <button onClick={() => setActiveProfileMember(member)} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer" title="View Full Profile">
+            <User size={14} />
           </button>
         )}
         {member.mobile && (
-          <a href={`tel:${member.mobile}`} className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
-            <Phone size={12} />
+          <a href={`tel:${member.mobile}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
+            <Phone size={14} />
           </a>
         )}
         {member.mobile && (
-          <a href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow flex items-center justify-center transition-all" title="WhatsApp">
-            <WhatsAppIcon size={12} />
+          <a href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow flex items-center justify-center transition-all" title="WhatsApp">
+            <WhatsAppIcon size={14} />
           </a>
         )}
         {member.email && (
-          <a href={`mailto:${member.email}`} className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Email">
-            <Mail size={12} />
+          <a href={`mailto:${member.email}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Email">
+            <Mail size={14} />
           </a>
         )}
       </div>
@@ -543,7 +543,7 @@ export default function Academics() {
                 <span className="text-xs text-slate-400 font-mono">{teachingFaculty.length} member{teachingFaculty.length !== 1 ? 's' : ''}</span>
                 <div className="flex-1 h-px bg-slate-100" />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 {teachingFaculty.map((member, idx) => (
                   <FacultyCard key={idx} member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
                 ))}
@@ -562,7 +562,7 @@ export default function Academics() {
                 <span className="text-xs text-slate-400 font-mono">{nonTeachingFaculty.length} member{nonTeachingFaculty.length !== 1 ? 's' : ''}</span>
                 <div className="flex-1 h-px bg-slate-100" />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {nonTeachingFaculty.map((member, idx) => (
                   <FacultyCard key={idx} member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
                 ))}
