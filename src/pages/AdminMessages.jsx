@@ -1,15 +1,43 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Lock, Unlock, AlertCircle, RefreshCw } from 'lucide-react';
 
-const ADMIN_PASSWORD_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'; // SHA-256 of 'admin123'
+const ADMIN_PASSWORD_HASH = 'f046a167a9720c412012290f5c305748c14e83f70f768da24bf95a822a42effa'; // PBKDF2 hash of 'messages@HSS4737'
+const ADMIN_PASSWORD_SALT = '8c3b1a8d05ef4c29';
 
-async function hashPassword(plainText) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(plainText);
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+async function hashPassword(plainText, saltHex) {
+  try {
+    const encoder = new TextEncoder();
+    const passwordBuffer = encoder.encode(plainText);
+    const saltBuffer = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    
+    const baseKey = await window.crypto.subtle.importKey(
+      'raw',
+      passwordBuffer,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+    
+    const derivedBits = await window.crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: saltBuffer,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      baseKey,
+      256
+    );
+    
+    const hashArray = Array.from(new Uint8Array(derivedBits));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    console.error('PBKDF2 hashing failed:', e);
+    // Secure fallback
+    return '';
+  }
 }
+
 
 export default function AdminMessages() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -118,7 +146,7 @@ export default function AdminMessages() {
       return;
     }
 
-    const inputHash = await hashPassword(password);
+    const inputHash = await hashPassword(password, ADMIN_PASSWORD_SALT);
     if (inputHash === ADMIN_PASSWORD_HASH) {
       localStorage.removeItem('admin_failed_attempts');
       localStorage.removeItem('admin_last_failed_time');
