@@ -10,17 +10,16 @@
     "department": "Administration",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
       "PAN": "ABBPW3797Q",
-      "Gross Salary": "2096982",
+      "Gross Salary": "1200001",
       "TDS": "0",
-      "Tax Regime": "new",
-      "80C Deductions": "0",
-      "80D Deductions": "0",
+      "Tax Regime": "old",
+      "80C Deductions": "150000",
+      "80D Deductions": "25000",
       "HRA Exemption": "0",
       "Other Deductions": "0"
     },
@@ -34,7 +33,7 @@
     "qualification": "M.Sc B.Ed",
     "bed": "yes",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "Yes",
     "permanent_address": "Nowgam",
     "present_address": "Nowgam",
     "gov_mail_id": "AIJAZAHMADWAG.6895@JK.GOV.IN",
@@ -123,11 +122,11 @@
       }
     ],
     "pan": "ABBPW3797Q",
-    "grossSalary": 2096982,
+    "grossSalary": 1200001,
     "tds": 0,
-    "taxRegime": "new",
-    "deduction80C": 0,
-    "deduction80D": 0,
+    "taxRegime": "old",
+    "deduction80C": 150000,
+    "deduction80D": 25000,
     "hraExemption": 0,
     "otherDeductions": 0
   },
@@ -142,14 +141,11 @@
     "department": "Science",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "AZUPB3839M",
-      "Gross Salary": "1815558",
-      "TDS": "0"
+      "PAN": "AZUPB3839M"
     },
     "dob": "01.12.1973",
     "parentage": "Khazir Mohd Bhat",
@@ -161,7 +157,7 @@
     "qualification": "Ph.D Zoology",
     "bed": "yes",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "Yes",
     "permanent_address": "Shangus",
     "present_address": "Shangus",
     "gov_mail_id": "ABMAJIDBHA.73121@JK.GOV.IN",
@@ -206,10 +202,7 @@
         "from": "04.04.2025",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "AZUPB3839M",
-    "grossSalary": 1815558,
-    "tds": 0
+    ]
   },
   {
     "name": "Ali Jan Khan",
@@ -222,14 +215,11 @@
     "department": "Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "AQQPK2588M",
-      "Gross Salary": "1710532",
-      "TDS": "0"
+      "PAN": "AQQPK2588M"
     },
     "dob": "15.04.1974",
     "parentage": "Ghulam Khan",
@@ -241,7 +231,7 @@
     "qualification": "M.A., B.Ed.",
     "bed": "yes",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "Yes",
     "permanent_address": "Cherpora",
     "present_address": "Cherpora",
     "gov_mail_id": "ALI JANKHA.74415@JK.GOV.IN",
@@ -316,10 +306,7 @@
         "from": "01.03.2019",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "AQQPK2588M",
-    "grossSalary": 1710532,
-    "tds": 0
+    ]
   },
   {
     "name": "Bilal Ahmad Khandy",
@@ -332,14 +319,11 @@
     "department": "Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "FVBPK3155B",
-      "Gross Salary": "1343730",
-      "TDS": "0"
+      "PAN": "FVBPK3155B"
     },
     "dob": "10.04.1988",
     "parentage": "Mohd Maqbool Khandy",
@@ -372,10 +356,7 @@
         "from": "07.05.2022",
         "to": "till date"
       }
-    ],
-    "pan": "FVBPK3155B",
-    "grossSalary": 1343730,
-    "tds": 0
+    ]
   },
   {
     "name": "Sheikh Gulfam",
@@ -388,19 +369,11 @@
     "department": "Science",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "CKEPG0666G",
-      "Gross Salary": "1325262",
-      "TDS": "0",
-      "Tax Regime": "new",
-      "80C Deductions": "0",
-      "80D Deductions": "0",
-      "HRA Exemption": "0",
-      "Other Deductions": "0"
+      "PAN": "CKEPG0666G"
     },
     "dob": "02.03.1991",
     "parentage": "Gulzar Ahmad Sheikh",
@@ -433,15 +406,7 @@
         "from": "1/9/2025",
         "to": "till date"
       }
-    ],
-    "pan": "CKEPG0666G",
-    "grossSalary": 1325262,
-    "tds": 0,
-    "taxRegime": "new",
-    "deduction80C": 0,
-    "deduction80D": 0,
-    "hraExemption": 0,
-    "otherDeductions": 0
+    ]
   },
   {
     "name": "Gh Mohi-Ud Din Allie",
@@ -454,14 +419,11 @@
     "department": "Science",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BAKPA2132G",
-      "Gross Salary": "1139868",
-      "TDS": "0"
+      "PAN": "BAKPA2132G"
     },
     "dob": "12.10.1969",
     "parentage": "Gh Rasool Allie",
@@ -512,10 +474,7 @@
         "from": "30.05.2025",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "BAKPA2132G",
-    "grossSalary": 1139868,
-    "tds": 0
+    ]
   },
   {
     "name": "Kali Das",
@@ -528,14 +487,11 @@
     "department": "Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BAMPD3277P",
-      "Gross Salary": "1272655",
-      "TDS": "0"
+      "PAN": "BAMPD3277P"
     },
     "dob": "14.01.1984",
     "parentage": "Parkash Chand",
@@ -547,7 +503,7 @@
     "qualification": "M.A., B.Ed.",
     "bed": "yes",
     "health_issues": "No",
-    "if_deployed": "no",
+    "if_deployed": "No",
     "permanent_address": "Gadial Kathua Hiranagar",
     "present_address": "Gadial Kathua Hiranagar",
     "gov_mail_id": "",
@@ -586,10 +542,7 @@
         "from": "19.02.2026",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "BAMPD3277P",
-    "grossSalary": 1272655,
-    "tds": 0
+    ]
   },
   {
     "name": "Mir Javaid",
@@ -602,14 +555,11 @@
     "department": "Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "AKRPJ2186R",
-      "Gross Salary": "1460238",
-      "TDS": "0"
+      "PAN": "AKRPJ2186R"
     },
     "dob": "01.06.1968",
     "parentage": "Gh Mohd Mir",
@@ -672,10 +622,7 @@
         "from": "22.03.2022",
         "to": "till date"
       }
-    ],
-    "pan": "AKRPJ2186R",
-    "grossSalary": 1460238,
-    "tds": 0
+    ]
   },
   {
     "name": "Nazir Ahmad Wani",
@@ -688,14 +635,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "AAVPW1221E",
-      "Gross Salary": "1505998",
-      "TDS": "0"
+      "PAN": "AAVPW1221E"
     },
     "dob": "01.12.1966",
     "parentage": "Ab Ahad Wani",
@@ -752,10 +696,7 @@
         "from": "18.04.2018",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "AAVPW1221E",
-    "grossSalary": 1505998,
-    "tds": 0
+    ]
   },
   {
     "name": "Ajaz Ahmad Bhat",
@@ -768,14 +709,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BJJPB6283M",
-      "Gross Salary": "1089590",
-      "TDS": "0"
+      "PAN": "BJJPB6283M"
     },
     "dob": "01.01.1980",
     "parentage": "Gh Nabi Bhat",
@@ -820,10 +758,7 @@
         "from": "Nowgam",
         "to": "Nowgam"
       }
-    ],
-    "pan": "BJJPB6283M",
-    "grossSalary": 1089590,
-    "tds": 0
+    ]
   },
   {
     "name": "Mushtaq Ahmad Wani",
@@ -836,14 +771,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "ACXPW9132C",
-      "Gross Salary": "982231",
-      "TDS": "0"
+      "PAN": "ACXPW9132C"
     },
     "dob": "05.05.1981",
     "parentage": "Wali Mohd Wani",
@@ -888,10 +820,7 @@
         "from": "05.03.2020",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "ACXPW9132C",
-    "grossSalary": 982231,
-    "tds": 0
+    ]
   },
   {
     "name": "Nawaz Ahmad Shah",
@@ -904,14 +833,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "GOOPS9746M",
-      "Gross Salary": "964437",
-      "TDS": "0"
+      "PAN": "GOOPS9746M"
     },
     "dob": "05.04.1986",
     "parentage": "Mohd Ayoub Shah",
@@ -944,10 +870,7 @@
         "from": "Uttersoo",
         "to": "Uttersoo"
       }
-    ],
-    "pan": "GOOPS9746M",
-    "grossSalary": 964437,
-    "tds": 0
+    ]
   },
   {
     "name": "Majid Hassan Najar",
@@ -960,14 +883,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BENPN6096R",
-      "Gross Salary": "796777",
-      "TDS": "0"
+      "PAN": "BENPN6096R"
     },
     "dob": "15.06.1977",
     "parentage": "Ghulam Hassan Najar",
@@ -1012,10 +932,7 @@
         "from": "07.07.2023",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "BENPN6096R",
-    "grossSalary": 796777,
-    "tds": 0
+    ]
   },
   {
     "name": "Shahzada Akhter",
@@ -1028,14 +945,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "AWRPA6671Q",
-      "Gross Salary": "1140115",
-      "TDS": "0"
+      "PAN": "AWRPA6671Q"
     },
     "dob": "10.03.1982",
     "parentage": "Mohd Ramzan Ganie",
@@ -1068,10 +982,7 @@
         "from": "21.10.2021",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "AWRPA6671Q",
-    "grossSalary": 1140115,
-    "tds": 0
+    ]
   },
   {
     "name": "Shahzada Akhter",
@@ -1084,14 +995,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "CONPA6172A",
-      "Gross Salary": "1140115",
-      "TDS": "0"
+      "PAN": "CONPA6172A"
     },
     "dob": "01.02.1976",
     "parentage": "Gh Nabi Khanday",
@@ -1124,10 +1032,7 @@
         "from": "08.10.2021",
         "to": "till date"
       }
-    ],
-    "pan": "CONPA6172A",
-    "grossSalary": 1140115,
-    "tds": 0
+    ]
   },
   {
     "name": "Shabir Ahmad Shah",
@@ -1140,14 +1045,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "FMZPS3799L",
-      "Gross Salary": "1055600",
-      "TDS": "0"
+      "PAN": "FMZPS3799L"
     },
     "dob": "05.03.1977",
     "parentage": "Mohd Yousuf Shah",
@@ -1180,10 +1082,7 @@
         "from": "21.10.2021",
         "to": "till date"
       }
-    ],
-    "pan": "FMZPS3799L",
-    "grossSalary": 1055600,
-    "tds": 0
+    ]
   },
   {
     "name": "Mohd Shafi Ganie",
@@ -1196,14 +1095,11 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BLWPG5013K",
-      "Gross Salary": "1119340",
-      "TDS": "0"
+      "PAN": "BLWPG5013K"
     },
     "dob": "01.04.1977",
     "parentage": "Assadullah Ganaie",
@@ -1236,10 +1132,7 @@
         "from": "08.10.2021",
         "to": "till date"
       }
-    ],
-    "pan": "BLWPG5013K",
-    "grossSalary": 1119340,
-    "tds": 0
+    ]
   },
   {
     "name": "Bashir Ahmad Ganai",
@@ -1252,14 +1145,11 @@
     "department": "MTS",
     "profile": "",
     "hidden": true,
-    "inactiveReason": "Retired",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "CTIPG7815A",
-      "Gross Salary": "620586",
-      "TDS": "0"
+      "PAN": "CTIPG7815A"
     },
     "dob": "01.05.1966",
     "parentage": "Mohd Khalil Ganai",
@@ -1311,9 +1201,7 @@
         "to": "TILL DATE"
       }
     ],
-    "pan": "CTIPG7815A",
-    "grossSalary": 620586,
-    "tds": 0
+    "inactiveReason": "Retired"
   },
   {
     "name": "Shabir Ahmad Teeli",
@@ -1326,14 +1214,11 @@
     "department": "MTS",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BCMPT3751Q",
-      "Gross Salary": "789027",
-      "TDS": "0"
+      "PAN": "BCMPT3751Q"
     },
     "dob": "08.02.1974",
     "parentage": "Ab Gani Teeli",
@@ -1378,10 +1263,7 @@
         "from": "Badoora",
         "to": "Badoora"
       }
-    ],
-    "pan": "BCMPT3751Q",
-    "grossSalary": 789027,
-    "tds": 0
+    ]
   },
   {
     "name": "Shabir Ahmad Khan",
@@ -1394,14 +1276,11 @@
     "department": "MTS",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "ASBPK3774E",
-      "Gross Salary": "415610",
-      "TDS": "0"
+      "PAN": "ASBPK3774E"
     },
     "dob": "01.01.1981",
     "parentage": "Ghulam Mohmad Khan",
@@ -1434,10 +1313,7 @@
         "from": "Uttersoo",
         "to": "Uttersoo"
       }
-    ],
-    "pan": "ASBPK3774E",
-    "grossSalary": 415610,
-    "tds": 0
+    ]
   },
   {
     "name": "Salim Ahmad Khan",
@@ -1450,14 +1326,11 @@
     "department": "MTS",
     "profile": "",
     "hidden": true,
-    "inactiveReason": "Transferred",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "DFGPK5814E",
-      "Gross Salary": "461328",
-      "TDS": "0"
+      "PAN": "DFGPK5814E"
     },
     "dob": "15.03.1971",
     "parentage": "Basharat Ahmad Khan",
@@ -1491,9 +1364,7 @@
         "to": "till date"
       }
     ],
-    "pan": "DFGPK5814E",
-    "grossSalary": 461328,
-    "tds": 0
+    "inactiveReason": ""
   },
   {
     "name": "Nigeena Akhter",
@@ -1506,14 +1377,11 @@
     "department": "MTS",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "BZUPA8583Q",
-      "Gross Salary": "683712",
-      "TDS": "0"
+      "PAN": "BZUPA8583Q"
     },
     "dob": "10.03.1968",
     "parentage": "Abdul Gani Shah",
@@ -1558,10 +1426,7 @@
         "from": "07.04.2005",
         "to": "TILL DATE"
       }
-    ],
-    "pan": "BZUPA8583Q",
-    "grossSalary": 683712,
-    "tds": 0
+    ]
   },
   {
     "name": "Khushboo Jan",
@@ -1574,14 +1439,11 @@
     "department": "MTS",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
     "customFields": {
-      "PAN": "CJEPJ1599L",
-      "Gross Salary": "344736",
-      "TDS": "0"
+      "PAN": "CJEPJ1599L"
     },
     "dob": "25.10.1999",
     "parentage": "Riyaz Ahmad Mir",
@@ -1614,10 +1476,7 @@
         "from": "Wangam",
         "to": "Wangam"
       }
-    ],
-    "pan": "CJEPJ1599L",
-    "grossSalary": 344736,
-    "tds": 0
+    ]
   },
   {
     "name": "Mir Mohsin",
@@ -1630,13 +1489,10 @@
     "department": "Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
-    "customFields": {
-      "PAN": ""
-    },
+    "customFields": {},
     "dob": "",
     "parentage": "",
     "category": "",
@@ -1647,7 +1503,7 @@
     "qualification": "",
     "bed": "",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "in",
     "permanent_address": "",
     "present_address": "",
     "gov_mail_id": "",
@@ -1668,7 +1524,104 @@
     "department": "Secondary",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
+    "parent_district": "Anantnag",
+    "present_district": "Anantnag",
+    "present_place_of_posting": "HSS Shangus",
+    "customFields": {},
+    "dob": "",
+    "parentage": "",
+    "category": "",
+    "cpis_no": "",
+    "date_of_first_appointment": "",
+    "designation_at_first_appointment": "",
+    "stay_period": "",
+    "qualification": "",
+    "bed": "",
+    "health_issues": "No",
+    "if_deployed": "in",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "01061400642",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": []
+  },
+  {
+    "name": "Manzoor Ahmad Shilla",
+    "designation": "MTS",
+    "subject": "",
+    "email": "",
+    "mobile": "",
+    "department": "MTS",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {}
+  },
+  {
+    "name": "Aafaq Ishfaq",
+    "designation": "VT",
+    "subject": "IT and ITES",
+    "email": "",
+    "mobile": "",
+    "department": "Science/Humanities",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {},
+    "if_deployed": "in"
+  },
+  {
+    "name": "Shakira Khursheed",
+    "designation": "VT",
+    "subject": "Heathcare",
+    "email": "",
+    "mobile": "",
+    "department": "Science/Humanities",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {},
+    "if_deployed": "in"
+  },
+  {
+    "name": "Hena Khan",
+    "designation": "Teacher",
+    "subject": "English",
+    "email": "",
+    "mobile": "",
+    "department": "Science/Humanities",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {},
+    "if_deployed": "in"
+  },
+  {
+    "name": "Masooda Akhter",
+    "designation": "Contractual Lecturer",
+    "subject": "History",
+    "email": "",
+    "mobile": "",
+    "department": "Humanities",
+    "photo": "",
+    "profile": "",
+    "hidden": false,
+    "customFields": {}
+  },
+  {
+    "name": "Mir Mohsin",
+    "designation": "Teacher",
+    "subject": "Economics",
+    "subject_pg": "Economics",
+    "email": "",
+    "mobile": "",
+    "photo": "",
+    "department": "Humanities",
+    "profile": "",
+    "hidden": false,
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
@@ -1685,7 +1638,44 @@
     "qualification": "",
     "bed": "",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "in",
+    "permanent_address": "",
+    "present_address": "",
+    "gov_mail_id": "",
+    "ddo_code": "01061400641",
+    "ddo_code_hrms": "SHGEDU0022",
+    "cadre": "GAZETTED",
+    "zone_name": "Shangus",
+    "postings": []
+  },
+  {
+    "name": "Muzafar Ahmad Ganai",
+    "designation": "Teacher",
+    "subject": "Social Studies",
+    "subject_pg": "Social Studies",
+    "email": "",
+    "mobile": "",
+    "photo": "",
+    "department": "Secondary",
+    "profile": "",
+    "hidden": false,
+    "parent_district": "Anantnag",
+    "present_district": "Anantnag",
+    "present_place_of_posting": "HSS Shangus",
+    "customFields": {
+      "PAN": ""
+    },
+    "dob": "",
+    "parentage": "",
+    "category": "",
+    "cpis_no": "",
+    "date_of_first_appointment": "",
+    "designation_at_first_appointment": "",
+    "stay_period": "",
+    "qualification": "",
+    "bed": "",
+    "health_issues": "No",
+    "if_deployed": "in",
     "permanent_address": "",
     "present_address": "",
     "gov_mail_id": "",
@@ -1706,7 +1696,6 @@
     "department": "MTS",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
@@ -1744,7 +1733,6 @@
     "department": "Science/Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
@@ -1761,7 +1749,7 @@
     "qualification": "",
     "bed": "",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "in",
     "permanent_address": "",
     "present_address": "",
     "gov_mail_id": "",
@@ -1782,7 +1770,6 @@
     "department": "Science/Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
@@ -1799,7 +1786,7 @@
     "qualification": "",
     "bed": "",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "in",
     "permanent_address": "",
     "present_address": "",
     "gov_mail_id": "",
@@ -1820,7 +1807,6 @@
     "department": "Science/Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",
@@ -1837,7 +1823,7 @@
     "qualification": "",
     "bed": "",
     "health_issues": "No",
-    "if_deployed": "No",
+    "if_deployed": "in",
     "permanent_address": "",
     "present_address": "",
     "gov_mail_id": "",
@@ -1858,7 +1844,6 @@
     "department": "Humanities",
     "profile": "",
     "hidden": false,
-    "inactiveReason": "",
     "parent_district": "Anantnag",
     "present_district": "Anantnag",
     "present_place_of_posting": "HSS Shangus",

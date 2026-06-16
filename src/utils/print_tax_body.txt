@@ -1,0 +1,238 @@
+const printTaxSheets = (emps) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showAlert('Pop-up blocker is enabled. Please allow pop-ups to print tax sheets.', 'Pop-up Blocked');
+      return;
+    }
+
+    const formatSalary = (val) => {
+      return Math.round(Number(val || 0)).toLocaleString('en-IN');
+    };
+
+    const formatSlab = (val) => {
+      if (val === 0 || val === 'Nil' || val === undefined) return 'Nil';
+      return Number(val).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    };
+
+    const formatTax = (val) => {
+      return '₹ ' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const formatTotalTax = (val) => {
+      return '₹ ' + Math.round(Number(val || 0)).toLocaleString('en-IN');
+    };
+
+    const sheetsHtml = emps.map((emp) => {
+      const pan = getEmployeePan(emp);
+      const gross = getEmployeeGross(emp);
+      const tds = getEmployeeTds(emp);
+      const options = getEmployeeTaxOptions(emp);
+      const calc = calculateTax(gross, tds, taxConfig, options);
+
+      // Slabs logic
+      const slabRowsHtml = calc.slabDetails.map((slab) => {
+        const slabTax = slab.tax;
+        const detailsVal = slabTax > 0 ? formatSlab(slabTax) : 'Nil';
+        const rightVal = slabTax > 0 ? formatSlab(slabTax) : '0';
+        return `
+          <tr>
+            <td style="text-align: center;"></td>
+            <td style="padding-left: 15px;">Slab ${slab.rate}% ${slab.label}</td>
+            <td class="text-right">${detailsVal}</td>
+            <td class="text-right">${rightVal}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Intermediate Gross Total Income calculation matching the spreadsheet flow
+      const grossTotalIncome = Math.max(0, gross - calc.standardDeduction - calc.hraExemption - calc.deduction80D);
+
+      // Tax Payable Now formatted
+      const taxPayableNowVal = calc.taxPayableNow > 0
+        ? `₹ ${formatSalary(calc.taxPayableNow)}`
+        : 'NIL';
+      const taxPayableNowClass = calc.taxPayableNow > 0
+        ? 'text-red-600 font-bold text-lg'
+        : 'text-green-600 font-bold text-lg';
+
+      return `
+        <div class="tax-sheet">
+          <div class="tax-sheet-content">
+            <!-- Header section -->
+            <div class="header-top" style="text-align: center;">
+              <h3 style="margin: 0; font-size: 11px; font-weight: bold; letter-spacing: 1.2px; text-transform: uppercase; color: #475569;">OFFICE OF THE PRINCIPAL</h3>
+              <h1 style="margin: 2px 0; font-size: 18px; font-weight: 900; color: #000; letter-spacing: -0.2px; line-height: 1.1;">GOVT. HIGHER SECONDARY SCHOOL SHANGUS</h1>
+              <h2 style="margin: 4px 0 3px 0; font-size: 14px; font-weight: bold; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase;">INCOME TAX CALCULATION SHEET</h2>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 11px; font-weight: bold; color: #334155; padding: 0 4px; border-bottom: 1.5px solid black; padding-bottom: 3px; margin-bottom: 5px;">
+                <span>Financial Year: ${calc.taxConfig.financialYearLabel}</span>
+                <span>TAN No: <span style="color: #dc2626; font-family: monospace; font-size: 11.5px;">AMRG13179F</span></span>
+                <span>Assessment Year: ${calc.taxConfig.assessmentYearLabel}</span>
+              </div>
+            </div>
+
+            <!-- Employee Info Grid -->
+            <table class="header-details-table">
+              <tr>
+                <td rowspan="2" class="regime-badge-container ${calc.regimeType === 'new' ? 'new-regime' : 'old-regime'}">
+                  <div class="regime-badge-inner">${calc.regimeConfig.label}</div>
+                </td>
+                <td class="label-cell" style="width: 24%;">NAME OF THE OFFICIAL</td>
+                <td class="value-cell" style="width: 26%;">${(emp.name || '').toUpperCase()}</td>
+                <td class="label-cell" style="width: 18%;">DESIGNATION</td>
+                <td class="value-cell" style="width: 32%;">${(emp.designation || '').toUpperCase()}</td>
+              </tr>
+              <tr>
+                <td class="label-cell" style="width: 24%;">CPIS ID</td>
+                <td class="value-cell" style="width: 26%; font-family: monospace;">${emp.cpis_no || '-'}</td>
+                <td class="label-cell" style="width: 18%;">PAN NO</td>
+                <td class="value-cell" style="width: 32%; font-family: monospace;">${pan || '-'}</td>
+              </tr>
+            </table>
+
+            <!-- Main Calculation Table -->
+            <table class="main-tax-table">
+              <thead>
+                <tr>
+                  <th style="width: 5%; text-align: center;">S.No.</th>
+                  <th style="width: 65%; text-align: left;">PARTICULARS</th>
+                  <th style="width: 15%; text-align: right;">Deductions</th>
+                  <th style="width: 15%; text-align: right;">Gross income</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold">Gross Salary</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600">₹ ${formatSalary(gross)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Add Pay Arrears</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;">1</td>
+                  <td>Add perquisite in respect of reimbursement of Medical Expenses of in excess of Rs.</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">view of section 17(2)(v)</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td>Add Employers Share</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold">Total Salary Income</td>
+                  <td></td>
+                  <td class="text-right font-bold">₹ ${formatSalary(gross)}</td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-red-600">Less Standard Deduction</td>
+                  <td class="text-right font-bold">${formatSalary(calc.standardDeduction)}</td>
+                  <td class="text-right"></td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold text-red-600">Salary after deduction of St./ded</td>
+                  <td></td>
+                  <td class="text-right font-bold text-red-600">₹ ${formatSalary(Math.max(0, gross - calc.standardDeduction))}</td>
+                </tr>
+                
+                <!-- HRA Row -->
+                <tr class="compact-row">
+                  <td style="text-align: center;">2</td>
+                  <td>Less House Rent allowance exempt U/s 10(13A)</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">A. Actual amount of HRA Received</td>
+                  <td class="text-right">${calc.hraExemption > 0 ? formatSalary(calc.hraExemption) : '0'}</td>
+                  <td class="text-right">${calc.hraExemption > 0 ? formatSalary(calc.hraExemption) : '0'}</td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">B. Expenditure on rent in excess of 10% Salary (including DA)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td style="padding-left: 15px;">C. 40% of Salary (including DA)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- HBA Row -->
+                <tr class="compact-row">
+                  <td style="text-align: center;">3</td>
+                  <td>Less: Interest paid on HBA U/s 24(B), 80EE (Max up to 2.0lakh)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td>Less: Interest paid on loan taken for higher education, U/s 80E</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold" style="font-size: 8.5px; font-style: italic;">Capital borrowed for repairs/renewal/reconstruction of house, maximum interest allowable Rs. 30000</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- 80D Row -->
+                <tr class="compact-row">
+                  <td style="text-align: center;">4</td>
+                  <td>Less Deduction U/s 80D (Health insurance- Self & Family Max up to 0.25 lakh)</td>
+                  <td class="text-right">${calc.deduction80D > 0 ? formatSalary(calc.deduction80D) : '0'}</td>
+                  <td class="text-right">${calc.deduction80D > 0 ? formatSalary(calc.deduction80D) : '0'}</td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td>Less Deduction U/s 80DD, 80U (Max 1.25 lakh and min 0.75 Lakh)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr class="compact-row">
+                  <td style="text-align: center;"></td>
+                  <td>Less Deduction U/s 80DDB (Medical treatment of specified disease)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+                <tr class="text-red-600 compact-row">
+                  <td style="text-align: center;"></td>
+                  <td class="font-bold" style="font-size: 8.5px; font-style: italic;">No Deduction shall be allowed unless a new certificate is obtained from medical authority in the prescribed format.</td>
+                  <td></td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- 80G Row -->
+                <tr class="compact-row">
+                  <td style="text-align: center;">5</td>
+                  <td>Less: Deduction U/s 80G (M relief Fund, Red Cross Funds, Cancer Fund, etc.)</td>
+                  <td class="text-right">0</td>
+                  <td class="text-right">0</td>
+                </tr>
+
+                <!-- Gross Total Income -->
+                <tr class="bg-orange-100 font-bold">
+                  <td style="text-align: center;"></td>
+                  <td>Gross Total Income</td>
+                  <td></td>
+                  <td class="text-right text-red-600" style="background-color: #fed7aa; color: #dc2626;">₹ ${formatSalary(grossTotalIncome)}</td>
+          

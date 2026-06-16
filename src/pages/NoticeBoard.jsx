@@ -153,13 +153,13 @@ export default function NoticeBoard() {
   );
 
   return (
-    <div className="w-full bg-gradient-to-b from-teal-50 to-white py-8 min-h-screen">
+    <div className="w-full bg-gradient-to-b from-teal-50 to-white py-5 sm:py-6 min-h-screen">
       <SEO title="Notice Board & Updates" description="Official Notice Board of Govt. Higher Secondary School Shangus. Stay updated with dynamic bulletins, board result declarations, exam schedules, and circulars." />
 
       <div className="max-w-4xl mx-auto px-4">
 
         {/* Navigation Breadcrumb */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 hover:text-teal-950 hover:underline">
             <ArrowLeft size={14} />
             Back to Home
@@ -168,21 +168,21 @@ export default function NoticeBoard() {
         </div>
 
         {/* Hero Section */}
-        <div className="bg-teal-800 text-white rounded-2xl p-6 md:p-8 shadow-lg mb-8 relative overflow-hidden">
+        <div className="bg-teal-800 text-white rounded-2xl p-4 md:p-5 shadow mb-5 relative overflow-hidden">
           <div className="absolute right-0 bottom-0 translate-x-10 translate-y-10 text-teal-700/30 opacity-40">
-            <FileText size={240} />
+            <FileText size={200} />
           </div>
           <div className="relative z-10">
-            <span className="px-2.5 py-1 rounded bg-teal-600 text-[10px] font-bold tracking-widest uppercase">Official Notice Board</span>
-            <h2 className="text-2xl md:text-3xl font-bold mt-3 font-heading">Announcements & Archives</h2>
-            <p className="opacity-90 text-xs md:text-sm mt-2 max-w-xl">
+            <span className="px-2 py-0.5 rounded bg-teal-600 text-[9px] font-bold tracking-widest uppercase">Official Notice Board</span>
+            <h2 className="text-lg md:text-xl font-bold mt-2 font-heading">Announcements & Archives</h2>
+            <p className="opacity-90 text-xs mt-1.5 max-w-xl">
               Stay up-to-date with exam timetables, notifications, guidelines, and other circulars published by school administration.
             </p>
           </div>
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 mb-6 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
+        <div className="bg-white py-2.5 px-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2.5 mb-4 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
           <Search size={18} className="text-slate-400 flex-shrink-0" />
           <input
             type="text"
@@ -208,7 +208,7 @@ export default function NoticeBoard() {
             Loading announcements...
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {filteredNotices.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-slate-500 italic shadow-sm">
                 No announcements found matching "{searchQuery}".
@@ -220,7 +220,7 @@ export default function NoticeBoard() {
                 return (
                   <div
                     key={idx}
-                    className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-teal-800/80 p-4 md:p-5 shadow-sm flex items-start gap-4 hover:border-teal-500 hover:border-l-teal-600 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
+                    className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-teal-800/80 p-2.5 md:p-3 shadow-sm flex items-start gap-3 hover:border-teal-500 hover:border-l-teal-600 hover:shadow hover:-translate-y-0.5 transition-all duration-300 group"
                   >
                     {/* Calendar Badge */}
                     {(() => {
@@ -229,13 +229,13 @@ export default function NoticeBoard() {
                       const day = parts[0] || n.date;
                       const month = (parts[1] || '').toUpperCase();
                       return (
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-sm transition-all group-hover:border-teal-500/50 group-hover:shadow">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-sm transition-all group-hover:border-teal-500/50 group-hover:shadow">
                           {/* Calendar Month Header */}
-                          <div className="bg-teal-800 text-[8px] sm:text-[9px] font-bold text-white py-0.5 uppercase tracking-widest text-center select-none">
+                          <div className="bg-teal-800 text-[7px] sm:text-[8px] font-bold text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
                             {month || 'DATE'}
                           </div>
                           {/* Calendar Day Body */}
-                          <div className="flex-grow flex items-center justify-center bg-white font-title text-base sm:text-lg font-bold text-slate-800 leading-none">
+                          <div className="flex-grow flex items-center justify-center bg-white font-title text-xs sm:text-sm font-bold text-slate-800 leading-none">
                             {day}
                           </div>
                         </div>
@@ -244,12 +244,12 @@ export default function NoticeBoard() {
 
                     {/* Announcement text & links */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-800 text-xs sm:text-sm md:text-base leading-snug break-words line-clamp-2"
+                      <h4 className="font-bold text-slate-800 text-xs sm:text-sm leading-snug break-words line-clamp-2"
                         style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
                         title={n.title}>
                         {n.title}
                       </h4>
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {n.link && n.link !== '#' ? (
                           isExternal ? (
                             <a

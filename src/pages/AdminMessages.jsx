@@ -121,6 +121,7 @@ export default function AdminMessages() {
     const inputHash = await hashPassword(password);
     if (inputHash === ADMIN_PASSWORD_HASH) {
       localStorage.removeItem('admin_failed_attempts');
+      localStorage.removeItem('admin_last_failed_time');
       localStorage.removeItem('admin_lockout_until');
 
       const newSessionId = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
@@ -141,11 +142,21 @@ export default function AdminMessages() {
         // ignore
       }
     } else {
-      const attempts = (parseInt(localStorage.getItem('admin_failed_attempts') || '0')) + 1;
+      const now = Date.now();
+      const lastFailedTime = parseInt(localStorage.getItem('admin_last_failed_time') || '0');
+      let currentAttempts = parseInt(localStorage.getItem('admin_failed_attempts') || '0');
+
+      // Reset count if last failed attempt was more than 15 minutes ago
+      if (now - lastFailedTime > 15 * 60 * 1000) {
+        currentAttempts = 0;
+      }
+
+      const attempts = currentAttempts + 1;
       localStorage.setItem('admin_failed_attempts', attempts.toString());
+      localStorage.setItem('admin_last_failed_time', now.toString());
       
       if (attempts >= 6) {
-        const lockoutUntilTime = Date.now() + 15 * 60 * 1000;
+        const lockoutUntilTime = now + 15 * 60 * 1000;
         localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
         setAuthError('Too many failed attempts. Console locked for 15 minutes.');
       } else {

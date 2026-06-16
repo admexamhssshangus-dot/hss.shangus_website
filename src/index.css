@@ -1233,6 +1233,18 @@
 .theme-light .tax-total-highlight {
   color: #b45309 !important; /* Darker amber-700 for light mode contrast */
 }
+
+/* Print styles: compact tax report printing */
+@page { size: A4; margin: 8mm; }
+@media print {
+  body * { visibility: hidden; }
+  .tax-print-container, .tax-print-container * { visibility: visible; }
+  .tax-print-container { width: 100%; page-break-inside: avoid; }
+  .non-print, .no-print { display: none !important; }
+  .tax-print-container { font-size: 11px !important; line-height: 1 !important; }
+  table { border-collapse: collapse !important; width: 100% !important; }
+  table td, table th { padding: 4px !important; }
+}
 .theme-light .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--border-ui) !important;
 }
@@ -1266,4 +1278,14 @@
   border: 1px solid rgba(96, 165, 250, 0.3) !important;
 }
 
-
+/* High contrast overrides for Tax Calculator table under light theme */
+.theme-light .tax-table thead tr,
+.theme-light .tax-table thead th {
+  color: #ffffff !important;
+}
+.theme-light .tax-table .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+
+
