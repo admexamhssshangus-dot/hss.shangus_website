@@ -17,7 +17,88 @@ function WhatsAppIcon({ size = 14, className = '' }) {
   );
 }
 
+
+// Reusable faculty card used in both Teaching and Non-Teaching grids
+function FacultyCard({ member, faculty, setActiveProfileMember }) {
+  const nameParts = member.name.replace(/^(Mr\.|Mrs\.|Dr\.|Ms\.)\s+/i, '').split(' ');
+  const initials = (nameParts[0]?.[0] || '') + (nameParts[nameParts.length - 1]?.[0] || '');
+  const gradients = [
+    'from-teal-500 to-indigo-600',
+    'from-rose-500 to-orange-500',
+    'from-emerald-500 to-teal-600',
+    'from-blue-500 to-violet-600',
+    'from-amber-500 to-red-500'
+  ];
+  const hash = member.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const grad = gradients[hash % gradients.length];
+  const duplicateNames = faculty.filter(f => f.name && f.name.trim().toLowerCase() === member.name.trim().toLowerCase()).length > 1;
+
+  return (
+    <div className="bg-slate-50 rounded-xl border border-slate-200 p-3.5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
+      {/* Accent top bar on hover */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-transparent group-hover:bg-teal-500 transition-colors" />
+
+      {/* Photo */}
+      <div className="w-18 h-18 rounded-full overflow-hidden border-2 border-slate-200 group-hover:border-teal-500 transition-colors shadow-sm mb-2.5 bg-white flex items-center justify-center">
+        {member.photo ? (
+          <img src={member.photo} alt={member.name} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div className={`w-full h-full bg-gradient-to-tr ${grad} flex items-center justify-center text-white font-extrabold text-base tracking-wide select-none`}>
+            {initials.toUpperCase() || 'HSS'}
+          </div>
+        )}
+      </div>
+
+      {/* Badges */}
+      <div className="flex gap-1 flex-wrap justify-center mb-1.5">
+        <span className="text-[9px] uppercase font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-100">{member.department}</span>
+        {(member.if_deployed === 'in' || member.if_deployed === 'Yes') && (
+          <span className="text-[9px] uppercase font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">→ Dep. In</span>
+        )}
+        {member.if_deployed === 'out' && (
+          <span className="text-[9px] uppercase font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">← Dep. Out</span>
+        )}
+      </div>
+
+      <h4 className="font-bold text-slate-800 text-xs sm:text-sm mb-0.5 leading-tight line-clamp-1" title={member.name}>{member.name}</h4>
+      {duplicateNames && (
+        <p className="text-[9px] text-teal-700 font-extrabold mb-0.5 px-1 py-0.5 rounded bg-teal-50/60 border border-teal-100 inline-block w-fit">
+          {member.cpis_no ? `CPIS: ${member.cpis_no}` : (member.mobile ? `Mob: ${member.mobile}` : '')}
+        </p>
+      )}
+      <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mb-2.5 leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
+        {member.designation}{(member.subject && !['Administration', 'MTS'].includes(member.department)) ? ` in ${member.subject}` : ''}
+      </p>
+
+      {/* Actions */}
+      <div className="mt-auto w-full border-t border-slate-200 pt-2 flex items-center justify-center gap-2">
+        {member.profile && (
+          <button onClick={() => setActiveProfileMember(member)} className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer" title="View Full Profile">
+            <User size={12} />
+          </button>
+        )}
+        {member.mobile && (
+          <a href={`tel:${member.mobile}`} className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
+            <Phone size={12} />
+          </a>
+        )}
+        {member.mobile && (
+          <a href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow flex items-center justify-center transition-all" title="WhatsApp">
+            <WhatsAppIcon size={12} />
+          </a>
+        )}
+        {member.email && (
+          <a href={`mailto:${member.email}`} className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Email">
+            <Mail size={12} />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Academics() {
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalItems, setModalItems] = useState([]);
@@ -156,6 +237,20 @@ export default function Academics() {
     ? visibleFaculty
     : visibleFaculty.filter(f => f.department.toLowerCase() === selectedDept.toLowerCase());
 
+  // Classify into Teaching vs Non-Teaching
+  const isNonTeaching = (f) => {
+    const d = (f.designation || '').toLowerCase();
+    const dept = (f.department || '').toLowerCase();
+    return dept === 'mts' ||
+      d.includes('mts') || d.includes('lab assistant') || d.includes('lab bearer') ||
+      d.includes('library bearer') || d.includes('peon') || d.includes('chowkidar') ||
+      d.includes('safaiwalla') || d.includes('class iv') || d.includes('driver') ||
+      d.includes('attendant');
+  };
+
+  const teachingFaculty = filteredFaculty.filter(f => !isNonTeaching(f));
+  const nonTeachingFaculty = filteredFaculty.filter(f => isNonTeaching(f));
+
   function switchTab(tab) {
     if (tab === activeTab) return;
     setTabAnimating(true);
@@ -252,7 +347,7 @@ export default function Academics() {
     URL.revokeObjectURL(url);
   }
 
-    function CombinationsModal() {
+  function CombinationsModal() {
     const overlayRef = useRef(null);
     const [entered, setEntered] = useState(false);
 
@@ -301,7 +396,7 @@ export default function Academics() {
           <p className="text-sm text-slate-500 mt-3">Explore curated subject combinations for each stream with quick copy and download options.</p>
         </div>
 
-          <div className="bg-white p-3 sm:p-3 rounded-lg shadow-sm border border-slate-200 mb-4">
+        <div className="bg-white p-3 sm:p-3 rounded-lg shadow-sm border border-slate-200 mb-4">
           <h3 className="text-xl font-bold text-teal-800 mb-4">Our Departments</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
@@ -323,45 +418,42 @@ export default function Academics() {
           </div>
         </div>
 
-          <div className="bg-white p-3 sm:p-5 rounded-lg shadow-sm border border-slate-200">
+        <div className="bg-white p-3 sm:p-5 rounded-lg shadow-sm border border-slate-200">
           <h2 className="text-2xl font-bold text-teal-800 mb-2">Subject Combinations & Streams</h2>
           <p className="text-sm text-slate-500 mb-4">Explore curated subject combinations for each stream with quick copy and download options.</p>
 
           <CombinationsModal />
 
           <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
-              <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1 mb-4 border border-slate-200">
-                <button 
-                  onClick={() => switchTab('science')} 
-                  className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${
-                    activeTab === 'science' 
-                      ? 'bg-teal-600 text-white shadow-sm scale-[1.01]' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1 mb-4 border border-slate-200">
+              <button
+                onClick={() => switchTab('science')}
+                className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${activeTab === 'science'
+                  ? 'bg-teal-600 text-white shadow-sm scale-[1.01]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                   }`}
-                >
-                  Science
-                </button>
-                <button 
-                  onClick={() => switchTab('humanities')} 
-                  className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${
-                    activeTab === 'humanities' 
-                      ? 'bg-amber-600 text-white shadow-sm scale-[1.01]' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              >
+                Science
+              </button>
+              <button
+                onClick={() => switchTab('humanities')}
+                className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${activeTab === 'humanities'
+                  ? 'bg-amber-600 text-white shadow-sm scale-[1.01]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                   }`}
-                >
-                  Humanities
-                </button>
-                <button 
-                  onClick={() => switchTab('secondary')} 
-                  className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${
-                    activeTab === 'secondary' 
-                      ? 'bg-violet-600 text-white shadow-sm scale-[1.01]' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              >
+                Humanities
+              </button>
+              <button
+                onClick={() => switchTab('secondary')}
+                className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${activeTab === 'secondary'
+                  ? 'bg-violet-600 text-white shadow-sm scale-[1.01]'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                   }`}
-                >
-                  9th & 10th
-                </button>
-              </div>
+              >
+                9th & 10th
+              </button>
+            </div>
 
             <div className={`grid md:grid-cols-3 gap-3 transition-all duration-200 ${tabAnimating ? 'opacity-60 -translate-y-1' : 'opacity-100 translate-y-0'}`}>
               <div>
@@ -404,8 +496,8 @@ export default function Academics() {
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-3">
-              <button 
-                onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')} 
+              <button
+                onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')}
                 className="w-fit btn-primary-custom px-4 py-2 rounded-lg font-semibold text-sm shadow transition-all duration-200 whitespace-nowrap flex-shrink-0"
               >
                 View List
@@ -420,15 +512,15 @@ export default function Academics() {
         </div>
 
         {/* Faculty & Staff Directory Section */}
-        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 mt-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <div className="bg-white p-3.5 sm:p-5 rounded-xl shadow-sm border border-slate-200 mt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
             <div>
-              <h3 className="text-xl font-bold text-teal-800 font-heading">Our Distinguished Faculty</h3>
-              <p className="text-sm text-slate-500 mt-1">Meet our dedicated lecturers, educators, and department heads.</p>
+              <h3 className="text-xl font-bold text-teal-800 font-heading">Our Distinguished Community</h3>
+              <p className="text-sm text-slate-500 mt-1">Meet our dedicated staff.</p>
             </div>
             {/* Filter controls */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0">
-              {['All', 'Science', 'Humanities', 'Secondary', 'Administration'].map((dept) => (
+              {['All', 'Science', 'Humanities', 'Secondary', 'Administration', 'MTS'].map((dept) => (
                 <button
                   key={dept}
                   onClick={() => setSelectedDept(dept)}
@@ -440,76 +532,49 @@ export default function Academics() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredFaculty.map((member, idx) => (
-              <div key={idx} className="bg-slate-50 rounded-xl border border-slate-200 p-5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
-                {/* Background accent line on hover */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-transparent group-hover:bg-teal-500 transition-colors" />
-
-                {/* Photo container */}
-                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 group-hover:border-teal-500 transition-colors shadow-sm mb-4 bg-white flex items-center justify-center">
-                  {member.photo ? (
-                    <img src={member.photo} alt={member.name} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    (() => {
-                      const nameParts = member.name.replace(/^(Mr\.|Mrs\.|Dr\.|Ms\.)\s+/i, '').split(' ');
-                      const initials = (nameParts[0]?.[0] || '') + (nameParts[nameParts.length - 1]?.[0] || '');
-                      const gradients = [
-                        'from-teal-500 to-indigo-600',
-                        'from-rose-500 to-orange-500',
-                        'from-emerald-500 to-teal-600',
-                        'from-blue-500 to-violet-600',
-                        'from-amber-500 to-red-500'
-                      ];
-                      const hash = member.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                      const grad = gradients[hash % gradients.length];
-                      return (
-                        <div className={`w-full h-full bg-gradient-to-tr ${grad} flex items-center justify-center text-white font-extrabold text-xl tracking-wide select-none`}>
-                          {initials.toUpperCase() || 'HSS'}
-                        </div>
-                      );
-                    })()
-                  )}
-                </div>
-
-                {/* Details */}
-                <span className="text-[10px] uppercase font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full mb-2 border border-teal-100">{member.department}</span>
-                <h4 className="font-bold text-slate-800 text-base mb-1">{member.name}</h4>
-                {faculty.filter(f => f.name && f.name.trim().toLowerCase() === member.name.trim().toLowerCase()).length > 1 && (
-                  <p className="text-[10px] text-teal-700 font-extrabold mb-1 px-1.5 py-0.5 rounded bg-teal-50/60 border border-teal-100 inline-block w-fit">
-                    {member.cpis_no ? `CPIS: ${member.cpis_no}` : (member.mobile ? `Mobile: ${member.mobile}` : '')}
-                  </p>
-                )}
-                <p className="text-xs text-slate-500 font-semibold mb-4">{member.designation}{(member.subject && !['Administration', 'MTS'].includes(member.department)) ? ` in ${member.subject}` : ''}</p>                {/* Actions */}
-                <div className="mt-auto w-full border-t border-slate-200 pt-3 flex items-center justify-center gap-4">
-                  {member.profile && (
-                    <button
-                      onClick={() => setActiveProfileMember(member)}
-                      className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer"
-                      title="View Full Profile"
-                    >
-                      <User size={14} />
-                    </button>
-                  )}
-                  {member.mobile && (
-                    <a href={`tel:${member.mobile}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
-                      <Phone size={14} />
-                    </a>
-                  )}
-                  {member.mobile && (
-                    <a href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow flex items-center justify-center transition-all" title="WhatsApp">
-                      <WhatsAppIcon size={14} />
-                    </a>
-                  )}
-                  {member.email && (
-                    <a href={`mailto:${member.email}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Email">
-                      <Mail size={14} />
-                    </a>
-                  )}
-                </div>
+          {/* ── Teaching / Faculty ── */}
+          {teachingFaculty.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 mb-2.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-200">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
+                  Teaching / Faculty
+                </span>
+                <span className="text-xs text-slate-400 font-mono">{teachingFaculty.length} member{teachingFaculty.length !== 1 ? 's' : ''}</span>
+                <div className="flex-1 h-px bg-slate-100" />
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-6">
+                {teachingFaculty.map((member, idx) => (
+                  <FacultyCard key={idx} member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ── Non-Teaching Staff ── */}
+          {nonTeachingFaculty.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 mb-2.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-violet-50 text-violet-700 border border-violet-200">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M20 21a8 8 0 1 0-16 0" /></svg>
+                  Non-Teaching Staff
+                </span>
+                <span className="text-xs text-slate-400 font-mono">{nonTeachingFaculty.length} member{nonTeachingFaculty.length !== 1 ? 's' : ''}</span>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {nonTeachingFaculty.map((member, idx) => (
+                  <FacultyCard key={idx} member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {filteredFaculty.length === 0 && (
+            <div className="col-span-3 py-12 text-center text-slate-400 italic text-sm">
+              No faculty members found for the selected filter.
+            </div>
+          )}
         </div>
 
         {/* Profile Modal */}
@@ -550,15 +615,27 @@ export default function Academics() {
                     )}
                   </div>
                   <div className="text-left">
-                    <span className="text-[9px] uppercase tracking-wider font-bold bg-white/20 px-2 py-0.5 rounded-full inline-block mb-1">
-                      {activeProfileMember.department}
-                    </span>
+                    <div className="flex gap-1.5 flex-wrap mb-1.5">
+                      <span className="text-[9px] uppercase tracking-wider font-bold bg-white/20 px-2 py-0.5 rounded-full inline-block">
+                        {activeProfileMember.department}
+                      </span>
+                      {(activeProfileMember.if_deployed === 'Yes' || activeProfileMember.if_deployed === 'in') && (
+                        <span className="text-[9px] uppercase tracking-wider font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full inline-block">
+                          Deployed In
+                        </span>
+                      )}
+                      {activeProfileMember.if_deployed === 'out' && (
+                        <span className="text-[9px] uppercase tracking-wider font-bold bg-amber-600 text-white px-2 py-0.5 rounded-full inline-block">
+                          Deployed Out
+                        </span>
+                      )}
+                    </div>
                     <h4 className="font-bold text-lg leading-tight">{activeProfileMember.name}</h4>
                     <p className="text-xs text-white/80 mt-0.5">{activeProfileMember.designation}{(activeProfileMember.subject && !['Administration', 'MTS'].includes(activeProfileMember.department)) ? ` in ${activeProfileMember.subject}` : ''}</p>
                   </div>
                 </div>
               </div>
-              
+
               {/* Modal Body */}
               <div className="p-6 overflow-y-auto max-h-[350px] custom-scrollbar text-left">
                 <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Biography & Professional Profile</h5>
@@ -566,7 +643,7 @@ export default function Academics() {
                   {activeProfileMember.profile}
                 </p>
               </div>
-              
+
               {/* Modal Footer */}
               <div className="border-t border-slate-100 p-4 bg-slate-50 flex justify-end">
                 <button

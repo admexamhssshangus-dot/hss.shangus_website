@@ -33,7 +33,7 @@
       "label": "New Tax Regime",
       "standardDeduction": 75000,
       "rebateThreshold": 1200000,
-      "rebateMax": 60001,
+      "rebateMax": 60000,
       "marginalReliefEnabled": false,
       "includeSurcharge": true,
       "slabs": [

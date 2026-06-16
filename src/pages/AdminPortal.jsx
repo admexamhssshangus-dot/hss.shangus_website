@@ -81,8 +81,10 @@ function toTitleCase(str) {
   const val = String(str).trim();
   if (val.toUpperCase() === 'NA') return 'NA';
 
-  const acronyms = new Set(['PG', 'MTS', 'HSS', 'B.ED', 'CPIS', 'DDO', 'HRMS', 'UDISE', 'JKBOSE', 'ICT', 'IT', 'CS']);
-  
+  const acronyms = new Set(['PG', 'MTS', 'HSS', 'B.ED', 'CPIS', 'DDO', 'HRMS', 'UDISE', 'JKBOSE', 'ICT', 'IT', 'CS', 'VT', 'ITES']);
+  const romanNumerals = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+  const minorWords = new Set(['in', 'of', 'the', 'a', 'an', 'to', 'for', 'at', 'by', 'with', 'from', 'on']);
+
   const specificMapping = {
     'b.ed': 'B.Ed',
     'bed': 'B.Ed',
@@ -114,7 +116,7 @@ function toTitleCase(str) {
     return specificMapping[lowerVal];
   }
 
-  return val.split(/(\s+|[,\-\/()])/).map(word => {
+  return val.split(/(\s+|[,\-\/()])/).map((word, idx, arr) => {
     if (!word || word.trim() === '') return word;
     if (/^[,\-\/()]+$/.test(word)) return word;
 
@@ -125,8 +127,17 @@ function toTitleCase(str) {
       return specificMapping[lowerWord];
     }
 
+    if (romanNumerals.has(upperWord)) {
+      return upperWord;
+    }
+
     if (acronyms.has(upperWord)) {
       return upperWord;
+    }
+
+    const isFirstWord = idx === 0 || arr.slice(0, idx).every(w => !w || w.trim() === '' || /^[,\-\/()]+$/.test(w));
+    if (!isFirstWord && minorWords.has(lowerWord)) {
+      return lowerWord;
     }
 
     if (lowerWord.includes('.')) {
@@ -154,17 +165,17 @@ function formatUDISECode(val) {
 function parseStayDate(str) {
   if (!str) return null;
   const cleaned = String(str).trim();
-  
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
     const parts = cleaned.split('-');
     return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
   }
-  
+
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(cleaned)) {
     const parts = cleaned.split('.');
     return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
   }
-  
+
   if (/^\d{2}-\d{2}-\d{4}$/.test(cleaned)) {
     const parts = cleaned.split('-');
     return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
@@ -172,7 +183,7 @@ function parseStayDate(str) {
 
   const parsed = Date.parse(cleaned);
   if (!isNaN(parsed)) return new Date(parsed);
-  
+
   return null;
 }
 
@@ -222,7 +233,7 @@ function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', lab
         type="button"
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-slate-700' : 'bg-emerald-600'}`}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-emerald-600' : 'bg-slate-700'}`}
       >
         <span
           className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
@@ -360,10 +371,15 @@ const calculateTaxFromTaxableIncome = (taxableIncomeInput, rawTaxConfig, regimeT
 
   const rebate = taxableIncome <= regimeConfig.rebateThreshold ? Math.min(tax, regimeConfig.rebateMax) : 0;
   const taxAfterRebate = Math.max(0, tax - rebate);
+
+  // Marginal relief: compute based on tax (pre-rebate) to avoid mixing bases.
+  // Relief = max(0, tax - (taxableIncome - rebateThreshold)) when income > threshold.
   const marginalRelief = regimeConfig.marginalReliefEnabled && taxableIncome > regimeConfig.rebateThreshold
-    ? Math.max(0, taxAfterRebate - (taxableIncome - regimeConfig.rebateThreshold))
+    ? Math.max(0, tax - (taxableIncome - regimeConfig.rebateThreshold))
     : 0;
-  const taxAfterRelief = Math.max(0, taxAfterRebate - marginalRelief);
+
+  // Apply marginal relief after rebate but cap at taxAfterRebate so we don't reduce below zero.
+  const taxAfterRelief = Math.max(0, taxAfterRebate - Math.min(marginalRelief, taxAfterRebate));
 
   let surchargeRate = 0;
   let surcharge = 0;
@@ -417,11 +433,13 @@ const calculateTax = (grossSalary, tdsUpToDate, rawTaxConfig, options = {}) => {
   const gross = Math.max(0, Number(grossSalary) || 0);
   const tds = Math.max(0, Number(tdsUpToDate) || 0);
 
-  // Deductions for Old Regime
+  // Deductions — regime-specific
+  // 80C, 80D, HRA are only for old regime
   const deduction80C = regimeType === 'old' ? Math.min(150000, Math.max(0, Number(options.deduction80C) || 0)) : 0;
   const deduction80D = regimeType === 'old' ? Math.max(0, Number(options.deduction80D) || 0) : 0;
   const hraExemption = regimeType === 'old' ? Math.max(0, Number(options.hraExemption) || 0) : 0;
-  const otherDeductions = regimeType === 'old' ? Math.max(0, Number(options.otherDeductions) || 0) : 0;
+  // 80CCD(2) — NPS employer share — is allowed under BOTH old and new regime (not subject to 80C cap)
+  const otherDeductions = Math.max(0, Number(options.otherDeductions) || 0);
 
   const totalDeductions = regimeConfig.standardDeduction + deduction80C + deduction80D + hraExemption + otherDeductions;
   const taxableIncome = Math.max(0, gross - totalDeductions);
@@ -550,7 +568,7 @@ export default function AdminPortal() {
   const [editNoticeData, setEditNoticeData] = useState({ date: '', title: '', link: '' });
 
   const [editingFacultyIdx, setEditingFacultyIdx] = useState(null);
-  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, inactiveReason: '' });
+  const [editFacultyData, setEditFacultyData] = useState({ name: '', designation: '', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, inactiveReason: '', if_deployed: 'No' });
 
   // Full Edit Modal States
   const [showFullEditModal, setShowFullEditModal] = useState(false);
@@ -600,6 +618,7 @@ export default function AdminPortal() {
     otherDeductions: ''
   });
   const [taxSearch, setTaxSearch] = useState('');
+  const [showHiddenInTax, setShowHiddenInTax] = useState(false);
   const [activeRegimeSettingsTab, setActiveRegimeSettingsTab] = useState('new');
   const [activeTaxPreviewRegime, setActiveTaxPreviewRegime] = useState('new');
   const [showTaxRules, setShowTaxRules] = useState(false);
@@ -619,6 +638,34 @@ export default function AdminPortal() {
   const taxConfig = sanitizeTaxConfig(settings.taxConfig);
   const previewRegimeConfig = activeTaxPreviewRegime === 'old' ? taxConfig.oldRegime : taxConfig.newRegime;
   const previewTaxFreeGross = previewRegimeConfig.standardDeduction + previewRegimeConfig.rebateThreshold;
+
+  const getFilteredTaxFaculty = () => {
+    return faculty.filter(t => {
+      const isDeployedIn = t.if_deployed === 'in';
+      const isDeployedOut = t.if_deployed === 'out';
+      const isRetired = t.hidden && t.inactiveReason === 'Retired';
+      const isTransferred = t.hidden && t.inactiveReason === 'Transferred';
+      const isDeployedOutHidden = t.hidden && t.inactiveReason === 'Deployed Out';
+
+      // Excluded by default:
+      // 1. Deployed In (t.if_deployed === 'in')
+      // 2. Retired/Transferred/Deployed Out (either hidden with that inactiveReason, or if_deployed === 'out')
+      const isExcluded = isDeployedIn || isDeployedOut || isRetired || isTransferred || isDeployedOutHidden;
+
+      if (!showHiddenInTax && isExcluded) {
+        return false;
+      }
+
+      // Standard hidden check if not using showHiddenInTax
+      if (t.hidden && !showHiddenInTax) return false;
+
+      const term = taxSearch.toLowerCase();
+      return !term ||
+        t.name.toLowerCase().includes(term) ||
+        (t.cpis_no || '').toLowerCase().includes(term) ||
+        t.designation.toLowerCase().includes(term);
+    });
+  };
 
   // Helper to generate a dynamic math challenge with a 1-second randomization animation
   const generateCaptcha = (shouldShuffle = true) => {
@@ -752,6 +799,7 @@ export default function AdminPortal() {
 
     if (foundAdmin && inputHash === foundAdmin.passwordHash) {
       localStorage.removeItem('admin_failed_attempts');
+      localStorage.removeItem('admin_last_failed_time');
       localStorage.removeItem('admin_lockout_until');
 
       // Set unique session token for this device/tab
@@ -782,11 +830,21 @@ export default function AdminPortal() {
         // ignore
       }
     } else {
-      const attempts = (parseInt(localStorage.getItem('admin_failed_attempts') || '0')) + 1;
+      const now = Date.now();
+      const lastFailedTime = parseInt(localStorage.getItem('admin_last_failed_time') || '0');
+      let currentAttempts = parseInt(localStorage.getItem('admin_failed_attempts') || '0');
+
+      // Reset count if last failed attempt was more than 15 minutes ago
+      if (now - lastFailedTime > 15 * 60 * 1000) {
+        currentAttempts = 0;
+      }
+
+      const attempts = currentAttempts + 1;
       localStorage.setItem('admin_failed_attempts', attempts.toString());
+      localStorage.setItem('admin_last_failed_time', now.toString());
 
       if (attempts >= 6) {
-        const lockoutUntilTime = Date.now() + 15 * 60 * 1000; // 15 mins
+        const lockoutUntilTime = now + 15 * 60 * 1000; // 15 mins
         localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
         setAuthError('Too many failed attempts. Console locked for 15 minutes.');
       } else {
@@ -807,7 +865,7 @@ export default function AdminPortal() {
         const permissionsChanged = JSON.stringify(match.allowedTabs) !== JSON.stringify(currentSessionUser.allowedTabs);
         const roleChanged = match.role !== currentSessionUser.role;
         const passChanged = match.passwordHash !== currentSessionUser.passwordHash;
-        
+
         if (passChanged) {
           handleLogout('logged_out_elsewhere');
           showAlert("Your password has been changed. Please log in again.", "Security Update");
@@ -833,24 +891,11 @@ export default function AdminPortal() {
     if (sessionStorage.getItem('isAdminAuthenticated') === 'true' && sessionUser) {
       try {
         currentSessionUser = JSON.parse(sessionUser);
-      } catch (e) {}
+      } catch (e) { }
     }
 
-    // 2. Load admins list first
-    const localAdmins = localStorage.getItem('site_admins');
-    if (localAdmins) {
-      try {
-        const parsed = JSON.parse(localAdmins);
-        setAdmins(parsed);
-        if (currentSessionUser) {
-          syncCurrentUserSession(parsed, currentSessionUser);
-        }
-      } catch (e) {
-        fetchAdminsFromServer(currentSessionUser);
-      }
-    } else {
-      fetchAdminsFromServer(currentSessionUser);
-    }
+    // 2. Always fetch latest admins from server, with fallback to localStorage or defaults
+    fetchAdminsFromServer(currentSessionUser);
 
     function fetchAdminsFromServer(sessionUserObj) {
       fetch('/slides/admins.json?t=' + Date.now(), { cache: 'no-cache' })
@@ -866,26 +911,38 @@ export default function AdminPortal() {
               syncCurrentUserSession(data, sessionUserObj);
             }
           } else {
-            setAdmins(DEFAULT_ADMINS);
-            localStorage.setItem('site_admins', JSON.stringify(DEFAULT_ADMINS));
-            if (sessionUserObj) {
-              syncCurrentUserSession(DEFAULT_ADMINS, sessionUserObj);
-            }
+            useFallbackAdmins(sessionUserObj);
           }
         })
         .catch(() => {
-          setAdmins(DEFAULT_ADMINS);
-          localStorage.setItem('site_admins', JSON.stringify(DEFAULT_ADMINS));
-          if (sessionUserObj) {
-            syncCurrentUserSession(DEFAULT_ADMINS, sessionUserObj);
-          }
+          useFallbackAdmins(sessionUserObj);
         });
+    }
+
+    function useFallbackAdmins(sessionUserObj) {
+      const localAdmins = localStorage.getItem('site_admins');
+      if (localAdmins) {
+        try {
+          const parsed = JSON.parse(localAdmins);
+          setAdmins(parsed);
+          if (sessionUserObj) {
+            syncCurrentUserSession(parsed, sessionUserObj);
+          }
+          return;
+        } catch (e) { }
+      }
+      setAdmins(DEFAULT_ADMINS);
+      localStorage.setItem('site_admins', JSON.stringify(DEFAULT_ADMINS));
+      if (sessionUserObj) {
+        syncCurrentUserSession(DEFAULT_ADMINS, sessionUserObj);
+      }
     }
 
     // 3. Restore session (tab redirection, etc.)
     const currentSessionId = sessionStorage.getItem('admin_session_id');
     const activeSessionId = localStorage.getItem('admin_active_session_id');
 
+    // Restore session if present in sessionStorage (valid for the lifetime of this tab)
     if (sessionStorage.getItem('isAdminAuthenticated') === 'true' && sessionUser) {
       if (currentSessionId && activeSessionId && currentSessionId !== activeSessionId) {
         handleLogout('logged_out_elsewhere');
@@ -901,6 +958,11 @@ export default function AdminPortal() {
         }
       }
     } else {
+      // clear any stale sessionStorage if persistence not allowed
+      sessionStorage.removeItem('isAdminAuthenticated');
+      sessionStorage.removeItem('admin_session_id');
+      sessionStorage.removeItem('adminUser');
+      sessionStorage.removeItem('activeAdminTab');
       generateCaptcha(false);
     }
 
@@ -1098,20 +1160,11 @@ export default function AdminPortal() {
       }
     }).catch(err => console.warn('Could not retrieve folder handle from DB:', err));
 
-    // 1. Load admissions settings
-    const localSettings = localStorage.getItem('site_settings');
-    if (localSettings) {
-      try {
-        const parsed = JSON.parse(localSettings);
-        setSettings(mergeSiteSettings(parsed));
-      } catch (e) {
-        console.error('Error parsing site_settings from localStorage:', e);
-      }
-    } else {
-      loadSiteSettings().then((loadedSettings) => {
-        setSettings(loadedSettings);
-      });
-    }
+    // 1. Load admissions settings — always go through loadSiteSettings()
+    //    so that any migrations (e.g. marginalReliefEnabled fix) are applied.
+    loadSiteSettings().then((loadedSettings) => {
+      setSettings(loadedSettings);
+    });
 
     // 2. Load notices
     const localNotices = localStorage.getItem('site_notices');
@@ -1406,7 +1459,7 @@ export default function AdminPortal() {
   };
 
   // Faculty Handlers
-  const [newTeacher, setNewTeacher] = useState({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {}, inactiveReason: '' });
+  const [newTeacher, setNewTeacher] = useState({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {}, inactiveReason: '', if_deployed: 'No' });
 
   // Helper: clean a designation string — strip "in <Subject>" suffix for Principal/Vice Principal/MTS
   const cleanDesignation = (desig) => {
@@ -1501,7 +1554,7 @@ export default function AdminPortal() {
     }
 
     setFaculty((prev) => [...prev, { ...newTeacher, designation: cleanedDesig, subject: cleanedSubj, photo: photoPath, department: dept }]);
-    setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {}, inactiveReason: '' });
+    setNewTeacher({ name: '', designation: 'Lecturer', subject: '', email: '', mobile: '', department: 'Humanities', photo: '', profile: '', hidden: false, customFields: {}, inactiveReason: '', if_deployed: 'No' });
 
     setNewTeacherPhotoFile(null);
     setNewTeacherPhotoName('');
@@ -1716,6 +1769,8 @@ export default function AdminPortal() {
   const fullEditField = (key, value) => setFullEditData(d => ({ ...d, [key]: value }));
 
   const saveEmployeeTaxDetails = (index, pan, grossSalary, tds, regime, deduction80C, deduction80D, hraExemption, otherDeductions) => {
+    // Build the updated employee object FIRST (pure, no side effects)
+    let updatedFaculty = null;
     setFaculty(prev => {
       const updated = [...prev];
       const emp = { ...updated[index] };
@@ -1727,7 +1782,7 @@ export default function AdminPortal() {
       const clean80D = parseFloat(deduction80D) || 0;
       const cleanHra = parseFloat(hraExemption) || 0;
       const cleanOther = parseFloat(otherDeductions) || 0;
-      
+
       emp.pan = cleanPan;
       emp.grossSalary = cleanGross;
       emp.tds = cleanTds;
@@ -1736,7 +1791,7 @@ export default function AdminPortal() {
       emp.deduction80D = clean80D;
       emp.hraExemption = cleanHra;
       emp.otherDeductions = cleanOther;
-      
+
       emp.customFields = {
         ...(emp.customFields || {}),
         PAN: cleanPan,
@@ -1748,12 +1803,36 @@ export default function AdminPortal() {
         'HRA Exemption': cleanHra.toString(),
         'Other Deductions': cleanOther.toString()
       };
-      
       updated[index] = emp;
+      updatedFaculty = updated; // capture for side effects below
       return updated;
     });
-    setSaveSuccess('Tax details updated. Click "Apply & Save" to make changes permanent.');
-    setTimeout(() => setSaveSuccess(''), 5000);
+
+    // Side effects OUTSIDE the state updater (React StrictMode safe)
+    // Use setTimeout(0) so state has committed before we read updatedFaculty
+    setTimeout(() => {
+      if (!updatedFaculty) return;
+      // Persist to localStorage immediately
+      localStorage.setItem('site_faculty', JSON.stringify(updatedFaculty));
+      // Broadcast live update to other tabs
+      try {
+        const ch = new BroadcastChannel('hss_data_sync');
+        ch.postMessage({ type: 'UPDATE_DATA' });
+        ch.close();
+      } catch (e) { /* ignore */ }
+      // Write to file if running locally
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isLocalhost) {
+        fetch('/api/save-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ faculty: updatedFaculty })
+        }).catch(err => console.warn('Background file sync failed:', err));
+      }
+    }, 0);
+
+    setSaveSuccess('✅ Tax details saved and persisted instantly.');
+    setTimeout(() => setSaveSuccess(''), 4000);
   };
 
   const printTaxSheets = (emps) => {
@@ -1788,15 +1867,14 @@ export default function AdminPortal() {
       const calc = calculateTax(gross, tds, taxConfig, options);
 
       // Slabs logic
-      const slabRowsHtml = calc.slabDetails.map((slab, slabIdx) => {
-        const isFirst = slabIdx === 0;
+      const slabRowsHtml = calc.slabDetails.map((slab) => {
         const slabTax = slab.tax;
         const detailsVal = slabTax > 0 ? formatSlab(slabTax) : 'Nil';
         const rightVal = slabTax > 0 ? formatSlab(slabTax) : '0';
         return `
           <tr>
-            <td style="text-align: center;">${isFirst ? '7' : ''}</td>
-            <td>Slab ${slab.rate}% ${slab.label}</td>
+            <td style="text-align: center;"></td>
+            <td style="padding-left: 15px;">Slab ${slab.rate}% ${slab.label}</td>
             <td class="text-right">${detailsVal}</td>
             <td class="text-right">${rightVal}</td>
           </tr>
@@ -1818,40 +1896,33 @@ export default function AdminPortal() {
         <div class="tax-sheet">
           <div class="tax-sheet-content">
             <!-- Header section -->
-            <div class="header-top">
-              <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
-                <div style="text-align: left; width: 35%;">
-                  <h3 style="margin: 0; font-size: 8px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; color: #475569;">OFFICE OF THE PRINCIPAL</h3>
-                  <h1 style="margin: 1px 0 0 0; font-size: 13px; font-weight: 900; color: #000; letter-spacing: -0.2px;">GOVT. HIGHER SECONDARY SCHOOL SHANGUS</h1>
-                </div>
-                <div style="text-align: center; width: 45%;">
-                  <h2 style="margin: 0; font-size: 11px; font-weight: bold; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase;">INCOME TAX CALCULATION SHEET</h2>
-                  <p style="margin: 1px 0 0 0; font-size: 8.5px; font-weight: bold; color: #475569;">Financial Year ${calc.taxConfig.financialYearLabel}; Assessment Year ${calc.taxConfig.assessmentYearLabel}</p>
-                </div>
-                <div style="text-align: right; width: 20%;">
-                  <div style="font-size: 9px; font-weight: bold;">TAN No.: <span style="color: #dc2626; font-family: monospace; font-size: 10px;">AMRG13179F</span></div>
-                </div>
+            <div class="header-top" style="text-align: center;">
+              <h3 style="margin: 0; font-size: 11px; font-weight: bold; letter-spacing: 1.2px; text-transform: uppercase; color: #475569;">OFFICE OF THE PRINCIPAL</h3>
+              <h1 style="margin: 2px 0; font-size: 18px; font-weight: 900; color: #000; letter-spacing: -0.2px; line-height: 1.1;">GOVT. HIGHER SECONDARY SCHOOL SHANGUS</h1>
+              <h2 style="margin: 4px 0 3px 0; font-size: 14px; font-weight: bold; text-decoration: underline; letter-spacing: 0.5px; text-transform: uppercase;">INCOME TAX CALCULATION SHEET</h2>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 11px; font-weight: bold; color: #334155; padding: 0 4px; border-bottom: 1.5px solid black; padding-bottom: 3px; margin-bottom: 5px;">
+                <span>Financial Year: ${calc.taxConfig.financialYearLabel}</span>
+                <span>TAN No: <span style="color: #dc2626; font-family: monospace; font-size: 11.5px;">AMRG13179F</span></span>
+                <span>Assessment Year: ${calc.taxConfig.assessmentYearLabel}</span>
               </div>
             </div>
 
             <!-- Employee Info Grid -->
             <table class="header-details-table">
               <tr>
-                <td rowspan="3" class="regime-badge-container">
+                <td rowspan="2" class="regime-badge-container ${calc.regimeType === 'new' ? 'new-regime' : 'old-regime'}">
                   <div class="regime-badge-inner">${calc.regimeConfig.label}</div>
                 </td>
-                <td class="label-cell">NAME OF THE OFFICIAL</td>
-                <td class="value-cell" colspan="3">${(emp.name || '').toUpperCase()}</td>
+                <td class="label-cell" style="width: 24%;">NAME OF THE OFFICIAL</td>
+                <td class="value-cell" style="width: 26%;">${(emp.name || '').toUpperCase()}</td>
+                <td class="label-cell" style="width: 18%;">DESIGNATION</td>
+                <td class="value-cell" style="width: 32%;">${(emp.designation || '').toUpperCase()}</td>
               </tr>
               <tr>
-                <td class="label-cell">DESIGNATION</td>
-                <td class="value-cell" style="width: 30%;">${(emp.designation || '').toUpperCase()}</td>
-                <td class="label-cell" style="width: 15%;">CPIS ID</td>
-                <td class="value-cell" style="width: 35%; font-family: monospace;">${emp.cpis_no || '-'}</td>
-              </tr>
-              <tr>
-                <td class="label-cell">PAN NO</td>
-                <td class="value-cell" colspan="3" style="font-family: monospace;">${pan || '-'}</td>
+                <td class="label-cell" style="width: 24%;">CPIS ID</td>
+                <td class="value-cell" style="width: 26%; font-family: monospace;">${emp.cpis_no || '-'}</td>
+                <td class="label-cell" style="width: 18%;">PAN NO</td>
+                <td class="value-cell" style="width: 32%; font-family: monospace;">${pan || '-'}</td>
               </tr>
             </table>
 
@@ -1916,25 +1987,25 @@ export default function AdminPortal() {
                 </tr>
                 
                 <!-- HRA Row -->
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;">2</td>
                   <td>Less House Rent allowance exempt U/s 10(13A)</td>
                   <td></td>
                   <td></td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">A. Actual amount of HRA Received</td>
                   <td class="text-right">${calc.hraExemption > 0 ? formatSalary(calc.hraExemption) : '0'}</td>
                   <td class="text-right">${calc.hraExemption > 0 ? formatSalary(calc.hraExemption) : '0'}</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">B. Expenditure on rent in excess of 10% Salary (including DA)</td>
                   <td class="text-right">0</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">C. 40% of Salary (including DA)</td>
                   <td class="text-right">0</td>
@@ -1942,53 +2013,53 @@ export default function AdminPortal() {
                 </tr>
 
                 <!-- HBA Row -->
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;">3</td>
                   <td>Less: Interest paid on HBA U/s 24(B), 80EE (Max up to 2.0lakh)</td>
                   <td class="text-right">0</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td>Less: Interest paid on loan taken for higher education, U/s 80E</td>
                   <td class="text-right">0</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
-                  <td class="font-bold">Capital borrowed for repairs/renewal/reconstruction of house, maximum interest allowable Rs. 30000</td>
+                  <td class="font-bold" style="font-size: 8.5px; font-style: italic;">Capital borrowed for repairs/renewal/reconstruction of house, maximum interest allowable Rs. 30000</td>
                   <td></td>
                   <td class="text-right">0</td>
                 </tr>
 
                 <!-- 80D Row -->
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;">4</td>
                   <td>Less Deduction U/s 80D (Health insurance- Self & Family Max up to 0.25 lakh)</td>
                   <td class="text-right">${calc.deduction80D > 0 ? formatSalary(calc.deduction80D) : '0'}</td>
                   <td class="text-right">${calc.deduction80D > 0 ? formatSalary(calc.deduction80D) : '0'}</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td>Less Deduction U/s 80DD, 80U (Max 1.25 lakh and min 0.75 Lakh)</td>
                   <td class="text-right">0</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td>Less Deduction U/s 80DDB (Medical treatment of specified disease)</td>
                   <td class="text-right">0</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr class="text-red-600">
+                <tr class="text-red-600 compact-row">
                   <td style="text-align: center;"></td>
-                  <td class="font-bold">Note: No Deduction shall be allowed unless a new certificate is obtained from medical authority in the prescribed format.</td>
+                  <td class="font-bold" style="font-size: 8.5px; font-style: italic;">No Deduction shall be allowed unless a new certificate is obtained from medical authority in the prescribed format.</td>
                   <td></td>
                   <td class="text-right">0</td>
                 </tr>
 
                 <!-- 80G Row -->
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;">5</td>
                   <td>Less: Deduction U/s 80G (M relief Fund, Red Cross Funds, Cancer Fund, etc.)</td>
                   <td class="text-right">0</td>
@@ -2004,46 +2075,47 @@ export default function AdminPortal() {
                 </tr>
 
                 <!-- 80C Rows -->
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;">6</td>
-                  <td class="font-bold">Less: Deduction U/s 80C, 80CCC, 80CCCD, 80CCD</td>
+                  <td class="font-bold">Less: Deduction U/s 80C, 80CCE, 80CCC, 80CCD</td>
                   <td></td>
                   <td></td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">GPF/CPF</td>
                   <td class="text-right">0</td>
-                  <td rowspan="6" class="text-center font-bold" style="background-color: #a7f3d0; vertical-align: middle;">${formatSalary(calc.deduction80C)}</td>
+                  <td rowspan="${calc.regimeType === 'new' ? '5' : '6'}" class="text-center font-bold" style="background-color: #a7f3d0; vertical-align: middle;">${formatSalary(calc.deduction80C)}</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">SLI</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">Repayment of HBA Loan</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">Tuition fee (Restricted to two children)</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">LIC, Metlife, PLI, PPF, etc.</td>
                   <td class="text-right">0</td>
                 </tr>
-                <tr>
+                ${calc.regimeType === 'old' ? `
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td style="padding-left: 15px;">Restricted to Rs 1,50,000</td>
                   <td class="text-right">${calc.deduction80C > 0 ? formatSalary(calc.deduction80C) : '0'}</td>
-                </tr>
+                </tr>` : ''}
 
                 <!-- 80CCD(2) Row -->
-                <tr>
+                <tr class="compact-row">
                   <td style="text-align: center;"></td>
                   <td>Less: Deduction U/s 80CCD (2)</td>
                   <td class="text-right">${calc.otherDeductions > 0 ? formatSalary(calc.otherDeductions) : '0'}</td>
@@ -2051,20 +2123,20 @@ export default function AdminPortal() {
                 </tr>
 
                 <!-- Taxable Income -->
-                <tr style="background-color: #fef08a; font-bold">
+                <tr style="background-color: #fef08a; font-weight: bold;">
                   <td style="text-align: center;"></td>
                   <td class="font-bold text-center">Total Tax Income</td>
                   <td></td>
                   <td class="text-right font-bold text-red-600" style="background-color: #fef08a; color: #dc2626;">₹ ${formatSalary(calc.taxableIncome)}</td>
                 </tr>
-                <tr style="background-color: #fef08a; font-bold">
+                <tr style="background-color: #fef08a; font-weight: bold;">
                   <td style="text-align: center;"></td>
                   <td class="font-bold text-center">Total Tax Income (Rounded Off)</td>
                   <td></td>
                   <td class="text-right font-bold text-red-600" style="background-color: #fef08a; color: #dc2626;">₹ ${formatSalary(calc.taxableIncome)}</td>
                 </tr>
                 <tr>
-                  <td style="text-align: center;"></td>
+                  <td style="text-align: center; font-weight: bold;">7</td>
                   <td class="font-bold text-center">Income Tax thereon/Payable</td>
                   <td></td>
                   <td></td>
@@ -2132,7 +2204,7 @@ export default function AdminPortal() {
               I hereby certify that the information/Documents submitted are correct and genuine. If found false or tampered, I shall personally remain responsible for any action as warranted under rules. Additionally, the benefit availed shall be summarily withdrawn.
             </div>
 
-            <table style="width: 100%; border-collapse: collapse; border: none; font-size: 9px; font-weight: bold; margin-top: 15px;">
+            <table style="width: 100%; border-collapse: collapse; border: none; font-size: 11px; font-weight: bold; margin-top: 15px;">
               <tbody>
                 <tr>
                   <td style="border: none; text-align: left; padding: 0; vertical-align: bottom;">Sig. of Employee</td>
@@ -2154,8 +2226,8 @@ export default function AdminPortal() {
           <title>Income Tax Calculation Sheets</title>
           <style>
             @page {
-              size: A4 landscape;
-              margin: 6mm 8mm;
+              size: A4 portrait;
+              margin: 2mm;
             }
             @media print {
               body {
@@ -2164,31 +2236,42 @@ export default function AdminPortal() {
                 print-color-adjust: exact;
                 margin: 0;
                 padding: 0;
+                display: block;
               }
               .no-print {
                 display: none !important;
               }
               .tax-sheet {
                 width: 100% !important;
-                height: 100% !important;
-                margin: 0 !important;
+                max-width: 206mm !important;
+                height: auto !important;
+                min-height: auto !important;
+                margin: 0 auto !important;
                 box-shadow: none !important;
+                border: none !important;
+                outline: none !important;
                 page-break-after: always !important;
                 page-break-inside: avoid !important;
               }
+              .tax-sheet:last-child {
+                page-break-after: auto !important;
+              }
             }
             body {
-              font-family: Arial, sans-serif;
+              font-family: system-ui, -apple-system, Arial, sans-serif;
               color: black;
               background: #f1f5f9;
-              padding: 20px;
+              padding: 10px 0;
               margin: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
             }
             .tax-sheet {
-              width: 281mm;
-              height: 196mm;
-              padding: 10px 15px;
-              margin: 0 auto 20px auto;
+              width: 206mm;
+              min-height: 293mm;
+              padding: 6px 10px;
+              margin: 0 auto 10px auto;
               box-sizing: border-box;
               position: relative;
               background: white;
@@ -2198,7 +2281,7 @@ export default function AdminPortal() {
               outline-offset: -3px;
               display: flex;
               flex-direction: column;
-              justify-content: space-between;
+              justify-content: flex-start;
             }
             .header-top {
               width: 100%;
@@ -2212,14 +2295,14 @@ export default function AdminPortal() {
             }
             .header-details-table td {
               border: 1px solid black;
-              padding: 3px 6px;
-              font-size: 8.5px;
+              padding: 4px 8px;
+              font-size: 11px;
               vertical-align: middle;
             }
             .header-details-table .label-cell {
               font-weight: bold;
               background-color: #f8fafc;
-              width: 18%;
+              width: 15%;
               color: #1e293b;
             }
             .header-details-table .value-cell {
@@ -2227,39 +2310,49 @@ export default function AdminPortal() {
               font-weight: bold;
             }
             .regime-badge-container {
-              width: 32px;
-              background-color: #dc2626;
+              width: 50px;
               color: white;
               text-align: center;
               font-weight: bold;
-              padding: 0 !important;
+              padding: 6px 2px !important;
+            }
+            .regime-badge-container.new-regime {
+              background-color: #0f766e !important;
+            }
+            .regime-badge-container.old-regime {
+              background-color: #961c14 !important;
             }
             .regime-badge-inner {
-              writing-mode: vertical-rl;
-              transform: rotate(180deg);
               text-transform: uppercase;
-              font-size: 8px;
+              font-size: 9px;
               letter-spacing: 0.5px;
-              display: inline-block;
-              white-space: nowrap;
+              display: block;
+              line-height: 1.15;
             }
             .main-tax-table {
               width: 100%;
               border-collapse: collapse;
               border: 1.5px solid black;
-              font-size: 8.2px;
-              line-height: 1.15;
+              font-size: 10.5px;
+              line-height: 1.25;
             }
             .main-tax-table th, .main-tax-table td {
               border: 1px solid black;
-              padding: 2.2px 4px;
+              padding: 3px 5px;
               vertical-align: middle;
+              white-space: normal;
+              word-wrap: break-word;
+              word-break: break-word;
+            }
+            .main-tax-table tr.compact-row td {
+              padding-top: 0.5px;
+              padding-bottom: 0.5px;
             }
             .main-tax-table th {
               font-weight: bold;
               background-color: #f1f5f9;
               text-transform: uppercase;
-              font-size: 7.5px;
+              font-size: 9.5px;
             }
             .text-right {
               text-align: right;
@@ -2277,7 +2370,7 @@ export default function AdminPortal() {
               color: #16a34a;
             }
             .text-lg {
-              font-size: 11px;
+              font-size: 13px;
             }
             .bg-orange-100 {
               background-color: #ffedd5;
@@ -2287,11 +2380,11 @@ export default function AdminPortal() {
             }
             .certification-box {
               text-align: justify;
-              font-size: 8px;
+              font-size: 10.5px;
               border: 1px solid black;
-              padding: 4px 6px;
-              line-height: 1.2;
-              margin-top: 5px;
+              padding: 5px 8px;
+              line-height: 1.25;
+              margin-top: 8px;
               background-color: #fafafa;
             }
             .no-print-bar {
@@ -2307,7 +2400,7 @@ export default function AdminPortal() {
               margin-bottom: 20px;
               border-radius: 6px;
               box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-              max-width: 281mm;
+              max-width: 190mm;
               margin-left: auto;
               margin-right: auto;
             }
@@ -2371,7 +2464,7 @@ export default function AdminPortal() {
       showAlert("Please select at least one tab permission.", "Validation Error");
       return;
     }
-    
+
     const exists = admins.some(a => a.email.toLowerCase().trim() === newAdminEmail.toLowerCase().trim());
     if (exists) {
       showAlert("An admin account with this email address already exists.", "Account Conflict");
@@ -2597,11 +2690,11 @@ export default function AdminPortal() {
         const fromDate = record[`Posting From-${i}`] || '';
         const toDate = record[`Posting To-${i}`] || '';
         if (office || designation) {
-          postings.push({ 
-            office: toTitleCase(office), 
-            designation: toTitleCase(designation), 
-            from: fromDate, 
-            to: toDate 
+          postings.push({
+            office: toTitleCase(office),
+            designation: toTitleCase(designation),
+            from: fromDate,
+            to: toDate
           });
         }
       }
@@ -2643,11 +2736,11 @@ export default function AdminPortal() {
       ];
       const customFields = {};
       headers.forEach((header, hIdx) => {
-        const isStandard = standardHeaders.includes(header) || 
-                           /^Posting Office-\d+$/.test(header) || 
-                           /^Designation-\d+$/.test(header) || 
-                           /^Posting From-\d+$/.test(header) || 
-                           /^Posting To-\d+$/.test(header);
+        const isStandard = standardHeaders.includes(header) ||
+          /^Posting Office-\d+$/.test(header) ||
+          /^Designation-\d+$/.test(header) ||
+          /^Posting From-\d+$/.test(header) ||
+          /^Posting To-\d+$/.test(header);
         if (!isStandard && header.trim() !== '') {
           customFields[header] = (values[hIdx] || '').trim();
         }
@@ -2674,7 +2767,7 @@ export default function AdminPortal() {
         profile: record['Profile Bio'] !== undefined ? record['Profile Bio'] : '',
         hidden: record['Hidden'] !== undefined ? (record['Hidden'].toLowerCase() === 'true' || record['Hidden'].toLowerCase() === 'yes') : undefined,
         inactiveReason: record['Inactive Reason'] !== undefined ? record['Inactive Reason'] : undefined,
-        
+
         pan: importedPan,
         grossSalary: importedGross ? parseFloat(importedGross) || 0 : 0,
         tds: importedTds ? parseFloat(importedTds) || 0 : 0,
@@ -3189,8 +3282,8 @@ export default function AdminPortal() {
             <tr>
               <td class="label">B.Ed Completed:</td>
               <td class="value">${t.bed || 'NO'}</td>
-              <td class="label" style="padding-left: 20px;">If Deployed / Detached:</td>
-              <td class="value">${t.if_deployed || 'No'}</td>
+              <td class="label" style="padding-left: 20px;">Deployment Status:</td>
+              <td class="value">${t.if_deployed === 'in' ? 'Deployed In (from another school)' : t.if_deployed === 'out' ? 'Deployed Out (sent to another school)' : t.if_deployed === 'Yes' ? 'On Deployment' : 'No'}</td>
             </tr>
             <tr>
               <td class="label">Health/Security Grounds:</td>
@@ -3366,8 +3459,8 @@ export default function AdminPortal() {
             <tr>
               <td class="label">B.Ed Completed:</td>
               <td class="value">${t.bed || 'NO'}</td>
-              <td class="label" style="padding-left: 20px;">If Deployed / Detached:</td>
-              <td class="value">${t.if_deployed || 'No'}</td>
+              <td class="label" style="padding-left: 20px;">Deployment Status:</td>
+              <td class="value">${t.if_deployed === 'in' ? 'Deployed In (from another school)' : t.if_deployed === 'out' ? 'Deployed Out (sent to another school)' : t.if_deployed === 'Yes' ? 'On Deployment' : 'No'}</td>
             </tr>
             <tr>
               <td class="label">Health/Security Grounds:</td>
@@ -4003,7 +4096,7 @@ export default function AdminPortal() {
                 {/* Notice Preview Section */}
                 <div className="bg-slate-900/30 p-3.5 rounded-lg border border-slate-800 space-y-4">
                   <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Live Preview</h3>
-                  
+
                   {/* Home Page Sidebar Preview */}
                   <div>
                     <h4 className="text-[10px] font-bold text-slate-400 mb-2">Home Page (Sidebar)</h4>
@@ -4013,7 +4106,7 @@ export default function AdminPortal() {
                           {newNotice.date || 'Jun 12'}
                         </span>
                         <div className="flex-1 min-w-0 relative">
-                           {/* Single-line text with truncation */}
+                          {/* Single-line text with truncation */}
                           <span className="text-sm font-medium text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
                             {newNotice.title || 'Your Notice Title Here'}
                           </span>
@@ -4038,7 +4131,7 @@ export default function AdminPortal() {
                           </span>
                         </div>
                         <div className="flex-1 min-w-0 relative">
-                           {/* Single-line text with truncation */}
+                          {/* Single-line text with truncation */}
                           <h4 className="font-bold text-slate-800 text-base leading-snug whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
                             {newNotice.title || 'Your Notice Title Here'}
                           </h4>
@@ -4365,7 +4458,7 @@ export default function AdminPortal() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <div className={newTeacher.hidden ? "md:col-span-2" : "md:col-span-3"}>
+                    <div className="md:col-span-2">
                       <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
                       <textarea
                         placeholder="Write a brief profile biography or details about this faculty member..."
@@ -4380,8 +4473,8 @@ export default function AdminPortal() {
                         value={newTeacher.hidden ? 'hidden' : 'visible'}
                         onChange={(e) => {
                           const isHidden = e.target.value === 'hidden';
-                          setNewTeacher({ 
-                            ...newTeacher, 
+                          setNewTeacher({
+                            ...newTeacher,
                             hidden: isHidden,
                             inactiveReason: isHidden ? (newTeacher.inactiveReason || 'Transferred') : ''
                           });
@@ -4392,11 +4485,23 @@ export default function AdminPortal() {
                         <option value="hidden">Hidden (Inactive)</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Deployment Status</label>
+                      <select
+                        value={newTeacher.if_deployed || 'No'}
+                        onChange={(e) => setNewTeacher({ ...newTeacher, if_deployed: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-400"
+                      >
+                        <option value="No">No Deployment</option>
+                        <option value="in">Deployed In → (from another school, works here)</option>
+                        <option value="out">Deployed Out ← (our employee, sent to another school)</option>
+                      </select>
+                    </div>
                     {newTeacher.hidden && (
-                      <div className="animate-in fade-in duration-200">
+                      <div className="md:col-span-4 animate-in fade-in duration-200">
                         <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
                         <select
-                          value={['Transferred', 'Retired'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
+                          value={['Transferred', 'Retired', 'Deployed Out'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === 'Other') {
@@ -4410,9 +4515,10 @@ export default function AdminPortal() {
                         >
                           <option value="Transferred">Transferred</option>
                           <option value="Retired">Retired</option>
+                          <option value="Deployed Out">Deployed Out</option>
                           <option value="Other">Other...</option>
                         </select>
-                        {newTeacher.inactiveReason && !['Transferred', 'Retired'].includes(newTeacher.inactiveReason) && (
+                        {newTeacher.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(newTeacher.inactiveReason) && (
                           <input
                             type="text"
                             value={newTeacher.inactiveReason}
@@ -4486,6 +4592,7 @@ export default function AdminPortal() {
                         <th className="p-1.5">Role / Subject</th>
                         <th className="p-1.5">Department</th>
                         <th className="p-1.5">Contact</th>
+                        <th className="p-1.5 text-center">On Deployment</th>
                         <th className="p-1.5">Photo URL</th>
                         <th className="p-1.5 w-24 text-center">Action</th>
                       </tr>
@@ -4493,7 +4600,7 @@ export default function AdminPortal() {
                     <tbody className="divide-y divide-slate-800/60">
                       {faculty.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="p-4 text-center text-slate-500 italic text-[11px]">No faculty members configured. Add some above.</td>
+                          <td colSpan={9} className="p-4 text-center text-slate-500 italic text-[11px]">No faculty members configured. Add some above.</td>
                         </tr>
                       ) : (
                         faculty.map((t, index) => {
@@ -4504,13 +4611,12 @@ export default function AdminPortal() {
                           return (
                             <React.Fragment key={t.name + index}>
                               <tr
-                                className={`hover:bg-slate-900/20 transition-colors ${
-                                  rowHasError
-                                    ? 'bg-red-950/20 border-l-2 border-l-red-500'
-                                    : rowHasWarning
+                                className={`hover:bg-slate-900/20 transition-colors ${rowHasError
+                                  ? 'bg-red-950/20 border-l-2 border-l-red-500'
+                                  : rowHasWarning
                                     ? 'bg-amber-950/20 border-l-2 border-l-amber-500'
                                     : ''
-                                }`}
+                                  }`}
                               >
                                 <td className="p-1.5 w-8 text-center">
                                   <input
@@ -4605,6 +4711,17 @@ export default function AdminPortal() {
                                         />
                                       </div>
                                     </td>
+                                    <td className="p-1.5 text-center">
+                                      <select
+                                        value={editFacultyData.if_deployed || 'No'}
+                                        onChange={(e) => setEditFacultyData({ ...editFacultyData, if_deployed: e.target.value })}
+                                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400"
+                                      >
+                                        <option value="No">No</option>
+                                        <option value="in">Deployed In (from another school)</option>
+                                        <option value="out">Deployed Out (sent elsewhere)</option>
+                                      </select>
+                                    </td>
                                     <td className="p-1.5">
                                       <div className="flex flex-col gap-1 w-[130px]">
                                         <input
@@ -4661,11 +4778,10 @@ export default function AdminPortal() {
                                           )}
                                           {rowIssue && (
                                             <span
-                                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight border cursor-help ${
-                                                rowHasError
-                                                  ? 'bg-red-950 text-red-400 border-red-800'
-                                                  : 'bg-amber-950 text-amber-400 border-amber-800'
-                                              }`}
+                                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight border cursor-help ${rowHasError
+                                                ? 'bg-red-950 text-red-400 border-red-800'
+                                                : 'bg-amber-950 text-amber-400 border-amber-800'
+                                                }`}
                                               title={rowIssue.messages.join('\n')}
                                             >
                                               <AlertCircle size={8} />
@@ -4689,6 +4805,15 @@ export default function AdminPortal() {
                                         <div>{t.email || '-'}</div>
                                         <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
                                       </div>
+                                    </td>
+                                    <td className="p-1.5 text-center">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.if_deployed === 'in' ? 'bg-blue-950/60 text-blue-300 border border-blue-800/50' :
+                                        t.if_deployed === 'out' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/50' :
+                                          t.if_deployed === 'Yes' ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50' :
+                                            'bg-slate-900/40 text-slate-400 border border-slate-800/30'
+                                        }`}>
+                                        {t.if_deployed === 'in' ? '→ Dep. In' : t.if_deployed === 'out' ? '← Dep. Out' : t.if_deployed === 'Yes' ? 'Deployed' : 'No'}
+                                      </span>
                                     </td>
                                     <td className="p-1.5 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
                                     <td className="p-1.5 text-center flex items-center justify-center gap-1">
@@ -4719,7 +4844,7 @@ export default function AdminPortal() {
                               </tr>
                               {isEditing && (
                                 <tr className="bg-slate-900/30">
-                                  <td colSpan={8} className="p-2 border-t border-slate-800/50">
+                                  <td colSpan={9} className="p-2 border-t border-slate-800/50">
                                     <div className="flex flex-col md:flex-row gap-2.5 items-start">
                                       <div className="flex-grow w-full md:w-auto">
                                         <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Profile / Bio (Optional)</label>
@@ -4736,8 +4861,8 @@ export default function AdminPortal() {
                                           value={editFacultyData.hidden ? 'hidden' : 'visible'}
                                           onChange={(e) => {
                                             const isHidden = e.target.value === 'hidden';
-                                            setEditFacultyData({ 
-                                              ...editFacultyData, 
+                                            setEditFacultyData({
+                                              ...editFacultyData,
                                               hidden: isHidden,
                                               inactiveReason: isHidden ? (editFacultyData.inactiveReason || 'Transferred') : ''
                                             });
@@ -4752,7 +4877,7 @@ export default function AdminPortal() {
                                         <div className="w-full md:w-48 flex-shrink-0 animate-in fade-in duration-200">
                                           <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
                                           <select
-                                            value={['Transferred', 'Retired'].includes(editFacultyData.inactiveReason) ? editFacultyData.inactiveReason : (editFacultyData.inactiveReason ? 'Other' : 'Transferred')}
+                                            value={['Transferred', 'Retired', 'Deployed Out'].includes(editFacultyData.inactiveReason) ? editFacultyData.inactiveReason : (editFacultyData.inactiveReason ? 'Other' : 'Transferred')}
                                             onChange={(e) => {
                                               const val = e.target.value;
                                               if (val === 'Other') {
@@ -4766,9 +4891,10 @@ export default function AdminPortal() {
                                           >
                                             <option value="Transferred">Transferred</option>
                                             <option value="Retired">Retired</option>
+                                            <option value="Deployed Out">Deployed Out</option>
                                             <option value="Other">Other...</option>
                                           </select>
-                                          {editFacultyData.inactiveReason && !['Transferred', 'Retired'].includes(editFacultyData.inactiveReason) && (
+                                          {editFacultyData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(editFacultyData.inactiveReason) && (
                                             <input
                                               type="text"
                                               value={editFacultyData.inactiveReason}
@@ -4795,93 +4921,79 @@ export default function AdminPortal() {
 
             {/* TAB 5: INCOME TAX CALCULATOR */}
             {activeTab === 'tax' && allowedTabs.includes('tax') && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-700/60 shadow-sm">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                      <Calculator className="text-orange-400" size={18} />
-                      Income Tax Auto-Generator
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-1">
-                      FY {taxConfig.financialYearLabel} · AY {taxConfig.assessmentYearLabel} · Manage gross salary, PAN, and TDS. Generate printable tax sheets or custom CSV summaries.
-                    </p>
+              <div className="space-y-2.5 animate-in fade-in duration-200">
+                {/* ── Row 1: Title bar + action buttons ── */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/50 px-4 py-2.5 rounded-xl border border-slate-700/60 shadow-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Calculator className="text-orange-400 shrink-0" size={15} />
+                    <span className="font-bold text-slate-100 text-sm">Income Tax Auto-Generator</span>
+                    <span className="hidden sm:inline text-slate-500 text-[11px] font-mono">FY {taxConfig.financialYearLabel} · AY {taxConfig.assessmentYearLabel}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto mt-2 md:mt-0 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowTaxRules(!showTaxRules)}
-                      className={`px-4 py-2 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border shadow w-full sm:w-auto ${
-                        showTaxRules 
-                          ? 'bg-orange-600 hover:bg-orange-500 text-white border-orange-400' 
-                          : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
-                      }`}
+                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border ${showTaxRules ? 'bg-orange-600 hover:bg-orange-500 text-white border-orange-500' : 'bg-slate-700/80 hover:bg-slate-600 text-slate-200 border-slate-600'}`}
                     >
-                      <Settings size={14} />
-                      {showTaxRules ? 'Hide Tax Rules' : 'Edit Tax Rules'}
+                      <Settings size={12} />
+                      {showTaxRules ? 'Hide Rules' : 'Edit Tax Rules'}
                     </button>
                     <button
                       onClick={handleTaxCSVExport}
-                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-sky-400 shadow w-full sm:w-auto"
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-sky-500"
                     >
-                      <Download size={14} />
-                      Export Tax CSV
+                      <Download size={12} />
+                      Export CSV
                     </button>
                     <button
-                      onClick={() => {
-                        const activeFaculty = faculty.filter(t => !t.hidden);
-                        printTaxSheets(activeFaculty);
-                      }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-emerald-500 shadow w-full sm:w-auto"
+                      onClick={() => printTaxSheets(getFilteredTaxFaculty())}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500"
                     >
-                      <Printer size={14} />
-                      Print All Tax Sheets
+                      <Printer size={12} />
+                      Print All
                     </button>
                   </div>
                 </div>
 
-                {/* Regime Preview Selector */}
-                <div className="flex justify-between items-center bg-slate-900/30 px-4 py-2 rounded-xl border border-slate-800/60 mt-1">
-                  <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Active Rules Preview:</div>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => setActiveTaxPreviewRegime('new')}
-                      className={`px-3 py-1 text-[10.5px] font-extrabold rounded-lg transition-colors border ${
-                        activeTaxPreviewRegime === 'new'
-                          ? 'bg-orange-500 text-slate-950 border-orange-400 font-extrabold'
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                {/* ── Row 2: Compact stats + regime toggle + search ── */}
+                <div className="flex flex-wrap items-center gap-2 bg-slate-900/30 px-3 py-2 rounded-xl border border-slate-800/50">
+                  {/* Regime pills — hardcoded dark so visible in any theme */}
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => setActiveTaxPreviewRegime('new')} style={activeTaxPreviewRegime === 'new' ? { background: '#f97316', color: '#0f172a', border: '1px solid #fb923c', fontWeight: 800 } : { background: '#334155', color: '#94a3b8', border: '1px solid #475569' }} className="px-2.5 py-1 text-[10px] font-extrabold rounded-md transition-colors">New</button>
+                    <button onClick={() => setActiveTaxPreviewRegime('old')} style={activeTaxPreviewRegime === 'old' ? { background: '#f97316', color: '#0f172a', border: '1px solid #fb923c', fontWeight: 800 } : { background: '#334155', color: '#94a3b8', border: '1px solid #475569' }} className="px-2.5 py-1 text-[10px] font-extrabold rounded-md transition-colors">Old</button>
+                  </div>
+                  {/* Divider */}
+                  <div className="w-px h-5 bg-slate-700 shrink-0" />
+                  {/* Inline stats */}
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] flex-1 min-w-0">
+                    <span className="text-slate-400 font-mono whitespace-nowrap">Nil-tax: <strong className="text-slate-200 font-extrabold">₹{previewTaxFreeGross.toLocaleString('en-IN')}</strong></span>
+                    <span className="text-slate-400 font-mono whitespace-nowrap">87A Rebate: <strong className="text-slate-200 font-extrabold">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
+                    <span className="text-slate-400 font-mono whitespace-nowrap">Std. Deduction: <strong className="text-slate-200 font-extrabold">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${previewRegimeConfig.marginalReliefEnabled ? 'bg-emerald-900/50 text-emerald-400 border-emerald-700/60' : 'bg-slate-800/60 text-slate-500 border-slate-700/60'}`}>
+                      Marginal Relief {previewRegimeConfig.marginalReliefEnabled ? '✓ ON' : '✗ OFF'}
+                    </span>
+                  </div>
+                  {/* Divider */}
+                  <div className="w-px h-5 bg-slate-700 shrink-0 hidden sm:block" />
+                  {/* Inactive & Deployed toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setShowHiddenInTax(!showHiddenInTax)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold border shrink-0 transition-colors ${showHiddenInTax
+                      ? 'bg-amber-600 hover:bg-amber-500 text-slate-100 border-amber-500 font-extrabold shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                       }`}
-                    >
-                      New Tax Regime
-                    </button>
-                    <button
-                      onClick={() => setActiveTaxPreviewRegime('old')}
-                      className={`px-3 py-1 text-[10.5px] font-extrabold rounded-lg transition-colors border ${
-                        activeTaxPreviewRegime === 'old'
-                          ? 'bg-orange-500 text-slate-950 border-orange-400 font-extrabold'
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-                      }`}
-                    >
-                      Old Tax Regime
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-500">Nil-tax gross band</p>
-                    <p className="text-lg font-extrabold text-slate-100 mt-1">Rs. {previewTaxFreeGross.toLocaleString('en-IN')}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Standard deduction Rs. {previewRegimeConfig.standardDeduction.toLocaleString('en-IN')} + 87A threshold Rs. {previewRegimeConfig.rebateThreshold.toLocaleString('en-IN')}</p>
-                  </div>
-                  <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-500">Rebate u/s 87A</p>
-                    <p className="text-lg font-extrabold text-slate-100 mt-1">Up to Rs. {previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Applies when taxable income is Rs. {previewRegimeConfig.rebateThreshold.toLocaleString('en-IN')} or below.</p>
-                  </div>
-                  <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-orange-500">Marginal relief</p>
-                    <p className="text-lg font-extrabold text-slate-100 mt-1">{previewRegimeConfig.marginalReliefEnabled ? 'Enabled' : 'Disabled'}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Caps extra tax above the 87A threshold to the excess income only.</p>
-                  </div>
+                  >
+                    {showHiddenInTax ? 'Hide Inactive / Deployed' : 'Show Inactive / Deployed'}
+                  </button>
+                  {/* Inline search */}
+                  <input
+                    type="text"
+                    placeholder="Search employees…"
+                    value={taxSearch}
+                    onChange={(e) => setTaxSearch(e.target.value)}
+                    className="flex-1 min-w-[110px] max-w-[220px] px-2.5 py-1 rounded-lg bg-slate-800/70 border border-slate-700 text-[11px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-400 transition-colors"
+                  />
                 </div>
 
                 {showTaxRules && (
@@ -4889,7 +5001,7 @@ export default function AdminPortal() {
                     {/* Modal Card */}
                     <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
                       {/* Close button */}
-                      <button 
+                      <button
                         onClick={() => setShowTaxRules(false)}
                         className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition-colors"
                         title="Close"
@@ -4909,411 +5021,344 @@ export default function AdminPortal() {
                         </div>
                       </div>
 
-                    {/* New/Old Regime Tabs Selector */}
-                    <div className="flex border-b border-slate-800 mb-4 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setActiveRegimeSettingsTab('new')}
-                        className={`px-3 py-1.5 text-[11px] font-extrabold rounded-t-lg transition-all border-b-2 ${
-                          activeRegimeSettingsTab === 'new'
+                      {/* New/Old Regime Tabs Selector */}
+                      <div className="flex border-b border-slate-800 mb-4 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setActiveRegimeSettingsTab('new')}
+                          className={`px-3 py-1.5 text-[11px] font-extrabold rounded-t-lg transition-all border-b-2 ${activeRegimeSettingsTab === 'new'
                             ? 'border-orange-500 bg-orange-950/20 text-orange-400 font-extrabold'
                             : 'border-transparent text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        New Tax Regime
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveRegimeSettingsTab('old')}
-                        className={`px-3 py-1.5 text-[11px] font-extrabold rounded-t-lg transition-all border-b-2 ${
-                          activeRegimeSettingsTab === 'old'
+                            }`}
+                        >
+                          New Tax Regime
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRegimeSettingsTab('old')}
+                          className={`px-3 py-1.5 text-[11px] font-extrabold rounded-t-lg transition-all border-b-2 ${activeRegimeSettingsTab === 'old'
                             ? 'border-orange-500 bg-orange-950/20 text-orange-400 font-extrabold'
                             : 'border-transparent text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        Old Tax Regime
-                      </button>
-                    </div>
+                            }`}
+                        >
+                          Old Tax Regime
+                        </button>
+                      </div>
 
-                    {/* Global & Regime Settings Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Regime Label</label>
-                        <input
-                          type="text"
-                          value={activeRegimeConfig.label}
-                          onChange={(e) => handleTaxConfigFieldChange('label', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Financial Year</label>
-                        <input
-                          type="text"
-                          value={taxConfig.financialYearLabel}
-                          onChange={(e) => handleTaxConfigFieldChange('financialYearLabel', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Assessment Year</label>
-                        <input
-                          type="text"
-                          value={taxConfig.assessmentYearLabel}
-                          onChange={(e) => handleTaxConfigFieldChange('assessmentYearLabel', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
-                      {[
-                        { key: 'standardDeduction', label: 'Standard Deduction', isGlobal: false },
-                        { key: 'rebateThreshold', label: '87A Threshold', isGlobal: false },
-                        { key: 'rebateMax', label: '87A Max Rebate', isGlobal: false },
-                        { key: 'cessRate', label: 'Cess %', isGlobal: true }
-                      ].map((field) => (
-                        <div key={field.key} className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">{field.label}</label>
+                      {/* Global & Regime Settings Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Regime Label</label>
                           <input
-                            type="number"
-                            value={field.isGlobal ? taxConfig[field.key] : activeRegimeConfig[field.key]}
-                            onChange={(e) => handleTaxConfigFieldChange(field.key, e.target.value, true)}
-                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500 font-mono"
+                            type="text"
+                            value={activeRegimeConfig.label}
+                            onChange={(e) => handleTaxConfigFieldChange('label', e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
                           />
                         </div>
-                      ))}
-                      <div className="flex flex-col justify-end gap-2">
-                        <div className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">87A Marginal Relief</span>
-                          <ToggleSwitch checked={activeRegimeConfig.marginalReliefEnabled} onChange={() => handleTaxConfigToggle('marginalReliefEnabled')} />
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Financial Year</label>
+                          <input
+                            type="text"
+                            value={taxConfig.financialYearLabel}
+                            onChange={(e) => handleTaxConfigFieldChange('financialYearLabel', e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
+                          />
                         </div>
-                        <div className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Use Surcharge</span>
-                          <ToggleSwitch checked={activeRegimeConfig.includeSurcharge} onChange={() => handleTaxConfigToggle('includeSurcharge')} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
-                        <div className="flex items-center justify-between mb-2">
-                          <h5 className="text-[11px] font-extrabold text-orange-500 uppercase tracking-wide font-mono">Slab Rates</h5>
-                          <span className="text-[10px] text-slate-400 font-semibold">Edit labels, upper limits, and rates</span>
-                        </div>
-                        <div className="space-y-2">
-                          {activeRegimeConfig.slabs.map((slab, index) => (
-                            <div key={`slab-${index}`} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_0.7fr] gap-2 items-center">
-                              <input
-                                type="text"
-                                value={slab.label}
-                                onChange={(e) => handleTaxSlabChange(index, 'label', e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
-                              />
-                              <input
-                                type="number"
-                                value={slab.upto ?? ''}
-                                onChange={(e) => handleTaxSlabChange(index, 'upto', e.target.value)}
-                                placeholder={index === activeRegimeConfig.slabs.length - 1 ? 'Leave blank for final slab' : 'Upper limit'}
-                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
-                              />
-                              <input
-                                type="number"
-                                value={slab.rate}
-                                onChange={(e) => handleTaxSlabChange(index, 'rate', e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
-                              />
-                            </div>
-                          ))}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Assessment Year</label>
+                          <input
+                            type="text"
+                            value={taxConfig.assessmentYearLabel}
+                            onChange={(e) => handleTaxConfigFieldChange('assessmentYearLabel', e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500"
+                          />
                         </div>
                       </div>
 
-                      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
-                        <div className="flex items-center justify-between mb-2">
-                          <h5 className="text-[11px] font-extrabold text-orange-500 uppercase tracking-wide font-mono">Surcharge Rules</h5>
-                          <span className="text-[10px] text-slate-400 font-semibold">Used only when surcharge toggle is on</span>
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
+                        {[
+                          { key: 'standardDeduction', label: 'Standard Deduction', isGlobal: false },
+                          { key: 'rebateThreshold', label: '87A Threshold', isGlobal: false },
+                          { key: 'rebateMax', label: '87A Max Rebate', isGlobal: false },
+                          { key: 'cessRate', label: 'Cess %', isGlobal: true }
+                        ].map((field) => (
+                          <div key={field.key} className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">{field.label}</label>
+                            <input
+                              type="number"
+                              value={field.isGlobal ? taxConfig[field.key] : activeRegimeConfig[field.key]}
+                              onChange={(e) => handleTaxConfigFieldChange(field.key, e.target.value, true)}
+                              className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-orange-500 font-mono"
+                            />
+                          </div>
+                        ))}
+                        <div className="flex flex-col justify-end gap-2">
+                          <div className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">87A Marginal Relief</span>
+                            <ToggleSwitch checked={activeRegimeConfig.marginalReliefEnabled} onChange={() => handleTaxConfigToggle('marginalReliefEnabled')} />
+                          </div>
+                          <div className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wide">Use Surcharge</span>
+                            <ToggleSwitch checked={activeRegimeConfig.includeSurcharge} onChange={() => handleTaxConfigToggle('includeSurcharge')} />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          {activeRegimeConfig.surchargeBrackets.map((bracket, index) => (
-                            <div key={`surcharge-${index}`} className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_0.7fr] gap-2 items-center">
-                              <input
-                                type="text"
-                                value={bracket.label}
-                                onChange={(e) => handleTaxSurchargeChange(index, 'label', e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
-                              />
-                              <input
-                                type="number"
-                                value={bracket.threshold}
-                                onChange={(e) => handleTaxSurchargeChange(index, 'threshold', e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
-                              />
-                              <input
-                                type="number"
-                                value={bracket.rate}
-                                onChange={(e) => handleTaxSurchargeChange(index, 'rate', e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
-                              />
-                            </div>
-                          ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-[11px] font-extrabold text-orange-500 uppercase tracking-wide font-mono">Slab Rates</h5>
+                            <span className="text-[10px] text-slate-400 font-semibold">Edit labels, upper limits, and rates</span>
+                          </div>
+                          <div className="space-y-2">
+                            {activeRegimeConfig.slabs.map((slab, index) => (
+                              <div key={`slab-${index}`} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_0.7fr] gap-2 items-center">
+                                <input
+                                  type="text"
+                                  value={slab.label}
+                                  onChange={(e) => handleTaxSlabChange(index, 'label', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
+                                />
+                                <input
+                                  type="number"
+                                  value={slab.upto ?? ''}
+                                  onChange={(e) => handleTaxSlabChange(index, 'upto', e.target.value)}
+                                  placeholder={index === activeRegimeConfig.slabs.length - 1 ? 'Leave blank for final slab' : 'Upper limit'}
+                                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                                />
+                                <input
+                                  type="number"
+                                  value={slab.rate}
+                                  onChange={(e) => handleTaxSlabChange(index, 'rate', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 shadow-sm">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-[11px] font-extrabold text-orange-500 uppercase tracking-wide font-mono">Surcharge Rules</h5>
+                            <span className="text-[10px] text-slate-400 font-semibold">Used only when surcharge toggle is on</span>
+                          </div>
+                          <div className="space-y-2">
+                            {activeRegimeConfig.surchargeBrackets.map((bracket, index) => (
+                              <div key={`surcharge-${index}`} className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_0.7fr] gap-2 items-center">
+                                <input
+                                  type="text"
+                                  value={bracket.label}
+                                  onChange={(e) => handleTaxSurchargeChange(index, 'label', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500"
+                                />
+                                <input
+                                  type="number"
+                                  value={bracket.threshold}
+                                  onChange={(e) => handleTaxSurchargeChange(index, 'threshold', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                                />
+                                <input
+                                  type="number"
+                                  value={bracket.rate}
+                                  onChange={(e) => handleTaxSurchargeChange(index, 'rate', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-500 font-mono"
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-                {/* Filters & search */}
-                <div className="flex gap-3">
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      placeholder="Search employees by name, CPIS, or designation..."
-                      value={taxSearch}
-                      onChange={(e) => setTaxSearch(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-orange-400"
-                    />
-                  </div>
-                </div>
 
-                {/* Database Table */}
-                <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-900/40 shadow-sm">
+
+                {/* Database Table — with Teaching / Non-Teaching categories */}
+                <div className="border border-slate-500/50 rounded-xl overflow-hidden bg-slate-900/40 shadow-sm ring-1 ring-slate-500/20">
                   <div className="overflow-x-auto custom-scrollbar pb-1.5">
-                    <table className="w-full text-left border-collapse tax-table">
-                      <thead>
-                        <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                          <th className="p-3 w-12 text-center">S.No</th>
-                          <th className="p-3">CPIS / PAN</th>
-                          <th className="p-3">Name / Designation</th>
-                          <th className="p-3 text-right">Gross Salary (Annual)</th>
-                          <th className="p-3 text-right">Total Tax</th>
-                          <th className="p-3 text-right">TDS (Up-To-Date)</th>
-                          <th className="p-3 text-right">Tax Payable Now</th>
-                          <th className="p-3 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-700 text-xs">
-                        {(() => {
-                          const filtered = faculty.filter(t => {
-                            const term = taxSearch.toLowerCase();
-                            return t.name.toLowerCase().includes(term) ||
-                                   (t.cpis_no || '').toLowerCase().includes(term) ||
-                                   t.designation.toLowerCase().includes(term);
-                          });
+                    {(() => {
+                      // Classify employee as Non-Teaching (MTS, Lab Asst, Peon, etc.)
+                      const isNonTeaching = (emp) => {
+                        const d = (emp.designation || '').toLowerCase();
+                        const dept = (emp.department || '').toLowerCase();
+                        return dept === 'mts' || d.includes('mts') || d.includes('lab assistant') ||
+                          d.includes('lab bearer') || d.includes('library bearer') ||
+                          d.includes('peon') || d.includes('chowkidar') || d.includes('safaiwalla') ||
+                          d.includes('class iv') || d.includes('driver') || d.includes('attendant');
+                      };
 
-                          if (filtered.length === 0) {
-                            return (
-                              <tr>
-                                <td colSpan="8" className="p-8 text-center text-slate-300 italic">
-                                  No employees found matching your search.
-                                </td>
-                              </tr>
-                            );
-                          }
+                      // Show all non-hidden employees matching search, excluding inactive and deployed in by default
+                      const allFiltered = getFilteredTaxFaculty();
 
-                          return filtered.map((emp, index) => {
-                            // Find original index in master faculty array
-                            const origIdx = faculty.indexOf(emp);
-                            const isEditing = editingTaxIdx === origIdx;
-                            const pan = getEmployeePan(emp);
-                            const gross = getEmployeeGross(emp);
-                            const tds = getEmployeeTds(emp);
-                            const calc = calculateTax(gross, tds, taxConfig, getEmployeeTaxOptions(emp));
+                      const teachingEmps = allFiltered.filter(e => !isNonTeaching(e));
+                      const nonTeachingEmps = allFiltered.filter(e => isNonTeaching(e));
 
-                            return (
-                              <tr key={origIdx} className="hover:bg-slate-900/20 transition-colors">
-                                <td className="p-3 text-center text-slate-300 font-mono">{index + 1}</td>
-                                <td className="p-3">
-                                  <div className="font-semibold text-slate-100 font-mono">{emp.cpis_no || '-'}</div>
-                                  {isEditing ? (
-                                    <div className="flex flex-col gap-1.5 mt-1">
-                                      <input
-                                        type="text"
-                                        value={editTaxData.pan}
-                                        onChange={e => setEditTaxData({ ...editTaxData, pan: e.target.value.toUpperCase() })}
-                                        placeholder="PAN NO"
-                                        className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-100 font-mono focus:outline-none focus:border-orange-400"
-                                      />
-                                      <select
-                                        value={editTaxData.regime}
-                                        onChange={e => setEditTaxData({ ...editTaxData, regime: e.target.value })}
-                                        className="w-28 px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400 font-bold"
-                                      >
-                                        <option value="new">New Regime</option>
-                                        <option value="old">Old Regime</option>
-                                      </select>
-                                    </div>
-                                  ) : (
-                                    <div className="text-[10px] text-slate-300 font-mono font-semibold">{pan || 'NO PAN'}</div>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  <div className="font-bold text-slate-100">{emp.name}</div>
-                                  <div className="text-[10px] text-slate-300 font-medium">{emp.designation} {emp.subject ? `(${emp.subject})` : ''}</div>
-                                  {isEditing ? (
-                                    editTaxData.regime === 'old' ? (
-                                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1.5 bg-slate-900/30 p-1.5 rounded border border-slate-700/60 w-[240px]">
-                                        <div>
-                                          <div className="text-[9px] text-slate-400 font-bold">80C (Max 1.5L)</div>
-                                          <input
-                                            type="number"
-                                            value={editTaxData.deduction80C}
-                                            onChange={e => setEditTaxData({ ...editTaxData, deduction80C: e.target.value })}
-                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
-                                          />
-                                        </div>
-                                        <div>
-                                          <div className="text-[9px] text-slate-400 font-bold">80D (Health)</div>
-                                          <input
-                                            type="number"
-                                            value={editTaxData.deduction80D}
-                                            onChange={e => setEditTaxData({ ...editTaxData, deduction80D: e.target.value })}
-                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
-                                          />
-                                        </div>
-                                        <div>
-                                          <div className="text-[9px] text-slate-400 font-bold">HRA Exemption</div>
-                                          <input
-                                            type="number"
-                                            value={editTaxData.hraExemption}
-                                            onChange={e => setEditTaxData({ ...editTaxData, hraExemption: e.target.value })}
-                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
-                                          />
-                                        </div>
-                                        <div>
-                                          <div className="text-[9px] text-slate-400 font-bold">Other Deduct.</div>
-                                          <input
-                                            type="number"
-                                            value={editTaxData.otherDeductions}
-                                            onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })}
-                                            className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400"
-                                          />
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="mt-1 text-[10px] text-slate-400 italic font-semibold">
-                                        New Regime: standard deduction of ₹75,000 applies automatically.
-                                      </div>
-                                    )
-                                  ) : (
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider ${
-                                        calc.regimeType === 'old'
-                                          ? 'regime-badge-old'
-                                          : 'regime-badge-new'
-                                      }`}>
-                                        {calc.regimeConfig.label}
-                                      </span>
-                                      {calc.regimeType === 'old' && (
-                                        <span 
-                                          className="text-[9.5px] text-slate-400 font-semibold font-mono cursor-help"
-                                          title={`80C: ₹${calc.deduction80C.toLocaleString('en-IN')} | 80D: ₹${calc.deduction80D.toLocaleString('en-IN')} | HRA: ₹${calc.hraExemption.toLocaleString('en-IN')} | Other: ₹${calc.otherDeductions.toLocaleString('en-IN')}`}
-                                        >
-                                          Deductions: ₹{(calc.deduction80C + calc.deduction80D + calc.hraExemption + calc.otherDeductions).toLocaleString('en-IN')}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="p-3 text-right text-top">
-                                  {isEditing ? (
-                                    <input
-                                      type="number"
-                                      value={editTaxData.grossSalary}
-                                      onChange={e => setEditTaxData({ ...editTaxData, grossSalary: e.target.value })}
-                                      className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono"
-                                    />
-                                  ) : (
-                                    <span className="font-semibold text-slate-100 font-mono">₹{gross.toLocaleString('en-IN')}</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-right text-top font-semibold text-amber-200 tax-total-highlight font-mono">
-                                  {calc.totalTax > 0 ? `₹${calc.totalTax.toLocaleString('en-IN')}` : 'NIL'}
-                                </td>
-                                <td className="p-3 text-right text-top">
-                                  {isEditing ? (
-                                    <input
-                                      type="number"
-                                      value={editTaxData.tds}
-                                      onChange={e => setEditTaxData({ ...editTaxData, tds: e.target.value })}
-                                      className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono"
-                                    />
-                                  ) : (
-                                    <span className="font-semibold text-slate-100 font-mono">₹{tds.toLocaleString('en-IN')}</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-right text-top">
-                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold font-mono border ${calc.taxPayableNow > 0 ? 'bg-red-900/50 text-red-200 border-red-700/60' : 'bg-emerald-900/50 text-emerald-200 border-emerald-700/60'}`}>
-                                    {calc.taxPayableNow > 0 ? `₹${calc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
+                      const renderEmployeeRow = (emp, catIndex) => {
+                        const origIdx = faculty.indexOf(emp);
+                        const isEditing = editingTaxIdx === origIdx;
+                        const pan = getEmployeePan(emp);
+                        const gross = getEmployeeGross(emp);
+                        const tds = getEmployeeTds(emp);
+                        const calc = calculateTax(gross, tds, taxConfig, getEmployeeTaxOptions(emp));
+
+                        return (
+                          <tr key={origIdx} className="border-b border-slate-700/40 hover:bg-slate-800/30 transition-colors">
+                            <td className="p-3 text-center w-10">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-teal-700 text-white text-[10px] font-bold shadow-sm select-none">{catIndex + 1}</span>
+                            </td>
+                            <td className="p-3">
+                              <div className="font-semibold text-slate-100 font-mono">{emp.cpis_no || '-'}</div>
+                              {isEditing ? (
+                                <div className="flex flex-col gap-1.5 mt-1">
+                                  <input type="text" value={editTaxData.pan} onChange={e => setEditTaxData({ ...editTaxData, pan: e.target.value.toUpperCase() })} placeholder="PAN NO" className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-100 font-mono focus:outline-none focus:border-orange-400" />
+                                  <select value={editTaxData.regime} onChange={e => setEditTaxData({ ...editTaxData, regime: e.target.value })} className="w-28 px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400 font-bold">
+                                    <option value="new">New Regime</option>
+                                    <option value="old">Old Regime</option>
+                                  </select>
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-slate-300 font-mono font-semibold">{pan || 'NO PAN'}</div>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-100">{emp.name}</span>
+                                {!isEditing && (
+                                  <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-wider ${calc.regimeType === 'old' ? 'regime-badge-old' : 'regime-badge-new'}`}>{calc.regimeConfig.label}</span>
+                                )}
+                                {emp.hidden && (
+                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-red-950/60 text-red-400 border border-red-800/50 uppercase tracking-tight">
+                                    {emp.inactiveReason || 'Inactive'}
                                   </span>
-                                </td>
-                                <td className="p-3 text-center text-top">
-                                  {isEditing ? (
-                                    <div className="flex justify-center gap-1.5">
-                                      <button
-                                        onClick={() => {
-                                          saveEmployeeTaxDetails(
-                                            origIdx, 
-                                            editTaxData.pan, 
-                                            editTaxData.grossSalary, 
-                                            editTaxData.tds,
-                                            editTaxData.regime,
-                                            editTaxData.deduction80C,
-                                            editTaxData.deduction80D,
-                                            editTaxData.hraExemption,
-                                            editTaxData.otherDeductions
-                                          );
-                                          setEditingTaxIdx(null);
-                                        }}
-                                        className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors"
-                                        title="Save Details"
-                                      >
-                                        <Check size={12} />
-                                      </button>
-                                      <button
-                                        onClick={() => setEditingTaxIdx(null)}
-                                        className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors"
-                                        title="Cancel"
-                                      >
-                                        <X size={12} />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex justify-center gap-2">
-                                      <button
-                                        onClick={() => {
-                                          setEditingTaxIdx(origIdx);
-                                          setEditTaxData({
-                                            pan: pan,
-                                            grossSalary: gross.toString(),
-                                            tds: tds.toString(),
-                                            regime: getEmployeeRegime(emp),
-                                            deduction80C: getEmployee80C(emp).toString(),
-                                            deduction80D: getEmployee80D(emp).toString(),
-                                            hraExemption: getEmployeeHra(emp).toString(),
-                                            otherDeductions: getEmployeeOtherDeductions(emp).toString()
-                                          });
-                                        }}
-                                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] font-bold uppercase transition-colors"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={() => printTaxSheets([emp])}
-                                        className="px-2 py-1 bg-orange-600/80 hover:bg-orange-500 text-white rounded text-[10px] font-bold uppercase transition-all flex items-center gap-1"
-                                      >
-                                        <Printer size={10} />
-                                        Print Sheet
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          });
-                        })()}
-                      </tbody>
-                    </table>
+                                )}
+                                {emp.if_deployed && (emp.if_deployed === 'in' || emp.if_deployed === 'out' || emp.if_deployed === 'Yes') && (
+                                  <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-tight border ${emp.if_deployed === 'in' || emp.if_deployed === 'Yes'
+                                    ? 'bg-blue-950/60 text-blue-400 border-blue-800/50'
+                                    : 'bg-amber-950/60 text-amber-300 border-amber-800/50'
+                                    }`}>
+                                    {emp.if_deployed === 'in' || emp.if_deployed === 'Yes' ? 'Dep. In' : 'Dep. Out'}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-300 font-medium">{emp.designation}{emp.subject ? ` (${emp.subject})` : ''}</div>
+                              {isEditing ? (
+                                editTaxData.regime === 'old' ? (
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1.5 bg-slate-900/30 p-1.5 rounded border border-slate-700/60 w-[240px]">
+                                    <div><div className="text-[9px] text-slate-400 font-bold">80C (Max 1.5L)</div><input type="number" value={editTaxData.deduction80C} onChange={e => setEditTaxData({ ...editTaxData, deduction80C: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                    <div><div className="text-[9px] text-slate-400 font-bold">80D (Health)</div><input type="number" value={editTaxData.deduction80D} onChange={e => setEditTaxData({ ...editTaxData, deduction80D: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                    <div><div className="text-[9px] text-slate-400 font-bold">HRA Exemption</div><input type="number" value={editTaxData.hraExemption} onChange={e => setEditTaxData({ ...editTaxData, hraExemption: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                    <div><div className="text-[9px] text-slate-400 font-bold">Other Deduct.</div><input type="number" value={editTaxData.otherDeductions} onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-1.5 bg-slate-900/30 p-1.5 rounded border border-slate-700/60 w-[240px]">
+                                    <div className="text-[9px] text-slate-400 font-bold mb-1">80CCD(2) — NPS Employer Share</div>
+                                    <input type="number" value={editTaxData.otherDeductions} onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" placeholder="Enter NPS employer contribution" />
+                                    <div className="text-[8.5px] text-slate-500 mt-0.5">Allowed under new regime. Standard deduction ₹75,000 applied automatically.</div>
+                                  </div>
+                                )
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  {calc.regimeType === 'old' ? (
+                                    <span className="text-[9.5px] text-slate-400 font-semibold font-mono cursor-help" title={`80C: ₹${calc.deduction80C.toLocaleString('en-IN')} | 80D: ₹${calc.deduction80D.toLocaleString('en-IN')} | HRA: ₹${calc.hraExemption.toLocaleString('en-IN')} | 80CCD(2): ₹${calc.otherDeductions.toLocaleString('en-IN')}`}>Deductions: ₹{(calc.deduction80C + calc.deduction80D + calc.hraExemption + calc.otherDeductions).toLocaleString('en-IN')}</span>
+                                  ) : calc.otherDeductions > 0 ? (
+                                    <span className="text-[9.5px] text-teal-400 font-semibold font-mono">80CCD(2): ₹{calc.otherDeductions.toLocaleString('en-IN')}</span>
+                                  ) : null}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              {isEditing ? (
+                                <input type="number" value={editTaxData.grossSalary} onChange={e => setEditTaxData({ ...editTaxData, grossSalary: e.target.value })} className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono" />
+                              ) : (
+                                <span className="font-semibold text-slate-100 font-mono">₹{gross.toLocaleString('en-IN')}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-semibold text-amber-200 tax-total-highlight font-mono">
+                              {calc.totalTax > 0 ? `₹${calc.totalTax.toLocaleString('en-IN')}` : 'NIL'}
+                            </td>
+                            <td className="p-3 text-right">
+                              {isEditing ? (
+                                <input type="number" value={editTaxData.tds} onChange={e => setEditTaxData({ ...editTaxData, tds: e.target.value })} className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono" />
+                              ) : (
+                                <span className="font-semibold text-slate-100 font-mono">₹{tds.toLocaleString('en-IN')}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold font-mono border ${calc.taxPayableNow > 0 ? 'bg-red-900/50 text-red-200 border-red-700/60' : 'bg-emerald-900/50 text-emerald-200 border-emerald-700/60'}`}>
+                                {calc.taxPayableNow > 0 ? `₹${calc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              {isEditing ? (
+                                <div className="flex justify-center gap-1.5">
+                                  <button onClick={() => { saveEmployeeTaxDetails(origIdx, editTaxData.pan, editTaxData.grossSalary, editTaxData.tds, editTaxData.regime, editTaxData.deduction80C, editTaxData.deduction80D, editTaxData.hraExemption, editTaxData.otherDeductions); setEditingTaxIdx(null); }} className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors border border-emerald-500" title="Save Details"><Check size={12} /></button>
+                                  <button onClick={() => setEditingTaxIdx(null)} className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white rounded transition-colors border border-slate-500" title="Cancel"><X size={12} /></button>
+                                </div>
+                              ) : (
+                                <div className="flex justify-center gap-2">
+                                  <button onClick={() => { setEditingTaxIdx(origIdx); setEditTaxData({ pan, grossSalary: gross.toString(), tds: tds.toString(), regime: getEmployeeRegime(emp), deduction80C: getEmployee80C(emp).toString(), deduction80D: getEmployee80D(emp).toString(), hraExemption: getEmployeeHra(emp).toString(), otherDeductions: getEmployeeOtherDeductions(emp).toString() }); }} className="px-2.5 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded text-[10px] font-bold uppercase tracking-wide transition-colors border border-slate-500">Edit</button>
+                                  <button onClick={() => printTaxSheets([emp])} className="px-2.5 py-1 bg-orange-600 hover:bg-orange-500 text-white rounded text-[10px] font-bold uppercase tracking-wide transition-all flex items-center gap-1 border border-orange-500"><Printer size={10} />Print</button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      };
+
+                      const CategoryHeader = ({ label, count, accent }) => (
+                        <tr>
+                          <td colSpan="8" className="px-4 py-2.5 bg-slate-800 border-y border-slate-600">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`px-3 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${accent}`}>{label}</span>
+                              <span className="text-[10px] text-slate-400 font-mono font-semibold">{count} member{count !== 1 ? 's' : ''}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+
+                      if (allFiltered.length === 0) {
+                        return (
+                          <div className="p-10 text-center text-slate-400 italic text-sm">
+                            <div className="text-3xl mb-2">👤</div>
+                            No employees found{taxSearch ? ' matching your search' : ''}.<br />
+                            <span className="text-[11px] text-slate-500">Add faculty members in the Faculty Directory to see them here.</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <table className="w-full text-left border-collapse tax-table">
+                          <thead>
+                            <tr style={{ background: '#1e293b', color: '#fff', borderBottom: '2px solid #475569' }} className="uppercase text-[9px] font-bold tracking-wide">
+                              <th style={{ color: '#fff' }} className="p-3 w-10 text-center">#</th>
+                              <th style={{ color: '#fff' }} className="p-3">CPIS / PAN</th>
+                              <th style={{ color: '#fff' }} className="p-3">Name / Designation</th>
+                              <th style={{ color: '#fff' }} className="p-3 text-right">Gross Salary (Annual)</th>
+                              <th style={{ color: '#fff' }} className="p-3 text-right">Total Tax</th>
+                              <th style={{ color: '#fff' }} className="p-3 text-right">TDS (Up-To-Date)</th>
+                              <th style={{ color: '#fff' }} className="p-3 text-right">Tax Payable Now</th>
+                              <th style={{ color: '#fff' }} className="p-3 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-xs">
+                            {teachingEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Teaching / Faculty" count={teachingEmps.length} accent="bg-blue-700 text-white border-blue-600" />
+                                {teachingEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                            {nonTeachingEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Non-Teaching Staff" count={nonTeachingEmps.length} accent="bg-violet-700 text-white border-violet-600" />
+                                {nonTeachingEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -5436,7 +5481,7 @@ export default function AdminPortal() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {admins.map((admin) => {
                         const isSelf = currentUser && admin.email.toLowerCase() === currentUser.email.toLowerCase();
-                        
+
                         // Custom styling for role badge
                         let roleBadgeClass = "bg-slate-800 text-slate-300 border-slate-700";
                         if (admin.role === 'Super Admin') {
@@ -5450,8 +5495,8 @@ export default function AdminPortal() {
                         }
 
                         return (
-                          <div 
-                            key={admin.email} 
+                          <div
+                            key={admin.email}
                             className={`p-4 rounded-xl border bg-slate-900/40 transition-all ${isSelf ? 'border-orange-500/40 shadow-sm shadow-orange-950/10' : 'border-slate-800 hover:border-slate-700'}`}
                           >
                             <div className="flex justify-between items-start gap-2">
@@ -5493,10 +5538,10 @@ export default function AdminPortal() {
                                     if (t === 'tax') label = 'Tax';
                                     if (t === 'export') label = 'Export';
                                     if (t === 'admins') label = 'Admins';
-                                    
+
                                     return (
-                                      <span 
-                                        key={t} 
+                                      <span
+                                        key={t}
                                         className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-950 text-slate-400 border border-slate-850"
                                       >
                                         {label}
@@ -5596,13 +5641,13 @@ export default function AdminPortal() {
                                         updated = newAdminPermissions.filter(p => p !== perm.id);
                                       }
                                       setNewAdminPermissions(updated);
-                                      
+
                                       // Set role to custom if it no longer matches templates
                                       const matchSuper = updated.length === 6;
                                       const matchAccounts = updated.length === 2 && updated.includes('tax') && updated.includes('faculty');
                                       const matchAdmissions = updated.length === 1 && updated.includes('admissions');
                                       const matchNotices = updated.length === 1 && updated.includes('notices');
-                                      
+
                                       if (matchSuper) {
                                         setNewAdminRole('Super Admin');
                                       } else if (matchAccounts) {
@@ -6205,8 +6250,8 @@ export default function AdminPortal() {
                   <p className="text-[11px] mt-0.5" style={{ color: '#94a3b8' }}>{fullEditData.name || 'Unnamed'} — All fields editable below</p>
                 </div>
                 <button onClick={closeFullEdit} className="p-1.5 rounded-lg transition-colors" style={{ color: '#94a3b8' }}
-                  onMouseEnter={e => { e.currentTarget.style.color='#fff'; e.currentTarget.style.background='rgba(255,255,255,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color='#94a3b8'; e.currentTarget.style.background='transparent'; }}>
+                  onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}>
                   <X size={18} />
                 </button>
               </div>
@@ -6214,446 +6259,458 @@ export default function AdminPortal() {
               {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto p-5 space-y-6" style={{ scrollbarColor: '#334155 #0f172a' }}>
 
-                      {/* Section: Basic Info */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Basic Information</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FInput field="name" label="Full Name" data={fullEditData} onChange={fullEditField} required />
-                          <FInput field="designation" label="Present Designation" data={fullEditData} onChange={fullEditField} required />
-                          <FInput field="subject" label="Subject/s Teaching (shown on website)" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="email" label="Email Address" data={fullEditData} onChange={fullEditField} type="email" />
-                          <FInput field="mobile" label="Contact Number" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="gov_mail_id" label="Govt. Mail ID" data={fullEditData} onChange={fullEditField} />
-                          <div>
-                            <label className={panelLabel} style={panelLabelStyle}>Department</label>
-                            <select
-                              value={STANDARD_DEPTS.includes(fullEditData.department) ? fullEditData.department : 'Other'}
-                              onChange={e => {
-                                const val = e.target.value;
-                                if (val === 'Other') {
-                                  fullEditField('department', '');
-                                } else {
-                                  fullEditField('department', val);
-                                }
-                              }}
-                              className={panelInput}
-                              style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                            >
-                              <option value="Administration">Administration</option>
-                              <option value="Science">Science</option>
-                              <option value="Humanities">Humanities</option>
-                              <option value="Secondary">Secondary (9th–10th)</option>
-                              <option value="MTS">MTS (Multi-Tasking Staff)</option>
-                              <option value="Other">Other...</option>
-                            </select>
-                            {!STANDARD_DEPTS.includes(fullEditData.department) && (
-                              <input
-                                type="text"
-                                placeholder="Enter custom department..."
-                                value={fullEditData.department || ''}
-                                onChange={e => fullEditField('department', e.target.value)}
-                                className={panelInput + " mt-1.5 font-semibold"}
-                                style={panelInputStyle}
-                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                              />
-                            )}
-                          </div>
-                          <div>
-                            <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
-                            <select value={fullEditData.hidden ? 'hidden' : 'visible'} 
-                              onChange={e => {
-                                const isHidden = e.target.value === 'hidden';
-                                fullEditField('hidden', isHidden);
-                                if (isHidden && !fullEditData.inactiveReason) {
-                                  fullEditField('inactiveReason', 'Transferred');
-                                }
-                              }}
-                              className={panelInput} style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
-                              <option value="visible">Visible (Active on Website)</option>
-                              <option value="hidden">Hidden (Inactive)</option>
-                            </select>
-                          </div>
-                          {fullEditData.hidden && (
-                            <div className="animate-in fade-in duration-200">
-                              <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
-                              <select 
-                                value={['Transferred', 'Retired'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')} 
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  if (val === 'Other') {
-                                    const custom = window.prompt("Enter custom reason for inactive status:");
-                                    fullEditField('inactiveReason', custom || 'Other');
-                                  } else {
-                                    fullEditField('inactiveReason', val);
-                                  }
-                                }}
-                                className={panelInput} style={panelInputStyle}
-                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                              >
-                                <option value="Transferred">Transferred</option>
-                                <option value="Retired">Retired</option>
-                                <option value="Other">Other...</option>
-                              </select>
-                              {fullEditData.inactiveReason && !['Transferred', 'Retired'].includes(fullEditData.inactiveReason) && (
-                                <input
-                                  type="text"
-                                  placeholder="Enter custom reason..."
-                                  value={fullEditData.inactiveReason || ''}
-                                  onChange={e => fullEditField('inactiveReason', e.target.value)}
-                                  className={panelInput + " mt-1.5 font-semibold"}
-                                  style={panelInputStyle}
-                                  onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                  onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                                />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </section>
+                {/* Section: Basic Info */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Basic Information</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FInput field="name" label="Full Name" data={fullEditData} onChange={fullEditField} required />
+                    <FInput field="designation" label="Present Designation" data={fullEditData} onChange={fullEditField} required />
+                    <FInput field="subject" label="Subject/s Teaching (shown on website)" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="email" label="Email Address" data={fullEditData} onChange={fullEditField} type="email" />
+                    <FInput field="mobile" label="Contact Number" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="gov_mail_id" label="Govt. Mail ID" data={fullEditData} onChange={fullEditField} />
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>Department</label>
+                      <select
+                        value={STANDARD_DEPTS.includes(fullEditData.department) ? fullEditData.department : 'Other'}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === 'Other') {
+                            fullEditField('department', '');
+                          } else {
+                            fullEditField('department', val);
+                          }
+                        }}
+                        className={panelInput}
+                        style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                      >
+                        <option value="Administration">Administration</option>
+                        <option value="Science">Science</option>
+                        <option value="Humanities">Humanities</option>
+                        <option value="Secondary">Secondary (9th–10th)</option>
+                        <option value="MTS">MTS (Multi-Tasking Staff)</option>
+                        <option value="Other">Other...</option>
+                      </select>
+                      {!STANDARD_DEPTS.includes(fullEditData.department) && (
+                        <input
+                          type="text"
+                          placeholder="Enter custom department..."
+                          value={fullEditData.department || ''}
+                          onChange={e => fullEditField('department', e.target.value)}
+                          className={panelInput + " mt-1.5 font-semibold"}
+                          style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
+                      <select value={fullEditData.hidden ? 'hidden' : 'visible'}
+                        onChange={e => {
+                          const isHidden = e.target.value === 'hidden';
+                          fullEditField('hidden', isHidden);
+                          if (isHidden && !fullEditData.inactiveReason) {
+                            fullEditField('inactiveReason', 'Transferred');
+                          }
+                        }}
+                        className={panelInput} style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
+                        <option value="visible">Visible (Active on Website)</option>
+                        <option value="hidden">Hidden (Inactive)</option>
+                      </select>
+                    </div>
+                    {fullEditData.hidden && (
+                      <div className="animate-in fade-in duration-200">
+                        <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
+                        <select
+                          value={['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === 'Other') {
+                              const custom = window.prompt("Enter custom reason for inactive status:");
+                              fullEditField('inactiveReason', custom || 'Other');
+                            } else {
+                              fullEditField('inactiveReason', val);
+                            }
+                          }}
+                          className={panelInput} style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                        >
+                          <option value="Transferred">Transferred</option>
+                          <option value="Retired">Retired</option>
+                          <option value="Deployed Out">Deployed Out</option>
+                          <option value="Other">Other...</option>
+                        </select>
+                        {fullEditData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) && (
+                          <input
+                            type="text"
+                            placeholder="Enter custom reason..."
+                            value={fullEditData.inactiveReason || ''}
+                            onChange={e => fullEditField('inactiveReason', e.target.value)}
+                            className={panelInput + " mt-1.5 font-semibold"}
+                            style={panelInputStyle}
+                            onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                            onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
 
-                      {/* Section: Service Details */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Service Details</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FInput field="cpis_no" label="CPIS No (Unique Govt ID)" data={fullEditData} onChange={fullEditField} mono />
-                          <FInput field="date_of_first_appointment" label="Date of 1st Appointment" data={fullEditData} onChange={fullEditField} mono />
-                          <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="stay_period" label="Stay from (Period)" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
-                          <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
-                          <FInput field="cadre" label="Service Cadre" data={fullEditData} onChange={fullEditField} />
-                        </div>
-                      </section>
+                {/* Section: Service Details */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Service Details</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FInput field="cpis_no" label="CPIS No (Unique Govt ID)" data={fullEditData} onChange={fullEditField} mono />
+                    <FInput field="date_of_first_appointment" label="Date of 1st Appointment" data={fullEditData} onChange={fullEditField} mono />
+                    <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="stay_period" label="Stay from (Period)" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
+                    <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
+                    <FInput field="cadre" label="Service Cadre" data={fullEditData} onChange={fullEditField} />
+                  </div>
+                </section>
 
-                      {/* Section: Tax & Financial Details */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Tax & Financial Details</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <label className={panelLabel} style={panelLabelStyle}>PAN No</label>
-                            <input
-                              type="text"
-                              value={fullEditData.pan || (fullEditData.customFields && (fullEditData.customFields.PAN || fullEditData.customFields.pan)) || ''}
-                              onChange={e => {
-                                const val = e.target.value.toUpperCase();
-                                setFullEditData(d => ({
-                                  ...d,
-                                  pan: val,
-                                  customFields: { ...(d.customFields || {}), PAN: val }
-                                }));
-                              }}
-                              className={panelInput + ' font-mono'}
-                              style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                            />
-                          </div>
-                          <div>
-                            <label className={panelLabel} style={panelLabelStyle}>Gross Salary (Annual)</label>
-                            <input
-                              type="number"
-                              value={fullEditData.grossSalary !== undefined ? fullEditData.grossSalary : (fullEditData.customFields && (fullEditData.customFields['Gross Salary'] || fullEditData.customFields.grossSalary)) || ''}
-                              onChange={e => {
-                                const val = e.target.value;
-                                setFullEditData(d => ({
-                                  ...d,
-                                  grossSalary: val,
-                                  customFields: { ...(d.customFields || {}), 'Gross Salary': val }
-                                }));
-                              }}
-                              className={panelInput}
-                              style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                            />
-                          </div>
-                          <div>
-                            <label className={panelLabel} style={panelLabelStyle}>TDS Paid (Up-To-Date)</label>
-                            <input
-                              type="number"
-                              value={fullEditData.tds !== undefined ? fullEditData.tds : (fullEditData.customFields && (fullEditData.customFields.TDS || fullEditData.customFields.tds || fullEditData.customFields['TDS Paid'])) || ''}
-                              onChange={e => {
-                                const val = e.target.value;
-                                setFullEditData(d => ({
-                                  ...d,
-                                  tds: val,
-                                  customFields: { ...(d.customFields || {}), TDS: val }
-                                }));
-                              }}
-                              className={panelInput}
-                              style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                            />
-                          </div>
-                        </div>
-                      </section>
+                {/* Section: Tax & Financial Details */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Tax & Financial Details</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>PAN No</label>
+                      <input
+                        type="text"
+                        value={fullEditData.pan || (fullEditData.customFields && (fullEditData.customFields.PAN || fullEditData.customFields.pan)) || ''}
+                        onChange={e => {
+                          const val = e.target.value.toUpperCase();
+                          setFullEditData(d => ({
+                            ...d,
+                            pan: val,
+                            customFields: { ...(d.customFields || {}), PAN: val }
+                          }));
+                        }}
+                        className={panelInput + ' font-mono'}
+                        style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                      />
+                    </div>
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>Gross Salary (Annual)</label>
+                      <input
+                        type="number"
+                        value={fullEditData.grossSalary !== undefined ? fullEditData.grossSalary : (fullEditData.customFields && (fullEditData.customFields['Gross Salary'] || fullEditData.customFields.grossSalary)) || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setFullEditData(d => ({
+                            ...d,
+                            grossSalary: val,
+                            customFields: { ...(d.customFields || {}), 'Gross Salary': val }
+                          }));
+                        }}
+                        className={panelInput}
+                        style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                      />
+                    </div>
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>TDS Paid (Up-To-Date)</label>
+                      <input
+                        type="number"
+                        value={fullEditData.tds !== undefined ? fullEditData.tds : (fullEditData.customFields && (fullEditData.customFields.TDS || fullEditData.customFields.tds || fullEditData.customFields['TDS Paid'])) || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setFullEditData(d => ({
+                            ...d,
+                            tds: val,
+                            customFields: { ...(d.customFields || {}), TDS: val }
+                          }));
+                        }}
+                        className={panelInput}
+                        style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                      />
+                    </div>
+                  </div>
+                </section>
 
-                      {/* Section: Personal Details */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Personal Details</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FInput field="dob" label="Date of Birth" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="parentage" label="Parentage (Father's Name)" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="qualification" label="Highest Qualification" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="health_issues" label="Health / Security Grounds" data={fullEditData} onChange={fullEditField} />
-                          <FInput field="if_deployed" label="If Deployed / Detached" data={fullEditData} onChange={fullEditField} />
-                          <div className="sm:col-span-2">
-                            <label className={panelLabel} style={panelLabelStyle}>Permanent Address</label>
-                            <input type="text" value={fullEditData.permanent_address || ''} onChange={e => fullEditField('permanent_address', e.target.value)}
-                              className={panelInput} style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className={panelLabel} style={panelLabelStyle}>Present Address</label>
-                            <input type="text" value={fullEditData.present_address || ''} onChange={e => fullEditField('present_address', e.target.value)}
-                              className={panelInput} style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
-                            <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
-                              className={panelInput + ' resize-none'} style={panelInputStyle}
-                              onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                              onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                          </div>
-                        </div>
-                      </section>
+                {/* Section: Personal Details */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Personal Details</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FInput field="dob" label="Date of Birth" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="parentage" label="Parentage (Father's Name)" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="qualification" label="Highest Qualification" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
+                    <FInput field="health_issues" label="Health / Security Grounds" data={fullEditData} onChange={fullEditField} />
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Deployment Status</label>
+                      <select
+                        value={fullEditData.if_deployed || 'No'}
+                        onChange={(e) => fullEditField('if_deployed', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-400"
+                      >
+                        <option value="No">No Deployment</option>
+                        <option value="in">Deployed In → (from another school, works here)</option>
+                        <option value="out">Deployed Out ← (our employee, sent to another school)</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={panelLabel} style={panelLabelStyle}>Permanent Address</label>
+                      <input type="text" value={fullEditData.permanent_address || ''} onChange={e => fullEditField('permanent_address', e.target.value)}
+                        className={panelInput} style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={panelLabel} style={panelLabelStyle}>Present Address</label>
+                      <input type="text" value={fullEditData.present_address || ''} onChange={e => fullEditField('present_address', e.target.value)}
+                        className={panelInput} style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
+                      <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
+                        className={panelInput + ' resize-none'} style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                    </div>
+                  </div>
+                </section>
 
-                      {/* Section: Photo */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Photo</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="flex gap-4 items-start">
-                          {fullEditData.photo && (
-                            <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid #334155', background: '#020617' }}>
-                              <img src={fullEditData.photo} alt="Preview" className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} />
-                            </div>
-                          )}
-                          <div className="flex-1 space-y-2">
-                            <div>
-                              <label className={panelLabel} style={panelLabelStyle}>Photo URL / Path</label>
-                              <input type="text" value={fullEditData.photo || ''} onChange={e => fullEditField('photo', e.target.value)}
-                                placeholder="/slides/photo.jpg or https://..." className={panelInput + ' font-mono'} style={panelInputStyle}
-                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                            </div>
-                            <div className="flex gap-2">
-                              <div className="flex-1">
-                                <label className={panelLabel} style={panelLabelStyle}>Upload New Photo (Max 100KB)</label>
-                                <input type="text" placeholder="Filename (e.g. sheikh_gulfam)" value={fullEditPhotoName}
-                                  onChange={e => setFullEditPhotoName(sanitizePhotoFilename(e.target.value))}
-                                  className={panelInput} style={panelInputStyle}
-                                  onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                  onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                              </div>
-                              <label className="self-end px-3 py-1.5 rounded text-[10px] font-extrabold cursor-pointer transition-all border whitespace-nowrap hover:scale-[1.02]"
-                                style={fullEditPhotoFile
-                                  ? { background: '#10b981', borderColor: '#34d399', color: '#020617' }
-                                  : { background: '#f97316', borderColor: '#fb923c', color: '#020617' }}>
-                                {fullEditPhotoFile ? 'Loaded ✓' : 'Choose File'}
-                                <input type="file" accept="image/*" className="hidden" onChange={e => {
-                                  const file = e.target.files[0]; if (!file) return;
-                                  if (file.size > 102400) { showAlert(`File is ${Math.round(file.size / 1024)}KB — max is 100KB.`, 'File Too Large'); e.target.value = ''; return; }
-                                  setFullEditPhotoFile(file); setFullEditPhotoExt(getMimeExtension(file.type, file.name));
-                                  if (!fullEditPhotoName) setFullEditPhotoName(sanitizePhotoFilename(fullEditData.name || 'teacher_photo'));
-                                }} />
-                              </label>
-                            </div>
-                            {fullEditPhotoFile && <p className="text-[10px] font-semibold" style={{ color: '#34d399' }}>{fullEditPhotoFile.name} ({Math.round(fullEditPhotoFile.size / 1024)}KB)</p>}
-                          </div>
+                {/* Section: Photo */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Photo</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="flex gap-4 items-start">
+                    {fullEditData.photo && (
+                      <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid #334155', background: '#020617' }}>
+                        <img src={fullEditData.photo} alt="Preview" className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <label className={panelLabel} style={panelLabelStyle}>Photo URL / Path</label>
+                        <input type="text" value={fullEditData.photo || ''} onChange={e => fullEditField('photo', e.target.value)}
+                          placeholder="/slides/photo.jpg or https://..." className={panelInput + ' font-mono'} style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className={panelLabel} style={panelLabelStyle}>Upload New Photo (Max 100KB)</label>
+                          <input type="text" placeholder="Filename (e.g. sheikh_gulfam)" value={fullEditPhotoName}
+                            onChange={e => setFullEditPhotoName(sanitizePhotoFilename(e.target.value))}
+                            className={panelInput} style={panelInputStyle}
+                            onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                            onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
                         </div>
-                      </section>
+                        <label className="self-end px-3 py-1.5 rounded text-[10px] font-extrabold cursor-pointer transition-all border whitespace-nowrap hover:scale-[1.02]"
+                          style={fullEditPhotoFile
+                            ? { background: '#10b981', borderColor: '#34d399', color: '#020617' }
+                            : { background: '#f97316', borderColor: '#fb923c', color: '#020617' }}>
+                          {fullEditPhotoFile ? 'Loaded ✓' : 'Choose File'}
+                          <input type="file" accept="image/*" className="hidden" onChange={e => {
+                            const file = e.target.files[0]; if (!file) return;
+                            if (file.size > 102400) { showAlert(`File is ${Math.round(file.size / 1024)}KB — max is 100KB.`, 'File Too Large'); e.target.value = ''; return; }
+                            setFullEditPhotoFile(file); setFullEditPhotoExt(getMimeExtension(file.type, file.name));
+                            if (!fullEditPhotoName) setFullEditPhotoName(sanitizePhotoFilename(fullEditData.name || 'teacher_photo'));
+                          }} />
+                        </label>
+                      </div>
+                      {fullEditPhotoFile && <p className="text-[10px] font-semibold" style={{ color: '#34d399' }}>{fullEditPhotoFile.name} ({Math.round(fullEditPhotoFile.size / 1024)}KB)</p>}
+                    </div>
+                  </div>
+                </section>
 
-                      {/* Section: Posting History */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Historical Posting Profile</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="space-y-2">
-                          {(fullEditData.postings || []).map((p, pi) => (
-                            <div key={pi} className="rounded-lg p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2"
-                              style={{ background: '#1e293b', border: '1px solid #334155' }}>
-                              <div className="sm:col-span-2">
-                                <label className={panelLabel} style={panelLabelStyle}>Office / Institution</label>
-                                <input type="text" value={p.office || ''} onChange={e => updatePosting(pi, 'office', e.target.value)}
-                                  className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
-                                  style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
-                                  onFocus={e => e.target.style.borderColor = '#f97316'}
-                                  onBlur={e => e.target.style.borderColor = '#334155'} />
-                              </div>
-                              <div>
-                                <label className={panelLabel} style={panelLabelStyle}>Designation</label>
-                                <input type="text" value={p.designation || ''} onChange={e => updatePosting(pi, 'designation', e.target.value)}
-                                  className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
-                                  style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
-                                  onFocus={e => e.target.style.borderColor = '#f97316'}
-                                  onBlur={e => e.target.style.borderColor = '#334155'} />
-                              </div>
-                              <div className="flex gap-1.5 items-end">
-                                <div className="flex-1">
-                                  <label className={panelLabel} style={panelLabelStyle}>From</label>
-                                  <input type="text" value={p.from || ''} onChange={e => updatePosting(pi, 'from', e.target.value)}
-                                    className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
-                                    style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
-                                    onFocus={e => e.target.style.borderColor = '#f97316'}
-                                    onBlur={e => e.target.style.borderColor = '#334155'} />
-                                </div>
-                                <div className="flex-1">
-                                  <label className={panelLabel} style={panelLabelStyle}>To</label>
-                                  <input type="text" value={p.to || ''} onChange={e => updatePosting(pi, 'to', e.target.value)}
-                                    className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
-                                    style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
-                                    onFocus={e => e.target.style.borderColor = '#f97316'}
-                                    onBlur={e => e.target.style.borderColor = '#334155'} />
-                                </div>
-                                <button onClick={() => removePosting(pi)} className="mb-0.5 p-1.5 rounded transition-colors flex-shrink-0"
-                                  style={{ color: '#f87171' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.15)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                  title="Remove this posting">
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                          <button onClick={addPosting}
-                            className="w-full py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-                            style={{ border: '1px dashed #475569', color: '#94a3b8' }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#fb923c'; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#475569'; e.currentTarget.style.color = '#94a3b8'; }}>
-                            <Plus size={12} /> Add Posting Entry
+                {/* Section: Posting History */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Historical Posting Profile</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="space-y-2">
+                    {(fullEditData.postings || []).map((p, pi) => (
+                      <div key={pi} className="rounded-lg p-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2"
+                        style={{ background: '#1e293b', border: '1px solid #334155' }}>
+                        <div className="sm:col-span-2">
+                          <label className={panelLabel} style={panelLabelStyle}>Office / Institution</label>
+                          <input type="text" value={p.office || ''} onChange={e => updatePosting(pi, 'office', e.target.value)}
+                            className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                            style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                            onFocus={e => e.target.style.borderColor = '#f97316'}
+                            onBlur={e => e.target.style.borderColor = '#334155'} />
+                        </div>
+                        <div>
+                          <label className={panelLabel} style={panelLabelStyle}>Designation</label>
+                          <input type="text" value={p.designation || ''} onChange={e => updatePosting(pi, 'designation', e.target.value)}
+                            className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                            style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                            onFocus={e => e.target.style.borderColor = '#f97316'}
+                            onBlur={e => e.target.style.borderColor = '#334155'} />
+                        </div>
+                        <div className="flex gap-1.5 items-end">
+                          <div className="flex-1">
+                            <label className={panelLabel} style={panelLabelStyle}>From</label>
+                            <input type="text" value={p.from || ''} onChange={e => updatePosting(pi, 'from', e.target.value)}
+                              className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                              style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                              onFocus={e => e.target.style.borderColor = '#f97316'}
+                              onBlur={e => e.target.style.borderColor = '#334155'} />
+                          </div>
+                          <div className="flex-1">
+                            <label className={panelLabel} style={panelLabelStyle}>To</label>
+                            <input type="text" value={p.to || ''} onChange={e => updatePosting(pi, 'to', e.target.value)}
+                              className="w-full px-2 py-1 rounded text-[11px] focus:outline-none transition-colors"
+                              style={{ background: '#020617', border: '1px solid #334155', color: '#f1f5f9' }}
+                              onFocus={e => e.target.style.borderColor = '#f97316'}
+                              onBlur={e => e.target.style.borderColor = '#334155'} />
+                          </div>
+                          <button onClick={() => removePosting(pi)} className="mb-0.5 p-1.5 rounded transition-colors flex-shrink-0"
+                            style={{ color: '#f87171' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.15)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            title="Remove this posting">
+                            <Trash2 size={12} />
                           </button>
                         </div>
-                      </section>
+                      </div>
+                    ))}
+                    <button onClick={addPosting}
+                      className="w-full py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                      style={{ border: '1px dashed #475569', color: '#94a3b8' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#fb923c'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#475569'; e.currentTarget.style.color = '#94a3b8'; }}>
+                      <Plus size={12} /> Add Posting Entry
+                    </button>
+                  </div>
+                </section>
 
-                      {/* Section: Custom / Additional Fields */}
-                      <section>
-                        <h4 className={sectionHeader}>
-                          <span style={divider} />
-                          <span style={sectionTitleStyle}>Additional / Custom Fields</span>
-                          <span style={divider} />
-                        </h4>
-                        <div className="space-y-3">
-                          {/* List existing custom fields */}
-                          {Object.keys(fullEditData.customFields || {}).length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {Object.keys(fullEditData.customFields || {}).map((key) => (
-                                <div key={key}>
-                                  <label className={panelLabel} style={panelLabelStyle}>{key}</label>
-                                  <div className="flex gap-1.5 items-center">
-                                    <input
-                                      type="text"
-                                      value={fullEditData.customFields[key] || ''}
-                                      onChange={(e) => {
-                                        const updatedCustom = { ...fullEditData.customFields, [key]: e.target.value };
-                                        fullEditField('customFields', updatedCustom);
-                                      }}
-                                      className={panelInput}
-                                      style={panelInputStyle}
-                                      onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                      onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                                    />
-                                    <button
-                                      onClick={() => {
-                                        const updatedCustom = { ...fullEditData.customFields };
-                                        delete updatedCustom[key];
-                                        fullEditField('customFields', updatedCustom);
-                                      }}
-                                      className="p-1.5 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex-shrink-0"
-                                      style={{ border: '1px solid #334155' }}
-                                      title={`Remove field "${key}"`}
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Add a new custom field inline builder */}
-                          <div className="p-3 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 flex flex-col sm:flex-row gap-2.5 items-end">
-                            <div className="flex-grow w-full">
-                              <label className={panelLabel} style={panelLabelStyle}>New Field Name</label>
+                {/* Section: Custom / Additional Fields */}
+                <section>
+                  <h4 className={sectionHeader}>
+                    <span style={divider} />
+                    <span style={sectionTitleStyle}>Additional / Custom Fields</span>
+                    <span style={divider} />
+                  </h4>
+                  <div className="space-y-3">
+                    {/* List existing custom fields */}
+                    {Object.keys(fullEditData.customFields || {}).length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {Object.keys(fullEditData.customFields || {}).map((key) => (
+                          <div key={key}>
+                            <label className={panelLabel} style={panelLabelStyle}>{key}</label>
+                            <div className="flex gap-1.5 items-center">
                               <input
-                                id="new-custom-field-key"
                                 type="text"
-                                placeholder="e.g. PAN No, Aadhar No, Gender"
+                                value={fullEditData.customFields[key] || ''}
+                                onChange={(e) => {
+                                  const updatedCustom = { ...fullEditData.customFields, [key]: e.target.value };
+                                  fullEditField('customFields', updatedCustom);
+                                }}
                                 className={panelInput}
                                 style={panelInputStyle}
                                 onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
                                 onBlur={e => Object.assign(e.target.style, panelInputStyle)}
                               />
+                              <button
+                                onClick={() => {
+                                  const updatedCustom = { ...fullEditData.customFields };
+                                  delete updatedCustom[key];
+                                  fullEditField('customFields', updatedCustom);
+                                }}
+                                className="p-1.5 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex-shrink-0"
+                                style={{ border: '1px solid #334155' }}
+                                title={`Remove field "${key}"`}
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             </div>
-                            <div className="flex-grow w-full">
-                              <label className={panelLabel} style={panelLabelStyle}>Value</label>
-                              <input
-                                id="new-custom-field-val"
-                                type="text"
-                                placeholder="Enter value..."
-                                className={panelInput}
-                                style={panelInputStyle}
-                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                              />
-                            </div>
-                            <button
-                              onClick={() => {
-                                const keyInput = document.getElementById('new-custom-field-key');
-                                const valInput = document.getElementById('new-custom-field-val');
-                                const key = keyInput.value.trim();
-                                const val = valInput.value.trim();
-                                if (!key) {
-                                  showAlert('Please enter a name for the custom field.', 'Field Name Required');
-                                  return;
-                                }
-                                const updatedCustom = { ...(fullEditData.customFields || {}), [key]: val };
-                                fullEditField('customFields', updatedCustom);
-                                keyInput.value = '';
-                                valInput.value = '';
-                              }}
-                              className="px-3.5 py-1.5 rounded font-extrabold text-xs transition-all border shrink-0 text-slate-950 hover:scale-[1.02] active:scale-[0.98]"
-                              style={{ background: '#f97316', borderColor: '#fb923c' }}
-                            >
-                              Add Field
-                            </button>
                           </div>
-                        </div>
-                      </section>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add a new custom field inline builder */}
+                    <div className="p-3 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 flex flex-col sm:flex-row gap-2.5 items-end">
+                      <div className="flex-grow w-full">
+                        <label className={panelLabel} style={panelLabelStyle}>New Field Name</label>
+                        <input
+                          id="new-custom-field-key"
+                          type="text"
+                          placeholder="e.g. PAN No, Aadhar No, Gender"
+                          className={panelInput}
+                          style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                        />
+                      </div>
+                      <div className="flex-grow w-full">
+                        <label className={panelLabel} style={panelLabelStyle}>Value</label>
+                        <input
+                          id="new-custom-field-val"
+                          type="text"
+                          placeholder="Enter value..."
+                          className={panelInput}
+                          style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          const keyInput = document.getElementById('new-custom-field-key');
+                          const valInput = document.getElementById('new-custom-field-val');
+                          const key = keyInput.value.trim();
+                          const val = valInput.value.trim();
+                          if (!key) {
+                            showAlert('Please enter a name for the custom field.', 'Field Name Required');
+                            return;
+                          }
+                          const updatedCustom = { ...(fullEditData.customFields || {}), [key]: val };
+                          fullEditField('customFields', updatedCustom);
+                          keyInput.value = '';
+                          valInput.value = '';
+                        }}
+                        className="px-3.5 py-1.5 rounded font-extrabold text-xs transition-all border shrink-0 text-slate-950 hover:scale-[1.02] active:scale-[0.98]"
+                        style={{ background: '#f97316', borderColor: '#fb923c' }}
+                      >
+                        Add Field
+                      </button>
+                    </div>
+                  </div>
+                </section>
 
               </div>{/* end scrollable body */}
 

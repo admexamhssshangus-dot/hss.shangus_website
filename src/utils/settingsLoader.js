@@ -149,6 +149,8 @@ export async function loadSiteSettings() {
   if (local) {
     try {
       const parsed = JSON.parse(local);
+
+
       return mergeSiteSettings(parsed);
     } catch (e) {
       console.error('Error parsing site_settings from localStorage', e);
