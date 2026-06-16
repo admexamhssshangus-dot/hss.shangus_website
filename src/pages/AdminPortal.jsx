@@ -950,15 +950,15 @@ export default function AdminPortal() {
               syncCurrentUserSession(data, sessionUserObj);
             }
           } else {
-            useFallbackAdmins(sessionUserObj);
+            loadFallbackAdmins(sessionUserObj);
           }
         })
         .catch(() => {
-          useFallbackAdmins(sessionUserObj);
+          loadFallbackAdmins(sessionUserObj);
         });
     }
 
-    function useFallbackAdmins(sessionUserObj) {
+    function loadFallbackAdmins(sessionUserObj) {
       const localAdmins = localStorage.getItem('site_admins');
       if (localAdmins) {
         try {
