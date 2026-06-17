@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Calendar, ExternalLink, ArrowLeft, RefreshCw, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function NoticeBoard() {
   const [notices, setNotices] = useState([]);
@@ -97,6 +99,24 @@ export default function NoticeBoard() {
           setLoading(false);
           return;
         }
+      }
+
+      // 1b. Try Firestore for live notices
+      try {
+        const snap = await getDoc(doc(db, 'site', 'notices'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && data.text) {
+            const parsed = parseNotices(data.text);
+            if (parsed.length > 0 && active) {
+              setNotices(parsed);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        // ignore and fallback to static file
       }
 
       // 2. Fetch from server

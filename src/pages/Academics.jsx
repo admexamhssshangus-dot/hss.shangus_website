@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Phone, Mail, User } from 'lucide-react';
 import SEO from '../components/SEO';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 // WhatsApp SVG Icon component
 function WhatsAppIcon({ size = 14, className = '' }) {
@@ -126,7 +128,20 @@ export default function Academics() {
         }
       }
 
-      // 2. Fetch from server
+      // 2. Try Firestore then fetch from server
+      try {
+        const snap = await getDoc(doc(db, 'site', 'faculty'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            if (active) setFaculty(data.items);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore and fallback
+      }
+
       try {
         const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
         if (!res.ok) throw new Error('Faculty config file not found');

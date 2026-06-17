@@ -1,0 +1,12 @@
+## Netlify configuration for CRA site
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[context.production.environment]
+# Define any build-time env vars here only for local testing; prefer Netlify UI for secrets
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

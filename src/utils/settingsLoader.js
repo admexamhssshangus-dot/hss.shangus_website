@@ -143,13 +143,25 @@ export function mergeSiteSettings(parsed = {}) {
   };
 }
 
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+
 export async function loadSiteSettings() {
+  // 0. Try Firestore first (remote live data)
+  try {
+    const snap = await getDoc(doc(db, 'site', 'settings'));
+    if (snap.exists()) {
+      return mergeSiteSettings(snap.data());
+    }
+  } catch (e) {
+    console.warn('Firestore settings read failed:', e);
+  }
+
   // 1. Check local storage override first (for admin instant testing)
   const local = localStorage.getItem('site_settings');
   if (local) {
     try {
       const parsed = JSON.parse(local);
-
 
       return mergeSiteSettings(parsed);
     } catch (e) {
