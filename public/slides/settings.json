@@ -34,7 +34,7 @@
       "standardDeduction": 75000,
       "rebateThreshold": 1200000,
       "rebateMax": 60000,
-      "marginalReliefEnabled": false,
+      "marginalReliefEnabled": true,
       "includeSurcharge": true,
       "slabs": [
         {
@@ -96,7 +96,7 @@
       "standardDeduction": 50000,
       "rebateThreshold": 500000,
       "rebateMax": 12500,
-      "marginalReliefEnabled": false,
+      "marginalReliefEnabled": true,
       "includeSurcharge": true,
       "slabs": [
         {

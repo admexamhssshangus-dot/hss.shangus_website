@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
+import { db, storage, auth } from '../firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // ==========================================
 // IndexedDB Helpers for Storing Folder Handle
@@ -91,6 +95,36 @@ async function hashPassword(plainText, saltHex = null) {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+// Firebase helpers
+const uploadToFirebaseStorage = async (file, filename) => {
+  if (!storage) throw new Error('Firebase storage not configured');
+  const dest = `slides/photos/${filename}`;
+  const storageRef = ref(storage, dest);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+};
+
+const saveToFirebase = async ({ settings, noticesText, faculty, admins }) => {
+  if (!db) throw new Error('Firestore not configured');
+
+  // Authorization: require authenticated admin
+  const user = auth.currentUser;
+  if (!user) throw new Error('Authentication required to save. Please sign in.');
+
+  const idToken = await getIdTokenResult(user);
+  const isAdminClaim = idToken?.claims?.admin === true;
+  const isListedAdmin = Array.isArray(admins) && admins.some(a => a.email === user.email);
+  if (!isAdminClaim && !isListedAdmin) {
+    throw new Error('User is not authorized to perform this action.');
+  }
+
+  // Write core documents
+  await setDoc(doc(db, 'site', 'settings'), settings || {});
+  await setDoc(doc(db, 'site', 'notices'), { text: noticesText || '' });
+  await setDoc(doc(db, 'site', 'faculty'), { items: (faculty || []).map(({ id, ...r }) => r) });
+  await setDoc(doc(db, 'site', 'admins'), { items: admins || [] });
+};
 
 function generateRandomSaltHex() {
   const arr = new Uint8Array(16);
@@ -316,6 +350,28 @@ function FInput({ field, label, data, onChange, type = 'text', mono = false, req
         onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
         onBlur={e => Object.assign(e.target.style, panelInputStyle)}
       />
+    </div>
+  );
+}
+
+// Hook into auth state at top-level of this module's component usage
+// (we add a small wrapper inside the AdminPortal component below)
+
+// ==========================================
+// Firebase Auth UI helpers (Google Sign-In)
+// ==========================================
+
+function AuthControls({ user, onSignIn, onSignOut }) {
+  return (
+    <div className="flex items-center gap-3">
+      {user ? (
+        <>
+          <div className="text-xs text-slate-300">Signed in: {user.email}</div>
+          <button className="px-2 py-1 text-xs bg-slate-700 rounded" onClick={onSignOut}>Sign out</button>
+        </>
+      ) : (
+        <button className="px-2 py-1 text-xs bg-emerald-600 rounded" onClick={onSignIn}>Sign in with Google</button>
+      )}
     </div>
   );
 }
@@ -581,6 +637,7 @@ export default function AdminPortal() {
   // Dynamic admin accounts list
   const [admins, setAdmins] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [firebaseUser, setFirebaseUser] = useState(null);
 
   // New admin creation form states
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -764,6 +821,20 @@ export default function AdminPortal() {
     };
   }, []);
 
+  // Firebase auth state listener
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        setIsAuthenticated(true);
+      } else {
+        // do not log out the local admin session (legacy), but keep firebaseUser null
+        setIsAuthenticated(!!currentUser);
+      }
+    });
+    return () => unsub();
+  }, [currentUser]);
+
   // Helper to log out
   const handleLogout = (reason) => {
     sessionStorage.removeItem('isAdminAuthenticated');
@@ -890,6 +961,30 @@ export default function AdminPortal() {
         setAuthError(`Incorrect credentials. Attempt ${attempts} of 5. Please try again.`);
       }
       generateCaptcha();
+    }
+  };
+
+  // Firebase Google sign-in and sign-out handlers
+  const handleGoogleSignIn = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const res = await signInWithPopup(auth, provider);
+      setFirebaseUser(res.user);
+      setIsAuthenticated(true);
+    } catch (err) {
+      console.error('Google sign-in failed', err);
+      showAlert('Google sign-in failed: ' + (err.message || err));
+    }
+  };
+
+  const handleGoogleSignOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+      setFirebaseUser(null);
+      setIsAuthenticated(!!currentUser);
+    } catch (err) {
+      console.error('Sign-out failed', err);
+      showAlert('Sign-out failed: ' + (err.message || err));
     }
   };
 
@@ -1296,17 +1391,34 @@ export default function AdminPortal() {
     }
 
     function fetchFacultyFromServer() {
-      fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' })
-        .then((r) => r.json())
-        .then((data) => {
+      (async () => {
+        try {
+          // Try Firestore first
+          try {
+            const snap = await getDoc(doc(db, 'site', 'faculty'));
+            if (snap.exists()) {
+              const data = snap.data();
+              if (data && Array.isArray(data.items)) {
+                setFaculty(data.items);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch (e) {
+            // ignore and fallback to static fetch
+          }
+
+          const r = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          const data = await r.json();
           if (Array.isArray(data)) setFaculty(data);
-        })
-        .catch(() => {
+        } catch (err) {
           setFaculty([
             { name: "Mr. Aijaz Ahmad Wagay", designation: "Principal", subject: "Chemistry", email: "ghssshangus74@gmail.com", mobile: "+91-7006034501", photo: "/slides/Principal.jpg", department: "Administration" }
           ]);
-        })
-        .finally(() => setLoading(false));
+        } finally {
+          setLoading(false);
+        }
+      })();
     }
 
   }, [isAuthenticated]);
@@ -1579,16 +1691,23 @@ export default function AdminPortal() {
       if (folderHandle) {
         await writeLocalFile(folderHandle, filename, newTeacherPhotoFile);
       } else {
+        // Try uploading to Firebase Storage if configured
         try {
-          const base64Data = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(newTeacherPhotoFile);
-          });
-          photoPath = base64Data;
+          const url = await uploadToFirebaseStorage(newTeacherPhotoFile, filename);
+          photoPath = url;
         } catch (err) {
-          console.error('Failed to convert image to Data URL:', err);
+          console.warn('Firebase upload failed or not configured, falling back to Data URL:', err);
+          try {
+            const base64Data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(newTeacherPhotoFile);
+            });
+            photoPath = base64Data;
+          } catch (err2) {
+            console.error('Failed to convert image to Data URL:', err2);
+          }
         }
       }
     } else if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http') && !photoPath.startsWith('data:')) {
@@ -1685,15 +1804,21 @@ export default function AdminPortal() {
         await writeLocalFile(folderHandle, filename, editTeacherPhotoFile);
       } else {
         try {
-          const base64Data = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(editTeacherPhotoFile);
-          });
-          photoPath = base64Data;
+          const url = await uploadToFirebaseStorage(editTeacherPhotoFile, filename);
+          photoPath = url;
         } catch (err) {
-          console.error('Failed to convert image to Data URL:', err);
+          console.warn('Firebase upload failed or not configured, falling back to Data URL:', err);
+          try {
+            const base64Data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(editTeacherPhotoFile);
+            });
+            photoPath = base64Data;
+          } catch (err2) {
+            console.error('Failed to convert image to Data URL:', err2);
+          }
         }
       }
     } else if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http') && !photoPath.startsWith('data:')) {
@@ -2612,6 +2737,37 @@ export default function AdminPortal() {
         }
       } catch (err) {
         console.warn('Local proxy server is not running or encountered an error:', err);
+      }
+    }
+    // 2b. Try saving to Firebase (recommended) when not localhost
+    if (!isLocalhost) {
+      try {
+        await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins });
+        fileSyncStatus = ' and saved to Firebase (live).';
+      } catch (err) {
+        console.warn('Firestore save failed or not configured:', err);
+      }
+    }
+
+    // 2c. Try remote Netlify function (Git-backed commit) when not localhost and Firebase did not handle it
+    if (!isLocalhost && !fileSyncStatus) {
+      try {
+        const remoteRes = await fetch('/.netlify/functions/save-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-save-secret': process.env.REACT_APP_SAVE_SECRET || ''
+          },
+          body: JSON.stringify({ settings, noticesText, faculty, admins: activeAdmins })
+        });
+        if (remoteRes.ok) {
+          fileSyncStatus = ' and saved to remote repository (will deploy after CI).';
+        } else {
+          const errData = await remoteRes.json().catch(() => ({}));
+          console.warn('Remote save failed:', errData);
+        }
+      } catch (err) {
+        console.warn('Remote save error:', err);
       }
     }
 
