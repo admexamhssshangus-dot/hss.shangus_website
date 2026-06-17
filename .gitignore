@@ -21,3 +21,12 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local Netlify folder
+.netlify
+
+# Ignore local Firebase service account
+scripts/serviceAccount.json
+
+# ignore firebase private key
+serviceAccountKey.json

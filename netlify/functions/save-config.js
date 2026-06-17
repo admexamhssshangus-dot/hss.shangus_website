@@ -14,7 +14,8 @@ exports.handler = async function(event, context) {
   }
 
   const secretHeader = event.headers['x-save-secret'] || event.headers['X-Save-Secret'];
-  if (!secretHeader || secretHeader !== process.env.SAVE_SECRET) {
+  const expectedSecret = process.env.SAVE_SECRET || process.env.REACT_APP_SAVE_SECRET || '';
+  if (!secretHeader || secretHeader !== expectedSecret) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 
