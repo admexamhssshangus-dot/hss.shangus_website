@@ -1,3 +1,6 @@
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+
 // Default settings fallback
 const DEFAULT_TAX_CONFIG = {
   financialYearLabel: '2025-26',
@@ -142,9 +145,6 @@ export function mergeSiteSettings(parsed = {}) {
     }
   };
 }
-
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 
 export async function loadSiteSettings() {
   // 0. Try Firestore first (remote live data)
