@@ -112,7 +112,9 @@ const saveToFirebase = async ({ settings, noticesText, faculty, admins }) => {
   const user = auth.currentUser;
   if (!user) throw new Error('Authentication required to save. Please sign in.');
 
-  const idToken = await getIdTokenResult(user);
+  // Force-refresh the ID token so custom claims (admin) are available immediately
+  const idToken = await getIdTokenResult(user, true);
+  console.debug('AdminPortal: id token claims', idToken?.claims);
   const isAdminClaim = idToken?.claims?.admin === true;
   const isListedAdmin = Array.isArray(admins) && admins.some(a => a.email === user.email);
   if (!isAdminClaim && !isListedAdmin) {
@@ -123,7 +125,10 @@ const saveToFirebase = async ({ settings, noticesText, faculty, admins }) => {
   await setDoc(doc(db, 'site', 'settings'), settings || {});
   await setDoc(doc(db, 'site', 'notices'), { text: noticesText || '' });
   await setDoc(doc(db, 'site', 'faculty'), { items: (faculty || []).map(({ id, ...r }) => r) });
-  await setDoc(doc(db, 'site', 'admins'), { items: admins || [] });
+  await setDoc(doc(db, 'site', 'admins'), {
+    items: admins || [],
+    emails: (admins || []).map(a => (a.email || '').toLowerCase()).filter(Boolean)
+  });
 };
 
 function generateRandomSaltHex() {
@@ -823,20 +828,43 @@ export default function AdminPortal() {
 
   // Firebase auth state listener
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
-      if (user) {
-        setIsAuthenticated(true);
-      } else {
-        // do not log out the local admin session (legacy), but keep firebaseUser null
+      if (!user) {
+        // No firebase user — fall back to local admin session state
         setIsAuthenticated(!!currentUser);
+        return;
+      }
+
+      // Verify that the signed-in Firebase user is authorized as an admin
+      try {
+        const idToken = await getIdTokenResult(user, true);
+        const isAdminClaim = idToken?.claims?.admin === true;
+        const listedAdmin = Array.isArray(admins) && admins.find(a => a.email.toLowerCase() === (user.email || '').toLowerCase());
+
+        if (isAdminClaim || listedAdmin) {
+          // If we have a local admin entry, use it as the currentUser for permissions
+          if (listedAdmin) setCurrentUser(listedAdmin);
+          setIsAuthenticated(true);
+          setAuthError('');
+        } else {
+          // Signed in to Firebase but not authorized as admin locally
+          setIsAuthenticated(false);
+          setAuthError('Signed in with Google, but this account is not registered as an administrator. Use local admin login or ask a Super Admin to add you.');
+        }
+      } catch (err) {
+        console.warn('Failed to verify Firebase ID token:', err);
+        // Conservatively do not authenticate UI until verification completes
+        setIsAuthenticated(false);
+        setAuthError('Failed to validate Google sign-in. Please try again.');
       }
     });
     return () => unsub();
-  }, [currentUser]);
+  }, [admins, currentUser]);
 
-  // Helper to log out
-  const handleLogout = (reason) => {
+  // Helper to log out (also sign out of Firebase if signed in)
+  const handleLogout = async (reason) => {
+    // Clear session/local storage and UI state
     sessionStorage.removeItem('isAdminAuthenticated');
     sessionStorage.removeItem('admin_session_id');
     sessionStorage.removeItem('adminUser');
@@ -844,6 +872,15 @@ export default function AdminPortal() {
     setCurrentUser(null);
     setIsAuthenticated(false);
     generateCaptcha(false); // Generate fresh CAPTCHA on logout without shaking
+
+    // Sign out of Firebase auth if present to avoid automatic re-login on refresh
+    try {
+      if (auth && auth.currentUser) {
+        await firebaseSignOut(auth);
+      }
+    } catch (err) {
+      console.warn('Firebase sign-out failed:', err);
+    }
 
     if (reason === 'logged_out_elsewhere') {
       setAuthError('You have been logged out because a new session was started in another tab.');
@@ -973,9 +1010,16 @@ export default function AdminPortal() {
       setIsAuthenticated(true);
     } catch (err) {
       console.error('Google sign-in failed', err);
-      showAlert('Google sign-in failed: ' + (err.message || err));
+      const msg = err && (err.message || '');
+      // Detect popup failures (COOP/blocked). Inform the user and suggest enabling popups.
+      if (typeof msg === 'string' && (msg.toLowerCase().includes('cross-origin-opener-policy') || msg.toLowerCase().includes('blocked') || err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request')) {
+        showAlert('Popup sign-in was blocked by the browser. Please enable popups for this site or use the local "Unlock Console" login.', 'Popup Blocked');
+      } else {
+        showAlert('Google sign-in failed: ' + (err.message || err));
+      }
     }
   };
+
 
   const handleGoogleSignOut = async () => {
     try {
@@ -1028,29 +1072,46 @@ export default function AdminPortal() {
       } catch (e) { }
     }
 
-    // 2. Always fetch latest admins from server, with fallback to localStorage or defaults
+    // 2. Always fetch latest admins — Firestore first, then server, then localStorage
     fetchAdminsFromServer(currentSessionUser);
 
-    function fetchAdminsFromServer(sessionUserObj) {
-      fetch('/slides/admins.json?t=' + Date.now(), { cache: 'no-cache' })
-        .then((r) => {
-          if (!r.ok) throw new Error('Not found');
-          return r.json();
-        })
-        .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setAdmins(data);
-            localStorage.setItem('site_admins', JSON.stringify(data));
+    async function fetchAdminsFromServer(sessionUserObj) {
+      // Try Firestore first
+      try {
+        const snap = await getDoc(doc(db, 'site', 'admins'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            setAdmins(data.items);
+            localStorage.setItem('site_admins', JSON.stringify(data.items));
             if (sessionUserObj) {
-              syncCurrentUserSession(data, sessionUserObj);
+              syncCurrentUserSession(data.items, sessionUserObj);
             }
-          } else {
-            loadFallbackAdmins(sessionUserObj);
+            return;
           }
-        })
-        .catch(() => {
-          loadFallbackAdmins(sessionUserObj);
-        });
+        }
+      } catch (e) {
+        console.warn('Firestore admins read failed, falling back:', e);
+      }
+
+      // Fallback: static file
+      try {
+        const r = await fetch('/slides/admins.json?t=' + Date.now(), { cache: 'no-cache' });
+        if (!r.ok) throw new Error('Not found');
+        const data = await r.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setAdmins(data);
+          localStorage.setItem('site_admins', JSON.stringify(data));
+          if (sessionUserObj) {
+            syncCurrentUserSession(data, sessionUserObj);
+          }
+          return;
+        }
+      } catch (e) {
+        // fall through
+      }
+
+      loadFallbackAdmins(sessionUserObj);
     }
 
     function loadFallbackAdmins(sessionUserObj) {
@@ -1300,10 +1361,9 @@ export default function AdminPortal() {
       setSettings(loadedSettings);
     });
 
-    // 2. Load notices
-    const localNotices = localStorage.getItem('site_notices');
-    if (localNotices) {
-      const parsed = localNotices
+    // 2. Load notices — Firestore first, then localStorage, then static file
+    const parseNoticesText = (text) => {
+      return (text || '')
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
@@ -1329,47 +1389,56 @@ export default function AdminPortal() {
           return { date, title, link, days: days ? parseInt(days, 10) : undefined };
         })
         .filter(Boolean);
-      setNotices(parsed);
-    } else {
-      fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' })
-        .then((r) => r.text())
-        .then((text) => {
-          const parsed = text
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .map((line) => {
-              const firstComma = line.indexOf(',');
-              if (firstComma === -1) return null;
-              const date = line.substring(0, firstComma).trim();
-              const rest = line.substring(firstComma + 1);
+    };
 
-              const secondComma = rest.indexOf(',');
-              if (secondComma === -1) {
-                return { date, title: rest.trim(), link: '#' };
-              }
-              const title = rest.substring(0, secondComma).trim();
-              const rest2 = rest.substring(secondComma + 1).trim();
+    (async () => {
+      // Try Firestore first
+      try {
+        const snap = await getDoc(doc(db, 'site', 'notices'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && data.text !== undefined) {
+            const parsed = parseNoticesText(data.text);
+            if (parsed.length > 0) {
+              setNotices(parsed);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Firestore notices read failed, falling back:', e);
+      }
 
-              const thirdComma = rest2.indexOf(',');
-              if (thirdComma === -1) {
-                return { date, title, link: rest2 };
-              }
-              const link = rest2.substring(0, thirdComma).trim();
-              const days = rest2.substring(thirdComma + 1).trim();
-              return { date, title, link, days: days ? parseInt(days, 10) : undefined };
-            })
-            .filter(Boolean);
+      // Fallback: localStorage
+      const localNotices = localStorage.getItem('site_notices');
+      if (localNotices) {
+        const parsed = parseNoticesText(localNotices);
+        if (parsed.length > 0) {
           setNotices(parsed);
-        })
-        .catch(() => {
-          setNotices([
-            { date: 'Nov 23', title: 'JKBOSE Datesheet', link: 'https://jkbose.nic.in' },
-            { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
-            { date: 'Nov 23', title: 'Admit Cards', link: '/admissions' }
-          ]);
-        });
-    }
+          return;
+        }
+      }
+
+      // Fallback: static file
+      try {
+        const r = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
+        const text = await r.text();
+        const parsed = parseNoticesText(text);
+        if (parsed.length > 0) {
+          setNotices(parsed);
+          return;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // Final fallback: hardcoded defaults
+      setNotices([
+        { date: 'Nov 23', title: 'JKBOSE Datesheet', link: 'https://jkbose.nic.in' },
+        { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
+        { date: 'Nov 23', title: 'Admit Cards', link: '/admissions' }
+      ]);
+    })();
 
     // 3. Load faculty directory
     const localFaculty = localStorage.getItem('site_faculty');
@@ -2739,13 +2808,16 @@ export default function AdminPortal() {
         console.warn('Local proxy server is not running or encountered an error:', err);
       }
     }
-    // 2b. Try saving to Firebase (recommended) when not localhost
-    if (!isLocalhost) {
-      try {
-        await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins });
-        fileSyncStatus = ' and saved to Firebase (live).';
-      } catch (err) {
-        console.warn('Firestore save failed or not configured:', err);
+    // 2b. Always try saving to Firebase (primary data store)
+    try {
+      await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins });
+      fileSyncStatus += ' and saved to Firebase (live).';
+    } catch (err) {
+      console.warn('Firestore save failed or not configured:', err);
+      const errMsg = err && (err.message || err.error || '');
+      if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('authentication required')) {
+        showAlert('Saving to Firebase requires signing in with Google. Please click "Sign in with Google" and retry the save.', 'Sign-in Required');
+        fileSyncStatus += ' (Firebase save skipped — authentication required)';
       }
     }
 
@@ -2765,6 +2837,10 @@ export default function AdminPortal() {
         } else {
           const errData = await remoteRes.json().catch(() => ({}));
           console.warn('Remote save failed:', errData);
+          const remoteErr = errData && (errData.error || errData.message || '');
+          if ((typeof remoteErr === 'string' && remoteErr.toLowerCase().includes('missing_github_token')) || (typeof remoteErr === 'string' && remoteErr.toLowerCase().includes('missing github_token')) || (typeof remoteErr === 'string' && remoteErr.toLowerCase().includes('missing github_repo'))) {
+            showAlert('Remote Git-backed saving is not configured on the server (missing GITHUB_TOKEN/GITHUB_REPO). This is optional — Firebase is sufficient as your backup. No further action required.', 'Remote Save Disabled');
+          }
         }
       } catch (err) {
         console.warn('Remote save error:', err);
@@ -3872,6 +3948,17 @@ export default function AdminPortal() {
                 <Unlock size={16} />
                 Unlock Console
               </button>
+              <div className="text-center mt-3">
+                <div className="text-xs text-slate-500 mb-2">or</div>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  Sign in with Google
+                </button>
+
+              </div>
             </form>
           )}
         </div>

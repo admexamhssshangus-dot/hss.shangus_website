@@ -71,7 +71,10 @@ async function seedSite() {
 
   const notices = { text: '' };
   const faculty = { items: [] };
-  const admins = { items: [ { email: 'adm.exam.hss.shangus@gmail.com', role: 'Super Admin' } ] };
+  const admins = {
+    items: [ { email: 'adm.exam.hss.shangus@gmail.com', role: 'Super Admin' } ],
+    emails: [ 'adm.exam.hss.shangus@gmail.com' ]
+  };
 
   await db.collection('site').doc('settings').set(settings);
   await db.collection('site').doc('notices').set(notices);

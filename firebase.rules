@@ -1,20 +1,4 @@
-// Firestore rules (example). Require auth and `admin` custom claim OR allow writes if user email is listed in `site/admins` (client-side check complementary)
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /site/{docId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.token.admin == true;
-    }
-  }
-}
-
-// Storage rules (example) — allow read publicly, writes only for admins
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /slides/photos/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.token.admin == true;
-    }
-  }
-}
+// This file is kept for reference only.
+// Active Firestore rules are in: firestore.rules
+// Active Storage rules are in: storage.rules
+// Deploy with: npx -y firebase-tools@latest deploy --only firestore:rules,storage

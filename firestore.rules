@@ -1,9 +1,15 @@
-// Firestore rules (example). Require auth and `admin` custom claim OR allow writes if user email is listed in `site/admins` (client-side check complementary)
+rules_version = '2';
+// Firestore rules: Allow reads publicly. Allow writes for authenticated users
+// who either have the `admin` custom claim OR whose email is listed in the
+// site/admins document's `emails` array.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /site/{docId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.admin == true;
+      allow write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.email in get(/databases/$(database)/documents/site/admins).data.emails
+      );
     }
   }
 }
