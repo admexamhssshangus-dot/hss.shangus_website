@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, Award, BookOpen, GraduationCap } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
@@ -75,11 +77,76 @@ export default function Home() {
   const [notices, setNotices] = useState([]);
   const [settings, setSettings] = useState(null);
   const [principalName, setPrincipalName] = useState("Mr. Aijaz Ahmad Wagay");
+  const [slides, setSlides] = useState([]);
 
   useEffect(() => {
     import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
       loadSiteSettings().then(setSettings);
     });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function loadSlides() {
+      // 1. Check local storage override first
+      const local = localStorage.getItem('site_slides');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0 && active) {
+            setSlides(parsed);
+            return;
+          }
+        } catch (e) {
+          console.warn('Error reading site_slides from localStorage:', e);
+        }
+      }
+
+      // 2. Fetch from Firestore
+      try {
+        const snap = await getDoc(doc(db, 'site', 'slideshow'));
+        if (snap.exists() && active) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            setSlides(data.items);
+            localStorage.setItem('site_slides', JSON.stringify(data.items));
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load slides from Firestore:', err);
+      }
+
+      // 3. Fallback to parsing slides.txt
+      try {
+        const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
+        if (res.ok) {
+          const text = await res.text();
+          const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          const mapped = lines.map((line, idx) => {
+            const parts = line.split(',');
+            if (parts[0] && parts[0].includes('.')) {
+              const image = parts[0].trim();
+              const title = (parts[1] || '').trim();
+              const caption = (parts.slice(2).join(',') || '').trim();
+              return { image: '/slides/' + image, title, caption };
+            }
+            const title = (parts[0] || '').trim();
+            const caption = (parts.slice(1).join(',') || '').trim();
+            const image = `/slides/${idx + 1}.jpg`;
+            return { image, title, caption };
+          });
+          if (active) {
+            setSlides(mapped);
+            localStorage.setItem('site_slides', JSON.stringify(mapped));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch slides.txt fallback:', err);
+      }
+    }
+    loadSlides();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -277,6 +344,17 @@ export default function Home() {
               console.warn('Sync site_faculty error:', err);
             }
           }
+          const localSlides = localStorage.getItem('site_slides');
+          if (localSlides) {
+            try {
+              const parsed = JSON.parse(localSlides);
+              if (Array.isArray(parsed)) {
+                setSlides(parsed);
+              }
+            } catch (err) {
+              console.warn('Sync site_slides error:', err);
+            }
+          }
         }
       };
       return () => channel.close();
@@ -292,8 +370,8 @@ export default function Home() {
       <img src="/slides/searchtn.jpg" alt="Govt. Higher Secondary School Shangus Campus" className="sr-only" aria-hidden="true" />
       <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden">
         
-        {/* Background slideshow: using `public/slides/slides.txt` mapping file */}
-        <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" interval={6000} />
+        {/* Background slideshow: using dynamic config with public fallback */}
+        <Slideshow slides={slides} configUrl={slides.length === 0 ? "/slides/slides.txt" : null} imageFolder="/slides/" interval={6000} />
         
         <div className="relative z-20 px-4">
           <h2
