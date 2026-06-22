@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // ==========================================
@@ -47,12 +47,15 @@ async function getFolderHandle() {
 
 const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482'; // SHA-256 of 'admin@4737'
 
+// Default fallback admin. `hashAlgo` is explicit so the login routine
+// can deterministically pick the proper verification method.
 const DEFAULT_ADMINS = [
   {
     email: 'adm.exam.hss.shangus@gmail.com',
     passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482', // SHA-256 of 'admin@4737'
+    hashAlgo: 'sha256',
     role: 'Super Admin',
-    allowedTabs: ['admissions', 'notices', 'faculty', 'tax', 'export', 'admins']
+    allowedTabs: ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins']
   }
 ];
 
@@ -105,18 +108,28 @@ const uploadToFirebaseStorage = async (file, filename) => {
   return await getDownloadURL(storageRef);
 };
 
-const saveToFirebase = async ({ settings, noticesText, faculty, admins }) => {
+const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides }) => {
   if (!db) throw new Error('Firestore not configured');
 
   // Authorization: require authenticated admin
   const user = auth.currentUser;
   if (!user) throw new Error('Authentication required to save. Please sign in.');
 
-  // Force-refresh the ID token so custom claims (admin) are available immediately
-  const idToken = await getIdTokenResult(user, true);
-  console.debug('AdminPortal: id token claims', idToken?.claims);
-  const isAdminClaim = idToken?.claims?.admin === true;
-  const isListedAdmin = Array.isArray(admins) && admins.some(a => a.email === user.email);
+  const isListedAdmin = Array.isArray(admins) && admins.some(a => (a.email || '').toLowerCase() === (user.email || '').toLowerCase());
+  let isAdminClaim = false;
+
+  // Skip calling getIdTokenResult if isListedAdmin is already true.
+  // This bypasses the Google popup token refresh loop entirely for listed admins.
+  if (!isListedAdmin) {
+    try {
+      const idToken = await getIdTokenResult(user, false);
+      console.debug('AdminPortal: id token claims', idToken?.claims);
+      isAdminClaim = idToken?.claims?.admin === true;
+    } catch (e) {
+      console.warn('Failed to retrieve token claims:', e);
+    }
+  }
+
   if (!isAdminClaim && !isListedAdmin) {
     throw new Error('User is not authorized to perform this action.');
   }
@@ -129,6 +142,9 @@ const saveToFirebase = async ({ settings, noticesText, faculty, admins }) => {
     items: admins || [],
     emails: (admins || []).map(a => (a.email || '').toLowerCase()).filter(Boolean)
   });
+  if (slides) {
+    await setDoc(doc(db, 'site', 'slideshow'), { items: slides });
+  }
 };
 
 function generateRandomSaltHex() {
@@ -634,6 +650,14 @@ const getEmployeeTaxOptions = (emp) => {
 };
 
 export default function AdminPortal() {
+  const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins'];
+
+  const normalizeAdmin = (a) => {
+    if (!a) return null;
+    const copy = { ...a };
+    copy.allowedTabs = Array.isArray(copy.allowedTabs) && copy.allowedTabs.length ? copy.allowedTabs : ALL_ADMIN_TABS.slice();
+    return copy;
+  };
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -644,15 +668,23 @@ export default function AdminPortal() {
   const [currentUser, setCurrentUser] = useState(null);
   const [firebaseUser, setFirebaseUser] = useState(null);
 
+  // Maintain a ref to currentUser to avoid infinite dependency loops in useEffects
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   // New admin creation form states
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminRole, setNewAdminRole] = useState('Admin');
-  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'tax', 'export']);
+  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export']);
 
   // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
   const [activeTab, setActiveTab] = useState('admissions');
-  const allowedTabs = currentUser?.allowedTabs || [];
+  const allowedTabs = currentUser?.email?.toLowerCase() === 'adm.exam.hss.shangus@gmail.com'
+    ? ALL_ADMIN_TABS
+    : (currentUser?.allowedTabs || []);
 
   // Configuration States
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -694,6 +726,18 @@ export default function AdminPortal() {
   const [editTeacherPhotoFile, setEditTeacherPhotoFile] = useState(null);
   const [editTeacherPhotoName, setEditTeacherPhotoName] = useState('');
   const [editTeacherPhotoExt, setEditTeacherPhotoExt] = useState('.jpg');
+
+  // Slideshow States
+  const [slides, setSlides] = useState([]);
+  const [editingSlideIdx, setEditingSlideIdx] = useState(null);
+  const [editSlideData, setEditSlideData] = useState({ image: '', title: '', caption: '' });
+  const [newSlide, setNewSlide] = useState({ image: '', title: '', caption: '' });
+  const [newSlidePhotoFile, setNewSlidePhotoFile] = useState(null);
+  const [newSlidePhotoName, setNewSlidePhotoName] = useState('');
+  const [newSlidePhotoExt, setNewSlidePhotoExt] = useState('.jpg');
+  const [editSlidePhotoFile, setEditSlidePhotoFile] = useState(null);
+  const [editSlidePhotoName, setEditSlidePhotoName] = useState('');
+  const [editSlidePhotoExt, setEditSlidePhotoExt] = useState('.jpg');
 
   // CSV Import Preview and Validation States
   const [csvPreviewData, setCsvPreviewData] = useState(null);
@@ -832,19 +876,29 @@ export default function AdminPortal() {
       setFirebaseUser(user);
       if (!user) {
         // No firebase user — fall back to local admin session state
-        setIsAuthenticated(!!currentUser);
+        setIsAuthenticated(!!currentUserRef.current);
         return;
       }
 
       // Verify that the signed-in Firebase user is authorized as an admin
       try {
-        const idToken = await getIdTokenResult(user, true);
+        const idToken = await getIdTokenResult(user, false);
         const isAdminClaim = idToken?.claims?.admin === true;
         const listedAdmin = Array.isArray(admins) && admins.find(a => a.email.toLowerCase() === (user.email || '').toLowerCase());
 
-        if (isAdminClaim || listedAdmin) {
+        if (!user.emailVerified && !isAdminClaim) {
+          setIsAuthenticated(false);
+          setAuthError('Your email address has not been verified. Please verify your email before logging in as an administrator.');
+        } else if (isAdminClaim || listedAdmin) {
           // If we have a local admin entry, use it as the currentUser for permissions
-          if (listedAdmin) setCurrentUser(listedAdmin);
+          if (listedAdmin) {
+            setCurrentUser(prev => {
+              if (prev && prev.email.toLowerCase() === listedAdmin.email.toLowerCase()) {
+                return prev;
+              }
+              return normalizeAdmin(listedAdmin);
+            });
+          }
           setIsAuthenticated(true);
           setAuthError('');
         } else {
@@ -860,7 +914,7 @@ export default function AdminPortal() {
       }
     });
     return () => unsub();
-  }, [admins, currentUser]);
+  }, [admins]);
 
   // Helper to log out (also sign out of Firebase if signed in)
   const handleLogout = async (reason) => {
@@ -941,8 +995,10 @@ export default function AdminPortal() {
     // Look up admin by email
     const foundAdmin = admins.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
 
-    // Hash password input using user specific salt if present
-    const inputHash = await hashPassword(password, foundAdmin ? foundAdmin.salt : null);
+    // Hash password input using explicit algorithm when available.
+    // Prefer `hashAlgo === 'pbkdf2'` or presence of `salt` for PBKDF2; otherwise use plain SHA-256.
+    const usePBKDF2 = !!(foundAdmin && (foundAdmin.hashAlgo === 'pbkdf2' || foundAdmin.salt));
+    const inputHash = usePBKDF2 ? await hashPassword(password, foundAdmin.salt) : await hashPassword(password);
 
     if (foundAdmin && inputHash === foundAdmin.passwordHash) {
       localStorage.removeItem('admin_failed_attempts');
@@ -956,15 +1012,16 @@ export default function AdminPortal() {
       sessionStorage.setItem('isAdminAuthenticated', 'true');
       sessionStorage.setItem('adminUser', JSON.stringify(foundAdmin));
 
-      setCurrentUser(foundAdmin);
+      setCurrentUser(normalizeAdmin(foundAdmin));
       setIsAuthenticated(true);
       setAuthError('');
       setEmail('');
       setPassword('');
       setCaptchaInput('');
 
-      // Auto-open first permitted tab
-      const firstTab = foundAdmin.allowedTabs[0] || 'admissions';
+      // Auto-open first permitted tab (guard against missing allowedTabs)
+      const allowed = Array.isArray(foundAdmin.allowedTabs) ? foundAdmin.allowedTabs : [];
+      const firstTab = allowed.length ? allowed[0] : 'admissions';
       setActiveTab(firstTab);
       sessionStorage.setItem('activeAdminTab', firstTab);
 
@@ -1005,18 +1062,16 @@ export default function AdminPortal() {
   const handleGoogleSignIn = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const res = await signInWithPopup(auth, provider);
-      setFirebaseUser(res.user);
-      setIsAuthenticated(true);
+      // Try pop-up first to avoid page redirect and loss of local unsaved state
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (popupErr) {
+        console.warn('Popup sign-in blocked or failed, falling back to redirect:', popupErr);
+        await signInWithRedirect(auth, provider);
+      }
     } catch (err) {
       console.error('Google sign-in failed', err);
-      const msg = err && (err.message || '');
-      // Detect popup failures (COOP/blocked). Inform the user and suggest enabling popups.
-      if (typeof msg === 'string' && (msg.toLowerCase().includes('cross-origin-opener-policy') || msg.toLowerCase().includes('blocked') || err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request')) {
-        showAlert('Popup sign-in was blocked by the browser. Please enable popups for this site or use the local "Unlock Console" login.', 'Popup Blocked');
-      } else {
-        showAlert('Google sign-in failed: ' + (err.message || err));
-      }
+      showAlert('Google sign-in failed: ' + (err.message || err));
     }
   };
 
@@ -1032,6 +1087,24 @@ export default function AdminPortal() {
     }
   };
 
+  // Handle redirect sign-in results (executes once on mount)
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          setFirebaseUser(result.user);
+          // onAuthStateChanged handler will verify admin claim and update `isAuthenticated`
+        }
+      } catch (err) {
+        // Ignore no-result cases or log unexpected errors
+        if (err && err.code && err.code !== 'auth/no-auth-event') {
+          console.error('getRedirectResult error:', err);
+        }
+      }
+    })();
+  }, []);
+
   // Check session, load folder handle on mount, start cross-tab listening
   useEffect(() => {
     // Helper to sync currentUser session with latest admins list
@@ -1040,7 +1113,7 @@ export default function AdminPortal() {
       const match = latestAdmins.find(a => a.email.toLowerCase() === currentSessionUser.email.toLowerCase());
       if (match) {
         // Check if permissions or role changed
-        const permissionsChanged = JSON.stringify(match.allowedTabs) !== JSON.stringify(currentSessionUser.allowedTabs);
+        const permissionsChanged = JSON.stringify(match.allowedTabs || []) !== JSON.stringify(currentSessionUser.allowedTabs || []);
         const roleChanged = match.role !== currentSessionUser.role;
         const passChanged = match.passwordHash !== currentSessionUser.passwordHash;
 
@@ -1049,10 +1122,11 @@ export default function AdminPortal() {
           showAlert("Your password has been changed. Please log in again.", "Security Update");
         } else if (permissionsChanged || roleChanged) {
           sessionStorage.setItem('adminUser', JSON.stringify(match));
-          setCurrentUser(match);
+          setCurrentUser(normalizeAdmin(match));
           const savedTab = sessionStorage.getItem('activeAdminTab') || 'admissions';
-          if (!match.allowedTabs.includes(savedTab)) {
-            const firstTab = match.allowedTabs[0] || 'admissions';
+          const matchAllowed = Array.isArray(match.allowedTabs) ? match.allowedTabs : [];
+          if (!matchAllowed.includes(savedTab)) {
+            const firstTab = matchAllowed.length ? matchAllowed[0] : 'admissions';
             setActiveTab(firstTab);
             sessionStorage.setItem('activeAdminTab', firstTab);
           }
@@ -1143,13 +1217,14 @@ export default function AdminPortal() {
         handleLogout('logged_out_elsewhere');
       } else {
         const parsedUser = JSON.parse(sessionUser);
-        setCurrentUser(parsedUser);
+        setCurrentUser(normalizeAdmin(parsedUser));
         setIsAuthenticated(true);
         const savedTab = sessionStorage.getItem('activeAdminTab');
-        if (savedTab && parsedUser.allowedTabs.includes(savedTab)) {
+        const parsedAllowed = Array.isArray(parsedUser.allowedTabs) ? parsedUser.allowedTabs : [];
+        if (savedTab && parsedAllowed.includes(savedTab)) {
           setActiveTab(savedTab);
         } else {
-          setActiveTab(parsedUser.allowedTabs[0] || 'admissions');
+          setActiveTab(parsedAllowed.length ? parsedAllowed[0] : 'admissions');
         }
       }
     } else {
@@ -1392,7 +1467,17 @@ export default function AdminPortal() {
     };
 
     (async () => {
-      // Try Firestore first
+      // 1. Fallback/Preview: Check localStorage first so local changes aren't lost on redirect/reload
+      const localNotices = localStorage.getItem('site_notices');
+      if (localNotices) {
+        const parsed = parseNoticesText(localNotices);
+        if (parsed.length > 0) {
+          setNotices(parsed);
+          return;
+        }
+      }
+
+      // 2. Try Firestore next (remote live data)
       try {
         const snap = await getDoc(doc(db, 'site', 'notices'));
         if (snap.exists()) {
@@ -1407,16 +1492,6 @@ export default function AdminPortal() {
         }
       } catch (e) {
         console.warn('Firestore notices read failed, falling back:', e);
-      }
-
-      // Fallback: localStorage
-      const localNotices = localStorage.getItem('site_notices');
-      if (localNotices) {
-        const parsed = parseNoticesText(localNotices);
-        if (parsed.length > 0) {
-          setNotices(parsed);
-          return;
-        }
       }
 
       // Fallback: static file
@@ -1438,6 +1513,64 @@ export default function AdminPortal() {
         { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
         { date: 'Nov 23', title: 'Admit Cards', link: '/admissions' }
       ]);
+    })();
+
+    // 2b. Load slideshow configuration
+    (async () => {
+      // Check localStorage first
+      const local = localStorage.getItem('site_slides');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSlides(parsed);
+            return;
+          }
+        } catch (e) {
+          console.warn('Error reading site_slides from localStorage:', e);
+        }
+      }
+
+      // Try Firestore next
+      try {
+        const snap = await getDoc(doc(db, 'site', 'slideshow'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            setSlides(data.items);
+            localStorage.setItem('site_slides', JSON.stringify(data.items));
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Firestore slideshow read failed, falling back:', e);
+      }
+
+      // Fallback: static file
+      try {
+        const r = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
+        if (r.ok) {
+          const text = await r.text();
+          const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          const mapped = lines.map((line, idx) => {
+            const parts = line.split(',');
+            if (parts[0] && parts[0].includes('.')) {
+              const image = parts[0].trim();
+              const title = (parts[1] || '').trim();
+              const caption = (parts.slice(2).join(',') || '').trim();
+              return { image: '/slides/' + image, title, caption };
+            }
+            const title = (parts[0] || '').trim();
+            const caption = (parts.slice(1).join(',') || '').trim();
+            const image = `/slides/${idx + 1}.jpg`;
+            return { image, title, caption };
+          });
+          setSlides(mapped);
+          localStorage.setItem('site_slides', JSON.stringify(mapped));
+        }
+      } catch (e) {
+        console.warn('Failed to load slides.txt:', e);
+      }
     })();
 
     // 3. Load faculty directory
@@ -1676,6 +1809,190 @@ export default function AdminPortal() {
 
   const cancelNoticeEdit = () => {
     setEditingNoticeIdx(null);
+  };
+
+  // Slideshow Handlers
+  const handleSlidePhotoFileChange = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 512000) {
+      showAlert(`Image file size must be 500KB or less. The selected file is ${Math.round(file.size / 1024)}KB.`, 'File Too Large');
+      e.target.value = '';
+      return;
+    }
+
+    const ext = getMimeExtension(file.type, file.name);
+
+    if (type === 'new') {
+      setNewSlidePhotoFile(file);
+      setNewSlidePhotoExt(ext);
+      if (!newSlidePhotoName) {
+        setNewSlidePhotoName(`slide_${Date.now()}`);
+      }
+    } else {
+      setEditSlidePhotoFile(file);
+      setEditSlidePhotoExt(ext);
+      if (!editSlidePhotoName) {
+        setEditSlidePhotoName(`slide_${Date.now()}`);
+      }
+    }
+  };
+
+  const handleAddSlide = async () => {
+    let photoPath = newSlide.image.trim();
+    const filename = `${newSlidePhotoName || `slide_${Date.now()}`}${newSlidePhotoExt}`;
+
+    if (newSlidePhotoFile) {
+      photoPath = `/slides/${filename}`;
+      if (folderHandle) {
+        await writeLocalFile(folderHandle, filename, newSlidePhotoFile);
+      } else {
+        try {
+          const url = await uploadToFirebaseStorage(newSlidePhotoFile, filename);
+          photoPath = url;
+        } catch (err) {
+          console.warn('Firebase upload failed, falling back to base64:', err);
+          try {
+            const base64Data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(newSlidePhotoFile);
+            });
+            photoPath = base64Data;
+          } catch (err2) {
+            console.error('Failed to convert image to Data URL:', err2);
+          }
+        }
+      }
+    }
+
+    if (!photoPath) {
+      showAlert('Please upload an image or enter an image URL path.', 'Image Required');
+      return;
+    }
+
+    const addedSlide = {
+      image: photoPath,
+      title: newSlide.title.trim(),
+      caption: newSlide.caption.trim()
+    };
+
+    setSlides((prev) => [...prev, addedSlide]);
+    setNewSlide({ image: '', title: '', caption: '' });
+    setNewSlidePhotoFile(null);
+    setNewSlidePhotoName('');
+    setNewSlidePhotoExt('.jpg');
+    setSaveSuccess('Slide added. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
+  const handleDeleteSlide = (idx) => {
+    const slide = slides[idx];
+    setCustomPrompt({
+      title: 'Delete Slideshow Slide',
+      message: `Are you sure you want to delete slide #${idx + 1}: "${slide?.title || 'Untitled Slide'}"?`,
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: () => {
+        setSlides((prev) => prev.filter((_, i) => i !== idx));
+        if (editingSlideIdx === idx) setEditingSlideIdx(null);
+        setCustomPrompt(null);
+        setSaveSuccess('Slide deleted. Click "Apply & Save" to make changes permanent.');
+        setTimeout(() => setSaveSuccess(''), 5000);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
+  };
+
+  const startEditSlide = (idx) => {
+    setEditingSlideIdx(idx);
+    setEditSlideData({ ...slides[idx] });
+    setEditSlidePhotoFile(null);
+    setEditSlidePhotoExt('.jpg');
+    const slide = slides[idx];
+    if (slide.image) {
+      const match = slide.image.match(/\/slides\/([a-zA-Z0-9_]+)\.(\w+)$/);
+      if (match) {
+        setEditSlidePhotoName(match[1]);
+        setEditSlidePhotoExt('.' + match[2]);
+      } else {
+        setEditSlidePhotoName(`slide_${Date.now()}`);
+      }
+    } else {
+      setEditSlidePhotoName(`slide_${Date.now()}`);
+    }
+  };
+
+  const saveSlideEdit = async (idx) => {
+    let photoPath = editSlideData.image.trim();
+
+    if (editSlidePhotoFile) {
+      const filename = `${editSlidePhotoName || `slide_${Date.now()}`}${editSlidePhotoExt}`;
+      photoPath = `/slides/${filename}`;
+      if (folderHandle) {
+        await writeLocalFile(folderHandle, filename, editSlidePhotoFile);
+      } else {
+        try {
+          const url = await uploadToFirebaseStorage(editSlidePhotoFile, filename);
+          photoPath = url;
+        } catch (err) {
+          console.warn('Firebase upload failed, falling back to base64:', err);
+          try {
+            const base64Data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(editSlidePhotoFile);
+            });
+            photoPath = base64Data;
+          } catch (err2) {
+            console.error('Failed to convert image to Data URL:', err2);
+          }
+        }
+      }
+    }
+
+    setSlides((prev) => {
+      const updated = [...prev];
+      updated[idx] = { ...editSlideData, image: photoPath };
+      return updated;
+    });
+    setEditingSlideIdx(null);
+    setEditSlidePhotoFile(null);
+    setEditSlidePhotoName('');
+    setEditSlidePhotoExt('.jpg');
+    setSaveSuccess('Slide updated. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
+  const cancelSlideEdit = () => {
+    setEditingSlideIdx(null);
+  };
+
+  const moveSlideUp = (idx) => {
+    if (idx === 0) return;
+    setSlides((prev) => {
+      const updated = [...prev];
+      const temp = updated[idx];
+      updated[idx] = updated[idx - 1];
+      updated[idx - 1] = temp;
+      return updated;
+    });
+  };
+
+  const moveSlideDown = (idx) => {
+    setSlides((prev) => {
+      if (idx === prev.length - 1) return prev;
+      const updated = [...prev];
+      const temp = updated[idx];
+      updated[idx] = updated[idx + 1];
+      updated[idx + 1] = temp;
+      return updated;
+    });
   };
 
   // Faculty Handlers
@@ -1953,15 +2270,21 @@ export default function AdminPortal() {
         await writeLocalFile(folderHandle, filename, fullEditPhotoFile);
       } else {
         try {
-          const base64Data = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(fullEditPhotoFile);
-          });
-          photoPath = base64Data;
+          const url = await uploadToFirebaseStorage(fullEditPhotoFile, filename);
+          photoPath = url;
         } catch (err) {
-          console.error('Failed to convert image to Data URL:', err);
+          console.warn('Firebase upload failed, falling back to base64:', err);
+          try {
+            const base64Data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(fullEditPhotoFile);
+            });
+            photoPath = base64Data;
+          } catch (err2) {
+            console.error('Failed to convert image to Data URL:', err2);
+          }
         }
       }
     } else if (photoPath && !photoPath.startsWith('/') && !photoPath.startsWith('http') && !photoPath.startsWith('data:')) {
@@ -2714,6 +3037,7 @@ export default function AdminPortal() {
         email: newAdminEmail.trim().toLowerCase(),
         salt,
         passwordHash,
+        hashAlgo: 'pbkdf2',
         role: newAdminRole,
         allowedTabs: newAdminPermissions
       };
@@ -2762,14 +3086,42 @@ export default function AdminPortal() {
   // Central Save & Sync
   const handleSaveToLocalStorage = async (customAdminsList = null) => {
     const activeAdmins = customAdminsList || admins;
-    // 1. Update localStorage for instant preview
-    localStorage.setItem('site_settings', JSON.stringify(settings));
-
     const noticesText = notices.map(n => `${n.date},${n.title},${n.link || '#'}${n.days ? `,${n.days}` : ''}`).join('\n');
-    localStorage.setItem('site_notices', noticesText);
+    const slidesText = slides.map(s => {
+      let imgName = s.image;
+      if (imgName.startsWith('/slides/')) {
+        imgName = imgName.substring('/slides/'.length);
+      }
+      return `${imgName},${s.title || ''},${s.caption || ''}`;
+    }).join('\n');
+    let fileSyncStatus = '';
 
+    // 1. Primary: Always try saving to Firebase (live) FIRST
+    try {
+      if (!auth.currentUser) {
+        throw new Error('Authentication required to save. Please click the "Sign in with Google to Sync" button at the top first.');
+      }
+      await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins, slides });
+      fileSyncStatus = 'Saved to Firebase (live)';
+    } catch (err) {
+      console.warn('Firestore save failed or not configured:', err);
+      const errMsg = err && (err.message || err.error || '');
+      if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('authentication required')) {
+        showAlert('Firebase save requires Google sign-in. Please click "Sign in with Google to Sync" first, then retry.', 'Sign-in Required');
+      } else if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('not authorized')) {
+        showAlert('Your Google account is not listed as an administrator. Please ask a Super Admin to add your email.', 'Not Authorized');
+      } else {
+        showAlert(`Firestore save failed: ${errMsg || err}\n\nLocal changes were NOT saved to prevent data desync.`, 'Firebase Sync Failed');
+      }
+      return; // ABORT if Firebase save fails
+    }
+
+    // 2. Update localStorage for instant preview
+    localStorage.setItem('site_settings', JSON.stringify(settings));
+    localStorage.setItem('site_notices', noticesText);
     localStorage.setItem('site_faculty', JSON.stringify(faculty));
     localStorage.setItem('site_admins', JSON.stringify(activeAdmins));
+    localStorage.setItem('site_slides', JSON.stringify(slides));
 
     // Broadcast synchronization message to all tabs
     try {
@@ -2780,26 +3132,30 @@ export default function AdminPortal() {
       console.warn('Sync broadcast not supported:', e);
     }
 
-    let fileSyncStatus = '';
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-    // 2. Write directly to files if running locally
+    // Directory persistence MUST NOT depend on Firebase success.
+    // We try (A) local proxy writes when on localhost and (B) folderHandle writes when linked.
+    let didDirectoryWrite = false;
+
+    // (A) Write directly to files via local express proxy when running locally
     if (isLocalhost) {
       try {
         const res = await fetch('/api/save-config', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             settings,
             noticesText,
             faculty,
-            admins: activeAdmins
+            admins: activeAdmins,
+            slidesText
           })
         });
+
         if (res.ok) {
-          fileSyncStatus = ' and successfully written to your local slides/ files!';
+          didDirectoryWrite = true;
+          fileSyncStatus += ', and locally written to slides/';
         } else {
           const errData = await res.json().catch(() => ({}));
           console.warn('Local proxy save failed:', errData);
@@ -2808,49 +3164,10 @@ export default function AdminPortal() {
         console.warn('Local proxy server is not running or encountered an error:', err);
       }
     }
-    // 2b. Always try saving to Firebase (primary data store)
-    try {
-      await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins });
-      fileSyncStatus += ' and saved to Firebase (live).';
-    } catch (err) {
-      console.warn('Firestore save failed or not configured:', err);
-      const errMsg = err && (err.message || err.error || '');
-      if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('authentication required')) {
-        showAlert('Saving to Firebase requires signing in with Google. Please click "Sign in with Google" and retry the save.', 'Sign-in Required');
-        fileSyncStatus += ' (Firebase save skipped — authentication required)';
-      }
-    }
 
-    // 2c. Try remote Netlify function (Git-backed commit) when not localhost and Firebase did not handle it
-    if (!isLocalhost && !fileSyncStatus) {
+    // (B) If folderHandle is linked, always attempt writing directory files (even if Firebase succeeds/fails)
+    if (folderHandle) {
       try {
-        const remoteRes = await fetch('/.netlify/functions/save-config', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-save-secret': process.env.REACT_APP_SAVE_SECRET || ''
-          },
-          body: JSON.stringify({ settings, noticesText, faculty, admins: activeAdmins })
-        });
-        if (remoteRes.ok) {
-          fileSyncStatus = ' and saved to remote repository (will deploy after CI).';
-        } else {
-          const errData = await remoteRes.json().catch(() => ({}));
-          console.warn('Remote save failed:', errData);
-          const remoteErr = errData && (errData.error || errData.message || '');
-          if ((typeof remoteErr === 'string' && remoteErr.toLowerCase().includes('missing_github_token')) || (typeof remoteErr === 'string' && remoteErr.toLowerCase().includes('missing github_token')) || (typeof remoteErr === 'string' && remoteErr.toLowerCase().includes('missing github_repo'))) {
-            showAlert('Remote Git-backed saving is not configured on the server (missing GITHUB_TOKEN/GITHUB_REPO). This is optional — Firebase is sufficient as your backup. No further action required.', 'Remote Save Disabled');
-          }
-        }
-      } catch (err) {
-        console.warn('Remote save error:', err);
-      }
-    }
-
-    // 3. Fallback to folderHandle if not localhost or if proxy write was not successful
-    if (!fileSyncStatus && folderHandle) {
-      try {
-        // Request/verify readwrite permission on active session
         const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
         if (perm === 'granted') {
           const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
@@ -2859,22 +3176,45 @@ export default function AdminPortal() {
           const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
           const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
           const ok4 = await writeLocalFile(folderHandle, 'admins.json', JSON.stringify(activeAdmins, null, 2));
+          const ok5 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
 
-          if (ok1 && ok2 && ok3 && ok4) {
-            fileSyncStatus = ' and successfully written to your local slides/ files!';
+          if (ok1 && ok2 && ok3 && ok4 && ok5) {
+            didDirectoryWrite = true;
+            if (!fileSyncStatus.includes('slides/')) fileSyncStatus += ', and local folder updated';
           } else {
-            fileSyncStatus = ' but failed to write files. Check directory write locks.';
+            console.warn('folderHandle write incomplete:', { ok1, ok2, ok3, ok4, ok5 });
           }
         } else {
-          fileSyncStatus = ' but file sync was skipped (permission denied).';
+          console.warn('folderHandle permission denied');
         }
       } catch (err) {
-        console.error('Error during auto-sync writing:', err);
-        fileSyncStatus = ' but file write failed (access restricted).';
+        console.error('Error during auto-sync writing (folderHandle):', err);
       }
     }
 
-    setSaveSuccess(`Configurations updated successfully in your browser${fileSyncStatus}!`);
+    // (C) Optional: remote Netlify function when NOT localhost.
+    if (!isLocalhost && !didDirectoryWrite) {
+      try {
+        const remoteRes = await fetch('/.netlify/functions/save-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-save-secret': process.env.REACT_APP_SAVE_SECRET || ''
+          },
+          body: JSON.stringify({ settings, noticesText, faculty, admins: activeAdmins, slidesText })
+        });
+        if (remoteRes.ok) {
+          fileSyncStatus += ', plus remote Netlify backup';
+        } else {
+          const errData = await remoteRes.json().catch(() => ({}));
+          console.warn('Remote save failed:', errData);
+        }
+      } catch (err) {
+        console.warn('Remote save error:', err);
+      }
+    }
+
+    setSaveSuccess(`Configurations updated successfully: ${fileSyncStatus}!`);
     setTimeout(() => setSaveSuccess(''), 5000);
   };
 
@@ -2905,6 +3245,73 @@ export default function AdminPortal() {
     const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
     const content = JSON.stringify(cleanedFaculty, null, 2);
     downloadFile('faculty.json', content, 'application/json');
+  };
+
+  const downloadFullBackup = () => {
+    const backupData = {
+      version: 1,
+      timestamp: new Date().toISOString(),
+      settings,
+      notices,
+      faculty,
+      admins,
+      slides
+    };
+    const content = JSON.stringify(backupData, null, 2);
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadFile(`hss_full_backup_${dateStr}.json`, content, 'application/json');
+  };
+
+  const handleRestoreBackup = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const backupData = JSON.parse(event.target.result);
+        
+        if (!backupData || typeof backupData !== 'object') {
+          throw new Error('Invalid file format. Backup must be a JSON object.');
+        }
+
+        const hasSettings = backupData.hasOwnProperty('settings');
+        const hasFaculty = backupData.hasOwnProperty('faculty') && Array.isArray(backupData.faculty);
+        const hasNotices = backupData.hasOwnProperty('notices') && Array.isArray(backupData.notices);
+        const hasSlides = backupData.hasOwnProperty('slides') && Array.isArray(backupData.slides);
+        const hasAdmins = backupData.hasOwnProperty('admins') && Array.isArray(backupData.admins);
+
+        if (!hasSettings && !hasFaculty && !hasNotices && !hasSlides && !hasAdmins) {
+          throw new Error('Invalid backup file: Could not find settings, faculty, notices, slideshow, or admin records.');
+        }
+
+        const confirmRestore = window.confirm(
+          "WARNING: Restoring this backup will replace all configurations in your admin console.\n\n" +
+          "This includes your site settings, notices, faculty members, admins, and slideshow configs.\n\n" +
+          "Click OK to restore to console preview. You MUST click 'Apply & Save' in the top header afterwards to commit the restored data live to Firebase."
+        );
+
+        if (!confirmRestore) {
+          e.target.value = '';
+          return;
+        }
+
+        if (hasSettings) setSettings(backupData.settings);
+        if (hasNotices) setNotices(backupData.notices);
+        if (hasFaculty) setFaculty(backupData.faculty);
+        if (hasAdmins) setAdmins(backupData.admins);
+        if (hasSlides) setSlides(backupData.slides);
+
+        setSaveSuccess('Backup successfully loaded into console preview. Click "Apply & Save" in the top header to push these changes live to Firebase (live) and local files.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      } catch (err) {
+        console.error('Failed to parse or restore backup:', err);
+        alert(`Restore failed: ${err.message || err}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // CSV Import/Export & Profile Printing Utilities
@@ -3980,6 +4387,20 @@ export default function AdminPortal() {
             <p className="text-xs text-slate-400 mt-1">Govt. Higher Secondary School Shangus Control Center</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            {firebaseUser ? (
+              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-900/40 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5" title={`Signed in to Firebase as ${firebaseUser.email}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Sync Active
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 w-full sm:w-auto transition-colors"
+              >
+                Sign in with Google to Sync
+              </button>
+            )}
             {/* Direct filesystem sync trigger */}
             <button
               onClick={handleLinkFolder}
@@ -3990,6 +4411,7 @@ export default function AdminPortal() {
               {folderHandle ? 'Slides Linked' : 'Link slides/ folder'}
             </button>
             <button
+              type="button"
               onClick={() => handleSaveToLocalStorage()}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/20 border border-emerald-400 transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"
             >
@@ -3998,9 +4420,11 @@ export default function AdminPortal() {
             </button>
             <button
               onClick={() => handleLogout()}
-              className="px-3 py-1.5 rounded-lg btn-outline-theme text-xs font-bold w-full sm:w-auto flex items-center justify-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-lg bg-red-950/30 hover:bg-red-950/50 border border-red-900/50 hover:border-red-800 text-red-400 text-xs font-bold w-full sm:w-auto flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              title="Logout from Google Sync and Lock the Console"
             >
-              Lock Console
+              <LogOut size={14} className="stroke-[2.5px]" />
+              Logout
             </button>
           </div>
         </div>
@@ -4057,6 +4481,7 @@ export default function AdminPortal() {
             { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
             { id: 'notices', label: 'Latest Notices', icon: RefreshCw },
             { id: 'faculty', label: 'Faculty Directory', icon: Users },
+            { id: 'slideshow', label: 'Home Slideshow', icon: Image },
             { id: 'tax', label: 'Tax Calculator', icon: Calculator },
             { id: 'export', label: 'Export files', icon: Download },
             { id: 'admins', label: 'Admin Management', icon: Settings }
@@ -4557,6 +4982,225 @@ export default function AdminPortal() {
                                       onClick={() => handleDeleteNotice(i)}
                                       className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
                                       title="Delete"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2b: HOME SLIDESHOW */}
+            {activeTab === 'slideshow' && allowedTabs.includes('slideshow') && (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200">Homepage Slideshow Editor</h3>
+                  <p className="text-[11px] text-slate-400">Manage banner images, heading titles, and captions for the homepage slideshow.</p>
+                </div>
+
+                {/* Add new slide form */}
+                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800 space-y-1.5">
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-orange-400">Add New Slide</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Slide Heading (Title)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Welcome to HSS Shangus"
+                        value={newSlide.title}
+                        onChange={(e) => setNewSlide({ ...newSlide, title: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Slide Caption</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Nurturing minds, shaping futures"
+                        value={newSlide.caption}
+                        onChange={(e) => setNewSlide({ ...newSlide, caption: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Upload Image (Max 500KB)</label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => handleSlidePhotoFileChange(e, 'new')}
+                          className="w-full text-slate-400 file:bg-slate-950 file:border file:border-slate-800 file:text-[10px] file:text-slate-300 file:px-2 file:py-1 file:rounded file:hover:bg-slate-800 text-[11px]"
+                        />
+                      </div>
+                      {newSlidePhotoFile && (
+                        <div className="mt-1 text-[9px] text-slate-400 flex items-center justify-between">
+                          <span>File: {newSlidePhotoFile.name} ({Math.round(newSlidePhotoFile.size / 1024)}KB)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewSlidePhotoFile(null);
+                              setNewSlidePhotoName('');
+                            }}
+                            className="text-red-400 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddSlide}
+                      className="px-3 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-1 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <Plus size={12} />
+                      Add Slide
+                    </button>
+                  </div>
+                </div>
+
+                {/* Slides List Table */}
+                <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-800 rounded-lg min-w-0">
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '600px' }}>
+                    <thead>
+                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
+                        <th className="p-1.5 px-2.5 w-16 text-center">Order</th>
+                        <th className="p-1.5 px-2.5 w-24">Image Preview</th>
+                        <th className="p-1.5 px-2.5">Slide Title (Heading)</th>
+                        <th className="p-1.5 px-2.5">Slide Caption</th>
+                        <th className="p-1.5 px-2.5 w-32 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {slides.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-3 text-center text-slate-500 italic text-[11px]">No slides configured. Add some above or sync from site configuration.</td>
+                        </tr>
+                      ) : (
+                        slides.map((s, idx) => {
+                          const isEditing = editingSlideIdx === idx;
+                          return (
+                            <tr key={idx} className="hover:bg-slate-900/20">
+                              <td className="p-1.5 px-2.5 text-center font-bold text-slate-400 font-mono">
+                                {idx + 1}
+                              </td>
+                              <td className="p-1.5 px-2.5">
+                                <div className="w-20 h-10 rounded border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center">
+                                  {s.image ? (
+                                    <img
+                                      src={s.image}
+                                      alt={`Preview slide ${idx + 1}`}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-[8px] text-slate-600 uppercase tracking-widest font-bold">No Image</span>
+                                  )}
+                                </div>
+                              </td>
+                              {isEditing ? (
+                                <>
+                                  <td className="p-1.5 px-2.5">
+                                    <input
+                                      type="text"
+                                      value={editSlideData.title}
+                                      onChange={(e) => setEditSlideData({ ...editSlideData, title: e.target.value })}
+                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 px-2.5">
+                                    <input
+                                      type="text"
+                                      value={editSlideData.caption}
+                                      onChange={(e) => setEditSlideData({ ...editSlideData, caption: e.target.value })}
+                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                    />
+                                    <div className="mt-1">
+                                      <label className="block text-[8px] font-bold text-slate-500 uppercase mb-0.5">Replace Image (Optional)</label>
+                                      <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        onChange={(e) => handleSlidePhotoFileChange(e, 'edit')}
+                                        className="w-full text-slate-500 file:bg-slate-950 file:border file:border-slate-800 file:text-[9px] file:text-slate-400 file:px-1.5 file:py-0.5 file:rounded text-[10px]"
+                                      />
+                                      {editSlidePhotoFile && (
+                                        <div className="text-[8px] text-slate-400 mt-0.5">
+                                          Ready: {editSlidePhotoFile.name}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-1.5 px-2.5 text-center flex items-center justify-center gap-1.5 mt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => saveSlideEdit(idx)}
+                                      className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
+                                      title="Save Changes"
+                                    >
+                                      <Check size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelSlideEdit}
+                                      className="p-1 rounded bg-slate-950 text-slate-400 hover:bg-slate-900 transition-colors"
+                                      title="Cancel"
+                                    >
+                                      <X size={13} />
+                                    </button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="p-1.5 px-2.5 font-bold text-slate-200">
+                                    {s.title || <span className="italic text-slate-600 text-[10px]">No Heading</span>}
+                                  </td>
+                                  <td className="p-1.5 px-2.5 text-slate-300">
+                                    {s.caption || <span className="italic text-slate-600 text-[10px]">No Caption</span>}
+                                  </td>
+                                  <td className="p-1.5 px-2.5 text-center flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => moveSlideUp(idx)}
+                                      disabled={idx === 0}
+                                      className="p-1 rounded text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 transition-colors"
+                                      title="Move Up"
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => moveSlideDown(idx)}
+                                      disabled={idx === slides.length - 1}
+                                      className="p-1 rounded text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30 transition-colors"
+                                      title="Move Down"
+                                    >
+                                      ↓
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditSlide(idx)}
+                                      className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
+                                      title="Edit Slide Text/Image"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSlide(idx)}
+                                      className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                                      title="Delete Slide"
                                     >
                                       <Trash2 size={13} />
                                     </button>
@@ -5724,6 +6368,60 @@ export default function AdminPortal() {
                     <li>Commit/push the files to your repository or rebuild the Netlify site. Once deployed, the updates will be visible to all users globally!</li>
                   </ol>
                 </div>
+
+                {/* Full Database Backup & Restore Section */}
+                <div className="border-t border-slate-800 pt-6 mt-6">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-200 flex items-center gap-2">
+                      <Save className="text-orange-400" size={18} />
+                      Full Database Backup & Restore
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Download a single unified backup JSON file containing all settings, notices, faculty members, admin accounts, and slideshow configurations. Restore it at any time to recover the full state of the website in Firebase.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    {/* Backup Card */}
+                    <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
+                      <div>
+                        <h4 className="font-bold text-slate-200 text-sm">Download Full Backup</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                          Creates a complete timestamped backup of the current database configuration.
+                        </p>
+                      </div>
+                      <button
+                        onClick={downloadFullBackup}
+                        className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-orange-400 shadow"
+                      >
+                        <Download size={14} />
+                        Download Full Backup (.json)
+                      </button>
+                    </div>
+
+                    {/* Restore Card */}
+                    <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3 w-full">
+                      <div>
+                        <h4 className="font-bold text-slate-200 text-sm">Restore from Backup</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                          Upload a previously downloaded full backup JSON file. This will overwrite current console states (remember to click "Apply & Save" to push it live).
+                        </p>
+                      </div>
+                      <div className="w-full flex items-center gap-2">
+                        <label className="flex-1 py-2 bg-slate-850 hover:bg-slate-750 text-slate-200 font-extrabold text-xs rounded cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-slate-700 shadow text-center">
+                          <Upload size={14} />
+                          Choose Backup File
+                          <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleRestoreBackup}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -5795,10 +6493,12 @@ export default function AdminPortal() {
                             <div className="mt-3 pt-3 border-t border-slate-800/80">
                               <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">Tab Access Permissions:</span>
                               <div className="flex flex-wrap gap-1">
-                                {admin.allowedTabs.length === 0 ? (
-                                  <span className="text-[10px] text-slate-500 italic">No access granted</span>
-                                ) : (
-                                  admin.allowedTabs.map(t => {
+                                {(() => {
+                                  const tabs = Array.isArray(admin.allowedTabs) ? admin.allowedTabs : [];
+                                  if (tabs.length === 0) {
+                                    return <span className="text-[10px] text-slate-500 italic">No access granted</span>;
+                                  }
+                                  return tabs.map(t => {
                                     let label = t;
                                     if (t === 'admissions') label = 'Admissions';
                                     if (t === 'notices') label = 'Notices';
@@ -5816,7 +6516,7 @@ export default function AdminPortal() {
                                       </span>
                                     );
                                   })
-                                )}
+                                })()}
                               </div>
                             </div>
                           </div>

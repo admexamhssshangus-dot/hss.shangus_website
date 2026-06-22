@@ -5,9 +5,15 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /slides/photos/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && (
+      allow write: if request.auth != null && request.auth.token.email_verified == true && (
         request.auth.token.admin == true ||
-        request.auth.token.email in firestore.get(/databases/(default)/documents/site/admins).data.emails
+        request.auth.token.email.lower() == "adm.exam.hss.shangus@gmail.com" ||
+        request.auth.token.email.lower() in firestore.get(/databases/(default)/documents/site/admins).data.emails
+      ) && (
+        request.resource == null || (
+          request.resource.size < 1 * 1024 * 1024 &&
+          request.resource.contentType.matches('image/.*')
+        )
       );
     }
   }

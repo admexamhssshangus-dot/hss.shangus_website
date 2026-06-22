@@ -147,7 +147,18 @@ export function mergeSiteSettings(parsed = {}) {
 }
 
 export async function loadSiteSettings() {
-  // 0. Try Firestore first (remote live data)
+  // 1. Check local storage override first (for admin instant testing / avoiding reload loss)
+  const local = localStorage.getItem('site_settings');
+  if (local) {
+    try {
+      const parsed = JSON.parse(local);
+      return mergeSiteSettings(parsed);
+    } catch (e) {
+      console.error('Error parsing site_settings from localStorage', e);
+    }
+  }
+
+  // 2. Try Firestore next (remote live data)
   try {
     const snap = await getDoc(doc(db, 'site', 'settings'));
     if (snap.exists()) {
@@ -157,19 +168,7 @@ export async function loadSiteSettings() {
     console.warn('Firestore settings read failed:', e);
   }
 
-  // 1. Check local storage override first (for admin instant testing)
-  const local = localStorage.getItem('site_settings');
-  if (local) {
-    try {
-      const parsed = JSON.parse(local);
-
-      return mergeSiteSettings(parsed);
-    } catch (e) {
-      console.error('Error parsing site_settings from localStorage', e);
-    }
-  }
-
-  // 2. Fetch from server
+  // 3. Fetch from server
   try {
     const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
     if (res.ok) {

@@ -6,9 +6,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /site/{docId} {
       allow read: if true;
-      allow write: if request.auth != null && (
+      allow write: if request.auth != null && request.auth.token.email_verified == true && (
         request.auth.token.admin == true ||
-        request.auth.token.email in get(/databases/$(database)/documents/site/admins).data.emails
+        request.auth.token.email.lower() == "adm.exam.hss.shangus@gmail.com" ||
+        request.auth.token.email.lower() in get(/databases/$(database)/documents/site/admins).data.emails
       );
     }
   }

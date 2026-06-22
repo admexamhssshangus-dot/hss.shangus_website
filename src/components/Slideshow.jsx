@@ -16,7 +16,7 @@ import React, { useEffect, useState } from 'react';
 // - public/slides/slides.txt    (each line: `Header,Caption`)
 // Then in your page: <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" />
 
-export default function Slideshow({ images = [], interval = 6000, configUrl = null, imageFolder = '/slides/', imageExt = '.jpg' }) {
+export default function Slideshow({ slides: customSlides = null, images = [], interval = 6000, configUrl = null, imageFolder = '/slides/', imageExt = '.jpg' }) {
   const [index, setIndex] = useState(0);
   const [slides, setSlides] = useState([]); // array of { image, title, caption }
   const [loadedIndices, setLoadedIndices] = useState(new Set([0]));
@@ -38,16 +38,23 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
     }
   }, [index, slides]);
 
+  // Build slides from customSlides if provided
+  useEffect(() => {
+    if (customSlides && customSlides.length > 0) {
+      setSlides(customSlides);
+    }
+  }, [customSlides]);
+
   // Build slides from images prop if provided
   useEffect(() => {
-    if (images && images.length > 0 && !configUrl) {
+    if (images && images.length > 0 && !configUrl && (!customSlides || customSlides.length === 0)) {
       setSlides(images.map((src) => ({ image: src, title: '', caption: '' })));
     }
-  }, [images, configUrl]);
+  }, [images, configUrl, customSlides]);
 
   // Load slides from configUrl when provided
   useEffect(() => {
-    if (!configUrl) return;
+    if (!configUrl || (customSlides && customSlides.length > 0)) return;
 
     let cancelled = false;
 
@@ -61,7 +68,13 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
         try {
           const parsed = JSON.parse(text);
           if (Array.isArray(parsed)) {
-            const mapped = parsed.map((s) => ({ image: (s.image || s.src), title: s.title || '', caption: s.caption || '' }));
+            const mapped = parsed.map((s) => {
+              const image = s.image || s.src || '';
+              const imageUrl = (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:'))
+                ? image
+                : (image.startsWith('/') ? image : imageFolder + image);
+              return { image: imageUrl, title: s.title || '', caption: s.caption || '' };
+            });
             if (!cancelled) setSlides(mapped);
             return;
           }
@@ -78,7 +91,10 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
             const image = parts[0].trim();
             const title = (parts[1] || '').trim();
             const caption = (parts.slice(2).join(',') || '').trim();
-            return { image: imageFolder + image, title, caption };
+            const imageUrl = (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:'))
+              ? image
+              : (image.startsWith('/') ? image : imageFolder + image);
+            return { image: imageUrl, title, caption };
           }
           // Otherwise, treat line as `title,caption` and image as numbered file
           const title = (parts[0] || '').trim();
@@ -97,7 +113,7 @@ export default function Slideshow({ images = [], interval = 6000, configUrl = nu
 
     load();
     return () => { cancelled = true; };
-  }, [configUrl, imageFolder, imageExt]);
+  }, [configUrl, imageFolder, imageExt, customSlides]);
 
   // autoplay index rotation
   useEffect(() => {
