@@ -3,11 +3,35 @@ import { CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import DynamicPageRenderer from '../components/DynamicPageRenderer';
 
 export default function Admissions() {
   const [docOpen, setDocOpen] = useState(false);
   const docRef = useRef(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [dynamicData, setDynamicData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const snap = await getDoc(doc(db, 'site', 'page_admissions'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.blocks && data.blocks.length > 0) {
+            setDynamicData(data);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load dynamic page content", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   useEffect(() => {
     loadSiteSettings().then(setSettings);
@@ -84,6 +108,18 @@ export default function Admissions() {
         </div>
       </div>
     );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
+        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
+      </div>
+    );
+  }
+
+  if (dynamicData) {
+    return <DynamicPageRenderer pageData={dynamicData} pageId="admissions" />;
   }
 
   return (

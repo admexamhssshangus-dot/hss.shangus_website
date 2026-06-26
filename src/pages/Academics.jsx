@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Phone, Mail, User } from 'lucide-react';
-import SEO from '../components/SEO';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import DynamicPageRenderer from '../components/DynamicPageRenderer';
+import SEO from '../components/SEO';
 
 // WhatsApp SVG Icon component
 function WhatsAppIcon({ size = 14, className = '' }) {
@@ -122,9 +123,31 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
 }
 
 export default function Academics() {
+  const [dynamicData, setDynamicData] = useState(null);
+  const [dynamicLoading, setDynamicLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const snap = await getDoc(doc(db, 'site', 'page_academics'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.blocks && data.blocks.length > 0) {
+            setDynamicData(data);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load dynamic page content", e);
+      } finally {
+        setDynamicLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
+
   const [modalItems, setModalItems] = useState([]);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('science');
@@ -268,6 +291,18 @@ export default function Academics() {
       // ignore
     }
   }, []);
+
+  if (dynamicLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
+        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
+      </div>
+    );
+  }
+
+  if (dynamicData) {
+    return <DynamicPageRenderer pageData={dynamicData} pageId="academics" />;
+  }
 
   const visibleFaculty = faculty.filter(f => !f.hidden);
   const filteredFaculty = selectedDept === 'All'
