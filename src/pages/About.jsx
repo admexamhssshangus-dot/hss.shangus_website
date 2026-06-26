@@ -75,49 +75,49 @@ export default function About() {
           <h3 className="text-2xl font-bold text-teal-800 mb-6 relative z-10">Glimpse of the Institution</h3>
 
           {/* A Haven of Learning */}
-          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-r from-teal-50/30 to-transparent">
+          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-teal-50 to-emerald-50/50 border border-teal-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – right side */}
-            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-teal-600/[0.06] pointer-events-none select-none" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-teal-600/[0.08] pointer-events-none select-none group-hover:scale-110 group-hover:text-teal-600/[0.12] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
             </svg>
-            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">A Haven of Learning in the Heart of the Kashmir Valley</h4>
-            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
-              Nestled amidst the breathtaking mountains of the Kashmir Valley, <strong className="text-teal-800">Govt. Higher Secondary School (HSS) Shangus</strong> Anantnag is a vibrant educational institution renowned for its scenic location and commitment to academic excellence. The school's expansive campus, surrounded by lush greenery and the calming presence of the Shangus Forest Lodge, offers a serene and inspiring learning environment. Adorned by neighboring institutions like the esteemed Govt. Girls High School Shangus, Sub District Hospital Shangus, and the fire services garrison, HSS Shangus stands as a symbol of community and collaboration within the greater Shangus area.
+            <h4 className="text-lg font-bold text-teal-900 mb-3 relative z-10 group-hover:text-teal-700 transition-colors">A Haven of Learning in the Heart of the Kashmir Valley</h4>
+            <p className="text-slate-800 leading-relaxed text-[15px] relative z-10">
+              Nestled amidst the breathtaking mountains of the Kashmir Valley, <strong className="text-teal-700 font-semibold">Govt. Higher Secondary School (HSS) Shangus</strong> Anantnag is a vibrant educational institution renowned for its scenic location and commitment to academic excellence. The school's expansive campus, surrounded by lush greenery and the calming presence of the Shangus Forest Lodge, offers a serene and inspiring learning environment. Adorned by neighboring institutions like the esteemed Govt. Girls High School Shangus, Sub District Hospital Shangus, and the fire services garrison, HSS Shangus stands as a symbol of community and collaboration within the greater Shangus area.
             </p>
           </div>
 
           {/* A Legacy of Education Since 1917 */}
-          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-l from-amber-50/30 to-transparent">
+          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-bl from-amber-50 to-orange-50/50 border border-amber-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – left side, rotated */}
-            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-amber-600/[0.06] pointer-events-none select-none -rotate-12" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-amber-600/[0.08] pointer-events-none select-none -rotate-12 group-hover:scale-110 group-hover:rotate-0 group-hover:text-amber-600/[0.12] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
             </svg>
-            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">A Legacy of Education Since 1917</h4>
-            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+            <h4 className="text-lg font-bold text-amber-900 mb-3 relative z-10 group-hover:text-amber-700 transition-colors">A Legacy of Education Since 1917</h4>
+            <p className="text-slate-800 leading-relaxed text-[15px] relative z-10">
               Established in 1917 as a primary school, HSS Shangus boasts a rich history of serving the educational needs of the region. Its steady progression, with upgrades in 1978–79 and the achievement of Higher Secondary status in 2005, reflects the school's enduring commitment to providing quality instruction to generations of students. Our dedicated faculty, comprised of experienced educators, distinguished scholars, exceptional technocrats, and skilled professionals, fosters a stimulating academic environment for learners of all backgrounds.
             </p>
           </div>
 
           {/* Excellence in Academics and Beyond */}
-          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-r from-teal-50/30 to-transparent">
+          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-indigo-50 to-blue-50/50 border border-indigo-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – right side */}
-            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-teal-600/[0.06] pointer-events-none select-none rotate-12" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-indigo-600/[0.06] pointer-events-none select-none rotate-12 group-hover:scale-110 group-hover:rotate-0 group-hover:text-indigo-600/[0.1] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
             </svg>
-            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">Excellence in Academics and Beyond</h4>
-            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+            <h4 className="text-lg font-bold text-indigo-900 mb-3 relative z-10 group-hover:text-indigo-700 transition-colors">Excellence in Academics and Beyond</h4>
+            <p className="text-slate-800 leading-relaxed text-[15px] relative z-10">
               HSS Shangus proudly serves a wide catchment area, attracting students from Kachwan to Uttresoo and beyond due to its reputation for exceptional teaching. Our consistent record of strong student performance, with numerous distinctions earned in both 10th and 12th class examinations, stands as a testament to the school's focus on academic rigor. Beyond the classroom, we nurture well-rounded individuals by providing enriching extracurricular activities, fostering leadership opportunities, and emphasizing the development of essential life skills. Our modern facilities, including spacious classrooms, well-equipped laboratories, and a comprehensive library, create a dynamic environment where students can explore their interests and reach their full potential.
             </p>
           </div>
 
           {/* Shaping Tomorrow's Leaders */}
-          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-l from-amber-50/30 to-transparent">
+          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-bl from-rose-50 to-pink-50/50 border border-rose-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – left side */}
-            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-amber-600/[0.06] pointer-events-none select-none rotate-[20deg]" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-rose-600/[0.05] pointer-events-none select-none rotate-[20deg] group-hover:scale-110 group-hover:rotate-[10deg] group-hover:text-rose-600/[0.1] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
             </svg>
-            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">Shaping Tomorrow's Leaders</h4>
-            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+            <h4 className="text-lg font-bold text-rose-900 mb-3 relative z-10 group-hover:text-rose-700 transition-colors">Shaping Tomorrow's Leaders</h4>
+            <p className="text-slate-800 leading-relaxed text-[15px] relative z-10">
               At HSS Shangus, we ignite a passion for lifelong learning and instill a strong sense of responsibility within our students. Our faculty employs innovative teaching methods, emphasizing both the acquisition of knowledge and the development of critical thinking abilities. We are deeply committed to preparing our students not only for academic success but also to become engaged citizens who make meaningful contributions to their communities and the world.
             </p>
           </div>
