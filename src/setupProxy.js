@@ -100,7 +100,7 @@ module.exports = function(app) {
       res.status(200).json({ success: true, message: 'Configuration saved to files successfully!' });
     } catch (error) {
       console.error('Error saving local files via setupProxy:', error);
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({ success: false, error: 'Internal server error' });
     }
   });
 
@@ -123,7 +123,7 @@ module.exports = function(app) {
       return res.status(200).json(Array.isArray(parsed) ? parsed : []);
     } catch (error) {
       console.error('Error reading messages via setupProxy:', error);
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({ success: false, error: 'Internal server error' });
     }
   });
 
@@ -164,7 +164,7 @@ module.exports = function(app) {
       res.status(200).json({ success: true, message: 'Message stored locally.' });
     } catch (error) {
       console.error('Error saving messages via setupProxy:', error);
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({ success: false, error: 'Internal server error' });
     }
   });
 };

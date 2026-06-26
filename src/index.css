@@ -447,11 +447,11 @@
 }
 
 /* Modal mini button overrides for Academics modal */
-.theme-dark .bg-slate-100:hover, .theme-dark .bg-slate-50:hover,
-.theme-royal .bg-slate-100:hover, .theme-royal .bg-slate-50:hover,
-.theme-forest .bg-slate-100:hover,
-.theme-midnight .bg-slate-100:hover, .theme-forest .bg-slate-50:hover ,
-.theme-midnight .bg-slate-50:hover {
+.theme-dark .hover\:bg-slate-100:hover, .theme-dark .hover\:bg-slate-50:hover,
+.theme-royal .hover\:bg-slate-100:hover, .theme-royal .hover\:bg-slate-50:hover,
+.theme-forest .hover\:bg-slate-100:hover,
+.theme-midnight .hover\:bg-slate-100:hover, .theme-forest .hover\:bg-slate-50:hover ,
+.theme-midnight .hover\:bg-slate-50:hover {
   background-color: var(--teal-accent) !important;
   color: #000000 !important;
 }
@@ -1278,6 +1278,7 @@
   border: 1px solid rgba(96, 165, 250, 0.3) !important;
 }
 
+
 /* High contrast overrides for Tax Calculator table under light theme */
 .theme-light .tax-table thead tr,
 .theme-light .tax-table thead th {
@@ -1287,5 +1288,40 @@
   color: #94a3b8 !important;
 }
 
+.badge-blue-custom {
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
+  border: 1px solid #bfdbfe !important;
+}
+.theme-dark .badge-blue-custom,
+.theme-royal .badge-blue-custom,
+.theme-forest .badge-blue-custom,
+.theme-midnight .badge-blue-custom {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.25) !important;
+}
 
+.badge-amber-custom {
+  background-color: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1px solid #fde68a !important;
+}
+.theme-dark .badge-amber-custom,
+.theme-royal .badge-amber-custom,
+.theme-forest .badge-amber-custom,
+.theme-midnight .badge-amber-custom {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+}
+
+/* PWA Install Prompt – fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
 

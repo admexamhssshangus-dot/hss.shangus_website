@@ -1,41 +1,46 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Lock, Unlock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Lock, Unlock, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from 'firebase/firestore';
 
-const ADMIN_PASSWORD_HASH = 'f046a167a9720c412012290f5c305748c14e83f70f768da24bf95a822a42effa'; // PBKDF2 hash of 'messages@HSS4737'
-const ADMIN_PASSWORD_SALT = '8c3b1a8d05ef4c29';
-
-async function hashPassword(plainText, saltHex) {
-  try {
-    const encoder = new TextEncoder();
-    const passwordBuffer = encoder.encode(plainText);
-    const saltBuffer = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-    
-    const baseKey = await window.crypto.subtle.importKey(
-      'raw',
-      passwordBuffer,
-      { name: 'PBKDF2' },
-      false,
-      ['deriveBits', 'deriveKey']
-    );
-    
-    const derivedBits = await window.crypto.subtle.deriveBits(
-      {
-        name: 'PBKDF2',
-        salt: saltBuffer,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      baseKey,
-      256
-    );
-    
-    const hashArray = Array.from(new Uint8Array(derivedBits));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch (e) {
-    console.error('PBKDF2 hashing failed:', e);
-    // Secure fallback
-    return '';
+async function hashPassword(plainText, saltHex = null) {
+  if (saltHex) {
+    try {
+      const encoder = new TextEncoder();
+      const passwordBuffer = encoder.encode(plainText);
+      const saltBuffer = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      
+      const baseKey = await window.crypto.subtle.importKey(
+        'raw',
+        passwordBuffer,
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      
+      const derivedBits = await window.crypto.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: saltBuffer,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        baseKey,
+        256
+      );
+      
+      const hashArray = Array.from(new Uint8Array(derivedBits));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      console.error('PBKDF2 hashing failed, falling back to SHA-256:', e);
+    }
   }
+
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plainText);
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 
@@ -46,6 +51,49 @@ export default function AdminMessages() {
   
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [adminsList, setAdminsList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('site_admins');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Load admins list from Firestore, server, or localStorage
+  useEffect(() => {
+    async function fetchAdmins() {
+      // 1. Try Firestore
+      try {
+        const snap = await getDoc(doc(db, 'site', 'admins'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            setAdminsList(data.items);
+            localStorage.setItem('site_admins', JSON.stringify(data.items));
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Firestore admins read failed on messages board:', e);
+      }
+
+      // 2. Try static JSON fallback
+      try {
+        const r = await fetch('/slides/admins.json?t=' + Date.now(), { cache: 'no-cache' });
+        if (r.ok) {
+          const data = await r.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setAdminsList(data);
+            localStorage.setItem('site_admins', JSON.stringify(data));
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    fetchAdmins();
+  }, []);
 
   // CAPTCHA and rate-limiting lockout states
   const [captcha, setCaptcha] = useState({ num1: 0, num2: 0, operation: '+', result: 0 });
@@ -118,11 +166,13 @@ export default function AdminMessages() {
       setAuthError('You have been logged out because a new session was started in another tab.');
     } else if (reason === 'inactivity') {
       setAuthError('You have been logged out due to inactivity.');
+    } else if (reason === 'sync_logout') {
+      setAuthError('');
     } else {
       localStorage.removeItem('admin_active_session_id');
       try {
         const channel = new BroadcastChannel('hss_admin_session');
-        channel.postMessage({ type: 'LOGOUT' });
+        channel.postMessage({ type: 'LOGOUT', reason: 'sync_logout' });
         channel.close();
       } catch (err) {
         // ignore
@@ -146,8 +196,25 @@ export default function AdminMessages() {
       return;
     }
 
-    const inputHash = await hashPassword(password, ADMIN_PASSWORD_SALT);
-    if (inputHash === ADMIN_PASSWORD_HASH) {
+    let isValid = false;
+    const currentAdmins = adminsList.length > 0 ? adminsList : [
+      {
+        email: 'adm.exam.hss.shangus@gmail.com',
+        passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482',
+        hashAlgo: 'sha256'
+      }
+    ];
+
+    for (const adm of currentAdmins) {
+      const usePBKDF2 = !!(adm.hashAlgo === 'pbkdf2' || adm.salt);
+      const inputHash = usePBKDF2 ? await hashPassword(password, adm.salt) : await hashPassword(password);
+      if (inputHash === adm.passwordHash) {
+        isValid = true;
+        break;
+      }
+    }
+
+    if (isValid) {
       localStorage.removeItem('admin_failed_attempts');
       localStorage.removeItem('admin_last_failed_time');
       localStorage.removeItem('admin_lockout_until');
@@ -228,7 +295,7 @@ export default function AdminMessages() {
         if (event.data.type === 'LOGIN' && event.data.sessionId !== mySessionId) {
           handleLogout('logged_out_elsewhere');
         } else if (event.data.type === 'LOGOUT') {
-          handleLogout();
+          handleLogout(event.data.reason || 'sync_logout');
         }
       };
     } catch (e) {
@@ -295,22 +362,102 @@ export default function AdminMessages() {
     setLoading(true);
     let mounted = true;
 
-    fetch('/api/messages')
-      .then((r) => r.json())
-      .then((data) => {
+    async function loadMessages() {
+      try {
+        const local = JSON.parse(localStorage.getItem('site_messages') || '[]');
+        let firestoreMessages = [];
+
+        // 1. Try fetching from Firestore (Production Priority)
+        if (db) {
+          try {
+            const q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach((doc) => {
+              firestoreMessages.push({ id: doc.id, ...doc.data() });
+            });
+          } catch (err) {
+            console.warn('Could not load messages from Firestore:', err);
+          }
+        }
+
+        // 2. Try fetching from Local Node Backend (Development)
+        let localBackendMessages = [];
+        try {
+          const res = await fetch('/api/messages');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              localBackendMessages = data;
+            }
+          }
+        } catch (err) {
+          // ignore
+        }
+
         if (!mounted) return;
-        const local = JSON.parse(localStorage.getItem('site_messages') || '[]');
-        const combined = Array.isArray(data) ? data.concat(local) : local;
-        setMessages(combined);
-      })
-      .catch(() => {
-        const local = JSON.parse(localStorage.getItem('site_messages') || '[]');
-        setMessages(local);
-      })
-      .finally(() => mounted && setLoading(false));
+
+        // Combine, deduplicate by createdAt/email/message, and sort
+        const allMessages = [...firestoreMessages, ...localBackendMessages, ...local];
+        const uniqueMessagesMap = new Map();
+        allMessages.forEach(m => {
+          const key = `${m.createdAt}-${m.email}-${m.name}`;
+          if (!uniqueMessagesMap.has(key)) {
+            uniqueMessagesMap.set(key, m);
+          }
+        });
+
+        const sortedMessages = Array.from(uniqueMessagesMap.values()).sort((a, b) => {
+          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+
+        setMessages(sortedMessages);
+      } catch (err) {
+        console.error('Failed to load messages:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadMessages();
 
     return () => { mounted = false; };
   }, [isAuthenticated]);
+
+  const handleDeleteMessage = async (msg) => {
+    if (!window.confirm("Are you sure you want to delete this message?")) return;
+
+    // 1. Delete from Firestore if db is active and msg has a Firestore id
+    if (db && msg.id) {
+      try {
+        await deleteDoc(doc(db, 'messages', msg.id));
+      } catch (err) {
+        console.error("Failed to delete from Firestore:", err);
+      }
+    }
+
+    // 2. Delete from local backend (if applicable)
+    try {
+      await fetch(`/api/messages`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ createdAt: msg.createdAt, email: msg.email, name: msg.name })
+      });
+    } catch (err) {
+      // ignore
+    }
+
+    // 3. Delete from localStorage
+    try {
+      const local = JSON.parse(localStorage.getItem('site_messages') || '[]');
+      const filtered = local.filter(m => !(m.createdAt === msg.createdAt && m.email === msg.email && m.name === msg.name));
+      localStorage.setItem('site_messages', JSON.stringify(filtered));
+    } catch (err) {
+      // ignore
+    }
+
+    // 4. Update UI State
+    setMessages(prev => prev.filter(m => !(m.createdAt === msg.createdAt && m.email === msg.email && m.name === msg.name)));
+  };
 
   if (!isAuthenticated) {
     return (
@@ -457,7 +604,16 @@ export default function AdminMessages() {
                         <span className="font-semibold">{m.name}</span> — <span className="font-mono">{m.phone}</span> {m.email ? `— ${m.email}` : ''}
                       </div>
                     </div>
-                    <div className="text-[10px] font-mono text-slate-500">{new Date(m.createdAt || Date.now()).toLocaleString()}</div>
+                    <div className="flex items-center gap-3 self-end sm:self-center">
+                      <div className="text-[10px] font-mono text-slate-500">{new Date(m.createdAt || Date.now()).toLocaleString()}</div>
+                      <button
+                        onClick={() => handleDeleteMessage(m)}
+                        className="p-1.5 rounded bg-slate-950 text-slate-500 hover:text-red-400 hover:bg-red-950/20 transition-all active:scale-95"
+                        title="Delete Message"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-3 text-xs text-slate-400 whitespace-pre-wrap leading-relaxed border-t border-slate-850/50 pt-2.5">
                     {m.message}

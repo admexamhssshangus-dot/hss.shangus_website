@@ -375,7 +375,7 @@ export default function Home() {
         
         <div className="relative z-20 px-4">
           <h2
-            className="text-[17px] sm:text-[31px] md:text-[48px] font-semibold mb-3.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
+            className="text-[19px] sm:text-[33px] md:text-[50px] font-semibold mb-3.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
             style={{
               color: '#961c14',
               textShadow: '0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.85), 0 0 35px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
@@ -407,11 +407,11 @@ export default function Home() {
               <span className="bg-teal-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Updates</span>
             </div>
             <div className="max-h-[320px] overflow-y-auto custom-scrollbar px-4">
-              <ul className="divide-y divide-slate-100">
+              <ul className="">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                   return (
-                    <li key={idx} className="py-3 flex items-center gap-3 transition-all duration-200 hover:bg-slate-50/70 -mx-4 px-4 border-l-2 border-transparent hover:border-teal-700 group">
+                    <li key={idx} className="py-3 flex items-center gap-3 transition-all duration-200 hover:bg-slate-50/70 -mx-4 px-4 border-l-2 border-l-transparent hover:border-l-teal-800 border-b border-slate-100 last:border-b-0 group">
                       {/* Mini Date Badge */}
                       {(() => {
                         const formatted = formatDate(n.date);

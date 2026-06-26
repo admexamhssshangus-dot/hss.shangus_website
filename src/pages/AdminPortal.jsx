@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -45,14 +45,14 @@ async function getFolderHandle() {
   });
 }
 
-const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482'; // SHA-256 of 'admin@4737'
+const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482';
 
 // Default fallback admin. `hashAlgo` is explicit so the login routine
 // can deterministically pick the proper verification method.
 const DEFAULT_ADMINS = [
   {
     email: 'adm.exam.hss.shangus@gmail.com',
-    passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482', // SHA-256 of 'admin@4737'
+    passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482',
     hashAlgo: 'sha256',
     role: 'Super Admin',
     allowedTabs: ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins']
@@ -123,7 +123,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides }
   if (!isListedAdmin) {
     try {
       const idToken = await getIdTokenResult(user, false);
-      console.debug('AdminPortal: id token claims', idToken?.claims);
+      // Token claims checked — logging suppressed in production for security
       isAdminClaim = idToken?.claims?.admin === true;
     } catch (e) {
       console.warn('Failed to retrieve token claims:', e);
@@ -345,14 +345,16 @@ function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', lab
 // ==========================================
 // Full Employee Edit Panel Style Constants & Inputs
 // ==========================================
-const STANDARD_DEPTS = ['Administration', 'Science', 'Humanities', 'Secondary', 'MTS'];
+const STANDARD_DEPTS = ['Administration', 'Science', 'Humanities', 'Science/Humanities', 'Secondary', 'MTS'];
+const STANDARD_DESIGNATIONS = ['Principal', 'Vice Principal/Sr. Lecturer', 'Lecturer', 'I/C Lecturer', 'Master', 'Teacher', 'Teacher Grade II', 'Lab Assistant', 'Multi-tasking Staff'];
+const STANDARD_SUBJECTS = ['Biology', 'Chemistry', 'Economics', 'Education', 'Environmental Science', 'General English', 'Healthcare', 'History', 'IT and ITES', 'Mathematics', 'Physical Education', 'Physics', 'Political Science', 'Urdu', 'Science', 'Social Studies', 'English'];
 const panelInput = "w-full px-2.5 py-1.5 rounded text-xs font-medium focus:outline-none transition-colors";
-const panelInputStyle = { background: '#020617', border: '1px solid #334155', color: '#f1f5f9' };
+const panelInputStyle = { background: 'var(--bg-page)', border: '1px solid var(--border-ui)', color: 'var(--text-main)' };
 const panelInputFocusStyle = { borderColor: '#f97316' };
 const panelLabel = "block text-[9px] font-extrabold uppercase tracking-wider mb-1";
-const panelLabelStyle = { color: '#7dd3fc' }; /* sky-300 — readable on dark bg */
+const panelLabelStyle = { color: 'var(--text-muted)' };
 const sectionHeader = "text-[10px] font-extrabold uppercase tracking-widest mb-3 flex items-center gap-3";
-const divider = { borderTop: '1px solid rgba(255,255,255,0.08)', flex: 1 };
+const divider = { borderTop: '1px solid var(--border-ui)', flex: 1 };
 const sectionTitleStyle = { color: '#f97316' }; /* orange-400 */
 
 function FInput({ field, label, data, onChange, type = 'text', mono = false, required = false }) {
@@ -763,11 +765,94 @@ export default function AdminPortal() {
     otherDeductions: ''
   });
   const [taxSearch, setTaxSearch] = useState('');
-  const [showHiddenInTax, setShowHiddenInTax] = useState(false);
+  const [selectedTaxCategories, setSelectedTaxCategories] = useState(['teaching_regular', 'non_teaching_regular']);
+  const [isTaxFilterDropdownOpen, setIsTaxFilterDropdownOpen] = useState(false);
+  const [selectedTaxEmployeeIndices, setSelectedTaxEmployeeIndices] = useState([]);
+
+  const toggleEmployeeTaxSelection = (emp) => {
+    const origIdx = faculty.indexOf(emp);
+    if (selectedTaxEmployeeIndices.includes(origIdx)) {
+      setSelectedTaxEmployeeIndices(selectedTaxEmployeeIndices.filter(idx => idx !== origIdx));
+    } else {
+      setSelectedTaxEmployeeIndices([...selectedTaxEmployeeIndices, origIdx]);
+    }
+  };
+
+  const handleSelectAllTaxVisible = (visibleEmps) => {
+    const visibleIndices = visibleEmps.map(emp => faculty.indexOf(emp));
+    const allSelected = visibleIndices.every(idx => selectedTaxEmployeeIndices.includes(idx));
+
+    if (allSelected) {
+      setSelectedTaxEmployeeIndices(selectedTaxEmployeeIndices.filter(idx => !visibleIndices.includes(idx)));
+    } else {
+      const newSelection = new Set([...selectedTaxEmployeeIndices, ...visibleIndices]);
+      setSelectedTaxEmployeeIndices(Array.from(newSelection));
+    }
+  };
+
+  // Initialize selection with all visible employees by default
+  useEffect(() => {
+    if (faculty.length > 0 && selectedTaxEmployeeIndices.length === 0) {
+      const defaultIndices = faculty
+        .map((emp, index) => ({ emp, index }))
+        .filter(({ emp }) => {
+          const cat = getEmployeeTaxCategory(emp);
+          return cat === 'teaching_regular' || cat === 'non_teaching_regular';
+        })
+        .map(({ index }) => index);
+      setSelectedTaxEmployeeIndices(defaultIndices);
+    }
+  }, [faculty]);
+
+  // Classify employee as Non-Teaching (MTS, Lab Asst, Peon, etc.)
+  const isNonTeaching = (emp) => {
+    const d = (emp.designation || '').toLowerCase();
+    const dept = (emp.department || '').toLowerCase();
+    return dept === 'mts' || d.includes('mts') || d.includes('lab assistant') ||
+      d.includes('lab bearer') || d.includes('library bearer') ||
+      d.includes('peon') || d.includes('chowkidar') || d.includes('safaiwalla') ||
+      d.includes('class iv') || d.includes('driver') || d.includes('attendant');
+  };
+
+  const TAX_CATEGORIES = [
+    { key: 'teaching_regular', label: 'Teaching (Active & Regular)', color: 'bg-blue-600 border-blue-500' },
+    { key: 'non_teaching_regular', label: 'Non-Teaching (Active & Regular)', color: 'bg-violet-600 border-violet-600' },
+    { key: 'deployed_in', label: 'Deployed In', color: 'bg-emerald-600 border-emerald-500' },
+    { key: 'deployed_out', label: 'Deployed Out', color: 'bg-amber-600 border-amber-500' },
+    { key: 'retired', label: 'Retired', color: 'bg-red-600 border-red-500' },
+    { key: 'transferred', label: 'Transferred', color: 'bg-slate-600 border-slate-500' },
+    { key: 'other_inactive', label: 'Drawing Pay / Other Inactive', color: 'bg-gray-600 border-gray-500' }
+  ];
+
+  const getEmployeeTaxCategory = (emp) => {
+    const isNT = isNonTeaching(emp);
+    const isDeployedIn = emp.if_deployed === 'in' || emp.if_deployed === 'Yes';
+    const isDeployedOut = emp.if_deployed === 'out' || emp.inactiveReason === 'Deployed Out';
+    const isRetired = emp.hidden && emp.inactiveReason === 'Retired';
+    const isTransferred = emp.hidden && emp.inactiveReason === 'Transferred';
+    const isOtherInactive = emp.hidden && emp.inactiveReason && 
+      emp.inactiveReason !== 'Retired' && 
+      emp.inactiveReason !== 'Transferred' && 
+      emp.inactiveReason !== 'Deployed Out';
+
+    if (isDeployedIn) return 'deployed_in';
+    if (isDeployedOut) return 'deployed_out';
+    if (isRetired) return 'retired';
+    if (isTransferred) return 'transferred';
+    if (isOtherInactive) return 'other_inactive';
+
+    if (emp.hidden) return 'other_inactive';
+
+    return isNT ? 'non_teaching_regular' : 'teaching_regular';
+  };
+
   const [activeRegimeSettingsTab, setActiveRegimeSettingsTab] = useState('new');
   const [activeTaxPreviewRegime, setActiveTaxPreviewRegime] = useState('new');
   const [showTaxRules, setShowTaxRules] = useState(false);
   const [customPrompt, setCustomPrompt] = useState(null);
+  const [saveProgress, setSaveProgress] = useState(null); // null = idle, 0-100 = save running
+  const [saveStages, setSaveStages] = useState([]); // array of stage objects
+  const [savePopupResult, setSavePopupResult] = useState(null); // success/error popup content
   const [dataIssues, setDataIssues] = useState([]);
   const [showIssuesList, setShowIssuesList] = useState(false);
   // Map of faculty index => { severity: 'error'|'warning', messages: string[] }
@@ -785,30 +870,27 @@ export default function AdminPortal() {
   const previewTaxFreeGross = previewRegimeConfig.standardDeduction + previewRegimeConfig.rebateThreshold;
 
   const getFilteredTaxFaculty = () => {
-    return faculty.filter(t => {
-      const isDeployedIn = t.if_deployed === 'in';
-      const isDeployedOut = t.if_deployed === 'out';
-      const isRetired = t.hidden && t.inactiveReason === 'Retired';
-      const isTransferred = t.hidden && t.inactiveReason === 'Transferred';
-      const isDeployedOutHidden = t.hidden && t.inactiveReason === 'Deployed Out';
-
-      // Excluded by default:
-      // 1. Deployed In (t.if_deployed === 'in')
-      // 2. Retired/Transferred/Deployed Out (either hidden with that inactiveReason, or if_deployed === 'out')
-      const isExcluded = isDeployedIn || isDeployedOut || isRetired || isTransferred || isDeployedOutHidden;
-
-      if (!showHiddenInTax && isExcluded) {
+    return faculty.filter(emp => {
+      const cat = getEmployeeTaxCategory(emp);
+      if (!selectedTaxCategories.includes(cat)) {
         return false;
       }
-
-      // Standard hidden check if not using showHiddenInTax
-      if (t.hidden && !showHiddenInTax) return false;
-
       const term = taxSearch.toLowerCase();
       return !term ||
-        t.name.toLowerCase().includes(term) ||
-        (t.cpis_no || '').toLowerCase().includes(term) ||
-        t.designation.toLowerCase().includes(term);
+        emp.name.toLowerCase().includes(term) ||
+        (emp.cpis_no || '').toLowerCase().includes(term) ||
+        emp.designation.toLowerCase().includes(term);
+    });
+  };
+
+  const getVisibleTaxFaculty = () => {
+    return getFilteredTaxFaculty();
+  };
+
+  const getSelectedVisibleTaxFaculty = () => {
+    return getVisibleTaxFaculty().filter(emp => {
+      const origIdx = faculty.indexOf(emp);
+      return selectedTaxEmployeeIndices.includes(origIdx);
     });
   };
 
@@ -884,19 +966,24 @@ export default function AdminPortal() {
       try {
         const idToken = await getIdTokenResult(user, false);
         const isAdminClaim = idToken?.claims?.admin === true;
-        const listedAdmin = Array.isArray(admins) && admins.find(a => a.email.toLowerCase() === (user.email || '').toLowerCase());
+        const userEmail = (user.email || '').toLowerCase();
+        const listedAdmin = Array.isArray(admins) && admins.find(a => a.email.toLowerCase() === userEmail);
+        // Also check hardcoded defaults as a fallback during initial load race
+        const defaultAdmin = DEFAULT_ADMINS.find(a => a.email.toLowerCase() === userEmail);
+        const isSuperAdmin = userEmail === 'adm.exam.hss.shangus@gmail.com';
 
         if (!user.emailVerified && !isAdminClaim) {
           setIsAuthenticated(false);
           setAuthError('Your email address has not been verified. Please verify your email before logging in as an administrator.');
-        } else if (isAdminClaim || listedAdmin) {
+        } else if (isAdminClaim || listedAdmin || defaultAdmin || isSuperAdmin) {
           // If we have a local admin entry, use it as the currentUser for permissions
-          if (listedAdmin) {
+          const matchedAdmin = listedAdmin || defaultAdmin;
+          if (matchedAdmin) {
             setCurrentUser(prev => {
-              if (prev && prev.email.toLowerCase() === listedAdmin.email.toLowerCase()) {
+              if (prev && prev.email.toLowerCase() === matchedAdmin.email.toLowerCase()) {
                 return prev;
               }
-              return normalizeAdmin(listedAdmin);
+              return normalizeAdmin(matchedAdmin);
             });
           }
           setIsAuthenticated(true);
@@ -949,12 +1036,14 @@ export default function AdminPortal() {
         // ignore
       }
       setAuthError('You have been logged out due to inactivity.');
+    } else if (reason === 'sync_logout') {
+      setAuthError('');
     } else {
       localStorage.removeItem('admin_active_session_id');
       localStorage.removeItem('admin_last_active');
       try {
         const channel = new BroadcastChannel('hss_admin_session');
-        channel.postMessage({ type: 'LOGOUT' });
+        channel.postMessage({ type: 'LOGOUT', reason: 'sync_logout' });
         channel.close();
       } catch (err) {
         // ignore
@@ -3094,128 +3183,209 @@ export default function AdminPortal() {
       }
       return `${imgName},${s.title || ''},${s.caption || ''}`;
     }).join('\n');
-    let fileSyncStatus = '';
 
-    // 1. Primary: Always try saving to Firebase (live) FIRST
+    // Initialize progress tracking UI
+    setSaveProgress(5);
+    setSaveStages([
+      { id: 'auth', label: 'Verifying Admin Authority', status: 'loading', details: 'Verifying credentials...' },
+      { id: 'firebase', label: 'Pushing changes live to Firebase', status: 'pending', details: '' },
+      { id: 'local_storage', label: 'Updating local cache', status: 'pending', details: '' },
+      { id: 'files', label: 'Syncing local config files', status: 'pending', details: '' },
+      { id: 'netlify', label: 'Creating remote Netlify backups', status: 'pending', details: '' },
+    ]);
+    setSavePopupResult(null);
+
+    const updateStage = (id, status, details = '', progress = null) => {
+      setSaveStages(prev => prev.map(s => s.id === id ? { ...s, status, details } : s));
+      if (progress !== null) {
+        setSaveProgress(progress);
+      }
+    };
+
+    let fileSyncStatus = '';
+    let didDirectoryWrite = false;
+    let fileWriteResults = [];
+
     try {
-      if (!auth.currentUser) {
+      // 1. Auth check stage
+      await new Promise(resolve => setTimeout(resolve, 500)); // smooth visual pacing
+      const user = auth.currentUser;
+      if (!user) {
         throw new Error('Authentication required to save. Please click the "Sign in with Google to Sync" button at the top first.');
       }
+      const isListedAdmin = Array.isArray(activeAdmins) && activeAdmins.some(a => (a.email || '').toLowerCase() === (user.email || '').toLowerCase());
+      let isAdminClaim = false;
+      if (!isListedAdmin) {
+        try {
+          const idToken = await getIdTokenResult(user, false);
+          isAdminClaim = idToken?.claims?.admin === true;
+        } catch (e) {
+          console.warn('Failed to retrieve token claims:', e);
+        }
+      }
+      if (!isAdminClaim && !isListedAdmin) {
+        throw new Error('Your Google account is not listed as an administrator. Please ask a Super Admin to add your email.');
+      }
+
+      updateStage('auth', 'success', `Authorized as ${user.email}`, 25);
+      updateStage('firebase', 'loading', 'Uploading settings, notices, faculty, admins, and slideshow...', 35);
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      // 2. Firebase upload stage
       await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins, slides });
       fileSyncStatus = 'Saved to Firebase (live)';
-    } catch (err) {
-      console.warn('Firestore save failed or not configured:', err);
-      const errMsg = err && (err.message || err.error || '');
-      if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('authentication required')) {
-        showAlert('Firebase save requires Google sign-in. Please click "Sign in with Google to Sync" first, then retry.', 'Sign-in Required');
-      } else if (typeof errMsg === 'string' && errMsg.toLowerCase().includes('not authorized')) {
-        showAlert('Your Google account is not listed as an administrator. Please ask a Super Admin to add your email.', 'Not Authorized');
-      } else {
-        showAlert(`Firestore save failed: ${errMsg || err}\n\nLocal changes were NOT saved to prevent data desync.`, 'Firebase Sync Failed');
-      }
-      return; // ABORT if Firebase save fails
-    }
+      
+      updateStage('firebase', 'success', 'All configuration collections pushed to Cloud Firestore.', 55);
+      updateStage('local_storage', 'loading', 'Updating localStorage data preview...', 60);
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-    // 2. Update localStorage for instant preview
-    localStorage.setItem('site_settings', JSON.stringify(settings));
-    localStorage.setItem('site_notices', noticesText);
-    localStorage.setItem('site_faculty', JSON.stringify(faculty));
-    localStorage.setItem('site_admins', JSON.stringify(activeAdmins));
-    localStorage.setItem('site_slides', JSON.stringify(slides));
+      // 3. Local Storage stage
+      localStorage.setItem('site_settings', JSON.stringify(settings));
+      localStorage.setItem('site_notices', noticesText);
+      localStorage.setItem('site_faculty', JSON.stringify(faculty));
+      localStorage.setItem('site_admins', JSON.stringify(activeAdmins));
+      localStorage.setItem('site_slides', JSON.stringify(slides));
 
-    // Broadcast synchronization message to all tabs
-    try {
-      const channel = new BroadcastChannel('hss_data_sync');
-      channel.postMessage({ type: 'UPDATE_DATA' });
-      channel.close();
-    } catch (e) {
-      console.warn('Sync broadcast not supported:', e);
-    }
-
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-    // Directory persistence MUST NOT depend on Firebase success.
-    // We try (A) local proxy writes when on localhost and (B) folderHandle writes when linked.
-    let didDirectoryWrite = false;
-
-    // (A) Write directly to files via local express proxy when running locally
-    if (isLocalhost) {
       try {
-        const res = await fetch('/api/save-config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            settings,
-            noticesText,
-            faculty,
-            admins: activeAdmins,
-            slidesText
-          })
-        });
-
-        if (res.ok) {
-          didDirectoryWrite = true;
-          fileSyncStatus += ', and locally written to slides/';
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          console.warn('Local proxy save failed:', errData);
-        }
-      } catch (err) {
-        console.warn('Local proxy server is not running or encountered an error:', err);
+        const channel = new BroadcastChannel('hss_data_sync');
+        channel.postMessage({ type: 'UPDATE_DATA' });
+        channel.close();
+      } catch (e) {
+        console.warn('Sync broadcast not supported:', e);
       }
-    }
 
-    // (B) If folderHandle is linked, always attempt writing directory files (even if Firebase succeeds/fails)
-    if (folderHandle) {
-      try {
-        const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
-        if (perm === 'granted') {
-          const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
+      updateStage('local_storage', 'success', 'Local preview state synchronized.', 70);
+      updateStage('files', 'loading', 'Writing files to disk...', 75);
+      await new Promise(resolve => setTimeout(resolve, 400));
 
-          const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
-          const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
-          const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
-          const ok4 = await writeLocalFile(folderHandle, 'admins.json', JSON.stringify(activeAdmins, null, 2));
-          const ok5 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
+      // 4. File system sync stage
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-          if (ok1 && ok2 && ok3 && ok4 && ok5) {
+      if (isLocalhost) {
+        try {
+          const res = await fetch('/api/save-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              settings,
+              noticesText,
+              faculty,
+              admins: activeAdmins,
+              slidesText
+            })
+          });
+
+          if (res.ok) {
             didDirectoryWrite = true;
-            if (!fileSyncStatus.includes('slides/')) fileSyncStatus += ', and local folder updated';
+            fileSyncStatus += ', and locally written to slides/';
+            fileWriteResults.push('Saved to workspace configurations via Express Proxy API');
           } else {
-            console.warn('folderHandle write incomplete:', { ok1, ok2, ok3, ok4, ok5 });
+            const errData = await res.json().catch(() => ({}));
+            console.warn('Local proxy save failed:', errData);
+            fileWriteResults.push('Proxy save rejected');
           }
-        } else {
-          console.warn('folderHandle permission denied');
+        } catch (err) {
+          console.warn('Local proxy server is not running or encountered an error:', err);
+          fileWriteResults.push('Proxy server offline');
         }
-      } catch (err) {
-        console.error('Error during auto-sync writing (folderHandle):', err);
       }
-    }
 
-    // (C) Optional: remote Netlify function when NOT localhost.
-    if (!isLocalhost && !didDirectoryWrite) {
-      try {
-        const remoteRes = await fetch('/.netlify/functions/save-config', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-save-secret': process.env.REACT_APP_SAVE_SECRET || ''
-          },
-          body: JSON.stringify({ settings, noticesText, faculty, admins: activeAdmins, slidesText })
-        });
-        if (remoteRes.ok) {
-          fileSyncStatus += ', plus remote Netlify backup';
-        } else {
-          const errData = await remoteRes.json().catch(() => ({}));
-          console.warn('Remote save failed:', errData);
+      if (folderHandle) {
+        try {
+          const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
+          if (perm === 'granted') {
+            const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
+
+            const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
+            const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
+            const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
+            const ok4 = await writeLocalFile(folderHandle, 'admins.json', JSON.stringify(activeAdmins, null, 2));
+            const ok5 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
+
+            if (ok1 && ok2 && ok3 && ok4 && ok5) {
+              didDirectoryWrite = true;
+              if (!fileSyncStatus.includes('slides/')) fileSyncStatus += ', and local folder updated';
+              fileWriteResults.push('Saved to local directory via Web File System Access API');
+            } else {
+              console.warn('folderHandle write incomplete:', { ok1, ok2, ok3, ok4, ok5 });
+              fileWriteResults.push('Folder write partial failure');
+            }
+          } else {
+            console.warn('folderHandle permission denied');
+            fileWriteResults.push('Folder write permission denied');
+          }
+        } catch (err) {
+          console.error('Error during auto-sync writing (folderHandle):', err);
+          fileWriteResults.push(`Folder write error: ${err.message || err}`);
         }
-      } catch (err) {
-        console.warn('Remote save error:', err);
       }
-    }
 
-    setSaveSuccess(`Configurations updated successfully: ${fileSyncStatus}!`);
-    setTimeout(() => setSaveSuccess(''), 5000);
+      const fileResultStr = fileWriteResults.length > 0 ? fileWriteResults.join(', ') : 'No directory handles or local server active';
+      updateStage('files', 'success', fileResultStr, 85);
+      updateStage('netlify', 'loading', 'Updating remote deployment backup...', 90);
+      await new Promise(resolve => setTimeout(resolve, 350));
+
+      // 5. Netlify backup stage
+      let netlifyStatus = 'Skipped (running on localhost)';
+      if (!isLocalhost && !didDirectoryWrite) {
+        try {
+          const remoteRes = await fetch('/.netlify/functions/save-config', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-save-secret': process.env.REACT_APP_SAVE_SECRET || ''
+            },
+            body: JSON.stringify({ settings, noticesText, faculty, admins: activeAdmins, slidesText })
+          });
+          if (remoteRes.ok) {
+            fileSyncStatus += ', plus remote Netlify backup';
+            netlifyStatus = 'Backup successfully saved on Netlify edge environment';
+          } else {
+            const errData = await remoteRes.json().catch(() => ({}));
+            console.warn('Remote save failed:', errData);
+            netlifyStatus = 'Netlify functions save failed';
+          }
+        } catch (err) {
+          console.warn('Remote save error:', err);
+          netlifyStatus = `Netlify error: ${err.message || err}`;
+        }
+      }
+
+      updateStage('netlify', 'success', netlifyStatus, 100);
+      await new Promise(resolve => setTimeout(resolve, 600)); // allow progress bar to finish animation
+
+      setSavePopupResult({
+        success: true,
+        title: 'Synchronized Successfully!',
+        message: `Cloud database is fully updated, local configs are cached, and all settings are active. Target sync result: ${fileSyncStatus}.`
+      });
+    } catch (err) {
+      console.error('Save sync failed:', err);
+      const errMsg = err && (err.message || err.error || String(err));
+      
+      // We need to find which stage is loading and mark it as error
+      setSaveStages(prev => {
+        const next = [...prev];
+        const loadingStageIdx = next.findIndex(s => s.status === 'loading');
+        if (loadingStageIdx !== -1) {
+          next[loadingStageIdx] = { ...next[loadingStageIdx], status: 'error', details: errMsg };
+        } else {
+          // Fallback if none are loading
+          const firstPending = next.find(s => s.status === 'pending');
+          if (firstPending) {
+            firstPending.status = 'error';
+            firstPending.details = errMsg;
+          }
+        }
+        return next;
+      });
+
+      setSavePopupResult({
+        success: false,
+        title: 'Synchronization Interrupted',
+        message: errMsg
+      });
+    }
   };
 
   // Downloader utilities
@@ -3733,7 +3903,11 @@ export default function AdminPortal() {
       : columns.map((column) => column.key);
 
     setCsvExportMode(mode);
-    setSelectedCsvEmployeeIndices(faculty.map((_, index) => index));
+    if (mode === 'tax') {
+      setSelectedCsvEmployeeIndices(selectedTaxEmployeeIndices.length > 0 ? selectedTaxEmployeeIndices : getVisibleTaxFaculty().map(emp => faculty.indexOf(emp)));
+    } else {
+      setSelectedCsvEmployeeIndices(faculty.map((_, index) => index));
+    }
     setSelectedCsvColumns(defaultColumnKeys);
     setCsvExportSearch('');
     setCsvExportDept('All');
@@ -4051,7 +4225,7 @@ export default function AdminPortal() {
 
           <div style="overflow: hidden; margin-bottom: 15px;">
             <div class="photo-box">
-              ${t.photo ? `<img src="${t.photo}" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : 'Affix Passport Photo'}
+              ${t.photo ? `<img src="${t.photo}" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : (t.designation && t.designation.toLowerCase() === 'principal' ? `<img src="/slides/Principal.jpg" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : 'Affix Passport Photo')}
             </div>
             
             <div style="margin-right: 160px;">
@@ -4193,6 +4367,7 @@ export default function AdminPortal() {
     printWindow.document.write(`
       <html>
         <head>
+          <base href="${window.location.origin}" />
           <title>Bulk Profiles - Govt HSS Shangus</title>
           <style>
             @media print {
@@ -4348,23 +4523,21 @@ export default function AdminPortal() {
                 </div>
               )}
 
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-950/20"
-              >
-                <Unlock size={16} />
-                Unlock Console
-              </button>
-              <div className="text-center mt-3">
-                <div className="text-xs text-slate-500 mb-2">or</div>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <button
+                  type="submit"
+                  className="w-full py-2.5 px-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-[11px] sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-orange-950/20 active:scale-[0.98]"
+                >
+                  <Unlock size={14} className="flex-shrink-0" />
+                  <span className="truncate">Unlock Console</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
-                  className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-2.5 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
                 >
-                  Sign in with Google
+                  <span className="truncate">Sign in with Google</span>
                 </button>
-
               </div>
             </form>
           )}
@@ -4374,7 +4547,156 @@ export default function AdminPortal() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-4">
+    <div className="min-h-screen bg-slate-950 text-slate-100 py-4 admin-portal-container">
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* Theme-Aware Contrast Enhancements for Inputs */
+        /* Light Theme overrides */
+        .theme-light .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
+        .theme-light .admin-portal-container select, 
+        .theme-light .admin-portal-container textarea {
+          border-color: #64748b !important; /* slate-500 border for high contrast */
+          color: #0f172a !important; /* slate-900 text */
+          background-color: #ffffff !important; /* white background */
+        }
+        .theme-light .admin-portal-container input::placeholder, 
+        .theme-light .admin-portal-container textarea::placeholder {
+          color: #64748b !important;
+          opacity: 0.85 !important;
+        }
+
+
+        /* Dark Themes overrides (default console styles) */
+        .theme-dark .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
+        .theme-dark .admin-portal-container select, 
+        .theme-dark .admin-portal-container textarea,
+        .theme-royal .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
+        .theme-royal .admin-portal-container select, 
+        .theme-royal .admin-portal-container textarea,
+        .theme-forest .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
+        .theme-forest .admin-portal-container select, 
+        .theme-forest .admin-portal-container textarea,
+        .theme-midnight .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
+        .theme-midnight .admin-portal-container select, 
+        .theme-midnight .admin-portal-container textarea {
+          border-color: #475569 !important; /* slate-600 border */
+          color: #ffffff !important;
+          background-color: #020617 !important; /* deep dark background */
+        }
+
+        /* Default fallback (Dark theme active by default in Admin Console wrapper) */
+        .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
+        .admin-portal-container select, 
+        .admin-portal-container textarea {
+          border-color: #475569 !important;
+          color: #ffffff !important;
+          background-color: #020617 !important;
+        }
+        
+        .admin-portal-container input:not([type="checkbox"]):not([type="radio"]):focus, 
+        .admin-portal-container select:focus, 
+        .admin-portal-container textarea:focus {
+          border-color: #f97316 !important; /* orange-500 active */
+          box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2) !important;
+        }
+        .admin-portal-container input::placeholder, 
+        .admin-portal-container textarea::placeholder {
+          color: #94a3b8 !important;
+          opacity: 0.85 !important;
+        }
+        
+        /* High Contrast Labels based on active Theme */
+        .theme-light .admin-portal-container label {
+          color: #0f172a !important; /* slate-900 for dark text in light theme */
+          font-weight: 800 !important;
+        }
+        .theme-dark .admin-portal-container label,
+        .theme-royal .admin-portal-container label,
+        .theme-forest .admin-portal-container label,
+        .theme-midnight .admin-portal-container label {
+          color: #f1f5f9 !important; /* slate-100 for light text in dark themes */
+          font-weight: 700 !important;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        /* Default label fallback */
+        .admin-portal-container label {
+          color: #cbd5e1 !important;
+          font-weight: 700 !important;
+        }
+
+        /* Enhancing Table Header and Border Contrast */
+        /* Light Theme Tables */
+        .theme-light .admin-portal-container table {
+          border: 1px solid #94a3b8 !important;
+        }
+        .theme-light .admin-portal-container th, 
+        .theme-light .admin-portal-container td {
+          border-color: #cbd5e1 !important; /* slate-300 */
+          color: #0f172a !important; /* slate-900 */
+        }
+        .theme-light .admin-portal-container thead tr {
+          background-color: #f1f5f9 !important; /* slate-100 */
+          border-bottom: 2px solid #94a3b8 !important;
+        }
+        .theme-light .admin-portal-container thead th {
+          color: #c2410c !important; /* high-contrast dark orange */
+        }
+
+        /* Dark Themes Tables */
+        .admin-portal-container table {
+          border: 1px solid #475569 !important;
+        }
+        .admin-portal-container th, 
+        .admin-portal-container td {
+          border-color: #334155 !important; /* slate-700 */
+          color: #f1f5f9 !important;
+        }
+        .admin-portal-container thead tr {
+          background-color: #0f172a !important;
+          border-bottom: 2px solid #475569 !important;
+        }
+        .admin-portal-container thead th {
+          color: #f97316 !important;
+        }
+
+        /* Button Contrast Enhancements */
+        /* Secondary buttons and outline buttons in dark themes */
+        .admin-portal-container button[class*="bg-slate-900"],
+        .admin-portal-container button[class*="bg-slate-800"],
+        .admin-portal-container button[class*="bg-red-950/30"],
+        .admin-portal-container button[class*="border-slate-700"],
+        .admin-portal-container button[class*="border-slate-800"] {
+          border-color: #64748b !important; /* slate-500 */
+          color: #f1f5f9 !important;
+          background-color: #1e293b !important; /* base slate-800 */
+        }
+        .admin-portal-container button[class*="bg-slate-900"]:hover,
+        .admin-portal-container button[class*="bg-slate-800"]:hover,
+        .admin-portal-container button[class*="bg-red-950/30"]:hover {
+          background-color: #334155 !important; /* hover slate-700 */
+          border-color: #94a3b8 !important; /* hover slate-400 */
+        }
+
+        /* Secondary buttons and outline buttons in light theme */
+        .theme-light .admin-portal-container button[class*="bg-slate-900"],
+        .theme-light .admin-portal-container button[class*="bg-slate-800"],
+        .theme-light .admin-portal-container button[class*="border-slate-700"],
+        .theme-light .admin-portal-container button[class*="border-slate-800"] {
+          border-color: #64748b !important;
+          color: #0f172a !important;
+          background-color: #f1f5f9 !important;
+        }
+        .theme-light .admin-portal-container button[class*="bg-slate-900"]:hover,
+        .theme-light .admin-portal-container button[class*="bg-slate-800"]:hover {
+          background-color: #e2e8f0 !important;
+          border-color: #475569 !important;
+        }
+
+        /* Fix hover text visibility inside lists with solid dark hover backgrounds */
+        .admin-portal-container .hover\:bg-slate-900:hover,
+        .admin-portal-container .hover\:bg-slate-900:hover * {
+          color: #ffffff !important;
+        }
+      `}} />
       <div className="max-w-6xl mx-auto px-4">
 
         {/* Header */}
@@ -4428,6 +4750,112 @@ export default function AdminPortal() {
             </button>
           </div>
         </div>
+
+        {/* Save & Sync Inline Bar */}
+        {saveProgress !== null && (
+          <div className="bg-slate-900 border-2 border-slate-600 rounded-xl p-3 mb-4 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
+            {/* Glowing top line indicating active process */}
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500 animate-pulse" />
+            
+            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+              {/* Left Side: status info & compact checklist dots */}
+              <div className="flex flex-wrap items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2">
+                  {!savePopupResult ? (
+                    <Loader2 className="w-4 h-4 text-orange-400 animate-spin flex-shrink-0" />
+                  ) : savePopupResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  )}
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-100">
+                    {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
+                  </span>
+                </div>
+                
+                <span className="text-[10px] text-slate-500 hidden sm:inline">|</span>
+                
+                {/* Slim Checklist inline */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {saveStages.map((stage) => {
+                    let color = "text-slate-500 border-slate-800 bg-slate-950/40";
+                    let dotColor = "bg-slate-600";
+                    if (stage.status === 'loading') {
+                      color = "text-orange-400 border-orange-500/30 bg-orange-950/20 animate-pulse";
+                      dotColor = "bg-orange-400 animate-ping";
+                    } else if (stage.status === 'success') {
+                      color = "text-emerald-400 border-emerald-500/30 bg-emerald-950/20";
+                      dotColor = "bg-emerald-400";
+                    } else if (stage.status === 'error') {
+                      color = "text-red-400 border-red-500/30 bg-red-950/20 font-bold";
+                      dotColor = "bg-red-400";
+                    }
+                    
+                    return (
+                      <span 
+                        key={stage.id} 
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded border flex items-center gap-1.5 transition-all ${color}`}
+                        title={stage.label + (stage.details ? `: ${stage.details}` : '')}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                        <span>{stage.label.split(' ')[0]}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Side: Progress Bar & Dismiss/Retry */}
+              <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                <div className="flex-grow md:w-48">
+                  <div className="w-full h-2 bg-slate-950 border border-slate-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500 transition-all duration-300 ease-out"
+                      style={{ width: `${saveProgress}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="text-xs font-black text-slate-100 font-mono w-8 text-right">{saveProgress}%</span>
+                
+                {savePopupResult && (
+                  <div className="flex items-center gap-1.5 ml-2">
+                    {!savePopupResult.success && (
+                      <button
+                        onClick={() => {
+                          setSaveProgress(null);
+                          setSavePopupResult(null);
+                        }}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-[10px] font-bold transition-all"
+                      >
+                        Dismiss
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (savePopupResult.success) {
+                          setSaveProgress(null);
+                          setSavePopupResult(null);
+                        } else {
+                          handleSaveToLocalStorage();
+                        }
+                      }}
+                      className={`px-3 py-1 rounded text-[10px] font-extrabold transition-all ${savePopupResult.success ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-400' : 'bg-red-600 hover:bg-red-500 text-white border border-red-500'}`}
+                    >
+                      {savePopupResult.success ? 'OK' : 'Retry'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Detailed message/error if present */}
+            {savePopupResult && savePopupResult.message && (
+              <div className="mt-2 text-[10px] text-slate-300 bg-slate-950/60 border border-slate-800 rounded p-2 font-medium leading-relaxed">
+                {savePopupResult.message}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Global Notifications */}
         {saveSuccess && (
@@ -5288,23 +5716,51 @@ export default function AdminPortal() {
                     </div>
                     <div>
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Designation</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Lecturer, Teacher, Vice Principal"
-                        value={newTeacher.designation}
-                        onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
+                      <select
+                        value={STANDARD_DESIGNATIONS.includes(newTeacher.designation) ? newTeacher.designation : 'Other'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewTeacher({ ...newTeacher, designation: val === 'Other' ? '' : val });
+                        }}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
-                      />
+                      >
+                        <option value="">Select Designation</option>
+                        {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        <option value="Other">Other...</option>
+                      </select>
+                      {!STANDARD_DESIGNATIONS.includes(newTeacher.designation) && (
+                        <input
+                          type="text"
+                          placeholder="Custom Designation"
+                          value={newTeacher.designation}
+                          onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
+                          className="w-full mt-1 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Subject</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Botany"
-                        value={newTeacher.subject}
-                        onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
+                      <select
+                        value={STANDARD_SUBJECTS.includes(newTeacher.subject) ? newTeacher.subject : (newTeacher.subject ? 'Other' : '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewTeacher({ ...newTeacher, subject: val === 'Other' ? ' ' : val });
+                        }}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
-                      />
+                      >
+                        <option value="">Select Subject</option>
+                        {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                        <option value="Other">Other...</option>
+                      </select>
+                      {newTeacher.subject && !STANDARD_SUBJECTS.includes(newTeacher.subject) && (
+                        <input
+                          type="text"
+                          placeholder="Custom Subject"
+                          value={newTeacher.subject.trim()}
+                          onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
+                          className="w-full mt-1 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Department</label>
@@ -5323,6 +5779,7 @@ export default function AdminPortal() {
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
                         <option value="Humanities">Humanities</option>
+                        <option value="Science/Humanities">Science/Humanities</option>
                         <option value="Secondary">Secondary (9th-10th)</option>
                         <option value="MTS">MTS (Multi-Tasking Staff)</option>
                         <option value="Other">Other...</option>
@@ -5559,20 +6016,48 @@ export default function AdminPortal() {
                                     </td>
                                     <td className="p-1">
                                       <div className="space-y-1">
-                                        <input
-                                          type="text"
-                                          placeholder="Role/Designation"
-                                          value={editFacultyData.designation}
-                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, designation: e.target.value })}
+                                        <select
+                                          value={STANDARD_DESIGNATIONS.includes(editFacultyData.designation) ? editFacultyData.designation : 'Other'}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEditFacultyData({ ...editFacultyData, designation: val === 'Other' ? '' : val });
+                                          }}
                                           className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                                        />
-                                        <input
-                                          type="text"
-                                          placeholder="Subject"
-                                          value={editFacultyData.subject}
-                                          onChange={(e) => setEditFacultyData({ ...editFacultyData, subject: e.target.value })}
+                                        >
+                                          <option value="">Designation</option>
+                                          {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                                          <option value="Other">Other...</option>
+                                        </select>
+                                        {!STANDARD_DESIGNATIONS.includes(editFacultyData.designation) && (
+                                          <input
+                                            type="text"
+                                            placeholder="Custom Designation"
+                                            value={editFacultyData.designation}
+                                            onChange={(e) => setEditFacultyData({ ...editFacultyData, designation: e.target.value })}
+                                            className="w-full px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                          />
+                                        )}
+                                        <select
+                                          value={STANDARD_SUBJECTS.includes(editFacultyData.subject) ? editFacultyData.subject : (editFacultyData.subject ? 'Other' : '')}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEditFacultyData({ ...editFacultyData, subject: val === 'Other' ? ' ' : val });
+                                          }}
                                           className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
-                                        />
+                                        >
+                                          <option value="">Subject</option>
+                                          {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                          <option value="Other">Other...</option>
+                                        </select>
+                                        {editFacultyData.subject && !STANDARD_SUBJECTS.includes(editFacultyData.subject) && (
+                                          <input
+                                            type="text"
+                                            placeholder="Custom Subject"
+                                            value={editFacultyData.subject.trim()}
+                                            onChange={(e) => setEditFacultyData({ ...editFacultyData, subject: e.target.value })}
+                                            className="w-full px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                          />
+                                        )}
                                       </div>
                                     </td>
                                     <td className="p-1">
@@ -5591,6 +6076,7 @@ export default function AdminPortal() {
                                         <option value="Administration">Administration</option>
                                         <option value="Science">Science</option>
                                         <option value="Humanities">Humanities</option>
+                                        <option value="Science/Humanities">Science/Humanities</option>
                                         <option value="Secondary">Secondary (9th-10th)</option>
                                         <option value="MTS">MTS (Multi-Tasking Staff)</option>
                                         <option value="Other">Other...</option>
@@ -5858,11 +6344,16 @@ export default function AdminPortal() {
                       Export CSV
                     </button>
                     <button
-                      onClick={() => printTaxSheets(getFilteredTaxFaculty())}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500"
+                      onClick={() => printTaxSheets(getSelectedVisibleTaxFaculty())}
+                      disabled={getSelectedVisibleTaxFaculty().length === 0}
+                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        getSelectedVisibleTaxFaculty().length > 0
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          : 'bg-slate-800 text-slate-500 border-slate-700'
+                      }`}
                     >
                       <Printer size={12} />
-                      Print All
+                      Print Selected ({getSelectedVisibleTaxFaculty().length})
                     </button>
                   </div>
                 </div>
@@ -5887,17 +6378,69 @@ export default function AdminPortal() {
                   </div>
                   {/* Divider */}
                   <div className="w-px h-5 bg-slate-700 shrink-0 hidden sm:block" />
-                  {/* Inactive & Deployed toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setShowHiddenInTax(!showHiddenInTax)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold border shrink-0 transition-colors ${showHiddenInTax
-                      ? 'bg-amber-600 hover:bg-amber-500 text-slate-100 border-amber-500 font-extrabold shadow-sm'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                      }`}
-                  >
-                    {showHiddenInTax ? 'Hide Inactive / Deployed' : 'Show Inactive / Deployed'}
-                  </button>
+                  {/* Category filters Dropdown Checklist */}
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsTaxFilterDropdownOpen(!isTaxFilterDropdownOpen)}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span>Filter Categories ({selectedTaxCategories.length})</span>
+                      <ChevronDown size={10} className={`transition-transform duration-200 ${isTaxFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isTaxFilterDropdownOpen && (
+                      <>
+                        {/* Overlay to close on click outside */}
+                        <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsTaxFilterDropdownOpen(false)} />
+                        
+                        {/* Dropdown panel */}
+                        <div className="absolute right-0 mt-1.5 z-50 w-64 bg-slate-900 border border-slate-700 text-slate-200 rounded-xl shadow-2xl p-3 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 mb-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Categories</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTaxCategories(['teaching_regular', 'non_teaching_regular'])}
+                              className="text-[9px] text-orange-400 hover:text-orange-300 font-extrabold uppercase"
+                            >
+                              Reset Default
+                            </button>
+                          </div>
+                          
+                          <div className="space-y-1.5 max-h-[220px] overflow-y-auto custom-scrollbar">
+                            {TAX_CATEGORIES.map((cat) => {
+                              const isChecked = selectedTaxCategories.includes(cat.key);
+                              return (
+                                <label
+                                  key={cat.key}
+                                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-800/60 cursor-pointer transition-colors text-[11px] select-none"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      if (isChecked) {
+                                        if (selectedTaxCategories.length > 1) {
+                                          setSelectedTaxCategories(selectedTaxCategories.filter(k => k !== cat.key));
+                                        }
+                                      } else {
+                                        setSelectedTaxCategories([...selectedTaxCategories, cat.key]);
+                                      }
+                                    }}
+                                    className="rounded border-slate-700 text-orange-500 focus:ring-orange-500 bg-slate-950 w-3.5 h-3.5"
+                                  />
+                                  <div className="flex-1 flex items-center justify-between min-w-0">
+                                    <span className="truncate font-semibold text-slate-200">{cat.label}</span>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${cat.color.split(' ')[0]}`} />
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   {/* Inline search */}
                   <input
                     type="text"
@@ -6091,21 +6634,35 @@ export default function AdminPortal() {
                 <div className="border border-slate-500/50 rounded-xl overflow-hidden bg-slate-900/40 shadow-sm ring-1 ring-slate-500/20">
                   <div className="overflow-x-auto custom-scrollbar pb-1.5">
                     {(() => {
-                      // Classify employee as Non-Teaching (MTS, Lab Asst, Peon, etc.)
-                      const isNonTeaching = (emp) => {
-                        const d = (emp.designation || '').toLowerCase();
-                        const dept = (emp.department || '').toLowerCase();
-                        return dept === 'mts' || d.includes('mts') || d.includes('lab assistant') ||
-                          d.includes('lab bearer') || d.includes('library bearer') ||
-                          d.includes('peon') || d.includes('chowkidar') || d.includes('safaiwalla') ||
-                          d.includes('class iv') || d.includes('driver') || d.includes('attendant');
-                      };
-
                       // Show all non-hidden employees matching search, excluding inactive and deployed in by default
-                      const allFiltered = getFilteredTaxFaculty();
+                      const allFiltered = getVisibleTaxFaculty();
 
-                      const teachingEmps = allFiltered.filter(e => !isNonTeaching(e));
-                      const nonTeachingEmps = allFiltered.filter(e => isNonTeaching(e));
+                      const teachingEmps = [];
+                      const nonTeachingEmps = [];
+                      const deployedInEmps = [];
+                      const deployedOutEmps = [];
+                      const retiredEmps = [];
+                      const otherInactiveEmps = [];
+                      const transferredEmps = [];
+
+                      allFiltered.forEach(emp => {
+                        const cat = getEmployeeTaxCategory(emp);
+                        if (cat === 'teaching_regular') {
+                          teachingEmps.push(emp);
+                        } else if (cat === 'non_teaching_regular') {
+                          nonTeachingEmps.push(emp);
+                        } else if (cat === 'deployed_in') {
+                          deployedInEmps.push(emp);
+                        } else if (cat === 'deployed_out') {
+                          deployedOutEmps.push(emp);
+                        } else if (cat === 'retired') {
+                          retiredEmps.push(emp);
+                        } else if (cat === 'transferred') {
+                          transferredEmps.push(emp);
+                        } else {
+                          otherInactiveEmps.push(emp);
+                        }
+                      });
 
                       const renderEmployeeRow = (emp, catIndex) => {
                         const origIdx = faculty.indexOf(emp);
@@ -6117,6 +6674,14 @@ export default function AdminPortal() {
 
                         return (
                           <tr key={origIdx} className="border-b border-slate-700/40 hover:bg-slate-800/30 transition-colors">
+                            <td className="p-3 text-center w-10">
+                              <input
+                                type="checkbox"
+                                className="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
+                                checked={selectedTaxEmployeeIndices.includes(origIdx)}
+                                onChange={() => toggleEmployeeTaxSelection(emp)}
+                              />
+                            </td>
                             <td className="p-3 text-center w-10">
                               <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-teal-700 text-white text-[10px] font-bold shadow-sm select-none">{catIndex + 1}</span>
                             </td>
@@ -6141,14 +6706,14 @@ export default function AdminPortal() {
                                   <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-wider ${calc.regimeType === 'old' ? 'regime-badge-old' : 'regime-badge-new'}`}>{calc.regimeConfig.label}</span>
                                 )}
                                 {emp.hidden && (
-                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-red-950/60 text-red-400 border border-red-800/50 uppercase tracking-tight">
+                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-extrabold badge-red-custom uppercase tracking-tight">
                                     {emp.inactiveReason || 'Inactive'}
                                   </span>
                                 )}
                                 {emp.if_deployed && (emp.if_deployed === 'in' || emp.if_deployed === 'out' || emp.if_deployed === 'Yes') && (
-                                  <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-tight border ${emp.if_deployed === 'in' || emp.if_deployed === 'Yes'
-                                    ? 'bg-blue-950/60 text-blue-400 border-blue-800/50'
-                                    : 'bg-amber-950/60 text-amber-300 border-amber-800/50'
+                                  <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-tight ${emp.if_deployed === 'in' || emp.if_deployed === 'Yes'
+                                    ? 'badge-blue-custom'
+                                    : 'badge-amber-custom'
                                     }`}>
                                     {emp.if_deployed === 'in' || emp.if_deployed === 'Yes' ? 'Dep. In' : 'Dep. Out'}
                                   </span>
@@ -6221,7 +6786,7 @@ export default function AdminPortal() {
 
                       const CategoryHeader = ({ label, count, accent }) => (
                         <tr>
-                          <td colSpan="8" className="px-4 py-2.5 bg-slate-800 border-y border-slate-600">
+                          <td colSpan="9" className="px-4 py-2.5 bg-slate-800 border-y border-slate-600">
                             <div className="flex items-center gap-2.5">
                               <span className={`px-3 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${accent}`}>{label}</span>
                               <span className="text-[10px] text-slate-400 font-mono font-semibold">{count} member{count !== 1 ? 's' : ''}</span>
@@ -6244,6 +6809,14 @@ export default function AdminPortal() {
                         <table className="w-full text-left border-collapse tax-table">
                           <thead>
                             <tr style={{ background: '#1e293b', color: '#fff', borderBottom: '2px solid #475569' }} className="uppercase text-[9px] font-bold tracking-wide">
+                              <th style={{ color: '#fff' }} className="p-3 w-10 text-center">
+                                <input
+                                  type="checkbox"
+                                  className="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
+                                  checked={allFiltered.length > 0 && allFiltered.every(emp => selectedTaxEmployeeIndices.includes(faculty.indexOf(emp)))}
+                                  onChange={() => handleSelectAllTaxVisible(allFiltered)}
+                                />
+                              </th>
                               <th style={{ color: '#fff' }} className="p-3 w-10 text-center">#</th>
                               <th style={{ color: '#fff' }} className="p-3">CPIS / PAN</th>
                               <th style={{ color: '#fff' }} className="p-3">Name / Designation</th>
@@ -6265,6 +6838,36 @@ export default function AdminPortal() {
                               <>
                                 <CategoryHeader label="Non-Teaching Staff" count={nonTeachingEmps.length} accent="bg-violet-700 text-white border-violet-600" />
                                 {nonTeachingEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                            {deployedInEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Deployed In Staff" count={deployedInEmps.length} accent="bg-emerald-700 text-white border-emerald-600" />
+                                {deployedInEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                            {deployedOutEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Deployed Out Staff" count={deployedOutEmps.length} accent="bg-amber-700 text-white border-amber-600" />
+                                {deployedOutEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                            {retiredEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Retired Staff" count={retiredEmps.length} accent="bg-red-700 text-white border-red-600" />
+                                {retiredEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                            {otherInactiveEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Drawing Pay / Other Inactive Staff" count={otherInactiveEmps.length} accent="bg-gray-700 text-white border-gray-600" />
+                                {otherInactiveEmps.map((emp, i) => renderEmployeeRow(emp, i))}
+                              </>
+                            )}
+                            {transferredEmps.length > 0 && (
+                              <>
+                                <CategoryHeader label="Transferred Staff" count={transferredEmps.length} accent="bg-slate-700 text-white border-slate-600" />
+                                {transferredEmps.map((emp, i) => renderEmployeeRow(emp, i))}
                               </>
                             )}
                           </tbody>
@@ -7206,26 +7809,23 @@ export default function AdminPortal() {
         {showFullEditModal && fullEditData && (
           <div className="fixed inset-0 z-[90] flex items-stretch justify-end bg-black/70 backdrop-blur-sm">
             <div className="flex-1" onClick={closeFullEdit} />
-            {/* Panel — hardcoded dark so it's unaffected by theme CSS variables */}
+            {/* Panel — theme-responsive */}
             <div
-              className="w-full max-w-2xl flex flex-col shadow-2xl animate-in slide-in-from-right-8 duration-300 overflow-hidden border-l border-white/10"
-              style={{ background: '#0f172a', color: '#e2e8f0' }}
+              className="employee-edit-modal w-full max-w-2xl flex flex-col shadow-2xl animate-in slide-in-from-right-8 duration-300 overflow-hidden border-l border-[var(--border-ui)] bg-[var(--bg-card)] text-[var(--text-main)]"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3.5 border-b flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.4)' }}>
+              <div className="flex items-center justify-between px-5 py-3.5 border-b flex-shrink-0 border-[var(--border-ui)] bg-[var(--bg-page)]/40">
                 <div>
-                  <h3 className="font-bold text-sm font-title tracking-wide" style={{ color: '#fb923c' }}>Edit Employee Record</h3>
-                  <p className="text-[11px] mt-0.5" style={{ color: '#94a3b8' }}>{fullEditData.name || 'Unnamed'} — All fields editable below</p>
+                  <h3 className="font-bold text-sm font-title tracking-wide text-orange-500">Edit Employee Record</h3>
+                  <p className="text-[11px] mt-0.5 text-[var(--text-muted)]">{fullEditData.name || 'Unnamed'} — All fields editable below</p>
                 </div>
-                <button onClick={closeFullEdit} className="p-1.5 rounded-lg transition-colors" style={{ color: '#94a3b8' }}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}>
+                <button onClick={closeFullEdit} className="p-1.5 rounded-lg transition-colors text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--border-ui)]/40">
                   <X size={18} />
                 </button>
               </div>
 
               {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-6" style={{ scrollbarColor: '#334155 #0f172a' }}>
+              <div className="flex-1 overflow-y-auto p-5 space-y-6" style={{ scrollbarColor: 'var(--text-muted) transparent' }}>
 
                 {/* Section: Basic Info */}
                 <section>
@@ -7236,8 +7836,66 @@ export default function AdminPortal() {
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <FInput field="name" label="Full Name" data={fullEditData} onChange={fullEditField} required />
-                    <FInput field="designation" label="Present Designation" data={fullEditData} onChange={fullEditField} required />
-                    <FInput field="subject" label="Subject/s Teaching (shown on website)" data={fullEditData} onChange={fullEditField} />
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>Present Designation <span className="text-orange-500">*</span></label>
+                      <select
+                        value={STANDARD_DESIGNATIONS.includes(fullEditData.designation) ? fullEditData.designation : 'Other'}
+                        onChange={e => {
+                          const val = e.target.value;
+                          fullEditField('designation', val === 'Other' ? '' : val);
+                        }}
+                        className={panelInput}
+                        style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                      >
+                        <option value="">Select Designation</option>
+                        {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        <option value="Other">Other...</option>
+                      </select>
+                      {!STANDARD_DESIGNATIONS.includes(fullEditData.designation) && (
+                        <input
+                          type="text"
+                          placeholder="Enter custom designation..."
+                          value={fullEditData.designation || ''}
+                          onChange={e => fullEditField('designation', e.target.value)}
+                          className={panelInput + " mt-1.5 font-semibold"}
+                          style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className={panelLabel} style={panelLabelStyle}>Subject/s Teaching (shown on website)</label>
+                      <select
+                        value={STANDARD_SUBJECTS.includes(fullEditData.subject) ? fullEditData.subject : (fullEditData.subject ? 'Other' : '')}
+                        onChange={e => {
+                          const val = e.target.value;
+                          fullEditField('subject', val === 'Other' ? ' ' : val);
+                        }}
+                        className={panelInput}
+                        style={panelInputStyle}
+                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                      >
+                        <option value="">Select Subject</option>
+                        {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                        <option value="Other">Other...</option>
+                      </select>
+                      {fullEditData.subject && !STANDARD_SUBJECTS.includes(fullEditData.subject) && (
+                        <input
+                          type="text"
+                          placeholder="Enter custom subject..."
+                          value={(fullEditData.subject || '').trim()}
+                          onChange={e => fullEditField('subject', e.target.value)}
+                          className={panelInput + " mt-1.5 font-semibold"}
+                          style={panelInputStyle}
+                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                        />
+                      )}
+                    </div>
                     <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
                     <FInput field="email" label="Email Address" data={fullEditData} onChange={fullEditField} type="email" />
                     <FInput field="mobile" label="Contact Number" data={fullEditData} onChange={fullEditField} />
@@ -7738,6 +8396,8 @@ export default function AdminPortal() {
             </div>
           </div>
         )}
+
+
       </div>
     </div>
   );

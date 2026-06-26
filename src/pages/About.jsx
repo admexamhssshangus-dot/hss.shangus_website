@@ -31,15 +31,75 @@ export default function About() {
 
       {/* Glimpse + Vision & Mission (moved prospectus content) */}
       <div className="max-w-6xl mx-auto px-4 py-12 relative -mt-16 z-20">
-        <div className="bg-white rounded-xl shadow-xl p-8 border-t-4 border-teal-500 mb-8">
-          <h3 className="text-2xl font-bold text-teal-800 mb-4">Glimpse of the Institution</h3>
-          <p className="text-slate-700 leading-relaxed">A haven of learning in the heart of the Kashmir Valley, Govt. Higher Secondary School (HSS) Shangus provides a vibrant educational environment surrounded by lush greenery. Established in 1917, the school has a long tradition of academic excellence, modern facilities, and a commitment to holistic development through curricular and co-curricular activities.</p>
-          <p className="text-slate-700 leading-relaxed mt-3">Our campus offers spacious classrooms, well-equipped laboratories, a comprehensive library, and opportunities for sports and cultural activities. We focus on nurturing critical thinking, leadership skills, and ethical values in every student.</p>
+        <div className="bg-white rounded-xl shadow-xl p-8 border-t-4 border-teal-500 mb-8 relative overflow-hidden">
+          {/* Large decorative chinar leaf watermark for the whole card */}
+          <svg className="absolute -right-12 -top-8 w-64 h-64 text-teal-500/[0.04] pointer-events-none select-none" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
+          </svg>
+          <svg className="absolute -left-10 bottom-0 w-48 h-48 text-teal-500/[0.03] pointer-events-none select-none rotate-45" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
+          </svg>
+
+          <h3 className="text-2xl font-bold text-teal-800 mb-6 relative z-10">Glimpse of the Institution</h3>
+
+          {/* A Haven of Learning */}
+          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-r from-teal-50/30 to-transparent">
+            {/* Chinar leaf – right side */}
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-teal-600/[0.06] pointer-events-none select-none" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
+            </svg>
+            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">A Haven of Learning in the Heart of the Kashmir Valley</h4>
+            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+              Nestled amidst the breathtaking mountains of the Kashmir Valley, <strong className="text-teal-800">Govt. Higher Secondary School (HSS) Shangus</strong> Anantnag is a vibrant educational institution renowned for its scenic location and commitment to academic excellence. The school's expansive campus, surrounded by lush greenery and the calming presence of the Shangus Forest Lodge, offers a serene and inspiring learning environment. Adorned by neighboring institutions like the esteemed Govt. Girls High School Shangus, Sub District Hospital Shangus, and the fire services garrison, HSS Shangus stands as a symbol of community and collaboration within the greater Shangus area.
+            </p>
+          </div>
+
+          {/* A Legacy of Education Since 1917 */}
+          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-l from-amber-50/30 to-transparent">
+            {/* Chinar leaf – left side, rotated */}
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-amber-600/[0.06] pointer-events-none select-none -rotate-12" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
+            </svg>
+            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">A Legacy of Education Since 1917</h4>
+            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+              Established in 1917 as a primary school, HSS Shangus boasts a rich history of serving the educational needs of the region. Its steady progression, with upgrades in 1978–79 and the achievement of Higher Secondary status in 2005, reflects the school's enduring commitment to providing quality instruction to generations of students. Our dedicated faculty, comprised of experienced educators, distinguished scholars, exceptional technocrats, and skilled professionals, fosters a stimulating academic environment for learners of all backgrounds.
+            </p>
+          </div>
+
+          {/* Excellence in Academics and Beyond */}
+          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-r from-teal-50/30 to-transparent">
+            {/* Chinar leaf – right side */}
+            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-teal-600/[0.06] pointer-events-none select-none rotate-12" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
+            </svg>
+            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">Excellence in Academics and Beyond</h4>
+            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+              HSS Shangus proudly serves a wide catchment area, attracting students from Kachwan to Uttresoo and beyond due to its reputation for exceptional teaching. Our consistent record of strong student performance, with numerous distinctions earned in both 10th and 12th class examinations, stands as a testament to the school's focus on academic rigor. Beyond the classroom, we nurture well-rounded individuals by providing enriching extracurricular activities, fostering leadership opportunities, and emphasizing the development of essential life skills. Our modern facilities, including spacious classrooms, well-equipped laboratories, and a comprehensive library, create a dynamic environment where students can explore their interests and reach their full potential.
+            </p>
+          </div>
+
+          {/* Shaping Tomorrow's Leaders */}
+          <div className="mb-6 relative overflow-hidden rounded-lg p-4 bg-gradient-to-l from-amber-50/30 to-transparent">
+            {/* Chinar leaf – left side */}
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-amber-600/[0.06] pointer-events-none select-none rotate-[20deg]" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
+            </svg>
+            <h4 className="text-base font-bold text-slate-900 mb-2 relative z-10">Shaping Tomorrow's Leaders</h4>
+            <p className="text-slate-700 leading-relaxed text-[14.5px] relative z-10">
+              At HSS Shangus, we ignite a passion for lifelong learning and instill a strong sense of responsibility within our students. Our faculty employs innovative teaching methods, emphasizing both the acquisition of knowledge and the development of critical thinking abilities. We are deeply committed to preparing our students not only for academic success but also to become engaged citizens who make meaningful contributions to their communities and the world.
+            </p>
+          </div>
+
+          {/* CTA */}
+          <div className="pt-4 border-t border-slate-200 relative z-10">
+            <h4 className="text-sm font-bold text-teal-700 mb-1">Explore, Discover, Connect</h4>
+            <p className="text-slate-600 text-[13.5px] leading-relaxed">Tour our vibrant campus, explore our curriculum, and connect with our admissions team to learn more!</p>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* VISION CARD */}
-          <div className="relative overflow-hidden rounded-2xl border border-amber-250 bg-gradient-to-br from-white to-amber-50/30 p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group">
+          <div className="relative overflow-hidden rounded-2xl border border-amber-200 bg-white bg-gradient-to-br from-white to-amber-50/40 p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group">
             {/* Background Decorative Large Letter */}
             <div className="absolute right-4 bottom-[-10px] text-8xl font-black text-amber-500/10 select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
               V
@@ -50,11 +110,11 @@ export default function About() {
                 <Eye size={24} className="stroke-[2]" />
               </div>
               <div className="space-y-2.5">
-                <h4 className="text-xl font-bold text-slate-800 tracking-wide">
+                <h4 className="text-xl font-bold text-slate-900 tracking-wide">
                   Vision
                 </h4>
                 <div className="w-12 h-1 bg-amber-500 rounded-full" />
-                <p className="text-slate-600 leading-relaxed text-sm md:text-[14.5px] font-medium">
+                <p className="text-slate-800 leading-relaxed text-sm md:text-[14.5px] font-medium">
                   To develop an institution that empowers a generation of leaders defined by academic excellence and a commitment to society.
                 </p>
               </div>
@@ -62,7 +122,7 @@ export default function About() {
           </div>
 
           {/* MISSION CARD */}
-          <div className="relative overflow-hidden rounded-2xl border border-teal-200 bg-gradient-to-br from-white to-teal-50/30 p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group">
+          <div className="relative overflow-hidden rounded-2xl border border-teal-200 bg-white bg-gradient-to-br from-white to-teal-50/40 p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group">
             {/* Background Decorative Large Letter */}
             <div className="absolute right-4 bottom-[-10px] text-8xl font-black text-teal-500/10 select-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
               M
@@ -73,11 +133,11 @@ export default function About() {
                 <Compass size={24} className="stroke-[2]" />
               </div>
               <div className="space-y-2.5">
-                <h4 className="text-xl font-bold text-slate-800 tracking-wide">
+                <h4 className="text-xl font-bold text-slate-900 tracking-wide">
                   Mission
                 </h4>
                 <div className="w-12 h-1 bg-teal-600 rounded-full" />
-                <p className="text-slate-600 leading-relaxed text-sm md:text-[14.5px] font-medium">
+                <p className="text-slate-800 leading-relaxed text-sm md:text-[14.5px] font-medium">
                   To equip students with cutting-edge resources in Science and Humanities, cultivating the skills and character needed to lead in a complex world.
                 </p>
               </div>
