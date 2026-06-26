@@ -410,24 +410,10 @@ export default function AdminMessages() {
           }
         }
 
-        // 2. Try fetching from Local Node Backend (Development)
-        let localBackendMessages = [];
-        try {
-          const res = await fetch('/api/messages');
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              localBackendMessages = data;
-            }
-          }
-        } catch (err) {
-          // ignore
-        }
-
         if (!mounted) return;
 
         // Combine, deduplicate by createdAt/email/message, and sort
-        const allMessages = [...firestoreMessages, ...localBackendMessages, ...local];
+        const allMessages = [...firestoreMessages, ...local];
         const uniqueMessagesMap = new Map();
         allMessages.forEach(m => {
           const key = `${m.createdAt}-${m.email}-${m.name}`;
