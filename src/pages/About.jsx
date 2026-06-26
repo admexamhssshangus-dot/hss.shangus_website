@@ -1,14 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, BookOpen, Award, Globe, Eye, Compass } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import DynamicPageRenderer from '../components/DynamicPageRenderer';
 
 export default function About() {
-  // To use a local background image, add a file under `src/images` (eg. `about-bg.jpg`) and
-  // uncomment the import below then set `aboutBg` to the imported variable.
-  // Example:
-  // import aboutBgLocal from '../images/about-bg.jpg'
-  // const aboutBg = aboutBgLocal
+  const [dynamicData, setDynamicData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const snap = await getDoc(doc(db, 'site', 'page_about'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.blocks && data.blocks.length > 0) {
+            setDynamicData(data);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load dynamic page content", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
+        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
+      </div>
+    );
+  }
+
+  if (dynamicData) {
+    return <DynamicPageRenderer pageData={dynamicData} pageId="about" />;
+  }
+
   const aboutBg = '/slides/aboutus.jpg';
   return (
     <div className="w-full mb-20">

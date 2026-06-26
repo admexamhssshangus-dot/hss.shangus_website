@@ -10,6 +10,7 @@ import Admissions from './pages/Admissions';
 import AdminMessages from './pages/AdminMessages';
 import AdminPortal from './pages/AdminPortal';
 import NoticeBoard from './pages/NoticeBoard';
+import DynamicPage from './pages/DynamicPage';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -39,6 +40,7 @@ function App() {
             <Route path="/notices" element={<NoticeBoard />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
             <Route path="/admin/portal" element={<AdminPortal />} />
+            <Route path="/:pageId" element={<DynamicPage />} />
           </Routes>
         </main>
 

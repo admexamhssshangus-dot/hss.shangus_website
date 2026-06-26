@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Phone, Mail, X, Menu, Lock, Unlock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
 import schoolLogo from '../images/logo.png';
@@ -39,6 +41,37 @@ export default function Navbar() {
   const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [dynamicLinks, setDynamicLinks] = useState([]);
+
+  const loadDynamicPages = async () => {
+    try {
+      const snap = await getDoc(doc(db, 'site', 'pages'));
+      if (snap.exists()) {
+        const list = snap.data().list || [];
+        const activeCustom = list
+          .filter(p => p.isActive && !p.isSystem)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+        setDynamicLinks(activeCustom);
+      }
+    } catch (err) {
+      console.warn("Failed to load dynamic pages for navbar:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadDynamicPages();
+    try {
+      const channel = new BroadcastChannel('hss_data_sync');
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type === 'UPDATE_DATA') {
+          loadDynamicPages();
+        }
+      };
+      return () => channel.close();
+    } catch (err) {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
@@ -188,6 +221,16 @@ export default function Navbar() {
                 <Link to="/about" className={`px-3 py-0.5 text-xs md:text-sm font-semibold transition-all ${isActive('/about') ? 'bg-slate-900 text-white border-t-4 border-orange-500 rounded-t-sm -mt-1' : 'text-slate-300 hover:text-white border-t-2 border-transparent hover:border-orange-400'}`} onClick={() => window.scrollTo(0, 0)}>About Us</Link>
                 <Link to="/academics" className={`px-3 py-0.5 text-xs md:text-sm font-semibold transition-all ${isActive('/academics') ? 'bg-slate-900 text-white border-t-4 border-orange-500 rounded-t-sm -mt-1' : 'text-slate-300 hover:text-white border-t-2 border-transparent hover:border-orange-400'}`} onClick={() => window.scrollTo(0, 0)}>Academics</Link>
                 <Link to="/admissions" className={`px-3 py-0.5 text-xs md:text-sm font-semibold transition-all ${isActive('/admissions') ? 'bg-slate-900 text-white border-t-4 border-orange-500 rounded-t-sm -mt-1' : 'text-slate-300 hover:text-white border-t-2 border-transparent hover:border-orange-400'}`} onClick={() => window.scrollTo(0, 0)}>Admissions</Link>
+                {dynamicLinks.map((link) => (
+                  <Link
+                    key={link.id}
+                    to={`/${link.id}`}
+                    className={`px-3 py-0.5 text-xs md:text-sm font-semibold transition-all ${isActive(`/${link.id}`) ? 'bg-slate-900 text-white border-t-4 border-orange-500 rounded-t-sm -mt-1' : 'text-slate-300 hover:text-white border-t-2 border-transparent hover:border-orange-400'}`}
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    {link.title}
+                  </Link>
+                ))}
               </div>
 
               {/* Login Button Area (Desktop) */}
@@ -229,6 +272,17 @@ export default function Navbar() {
                   <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
                   <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
                   <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
+                  {dynamicLinks.map((link) => (
+                     <Link
+                       key={link.id}
+                       to={`/${link.id}`}
+                       onClick={() => setMobileOpen(false)}
+                       className="block font-semibold px-3 py-1.5 rounded"
+                       style={isActive(`/${link.id}`) ? { backgroundColor: '#961c14', color: 'white' } : {}}
+                     >
+                       {link.title}
+                     </Link>
+                   ))}
                 </div>
               </div>
 

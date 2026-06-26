@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Lock, Unlock, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 
 async function hashPassword(plainText, saltHex = null) {
   if (saltHex) {
@@ -51,6 +52,8 @@ export default function AdminMessages() {
   
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [authControlsLoading, setAuthControlsLoading] = useState(true);
   const [adminsList, setAdminsList] = useState(() => {
     try {
       const saved = localStorage.getItem('site_admins');
@@ -154,6 +157,33 @@ export default function AdminMessages() {
       }
     };
   }, []);
+
+  // Track Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setAuthControlsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error('Firebase Auth Error:', err);
+    }
+  };
+
+  const handleFirebaseSignOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (err) {
+      console.error('Firebase Sign-out Error:', err);
+    }
+  };
 
   // Helper to log out
   const handleLogout = (reason) => {
@@ -421,17 +451,23 @@ export default function AdminMessages() {
     loadMessages();
 
     return () => { mounted = false; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, firebaseUser]);
 
   const handleDeleteMessage = async (msg) => {
     if (!window.confirm("Are you sure you want to delete this message?")) return;
 
     // 1. Delete from Firestore if db is active and msg has a Firestore id
     if (db && msg.id) {
+      if (!firebaseUser) {
+        alert("You must sign in with Google (Firebase) to delete messages from the live database.");
+        return;
+      }
       try {
         await deleteDoc(doc(db, 'messages', msg.id));
       } catch (err) {
         console.error("Failed to delete from Firestore:", err);
+        alert("Failed to delete from live database. You might not have the correct permissions.");
+        return;
       }
     }
 
@@ -575,13 +611,43 @@ export default function AdminMessages() {
             <h2 className="text-2xl font-bold font-title tracking-wider text-orange-400">Admin — Messages</h2>
             <p className="text-xs text-slate-400 mt-1">Review contact form submissions</p>
           </div>
-          <button
-            onClick={() => handleLogout()}
-            className="px-3 py-2 rounded-lg btn-outline-theme text-xs font-semibold"
-          >
-            Lock Console
-          </button>
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4">
+            {!authControlsLoading && (
+              <div className="flex items-center gap-3 border-r border-slate-800 pr-4">
+                {firebaseUser ? (
+                  <>
+                    <div className="text-[10px] text-slate-400 text-right">
+                      Live Sync:<br/><span className="text-emerald-400 font-mono">{firebaseUser.email}</span>
+                    </div>
+                    <button onClick={handleFirebaseSignOut} className="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-semibold transition-colors">
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={handleGoogleSignIn} className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-colors flex items-center gap-1.5">
+                    <RefreshCw size={12} /> Sync Database
+                  </button>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => handleLogout()}
+              className="px-3 py-2 rounded-lg btn-outline-theme text-xs font-semibold whitespace-nowrap"
+            >
+              Lock Console
+            </button>
+          </div>
         </div>
+
+        {!firebaseUser && (
+          <div className="mb-6 p-4 rounded-xl bg-orange-950/30 border border-orange-500/20 text-orange-200 text-sm flex items-start gap-3">
+            <AlertCircle className="flex-shrink-0 text-orange-400 mt-0.5" size={18} />
+            <div>
+              <p className="font-semibold mb-1">Live Database Disconnected</p>
+              <p className="text-xs text-orange-200/80">You are currently viewing locally cached messages. To view the latest messages from the contact form and to permanently delete them, please <strong>Sync Database</strong> using your authorized Google account.</p>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="py-20 text-center text-slate-500 text-sm">

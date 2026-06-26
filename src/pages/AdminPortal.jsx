@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -652,7 +652,7 @@ const getEmployeeTaxOptions = (emp) => {
 };
 
 export default function AdminPortal() {
-  const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins'];
+  const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms'];
 
   const normalizeAdmin = (a) => {
     if (!a) return null;
@@ -680,7 +680,7 @@ export default function AdminPortal() {
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminRole, setNewAdminRole] = useState('Admin');
-  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export']);
+  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'pages_cms']);
 
   // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
   const [activeTab, setActiveTab] = useState('admissions');
@@ -697,6 +697,18 @@ export default function AdminPortal() {
 
   // File System Handle State
   const [folderHandle, setFolderHandle] = useState(null);
+
+  // Page CMS States
+  const [pagesList, setPagesList] = useState([]);
+  const [selectedPage, setSelectedPage] = useState(null);
+  const [pageBlocks, setPageBlocks] = useState([]);
+  const [newPageTitle, setNewPageTitle] = useState('');
+  const [newPageSlug, setNewPageSlug] = useState('');
+  const [showAddPageModal, setShowAddPageModal] = useState(false);
+  const [cmsSaving, setCmsSaving] = useState(false);
+  const [cmsLoading, setCmsLoading] = useState(false);
+  const [seoTitle, setSeoTitle] = useState('');
+  const [seoDescription, setSeoDescription] = useState('');
 
   // Inline Editing States
   const [editingNoticeIdx, setEditingNoticeIdx] = useState(null);
@@ -1525,6 +1537,27 @@ export default function AdminPortal() {
       setSettings(loadedSettings);
     });
 
+    const loadPages = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'site', 'pages'));
+        if (snap.exists()) {
+          setPagesList(snap.data().list || []);
+        } else {
+          const defaultPagesList = [
+            { id: 'home', title: 'Home', isSystem: true, isActive: true, order: 0 },
+            { id: 'about', title: 'About Us', isSystem: true, isActive: true, order: 1 },
+            { id: 'academics', title: 'Academics', isSystem: true, isActive: true, order: 2 },
+            { id: 'admissions', title: 'Admissions', isSystem: true, isActive: true, order: 3 }
+          ];
+          setPagesList(defaultPagesList);
+          await setDoc(doc(db, 'site', 'pages'), { list: defaultPagesList });
+        }
+      } catch (err) {
+        console.warn('Failed to load page registry on login:', err);
+      }
+    };
+    loadPages();
+
     // 2. Load notices — Firestore first, then localStorage, then static file
     const parseNoticesText = (text) => {
       return (text || '')
@@ -1898,6 +1931,292 @@ export default function AdminPortal() {
 
   const cancelNoticeEdit = () => {
     setEditingNoticeIdx(null);
+  };
+
+  // ==========================================
+  // Page CMS & Content Management Handlers
+  // ==========================================
+  const handleLoadPageBlocks = async (pageId) => {
+    setCmsLoading(true);
+    try {
+      const snap = await getDoc(doc(db, 'site', `page_${pageId}`));
+      if (snap.exists()) {
+        const data = snap.data();
+        setPageBlocks(data.blocks || []);
+        setSeoTitle(data.seoTitle || '');
+        setSeoDescription(data.seoDescription || '');
+      } else {
+        setPageBlocks([]);
+        setSeoTitle('');
+        setSeoDescription('');
+      }
+    } catch (err) {
+      console.error("Failed to load page blocks:", err);
+      showAlert("Failed to load page content from database.", "Database Error");
+    } finally {
+      setCmsLoading(false);
+    }
+  };
+
+  const handleSavePageContent = async () => {
+    if (!selectedPage) return;
+    setCmsSaving(true);
+    try {
+      const pageDocRef = doc(db, 'site', `page_${selectedPage.id}`);
+      await setDoc(pageDocRef, {
+        id: selectedPage.id,
+        title: selectedPage.title,
+        isActive: selectedPage.isActive,
+        seoTitle: seoTitle,
+        seoDescription: seoDescription,
+        blocks: pageBlocks
+      });
+
+      const updatedList = pagesList.map(p => {
+        if (p.id === selectedPage.id) {
+          return {
+            ...p,
+            title: selectedPage.title,
+            isActive: selectedPage.isActive
+          };
+        }
+        return p;
+      });
+      setPagesList(updatedList);
+
+      await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+
+      // Broadcast sync
+      try {
+        const channel = new BroadcastChannel('hss_data_sync');
+        channel.postMessage({ type: 'UPDATE_DATA' });
+        channel.close();
+      } catch (e) {
+        // ignore
+      }
+
+      setSaveSuccess('Page content saved successfully.');
+      setTimeout(() => setSaveSuccess(''), 3000);
+    } catch (err) {
+      console.error("Failed to save page content:", err);
+      showAlert("Failed to save page content to database.", "Database Error");
+    } finally {
+      setCmsSaving(false);
+    }
+  };
+
+  const handleCreatePage = async (e) => {
+    if (e) e.preventDefault();
+    const slug = newPageSlug.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+    const title = newPageTitle.trim();
+
+    if (!slug || !title) {
+      showAlert("Both page title and slug are required.", "Validation Error");
+      return;
+    }
+
+    const conflict = pagesList.some(p => p.id === slug) || 
+                     ['admin', 'notices', 'messages', 'about', 'academics', 'admissions'].includes(slug);
+    if (conflict) {
+      showAlert("This page slug is already reserved or in use.", "Conflict");
+      return;
+    }
+
+    setCmsSaving(true);
+    try {
+      const newPage = {
+        id: slug,
+        title: title,
+        isSystem: false,
+        isActive: true,
+        order: pagesList.length
+      };
+
+      const defaultBlocks = [
+        {
+          type: 'hero',
+          title: title,
+          subtitle: 'Welcome to this page',
+          bgImage: '/slides/aboutus.jpg',
+          bgOpacity: 30,
+          height: 'normal'
+        }
+      ];
+
+      await setDoc(doc(db, 'site', `page_${slug}`), {
+        id: slug,
+        title: title,
+        isActive: true,
+        seoTitle: `${title} | Govt. HSS Shangus`,
+        seoDescription: `Read about ${title} at Govt. Higher Secondary School Shangus.`,
+        blocks: defaultBlocks
+      });
+
+      const updatedList = [...pagesList, newPage];
+      setPagesList(updatedList);
+      await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+
+      // Broadcast sync
+      try {
+        const channel = new BroadcastChannel('hss_data_sync');
+        channel.postMessage({ type: 'UPDATE_DATA' });
+        channel.close();
+      } catch (e) {
+        // ignore
+      }
+
+      setSelectedPage(newPage);
+      setPageBlocks(defaultBlocks);
+      setSeoTitle(`${title} | Govt. HSS Shangus`);
+      setSeoDescription(`Read about ${title} at Govt. Higher Secondary School Shangus.`);
+      
+      setNewPageTitle('');
+      setNewPageSlug('');
+      setShowAddPageModal(false);
+    } catch (err) {
+      console.error("Failed to create page:", err);
+      showAlert("Failed to create page in database.", "Database Error");
+    } finally {
+      setCmsSaving(false);
+    }
+  };
+
+  const handleDeletePage = async (pageId) => {
+    if (!window.confirm("Are you sure you want to delete this entire page and all its contents? This action cannot be undone.")) return;
+
+    setCmsSaving(true);
+    try {
+      const updatedList = pagesList.filter(p => p.id !== pageId);
+      setPagesList(updatedList);
+      await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+
+      if (selectedPage && selectedPage.id === pageId) {
+        setSelectedPage(null);
+        setPageBlocks([]);
+      }
+
+      // Broadcast sync
+      try {
+        const channel = new BroadcastChannel('hss_data_sync');
+        channel.postMessage({ type: 'UPDATE_DATA' });
+        channel.close();
+      } catch (e) {
+        // ignore
+      }
+    } catch (err) {
+      console.error("Failed to delete page:", err);
+      showAlert("Failed to delete page from database.", "Database Error");
+    } finally {
+      setCmsSaving(false);
+    }
+  };
+
+  const handleTogglePageActive = async (pageId) => {
+    const updatedList = pagesList.map(p => {
+      if (p.id === pageId) {
+        return { ...p, isActive: !p.isActive };
+      }
+      return p;
+    });
+    setPagesList(updatedList);
+    
+    try {
+      await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+      
+      if (selectedPage && selectedPage.id === pageId) {
+        setSelectedPage({ ...selectedPage, isActive: !selectedPage.isActive });
+      }
+
+      // Broadcast sync
+      try {
+        const channel = new BroadcastChannel('hss_data_sync');
+        channel.postMessage({ type: 'UPDATE_DATA' });
+        channel.close();
+      } catch (e) {
+        // ignore
+      }
+    } catch (err) {
+      console.error("Failed to toggle page active state:", err);
+      showAlert("Failed to update page status in database.", "Database Error");
+    }
+  };
+
+  const handleMoveBlock = (idx, direction) => {
+    const updatedBlocks = [...pageBlocks];
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    
+    const temp = updatedBlocks[idx];
+    updatedBlocks[idx] = updatedBlocks[targetIdx];
+    updatedBlocks[targetIdx] = temp;
+    
+    setPageBlocks(updatedBlocks);
+  };
+
+  const handleDeleteBlock = (idx) => {
+    if (!window.confirm("Are you sure you want to delete this block section?")) return;
+    setPageBlocks(pageBlocks.filter((_, k) => k !== idx));
+  };
+
+  const handleUpdateBlockField = (blockIdx, field, value) => {
+    const updatedBlocks = [...pageBlocks];
+    updatedBlocks[blockIdx] = {
+      ...updatedBlocks[blockIdx],
+      [field]: value
+    };
+    setPageBlocks(updatedBlocks);
+  };
+
+  const handleBlockImageUpload = async (blockIdx, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+      showAlert("Image file size must be 1MB or less.", "File Too Large");
+      e.target.value = '';
+      return;
+    }
+
+    setCmsSaving(true);
+    try {
+      const url = await uploadToFirebaseStorage(file, `cms_hero_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`);
+      handleUpdateBlockField(blockIdx, 'bgImage', url);
+      setSaveSuccess("Image uploaded successfully.");
+      setTimeout(() => setSaveSuccess(''), 2000);
+    } catch (err) {
+      console.error("Failed to upload block image:", err);
+      showAlert("Failed to upload image to Firebase Storage.", "Upload Error");
+    } finally {
+      setCmsSaving(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleGalleryPhotoUpload = async (blockIdx, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+      showAlert("Image file size must be 1MB or less.", "File Too Large");
+      e.target.value = '';
+      return;
+    }
+
+    setCmsSaving(true);
+    try {
+      const url = await uploadToFirebaseStorage(file, `cms_gal_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`);
+      const newImg = { url, caption: file.name.substring(0, file.name.lastIndexOf('.')) || file.name };
+      const block = pageBlocks[blockIdx];
+      const updatedImages = [...(block.images || []), newImg];
+      handleUpdateBlockField(blockIdx, 'images', updatedImages);
+      setSaveSuccess("Gallery image uploaded successfully.");
+      setTimeout(() => setSaveSuccess(''), 2000);
+    } catch (err) {
+      console.error("Failed to upload gallery image:", err);
+      showAlert("Failed to upload image to Firebase Storage.", "Upload Error");
+    } finally {
+      setCmsSaving(false);
+      e.target.value = '';
+    }
   };
 
   // Slideshow Handlers
@@ -4912,6 +5231,7 @@ export default function AdminPortal() {
             { id: 'slideshow', label: 'Home Slideshow', icon: Image },
             { id: 'tax', label: 'Tax Calculator', icon: Calculator },
             { id: 'export', label: 'Export files', icon: Download },
+            { id: 'pages_cms', label: 'Page CMS', icon: FolderOpen },
             { id: 'admins', label: 'Admin Management', icon: Settings }
           ].filter(tab => allowedTabs.includes(tab.id)).map((tab) => {
             const Icon = tab.icon;
@@ -7166,9 +7486,8 @@ export default function AdminPortal() {
                             onChange={(e) => {
                               const role = e.target.value;
                               setNewAdminRole(role);
-                              // Pre-fill tabs access based on role
                               if (role === 'Super Admin') {
-                                setNewAdminPermissions(['admissions', 'notices', 'faculty', 'tax', 'export', 'admins']);
+                                setNewAdminPermissions(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms']);
                               } else if (role === 'Accounts Assistant') {
                                 setNewAdminPermissions(['tax', 'faculty']);
                               } else if (role === 'Admission Incharge') {
@@ -7194,8 +7513,10 @@ export default function AdminPortal() {
                               { id: 'admissions', label: 'Admissions & Fees' },
                               { id: 'notices', label: 'Latest Notices' },
                               { id: 'faculty', label: 'Faculty Directory' },
+                              { id: 'slideshow', label: 'Home Slideshow' },
                               { id: 'tax', label: 'Tax Calculator' },
                               { id: 'export', label: 'Export files' },
+                              { id: 'pages_cms', label: 'Page CMS' },
                               { id: 'admins', label: 'Admin Management' }
                             ].map((perm) => {
                               const checked = newAdminPermissions.includes(perm.id);
@@ -7214,7 +7535,7 @@ export default function AdminPortal() {
                                       setNewAdminPermissions(updated);
 
                                       // Set role to custom if it no longer matches templates
-                                      const matchSuper = updated.length === 6;
+                                      const matchSuper = updated.length === 8; // admissions, notices, faculty, slideshow, tax, export, admins, pages_cms
                                       const matchAccounts = updated.length === 2 && updated.includes('tax') && updated.includes('faculty');
                                       const matchAdmissions = updated.length === 1 && updated.includes('admissions');
                                       const matchNotices = updated.length === 1 && updated.includes('notices');
@@ -7252,6 +7573,817 @@ export default function AdminPortal() {
                     </button>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* TAB 7: PAGE CMS */}
+            {activeTab === 'pages_cms' && allowedTabs.includes('pages_cms') && (
+              <div className="space-y-6 animate-in fade-in duration-200 text-slate-200">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <FolderOpen className="text-orange-400" size={18} />
+                      Custom Page Manager & CMS
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Create new custom pages (like Facilities, Achievements) or edit dynamic blocks on existing system pages.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddPageModal(true)}
+                    className="py-1.5 px-3 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 border border-orange-500/20 shadow-md animate-in duration-150"
+                  >
+                    <Plus size={14} className="stroke-[2.5px]" />
+                    Create New Page
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                  {/* SIDEBAR: PAGE LIST */}
+                  <div className="lg:col-span-1 bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-4">
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider text-left">Page Registry</h4>
+                    <div className="space-y-2">
+                      {pagesList.map((page) => {
+                        const isSelected = selectedPage?.id === page.id;
+                        return (
+                          <div
+                            key={page.id}
+                            className={`p-3 rounded-lg border transition-all text-left ${
+                              isSelected 
+                                ? 'border-orange-500 bg-slate-950/80 shadow-md' 
+                                : 'border-slate-850 hover:border-slate-750 bg-slate-900/30'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-1">
+                              <div className="min-w-0 flex-grow">
+                                <h5 className="text-xs font-bold text-slate-200 truncate">{page.title}</h5>
+                                <p className="text-[10px] text-slate-500 font-mono truncate">/{page.id}</p>
+                              </div>
+                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePageActive(page.id)}
+                                  title={page.isActive ? "Deactivate Page" : "Activate Page"}
+                                  className={`p-1 rounded hover:bg-slate-800 transition-colors ${
+                                    page.isActive ? 'text-teal-400' : 'text-slate-500 hover:text-slate-400'
+                                  }`}
+                                >
+                                  {page.isActive ? <Eye size={12} /> : <EyeOff size={12} />}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={page.isSystem}
+                                  onClick={() => handleDeletePage(page.id)}
+                                  title={page.isSystem ? "System pages cannot be deleted" : "Delete Page"}
+                                  className={`p-1 rounded transition-colors ${
+                                    page.isSystem 
+                                      ? 'text-slate-850 cursor-not-allowed opacity-20' 
+                                      : 'text-slate-500 hover:text-red-400 hover:bg-slate-800'
+                                  }`}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-2.5 flex justify-between items-center gap-1.5 flex-wrap">
+                              <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                                page.isSystem 
+                                  ? 'bg-blue-950/40 text-blue-400 border-blue-500/20' 
+                                  : 'bg-teal-950/40 text-teal-400 border-teal-500/20'
+                              }`}>
+                                {page.isSystem ? 'System' : 'Custom'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPage(page);
+                                  handleLoadPageBlocks(page.id);
+                                }}
+                                className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${
+                                  isSelected 
+                                    ? 'bg-orange-600 text-white shadow-sm' 
+                                    : 'bg-slate-850 hover:bg-slate-750 text-slate-350'
+                                }`}
+                              >
+                                Edit Content
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* MAIN EDITOR AREA */}
+                  <div className="lg:col-span-3 bg-slate-900/40 p-5 rounded-xl border border-slate-800 space-y-6">
+                    {!selectedPage ? (
+                      <div className="py-20 text-center text-slate-500">
+                        <FolderOpen size={48} className="mx-auto mb-4 text-slate-600 stroke-[1]" />
+                        <h4 className="font-semibold text-sm text-slate-400">No Page Selected</h4>
+                        <p className="text-xs mt-1 max-w-xs mx-auto">
+                          Select a page from the registry sidebar or create a new one to begin editing its content blocks.
+                        </p>
+                      </div>
+                    ) : cmsLoading ? (
+                      <div className="py-20 text-center text-slate-500 text-xs">
+                        <div className="w-8 h-8 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mx-auto mb-4" />
+                        Loading page blocks configuration...
+                      </div>
+                    ) : (
+                      <div className="space-y-6 animate-in fade-in duration-200 text-left">
+                        {/* Page Header Info */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-950/50 p-4 rounded-xl border border-slate-850">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-bold text-slate-200">{selectedPage.title}</h4>
+                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-850 text-slate-400 border border-slate-800">
+                                /{selectedPage.id}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                              Firestore Document ID: site/page_{selectedPage.id}
+                            </p>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-300 select-none">
+                              <input
+                                type="checkbox"
+                                checked={selectedPage.isActive}
+                                onChange={(e) => setSelectedPage({ ...selectedPage, isActive: e.target.checked })}
+                                className="rounded border-slate-800 bg-slate-950 text-orange-600 focus:ring-orange-500 focus:ring-opacity-25 w-3.5 h-3.5"
+                              />
+                              Visible in Navigation
+                            </label>
+                            
+                            <button
+                              type="button"
+                              onClick={handleSavePageContent}
+                              disabled={cmsSaving}
+                              className="py-1.5 px-3 rounded bg-teal-600 hover:bg-teal-500 disabled:bg-slate-850 disabled:text-slate-600 text-white font-bold text-xs transition-all flex items-center gap-1.5 border border-teal-500/20 shadow-md"
+                            >
+                              {cmsSaving ? (
+                                <>
+                                  <Loader2 size={12} className="animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Save size={12} />
+                                  Save Content
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Page Settings & SEO Info */}
+                        <div className="bg-slate-950/20 p-4 rounded-xl border border-slate-850 space-y-4">
+                          <h5 className="text-xs font-bold text-slate-350 uppercase tracking-wider">SEO Metadata & Title Settings</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                            <div>
+                              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Page Title (Display)</label>
+                              <input
+                                type="text"
+                                value={selectedPage.title}
+                                onChange={(e) => setSelectedPage({ ...selectedPage, title: e.target.value })}
+                                className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-850 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">SEO Title (Browser Tab)</label>
+                              <input
+                                type="text"
+                                value={seoTitle}
+                                placeholder={`${selectedPage.title} | Govt. HSS Shangus`}
+                                onChange={(e) => setSeoTitle(e.target.value)}
+                                className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-850 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="text-left">
+                            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">SEO Meta Description</label>
+                            <textarea
+                              rows={2}
+                              value={seoDescription}
+                              placeholder="Brief summary of page content for search engines..."
+                              onChange={(e) => setSeoDescription(e.target.value)}
+                              className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-850 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500 resize-none font-sans"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Blocks Section */}
+                        <div className="space-y-4">
+                          <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                            <span>Layout Blocks</span>
+                            <span className="text-[10px] text-slate-500 font-normal normal-case">
+                              Arrange and customize the sections on the page.
+                            </span>
+                          </h5>
+
+                          {pageBlocks.length === 0 ? (
+                            <div className="py-10 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/20">
+                              This page has no blocks. Use the toolbar below to add sections.
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              {pageBlocks.map((block, idx) => (
+                                <div 
+                                  key={idx}
+                                  className="border border-slate-800 bg-slate-955/40 rounded-xl p-4 space-y-4 relative bg-slate-900/60"
+                                >
+                                  {/* Block Header & Reorder controls */}
+                                  <div className="flex justify-between items-center pb-2.5 border-b border-slate-800/80">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-slate-850 text-[10px] font-bold text-slate-400 flex items-center justify-center">
+                                        {idx + 1}
+                                      </span>
+                                      <span className="text-xs font-bold uppercase tracking-wider text-orange-400">
+                                        {block.type} Block
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={idx === 0}
+                                        onClick={() => handleMoveBlock(idx, 'up')}
+                                        className="p-1 rounded bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center"
+                                        title="Move Up"
+                                      >
+                                        <ArrowUp size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={idx === pageBlocks.length - 1}
+                                        onClick={() => handleMoveBlock(idx, 'down')}
+                                        className="p-1 rounded bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center"
+                                        title="Move Down"
+                                      >
+                                        <ArrowDown size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteBlock(idx)}
+                                        className="p-1 rounded bg-slate-950 hover:bg-red-950 text-slate-400 hover:text-red-400 ml-1 flex items-center justify-center"
+                                        title="Delete Block"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Block Editor Contents */}
+                                  <div className="text-xs space-y-3">
+                                    {block.type === 'hero' && (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Hero Title</label>
+                                            <input
+                                              type="text"
+                                              value={block.title || ''}
+                                              onChange={(e) => handleUpdateBlockField(idx, 'title', e.target.value)}
+                                              className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Hero Subtitle</label>
+                                            <input
+                                              type="text"
+                                              value={block.subtitle || ''}
+                                              onChange={(e) => handleUpdateBlockField(idx, 'subtitle', e.target.value)}
+                                              className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                            />
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Background Image URL</label>
+                                            <div className="flex gap-2">
+                                              <input
+                                                type="text"
+                                                placeholder="/slides/aboutus.jpg"
+                                                value={block.bgImage || ''}
+                                                onChange={(e) => handleUpdateBlockField(idx, 'bgImage', e.target.value)}
+                                                className="flex-grow px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-mono text-[10px]"
+                                              />
+                                              <label className="py-1 px-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-350 font-bold rounded cursor-pointer transition-colors flex items-center justify-center">
+                                                Upload
+                                                <input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  onChange={(e) => handleBlockImageUpload(idx, e)}
+                                                  className="hidden"
+                                                />
+                                              </label>
+                                            </div>
+                                          </div>
+
+                                          <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                              <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Image Opacity ({block.bgOpacity !== undefined ? block.bgOpacity : 30}%)</label>
+                                              <input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                value={block.bgOpacity !== undefined ? block.bgOpacity : 30}
+                                                onChange={(e) => handleUpdateBlockField(idx, 'bgOpacity', parseInt(e.target.value))}
+                                                className="w-full h-1.5 bg-slate-850 rounded-lg appearance-none cursor-pointer accent-orange-500 mt-2.5"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Height</label>
+                                              <select
+                                                value={block.height || 'normal'}
+                                                onChange={(e) => handleUpdateBlockField(idx, 'height', e.target.value)}
+                                                className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                              >
+                                                <option value="normal">Normal</option>
+                                                <option value="large">Large</option>
+                                              </select>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {block.type === 'text_section' && (
+                                      <div className="space-y-3 text-left">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Section Heading</label>
+                                            <input
+                                              type="text"
+                                              placeholder="e.g. Facilities Overview"
+                                              value={block.heading || ''}
+                                              onChange={(e) => handleUpdateBlockField(idx, 'heading', e.target.value)}
+                                              className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Section Subheading</label>
+                                            <input
+                                              type="text"
+                                              placeholder="e.g. Modern Infrastructure"
+                                              value={block.subheading || ''}
+                                              onChange={(e) => handleUpdateBlockField(idx, 'subheading', e.target.value)}
+                                              className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Paragraph Content</label>
+                                          <textarea
+                                            rows={6}
+                                            value={block.content || ''}
+                                            onChange={(e) => handleUpdateBlockField(idx, 'content', e.target.value)}
+                                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-sans"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {block.type === 'photo_gallery' && (
+                                      <div className="space-y-3 text-left">
+                                        <div>
+                                          <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Gallery Section Title</label>
+                                          <input
+                                            type="text"
+                                            placeholder="e.g. Laboratory Infrastructure Photos"
+                                            value={block.title || ''}
+                                            onChange={(e) => handleUpdateBlockField(idx, 'title', e.target.value)}
+                                            className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                          />
+                                        </div>
+
+                                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-850 space-y-3">
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gallery Images</span>
+                                            <label className="py-1 px-2.5 bg-orange-600 hover:bg-orange-500 border border-orange-500/20 text-[10px] text-white font-extrabold rounded cursor-pointer transition-colors flex items-center justify-center gap-1">
+                                              <Plus size={11} />
+                                              Add Image to Gallery
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => handleGalleryPhotoUpload(idx, e)}
+                                                className="hidden"
+                                              />
+                                            </label>
+                                          </div>
+                                          
+                                          {(!block.images || block.images.length === 0) ? (
+                                            <p className="text-[10px] text-slate-500 text-center py-4">No images in this gallery yet. Click above to upload!</p>
+                                          ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                              {block.images.map((img, imgIdx) => (
+                                                <div key={imgIdx} className="bg-slate-900/60 p-2 rounded border border-slate-800 flex gap-2">
+                                                  <img src={img.url} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0 bg-slate-950 border border-slate-800" />
+                                                  <div className="flex-grow space-y-1">
+                                                    <input
+                                                      type="text"
+                                                      placeholder="Image caption..."
+                                                      value={img.caption || ''}
+                                                      onChange={(e) => {
+                                                        const updatedImg = { ...img, caption: e.target.value };
+                                                        const updatedImages = [...block.images];
+                                                        updatedImages[imgIdx] = updatedImg;
+                                                        handleUpdateBlockField(idx, 'images', updatedImages);
+                                                      }}
+                                                      className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none"
+                                                    />
+                                                    <div className="flex justify-between items-center text-[9px] text-slate-500">
+                                                      <span className="truncate max-w-[120px] font-mono">{img.url}</span>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const updatedImages = block.images.filter((_, k) => k !== imgIdx);
+                                                          handleUpdateBlockField(idx, 'images', updatedImages);
+                                                        }}
+                                                        className="text-red-400 hover:underline"
+                                                      >
+                                                        Delete
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {block.type === 'info_cards' && (
+                                      <div className="space-y-3 text-left">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Cards Section Title</label>
+                                            <input
+                                              type="text"
+                                              placeholder="e.g. Core Pillars"
+                                              value={block.title || ''}
+                                              onChange={(e) => handleUpdateBlockField(idx, 'title', e.target.value)}
+                                              className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Columns Count</label>
+                                            <select
+                                              value={block.columns || 3}
+                                              onChange={(e) => handleUpdateBlockField(idx, 'columns', parseInt(e.target.value))}
+                                              className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-850 text-[11px] text-slate-200 focus:outline-none"
+                                            >
+                                              <option value={2}>2 Columns</option>
+                                              <option value={3}>3 Columns</option>
+                                              <option value={4}>4 Columns</option>
+                                            </select>
+                                          </div>
+                                        </div>
+
+                                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-850 space-y-3">
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Card Items</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const newCard = { title: 'New Card', description: 'Description text...', iconName: 'BookOpen' };
+                                                const updatedCards = [...(block.cards || []), newCard];
+                                                handleUpdateBlockField(idx, 'cards', updatedCards);
+                                              }}
+                                              className="py-1 px-2 text-[10px] font-bold text-orange-400 border border-orange-500/20 bg-slate-900 rounded hover:bg-slate-850 flex items-center gap-1 transition-colors"
+                                            >
+                                              <Plus size={11} />
+                                              Add Card
+                                            </button>
+                                          </div>
+                                          
+                                          {(!block.cards || block.cards.length === 0) ? (
+                                            <p className="text-[10px] text-slate-500 text-center py-4">No cards defined. Add one above.</p>
+                                          ) : (
+                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                              {block.cards.map((card, cIdx) => (
+                                                <div key={cIdx} className="bg-slate-900/80 p-3 rounded border border-slate-800 flex flex-col gap-2 relative">
+                                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                                    <div className="md:col-span-2">
+                                                      <label className="block text-[8.5px] text-slate-400 mb-0.5">Card Heading</label>
+                                                      <input
+                                                        type="text"
+                                                        value={card.title || ''}
+                                                        onChange={(e) => {
+                                                          const updatedCards = [...block.cards];
+                                                          updatedCards[cIdx] = { ...card, title: e.target.value };
+                                                          handleUpdateBlockField(idx, 'cards', updatedCards);
+                                                        }}
+                                                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none"
+                                                      />
+                                                    </div>
+                                                    <div>
+                                                      <label className="block text-[8.5px] text-slate-400 mb-0.5">Card Icon</label>
+                                                      <select
+                                                        value={card.iconName || 'BookOpen'}
+                                                        onChange={(e) => {
+                                                          const updatedCards = [...block.cards];
+                                                          updatedCards[cIdx] = { ...card, iconName: e.target.value };
+                                                          handleUpdateBlockField(idx, 'cards', updatedCards);
+                                                        }}
+                                                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none"
+                                                      >
+                                                        {['BookOpen', 'Users', 'Award', 'GraduationCap', 'Building', 'Calendar', 'MapPin', 'Activity', 'FileText', 'CheckCircle2', 'Image', 'Flame', 'Globe', 'Shield', 'Heart', 'Library', 'Layers', 'Lightbulb', 'Wrench'].map(ic => (
+                                                          <option key={ic} value={ic}>{ic}</option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
+                                                  </div>
+                                                  
+                                                  <div>
+                                                    <label className="block text-[8.5px] text-slate-400 mb-0.5">Description Text</label>
+                                                    <textarea
+                                                      rows={2}
+                                                      value={card.description || ''}
+                                                      onChange={(e) => {
+                                                        const updatedCards = [...block.cards];
+                                                        updatedCards[cIdx] = { ...card, description: e.target.value };
+                                                        handleUpdateBlockField(idx, 'cards', updatedCards);
+                                                      }}
+                                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 resize-none font-sans"
+                                                    />
+                                                  </div>
+
+                                                  <div className="flex justify-end gap-1.5">
+                                                    <button
+                                                      type="button"
+                                                      disabled={cIdx === 0}
+                                                      onClick={() => {
+                                                        const updatedCards = [...block.cards];
+                                                        const temp = updatedCards[cIdx];
+                                                        updatedCards[cIdx] = updatedCards[cIdx - 1];
+                                                        updatedCards[cIdx - 1] = temp;
+                                                        handleUpdateBlockField(idx, 'cards', updatedCards);
+                                                      }}
+                                                      className="text-[9px] text-slate-400 hover:text-slate-200 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 disabled:opacity-20"
+                                                    >
+                                                      Move Up
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      disabled={cIdx === block.cards.length - 1}
+                                                      onClick={() => {
+                                                        const updatedCards = [...block.cards];
+                                                        const temp = updatedCards[cIdx];
+                                                        updatedCards[cIdx] = updatedCards[cIdx + 1];
+                                                        updatedCards[cIdx + 1] = temp;
+                                                        handleUpdateBlockField(idx, 'cards', updatedCards);
+                                                      }}
+                                                      className="text-[9px] text-slate-400 hover:text-slate-200 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 disabled:opacity-20"
+                                                    >
+                                                      Move Down
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const updatedCards = block.cards.filter((_, k) => k !== cIdx);
+                                                        handleUpdateBlockField(idx, 'cards', updatedCards);
+                                                      }}
+                                                      className="text-[9px] text-red-400 hover:underline bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800"
+                                                    >
+                                                      Delete
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {block.type === 'accordion' && (
+                                      <div className="space-y-3 text-left">
+                                        <div>
+                                          <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 font-sans">Accordion Section Title</label>
+                                          <input
+                                            type="text"
+                                            value={block.title || ''}
+                                            onChange={(e) => handleUpdateBlockField(idx, 'title', e.target.value)}
+                                            className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                          />
+                                        </div>
+
+                                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-850 space-y-3">
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Accordion Items</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const newItem = { title: 'New Item Title', content: 'Detailed content text...' };
+                                                const updatedItems = [...(block.items || []), newItem];
+                                                handleUpdateBlockField(idx, 'items', updatedItems);
+                                              }}
+                                              className="py-1 px-2 text-[10px] font-bold text-orange-400 border border-orange-500/20 bg-slate-900 rounded hover:bg-slate-850 flex items-center gap-1 transition-colors"
+                                            >
+                                              <Plus size={11} />
+                                              Add Row
+                                            </button>
+                                          </div>
+                                          
+                                          {(!block.items || block.items.length === 0) ? (
+                                            <p className="text-[10px] text-slate-500 text-center py-4">No accordion items defined.</p>
+                                          ) : (
+                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                              {block.items.map((item, itemIdx) => (
+                                                <div key={itemIdx} className="bg-slate-900 p-3 rounded border border-slate-800 flex flex-col gap-2 relative">
+                                                  <div>
+                                                    <label className="block text-[8.5px] text-slate-400 mb-0.5">Item Heading / Question</label>
+                                                    <input
+                                                      type="text"
+                                                      value={item.title || ''}
+                                                      onChange={(e) => {
+                                                        const updatedItems = [...block.items];
+                                                        updatedItems[itemIdx] = { ...item, title: e.target.value };
+                                                        handleUpdateBlockField(idx, 'items', updatedItems);
+                                                      }}
+                                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none"
+                                                    />
+                                                  </div>
+                                                  
+                                                  <div>
+                                                    <label className="block text-[8.5px] text-slate-400 mb-0.5">Item Detailed Content / Answer</label>
+                                                    <textarea
+                                                      rows={3}
+                                                      value={item.content || ''}
+                                                      onChange={(e) => {
+                                                        const updatedItems = [...block.items];
+                                                        updatedItems[itemIdx] = { ...item, content: e.target.value };
+                                                        handleUpdateBlockField(idx, 'items', updatedItems);
+                                                      }}
+                                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 resize-none font-sans"
+                                                    />
+                                                  </div>
+
+                                                  <div className="flex justify-end gap-1.5">
+                                                    <button
+                                                      type="button"
+                                                      disabled={itemIdx === 0}
+                                                      onClick={() => {
+                                                        const updatedItems = [...block.items];
+                                                        const temp = updatedItems[itemIdx];
+                                                        updatedItems[itemIdx] = updatedItems[itemIdx - 1];
+                                                        updatedItems[itemIdx - 1] = temp;
+                                                        handleUpdateBlockField(idx, 'items', updatedItems);
+                                                      }}
+                                                      className="text-[9px] text-slate-400 hover:text-slate-200 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 disabled:opacity-20"
+                                                    >
+                                                      Move Up
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      disabled={itemIdx === block.items.length - 1}
+                                                      onClick={() => {
+                                                        const updatedItems = [...block.items];
+                                                        const temp = updatedItems[itemIdx];
+                                                        updatedItems[itemIdx] = updatedItems[itemIdx + 1];
+                                                        updatedItems[itemIdx + 1] = temp;
+                                                        handleUpdateBlockField(idx, 'items', updatedItems);
+                                                      }}
+                                                      className="text-[9px] text-slate-400 hover:text-slate-200 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 disabled:opacity-20"
+                                                    >
+                                                      Move Down
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const updatedItems = block.items.filter((_, k) => k !== itemIdx);
+                                                        handleUpdateBlockField(idx, 'items', updatedItems);
+                                                      }}
+                                                      className="text-[9px] text-red-400 hover:underline bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800"
+                                                    >
+                                                      Delete
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Add layout block */}
+                        <div className="bg-slate-955/20 p-4 rounded-xl border border-slate-850 text-center">
+                          <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-3">Add Page Layout Section</span>
+                          <div className="flex flex-wrap gap-2 justify-center">
+                            {[
+                              { label: '+ Add Hero Banner', type: 'hero', default: { type: 'hero', title: selectedPage.title, subtitle: 'Welcome to our page', bgImage: '', bgOpacity: 30, height: 'normal' } },
+                              { label: '+ Add Text Block', type: 'text_section', default: { type: 'text_section', heading: 'Section Title', subheading: 'Section Subtitle', content: 'Detailed paragraph text goes here...' } },
+                              { label: '+ Add Photo Gallery', type: 'photo_gallery', default: { type: 'photo_gallery', title: 'Photo Gallery Title', images: [] } },
+                              { label: '+ Add Info Cards', type: 'info_cards', default: { type: 'info_cards', title: 'Features & Info', columns: 3, cards: [] } },
+                              { label: '+ Add Accordion FAQ', type: 'accordion', default: { type: 'accordion', title: 'Frequently Asked Questions', items: [] } }
+                            ].map((bType) => (
+                              <button
+                                key={bType.type}
+                                type="button"
+                                onClick={() => setPageBlocks([...pageBlocks, bType.default])}
+                                className="px-3 py-1.5 rounded bg-slate-850 hover:bg-slate-750 text-orange-400 hover:text-orange-300 font-bold text-xs border border-slate-800 transition-colors shadow"
+                              >
+                                {bType.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Modal to add custom page */}
+                {showAddPageModal && (
+                  <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
+                    <form 
+                      onSubmit={handleCreatePage}
+                      className="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-slate-200 text-left font-sans"
+                    >
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                          <Plus size={16} className="text-orange-400" />
+                          Create Custom Web Page
+                        </h3>
+                        <p className="text-[10px] text-slate-500 mt-1 leading-normal font-sans">
+                          This will register a new page under the specified URL path slug and let you design it with the CMS blocks.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3.5 text-xs font-sans">
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Page Title</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. School Facilities"
+                            value={newPageTitle}
+                            onChange={(e) => {
+                              setNewPageTitle(e.target.value);
+                              if (!newPageSlug) {
+                                const generated = e.target.value
+                                  .toLowerCase()
+                                  .replace(/[^a-z0-9\s-]/g, '')
+                                  .trim()
+                                  .replace(/\s+/g, '-');
+                                setNewPageSlug(generated);
+                              }
+                            }}
+                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1 font-sans">URL Path Slug</label>
+                          <div className="flex items-center rounded bg-slate-950 border border-slate-800 overflow-hidden focus-within:border-orange-500">
+                            <span className="px-2.5 text-slate-550 border-r border-slate-850 select-none font-mono">/</span>
+                            <input
+                              type="text"
+                              required
+                              placeholder="facilities"
+                              value={newPageSlug}
+                              onChange={(e) => setNewPageSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                              className="w-full px-2.5 py-2 bg-transparent text-slate-200 focus:outline-none font-mono text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-850 font-sans">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddPageModal(false);
+                            setNewPageTitle('');
+                            setNewPageSlug('');
+                          }}
+                          className="px-3.5 py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={cmsSaving}
+                          className="px-3.5 py-2 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs shadow-md border border-orange-500/20"
+                        >
+                          {cmsSaving ? "Saving..." : "Create Page"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </div>
             )}
 
