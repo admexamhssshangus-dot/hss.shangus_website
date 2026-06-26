@@ -218,27 +218,35 @@ export default function Footer() {
 
         {/* Bottom Bar - Centered with Top Horizontal Line, White Text & Interactive Email Link */}
         <div className="max-w-7xl mx-auto px-4 pt-5 border-t border-slate-700 flex flex-col items-center justify-center text-center text-xs text-white">
-          <p className="mb-1">© 2023 Govt HSS Shangus | Developed by <a href="https://nexliftech.netlify.app/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400 transition-colors underline underline-offset-2">NexLifTech</a></p>
+          <p className="mb-2 leading-relaxed text-center flex flex-col sm:block items-center">
+            <span>
+              © 2023 Govt HSS Shangus <span className="mx-1">|</span> Developed by <span className="font-medium text-emerald-300">Sheikh Gulfam</span>,
+            </span>
+            <span className="mt-1 sm:mt-0 sm:ml-1 inline-flex items-center gap-1.5">
+              <a href="https://nexliftech.netlify.app/" target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-400 hover:text-teal-300 transition-colors underline decoration-teal-400/50 hover:decoration-teal-300 underline-offset-4">Next Life Technologies</a>
+              <a href="https://wa.me/919682547458" target="_blank" rel="noopener noreferrer" className="text-[#25D366] hover:text-[#20ba5a] transition-colors" title="Contact Developer on WhatsApp">
+                <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z" />
+                </svg>
+              </a>
+              <a href="mailto:2nexlif@gmail.com" onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')} className="text-teal-400 hover:text-teal-300 transition-colors" title="Email Developer">
+                <Mail size={16} />
+              </a>
+            </span>
+          </p>
           <div className="flex items-center justify-center gap-1.5 flex-wrap">
-            <a
-              href="mailto:2nexlif@gmail.com"
-              onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')}
-              className="transition-colors hover:text-teal-400 focus:outline-none"
-            >
-              (2nexlif@gmail.com)
-            </a>
             {/* Mobile-only Admin Lock Icon in Footer */}
             <Link
               to="/admin/portal"
-              className="md:hidden transition-colors p-1 flex items-center justify-center"
+              className="md:hidden transition-colors p-1 flex items-center justify-center mt-2"
               style={{ color: isAdmin ? '#34d399' : '#94a3b8' }}
               title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
               aria-label="Admin Portal"
             >
               {isAdmin ? (
-                <Unlock size={12} className="stroke-[2.5] animate-pulse" />
+                <Unlock size={18} className="stroke-[2.5] animate-pulse" />
               ) : (
-                <Lock size={12} className="stroke-[2.5]" />
+                <Lock size={18} className="stroke-[2.5]" />
               )}
             </Link>
           </div>
@@ -276,7 +284,7 @@ export default function Footer() {
                   <p><strong className="text-slate-800">1. Information We Collect:</strong> We collect personal information such as name, parentage, and academic records solely for admission and administrative purposes.</p>
                   <p><strong className="text-slate-800">2. How We Use Information:</strong> Data is used to manage student records, examinations, and communication. We do not sell data to third parties.</p>
                   <p><strong className="text-slate-800">3. Cookies:</strong> This website uses cookies to improve user experience and manage login sessions.</p>
-                  <p><strong className="text-slate-800">4. Contact:</strong> For concerns, email principal@govthssshangus.edu.in.</p>
+                  <p><strong className="text-slate-800">4. Contact:</strong> For concerns, email <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-teal-600 hover:text-teal-700 underline underline-offset-2">adm.exam.hss.shangus@gmail.com</a>.</p>
                 </div>
               </div>
             )}
@@ -314,7 +322,7 @@ function ContactForm({ onClose }) {
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [backendAvailable, setBackendAvailable] = useState(null);
+  const [backendAvailable, setBackendAvailable] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState(false);
@@ -328,20 +336,9 @@ function ContactForm({ onClose }) {
     'Feedback',
   ];
 
+  // We rely purely on Firebase now; backend fallback removed to prevent 404 console errors.
   useEffect(() => {
-    let mounted = true;
-    // Check if proxy backend is available and serving JSON
-    fetch('/api/messages', { method: 'GET' })
-      .then((res) => {
-        if (!mounted) return;
-        const ct = res.headers.get('content-type') || '';
-        setBackendAvailable(res.ok && ct.includes('application/json'));
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setBackendAvailable(false);
-      });
-    return () => { mounted = false; };
+    setBackendAvailable(false);
   }, []);
 
   async function handleSubmit(e) {
@@ -377,24 +374,8 @@ function ContactForm({ onClose }) {
         setFormSuccess(true);
         return;
       }
-
-      // 2. Fallback to Local Node Backend (Development)
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error('Failed to send to backend');
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error('Response is not JSON');
-      }
-      const data = await res.json();
-      if (!data || !data.success) {
-        throw new Error('Unsuccessful response');
-      }
-      setFormSuccess(true);
+      
+      throw new Error('Database not configured');
     } catch (err) {
       console.error('Message submission failed:', err);
       setShowFallback(true);
