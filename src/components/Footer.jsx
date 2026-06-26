@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, X, Mail, Lock, Unlock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
+import { db } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 // Social Media Custom SVG Icons (since brand icons are not exported in this Lucide version)
 function FacebookIcon({ size = 14, className = '' }) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
     </svg>
   );
 }
@@ -15,8 +17,8 @@ function FacebookIcon({ size = 14, className = '' }) {
 function YoutubeIcon({ size = 14, className = '' }) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/>
-      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
+      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
     </svg>
   );
 }
@@ -24,7 +26,7 @@ function YoutubeIcon({ size = 14, className = '' }) {
 function TwitterIcon({ size = 14, className = '' }) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
+      <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
     </svg>
   );
 }
@@ -32,9 +34,9 @@ function TwitterIcon({ size = 14, className = '' }) {
 function InstagramIcon({ size = 14, className = '' }) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
     </svg>
   );
 }
@@ -85,7 +87,7 @@ export default function Footer() {
     <>
       <footer className="bg-slate-950 text-slate-300 pt-12 pb-16 md:pb-6 mt-10">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          
+
           {/* Brand */}
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
             <div className="flex items-center mb-4">
@@ -173,7 +175,7 @@ export default function Footer() {
                 <Mail size={14} />
               </button>
             </div>
-            
+
             {/* 2. Map */}
             <div className="w-full rounded-xl overflow-hidden border-2 border-slate-800 leading-none m-0 mt-4 shadow-md hover:border-teal-500/50 transition-colors duration-300">
               <iframe
@@ -194,7 +196,7 @@ export default function Footer() {
             {/* 3. Address Box */}
             <div className="text-center w-full m-0 p-0 mt-2 md:mt-0">
               <div className="text-slate-400 text-[14px] leading-[1.4] m-0 p-0">
-                Main Road, Shangus,<br/>Anantnag, J&K - 192201
+                Main Road, Shangus,<br />Anantnag, J&K - 192201
               </div>
             </div>
           </div>
@@ -216,14 +218,14 @@ export default function Footer() {
 
         {/* Bottom Bar - Centered with Top Horizontal Line, White Text & Interactive Email Link */}
         <div className="max-w-7xl mx-auto px-4 pt-5 border-t border-slate-700 flex flex-col items-center justify-center text-center text-xs text-white">
-          <p className="mb-1">© 2023 Govt HSS Shangus | Developed by NexLifTech</p>
+          <p className="mb-1">© 2023 Govt HSS Shangus | Developed by <a href="https://nexliftech.netlify.app/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-400 transition-colors underline underline-offset-2">NexLifTech</a></p>
           <div className="flex items-center justify-center gap-1.5 flex-wrap">
             <a
-              href="mailto:sheikhgulfam91@gmail.com"
-              onClick={(e) => handleEmailClick(e, 'sheikhgulfam91@gmail.com')}
+              href="mailto:2nexlif@gmail.com"
+              onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')}
               className="transition-colors hover:text-teal-400 focus:outline-none"
             >
-              (sheikhgulfam91@gmail.com)
+              (2nexlif@gmail.com)
             </a>
             {/* Mobile-only Admin Lock Icon in Footer */}
             <Link
@@ -246,17 +248,17 @@ export default function Footer() {
       {/* --- MODAL POPUPS --- */}
       {/* If activeModal is NOT null, draw this dark background overlay */}
       {activeModal && (
-      <div 
-        className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-3"
-        onClick={() => setActiveModal(null)}
-      >
-          
+        <div
+          className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-3"
+          onClick={() => setActiveModal(null)}
+        >
+
           {/* The white popup box */}
-          <div 
+          <div
             className="bg-white text-slate-800 rounded-lg shadow-2xl max-w-xl w-full p-3 md:p-5 relative animate-in fade-in zoom-in duration-200 max-h-[85vh] overflow-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            
+
             {/* Close Button */}
             <button
               onClick={() => setActiveModal(null)}
@@ -298,7 +300,7 @@ export default function Footer() {
                 <ContactForm onClose={() => setActiveModal(null)} />
               </div>
             )}
-            
+
           </div>
         </div>
       )}
@@ -328,11 +330,12 @@ function ContactForm({ onClose }) {
 
   useEffect(() => {
     let mounted = true;
-    // quick availability check; HEAD is lightweight if supported
-    fetch('/api/messages', { method: 'HEAD' })
+    // Check if proxy backend is available and serving JSON
+    fetch('/api/messages', { method: 'GET' })
       .then((res) => {
         if (!mounted) return;
-        setBackendAvailable(res && res.ok);
+        const ct = res.headers.get('content-type') || '';
+        setBackendAvailable(res.ok && ct.includes('application/json'));
       })
       .catch(() => {
         if (!mounted) return;
@@ -341,7 +344,7 @@ function ContactForm({ onClose }) {
     return () => { mounted = false; };
   }, []);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
     if (!name.trim() || !phone.trim() || !message.trim() || subject === '') {
@@ -349,19 +352,12 @@ function ContactForm({ onClose }) {
       return;
     }
 
-    const to = 'adm.exam.hss.shangus@gmail.com';
-    const mailSubject = encodeURIComponent(subject + ' - Website Contact');
-    const body = encodeURIComponent(
-      `Name: ${name}\nPhone: ${phone}\nEmail: ${email || 'N/A'}\n\nMessage:\n${message}`
-    );
-
-    // Attempt to POST to backend API endpoint first; fallback to mailto
     const payload = {
-      name,
-      phone,
-      email: email || null,
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email ? email.trim() : null,
       subject,
-      message,
+      message: message.trim(),
       createdAt: new Date().toISOString(),
     };
 
@@ -370,21 +366,39 @@ function ContactForm({ onClose }) {
       const existing = JSON.parse(localStorage.getItem('site_messages') || '[]');
       existing.unshift(payload);
       localStorage.setItem('site_messages', JSON.stringify(existing));
-    } catch (e) {
+    } catch (err) {
       // ignore localStorage errors
     }
 
-    // Try sending to backend; if it fails, fall back to fallback choice modal state
-    fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).then((res) => {
-      if (!res.ok) throw new Error('Failed');
+    try {
+      // 1. Try to save to Firestore first (Live Database)
+      if (db) {
+        await addDoc(collection(db, 'messages'), payload);
+        setFormSuccess(true);
+        return;
+      }
+
+      // 2. Fallback to Local Node Backend (Development)
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Failed to send to backend');
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Response is not JSON');
+      }
+      const data = await res.json();
+      if (!data || !data.success) {
+        throw new Error('Unsuccessful response');
+      }
       setFormSuccess(true);
-    }).catch(() => {
+    } catch (err) {
+      console.error('Message submission failed:', err);
       setShowFallback(true);
-    });
+    }
   }
 
   if (showFallback) {
@@ -427,7 +441,7 @@ function ContactForm({ onClose }) {
               className="bg-[#25D366] text-white hover:bg-[#20ba5a] font-bold px-4 py-3.5 rounded-lg flex items-center justify-center gap-2.5 w-full transition-all shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-center text-sm"
             >
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z"/>
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z" />
               </svg>
               WhatsApp
             </a>

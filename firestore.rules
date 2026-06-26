@@ -12,5 +12,13 @@ service cloud.firestore {
         request.auth.token.email.lower() in get(/databases/$(database)/documents/site/admins).data.emails
       );
     }
+    match /messages/{docId} {
+      allow create: if true;
+      allow read, update, delete: if request.auth != null && request.auth.token.email_verified == true && (
+        request.auth.token.admin == true ||
+        request.auth.token.email.lower() == "adm.exam.hss.shangus@gmail.com" ||
+        request.auth.token.email.lower() in get(/databases/$(database)/documents/site/admins).data.emails
+      );
+    }
   }
 }

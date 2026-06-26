@@ -47,10 +47,12 @@ function App() {
         
         {/* Floating Theme Selector Toggle */}
         <ThemeSelector />
+        
       </div>
     </BrowserRouter>
   );
 }
 
 export default App;
+
 

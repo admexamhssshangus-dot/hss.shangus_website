@@ -30,3 +30,6 @@ scripts/serviceAccount.json
 
 # ignore firebase private key
 serviceAccountKey.json
+
+# Admin credentials — NEVER commit
+public/slides/admins.json

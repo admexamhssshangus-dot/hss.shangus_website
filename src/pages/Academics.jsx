@@ -20,6 +20,21 @@ function WhatsAppIcon({ size = 14, className = '' }) {
 }
 
 
+// Fix roman numeral casing (e.g. "Ii" → "II", "Iii" → "III") and strip "in Subject" for senior roles
+const ROMAN_NUMERALS = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
+function fixDesignation(desig) {
+  if (!desig) return desig;
+  // Strip "in Subject" suffix for Principal/Vice Principal/MTS roles
+  const stripped = /principal|vice.principal|mts/i.test(desig)
+    ? desig.replace(/\s+in\s+.+$/i, '').trim()
+    : desig;
+  // Correct roman numeral words like "Ii" → "II", "Iii" → "III"
+  return stripped.replace(/\b[IVXivx]+\b/g, (token) => {
+    const up = token.toUpperCase();
+    return ROMAN_NUMERALS.has(up) ? up : token;
+  });
+}
+
 // Reusable faculty card used in both Teaching and Non-Teaching grids
 function FacultyCard({ member, faculty, setActiveProfileMember }) {
   const nameParts = member.name.replace(/^(Mr\.|Mrs\.|Dr\.|Ms\.)\s+/i, '').split(' ');
@@ -68,9 +83,16 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
           {member.cpis_no ? `CPIS: ${member.cpis_no}` : (member.mobile ? `Mob: ${member.mobile}` : '')}
         </p>
       )}
-      <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mb-2.5 leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
-        {member.designation}{(member.subject && !['Administration', 'MTS'].includes(member.department)) ? ` in ${member.subject}` : ''}
-      </p>
+      <div className="flex flex-col items-center gap-1 mb-3 w-full px-2 min-h-[3rem] justify-center">
+        <span className="text-[11px] sm:text-xs font-bold text-white bg-slate-800 px-2.5 py-1 rounded-md w-full text-center shadow-sm">
+          {fixDesignation(member.designation)}
+        </span>
+        {(member.subject && !['Administration', 'MTS'].includes(member.department)) && (
+          <span className="text-[10px] sm:text-[11px] font-semibold text-slate-700 w-full text-center truncate">
+            {member.subject}
+          </span>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="mt-auto w-full border-t border-slate-200 pt-2 flex items-center justify-center gap-2">
@@ -646,7 +668,16 @@ export default function Academics() {
                       )}
                     </div>
                     <h4 className="font-bold text-lg leading-tight">{activeProfileMember.name}</h4>
-                    <p className="text-xs text-white/80 mt-0.5">{activeProfileMember.designation}{(activeProfileMember.subject && !['Administration', 'MTS'].includes(activeProfileMember.department)) ? ` in ${activeProfileMember.subject}` : ''}</p>
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-sm font-semibold text-white/95">
+                        {fixDesignation(activeProfileMember.designation)}
+                      </p>
+                      {(activeProfileMember.subject && !['Administration', 'MTS'].includes(activeProfileMember.department)) && (
+                        <p className="text-[11px] font-medium text-teal-100 uppercase tracking-wider">
+                          {activeProfileMember.subject}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

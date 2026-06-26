@@ -149,7 +149,6 @@ export default function Navbar() {
             </div>
             <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
               <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">ghssshangus74@gmail.com (Principal)</a></span>
-              <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:adm.exam.hss.shangus@gmail.com" onClick={(e) => handleEmailClick(e, 'adm.exam.hss.shangus@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">adm.exam.hss.shangus@gmail.com (Adms & Exams)</a></span>
             </div>
           </div>
 
