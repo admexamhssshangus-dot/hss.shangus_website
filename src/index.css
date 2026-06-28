@@ -329,7 +329,7 @@
 
 /* Custom Primary Button styling for perfect theme integration */
 .btn-primary-custom {
-  background-color: #0f766e; /* teal-700 */
+  background-color: var(--teal-accent) !important;
   color: #ffffff !important;
   transition: all 0.2s ease;
 }
@@ -908,6 +908,17 @@
   color: var(--teal-accent) !important;
 }
 
+.theme-light .text-teal-300 {
+  color: #93c5fd !important; /* blue-300 */
+}
+.theme-light .text-teal-200 {
+  color: #bfdbfe !important; /* blue-200 */
+}
+.theme-light .text-teal-900,
+.theme-light .text-teal-950 {
+  color: #1e3a8a !important; /* blue-900 */
+}
+
 .theme-light .bg-teal-800,
 .theme-light .bg-teal-700,
 .theme-light .bg-teal-600,
@@ -916,6 +927,24 @@
 .theme-light .bg-teal-400 {
   background-color: var(--teal-accent) !important;
   color: #ffffff !important;
+}
+
+.theme-light .bg-teal-50,
+.theme-light .bg-teal-100,
+.theme-light .bg-teal-200 {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  color: var(--teal-accent) !important;
+}
+
+/* Light teal gradients & borders (e.g. vision card backgrounds) */
+.theme-light .from-teal-50 {
+  --tw-gradient-from: #eff6ff !important; /* blue-50 */
+}
+.theme-light .to-emerald-50\/50 {
+  --tw-gradient-to: rgba(239, 246, 255, 0.5) !important;
+}
+.theme-light .border-teal-100 {
+  border-color: #dbeafe !important; /* blue-100 */
 }
 
 .theme-light .hover\:text-teal-950:hover,
