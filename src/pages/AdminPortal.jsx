@@ -2519,6 +2519,32 @@ export default function AdminPortal() {
     setTimeout(() => setSaveSuccess(''), 5000);
   };
 
+  const handleMoveFacultyUp = (idx) => {
+    if (idx === 0) return;
+    setFaculty((prev) => {
+      const updated = [...prev];
+      const temp = updated[idx];
+      updated[idx] = updated[idx - 1];
+      updated[idx - 1] = temp;
+      return updated;
+    });
+    setSaveSuccess('Employee moved up. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
+  const handleMoveFacultyDown = (idx) => {
+    if (idx === faculty.length - 1) return;
+    setFaculty((prev) => {
+      const updated = [...prev];
+      const temp = updated[idx];
+      updated[idx] = updated[idx + 1];
+      updated[idx + 1] = temp;
+      return updated;
+    });
+    setSaveSuccess('Employee moved down. Click "Apply & Save" to make changes permanent.');
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
   const handleDeleteTeacher = (idx) => {
     const teacher = faculty[idx];
     setCustomPrompt({
@@ -6303,7 +6329,7 @@ export default function AdminPortal() {
 
                 {/* Faculty list */}
                 <div className="overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-lg min-w-0">
-                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '1050px' }}>
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '1100px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
                         <th className="p-1 w-8 text-center">
@@ -6327,7 +6353,7 @@ export default function AdminPortal() {
                         <th className="p-1" style={{ minWidth: '180px' }}>Contact</th>
                         <th className="p-1 text-center" style={{ minWidth: '110px' }}>On Deployment</th>
                         <th className="p-1" style={{ minWidth: '130px' }}>Photo URL</th>
-                        <th className="p-1 w-24 text-center" style={{ minWidth: '96px' }}>Action</th>
+                        <th className="p-1 w-36 text-center" style={{ minWidth: '150px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -6592,6 +6618,22 @@ export default function AdminPortal() {
                                         title="Edit all fields"
                                       >
                                         <Edit2 size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleMoveFacultyUp(index)}
+                                        disabled={index === 0}
+                                        className="p-1 rounded text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                        title="Move Up"
+                                      >
+                                        <ArrowUp size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleMoveFacultyDown(index)}
+                                        disabled={index === faculty.length - 1}
+                                        className="p-1 rounded text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                        title="Move Down"
+                                      >
+                                        <ArrowDown size={13} />
                                       </button>
                                       <button
                                         onClick={() => handleDeleteTeacher(index)}
