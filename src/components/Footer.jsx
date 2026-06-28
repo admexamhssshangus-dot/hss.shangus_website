@@ -285,8 +285,8 @@ export default function Footer() {
                 <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-5">Last Updated: June 28, 2026</p>
                 <div className="space-y-4 text-[12px] md:text-sm text-slate-650 leading-relaxed">
                   <p><strong className="text-slate-800">1. Data Scope & Collection:</strong> We collect personal identifiers (student name, parentage, contact info) and sensitive data (academic credentials, family income for fee structures, bank details for scholarship profiles) strictly for enrollment and official recordkeeping.</p>
-                  <p><strong className="text-slate-800">2. Processing Purpose:</strong> All data is processed solely for class registration, exam scheduling, roll number generation, and system notifications. We enforce strict restrictions against sharing or selling student data to third-party commercial marketing platforms.</p>
-                  <p><strong className="text-slate-800">3. Data Security & Storage:</strong> Records are saved in encrypted cloud datastores (Firebase) with secure backend access guidelines. Data is retained only for active academic tenure or as specified by regional school board policies.</p>
+                  <p><strong className="text-slate-800">2. Processing Purpose:</strong> All data is processed solely for Admission, examination, and other administrative purposes. We do not share or sell student data to third-party commercial marketing platforms.</p>
+                  <p><strong className="text-slate-800">3. Data Security & Storage:</strong> Records are saved in encrypted cloud datastores with secure backend access guidelines. Data is retained only for active academic tenure or as specified by regional school board policies.</p>
                   <p><strong className="text-slate-800">4. Support & Modifications:</strong> To check your registered details or request immediate corrections, contact the admissions and exams department desk at <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] hover:underline underline-offset-2">adm.exam.hss.shangus@gmail.com</a>.</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
@@ -306,7 +306,7 @@ export default function Footer() {
                 <div className="space-y-4 text-[12px] md:text-sm text-slate-650 leading-relaxed">
                   <p><strong className="text-slate-800">1. Verification & Accuracy:</strong> Users (students and parents) must supply valid, verifiable information for admissions. Presenting falsified credentials will result in immediate cancellation of registration.</p>
                   <p><strong className="text-slate-800">2. Credentials Security:</strong> System operators (staff and faculty) are responsible for safeguarding console passwords. Sharing console access credentials or bypassing CAPTCHA/session validations is strictly prohibited.</p>
-                  <p><strong className="text-slate-800">3. Appropriate Use:</strong> The ERP, including tax modules, slideshow adjusters, and class managers, must be accessed strictly for authorized school operations. Web-scraping or brute-force testing is forbidden.</p>
+                  <p><strong className="text-slate-800">3. Appropriate Use:</strong> The ERP, including frontend and backend functionalities, must be accessed strictly for authorized school operations. Web-scraping or brute-force testing is forbidden.</p>
                   <p><strong className="text-slate-800">4. Proprietary Assets:</strong> All document templates, printable PDF registers, search logic, and logos are assets of Govt. HSS Shangus and Next Life Technologies, protected under intellectual property guidelines.</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
