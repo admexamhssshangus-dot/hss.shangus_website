@@ -38,8 +38,8 @@
   --text-main: #0f172a;
   --text-muted: #2e3a4e;
   --border-ui: #e0e7ff; /* Soft periwinkle border */
-  --teal-accent: #0d9488;
-  --teal-accent-hover: #0f766e;
+  --teal-accent: #2563eb; /* Sapphire/Royal Blue */
+  --teal-accent-hover: #1d4ed8; /* Vibrant Darker Blue */
   --navbar-bg: #1e293b;
 }
 
@@ -49,8 +49,8 @@
   --text-main: #0f172a;
   --text-muted: #2e3a4e;
   --border-ui: #e0e7ff;
-  --teal-accent: #0d9488;
-  --teal-accent-hover: #0f766e;
+  --teal-accent: #2563eb; /* Sapphire/Royal Blue */
+  --teal-accent-hover: #1d4ed8; /* Vibrant Darker Blue */
   --navbar-bg: #1e293b;
 }
 
@@ -897,6 +897,40 @@
 .theme-midnight .border-teal-800 {
   border-color: var(--teal-accent) !important;
 }
+
+/* Light theme specific text and background teal overrides to map to our new blue accent */
+.theme-light .text-teal-800,
+.theme-light .text-teal-750,
+.theme-light .text-teal-700,
+.theme-light .text-teal-600,
+.theme-light .text-teal-500,
+.theme-light .text-teal-400 {
+  color: var(--teal-accent) !important;
+}
+
+.theme-light .bg-teal-800,
+.theme-light .bg-teal-700,
+.theme-light .bg-teal-600,
+.theme-light .bg-teal-505,
+.theme-light .bg-teal-500,
+.theme-light .bg-teal-400 {
+  background-color: var(--teal-accent) !important;
+  color: #ffffff !important;
+}
+
+.theme-light .hover\:text-teal-950:hover,
+.theme-light .hover\:text-teal-700:hover,
+.theme-light .hover\:text-teal-600:hover {
+  color: var(--teal-accent-hover) !important;
+}
+
+.theme-light .hover\:bg-teal-700:hover,
+.theme-light .hover\:bg-teal-600:hover,
+.theme-light .hover\:bg-teal-500:hover {
+  background-color: var(--teal-accent-hover) !important;
+  color: #ffffff !important;
+}
+
 
 /* ==========================================================================
    CRITICAL: Header & Footer Dark-Bar Resets
