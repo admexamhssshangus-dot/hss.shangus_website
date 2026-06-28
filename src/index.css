@@ -38,8 +38,8 @@
   --text-main: #0f172a;
   --text-muted: #2e3a4e;
   --border-ui: #e0e7ff; /* Soft periwinkle border */
-  --teal-accent: #0d9488; /* Emerald Green / Teal */
-  --teal-accent-hover: #0f766e; /* Darker Teal */
+  --teal-accent: #00674F; /* Deep Emerald Green */
+  --teal-accent-hover: #004d3b; /* Darker Emerald Green */
   --navbar-bg: #1e293b;
 }
 
@@ -49,8 +49,8 @@
   --text-main: #0f172a;
   --text-muted: #2e3a4e;
   --border-ui: #e0e7ff;
-  --teal-accent: #0d9488; /* Emerald Green / Teal */
-  --teal-accent-hover: #0f766e; /* Darker Teal */
+  --teal-accent: #00674F; /* Deep Emerald Green */
+  --teal-accent-hover: #004d3b; /* Darker Emerald Green */
   --navbar-bg: #1e293b;
 }
 
