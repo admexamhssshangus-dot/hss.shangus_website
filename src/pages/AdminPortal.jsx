@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -663,6 +663,7 @@ export default function AdminPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
 
   // Dynamic admin accounts list
@@ -4738,7 +4739,11 @@ export default function AdminPortal() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Glow Effects in Background */}
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[var(--teal-accent)]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[10s]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#961c14]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[8s]" />
+
         <style dangerouslySetInnerHTML={{
           __html: `
           @keyframes captcha-shake {
@@ -4751,14 +4756,28 @@ export default function AdminPortal() {
           .captcha-animate-shuffle {
             animation: captcha-shake 0.3s ease-in-out infinite;
           }
+          .refresh-spin-hover:hover svg {
+            transform: rotate(180deg);
+          }
+          .refresh-spin-hover svg {
+            transition: transform 0.4s ease-in-out;
+          }
         `}} />
-        <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 p-5 sm:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+
+        <div className="w-full max-w-md bg-slate-900 rounded-3xl border border-slate-800 p-6 sm:p-9 shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative z-10">
           <div className="flex flex-col items-center mb-6">
-            <div className="w-16 h-16 rounded-full theme-accent-badge border flex items-center justify-center mb-4 text-orange-500 animate-pulse">
-              <Lock size={32} />
+            <div className="relative mb-4 flex justify-center">
+              <div className="w-16 h-16 rounded-full theme-accent-badge border flex items-center justify-center text-[var(--teal-accent)] transition-all duration-500 hover:scale-105 relative group">
+                <div className="absolute inset-[-4px] rounded-full border border-[var(--teal-accent)]/20 animate-ping opacity-75 group-hover:opacity-100" />
+                <Lock size={26} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
+              </div>
             </div>
-            <h2 className="text-xl font-bold text-center font-title tracking-wide text-orange-400">Govt. HSS Shangus</h2>
-            <p className="text-xs text-slate-400 uppercase tracking-widest mt-1">Administrative Portal</p>
+            <h2 className="text-2xl font-black text-center font-title tracking-wider text-[var(--teal-accent)] uppercase">
+              Govt. HSS Shangus
+            </h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 text-center">
+              Administrative Portal
+            </p>
           </div>
 
           {lockoutTimeLeft > 0 ? (
@@ -4774,55 +4793,74 @@ export default function AdminPortal() {
             </div>
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Administrative Email</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="Enter admin email..."
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                  autoFocus
-                />
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Administrative Email</label>
+                <div className="relative group">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 group-focus-within:text-[var(--teal-accent)] transition-colors">
+                    <Mail size={16} />
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter admin email..."
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
+                    autoFocus
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Administrative Password</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Enter password..."
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                />
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Administrative Password</label>
+                <div className="relative group">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 group-focus-within:text-[var(--teal-accent)] transition-colors">
+                    <Lock size={16} />
+                  </span>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Enter password..."
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-505 hover:text-[var(--teal-accent)] transition-colors"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase">Security CAPTCHA</label>
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Security CAPTCHA</label>
                 <div className="flex items-center gap-2">
-                  <div className={`relative select-none pointer-events-none bg-slate-950 border border-slate-850 rounded-lg flex items-center justify-center overflow-hidden h-[42px] w-24 sm:w-28 flex-shrink-0 transition-transform ${isShuffling ? 'captcha-animate-shuffle' : ''}`}>
+                  <div className={`relative select-none pointer-events-none bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-center overflow-hidden h-[42px] w-28 sm:w-32 flex-shrink-0 transition-transform ${isShuffling ? 'captcha-animate-shuffle' : ''}`}>
                     <svg className="absolute inset-0 w-full h-full opacity-25" xmlns="http://www.w3.org/2000/svg">
                       <defs>
-                        <pattern id="grid" width="8" height="8" patternUnits="userSpaceOnUse">
-                          <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#334155" strokeWidth="0.5" />
+                        <pattern id="captcha-grid" width="6" height="6" patternUnits="userSpaceOnUse">
+                          <path d="M 6 0 L 0 0 0 6" fill="none" stroke="#475569" strokeWidth="0.5" />
                         </pattern>
                       </defs>
-                      <rect width="100%" height="100%" fill="url(#grid)" />
-                      <path d="M 0 15 Q 30 5, 60 20 T 120 10 T 180 25" fill="none" stroke="var(--teal-accent)" strokeWidth="1.5" />
+                      <rect width="100%" height="100%" fill="url(#captcha-grid)" />
+                      <path d="M 0 12 Q 25 2, 50 18 T 100 8 T 150 20" fill="none" stroke="var(--teal-accent)" strokeWidth="1.2" />
+                      <path d="M 0 25 Q 35 30, 70 10 T 140 18" fill="none" stroke="#961c14" strokeWidth="1" />
                     </svg>
-                    <span className="font-mono text-base font-black tracking-widest text-slate-200 relative z-10 select-none" style={{ transform: 'rotate(-2deg)' }}>
+                    <span className="font-mono text-base font-black tracking-widest text-slate-100 relative z-10 select-none filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.6)]" style={{ transform: 'rotate(-2deg)' }}>
                       {isShuffling ? shuffleValue : `${captcha.num1} ${captcha.operation} ${captcha.num2}`}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={generateCaptcha}
-                    className="p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-orange-400 transition-colors border border-slate-800 flex items-center justify-center h-[42px] w-[42px]"
+                    className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-[var(--teal-accent)] transition-all border border-slate-800 flex items-center justify-center h-[42px] w-[42px] active:scale-90 refresh-spin-hover"
                     title="Refresh CAPTCHA challenge"
                   >
-                    <RefreshCw size={15} />
+                    <RefreshCw size={16} className={isShuffling ? 'animate-spin' : ''} />
                   </button>
                   <input
                     type="text"
@@ -4830,7 +4868,7 @@ export default function AdminPortal() {
                     placeholder="Answer..."
                     value={captchaInput}
                     onChange={(e) => setCaptchaInput(e.target.value)}
-                    className="flex-grow min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-mono text-sm h-[42px]"
+                    className="flex-grow min-w-0 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] font-mono text-sm h-[42px] transition-all"
                   />
                 </div>
               </div>
@@ -4842,10 +4880,10 @@ export default function AdminPortal() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="grid grid-cols-2 gap-3.5 mt-5">
                 <button
                   type="submit"
-                  className="w-full py-2.5 px-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-[11px] sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-orange-950/20 active:scale-[0.98]"
+                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[var(--teal-accent)] to-[var(--teal-accent-hover)] hover:brightness-110 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 active:scale-[0.97] shadow-lg shadow-teal-950/20"
                 >
                   <Unlock size={14} className="flex-shrink-0" />
                   <span className="truncate">Unlock Console</span>
@@ -4853,9 +4891,15 @@ export default function AdminPortal() {
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
-                  className="w-full py-2.5 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                  className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] shadow-sm hover:shadow"
                 >
-                  <span className="truncate">Sign in with Google</span>
+                  <svg className="w-4 h-4 mr-0.5 flex-shrink-0" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.74 1.64 15.06 1 12 1 7.22 1 3.2 3.78 1.3 7.82l3.88 3A7.001 7.001 0 0 1 12 5.04z" />
+                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46a5.54 5.54 0 0 1-2.4 3.64l3.73 2.9c2.18-2.01 3.7-4.98 3.7-8.69z" />
+                    <path fill="#FBBC05" d="M5.18 10.82a6.99 6.99 0 0 1 0-4.24L1.3 3.58A11.96 11.96 0 0 0 0 12c0 3.12.8 6.05 2.21 8.62l3.78-3.04a6.98 6.98 0 0 1-.81-6.76z" />
+                    <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.73-2.9c-1.03.69-2.35 1.1-4.23 1.1a7.001 7.001 0 0 1-6.82-5.04l-3.88 3A11.98 11.98 0 0 0 12 23z" />
+                  </svg>
+                  <span className="truncate text-slate-700">Google Sign-In</span>
                 </button>
               </div>
             </form>
