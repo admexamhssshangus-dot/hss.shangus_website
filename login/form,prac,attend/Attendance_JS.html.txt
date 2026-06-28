@@ -1,0 +1,159 @@
+
+<script>
+/**
+ * Attendance Logic for Teacher Portal
+ */
+
+window.attendanceState = window.attendanceState || {
+    students: [],
+    stats: { present: 0, absent: 0, leave: 0 }
+};
+
+/**
+ * Initialize Attendance View
+ */
+function initAttendanceView() {
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('attendanceDate').value = today;
+    loadAttendanceList();
+}
+
+/**
+ * Fetches the student list for attendance
+ */
+async function loadAttendanceList() {
+    const className = document.getElementById('attendanceClass').value;
+    const date = document.getElementById('attendanceDate').value;
+    const defaultStatus = document.getElementById('defaultStatusSelect').value;
+    
+    showAttendanceLoading(true);
+    
+    try {
+        const response = await runServerFunction('getAttendanceStudentList', className);
+        if (response.success) {
+            attendanceState.students = response.students.map(s => ({
+                ...s,
+                status: defaultStatus // Use current default selection
+            }));
+            renderAttendanceList();
+            updateAttendanceStats();
+        } else {
+            showAlert('teacher-dashboard-alert', 'Error: ' + response.message, 'danger');
+        }
+    } catch (e) {
+        console.error(e);
+        showAlert('teacher-dashboard-alert', 'Failed to fetch student data.', 'danger');
+    } finally {
+        showAttendanceLoading(false);
+    }
+}
+
+/**
+ * Renders the student list into the table
+ */
+function renderAttendanceList() {
+    const container = document.getElementById('attendanceList');
+    container.innerHTML = '';
+    
+    if (attendanceState.students.length === 0) {
+        container.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 2rem;">No students found for this selection.</td></tr>';
+        return;
+    }
+    
+    attendanceState.students.forEach((student, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${student.rollNo || '-'}</td>
+            <td style="font-weight: 500;">${student.name}</td>
+            <td>
+                <div class="status-toggle-group">
+                    <button class="status-btn present ${student.status === 'Present' ? 'active' : ''}" 
+                        onclick="setStudentStatus(${index}, 'Present')">P</button>
+                    <button class="status-btn absent ${student.status === 'Absent' ? 'active' : ''}" 
+                        onclick="setStudentStatus(${index}, 'Absent')">A</button>
+                    <button class="status-btn leave ${student.status === 'Leave' ? 'active' : ''}" 
+                        onclick="setStudentStatus(${index}, 'Leave')">L</button>
+                </div>
+            </td>
+        `;
+        container.appendChild(row);
+    });
+}
+
+/**
+ * Updates a student's status
+ */
+function setStudentStatus(index, status) {
+    attendanceState.students[index].status = status;
+    renderAttendanceList();
+    updateAttendanceStats();
+}
+
+/**
+ * Mark all students as a specific status
+ */
+function markAllAs(status) {
+    attendanceState.students.forEach(s => s.status = status);
+    renderAttendanceList();
+    updateAttendanceStats();
+}
+
+/**
+ * Update the footer stats
+ */
+function updateAttendanceStats() {
+    const stats = attendanceState.students.reduce((acc, s) => {
+        if (s.status === 'Present') acc.present++;
+        else if (s.status === 'Absent') acc.absent++;
+        else if (s.status === 'Leave') acc.leave++;
+        return acc;
+    }, { present: 0, absent: 0, leave: 0 });
+    
+    document.getElementById('totalStudentsCount').textContent = attendanceState.students.length;
+    document.getElementById('presentCount').textContent = stats.present;
+    document.getElementById('absentCount').textContent = stats.absent;
+    document.getElementById('leaveCount').textContent = stats.leave;
+}
+
+/**
+ * Save the attendance to the server
+ */
+async function saveAttendance() {
+    if (attendanceState.students.length === 0) return;
+    
+    const className = document.getElementById('attendanceClass').value;
+    const date = document.getElementById('attendanceDate').value;
+    const saveBtn = document.getElementById('saveAttendanceBtn');
+    
+    setLoadingState(saveBtn, true, 'Saving...');
+    
+    try {
+        const response = await runServerFunction('saveAttendanceRecords', 
+            attendanceState.students, className, date, state.currentUser.email);
+            
+        if (response.success) {
+            showAlert('teacher-dashboard-alert', response.message, 'success');
+        } else {
+            showAlert('teacher-dashboard-alert', 'Failed to save: ' + response.message, 'danger');
+        }
+    } catch (e) {
+        showAlert('teacher-dashboard-alert', 'Error during save. Check connection.', 'danger');
+    } finally {
+        setLoadingState(saveBtn, false, '<span class="material-icons">save</span> Save Attendance');
+    }
+}
+
+function showAttendanceLoading(show) {
+    document.getElementById('attendanceLoading').classList.toggle('hidden', !show);
+}
+
+function backToTeacherDashboard() {
+    // [MODIFIED] Role-aware routing for unified portals
+    if (typeof switchPortal === 'function') {
+        switchPortal('dashboard', true);
+    } else {
+        showView('teacherDashboardView');
+    }
+}
+</script>

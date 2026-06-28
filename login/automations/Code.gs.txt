@@ -1,0 +1,472 @@
+// ==========================================
+// BACKEND: APPS SCRIPT
+// ==========================================
+
+var PDF_FOLDER_ID = "1OP1Xn_LurFyPlDA5hKMYxpRjS2-QXh9P"; 
+
+// Split URL string to completely prevent text editors from hiding brackets in the link
+var CLOUD_RUN_URL = "https://" + "run-automation-278255418735.asia-south1.run.app"; 
+var SECRET_KEY = "my_super_secret_password_123";
+
+var ADMISSIONS_SHEET_ID = '1pZz0YkcTvWJnnDlBSguUIU4Ujc0aPf5119B7nX7TRZg';
+var ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+
+// 1. Serve the HTML Interface
+function doGet(e) {
+  try {
+    const tmpl = HtmlService.createTemplateFromFile('Index');
+    
+    // SSO Token Logic
+    let user = null;
+    if (e.parameter.token) {
+      const auth = validateSSOToken(e.parameter.token);
+      if (auth.success) {
+        const u = auth.user;
+        user = { email: u.email, name: u.name || u.email, role: u.role || 'Admin', isAdmin: true };
+      }
+    }
+    tmpl.user = user ? JSON.stringify(user) : 'null';
+    tmpl.questions = '[]';
+    tmpl.subjects = '[]';
+    tmpl.centers = '[]';
+    tmpl.config = '{}';
+    tmpl.logs = '[]';
+    
+    return tmpl.evaluate()
+        .setTitle('Student PDF Automation')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  } catch (err) {
+    console.error("Critical doGet Error: " + err);
+    return HtmlService.createHtmlOutput(
+      "<div style='font-family:sans-serif; padding:40px; text-align:center;'>"+
+      "<h2 style='color:#b91c1c;'>Portal Availability Error</h2>"+
+      "<p>We encountered a problem initializing the automation portal.</p>"+
+      "<p style='color:#64748b; font-size:13px;'>Error: " + err.message + "</p>"+
+      "<div style='margin-top:20px; color:#e11d48; font-weight:bold; font-size:12px;'>⚠️ MAJOR CONFLICT DETECTED</div>"+
+      "<div style='color:#64748b; font-size:11px; margin-top:5px; max-width:500px; margin-left:auto; margin-right:auto;'>"+
+      "It looks like your Apps Script project is loading the <b>wrong Index.html</b> file. "+
+      "Please ensure that the 'Index' file in your Apps Script editor matches the 'Index.html' in your <code>/automations</code> folder.</div>"+
+      "<button onclick='window.location.reload()' style='margin-top:20px; padding:10px 20px; background:#1e40af; color:white; border:none; border-radius:8px; cursor:pointer;'>Try Again</button>"+
+      "</div>"
+    ).setTitle("System Error").setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+}
+
+// Helper to include other files
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/**
+ * [NEW] Core authentication functions
+ */
+function isUserAnyAdmin(user) {
+  if (!user || !user.email) return false;
+  const role = String(user.role || '').trim().toLowerCase();
+  const email = String(user.email || '').trim().toLowerCase();
+  if (role === 'admin' || role === 'superadmin' || email === ADMIN_EMAIL) return true;
+  try {
+    const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const users = ss.getSheetByName('Users').getDataRange().getValues();
+    return users.some(r => r[0] && r[0].toLowerCase() === email && (r[4] === 'Admin' || r[4] === 'SuperAdmin' || r[4] === 'Teacher'));
+  } catch(err) { return false; }
+}
+
+/**
+ * [NEW] Core SSO Validation (Cross-project compatible)
+ */
+function validateSSOToken(token) {
+  const MASTER_SHEET_ID = ADMISSIONS_SHEET_ID;
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    const ssoSheet = ss.getSheetByName('SSO_Tokens');
+    if (!ssoSheet) return { success: false, message: 'Gateway not initialized' };
+    
+    const data = ssoSheet.getDataRange().getValues();
+    const now = new Date().getTime();
+    
+    for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === token) {
+            if (now > data[i][3]) {
+                ssoSheet.deleteRow(i + 1);
+                return { success: false, message: 'Token expired' };
+            }
+            const userData = { 
+               name: 'Gateway User', 
+               email: data[i][1], 
+               role: data[i][2] || 'Teacher' 
+            };
+            ssoSheet.deleteRow(i + 1);
+            return { success: true, user: userData };
+        }
+    }
+  } catch (e) { return { success: false, message: e.message }; }
+  return { success: false, message: 'Invalid session/token' };
+}
+
+/**
+ * [NEW] Generates a one-time use SSO token
+ */
+function generateSSOToken(email) {
+  const MASTER_SHEET_ID = ADMISSIONS_SHEET_ID;
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    const usersSheet = ss.getSheetByName('Users');
+    const udata = usersSheet.getDataRange().getValues();
+    const userRow = udata.find(r => r[0] && r[0].toLowerCase() === email.toLowerCase());
+    
+    let role = 'Teacher';
+    if (userRow) {
+      role = userRow[4] || 'Teacher';
+    } else if (email.toLowerCase() === ADMIN_EMAIL) {
+      role = 'Admin';
+    }
+
+    const ssoSheet = ss.getSheetByName('SSO_Tokens');
+    const token = 'sso_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    const expiry = new Date().getTime() + (5 * 60 * 1000); // 5 min
+    
+    ssoSheet.appendRow([token, email, role, expiry]);
+    return { success: true, token: token, portals: MASTER_PORTALS };
+  } catch (e) { return { success: false, message: e.message }; }
+}
+
+/**
+ * [REFINED] Fetches student data dynamically from the Admission Portal 
+ * and merges it with local results stored in Sheet1.
+ * This ensures the automation sheet only stores processed records.
+ */
+function getStudentList(classFilter, sessionFilter) {
+  try {
+    const ssAdmissions = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const sheetAdmissions = ssAdmissions.getSheetByName("source_data");
+    if (!sheetAdmissions) return [];
+    
+    // 1. Fetch Master Data
+    const hubData = sheetAdmissions.getDataRange().getValues();
+    const headers = hubData[0].map(h => String(h || "").trim().toLowerCase());
+    
+    const getIdx = (names) => {
+      for (let n of names) {
+        let idx = headers.indexOf(n.toLowerCase());
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const idxMap = {
+      formNo: getIdx(["Form No."]),
+      class: getIdx(["Class"]),
+      session: getIdx(["Session"]),
+      name: getIdx(["Student's Name"]),
+      reg: getIdx(["Board Reg. No."]),
+      rollPrev: getIdx(["Exam R.No. (Prev.)"]),
+      rollCurr: getIdx(["Exam R.No. (Current)"]),
+      classRoll: getIdx(["Class R.No.", "S.No."]),
+      photoId: getIdx(["photo_id"]),
+      email: getIdx(["email1", "email2"]),
+      contact: getIdx(["Student's Contact", "Parent's Contact"])
+    };
+
+    const fastGet = (row, idx) => idx !== -1 ? String(row[idx] || "").trim() : "";
+    const classNumFilter = classFilter && classFilter !== "ALL" ? classFilter.replace(/\D/g, "") : null;
+
+    // 2. Fetch Local Results (Sheet1)
+    const localSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1");
+    if (!localSheet) SpreadsheetApp.getActiveSpreadsheet().insertSheet("Sheet1");
+    const localData = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1").getDataRange().getValues();
+    const resultMap = {}; // Key: Roll|Class|Session
+    for (let j = 1; j < localData.length; j++) {
+      const key = `${localData[j][0]}|${localData[j][4]}|${localData[j][3]}`.toLowerCase();
+      resultMap[key] = { status: localData[j][5], fileUrl: localData[j][6], rowIndex: j + 1 };
+    }
+
+    const students = [];
+    for (let i = 1; i < hubData.length; i++) {
+      const row = hubData[i];
+      const sClass = fastGet(row, idxMap.class);
+      const sSession = fastGet(row, idxMap.session);
+      
+      if (classNumFilter && !sClass.includes(classNumFilter)) continue;
+      if (sessionFilter && sessionFilter !== "ALL" && !sSession.includes(sessionFilter)) continue;
+
+      let rollNo = "";
+      if (sClass.includes("11")) {
+        rollNo = fastGet(row, idxMap.rollPrev) || fastGet(row, idxMap.rollCurr) || fastGet(row, idxMap.classRoll);
+      } else if (sClass.includes("12")) {
+        rollNo = fastGet(row, idxMap.rollCurr) || fastGet(row, idxMap.classRoll);
+      } else {
+        rollNo = fastGet(row, idxMap.classRoll);
+      }
+      
+      const regNo = fastGet(row, idxMap.reg);
+      const nameVal = fastGet(row, idxMap.name);
+
+      if (!nameVal || !rollNo || rollNo === "-") continue;
+
+      const key = `${rollNo}|${sClass}|${sSession}`.toLowerCase();
+      const res = resultMap[key] || { status: "", fileUrl: "", rowIndex: -1 };
+
+      students.push({
+        rowIndex: res.rowIndex, // -1 if not in local sheet yet
+        rollNo: rollNo,
+        regNo: regNo,
+        name: nameVal,
+        photoId: fastGet(row, idxMap.photoId),
+        email: fastGet(row, idxMap.email),
+        contact: fastGet(row, idxMap.contact),
+        sessionVal: sSession,
+        classVal: sClass,
+        status: res.status,
+        fileUrl: res.fileUrl,
+        formNo: fastGet(row, idxMap.formNo)
+      });
+    }
+
+    return students.sort((a, b) => parseInt(a.rollNo || 0) - parseInt(b.rollNo || 0));
+
+  } catch (err) {
+    console.error("Fetch Error: " + err);
+    return [];
+  }
+}
+
+/**
+ * [NEW] Syncs filtered student data from the master Admission Portal sheet to local Sheet1.
+ * Matches by Roll No + Class + Session.
+ */
+function syncWithAdmissionPortal(classFilter, sessionFilter) {
+  try {
+    const ssAdmissions = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const sheetAdmissions = ssAdmissions.getSheetByName("source_data");
+    if (!sheetAdmissions) return { success: false, message: "Master admissions sheet ('source_data') not found." };
+    
+    const data = sheetAdmissions.getDataRange().getValues();
+    const headers = data[0];
+    const normalizedHeaders = headers.map(h => String(h || "").trim().toLowerCase());
+
+    const getIdx = (names) => {
+      for (let n of names) {
+        let idx = normalizedHeaders.indexOf(n.toLowerCase());
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const idxMap = {
+      formNo: getIdx(["Form No."]),
+      class: getIdx(["Class"]),
+      session: getIdx(["Session"]),
+      name: getIdx(["Student's Name"]),
+      reg: getIdx(["Board Reg. No."]),
+      rollPrev: getIdx(["Exam R.No. (Prev.)"]),
+      rollCurr: getIdx(["Exam R.No. (Current)"]),
+      classRoll: getIdx(["Class R.No.", "S.No."]),
+      photoId: getIdx(["photo_id"]),
+      email: getIdx(["email1", "email2"]),
+      contact: getIdx(["Student's Contact", "Parent's Contact"])
+    };
+
+    const fastGet = (row, idx) => idx !== -1 ? String(row[idx] || "").trim() : "";
+
+    const recordsToSync = [];
+    const classNumFilter = classFilter && classFilter !== "ALL" ? classFilter.replace(/\D/g, "") : null;
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const studentClass = fastGet(row, idxMap.class);
+      const studentSession = fastGet(row, idxMap.session);
+      let rollNo = "";
+      if (studentClass.includes("11")) {
+        rollNo = fastGet(row, idxMap.rollPrev) || fastGet(row, idxMap.rollCurr) || fastGet(row, idxMap.classRoll);
+      } else if (studentClass.includes("12")) {
+        rollNo = fastGet(row, idxMap.rollCurr) || fastGet(row, idxMap.classRoll);
+      } else {
+        rollNo = fastGet(row, idxMap.classRoll);
+      }
+      
+      const regNo = fastGet(row, idxMap.reg);
+      const nameVal = fastGet(row, idxMap.name);
+      
+      // Filtering logic
+      if (classNumFilter && !studentClass.includes(classNumFilter)) continue;
+      if (sessionFilter && sessionFilter !== "ALL" && !studentSession.includes(sessionFilter)) continue;
+      if (!nameVal || !rollNo || rollNo === "-") continue;
+
+      recordsToSync.push({
+        rollNo: rollNo,
+        regNo: regNo,
+        name: nameVal,
+        session: studentSession,
+        class: studentClass,
+        formNo: fastGet(row, idxMap.formNo),
+        photoId: fastGet(row, idxMap.photoId),
+        email: fastGet(row, idxMap.email),
+        contact: fastGet(row, idxMap.contact)
+      });
+    }
+
+    if (recordsToSync.length === 0) {
+      return { success: false, message: "No eligible students found matching filters in Admission Hub." };
+    }
+
+    const localSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1");
+    if (!localSheet) return { success: false, message: "Local 'Sheet1' not found." };
+    
+    // Force text format for Reg No column before writing
+    localSheet.getRange("B:B").setNumberFormat("@");
+    localSheet.getRange("H:H").setNumberFormat("@");
+
+    // Upsert strategy
+    const localData = localSheet.getDataRange().getValues();
+    const localMap = {}; // Key: RollNo|Class|Session
+    for (let j = 1; j < localData.length; j++) {
+      const key = `${localData[j][0]}|${localData[j][4]}|${localData[j][3]}`.toLowerCase();
+      localMap[key] = j + 1;
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    recordsToSync.forEach(rec => {
+      const key = `${rec.rollNo}|${rec.class}|${rec.session}`.toLowerCase();
+      const safeReg = "'" + rec.regNo;
+      const safeForm = "'" + rec.formNo;
+
+      if (localMap[key]) {
+        const rowIdx = localMap[key];
+        localSheet.getRange(rowIdx, 1, 1, 5).setValues([[rec.rollNo, safeReg, rec.name, rec.session, rec.class]]);
+        localSheet.getRange(rowIdx, 8).setValue(safeForm);
+        updatedCount++;
+      } else {
+        localSheet.appendRow([rec.rollNo, safeReg, rec.name, rec.session, rec.class, "", "", safeForm]);
+        addedCount++;
+      }
+    });
+
+    return { 
+      success: true, 
+      message: `Sync complete! Synced ${recordsToSync.length} students (${addedCount} new, ${updatedCount} updated).` 
+    };
+
+  } catch (err) {
+    return { success: false, message: "Sync Error: " + err.message };
+  }
+}
+
+/**
+ * [UPDATED] Deletes a student's result and removes the record from local storage.
+ */
+function deleteStudentResult(rowIndex) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1");
+    if (!sheet || rowIndex === -1) return { success: true, message: "No record to delete." };
+
+    var fileUrl = sheet.getRange(rowIndex, 7).getValue();
+    
+    // Delete from Drive
+    if (fileUrl && fileUrl.toString().includes("/d/")) {
+      try {
+        var fileId = fileUrl.split("/d/")[1].split("/")[0];
+        DriveApp.getFileById(fileId).setTrashed(true);
+      } catch (fErr) {}
+    }
+    
+    // Delete local row completely
+    sheet.deleteRow(rowIndex);
+    return { success: true, message: "Result and record removed from local storage." };
+  } catch (e) {
+    return { success: false, message: "Deletion Error: " + e.message };
+  }
+}
+
+/**
+ * [REMOVED] Manual student addition is no longer needed with dynamic sync.
+ */
+
+// 3. Helper function to find or create a folder
+function getOrCreateSubfolder(parentFolder, folderName) {
+  var safeName = folderName ? folderName.toString().trim().replace(/[\/\\:*?"<>|]/g, "") : "Unknown";
+  var folders = parentFolder.getFoldersByName(safeName);
+  if (folders.hasNext()) {
+    return folders.next(); // Folder exists, return it
+  } else {
+    return parentFolder.createFolder(safeName); // Doesn't exist, create it
+  }
+}
+
+// 4. Process a single student (Called by frontend loop)
+function processSingleStudent(student) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1");
+  var baseFolder = DriveApp.getFolderById(PDF_FOLDER_ID);
+  
+  var payload = {
+    "secret_key": SECRET_KEY,
+    "roll_number": student.rollNo.toString(),
+    "registration_number": student.regNo.toString()
+  };
+
+  var options = {
+    "method": "post",
+    "contentType": "application/json",
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(CLOUD_RUN_URL, options);
+    var jsonResponse = JSON.parse(response.getContentText());
+
+    if (jsonResponse.status === "success") {
+      var fileName = student.rollNo + "_" + student.regNo + "_" + student.name.replace(/[\/\\:*?"<>|]/g, "") + ".pdf";
+
+      var classFolder = getOrCreateSubfolder(baseFolder, student.classVal);
+      var sessionFolder = getOrCreateSubfolder(classFolder, student.sessionVal);
+
+      var pdfBlob = Utilities.newBlob(Utilities.base64Decode(jsonResponse.pdf_base64), 'application/pdf', fileName);
+      var file = sessionFolder.createFile(pdfBlob);
+      var fileUrl = file.getUrl();
+      
+      // UPSERT LOGIC:
+      let targetRow = student.rowIndex;
+      if (targetRow === -1) {
+        // Create new row in Sheet1
+        sheet.appendRow([student.rollNo, "'" + student.regNo, student.name, student.sessionVal, student.classVal, "Success", fileUrl, "'" + student.formNo]);
+        targetRow = sheet.getLastRow();
+      } else {
+        // Update existing row
+        sheet.getRange(targetRow, 6, 1, 2).setValues([["Success", fileUrl]]);
+      }
+
+      return { success: true, message: "Success", fileUrl: fileUrl, newRowIndex: targetRow };
+    } else {
+      var errorMsg = "Error: " + jsonResponse.message;
+      if (student.rowIndex !== -1) sheet.getRange(student.rowIndex, 6).setValue(errorMsg);
+      return { success: false, message: errorMsg };
+    }
+  } catch (e) {
+    return { success: false, message: "Connection Error: " + e.message };
+  }
+}
+
+const MASTER_PORTALS = {
+  hub: { name: "Admission Hub", url: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec" },
+  practicals: { name: "Practical Portal", url: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec" },
+  automation: { name: "Automation Portal", url: "https://script.google.com/macros/s/AKfycbwYo85Kxoi8XE--AQZsAB4xa88QVz3mA6htsk1jDbzbrN8XZy0yvZDoT96zH5VCWB6h/exec" },
+  advanced_reports: { name: "Advanced Reports", url: "https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec" },
+  fund_distribution: { name: "Fund Distribution", url: "https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec" }
+};
+function validateSession(email) {
+  try {
+    const ssAdmissions = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const sheet = ssAdmissions.getSheetByName("Users");
+    if (!sheet) return { success: false };
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      // Email is in Column A (index 0) of the Users sheet
+      if (data[i][0] && data[i][0].toLowerCase() === email.toLowerCase()) return { success: true };
+    }
+    return { success: false };
+  } catch (e) { return { success: false }; }
+}

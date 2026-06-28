@@ -1,0 +1,428 @@
+/**
+ * Global Configuration
+ */
+const CONFIG = {
+  TEMPLATE_DOC_ID: '1B7bW-trcYDJEtsK-Jn7Wlb_bXoc2FAqbpRuGk1uUJ5o',
+  OUTPUT_FOLDER_ID: '1PWX6R06uJ1_-1AdwOeDvrPGT_7V8PRi4',
+  SHEET_NAME_DIST: 'distributions',
+  SHEET_NAME_RATE: 'rate'
+};
+
+const ADMISSIONS_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
+const ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+
+const MASTER_PORTALS = {
+  hub: { name: "Admission Hub", url: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec" },
+  practicals: { name: "Practical Portal", url: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec" },
+  automation: { name: "Automation Portal", url: "https://script.google.com/macros/s/AKfycbwYo85Kxoi8XE--AQZsAB4xa88QVz3mA6htsk1jDbzbrN8XZy0yvZDoT96zH5VCWB6h/exec" },
+  advanced_reports: { name: "Advanced Reports", url: "https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec" },
+  fund_distribution: { name: "Fund Distribution", url: "https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec" }
+};
+
+/**
+ * Web App Entry Point
+ */
+function doGet(e) {
+  const tmpl = HtmlService.createTemplateFromFile('index');
+  
+  // SSO Token Logic
+  let user = null;
+  if (e.parameter.token) {
+    const auth = validateSSOToken(e.parameter.token);
+    if (auth.success) {
+      const u = auth.user;
+      user = { email: u.email, name: u.name || u.email, role: u.role || 'Admin', isAdmin: true };
+    }
+  }
+  tmpl.user = user ? JSON.stringify(user) : 'null';
+  
+  return tmpl.evaluate()
+    .setTitle('BMHSS Handwara - Fund Distribution')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * [NEW] Helper to verify if a user has administrative privileges.
+ */
+function isUserAnyAdmin(user) {
+  if (!user || !user.email) return false;
+  const role = String(user.role || '').trim().toLowerCase();
+  const email = String(user.email || '').trim().toLowerCase();
+  const masterAdmin = String(ADMIN_EMAIL || '').trim().toLowerCase();
+  
+  if (role === 'admin' || role === 'superadmin' || (masterAdmin && email === masterAdmin)) return true;
+  
+  // Verify against sheet just in case role in token is stale
+  try {
+    const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const users = ss.getSheetByName('Users').getDataRange().getValues();
+    return users.some(r => r[0] && r[0].toLowerCase() === email && (r[4] === 'Admin' || r[4] === 'SuperAdmin'));
+  } catch(err) { return false; }
+}
+
+/**
+ * [NEW] Core SSO Validation (Cross-project compatible)
+ */
+function validateSSOToken(token) {
+  const MASTER_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    const ssoSheet = ss.getSheetByName('SSO_Tokens');
+    if (!ssoSheet) return { success: false, message: 'Gateway not initialized' };
+    
+    const data = ssoSheet.getDataRange().getValues();
+    const now = new Date().getTime();
+    
+    for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === token) {
+            if (now > data[i][3]) {
+                ssoSheet.deleteRow(i + 1);
+                return { success: false, message: 'Token expired' };
+            }
+            const userData = { 
+               name: 'Gateway User', 
+               email: data[i][1], 
+               role: data[i][2] || 'Teacher' 
+            };
+            ssoSheet.deleteRow(i + 1);
+            return { success: true, user: userData };
+        }
+    }
+  } catch (e) { return { success: false, message: e.message }; }
+  return { success: false, message: 'Invalid session/token' };
+}
+
+/**
+ * [NEW] Generates a one-time use SSO token
+ */
+function generateSSOToken(email) {
+  const MASTER_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    const usersSheet = ss.getSheetByName('Users');
+    const udata = usersSheet.getDataRange().getValues();
+    const userRow = udata.find(r => r[0] && r[0].toLowerCase() === email.toLowerCase());
+    
+    let role = 'Teacher';
+    if (userRow) {
+      role = userRow[4] || 'Teacher';
+    } else if (email.toLowerCase() === ADMIN_EMAIL) {
+      role = 'Admin';
+    }
+
+    const ssoSheet = ss.getSheetByName('SSO_Tokens');
+    const token = 'sso_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    const expiry = new Date().getTime() + (5 * 60 * 1000); // 5 min
+    
+    ssoSheet.appendRow([token, email, role, expiry]);
+    return { success: true, token: token, portals: MASTER_PORTALS };
+  } catch (e) { return { success: false, message: e.message }; }
+}
+
+/**
+ * Main Processing Function - Called from the Front-end
+ * Handles both NEW entries and UPDATES to existing rows
+ */
+function processDistribution(input) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const rateSheet = ss.getSheetByName(CONFIG.SHEET_NAME_RATE);
+    const distSheet = ss.getSheetByName(CONFIG.SHEET_NAME_DIST);
+
+    if (!rateSheet || !distSheet) throw new Error("Required sheets not found.");
+
+    // 1. Get Rates for the selected class
+    const rateData = rateSheet.getDataRange().getValues();
+    let classRates = null;
+    
+    for (let i = 1; i < rateData.length; i++) {
+      if (rateData[i][0].toString().trim().toLowerCase() === input.className.toLowerCase()) {
+        classRates = rateData[i];
+        break;
+      }
+    }
+    if (!classRates) throw new Error("Rates for class " + input.className + " not found.");
+
+    // Sanitize numeric inputs
+    const noPaid = Number(input.noPaid) || 0;
+    const noScience = Number(input.noScience) || 0;
+
+    // 2. Map Fund Names to Indices (matching your Rates sheet columns)
+    const fundMap = {
+      school_improv: { rate: classRates[1], cands: noPaid },
+      games: { rate: classRates[2], cands: noPaid },
+      news: { rate: classRates[3], cands: noPaid },
+      poor: { rate: classRates[4], cands: noPaid },
+      red_cross: { rate: classRates[5], cands: noPaid },
+      printing: { rate: classRates[7], cands: noPaid }, 
+      library: { rate: classRates[8], cands: noPaid },
+      computer: { rate: classRates[10], cands: noPaid },
+      magazine: { rate: classRates[11], cands: noPaid },
+      science: { rate: classRates[12], cands: noScience },
+      social: { rate: classRates[13], cands: noPaid },
+      sweeping: { rate: classRates[14], cands: noPaid },
+      electricity: { rate: classRates[15], cands: noPaid }
+    };
+
+    // Calculate totals
+    let grandTotal = 0;
+    for (let key in fundMap) {
+      const amt = fundMap[key].rate * fundMap[key].cands;
+      fundMap[key].total = amt;
+      grandTotal += amt;
+    }
+
+    // 3. Generate PDF FIRST to capture the URL for storage in the sheet
+    const pdfUrl = generatePdfReport(input, fundMap, grandTotal);
+
+    // 4. Update or Append row
+    const d = new Date(input.date);
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear() + "-" + (d.getFullYear() + 1).toString().slice(-2); 
+
+    const rowData = [
+      input.className,
+      month,
+      year,
+      noPaid, 
+      noScience,
+      noPaid,
+      "Nill", 
+      fundMap.school_improv.total,
+      fundMap.games.total,
+      fundMap.news.total,
+      fundMap.poor.total,
+      fundMap.red_cross.total,
+      "-", 
+      fundMap.printing.total,
+      fundMap.library.total,
+      "-", 
+      fundMap.computer.total,
+      fundMap.magazine.total,
+      fundMap.science.total,
+      fundMap.social.total,
+      fundMap.sweeping.total,
+      fundMap.electricity.total,
+      grandTotal,
+      pdfUrl, // Saved PDF link in Column X (Index 23)
+      new Date() // Generated On timestamp in Column Y (Index 24)
+    ];
+
+    if (input.rowIndex && input.rowIndex > 1) {
+      // Edit mode: overwrite specific row
+      distSheet.getRange(input.rowIndex, 1, 1, rowData.length).setValues([rowData]);
+    } else {
+      // New mode: append to end
+      distSheet.appendRow(rowData);
+    }
+
+    return { 
+      success: true, 
+      pdfUrl: pdfUrl, 
+      totalAmount: "₹" + grandTotal.toLocaleString('en-IN') 
+    };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+/**
+ * Fetch all entries from the distributions sheet for the history table
+ */
+function getDistributions() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_DIST);
+    if (!sheet) return [];
+    
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return [];
+    
+    // Map all columns to have full data for the preview
+    return data.slice(1).map((row, index) => ({
+      rowIndex: index + 2, // 1-based index + 1 for header
+      className: row[0],
+      month: row[1],
+      year: row[2],
+      noPaid: row[3],
+      noScience: row[4],
+      // Individual funds for preview (Column H to V, index 7 to 21)
+      funds: {
+        school_improv: row[7],
+        games: row[8],
+        news: row[9],
+        poor: row[10],
+        red_cross: row[11],
+        printing: row[13],
+        library: row[14],
+        computer: row[16],
+        magazine: row[17],
+        science: row[18],
+        social: row[19],
+        sweeping: row[20],
+        electricity: row[21]
+      },
+      total: row[22], // Total Fee received column
+      pdfUrl: row[23], // PDF link saved in Column X
+      generatedOn: row[24] // Generated On timestamp in Column Y
+    })).reverse();
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Delete a specific entry from the distributions sheet
+ */
+function deleteDistribution(rowIndex) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_DIST);
+    if (!sheet) throw new Error("Sheet not found.");
+    
+    if (rowIndex <= 1) throw new Error("Cannot delete header row.");
+    
+    sheet.deleteRow(rowIndex);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+/**
+ * Search for a PDF in the output folder (Fallback)
+ */
+function getPdfLinks() {
+  try {
+    const folder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
+    const files = folder.getFiles();
+    const links = {};
+    
+    while (files.hasNext()) {
+      const file = files.next();
+      links[file.getName()] = file.getUrl();
+    }
+    return links;
+  } catch (e) {
+    return {};
+  }
+}
+
+/**
+ * PDF Generation to replace placeholders in the Doc template
+ */
+function generatePdfReport(input, fundMap, grandTotal) {
+  const templateDoc = DriveApp.getFileById(CONFIG.TEMPLATE_DOC_ID);
+  const folder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
+  
+  const tempName = `Fund_Distribution_${input.className}_${input.date}`;
+  
+  const existingFiles = folder.getFilesByName(tempName + ".pdf");
+  while (existingFiles.hasNext()) {
+    existingFiles.next().setTrashed(true);
+  }
+
+  const tempCopy = templateDoc.makeCopy(tempName + "_temp", folder);
+  const doc = DocumentApp.openById(tempCopy.getId());
+  const body = doc.getBody();
+
+  const formattedDate = Utilities.formatDate(new Date(input.date), "GMT+5:30", "dd-MM-yyyy");
+  
+  // Header Placeholders
+  body.replaceText('{{Date}}', formattedDate);
+  body.replaceText('{{Class}}', input.className);
+  body.replaceText('{{RefNo}}', 'HSS/S/' + Utilities.formatDate(new Date(), "GMT+5:30", "yy") + '/...');
+  body.replaceText('{{TotalAmt}}', "₹" + grandTotal.toLocaleString('en-IN'));
+  body.replaceText('{{TotalWords}}', numberToWords(grandTotal) + " Only");
+
+  const placeholders = {
+    'A1': 'school_improv', 'A2': 'red_cross', 'A3': 'poor', 
+    'A4': 'games', 'A5': 'printing', 'A6': 'science',
+    'A7': 'computer', 'A8': 'library', 'A9': 'social',
+    'A10': 'sweeping', 'A11': 'magazine', 'A12': 'electricity',
+    'A13': 'news'
+  };
+
+  for (let code in placeholders) {
+    const key = placeholders[code];
+    const data = fundMap[key];
+    const rateVal = (data.rate || 0).toLocaleString('en-IN');
+    const totalVal = (data.total || 0).toLocaleString('en-IN');
+    
+    body.replaceText(`{{${code}_RATE}}`, "₹" + rateVal);
+    body.replaceText(`{{${code}_CANDS}}`, data.cands || "0");
+    body.replaceText(`{{${code}_TOTAL}}`, "₹" + totalVal);
+  }
+
+  doc.saveAndClose();
+  const pdfBlob = tempCopy.getAs('application/pdf');
+  const pdfFile = folder.createFile(pdfBlob).setName(tempName + ".pdf");
+  
+  // Explicitly set sharing permissions so anyone with the link can view
+  pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  
+  tempCopy.setTrashed(true);
+
+  return pdfFile.getUrl();
+}
+
+/**
+ * Helper to convert number to words
+ */
+function numberToWords(n) {
+  if (n < 0) return false;
+  if (n === 0) return "Zero";
+  const single = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const double = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const formatT = (val) => {
+    if (val < 10) return single[val];
+    if (val < 20) return double[val - 10];
+    return tens[Math.floor(val / 10)] + (val % 10 !== 0 ? ' ' + single[val % 10] : '');
+  };
+
+  let res = '';
+  if (n >= 10000000) { res += formatT(Math.floor(n / 10000000)) + ' Crore '; n %= 10000000; }
+  if (n >= 100000) { res += formatT(Math.floor(n / 100000)) + ' Lakh '; n %= 100000; }
+  if (n >= 1000) { res += formatT(Math.floor(n / 1000)) + ' Thousand '; n %= 1000; }
+  if (n >= 100) { res += formatT(Math.floor(n / 100)) + ' Hundred '; n %= 100; }
+  if (n > 0) res += (res !== '' ? 'and ' : '') + formatT(n);
+  
+  return res.trim();
+}
+
+/**
+ * Utility function to create placeholder reference sheet
+ */
+function generateTemplateReferenceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("template_placeholders");
+  if (sheet) sheet.clear(); else sheet = ss.insertSheet("template_placeholders");
+
+  const header = [["Description", "Placeholder Tag"]];
+  const data = [
+    ["Current Date", "{{Date}}"],
+    ["Target Class", "{{Class}}"],
+    ["Ref No", "{{RefNo}}"],
+    ["Total Amount", "{{TotalAmt}}"],
+    ["Total Words", "{{TotalWords}}"]
+  ];
+  const funds = ["School improv", "Red cross", "Mutual benefit", "Games", "Printing", "Science", "Computer", "Library", "Social", "Sweeping", "Magazine", "Electricity", "News"];
+
+  funds.forEach((fund, index) => {
+    const id = "A" + (index + 1);
+    data.push([`${fund} Rate`, `{{${id}_RATE}}`], [`${fund} Cands`, `{{${id}_CANDS}}`], [`${fund} Total`, `{{${id}_TOTAL}}`]);
+  });
+
+  sheet.getRange(1, 1, 1, 2).setValues(header).setFontWeight("bold");
+  sheet.getRange(2, 1, data.length, 2).setValues(data);
+  sheet.autoResizeColumns(1, 2);
+  SpreadsheetApp.getUi().alert("Reference sheet updated with {{Class}} placeholder!");
+}
+
+
+

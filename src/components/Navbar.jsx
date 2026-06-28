@@ -192,7 +192,7 @@ export default function Navbar() {
               <div>
                 <h1 className="text-[14.4px] md:text-xl font-bold text-teal-800 tracking-tight leading-tight font-title">
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
-                  <span className="inline md:hidden">Govt. Hr Sec. School Shangus</span>
+                  <span className="inline md:hidden">Govt. Hr. Sec. School Shangus</span>
                 </h1>
                 <p className="text-[10.6px] md:text-[14.4px] text-slate-500 not-italic mt-0 font-slogan">nurturing minds, shaping futures</p>
               </div>
