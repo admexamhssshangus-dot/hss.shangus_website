@@ -960,8 +960,29 @@
   color: #ffffff !important;
 }
 
+/* Footer separation line styling with theme specific colors and transparencies */
+.footer-theme-border {
+  border-top-color: var(--teal-accent) !important;
+}
 
-/* ==========================================================================
+.theme-dark .footer-theme-border {
+  border-top-color: rgba(56, 189, 248, 0.5) !important;
+}
+
+.theme-royal .footer-theme-border {
+  border-top-color: rgba(212, 175, 55, 0.5) !important;
+}
+
+.theme-forest .footer-theme-border {
+  border-top-color: rgba(52, 211, 153, 0.5) !important;
+}
+
+.theme-midnight .footer-theme-border {
+  border-top-color: rgba(167, 139, 250, 0.5) !important;
+}
+
+
+/* ==========================================================================================
    CRITICAL: Header & Footer Dark-Bar Resets
    These rules run LAST and have highest specificity to undo any global
    theme-light text/background overrides that would break the dark navbar/footer.
