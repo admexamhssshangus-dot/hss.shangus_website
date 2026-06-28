@@ -304,10 +304,12 @@ export default function Footer() {
                   Terms and Conditions
                 </h2>
                 <div className="space-y-4 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Verification & Accuracy:</strong> Users (students and parents) must supply valid, verifiable information for admissions. Presenting falsified credentials will result in immediate cancellation of registration.</p>
-                  <p><strong className="text-slate-800">2. Credentials Security:</strong> System operators (staff and faculty) are responsible for safeguarding console passwords. Sharing console access credentials or bypassing CAPTCHA/session validations is strictly prohibited.</p>
-                  <p><strong className="text-slate-800">3. Appropriate Use:</strong> The ERP, including frontend and backend functionalities, must be accessed strictly for authorized school operations. Web-scraping or brute-force testing is forbidden.</p>
-                  <p><strong className="text-slate-800">4. Proprietary Assets:</strong> All document templates, printable PDF registers, search logic, and logos are assets of Govt. HSS Shangus and Next Life Technologies, protected under intellectual property guidelines.</p>
+                  <p><strong className="text-slate-800">1. Acceptance & Accuracy:</strong> By using this portal, you agree to provide complete and accurate information during registration. Presenting falsified credentials will result in immediate cancellation of registration.</p>
+                  <p><strong className="text-slate-800">2. Code of Conduct:</strong> Students and users must maintain discipline and act responsibly while utilizing digital resources and online services.</p>
+                  <p><strong className="text-slate-800">3. Credentials Security:</strong> Authorized operators (staff/faculty) must safeguard console credentials. Sharing login access or bypassing session verifications is strictly prohibited.</p>
+                  <p><strong className="text-slate-800">4. System Use & Access:</strong> The ERP, including all frontend and backend functionalities, must be accessed strictly for authorized school operations. Web-scraping or brute-force operations are forbidden.</p>
+                  <p><strong className="text-slate-800">5. Proprietary Content & IP:</strong> All content, designs, printable PDF structures, and logos on this website are the property of Govt. HSS Shangus and Next Life Technologies.</p>
+                  <p><strong className="text-slate-800">6. Policy Amendments:</strong> The school administration reserves the right to update these terms, admission guidelines, and digital policies at any time.</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
                   <button onClick={() => setActiveModal(null)} className="px-5 py-2 text-xs font-bold btn-primary-custom rounded-xl shadow-md active:scale-95 transition-all">
