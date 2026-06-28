@@ -523,9 +523,7 @@ function ContactForm({ onClose }) {
         <label className="text-sm font-medium">Your Message</label>
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Write your message here..." rows={5} className="w-full mt-1 p-2 border rounded-md text-sm" required />
       </div>
-      {backendAvailable === false && (
-        <p className="text-xs text-slate-400 italic mt-2">When you click "Send Message", your mail client will open with the message prefilled; click Send in the mail app to deliver it to adm.exam.hss.shangus@gmail.com.</p>
-      )}
+
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary-custom font-bold px-4 py-2 rounded w-full shadow-md transition-all duration-200">
           Send Message
