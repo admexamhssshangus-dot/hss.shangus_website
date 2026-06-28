@@ -1,0 +1,1403 @@
+<script>/* Advanced Reports JavaScript (trimmed header) */
+
+  // ---- Global State ----
+  var STATE = {
+    allColumns: {},
+    defaultColumns: [],
+    classes: [], sessions: [], genders: [], streams: [], subjects: [],
+    selectedColumns: [],
+    currentFilters: {},
+    currentRecords: [],
+    masterRecords: [], // Master copy for instant local searching
+    currentResult: null,
+    sortBy: 'class_r_no',
+    sortOrder: 'ASC',
+    schoolName: '',
+    columnWidths: {} // Persisted from localStorage
+  };
+
+
+
+  // [NEW] Debounce helper to prevent excessive UI updates during typing
+  function debounce(func, wait) {
+    var timeout;
+    return function() {
+      var context = this, args = arguments;
+      clearTimeout(timeout);
+      timeout = setTimeout(function() {
+        func.apply(context, args);
+      }, wait);
+    };
+  }
+
+  var COLUMN_CATEGORIES = {
+    'Student Core Info': ['s_no', 'student_photo', 'form_no', 'adm_no', 'class_r_no', 'student_name', 'class', 'session'],
+    'Family & Personal': ['father_name', 'mother_name', 'dob_figures', 'dob_words', 'gender', 'religion'],
+    'Address & Contact': ['village_town', 'house_no', 'block', 'tehsil', 'district', 'pin_code', 'state_ut', 'residence', 'student_contact', 'parent_contact', 'email1', 'email2'],
+    'Academic Details': ['stream', 'subs', 'subjects1', 'subjects2', 'subjects3', 'subjects4', 'subjects5', 'subject6'],
+    'Official IDs & Categories': ['board_reg_no', 'board_name', 'aadhar_no', 'pen_no', 'cat_jkbose', 'social_category', 'socio_economic_category'],
+    'Utilities': ['PDF_URL', 'photo_id'],
+    'Health & Disability': ['blood_type', 'height_cm', 'weight_kg', 'disability_status', 'disability_type'],
+    'Bank Details': ['bank_account_number', 'bank_name', 'ifsc_code'],
+    'Admission & Withdrawal': ['adm_date', 'online_subm_date', 'date_of_withdrawl', 'cc_dc_issued_this_institution'],
+    'Previous School Records': ['previous_school', 'previous_complex_head', 'cc_dc_no_date_prev_institution', 'exam_mode_prev', 'exam_r_no_prev', 'marks_obt_prev', 'max_marks_prev', 'percentage_prev', 'div_distinc_prev'],
+    'Current Session Performance': ['exam_mode_current', 'exam_r_no_current', 'result_current', 'marks_reapp_current', 'vocational_percentage', 'prac_assgn', 'viva_voce', 'overall_grade'],
+    'Administrative': ['remarks']
+  };
+
+  var COLUMN_WIDTHS_DEFAULT = {
+    s_no: 40, student_photo: 60, form_no: 80, class_r_no: 70, online_subm_date: 80, adm_date: 80, adm_no: 75,
+    'class': 50, session: 60, board_reg_no: 90, board_name: 90, student_name: 140, father_name: 130, mother_name: 130,
+    dob_figures: 80, dob_words: 140, village_town: 130, block: 90, tehsil: 90, district: 100, pin_code: 50,
+    state_ut: 90, residence: 100, gender: 60, cat_jkbose: 75, religion: 75, disability_status: 80,
+    disability_type: 110, stream: 75, subs: 90, subjects1: 100, subjects2: 100, subjects3: 100, subjects4: 100,
+    subjects5: 100, subject6: 100, email1: 180, email2: 180, student_contact: 100, parent_contact: 100,
+    aadhar_no: 120, bank_account_number: 130, bank_name: 110, ifsc_code: 90, blood_type: 60, height_cm: 60,
+    weight_kg: 60, social_category: 80, socio_economic_category: 110, house_no: 75, vocational_percentage: 75,
+    previous_complex_head: 130, pen_no: 80, previous_school: 160, cc_dc_no_date_prev_institution: 130,
+    exam_mode_prev: 80, exam_r_no_prev: 80, marks_obt_prev: 75, max_marks_prev: 75, percentage_prev: 70,
+    div_distinc_prev: 80, exam_mode_current: 80, exam_r_no_current: 80, result_current: 80,
+    marks_reapp_current: 90, date_of_withdrawl: 80, cc_dc_issued_this_institution: 130, remarks: 180,
+    prac_assgn: 80, viva_voce: 80, overall_grade: 80
+  };
+
+  var NUMERIC_SORT_COLS = ['class_r_no', 'adm_no', 'form_no', 'marks_obt_prev', 'max_marks_prev', 'percentage_prev', 'vocational_percentage', 'height_cm', 'weight_kg', 'pin_code', 'exam_r_no_current'];
+
+  // ---- INIT ----
+  // Defer heavy initial server work so browser can paint fast
+  // ---- INIT ----
+  document.addEventListener('DOMContentLoaded', async function () {
+    // 1. UI wiring
+    var rtEl = document.getElementById('report_type');
+    if (rtEl) { rtEl.addEventListener('change', handleReportTypeChange); }
+    handleReportTypeChange();
+
+    var uploadBtn = document.getElementById('upload-list-btn');
+    var fileInput = document.getElementById('list_file_upload');
+    if (uploadBtn && fileInput) {
+      uploadBtn.onclick = function() { fileInput.click(); };
+      fileInput.onchange = function(e) {
+        var file = e.target.files[0]; if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          document.getElementById('unified_search').value = ev.target.result.split('\n').map(function(l) { return l.trim(); }).filter(Boolean).join('\n');
+          fileInput.value = '';
+        };
+        reader.readAsText(file);
+      };
+    }
+
+    setInterval(updateLocalTime, 1000);
+    updateLocalTime();
+
+    function fetchInitial() {
+      // 0. Reset state for fresh load
+      var sb = document.getElementById('unified_search');
+      if (sb) sb.value = '';
+
+      // 1. CRITICAL: Always use Server Meta (INIT_DATA) first.
+      // This ensures allColumns, defaultColumns, and sessions are DEFINED even if cache is stale.
+      if (typeof INIT_DATA !== 'undefined' && INIT_DATA && INIT_DATA.meta) {
+          processServerData(INIT_DATA);
+          console.log('Core system definitions loaded from server.');
+      }
+
+      // 2. Now try to layer on cached student records for instant display
+      var cached = loadFromLocalCache();
+      if (cached && cached.initialResult && cached.initialResult.records && cached.initialResult.records.length > 0) {
+          // Use cached records but enforce the fresh server filters (Top 5 sessions)
+          STATE.masterRecords = cached.initialResult.records;
+          
+          if (typeof INIT_DATA !== 'undefined' && INIT_DATA.initialFilters) {
+             STATE.currentFilters = INIT_DATA.initialFilters;
+             var localFiltered = _localFilter(STATE.masterRecords, STATE.currentFilters);
+             renderResult({ records: localFiltered, total: localFiltered.length, initialFilters: STATE.currentFilters });
+          } else {
+             STATE.currentResult = cached.initialResult;
+             renderResult(cached.initialResult);
+          }
+          
+          console.log('Instant records loaded from cache. Syncing with server in background...');
+          google.script.run
+            .withSuccessHandler(function(resp) { 
+              if (!document.getElementById('unified_search').value) {
+                processServerData(resp);
+              } else {
+                STATE.masterRecords = resp.initialResult ? (resp.initialResult.records || []) : [];
+                saveToLocalCache(resp);
+              }
+            })
+            .getInitialDataWithRecords();
+          return;
+      }
+
+      // 3. Fallback: Full server fetch if no cache or metadata injection failed
+      showLoading(true);
+      google.script.run
+        .withSuccessHandler(function(resp) {
+           processServerData(resp);
+           showLoading(false);
+        })
+        .getInitialDataWithRecords();
+    }
+
+    // Helper for instant local filtering of cached data
+    function _localFilter(records, f) {
+        return records.filter(function(r) {
+            if (f.sessions && f.sessions.length > 0 && f.sessions.indexOf(r.session) === -1) return false;
+            if (f.classes && f.classes.length > 0 && f.classes.indexOf(r['class']) === -1) return false;
+            return true;
+        });
+    }
+
+    function processServerData(resp) {
+      if (!resp || !resp.meta) return;
+      const data = resp.meta;
+      STATE.allColumns = data.allColumns || {};
+      STATE.defaultColumns = data.defaultColumns || [];
+      STATE.selectedColumns = (STATE.selectedColumns.length > 0) ? STATE.selectedColumns : (data.defaultColumns ? data.defaultColumns.slice() : []);
+      STATE.orderedColumns = data.orderedColumns || [];
+      STATE.classes = data.classes || [];
+      STATE.sessions = data.sessions || [];
+      STATE.genders = data.genders || [];
+      STATE.streams = data.streams || [];
+      STATE.subjects = data.subjects || [];
+      STATE.schoolName = data.schoolName || STATE.schoolName;
+
+      var snf = document.getElementById('schoolNameFull'); if (snf) snf.textContent = STATE.schoolName;
+      populateDropdowns();
+
+      var df = resp.initialFilters || {};
+      if (df.sessions) setMultiSelectValues('session-dropdown', df.sessions);
+      STATE.currentFilters = df;
+
+      showLoading(false);
+      STATE.masterRecords = resp.initialResult ? (resp.initialResult.records || []) : [];
+      STATE.currentResult = resp.initialResult;
+      renderResult(resp.initialResult);
+      
+      // IMPORTANT: Only save to local cache if we actually have student records
+      // This prevents the "metadata-only" result from wiping out the real cache
+      if (STATE.masterRecords.length > 0) {
+        saveToLocalCache(resp);
+      }
+    }
+
+    function applyCachedData(cache) {
+        if (!cache || !cache.meta) return;
+        const data = cache.meta;
+        STATE.allColumns = data.allColumns;
+        STATE.defaultColumns = data.defaultColumns;
+        STATE.selectedColumns = data.defaultColumns ? data.defaultColumns.slice() : [];
+        STATE.orderedColumns = data.orderedColumns || [];
+        STATE.classes = data.classes || [];
+        STATE.sessions = data.sessions || [];
+        STATE.genders = data.genders || [];
+        STATE.streams = data.streams || [];
+        STATE.subjects = data.subjects || [];
+        STATE.schoolName = data.schoolName || 'BMHSS Handwara';
+        
+        populateDropdowns();
+        STATE.masterRecords = cache.initialResult ? (cache.initialResult.records || []) : [];
+        STATE.currentResult = cache.initialResult;
+        renderResult(cache.initialResult);
+        showLoading(false);
+    }
+
+    function saveToLocalCache(data) {
+        try {
+            const cacheObj = {
+                timestamp: Date.now(),
+                data: data
+            };
+            localStorage.setItem('advRpt_v1_cache', JSON.stringify(cacheObj));
+        } catch(e) { console.warn('Cache save failed', e); }
+    }
+
+    function loadFromLocalCache() {
+        try {
+            const raw = localStorage.getItem('advRpt_v1_cache');
+            if (!raw) return null;
+            const cache = JSON.parse(raw);
+            // Expire cache after 15 minutes to ensure freshness 
+            if (Date.now() - cache.timestamp > 15 * 60 * 1000) return null;
+            return cache.data;
+        } catch(e) { return null; }
+    }
+
+    // Initialize Auth and View
+    function initAuth() {
+        // If AUTH_USER was injected, use it
+        if (typeof AUTH_USER !== 'undefined' && AUTH_USER) {
+            AUTH_STATE.user = AUTH_USER;
+        } 
+        
+        if (AUTH_STATE.user && AUTH_STATE.user.email) {
+            document.getElementById('authView').classList.add('hidden');
+            document.getElementById('mainView').classList.remove('hidden');
+            fetchInitial();
+        } else {
+            document.getElementById('authView').classList.remove('hidden');
+            document.getElementById('mainView').classList.add('hidden');
+        }
+    }
+    // Real-time search listener
+    var searchBox = document.getElementById('unified_search');
+    if (searchBox) {
+      searchBox.addEventListener('input', debounce(function () {
+        handleRealtimeSearch(this.value);
+      }, 300));
+    }
+
+    initAuth();
+  });
+
+  // ---- LOADING ----
+  var _initialLoadDone = false;
+  function showLoading(show) {
+    if (!_initialLoadDone) {
+      if (!show) _initialLoadDone = true;
+      return;
+    }
+    // After initial load: use inline spinner in data area
+    var mainArea = document.getElementById('report-main-area');
+    if (show) {
+      mainArea.innerHTML = '<div class="inline-loading"><div class="mini-spinner"></div>Fetching data...</div>';
+    }
+    // hide is handled by renderResult replacing innerHTML
+  }
+
+  // ---- LOCAL TIME (mirrors PHP live clock) ----
+  function updateLocalTime() {
+    var now = new Date();
+    var opts = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+    var str = now.toLocaleString('en-IN', opts);
+    var els = document.querySelectorAll('.local-time-display');
+    els.forEach(function (el) { el.textContent = str; });
+  }
+
+  // ---- POPULATE DROPDOWNS (mirrors PHP foreach loops) ----
+  function populateDropdowns() {
+    buildMultiSelect('session-dropdown', STATE.sessions, 'Session');
+    buildMultiSelect('class-dropdown', STATE.classes, 'Class');
+    buildMultiSelect('stream-dropdown', STATE.streams, 'Stream');
+    buildMultiSelect('subject-dropdown', STATE.subjects, 'Subject');
+    var gSel = document.getElementById('genderFilter');
+    gSel.innerHTML = '<option value="">Gender</option>';
+    STATE.genders.forEach(function (g) { var o = document.createElement('option'); o.value = g; o.textContent = g; gSel.appendChild(o); });
+  }
+
+  function buildMultiSelect(containerId, items, label) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var btnText = container.querySelector('.ms-btn-text');
+    var dropdown = container.querySelector('.multi-select-dropdown-content');
+    var optionsDiv = dropdown.querySelector('.multi-select-options');
+    optionsDiv.innerHTML = '';
+    items.forEach(function (item) {
+      var lbl = document.createElement('label');
+      lbl.className = 'multi-select-label';
+      lbl.innerHTML = '<input type="checkbox" class="ms-cb" value="' + escHtml(item) + '"> <span class="label-text">' + escHtml(item) + '</span>';
+      optionsDiv.appendChild(lbl);
+    });
+    // Select All / None (matches PHP .select-all/.deselect-all)
+    dropdown.querySelector('.select-all').onclick = function (e) { e.preventDefault(); dropdown.querySelectorAll('.ms-cb').forEach(function (c) { c.checked = true; }); updateMSText(container, label); };
+    dropdown.querySelector('.deselect-all').onclick = function (e) { e.preventDefault(); dropdown.querySelectorAll('.ms-cb').forEach(function (c) { c.checked = false; }); updateMSText(container, label); };
+    dropdown.querySelectorAll('.ms-cb').forEach(function (cb) { cb.addEventListener('change', function () { updateMSText(container, label); }); });
+    // Toggle — with fixed positioning (matches PHP jQuery setup)
+    var btn = container.querySelector('.ms-btn');
+    btn.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      document.querySelectorAll('.multi-select-dropdown-content').forEach(function (d) { if (d !== dropdown) d.style.display = 'none'; });
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+      if (dropdown.style.display === 'block') {
+        var rect = btn.getBoundingClientRect();
+        var spaceBelow = window.innerHeight - rect.bottom;
+        dropdown.style.position = 'fixed';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.width = rect.width + 'px';
+        if (spaceBelow > 150) {
+          dropdown.style.top = (rect.bottom) + 'px';
+          dropdown.style.bottom = 'auto';
+          dropdown.style.maxHeight = Math.min(300, spaceBelow - 10) + 'px';
+        } else {
+          dropdown.style.bottom = (window.innerHeight - rect.top) + 'px';
+          dropdown.style.top = 'auto';
+          dropdown.style.maxHeight = Math.min(300, rect.top - 10) + 'px';
+        }
+      }
+    };
+    updateMSText(container, label);
+  }
+
+  function updateMSText(container, label) {
+    var cbs = container.querySelectorAll('.ms-cb');
+    var checked = container.querySelectorAll('.ms-cb:checked');
+    var btnText = container.querySelector('.ms-btn-text');
+    var plural = label === 'Class' ? 'Classes' : label + 's';
+    if (checked.length === 0 || checked.length === cbs.length) btnText.textContent = 'All ' + plural;
+    else if (checked.length === 1) btnText.textContent = checked[0].value;
+    else btnText.textContent = checked.length + ' ' + plural;
+  }
+
+  function getMultiSelectValues(containerId) {
+    var container = document.getElementById(containerId); if (!container) return [];
+    return Array.from(container.querySelectorAll('.ms-cb:checked')).map(function (cb) { return cb.value; });
+  }
+  function setMultiSelectValues(containerId, values) {
+    var container = document.getElementById(containerId); if (!container) return;
+    container.querySelectorAll('.ms-cb').forEach(function (cb) { cb.checked = values.indexOf(cb.value) !== -1; });
+  }
+
+  // Close dropdowns on outside click (matches PHP jQuery handler)
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.multi-select-dropdown-content') && !e.target.closest('.ms-btn')) {
+      document.querySelectorAll('.multi-select-dropdown-content').forEach(function (d) { d.style.display = 'none'; });
+    }
+  });
+
+  // ---- REPORT TYPE CHANGE (mirrors PHP handleReportTypeChange) ----
+  function handleReportTypeChange() {
+    var rt = document.getElementById('report_type').value;
+    var isSummary = ['roll_statement', 'stream_summary', 'subject_roll_statement'].indexOf(rt) !== -1;
+    var isSubjectWise = ['subject_wise', 'subject_roll_statement'].indexOf(rt) !== -1;
+    document.querySelectorAll('.detail-only-filter').forEach(function (el) { el.style.display = isSummary ? 'none' : ''; });
+    document.querySelectorAll('.detail-only-action').forEach(function (el) { el.style.display = isSummary ? 'none' : ''; });
+    document.getElementById('subject-filter-container').style.display = isSubjectWise ? '' : 'none';
+  }
+
+  function forceRefreshData() {
+    var overlay = document.createElement('div');
+    overlay.className = 'loading-overlay';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = '<div class="spinner"></div><p style="margin:10px 0 0;font-size:14px">Syncing with "database"...</p>';
+    document.body.appendChild(overlay);
+
+    google.script.run
+      .withSuccessHandler(function () {
+        google.script.run
+          .withSuccessHandler(function (resp) {
+            if (overlay) overlay.remove();
+            var data = resp.meta;
+            STATE.allColumns = data.allColumns;
+            STATE.orderedColumns = data.orderedColumns || [];
+            STATE.classes = data.classes;
+            STATE.sessions = data.sessions;
+            STATE.genders = data.genders;
+            STATE.streams = data.streams;
+            STATE.subjects = data.subjects;
+            STATE.schoolName = data.schoolName;
+            var snf = document.getElementById('schoolNameFull');
+            if (snf) snf.textContent = data.schoolName;
+            populateDropdowns();
+
+            // Auto-select most recent session
+            if (STATE.sessions && STATE.sessions.length > 0) {
+              setMultiSelectValues('session-dropdown', [STATE.sessions[0]]);
+            }
+
+            showNotification('Sync complete! New records integrated.', false);
+            applyFilters();
+          })
+          .withFailureHandler(function (err) {
+            if (overlay) overlay.remove(); showNotification('Reload failed: ' + err.message, true);
+          })
+          .getInitialDataWithRecords();
+      })
+      .withFailureHandler(function (err) {
+        if (overlay) overlay.remove();
+        showNotification('Sync failed: ' + err.message, true);
+      })
+      .clearServerCache();
+  }
+
+  // ---- REALTIME SEARCH ----
+  function handleRealtimeSearch(val) {
+    val = val.trim().toLowerCase();
+
+    // If search is empty, restore from master list
+    if (!val) {
+      if (STATE.currentResult) {
+        STATE.currentResult.records = STATE.masterRecords.slice();
+        renderResult(STATE.currentResult);
+      }
+      return;
+    }
+
+    // If search looks like a multi-line list (from file upload), use server for safety
+    if (val.includes('\n') || val.includes(',')) {
+      applyFilters();
+      return;
+    }
+
+    // High speed local filter
+    if (STATE.masterRecords && STATE.masterRecords.length > 0) {
+      const searchCols = ['student_name', 'father_name', 'mother_name', 'board_reg_no', 'form_no', 'adm_no', 'class_r_no', 'exam_r_no_current', 'student_contact', 'parent_contact'];
+      const filtered = STATE.masterRecords.filter(r => {
+        return searchCols.some(col => (String(r[col] || '')).toLowerCase().includes(val));
+      });
+
+      // Build a temporary result object for rendering
+      var tempResult = {};
+      for (var key in STATE.currentResult) { tempResult[key] = STATE.currentResult[key]; }
+      tempResult.records = filtered;
+      tempResult.total = filtered.length;
+      tempResult.isLocalSearch = true;
+      renderResult(tempResult);
+    } else {
+      applyFilters();
+    }
+  }
+
+  // ---- APPLY FILTERS (Server Call) ----
+  function applyFilters() {
+    showLoading(true);
+    var filters = {
+      classes: getMultiSelectValues('class-dropdown'),
+      sessions: getMultiSelectValues('session-dropdown'),
+      gender: document.getElementById('genderFilter').value,
+      streams: getMultiSelectValues('stream-dropdown'),
+      subjects: getMultiSelectValues('subject-dropdown'),
+      reportType: document.getElementById('report_type').value,
+      unifiedSearch: document.getElementById('unified_search').value,
+      sortBy: STATE.sortBy,
+      sortOrder: STATE.sortOrder,
+      selectedColumns: STATE.selectedColumns
+    };
+    STATE.currentFilters = filters;
+    google.script.run
+      .withSuccessHandler(function (result) {
+        showLoading(false);
+        // If this was a fresh filter (not just search), update master records
+        if (!filters.unifiedSearch) STATE.masterRecords = result.records || [];
+        STATE.currentResult = result;
+        renderResult(result);
+      })
+      .withFailureHandler(function (err) { showLoading(false); showNotification('Error: ' + err.message, true); })
+      .getFilteredData(filters);
+  }
+
+  // ---- SORT (mirrors PHP sort_url logic) ----
+  function sortByColumn(col) {
+    if (STATE.sortBy === col) STATE.sortOrder = STATE.sortOrder === 'ASC' ? 'DESC' : 'ASC';
+    else { STATE.sortBy = col; STATE.sortOrder = 'ASC'; }
+
+    // OPTIMIZATION: If records are already present, sort locally for instant UI response
+    if (STATE.currentResult && STATE.currentResult.records && STATE.currentResult.records.length > 0) {
+      var isNumeric = NUMERIC_SORT_COLS.indexOf(col) !== -1;
+      STATE.currentResult.records.sort(function (a, b) {
+        var va = a[col] || '', vb = b[col] || '', cmp = 0;
+        if (isNumeric) cmp = (parseFloat(va) || 0) - (parseFloat(vb) || 0);
+        else cmp = String(va).localeCompare(String(vb));
+
+        // Secondary sort by name if primary values equal
+        if (cmp === 0) cmp = (a['student_name'] || '').localeCompare(b['student_name'] || '');
+        return STATE.sortOrder === 'ASC' ? cmp : -cmp;
+      });
+      renderResult(STATE.currentResult);
+      updateFilterBar(STATE.currentResult.total);
+    } else {
+      applyFilters();
+    }
+  }
+
+  // ---- RENDER RESULT ----
+  function renderResult(result) {
+    var mainArea = document.getElementById('report-main-area');
+    if (!result) { mainArea.innerHTML = '<div class="data-empty-state"><p>No data returned.</p></div>'; updateFilterBar(0); return; }
+
+    if (result.type === 'detailed') renderDetailedTable(result, mainArea);
+    else if (result.type === 'roll_statement') renderRollStatement(result.summaryRows, mainArea);
+    else if (result.type === 'subject_roll_statement') renderSubjectRollStatement(result.summaryRows, mainArea);
+    else if (result.type === 'stream_summary') renderStreamSummary(result, mainArea);
+    else mainArea.innerHTML = '<div class="data-empty-state"><p>Unknown report type.</p></div>';
+
+    // Update print header
+    var rt = (STATE.currentFilters.reportType || 'general');
+    var ph = document.getElementById('print-report-subtitle');
+    if (ph) {
+      if (rt === 'roll_statement') ph.textContent = 'Roll Statement';
+      else if (rt === 'subject_roll_statement') ph.textContent = 'Subject Roll Statement';
+      else if (rt === 'stream_summary') ph.textContent = 'Stream-wise Summary';
+      else if (rt === 'subject_wise') ph.textContent = 'Subject-wise Student Report';
+      else ph.textContent = 'Advanced Student Report';
+    }
+  }
+
+  function updateFilterBar(total) {
+    var parts = [];
+    var f = STATE.currentFilters;
+    if (f.classes && f.classes.length) parts.push('Class(es): <strong>' + escHtml(f.classes.join(', ')) + '</strong>');
+    if (f.sessions && f.sessions.length) parts.push('Session(s): <strong>' + escHtml(f.sessions.join(', ')) + '</strong>');
+    if (f.gender) parts.push('Gender: <strong>' + escHtml(f.gender) + '</strong>');
+    if (f.streams && f.streams.length) parts.push('Stream(s): <strong>' + escHtml(f.streams.join(', ')) + '</strong>');
+    if (f.subjects && f.subjects.length) parts.push('Subject(s): <strong>' + escHtml(f.subjects.join(', ')) + '</strong>');
+    if (f.unifiedSearch) {
+      if (/[\n,;]/.test(f.unifiedSearch)) {
+        var cnt = f.unifiedSearch.split(/[\n,;]+/).filter(function (v) { return v.trim(); }).length;
+        parts.push('List Search: <strong>' + cnt + ' items</strong>');
+      } else {
+        parts.push("Keyword: <strong>'" + escHtml(f.unifiedSearch) + "'</strong>");
+      }
+    }
+    if (!f.unifiedSearch || !/[\n,;]/.test(f.unifiedSearch)) {
+      parts.push('Sorted by: <strong>' + escHtml(STATE.allColumns[STATE.sortBy] || STATE.sortBy) + ' ' + STATE.sortOrder + '</strong>');
+    }
+    parts.push('Total Records: <strong>' + total + '</strong>');
+    document.getElementById('filter-summary-text').innerHTML = 'Filters Applied: ' + parts.join(' <span class="separator">|</span> ');
+    // Print filter text
+    var pf = document.getElementById('print-filter-text');
+    if (pf) pf.textContent = parts.map(function (p) { return p.replace(/<[^>]+>/g, ''); }).join(' | ');
+  }
+
+  // ---- DETAILED TABLE (mirrors PHP §3219-3355) ----
+  function renderDetailedTable(result, container) {
+    var records = result.records;
+    var cols = STATE.selectedColumns.filter(function (c) { return STATE.allColumns[c]; });
+
+    // Sort columns by sheet order if available
+    if (STATE.orderedColumns && STATE.orderedColumns.length > 0) {
+      var orderMap = {};
+      STATE.orderedColumns.forEach(function (c, i) { orderMap[c.key] = i; });
+      cols.sort(function (a, b) {
+        var idxA = (orderMap[a] !== undefined) ? orderMap[a] : 999;
+        var idxB = (orderMap[b] !== undefined) ? orderMap[b] : 999;
+        return idxA - idxB;
+      });
+    }
+
+    STATE.currentRecords = records;
+    updateFilterBar(result.total);
+
+    if (records.length === 0) {
+      container.innerHTML = '<div class="data-empty-state">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' +
+        '<p style="margin:0 0 15px;font-size:14px">No records to display. Select filters and click <b>Apply</b>.</p>' +
+        '<button class="action-button" onclick="clearFilters()">Clear Filters</button></div>';
+      return;
+    }
+
+    // Pre-tag records for async identification
+    records.forEach(function (r, i) { r['_record_idx'] = i; });
+
+    var isSubjectWise = result.reportType === 'subject_wise';
+    var subjectsToGroup = isSubjectWise ? (result.subjects && result.subjects.length > 0 ? result.subjects : STATE.subjects).slice().sort() : [];
+
+    // Build colgroup (matches PHP colgroup loop)
+    var html = '<div class="advanced-reports-table-wrapper"><table id="report-table" class="data-table resizable-table"><colgroup>';
+    cols.forEach(function (c) {
+      var w = STATE.columnWidths[c] || COLUMN_WIDTHS_DEFAULT[c] || 80;
+      html += '<col id="col-' + c + '" style="width:' + w + 'px">';
+    });
+    html += '</colgroup><thead><tr>';
+
+    // Headers (matches PHP §3233-3264 — sortable headers with arrows and resizers)
+    cols.forEach(function (c) {
+      var label = STATE.allColumns[c] || c;
+      var sortable = c !== 's_no' && c !== 'student_photo';
+      var headerClass = 'col-header-' + c;
+      if (sortable) {
+        var currentOrder = STATE.sortBy === c ? STATE.sortOrder : 'NONE';
+        var arrow = currentOrder === 'ASC' ? '&uarr;' : (currentOrder === 'DESC' ? '&darr;' : '&updownarrow;');
+        var arrowClass = currentOrder !== 'NONE' ? (currentOrder === 'ASC' ? 'asc' : 'desc') : 'inactive';
+        html += '<th scope="col" class="' + headerClass + ' sortable" data-col="' + c + '">';
+        html += '<div class="th-content-wrapper">';
+        html += '<a href="#" class="sort-link" onclick="sortByColumn(\'' + c + '\');return false;" style="color:#fff;text-decoration:none" title="Sort by ' + escHtml(label) + '">';
+        html += '<span class="col-title-text">' + escHtml(label) + '</span>';
+        html += '<span class="sort-indicator ' + arrowClass + '">' + arrow + '</span>';
+        html += '</a>';
+        html += '<div class="resizer no-print"></div>';
+        html += '</div></th>';
+      } else {
+        html += '<th scope="col" class="' + headerClass + '" data-col="' + c + '"><div class="th-content-wrapper"><span class="col-title-text">' + escHtml(label) + '</span></div></th>';
+      }
+    });
+    html += '</tr></thead><tbody>';
+
+    if (isSubjectWise) {
+      // Subject-wise grouping (for either "All" or specifically selected subjects)
+      var subCols = ['subjects1', 'subjects2', 'subjects3', 'subjects4', 'subjects5', 'subject6'];
+      var colspan = cols.length;
+      subjectsToGroup.forEach(function (sub) {
+        var studs = records.filter(function (r) { return subCols.some(function (sc) { return r[sc] === sub; }); });
+        if (studs.length === 0) return;
+        html += '<tr class="subject-heading-row"><td colspan="' + colspan + '" class="subject-heading-cell"><h3 style="margin:0;font-size:14px">Subject: ' + escHtml(sub) + '</h3></td></tr>';
+        var sno = 1;
+        studs.forEach(function (row, idx) {
+          html += '<tr class="' + (idx % 2 === 0 ? 'even-row' : 'odd-row') + '">';
+          cols.forEach(function (c) { html += renderCell(c, row, sno); });
+          html += '</tr>'; sno++;
+        });
+      });
+    } else {
+      // General / single subject (matches PHP §3314-3345)
+      var sno = 1;
+      records.forEach(function (row, idx) {
+        html += '<tr class="' + (idx % 2 === 0 ? 'even-row' : 'odd-row') + '">';
+        cols.forEach(function (c) { html += renderCell(c, row, sno); });
+        html += '</tr>'; sno++;
+      });
+    }
+
+    // tfoot for print (matches PHP §3348-3354)
+    html += '</tbody><tfoot class="print-only"><tr class="print-footer-row"><td class="print-footer-cell" colspan="' + cols.length + '" style="font-size:11px;padding:4px;text-align:center;background:#f8f9fa">';
+    html += 'Report Generated: <span class="local-time-display">...</span> | ' + escHtml(STATE.schoolName);
+    html += '</td></tr></tfoot></table></div>';
+    container.innerHTML = html;
+    updateLocalTime(); // Refresh clock in new elements
+
+    // Setup column resizing (matches PHP §3646-3688)
+    setupColumnResizing();
+
+    // ----- ASYNC PHOTO LOADING (REAL-TIME UI) -----
+    if (cols.indexOf('student_photo') !== -1 || cols.indexOf('photo_id') !== -1) {
+      google.script.run
+        .withSuccessHandler(function (photoUrls) {
+          records.forEach(function (r, i) {
+            ['student_photo', 'photo_id'].forEach(function(col) {
+                var cell = document.getElementById('photo-cell-' + col + '-' + r['_record_idx']);
+                if (!cell) return;
+                var url = photoUrls[i];
+                if (url) {
+                  cell.innerHTML = '<a href="' + escHtml(url) + '" target="_blank" title="View photo" style="display:block;margin:auto">'
+                    + '<img loading="lazy" decoding="async" src="' + escHtml(url) + '" alt="Photo" style="max-width:40px;max-height:40px;border-radius:4px;display:block;margin:auto" onerror="this.parentNode.parentNode.textContent=\'N/A\'">'
+                    + '</a>';
+                } else {
+                  cell.textContent = 'N/A';
+                }
+            });
+          });
+        })
+        .withFailureHandler(function (err) {
+          showNotification('Error fetching photos.', true);
+          records.forEach(function (r, i) {
+            ['student_photo', 'photo_id'].forEach(function(col) {
+                var cell = document.getElementById('photo-cell-' + col + '-' + r['_record_idx']);
+                if (cell) cell.textContent = 'N/A';
+            });
+          });
+        })
+        .loadPhotosAsync(records);
+    }
+  }
+
+  function renderCell(c, row, sno) {
+    var cellClass = 'col-cell-' + c;
+    if (c === 's_no') return '<td class="' + cellClass + '" data-col="' + c + '">' + sno + '</td>';
+    
+    // [MODIFIED] Special handling for Multi-Media/Virtual Columns
+    if (c === 'student_photo' || c === 'photo_id') {
+      var photoId = row['photo_id'] || row['student_photo'] || row['student_photo_filename'] || '';
+      return '<td class="' + cellClass + ' col-photo" data-col="' + c + '" id="photo-cell-' + c + '-' + row['_record_idx'] + '"><div class="mini-spinner" style="margin:auto"></div></td>';
+    }
+
+    if (c === 'PDF_URL') {
+      var url = row['PDF_URL'] || '';
+      if (url && url.length > 5) {
+        return '<td class="' + cellClass + '" data-col="' + c + '" style="text-align:center"><a href="' + escHtml(url) + '" target="_blank" class="ctl-btn" style="text-decoration:none; display:inline-flex; padding:2px 8px; font-size:9px; background:#ef4444; border-color:#dc2626; border-radius:6px; color:white; font-weight:700">PDF <i class="material-icons" style="font-size:10px; margin-left:2px">open_in_new</i></a></td>';
+      }
+      return '<td class="' + cellClass + '" data-col="' + c + '" style="color:#999; text-align:center">-</td>';
+    }
+
+    var val = row[c] || '';
+    var colLabel = STATE.allColumns[c] || c;
+    return '<td class="' + cellClass + '" data-col="' + c + '" title="' + escHtml(colLabel) + ': ' + escHtml(val) + '" style="font-size:12px">' + escHtml(val) + '</td>';
+  }
+
+  // ---- COLUMN RESIZING (mirrors PHP §3646-3688) ----
+  function setupColumnResizing() {
+    var table = document.querySelector('.resizable-table');
+    if (!table) return;
+    var resizers = table.querySelectorAll('.resizer');
+    var thBeingResized, startX, startWidth;
+
+    function onMouseMove(e) {
+      if (!thBeingResized) return;
+      var width = startWidth + (e.pageX - startX);
+      var colId = thBeingResized.getAttribute('data-col');
+      var colEl = document.getElementById('col-' + colId);
+      if (width > 30 && colEl) colEl.style.width = width + 'px';
+    }
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      table.style.userSelect = 'auto';
+      if (thBeingResized) {
+        var colId = thBeingResized.getAttribute('data-col');
+        var colEl = document.getElementById('col-' + colId);
+        if (colEl) {
+          STATE.columnWidths[colId] = parseInt(colEl.style.width);
+          try { localStorage.setItem('advReportColWidths', JSON.stringify(STATE.columnWidths)); } catch (e) { }
+        }
+      }
+      thBeingResized = null;
+    }
+    resizers.forEach(function (resizer) {
+      resizer.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        thBeingResized = resizer.closest('th');
+        startX = e.pageX;
+        var colId = thBeingResized.getAttribute('data-col');
+        var colEl = document.getElementById('col-' + colId);
+        startWidth = colEl ? colEl.offsetWidth : thBeingResized.offsetWidth;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        table.style.userSelect = 'none';
+      });
+    });
+  }
+
+  // ---- ROLL STATEMENT (mirrors PHP §3171-3217) ----
+  function renderRollStatement(rows, container) {
+    updateFilterBar(rows.length);
+    var html = '<table class="summary-table"><thead><tr><th>Class</th><th>Session</th><th>Stream</th><th>Male</th><th>Female</th><th>Total</th></tr></thead><tbody>';
+    var tm = 0, tf = 0, tt = 0;
+    rows.forEach(function (r) {
+      html += '<tr><td>' + escHtml(r['class'] || 'N/A') + '</td><td>' + escHtml(r.session || 'N/A') + '</td><td>' + escHtml(r.stream || 'N/A') + '</td><td>' + r.male + '</td><td>' + r.female + '</td><td>' + r.total + '</td></tr>';
+      tm += r.male; tf += r.female; tt += r.total;
+    });
+    html += '<tr class="grand-total-row"><td colspan="3"><strong>Grand Total</strong></td><td><strong>' + tm + '</strong></td><td><strong>' + tf + '</strong></td><td><strong>' + tt + '</strong></td></tr>';
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  // ---- SUBJECT ROLL STATEMENT (mirrors PHP §3057-3170) ----
+  function renderSubjectRollStatement(rows, container) {
+    // Group by subject (mirrors PHP §3083-3113)
+    var grouped = {};
+    rows.forEach(function (r) {
+      var sub = r.subject || 'Unknown';
+      if (!grouped[sub]) grouped[sub] = [];
+      grouped[sub].push(r);
+    });
+
+    var totalMale = 0, totalFemale = 0, totalStudents = 0;
+    var html = '<table class="summary-table" style="margin-bottom:20px"><thead><tr><th>Subject</th><th>Class</th><th>Session</th><th>Stream</th><th>Male</th><th>Female</th><th>Total</th></tr></thead><tbody>';
+
+    Object.keys(grouped).sort().forEach(function (subName) {
+      var subRows = grouped[subName];
+      var sm = 0, sf = 0, st = 0;
+      subRows.forEach(function (r) { sm += r.male; sf += r.female; st += r.total; });
+      totalMale += sm; totalFemale += sf; totalStudents += st;
+      var first = subRows[0];
+      html += '<tr><td><strong>' + escHtml(subName) + '</strong></td><td>' + escHtml(first['class'] || 'N/A') + '</td><td>' + escHtml(first.session || 'N/A') + '</td><td>' + escHtml(first.stream || 'N/A') + '</td><td>' + sm + '</td><td>' + sf + '</td><td><strong>' + st + '</strong></td></tr>';
+    });
+    html += '</tbody></table>';
+
+    // Overall total table (mirrors PHP §3152-3170)
+    html += '<table class="summary-table"><thead><tr><th colspan="4" style="text-align:center">Overall Total</th><th>Male</th><th>Female</th><th>Total</th></tr></thead><tbody>';
+    html += '<tr class="grand-total-row"><td colspan="4" style="text-align:center"><strong>All Subjects Combined</strong></td><td><strong>' + totalMale + '</strong></td><td><strong>' + totalFemale + '</strong></td><td><strong>' + totalStudents + '</strong></td></tr>';
+    html += '</tbody></table>';
+
+    updateFilterBar(rows.length);
+    container.innerHTML = html;
+  }
+
+  // ---- STREAM SUMMARY (mirrors PHP stream_summary report) ----
+  function renderStreamSummary(result, container) {
+    var pivoted = result.pivoted, streams = result.streams, classes = result.classes, classTotals = result.classTotals;
+    updateFilterBar(classes.length);
+    var html = '<table class="summary-table"><thead><tr><th>Class</th>';
+    streams.forEach(function (s) { html += '<th>' + escHtml(s) + '</th>'; });
+    html += '<th>Total</th></tr></thead><tbody>';
+    var grandTotals = {}; streams.forEach(function (s) { grandTotals[s] = 0; }); var grandAll = 0;
+    classes.forEach(function (cls) {
+      html += '<tr><td>' + escHtml(cls) + '</td>';
+      streams.forEach(function (s) { var v = pivoted[cls] && pivoted[cls][s] ? pivoted[cls][s] : 0; html += '<td>' + v + '</td>'; grandTotals[s] += v; });
+      html += '<td>' + (classTotals[cls] || 0) + '</td></tr>'; grandAll += (classTotals[cls] || 0);
+    });
+    html += '<tr class="grand-total-row"><td><strong>Grand Total</strong></td>';
+    streams.forEach(function (s) { html += '<td><strong>' + grandTotals[s] + '</strong></td>'; });
+    html += '<td><strong>' + grandAll + '</strong></td></tr></tbody></table>';
+    container.innerHTML = html;
+  }
+
+  // ---- COLUMNS MODAL (mirrors PHP §3379-3431) ----
+  function openColumnsModal() {
+    var grid = document.getElementById('columns-grid');
+    var orderedCols = (STATE.orderedColumns && STATE.orderedColumns.length > 0) ? STATE.orderedColumns : [];
+
+    if (orderedCols.length === 0) {
+      // Fallback: build from allColumns keys if orderedCols is empty
+      for (var k in STATE.allColumns) orderedCols.push({ key: k, label: STATE.allColumns[k] });
+    }
+
+    if (orderedCols.length === 0) {
+      grid.innerHTML = '<div style="padding:20px;color:#666">No columns available. Please sync data first.</div>';
+    } else {
+      // Logical groupings requested by user
+      var categories = {
+        'Identification': ['s_no', 'form_no', 'class_r_no', 'online_subm_date', 'adm_date', 'adm_no', 'board_reg_no', 'board_name'],
+        'Student Profile': ['student_name', 'father_name', 'mother_name', 'dob_figures', 'dob_words', 'gender', 'student_photo', 'student_photo_filename'],
+        'Academic Info': ['class', 'session', 'stream', 'subjects1', 'subjects2', 'subjects3', 'subjects4', 'subjects5', 'subject6', 'subs', 'cat_jkbose', 'religion', 'disability_status', 'disability_type'],
+        'Address & Contact': ['village_town', 'residence', 'block', 'tehsil', 'district', 'pin_code', 'state_ut', 'student_contact', 'parent_contact', 'email1', 'email2'],
+        'Previous Institution': ['previous_school', 'previous_complex_head', 'cc_dc_no_date_prev_institution', 'exam_mode_prev', 'exam_r_no_prev', 'marks_obt_prev', 'max_marks_prev', 'percentage_prev', 'div_distinc_prev'],
+        'Other Details': ['social_category', 'socio_economic_category', 'aadhar_no', 'bank_account_number', 'bank_name', 'ifsc_code', 'blood_type', 'height_cm', 'weight_kg', 'house_no', 'vocational_percentage', 'pen_no', 'r7', 'readmission', 'date_of_withdrawl', 'cc_dc_issued_this_institution', 'remarks'],
+        'Utilities': ['PDF_URL', 'photo_id']
+      };
+
+      var html = '';
+      for (var catName in categories) {
+        var groupKeys = categories[catName];
+        var availableInGroup = orderedCols.filter(function(oc) { return groupKeys.indexOf(oc.key) !== -1; });
+
+        if (availableInGroup.length > 0) {
+          html += '<div class="column-category-group" style="margin-bottom:12px; width:100%">' +
+            '<h4 class="category-title" style="margin:0 0 6px; border-bottom:1.5px solid #2c5aa0; padding-bottom:2px; font-size:11.5px; color:#1a3a5c; text-transform:uppercase; letter-spacing:0.5px">' + catName + '</h4>' +
+            '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:4px;">';
+
+          availableInGroup.forEach(function(oc) {
+            var isSno = (oc.key === 's_no');
+            var isChecked = (isSno || STATE.selectedColumns.indexOf(oc.key) !== -1);
+            var disabled = isSno ? 'disabled' : '';
+            var labelStyle = isSno ? 'color:#666; font-weight:700' : '';
+
+            html += '<label class="modern-checkbox-label" style="' + labelStyle + '">' +
+              '<input type="checkbox" class="col-check" value="' + oc.key + '" ' + (isChecked ? 'checked' : '') + ' ' + disabled + '> ' + escHtml(oc.label) + '</label>';
+          });
+
+          html += '</div></div>';
+        }
+      }
+
+      // Catch-all for any columns in orderedCols that aren't in categories
+      var categorizedKeys = [];
+      for (var ck in categories) { categorizedKeys = categorizedKeys.concat(categories[ck]); }
+      var uncategorized = orderedCols.filter(function(oc) { return categorizedKeys.indexOf(oc.key) === -1; });
+      if (uncategorized.length > 0) {
+        html += '<div class="column-category-group" style="margin-bottom:12px; width:100%">' +
+          '<h4 class="category-title" style="margin:0 0 6px; border-bottom:1.5px solid #666; padding-bottom:2px; font-size:11.5px; color:#333; text-transform:uppercase">Misc</h4>' +
+          '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:4px;">';
+        uncategorized.forEach(function(oc) {
+          var isChecked = STATE.selectedColumns.indexOf(oc.key) !== -1;
+          html += '<label class="modern-checkbox-label">' +
+            '<input type="checkbox" class="col-check" value="' + oc.key + '" ' + (isChecked ? 'checked' : '') + '> ' + escHtml(oc.label) + '</label>';
+        });
+        html += '</div></div>';
+      }
+
+      grid.innerHTML = html;
+    }
+    document.getElementById('columns-modal').classList.add('active');
+    document.body.classList.add('modal-open');
+  }
+
+  function updatePrintOrientation() {
+    var ori = document.getElementById('print_orientation');
+    if (!ori) return;
+    var styleId = 'dynamic-print-style';
+    var styleEl = document.getElementById(styleId);
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.innerHTML = '@media print { @page { size: ' + ori.value + '; } }';
+  }
+
+  function closeColumnsModal() {
+    document.getElementById('columns-modal').classList.remove('active');
+    document.body.classList.remove('modal-open');
+  }
+  function selectAllColumns() {
+    document.querySelectorAll('.col-check').forEach(function(cb) { cb.checked = true; });
+  }
+  function resetDefaultColumns() {
+    document.querySelectorAll('.col-check').forEach(function(cb) {
+      cb.checked = (cb.value === 's_no' || STATE.defaultColumns.indexOf(cb.value) !== -1);
+    });
+  }
+  function applyColumns() {
+    var selected = [];
+    document.querySelectorAll('.col-check').forEach(function(cb) {
+      if (cb.checked || cb.value === 's_no') selected.push(cb.value);
+    });
+    STATE.selectedColumns = selected;
+    closeColumnsModal();
+    applyFilters();
+  }
+  // Close modal on Esc / overlay click (matches PHP §3606-3607)
+  document.addEventListener('keyup', function (e) { if (e.key === 'Escape') { closeColumnsModal(); closeToolsModal(); } });
+
+  // ---- TOOLS MODAL ----
+  function openToolsModal() {
+    if (!STATE.sessions || !STATE.classes) {
+      showNotification('Data not initialized. Sync first.', false); return;
+    }
+    var modal = document.getElementById('tools-modal');
+    switchToolTab('assign');
+
+    // Helper to populate dropdown
+    function fillSel(id, items, defaultVal, addAll) {
+      var s = document.getElementById(id); if (!s) return;
+      s.innerHTML = addAll ? '<option value="">-- All --</option>' : '';
+      items.forEach(function (i) { var opt = document.createElement('option'); opt.value = i; opt.textContent = i; s.appendChild(opt); });
+      if (defaultVal) s.value = defaultVal;
+    }
+
+    var curS = (STATE.currentFilters.sessions && STATE.currentFilters.sessions.length === 1) ? STATE.currentFilters.sessions[0] : "";
+    var curC = (STATE.currentFilters.classes && STATE.currentFilters.classes.length === 1) ? STATE.currentFilters.classes[0] : "";
+
+    // IDs Tab
+    fillSel('tool-session-select', STATE.sessions, curS, true);
+    fillSel('tool-class-select', STATE.classes, curC, true);
+
+    // Dates Tab
+    fillSel('date-tool-session-select', STATE.sessions, curS, true);
+    fillSel('date-tool-class-select', STATE.classes, curC, true);
+    document.getElementById('date-roll-start').value = "";
+    document.getElementById('date-roll-end').value = "";
+    document.getElementById('date-assign-value').value = new Date().toISOString().split('T')[0];
+
+    // Editor Tab
+    fillSel('editor-session-select', STATE.sessions, curS, true);
+    fillSel('editor-class-select', STATE.classes, curC, true);
+    document.getElementById('editor-search').value = "";
+
+    var colSel = document.getElementById('editor-column-select');
+    colSel.innerHTML = '<option value="">-- Select Column to Edit --</option>';
+    // Use Physical Order for Editor Dropdown too!
+    var sortedCols = (STATE.orderedColumns && STATE.orderedColumns.length > 0) ? STATE.orderedColumns : [];
+    if (sortedCols.length === 0) { for (var k in STATE.allColumns) sortedCols.push({ key: k, label: STATE.allColumns[k] }); }
+
+    sortedCols.forEach(function (col) {
+      if (['s_no', 'student_photo'].indexOf(col.key) !== -1 || !STATE.allColumns[col.key]) return;
+      var opt = document.createElement('option'); opt.value = col.key; opt.textContent = col.label;
+      colSel.appendChild(opt);
+    });
+
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
+    refreshToolData();
+  }
+
+  function startAdmissionDateAssignment() {
+    var session = document.getElementById('date-tool-session-select').value;
+    var cls = document.getElementById('date-tool-class-select').value;
+    var start = parseInt(document.getElementById('date-roll-start').value);
+    var end = parseInt(document.getElementById('date-roll-end').value);
+    var date = document.getElementById('date-assign-value').value;
+
+    if (isNaN(start) || isNaN(end) || !date) { showNotification("Please enter From/To roll numbers and a date.", false); return; }
+    if (start > end) { let t = start; start = end; end = t; }
+
+    var btn = document.getElementById('tool-btn-dates-run');
+    btn.disabled = true; btn.textContent = "Updating...";
+
+    var filters = { sessions: session ? [session] : [], classes: cls ? [cls] : [] };
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false; btn.textContent = "Update Adm. Dates";
+        if (res.success) showNotification("Updated " + res.count + " records.", true);
+        else showNotification("Error updating records.", false);
+      })
+      .withFailureHandler(function (err) {
+        btn.disabled = false; btn.textContent = "Update Adm. Dates";
+        showNotification(err.message, false);
+      })
+      .assignAdmissionDatesBulk(date, start, end, filters);
+  }
+
+  function switchToolTab(tab) {
+    document.querySelectorAll('.tool-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tool-section').forEach(s => s.classList.remove('active'));
+
+    document.getElementById('tab-btn-' + tab).classList.add('active');
+    document.getElementById('tool-section-' + tab).classList.add('active');
+
+    if (tab === 'editor') initDbEditor();
+  }
+
+  var editorTimer;
+  function initDbEditor() {
+    var colKey = document.getElementById('editor-column-select').value;
+    var tableBody = document.getElementById('db-editor-rows');
+    var header = document.getElementById('editor-target-header');
+
+    if (!colKey) {
+      tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:#999">Please select a column to begin.</td></tr>';
+      header.textContent = 'Value';
+      return;
+    }
+
+    header.textContent = STATE.allColumns[colKey] || 'Value';
+    tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:#999">Fetching students...</td></tr>';
+
+    clearTimeout(editorTimer);
+    editorTimer = setTimeout(function () {
+      var toolFilters = {
+        sessions: document.getElementById('editor-session-select').value ? [document.getElementById('editor-session-select').value] : [],
+        classes: document.getElementById('editor-class-select').value ? [document.getElementById('editor-class-select').value] : [],
+        unifiedSearch: document.getElementById('editor-search').value.trim(),
+        reportType: 'general',
+        sortBy: 'class_r_no',
+        sortOrder: 'ASC',
+        selectedColumns: [colKey, 'class_r_no', 'student_name']
+      };
+
+      google.script.run
+        .withSuccessHandler(function (data) {
+          if (!data.records || !data.records.length) {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">No students found matching these filters.</td></tr>';
+            return;
+          }
+          var html = '';
+          data.records.forEach(function (r, idx) {
+            html += '<tr class="editor-row" id="editor-row-' + idx + '">' +
+              '<td style="text-align:center"><input type="checkbox" class="editor-row-cb" data-idx="' + idx + '"></td>' +
+              '<td>' + escHtml(r.class_r_no || '-') + '</td>' +
+              '<td>' + escHtml(r.student_name || 'Unk') + '</td>' +
+              '<td><input type="text" class="db-editor-input" data-rowidx="' + r._rowIdx + '" data-idx="' + idx + '" value="' + escHtml(r[colKey] || '') + '" oninput="handleEditorSync(this)" onpaste="handleEditorPaste(event, this)"></td>' +
+              '<td></td>' +
+              '</tr>';
+          });
+          tableBody.innerHTML = html;
+          document.getElementById('editor-select-all').checked = false;
+        })
+        .getFilteredData(toolFilters, true);
+    }, 250);
+  }
+
+  function toggleAllEditorRows(cb) {
+    document.querySelectorAll('.editor-row-cb').forEach(c => c.checked = cb.checked);
+  }
+
+  function applyBulkValue() {
+    var inputs = document.querySelectorAll('.db-editor-input');
+    var checks = document.querySelectorAll('.editor-row-cb');
+    var firstVal = "";
+
+    // Find first checked row with a value or prompt for one
+    var checkedIndices = [];
+    checks.forEach((c, i) => { if (c.checked) checkedIndices.push(i); });
+
+    if (!checkedIndices.length) { showNotification("Please select rows using checkboxes first.", false); return; }
+
+    // Use value from first selected input if present, otherwise prompt
+    firstVal = inputs[checkedIndices[0]].value;
+    if (!firstVal) firstVal = prompt("Enter value to apply to " + checkedIndices.length + " students:");
+    if (firstVal === null) return;
+
+    checkedIndices.forEach(idx => {
+      inputs[idx].value = firstVal;
+      inputs[idx].classList.add('pasted');
+      setTimeout(() => inputs[idx].classList.remove('pasted'), 1000);
+    });
+    showNotification("Applied to " + checkedIndices.length + " students.", true);
+  }
+
+  function handleEditorSync(input) {
+    var idx = parseInt(input.getAttribute('data-idx'));
+    var checks = document.querySelectorAll('.editor-row-cb');
+    if (checks[idx] && checks[idx].checked) {
+      var val = input.value;
+      var allInputs = document.querySelectorAll('.db-editor-input');
+      checks.forEach((c, i) => { if (c.checked && i !== idx) allInputs[i].value = val; });
+    }
+  }
+
+  function handleEditorPaste(e, input) {
+    var data = (e.clipboardData || window.clipboardData).getData('text');
+    if (!data) return;
+
+    var lines = data.split(/\r?\n/).filter(line => line.trim().length > 0);
+    var checks = document.querySelectorAll('.editor-row-cb');
+    var allInputs = document.querySelectorAll('.db-editor-input');
+    var focusedIdx = parseInt(input.getAttribute('data-idx'));
+
+    if (lines.length === 1) {
+      // Single value paste
+      var isChecked = (checks[focusedIdx] && checks[focusedIdx].checked);
+      if (isChecked) {
+        e.preventDefault();
+        var val = lines[0].trim();
+        checks.forEach((c, i) => { if (c.checked) allInputs[i].value = val; });
+        showNotification("Value pasted to all selected rows.", false);
+      }
+      return;
+    }
+
+    // Multi-line paste (Range Paste)
+    e.preventDefault();
+    var checkedNodes = Array.from(checks).filter(c => c.checked);
+
+    if (checkedNodes.length > 1) {
+      // Paste into specific checked rows in sequence
+      checkedNodes.forEach((node, i) => {
+        if (lines[i] !== undefined) {
+          var targetIdx = parseInt(node.getAttribute('data-idx'));
+          allInputs[targetIdx].value = lines[i].trim();
+          allInputs[targetIdx].classList.add('pasted');
+          setTimeout(() => allInputs[targetIdx].classList.remove('pasted'), 1000);
+        }
+      });
+      showNotification("Range pasted to selected rows.", false);
+    } else {
+      // Standard fill down starting from focus
+      lines.forEach((val, i) => {
+        var target = allInputs[focusedIdx + i];
+        if (target) {
+          target.value = val.trim();
+          target.classList.add('pasted');
+          setTimeout(() => target.classList.remove('pasted'), 1000);
+        }
+      });
+    }
+  }
+
+  function saveEditorChanges() {
+    var colKey = document.getElementById('editor-column-select').value;
+    if (!colKey) { showNotification('Please select a column first.', false); return; }
+
+    var updates = [];
+    document.querySelectorAll('.db-editor-input').forEach(input => {
+      var rowIdx = input.getAttribute('data-rowidx');
+      var val = input.value;
+      updates.push({ rowIdx: rowIdx, key: colKey, val: val });
+    });
+
+    if (!updates.length) return;
+
+    var btn = document.getElementById('editor-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false; btn.textContent = 'Save ALL Changes';
+        showNotification('Successfully updated ' + res.count + ' records!', true);
+      })
+      .withFailureHandler(function (err) {
+        btn.disabled = false; btn.textContent = 'Save ALL Changes';
+        showNotification('Error: ' + err.message, false);
+      })
+      .saveBulkStudentData(updates);
+  }
+
+  function refreshToolData() {
+    document.getElementById('tool-max-adm-no').textContent = 'Loading...';
+    document.getElementById('tool-pending-count').textContent = '...';
+    var rangePreview = document.getElementById('tool-range-preview');
+    if (rangePreview) {
+      if (document.getElementById('tool-roll-start').value || document.getElementById('tool-roll-end').value) {
+        rangePreview.style.display = 'block';
+        rangePreview.innerHTML = '<span style="color:#666"><em>Scanning candidates...</em></span>';
+      } else {
+        rangePreview.style.display = 'none';
+      }
+    }
+
+    // Build a clean tool-specific filter object
+    var toolFilters = {
+      sessions: [document.getElementById('tool-session-select').value],
+      classes: [document.getElementById('tool-class-select').value],
+      gender: '',
+      streams: [],
+      subjects: [],
+      reportType: 'general',
+      unifiedSearch: '',
+      sortBy: 'class_r_no',
+      sortOrder: 'ASC',
+      selectedColumns: STATE.selectedColumns
+    };
+
+    var toolRollStart = (document.getElementById('tool-roll-start').value || '').trim();
+    var toolRollEnd = (document.getElementById('tool-roll-end').value || '').trim();
+    toolFilters.rollNoRange = (toolRollStart && toolRollEnd) ? (toolRollStart + "-" + toolRollEnd) : "";
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+        document.getElementById('tool-max-adm-no').textContent = data.maxNo || 0;
+        document.getElementById('tool-pending-count').textContent = data.pending || 0;
+        document.getElementById('assign-start-no').value = (parseInt(data.maxNo) || 0) + 1;
+
+        var pv = document.getElementById('tool-range-preview');
+        if (pv && toolFilters.rollNoRange) {
+          pv.style.display = 'block';
+          if (data.firstStudent || data.lastStudent) {
+            if (data.firstStudent === data.lastStudent) {
+              pv.innerHTML = '<strong>Targeting:</strong> ' + escHtml(data.firstStudent);
+            } else {
+              pv.innerHTML = '<div style="background:#e8f0fe; padding:6px; border-radius:4px; border:1px solid #2c5aa0;">' +
+                '<strong>First:</strong> ' + escHtml(data.firstStudent) + '<br>' +
+                '<strong style="margin-top:2px;display:inline-block">Last:</strong> ' + escHtml(data.lastStudent) + '</div>';
+            }
+          } else {
+            pv.innerHTML = '<span style="color:#d32f2f">No pending students found in this range.</span>';
+          }
+        } else if (pv && !toolFilters.rollNoRange) {
+          pv.style.display = 'none';
+        }
+      })
+      .withFailureHandler(function (err) {
+        showNotification('Failed to load tool data: ' + err.message, true);
+      })
+      .getAdmissionToolData(toolFilters);
+  }
+  function closeToolsModal() {
+    document.getElementById('tools-modal').classList.remove('active');
+    document.body.classList.remove('modal-open');
+  }
+
+  function showCustomConfirm(msg, onConfirm) {
+    var modal = document.getElementById('confirm-modal');
+    document.getElementById('confirm-modal-message').innerHTML = msg;
+    var yesBtn = document.getElementById('confirm-modal-yes');
+
+    var newYesBtn = yesBtn.cloneNode(true);
+    yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
+
+    newYesBtn.onclick = function () {
+      closeConfirmModal();
+      if (onConfirm) onConfirm();
+    };
+
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
+  }
+
+  function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.remove('active');
+    if (!document.getElementById('tools-modal').classList.contains('active') &&
+      !document.getElementById('columns-modal').classList.contains('active')) {
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  function startAdmissionAssignment() {
+    var startNo = parseInt(document.getElementById('assign-start-no').value);
+    var pending = parseInt(document.getElementById('tool-pending-count').textContent);
+    if (isNaN(startNo)) { showNotification('Please enter a valid start number.', true); return; }
+    if (!pending || pending === 0) { showNotification('No pending students in current view.', true); return; }
+
+    var selSession = document.getElementById('tool-session-select').value;
+    var selClass = document.getElementById('tool-class-select').value;
+    var targetName = (selSession || 'All Sessions') + ', ' + (selClass || 'All Classes');
+
+    var confirmMsg = 'This will assign Admission IDs to ' + pending + ' students starting from ' + startNo + ' for ' + targetName + '. Continue?';
+    showCustomConfirm(confirmMsg, function () {
+      executeAdmissionAssignment(startNo, selSession, selClass);
+    });
+  }
+
+  function executeAdmissionAssignment(startNo, selSession, selClass) {
+    var btn = document.getElementById('tool-btn-assign');
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+
+    var targetFilters = {
+      sessions: [selSession],
+      classes: [selClass],
+      gender: '',
+      streams: [],
+      subjects: [],
+      reportType: 'general',
+      unifiedSearch: '',
+      sortBy: 'class_r_no',
+      sortOrder: 'ASC',
+      selectedColumns: STATE.selectedColumns
+    };
+
+    var toolRollStart = (document.getElementById('tool-roll-start').value || '').trim();
+    var toolRollEnd = (document.getElementById('tool-roll-end').value || '').trim();
+    targetFilters.rollNoRange = (toolRollStart && toolRollEnd) ? (toolRollStart + "-" + toolRollEnd) : "";
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false; btn.textContent = '🚀 Run New ID Assignment';
+        if (res.success) {
+          showNotification('Success! Assigned IDs to ' + res.count + ' students.', false);
+          if (selSession) setMultiSelectValues('session-dropdown', [selSession]);
+          if (selClass) setMultiSelectValues('class-dropdown', [selClass]);
+          closeToolsModal();
+          applyFilters();
+        }
+      })
+      .withFailureHandler(function (err) {
+        btn.disabled = false; btn.textContent = '🚀 Run New ID Assignment';
+        showNotification('Error during assignment: ' + err.message, true);
+      })
+      .assignAdmissionNumbersBulk(startNo, targetFilters);
+  }
+
+  function syncReadmissionIDs() {
+    var session = document.getElementById('tool-session-select').value;
+    var cls = document.getElementById('tool-class-select').value;
+    var targetFilters = { sessions: session ? [session] : [], classes: cls ? [cls] : [], rollNoRange: "" };
+    var rs = document.getElementById('tool-roll-start').value;
+    var re = document.getElementById('tool-roll-end').value;
+    if (rs && re) targetFilters.rollNoRange = rs + '-' + re;
+
+    var btn = document.getElementById('tool-btn-sync-ids');
+    btn.disabled = true; btn.textContent = 'Linking...';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false; btn.textContent = '🔗 Link Old IDs (Readm. Check)';
+        showNotification('Successfully linked ' + res.count + ' readmission IDs.', false);
+        applyFilters();
+      })
+      .withFailureHandler(function (err) {
+        btn.disabled = false; btn.textContent = '🔗 Link Old IDs (Readm. Check)';
+        showNotification('Error syncing: ' + err.message, true);
+      })
+      .syncReadmissionIDsBulk(targetFilters);
+  }
+
+  // ---- EXPORT (mirrors PHP Excel export §3003-3013) ----
+  function exportToSheet() {
+    if (!STATE.currentResult || !STATE.currentResult.records || STATE.currentResult.records.length === 0) {
+      showNotification('No data to export.', true);
+      return;
+    }
+
+    // Use toast notification instead of the destructive full-table loading spinner
+    showNotification('Generating Excel file... Please wait.', false);
+
+    // Send data directly to server to skip redundant recalculation
+    google.script.run
+      .withSuccessHandler(function (url) {
+        showNotification('Excel download started!', false);
+        window.open(url, '_blank');
+      })
+      .withFailureHandler(function (err) {
+        showNotification('Export error: ' + err.message, true);
+      })
+      .exportToSheetDirect(STATE.currentResult, STATE.selectedColumns);
+  }
+
+  // ---- CLEAR FILTERS (matches PHP $clear_url) ----
+  function clearFilters() {
+    document.getElementById('unified_search').value = '';
+    document.getElementById('genderFilter').value = '';
+    document.getElementById('report_type').value = 'general';
+    document.querySelectorAll('.ms-cb').forEach(function (cb) { cb.checked = false; });
+    handleReportTypeChange();
+    applyFilters();
+  }
+
+  // ---- UTILITY ----
+  function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  // ==== NOTIFICATION TOAST ====
+  function showNotification(msg, isError) {
+    var t = document.getElementById('notification-toast');
+    if (!t) return;
+    t.textContent = msg;
+    if (isError) {
+      t.classList.remove('success');
+      t.classList.add('error');
+    } else {
+      t.classList.remove('error');
+      t.classList.add('success');
+    }
+    t.classList.add('show');
+    setTimeout(function () {
+      t.classList.remove('show');
+    }, 4000); // hide after 4 seconds
+  }
+
+</script>

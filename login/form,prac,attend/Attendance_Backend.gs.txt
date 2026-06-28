@@ -1,0 +1,127 @@
+
+// =================================================================
+// Attendance_Backend.gs - Teacher Attendance System
+// =================================================================
+
+const ATTENDANCE_RECORDS_SHEET_NAME = 'Attendance_Records';
+
+/**
+ * Fetches student list for attendance for a specific class.
+ * Filters by current session defined in Practicals_Config.
+ */
+function getAttendanceStudentList(className) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('adm_form') || ss.getSheetByName('Database');
+    if (!sheet) throw new Error("Could not find admission data sheet.");
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    
+    const findIdx = (terms) => {
+      for (const term of terms) {
+        const i = headers.indexOf(term.toLowerCase());
+        if (i !== -1) return i;
+      }
+      return -1;
+    };
+
+    // Get current session from Practicals_Config
+    const config = prac_getConfigSettings(ss);
+    const sessionText = (config[`academicSessionText_${className}`] || config.academicSessionText_11th || '').trim();
+    
+    const idx = {
+        name: findIdx(["student's name (as per school records)", 'name', 'student name']),
+        roll: findIdx(['class roll no', 'roll no', 'class rno']),
+        class: findIdx(['admission sought for class', 'class']),
+        session: findIdx(['session', 'academic session'])
+    };
+    
+    let students = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      // Filter by class
+      if (className && idx.class !== -1 && String(row[idx.class]).trim() !== className) continue;
+      
+      // Filter by Session
+      if (sessionText && idx.session !== -1) {
+          const studentSession = String(row[idx.session]).trim();
+          if (studentSession !== sessionText) continue;
+      }
+      
+      students.push({
+        name: idx.name !== -1 ? row[idx.name] : 'Unknown',
+        rollNo: idx.roll !== -1 ? String(row[idx.roll]) : '',
+        class: idx.class !== -1 ? row[idx.class] : className
+      });
+    }
+    
+    students.sort((a, b) => (parseInt(a.rollNo) || 0) - (parseInt(b.rollNo) || 0));
+    return { success: true, students: students };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Saves attendance records.
+ * Records are stored in the main Admission Portal spreadsheet for centralized management.
+ */
+function saveAttendanceRecords(records, className, date, teacherEmail) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    let sheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(ATTENDANCE_RECORDS_SHEET_NAME);
+      sheet.getRange(1, 1, 1, 6).setValues([['Timestamp', 'Date', 'Teacher', 'Class', 'Roll No', 'Status']])
+        .setFontWeight('bold').setBackground('#4f46e5').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    
+    const timestamp = new Date();
+    const rows = records.map(r => [
+      timestamp,
+      date,
+      teacherEmail,
+      className,
+      r.rollNo,
+      r.status // 'Present', 'Absent', 'Leave'
+    ]);
+    
+    if (rows.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 6).setValues(rows);
+    }
+    
+    return { success: true, message: `Attendance for ${rows.length} students saved successfully.` };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Fetches attendance statistics for a teacher.
+ */
+function getTeacherAttendanceStats(email) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    let sheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    if (!sheet) return { success: true, stats: { totalMarked: 0, lastMarked: 'Never' } };
+    
+    const data = sheet.getDataRange().getValues();
+    let count = 0;
+    let lastDate = 'Never';
+    
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i][2] === email) {
+        count++;
+        if (lastDate === 'Never') {
+          lastDate = new Date(data[i][1]).toLocaleDateString();
+        }
+      }
+    }
+    
+    return { success: true, stats: { totalMarked: count, lastMarked: lastDate } };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}

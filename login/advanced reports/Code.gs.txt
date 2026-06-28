@@ -1,0 +1,1468 @@
+const ADMISSIONS_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
+const ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+
+
+
+const MASTER_PORTALS = {
+  hub: { name: "Admission Hub", url: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec" },
+  practicals: { name: "Practical Portal", url: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec" },
+  automation: { name: "Automation Portal", url: "https://script.google.com/macros/s/AKfycbwYo85Kxoi8XE--AQZsAB4xa88QVz3mA6htsk1jDbzbrN8XZy0yvZDoT96zH5VCWB6h/exec" },
+  advanced_reports: { name: "Advanced Reports", url: "https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec" },
+  fund_distribution: { name: "Fund Distribution", url: "https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec" }
+};
+
+/**
+ * [NEW] Core SSO Validation (Cross-project compatible)
+ */
+function validateSSOToken(token) {
+  const MASTER_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    const ssoSheet = ss.getSheetByName('SSO_Tokens');
+    if (!ssoSheet) return { success: false, message: 'Gateway not initialized' };
+    
+    const data = ssoSheet.getDataRange().getValues();
+    const now = new Date().getTime();
+    
+    for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === token) {
+            if (now > data[i][3]) {
+                ssoSheet.deleteRow(i + 1);
+                return { success: false, message: 'Token expired' };
+            }
+            const userData = { 
+               name: 'Gateway User', 
+               email: data[i][1], 
+               role: data[i][2] || 'Teacher' 
+            };
+            ssoSheet.deleteRow(i + 1);
+            return { success: true, user: userData };
+        }
+    }
+  } catch (e) { return { success: false, message: e.message }; }
+  return { success: false, message: 'Invalid session/token' };
+}
+
+/**
+ * [NEW] Generates a one-time use SSO token
+ */
+function generateSSOToken(email) {
+  const MASTER_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
+  try {
+    const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    const usersSheet = ss.getSheetByName('Users');
+    const udata = usersSheet.getDataRange().getValues();
+    const userRow = udata.find(r => r[0] && r[0].toLowerCase() === email.toLowerCase());
+    
+    let role = 'Teacher';
+    if (userRow) {
+      role = userRow[4] || 'Teacher';
+    } else if (email.toLowerCase() === 'adm.exam.bhsshandwara@gmail.com') {
+      role = 'Admin';
+    }
+
+    const ssoSheet = ss.getSheetByName('SSO_Tokens');
+    const token = 'sso_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    const expiry = new Date().getTime() + (5 * 60 * 1000); // 5 min
+    
+    ssoSheet.appendRow([token, email, role, expiry]);
+    return { success: true, token: token, portals: MASTER_PORTALS };
+  } catch (e) { return { success: false, message: e.message }; }
+}
+
+// =========================================================
+// == CONFIGURATION — EDIT THESE ==
+// =========================================================
+const SCHOOL_NAME    = 'Govt Boys Model Higher Secondary School Handwara';
+const SHEET_NAME     = 'source_data';      // Tab name in your Google Sheet
+const PHOTOS_FOLDER_ID = '1Ms9E9qUT7XaBF1qmZn9ies1k-izMDg0V'; // student_photos parent folder
+const TEMP_REPORTS_FOLDER_ID = '1cSPNMS3azhO7jPH2ZrmfiAbCpxDnuXQ6'; // Explicit folder for downloading Excel files
+// =========================================================
+
+// ---- Exact column key → header label mapping (mirrors PHP $all_columns) ----
+const ALL_COLUMNS = {
+  's_no':                          'S.No.',
+  'student_photo':                 'Photo',
+  'form_no':                       'Form No.',
+  'class_r_no':                    'Class R.No.',
+  'online_subm_date':              'Online Subm.',
+  'adm_date':                      'Adm. Date',
+  'adm_no':                        'Adm. No.',
+  'class':                         'Class',
+  'session':                       'Session',
+  'board_reg_no':                  'Board Reg. No.',
+  'board_name':                    'Board',
+  'student_name':                  "Student's Name",
+  'student_photo_filename':        'Photo Filename (Data)',
+  'father_name':                   "Father's Name",
+  'mother_name':                   "Mother's Name",
+  'dob_figures':                   'DoB (Figures)',
+  'dob_words':                     'DoB (Words)',
+  'village_town':                  'Village/Town',
+  'block':                         'Block',
+  'tehsil':                        'Tehsil',
+  'district':                      'District',
+  'pin_code':                      'PIN',
+  'state_ut':                      'State/UT',
+  'residence':                     'Residence',
+  'gender':                        'Gender',
+  'cat_jkbose':                    'Cat. JKBOSE',
+  'religion':                      'Religion',
+  'disability_status':             'Disability',
+  'disability_type':               'Disability Type',
+  'stream':                        'Stream',
+  'subjects1':                     'Subject 1',
+  'subjects2':                     'Subject 2',
+  'subjects3':                     'Subject 3',
+  'subjects4':                     'Subject 4',
+  'subjects5':                     'Subject 5',
+  'subject6':                      'Subject 6',
+  'subs':                          'Subs',
+  'email1':                        'Email 1',
+  'email2':                        'Email 2',
+  'student_contact':               "Student's Mobile",
+  'parent_contact':                "Parent's Mobile",
+  'aadhar_no':                     'Aadhar No.',
+  'bank_account_number':           'Bank A/C No.',
+  'bank_name':                     'Bank Name',
+  'ifsc_code':                     'IFSC Code',
+  'blood_type':                    'Blood Grp',
+  'height_cm':                     'Height(cm)',
+  'weight_kg':                     'Weight(kg)',
+  'social_category':               'Social Cat.',
+  'socio_economic_category':       'Socio-Econ Cat.',
+  'house_no':                      'House No.',
+  'vocational_percentage':         'Vocational %',
+  'previous_complex_head':         'Prev. Complex Head',
+  'pen_no':                        'PEN No.',
+  'previous_school':               'Previous School',
+  'cc_dc_no_date_prev_institution':'Prev CC/DC (No;Date)',
+  'exam_mode_prev':                'Prev Exam Mode',
+  'exam_r_no_prev':                'Prev R.No.',
+  'marks_obt_prev':                'Prev Marks Obt.',
+  'max_marks_prev':                'Prev Max Marks',
+  'percentage_prev':               'Prev %age',
+  'div_distinc_prev':              'Prev Div/Dist',
+  'exam_mode_current':             'Curr. Exam Mode',
+  'exam_r_no_current':             'Curr. Exam R.No.',
+  'result_current':                'Curr. Result',
+  'marks_reapp_current':           'Curr. Marks/Reapp',
+  'date_of_withdrawl':             'Withdrawal Date',
+  'cc_dc_issued_this_institution': 'Issued CC/DC (No;Date)',
+  'remarks':                       'Remarks',
+  'prac_assgn':                    'Prac./Assgn.',
+  'viva_voce':                     'Viva-voce',
+  'overall_grade':                 'Overall Grade',
+  'r7':                            'R7',
+  'readmission':                   'Readmission',
+  'PDF_URL':                       'PDF Link',
+  'photo_id':                      'Photo ID'
+};
+
+// Google Sheet header row labels → internal column keys
+// The sheet headers MUST match exactly (case-insensitive comparison used at runtime)
+const HEADER_MAP = {
+  'S.No.':                                 's_no',
+  'Form No.':                              'form_no',
+  'Class R.No.':                           'class_r_no',
+  'Online Subm. Date':                     'online_subm_date',
+  'Adm. Date':                             'adm_date',
+  'Adm. No.':                              'adm_no',
+  'Class':                                 'class',
+  'Session':                               'session',
+  'Board Reg. No.':                        'board_reg_no',
+  'Board Name':                            'board_name',
+  "Student's Name":                        'student_name',
+  "Father's Name":                         'father_name',
+  "Mother's Name":                         'mother_name',
+  'DoB (figures)':                         'dob_figures',
+  'DoB (words)':                           'dob_words',
+  'Village/Town':                          'village_town',
+  'Block':                                 'block',
+  'Tehsil':                                'tehsil',
+  'District':                              'district',
+  'PIN code':                              'pin_code',
+  'State/UT':                              'state_ut',
+  'Residence (Village, District)':         'residence',
+  'Gender':                                'gender',
+  'Cat._JKBOSE':                           'cat_jkbose',
+  'Religion':                              'religion',
+  'Disability Status':                     'disability_status',
+  'Disability Type':                       'disability_type',
+  'Stream':                                'stream',
+  'Subjects1':                             'subjects1',
+  'Subjects2':                             'subjects2',
+  'Subjects3':                             'subjects3',
+  'Subjects4':                             'subjects4',
+  'Subjects5':                             'subjects5',
+  'Subject6':                              'subject6',
+  'H1':                                    'h1',
+  'H2':                                    'h2',
+  'H3':                                    'h3',
+  'H4':                                    'h4',
+  'H5':                                    'h5',
+  'H6':                                    'h6',
+  'Subs':                                  'subs',
+  'email1':                                'email1',
+  'email2':                                'email2',
+  "Student's Contact":                     'student_contact',
+  "Parent's Contact":                      'parent_contact',
+  'Aadhar No.':                            'aadhar_no',
+  'Bank Account Number':                   'bank_account_number',
+  'Bank Name':                             'bank_name',
+  'IFSC Code':                             'ifsc_code',
+  'Blood Type':                            'blood_type',
+  'Height (cm)':                           'height_cm',
+  'Weight (kg)':                           'weight_kg',
+  'Social category':                       'social_category',
+  'Socio-economic category':               'socio_economic_category',
+  'House No.':                             'house_no',
+  'Vocational %age':                       'vocational_percentage',
+  'Previous Complex Head':                 'previous_complex_head',
+  'PEN No.':                               'pen_no',
+  'Previous School':                       'previous_school',
+  'CC/DC No. & Date (Prev. insitution)':   'cc_dc_no_date_prev_institution',
+  'Exam Mode (Prev.)':                     'exam_mode_prev',
+  'Exam R.No. (Prev.)':                    'exam_r_no_prev',
+  'Marks Obt. (Prev.)':                    'marks_obt_prev',
+  'Max. Marks (Prev.)':                    'max_marks_prev',
+  '%age (Prev.)':                          'percentage_prev',
+  'Div/Distinc (Prev.)':                   'div_distinc_prev',
+  'Exam Mode (Current)':                   'exam_mode_current',
+  'Exam R.No. (Current)':                  'exam_r_no_current',
+  'Result (Current)':                      'result_current',
+  'Marks/Reapp (Current)':                 'marks_reapp_current',
+  'Date of withdrawl':                     'date_of_withdrawl',
+  'No. & Date of CC/DC Issued (This Institution)': 'cc_dc_issued_this_institution',
+  'Remarks':                               'remarks',
+  'Prac./Assgn.':                          'prac_assgn',
+  'Viva-voce':                             'viva_voce',
+  'Overall Grade':                         'overall_grade',
+  'photo_id':                              'photo_id',
+  'PDF_URL':                               'PDF_URL',
+  'R7':                                    'r7',
+  'readmission':                           'readmission'
+};
+
+const SUBJECT_COLS  = ['subjects1','subjects2','subjects3','subjects4','subjects5','subject6'];
+const NUMERIC_SORT_COLS = ['class_r_no','adm_no','form_no','marks_obt_prev','max_marks_prev',
+                            'percentage_prev','vocational_percentage','height_cm','weight_kg',
+                            'pin_code','exam_r_no_current'];
+
+const DEFAULT_COLUMNS = ['s_no','class_r_no','adm_no','student_name','father_name',
+                          'dob_figures','village_town','gender','stream','subs',
+                          'student_contact','board_reg_no', 'class', 'session'];
+
+// =========================================================
+// == WEB APP ENTRY POINT ==
+// =========================================================
+function doGet(e) {
+  const tmpl = HtmlService.createTemplateFromFile('Index');
+  tmpl.schoolName = SCHOOL_NAME;
+  
+  // SSO Token Logic
+  let user = null;
+  if (e.parameter.token) {
+    const auth = validateSSOToken(e.parameter.token);
+    if (auth.success) {
+      const u = auth.user;
+      user = { email: u.email, name: u.name || u.email, role: u.role || 'Admin', isAdmin: true };
+    }
+  }
+  tmpl.user = user ? JSON.stringify(user) : 'null';
+  
+  // PRE-INITIALIZE METADATA ONLY (INSTANT LOAD < 1 SEC)
+  // We no longer fetch all records in doGet to avoid blocking the initial UI paint.
+  const init = getMetadataOnly();
+  tmpl.initData = JSON.stringify(init);
+  
+  return tmpl.evaluate()
+    .setTitle(SCHOOL_NAME + ' — Advanced Reports')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// =========================================================
+// == DIAGNOSTIC: Run this from Apps Script editor to check headers ==
+// =========================================================
+function debugHeaders() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) { Logger.log('Sheet "' + SHEET_NAME + '" not found!'); return; }
+  const hdrs = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  hdrs.forEach((h, i) => {
+    const trimmed = h.trim();
+    let mapped = '(NOT MAPPED)';
+    if (HEADER_MAP[trimmed] !== undefined) mapped = HEADER_MAP[trimmed];
+    else {
+      const lower = trimmed.toLowerCase();
+      for (const k in HEADER_MAP) {
+        if (k.toLowerCase() === lower) { mapped = HEADER_MAP[k]; break; }
+      }
+    }
+    Logger.log('Col ' + (i+1) + ': "' + trimmed + '" → ' + mapped);
+  });
+  // Also check first data row for session values
+  if (sheet.getLastRow() > 1) {
+    const row2 = sheet.getRange(2, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    Logger.log('--- First data row sample ---');
+    hdrs.forEach((h, i) => {
+      if (h.toLowerCase().indexOf('session') !== -1 || h.toLowerCase().indexOf('class') !== -1) {
+        Logger.log('  ' + h.trim() + ' = "' + (row2[i]||'').trim() + '"');
+      }
+    });
+  }
+}
+
+// =========================================================
+// == DATA ACCESS LAYER (with CacheService for speed) ==
+// =========================================================
+var _rowsCache = null; // in-memory cache within same execution
+
+/** Returns all rows, cached in CacheService for 5 min to avoid re-reading sheet */
+function _getAllRows() {
+  if (_rowsCache) return _rowsCache;
+  var cache = CacheService.getScriptCache();
+  try {
+    var chunkCount = cache.get('advRpt_chunks');
+    if (chunkCount) {
+      var chunks = [];
+      for (var i = 0; i < parseInt(chunkCount); i++) {
+        var chunk = cache.get('advRpt_data_' + i);
+        if (!chunk) { chunks = null; break; }
+        chunks.push(chunk);
+      }
+      if (chunks) {
+        var cached = JSON.parse(chunks.join(''));
+        _rowsCache = cached; return cached;
+      }
+    }
+  } catch(e) {}
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), sheet = ss.getSheetByName(SHEET_NAME);
+  // OPTIMIZATION: getValues() is 5x faster than getDisplayValues()
+  var raw = sheet.getDataRange().getValues(), rawHdrs = raw.shift();
+  var colIndex = rawHdrs.map(h => {
+    var t = String(h || '').trim(), tL = t.toLowerCase();
+    if (!t || tL === 'nil') return null;
+    if (HEADER_MAP[t]) return HEADER_MAP[t];
+    for (var k in HEADER_MAP) { if (k.toLowerCase() === tL) return HEADER_MAP[k]; }
+    return tL.replace(/[^a-z0-9_]/g, '_');
+  });
+
+    var rows = raw.map((r, i) => {
+      var obj = {};
+      colIndex.forEach((key, idx) => { 
+        if (!key) return;
+        var val = r[idx];
+        if (val instanceof Date) {
+          val = Utilities.formatDate(val, ss.getSpreadsheetTimeZone(), "dd-MM-yyyy");
+        } else {
+          val = (val !== undefined && val !== null) ? String(val).trim() : '';
+        }
+        if (['student_name','father_name','mother_name','village_town'].indexOf(key) !== -1) val = _toTitleCase(val);
+        obj[key] = val;
+      });
+
+      // [MODIFIED] Dynamic Stream Calculation (v1)
+      const cLower = (obj['class'] || '').toLowerCase();
+      if (cLower.indexOf('9th') !== -1 || cLower.indexOf('10th') !== -1 || cLower.indexOf('8th') !== -1) {
+        obj['stream'] = 'General';
+      } else if (cLower.indexOf('11th') !== -1 || cLower.indexOf('12th') !== -1) {
+        // Look for Physics and Chemistry in 'subs' or 'subjects1-6'
+        const s1 = (obj['subs'] || '').toLowerCase();
+        const s2 = [obj['subjects1'], obj['subjects2'], obj['subjects3'], obj['subjects4'], obj['subjects5'], obj['subject6']].filter(Boolean).join(',').toLowerCase();
+        const blob = s1 + ',' + s2;
+        const tokens = blob.split(/[\s,]+/).map(t => t.trim());
+        const hasPH = blob.indexOf('physics') !== -1 || tokens.indexOf('ph') !== -1;
+        const hasCH = blob.indexOf('chemistry') !== -1 || tokens.indexOf('ch') !== -1;
+        
+        if (hasPH && hasCH) {
+          obj['stream'] = 'Science';
+        } else if (blob.indexOf('commerce') !== -1) {
+          obj['stream'] = 'Commerce';
+        } else {
+          obj['stream'] = 'Humanities';
+        }
+      }
+
+      obj._rowIdx = i + 2; return obj;
+    });
+
+  var orderedColumns = [];
+  rawHdrs.forEach((h, i) => { if (colIndex[i]) orderedColumns.push({ key: colIndex[i], label: h.trim() }); });
+  var result = { records: rows, orderedColumns: orderedColumns };
+
+  try {
+    var json = JSON.stringify(result), cs = 95000, n = Math.ceil(json.length / cs);
+    cache.put('advRpt_chunks', String(n), 900);
+    for (var i = 0; i < n; i++) cache.put('advRpt_data_' + i, json.substring(i * cs, (i + 1) * cs), 900);
+  } catch(e) {}
+  _rowsCache = result; return result;
+}
+
+function _clearCache() {
+  _rowsCache = null; var cache = CacheService.getScriptCache(), n = cache.get('advRpt_chunks');
+  if (n) { for (var i = 0; i < parseInt(n); i++) cache.remove('advRpt_data_' + i); cache.remove('advRpt_chunks'); }
+}
+
+function clearServerCache() {
+  _clearCache();
+}
+
+function _toTitleCase(str) {
+  if (!str) return '';
+  return str.toLowerCase().split(' ').map(function(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(' ');
+}
+
+function getMetadataOnly() {
+  var cache = CacheService.getScriptCache();
+  try {
+    var cachedMeta = cache.get('advRpt_meta');
+    if (cachedMeta) {
+      var meta = JSON.parse(cachedMeta);
+      var fs = { sessions: meta.sessions.slice(0, 5), sortBy: 'class_r_no', sortOrder: 'ASC' };
+      return { meta: meta, initialResult: { records: [] }, initialFilters: fs };
+    }
+  } catch(e) {}
+  
+  // If no cache, we must read the headers at least
+  var data = _getAllRows(), meta = _buildInitMeta(data);
+  try { cache.put('advRpt_meta', JSON.stringify(meta), 900); } catch(e) {}
+  var fs = { sessions: meta.sessions.slice(0, 5), sortBy: 'class_r_no', sortOrder: 'ASC' };
+  return { meta: meta, initialResult: { records: [] }, initialFilters: fs };
+}
+
+function getInitialDataWithRecords() {
+  var cache = CacheService.getScriptCache();
+  try {
+    var cachedMeta = cache.get('advRpt_meta');
+    if (cachedMeta) {
+      var meta = JSON.parse(cachedMeta);
+      var fs = { sessions: meta.sessions.slice(0, 5), sortBy: 'class_r_no', sortOrder: 'ASC' };
+      // Async fetching will use this
+      return { meta: meta, initialResult: _filterRows(_getAllRows().records, fs, false, null), initialFilters: fs };
+    }
+  } catch(e) {}
+  var data = _getAllRows(), meta = _buildInitMeta(data);
+  try { cache.put('advRpt_meta', JSON.stringify(meta), 900); } catch(e) {}
+  var fs = { sessions: meta.sessions.slice(0, 5), sortBy: 'class_r_no', sortOrder: 'ASC' };
+  return { meta: meta, initialResult: _filterRows(data.records, fs, false, null), initialFilters: fs };
+}
+
+function getFilteredData(filters, skipFallbacks, limit) {
+  return _filterRows(_getAllRows().records, filters, skipFallbacks, limit);
+}
+
+// Helper: MD5-based cache key for filter objects
+function _makeCacheKey(obj) {
+  try {
+    var s = JSON.stringify(obj || {});
+    var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, s);
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) {
+      var h = (bytes[i] < 0 ? bytes[i] + 256 : bytes[i]).toString(16);
+      if (h.length == 1) h = '0' + h;
+      hex += h;
+    }
+    return hex;
+  } catch(e) { return String(new Date().getTime()); }
+}
+
+function _buildInitMeta(data) {
+  var rows = data.records, clSet = {}, seSet = {}, geSet = {}, stSet = {}, suSet = {};
+  var badValues = {'#n/a':1, '-':1, '':1};
+  rows.forEach(function(r) {
+    var c = (r['class']||'').trim(); if(c && !badValues[c.toLowerCase()]) clSet[c]=1;
+    var s = (r['session']||'').trim(); if(s && !badValues[s.toLowerCase()]) seSet[s]=1;
+    var g = (r['gender']||'').trim(); if(g && !badValues[g.toLowerCase()]) geSet[g]=1;
+    var t = (r['stream']||'').trim(); if(t && !badValues[t.toLowerCase()]) stSet[t]=1;
+    SUBJECT_COLS.forEach(function(sc) { var sub = (r[sc]||'').trim(); if(sub && !badValues[sub.toLowerCase()]) suSet[sub]=1; });
+  });
+
+  return {
+    classes: Object.keys(clSet).sort(function(a,b) { return (parseInt(a)||0) - (parseInt(b)||0); }),
+    sessions: Object.keys(seSet).sort(function(a,b) { return _sessionRank(b) - _sessionRank(a); }),
+    genders: Object.keys(geSet).sort(),
+    streams: Object.keys(stSet).sort(),
+    subjects: Object.keys(suSet).sort(),
+    orderedColumns: data.orderedColumns,
+    allColumns: ALL_COLUMNS,
+    defaultColumns: DEFAULT_COLUMNS,
+    schoolName: SCHOOL_NAME
+  };
+}
+
+// =========================================================
+// == SESSION RANK HELPER (mirrors PHP get_session_rank) ==
+// =========================================================
+function _sessionRank(session) {
+  session = (session || '').trim();
+  const year = parseInt(session.substring(0, 4)) || 0;
+  let rank = 6; // Default standard session (e.g. 2025-26)
+  if (session.indexOf('(revised)') !== -1)   rank = 7;
+  else if (session.indexOf('APR/BIAN') !== -1) rank = 4;
+  else if (/\-\d{2}b$/i.test(session))       rank = 3;
+  else if (/\-\d{2}a$/i.test(session))       rank = 2;
+  return year * 10 + rank;
+}
+
+// =========================================================
+// == SIMILARITY SCORING (mirrors PHP calculate_similarity_score) ==
+// =========================================================
+function _similarityScore(input, target) {
+  if (!input || !target) return 0;
+  input  = input.trim().toLowerCase();
+  target = target.trim().toLowerCase();
+  if (input === target) return 100;
+
+  // Contains score
+  let containsScore = 0;
+  if (target.indexOf(input) !== -1 || input.indexOf(target) !== -1) containsScore = 80;
+
+  // Word overlap score
+  const inputWords  = input.split(/\s+/);
+  const targetWords = target.split(/\s+/);
+  const common = inputWords.filter(w => targetWords.includes(w));
+  const wordsScore = (inputWords.length + targetWords.length > 0)
+    ? (common.length * 2) / (inputWords.length + targetWords.length) * 100 : 0;
+
+  // Levenshtein-ish (simple char distance)
+  let levScore = 0;
+  {
+    const maxLen = Math.max(input.length, target.length);
+    if (maxLen > 0) {
+      // Simple: count differing chars at same positions
+      let dist = Math.abs(input.length - target.length);
+      const minLen = Math.min(input.length, target.length);
+      for (let i = 0; i < minLen; i++) if (input[i] !== target[i]) dist++;
+      levScore = Math.max(0, 100 - (dist / maxLen) * 100);
+    }
+  }
+
+  return Math.max(levScore, containsScore, wordsScore);
+}
+
+// =========================================================
+// == MAIN FILTER FUNCTION (called from client) ==
+// =========================================================
+/**
+ * filters = {
+ *   classes: [],  sessions: [],  gender: '',
+ *   streams: [],  subjects: [],
+ *   reportType: 'general' | 'subject_wise' | 'roll_statement' | 'subject_roll_statement' | 'stream_summary',
+ *   unifiedSearch: '',
+ *   sortBy: 'class_r_no',  sortOrder: 'ASC',
+ *   selectedColumns: []
+ * }
+ */
+function getFilteredData(filters, skipFallbacks) {
+  // Try cached filtered result for identical filters (short TTL)
+  try {
+    var cache = CacheService.getScriptCache();
+    var key = 'filtered_' + _makeCacheKey(filters || {});
+    var cached = cache.get(key);
+    if (cached) return JSON.parse(cached);
+  } catch(e) { /* ignore cache errors */ }
+
+  var result = _filterRows(_getAllRows().records, filters, skipFallbacks);
+
+  try {
+    var cache = CacheService.getScriptCache();
+    var key = 'filtered_' + _makeCacheKey(filters || {});
+    cache.put(key, JSON.stringify(result), 300); // 5 minutes
+  } catch(e) { /* ignore cache put errors */ }
+
+  return result;
+}
+
+/** Core filter engine — works on pre-loaded rows for speed */
+function _filterRows(allRows, filters, skipFallbacks, rowLimit) {
+  filters = filters || {};
+  var reportType    = filters.reportType    || 'general';
+  var classes       = filters.classes       || [];
+  var sessions      = filters.sessions      || [];
+  var gender        = filters.gender        || '';
+  var streams       = filters.streams       || [];
+  var subjects      = filters.subjects      || [];
+  var unifiedSearch = (filters.unifiedSearch || '').trim();
+  var sortBy        = filters.sortBy        || 'class_r_no';
+  var sortOrder     = (filters.sortOrder    || 'ASC').toUpperCase();
+  var selectedCols  = filters.selectedColumns || DEFAULT_COLUMNS;
+
+  var isSummary = ['roll_statement','stream_summary','subject_roll_statement'].indexOf(reportType) !== -1;
+
+  // ---- 1. Apply row-level filters ----
+  var filtered = [];
+  for (var i = 0; i < allRows.length; i++) {
+    var row = allRows[i];
+    if (classes.length > 0 && classes.indexOf(row['class']) === -1) continue;
+    if (sessions.length > 0 && sessions.indexOf(row['session']) === -1) continue;
+    if (gender && row['gender'] !== gender) continue;
+    if (streams.length > 0 && streams.indexOf(row['stream']) === -1) continue;
+    
+    // Global filter: exclude ghost students / spreadsheet errors
+    var name = (row['student_name'] || '').trim().toLowerCase();
+    if (!name || name === '#n/a' || name === '-') continue;
+
+    if ((reportType === 'subject_wise' || reportType === 'subject_roll_statement') && subjects.length > 0) {
+      var rowSubs = [];
+      for (var si = 0; si < SUBJECT_COLS.length; si++) { if (row[SUBJECT_COLS[si]]) rowSubs.push(row[SUBJECT_COLS[si]]); }
+      var hasSub = false;
+      for (var sj = 0; sj < subjects.length; sj++) { if (rowSubs.indexOf(subjects[sj]) !== -1) { hasSub = true; break; } }
+      if (!hasSub) continue;
+    }
+    filtered.push(row);
+  }
+
+  // ---- 2. Unified search ----
+  if (unifiedSearch) {
+    var listSeparator = /[\n,;]/;
+    if (listSeparator.test(unifiedSearch)) {
+      var listValues = unifiedSearch.split(listSeparator).map(function(v){return v.trim();}).filter(Boolean);
+      var listCols = ['board_reg_no','form_no','adm_no','class_r_no','exam_r_no_current','student_name','father_name','mother_name','student_contact','parent_contact','aadhar_no'];
+      var orderedResults = [], seen = {};
+      for (var li = 0; li < listValues.length; li++) {
+        var val = listValues[li].toLowerCase();
+        for (var fi = 0; fi < filtered.length; fi++) {
+          var r = filtered[fi];
+          var key = (r['adm_no']||'na') + '-' + (r['board_reg_no']||'na') + '-' + (r['student_name']||'na');
+          if (seen[key]) continue;
+          for (var lci = 0; lci < listCols.length; lci++) {
+            if ((r[listCols[lci]]||'').toLowerCase() === val) { orderedResults.push(r); seen[key] = 1; break; }
+          }
+        }
+      }
+      filtered = orderedResults;
+    } else {
+      var qs = unifiedSearch.toLowerCase();
+      var searchCols = ['student_name','father_name','mother_name','dob_figures','village_town','board_reg_no','form_no','adm_no','class_r_no','exam_r_no_current','student_contact','parent_contact','aadhar_no','email1','email2','pen_no','remarks'];
+      var matched = [];
+      for (var mi = 0; mi < filtered.length; mi++) {
+        var mr = filtered[mi];
+        for (var sci = 0; sci < searchCols.length; sci++) {
+          if ((mr[searchCols[sci]]||'').toLowerCase().indexOf(qs) !== -1) { matched.push(mr); break; }
+        }
+      }
+      matched.sort(function(a,b) {
+        var sa = _similarityScore(unifiedSearch, a['student_name']||'');
+        var sb = _similarityScore(unifiedSearch, b['student_name']||'');
+        if (sb !== sa) return sb - sa;
+        return (a['student_name']||'').localeCompare(b['student_name']||'');
+      });
+      filtered = matched;
+    }
+  }
+
+  // ---- 3-4. Fallbacks (Priority 1 & 2 logic) ----
+  if (!skipFallbacks) {
+    filtered = _fillMissingAdmNos(filtered, allRows);
+    filtered = _fillMissingAdmDates(filtered, allRows);
+  }
+
+  // ---- 5. Summary reports ----
+  if (isSummary) return _buildSummaryReport(filtered, allRows, reportType, subjects);
+
+  // ---- 6. Sort ----
+  if (!unifiedSearch || /[\n,;]/.test(unifiedSearch)) {
+    var isNumeric = NUMERIC_SORT_COLS.indexOf(sortBy) !== -1;
+    filtered.sort(function(a,b) {
+      var va = a[sortBy] || '', vb = b[sortBy] || '', cmp = 0;
+      if (isNumeric) cmp = (parseFloat(va)||0) - (parseFloat(vb)||0);
+      else cmp = va.localeCompare(vb);
+      if (cmp === 0) cmp = (a['student_name']||'').localeCompare(b['student_name']||'');
+      return sortOrder === 'ASC' ? cmp : -cmp;
+    });
+  }
+
+  // ---- 7. Pagination / Limits for Speed ----
+  var originalTotal = filtered.length;
+  var limited = false;
+  if (rowLimit && originalTotal > rowLimit) {
+    filtered = filtered.slice(0, rowLimit);
+    limited = rowLimit;
+  }
+
+  return {
+    type: 'detailed',
+    records: filtered,
+    total: originalTotal,
+    limited: limited,
+    reportType: reportType,
+    subjects: subjects
+  };
+}
+
+// =========================================================
+// == SUMMARY REPORT BUILDER ==
+// =========================================================
+function _buildSummaryReport(filtered, allRows, reportType, subjects) {
+  if (reportType === 'roll_statement') {
+    // Group by class, session, stream
+    const groups = {};
+    filtered.forEach(row => {
+      if (!row['stream']) return;
+      const key = [row['class'], row['session'], row['stream']].join('|||');
+      if (!groups[key]) groups[key] = { class: row['class'], session: row['session'], stream: row['stream'], male: 0, female: 0, total: 0 };
+      const g = row['gender']||'';
+      if (g.toLowerCase() === 'male')   groups[key].male++;
+      else if (g.toLowerCase() === 'female') groups[key].female++;
+      groups[key].total++;
+    });
+    const summaryRows = Object.values(groups).sort((a,b) => {
+      const ca = parseInt(a.class)||0, cb = parseInt(b.class)||0;
+      if (ca !== cb) return ca - cb;
+      const sa = _sessionRank(a.session), sb = _sessionRank(b.session);
+      if (sa !== sb) return sa - sb;
+      return a.stream.localeCompare(b.stream);
+    });
+    return { type:'roll_statement', summaryRows };
+  }
+
+  if (reportType === 'subject_roll_statement') {
+    // Group by subject, class, session, stream
+    const groups = {};
+    filtered.forEach(row => {
+      const rowSubjects = SUBJECT_COLS.map(sc => row[sc]).filter(Boolean);
+      rowSubjects.forEach(sub => {
+        if (subjects.length > 0 && !subjects.includes(sub)) return;
+        const key = [sub, row['class'], row['session'], row['stream']].join('|||');
+        if (!groups[key]) groups[key] = { subject: sub, class: row['class'], session: row['session'], stream: row['stream'], male:0, female:0, total:0 };
+        const g = row['gender']||'';
+        if (g.toLowerCase() === 'male')   groups[key].male++;
+        else if (g.toLowerCase() === 'female') groups[key].female++;
+        groups[key].total++;
+      });
+    });
+    const summaryRows = Object.values(groups).sort((a,b) => a.subject.localeCompare(b.subject)||a.class.localeCompare(b.class));
+    return { type:'subject_roll_statement', summaryRows };
+  }
+
+  if (reportType === 'stream_summary') {
+    const pivoted = {};      // { class: { stream: count } }
+    const allStreams = new Set();
+    const classTotals = {};
+    filtered.forEach(row => {
+      if (!row['stream']) return;
+      const cls  = row['class']  || '';
+      const stm  = row['stream'] || '';
+      allStreams.add(stm);
+      if (!pivoted[cls]) pivoted[cls] = {};
+      pivoted[cls][stm] = (pivoted[cls][stm] || 0) + 1;
+      classTotals[cls]  = (classTotals[cls] || 0) + 1;
+    });
+    const streamsArr = Array.from(allStreams).sort();
+    const classesArr = Object.keys(pivoted).sort((a,b) => (parseInt(a)||0) - (parseInt(b)||0));
+    return { type:'stream_summary', pivoted, streams: streamsArr, classes: classesArr, classTotals };
+  }
+}
+
+// =========================================================
+// == ADM_NO FALLBACK (mirrors PHP missing adm_no lookup) ==
+// =========================================================
+function _fillMissingAdmNos(filtered, allRows) {
+  const needsLookup = filtered.filter(r => !r['adm_no'] && r['board_reg_no']);
+  if (needsLookup.length === 0) return filtered;
+
+  const regNos = new Set(needsLookup.map(r => r['board_reg_no']));
+  const sessByReg = {};
+  allRows.forEach(r => {
+    if (regNos.has(r['board_reg_no']) && r['adm_no']) {
+      if (!sessByReg[r['board_reg_no']]) sessByReg[r['board_reg_no']] = [];
+      sessByReg[r['board_reg_no']].push({ session: r['session'], adm_no: r['adm_no'] });
+    }
+  });
+
+  return filtered.map(row => {
+    if (row['adm_no'] || !row['board_reg_no']) return row;
+    const reg = row['board_reg_no'];
+    const possible = sessByReg[reg];
+    if (!possible) return row;
+    const curRank = _sessionRank(row['session']);
+    let best = null, bestRank = -1;
+    possible.forEach(p => {
+      const r = _sessionRank(p.session);
+      if (r < curRank && r > bestRank) { bestRank = r; best = p.adm_no; }
+    });
+    if (best) return { ...row, adm_no: best };
+    return row;
+  });
+}
+
+// =========================================================
+// == ADM_DATE FALLBACK (mirrors PHP Priority 1 & 2) ==
+// =========================================================
+function _fillMissingAdmDates(filtered, allRows) {
+  // Priority 1: find by adm_no
+  const needsP1 = filtered.filter(r => !r['adm_date'] && r['adm_no']);
+  if (needsP1.length > 0) {
+    const admNos = new Set(needsP1.map(r => {
+      const m = r['adm_no'].match(/\(([^)]+)\)/);
+      return m ? m[1].trim() : r['adm_no'].trim();
+    }));
+    const dateByAdmNo = {};
+    allRows.forEach(r => {
+      if (r['adm_no'] && r['adm_date']) {
+        const clean = r['adm_no'].trim();
+        // Only store the first date found for an admission number, as per PHP logic
+        if (!dateByAdmNo[clean]) dateByAdmNo[clean] = r['adm_date'];
+      }
+    });
+    filtered = filtered.map(row => {
+      if (row['adm_date'] || !row['adm_no']) return row;
+      const m = row['adm_no'].match(/\(([^)]+)\)/);
+      const searchKey = m ? m[1].trim() : row['adm_no'].trim();
+      if (dateByAdmNo[searchKey]) return { ...row, adm_date: dateByAdmNo[searchKey] };
+      return row;
+    });
+  }
+
+  // Priority 2: 10th/12th → look up 9th/11th by board_reg_no (earliest session)
+  const needsP2 = filtered.filter(r => {
+    const clsNum = (r['class']||'').replace(/[^0-9]/g,'');
+    return ['10','12'].includes(clsNum) && !r['adm_date'] && r['board_reg_no'];
+  });
+  if (needsP2.length > 0) {
+    const regNos = new Set(needsP2.map(r => r['board_reg_no']));
+    const datesByReg = {};
+    allRows.forEach(r => {
+      if (regNos.has(r['board_reg_no']) && r['adm_date']) {
+        if (!datesByReg[r['board_reg_no']]) datesByReg[r['board_reg_no']] = [];
+        datesByReg[r['board_reg_no']].push({ class: r['class'], session: r['session'], adm_date: r['adm_date'] });
+      }
+    });
+    filtered = filtered.map(row => {
+      const clsNum = (row['class']||'').replace(/[^0-9]/g,'');
+      if (!['10','12'].includes(clsNum) || row['adm_date'] || !row['board_reg_no']) return row;
+      const targetCls = clsNum === '10' ? '9' : '11';
+      const possible  = datesByReg[row['board_reg_no']] || [];
+      const curRank   = _sessionRank(row['session']);
+      let bestDate = null, bestRank = Infinity;
+      possible.forEach(p => {
+        const pClsNum = (p.class||'').replace(/[^0-9]/g,'');
+        if (pClsNum !== targetCls) return;
+        const r = _sessionRank(p.session);
+        if (r <= curRank && r < bestRank) { bestRank = r; bestDate = p.adm_date; }
+      });
+      if (bestDate) return { ...row, adm_date: bestDate };
+      return row;
+    });
+  }
+  return filtered;
+}
+
+// =========================================================
+// == BATCH PHOTO URL RESOLVER (efficient folder listing) ==
+// =========================================================
+/**
+ * Efficiently resolves photo URLs for all records at once.
+ * Instead of searching for each student's file individually (slow),
+ * this lists ALL files in each unique class/session folder once,
+ * builds a roll-number → Drive-URL map, then attaches URLs.
+ */
+function _attachPhotoUrls(records) {
+  if (!PHOTOS_FOLDER_ID || !records || records.length === 0) return records;
+
+  try {
+    var parentFolder = DriveApp.getFolderById(PHOTOS_FOLDER_ID);
+  } catch(e) {
+    return records; // folder not accessible
+  }
+
+  // 1. Find unique class/session combinations
+  var combos = {};
+  records.forEach(function(row) {
+    var cls = (row['class'] || '').trim();
+    var sess = (row['session'] || '').trim();
+    if (cls && sess) {
+      var key = cls + '|||' + sess;
+      if (!combos[key]) combos[key] = { cls: cls, sess: sess };
+    }
+  });
+
+  // 2. For each unique combo, list all files in that folder (one folder operation each)
+  var photoMap = {}; // key: "class|||session|||rollno_lowercase" → Drive URL
+
+  Object.keys(combos).forEach(function(comboKey) {
+    var combo = combos[comboKey];
+    var sessionFolder = combo.sess;
+    if (combo.sess.toUpperCase().indexOf('BIAN') !== -1) {
+      sessionFolder = combo.sess.replace(/\//g, ',');
+    }
+
+    // Try class folder names: exact, without 'th', with 'th'
+    var clsVariants = [combo.cls];
+    var clsNum = combo.cls.replace(/[^0-9]/g, '');
+    if (clsNum !== combo.cls) clsVariants.push(clsNum);
+    if (combo.cls === clsNum) clsVariants.push(clsNum + 'th');
+
+    for (var v = 0; v < clsVariants.length; v++) {
+      try {
+        var classFolders = parentFolder.getFoldersByName(clsVariants[v]);
+        if (!classFolders.hasNext()) continue;
+        var classFolder = classFolders.next();
+
+        // 1. Try exact session text
+        var sessFolder = null;
+        var sessFolders = classFolder.getFoldersByName(sessionFolder);
+        if (sessFolders.hasNext()) sessFolder = sessFolders.next();
+
+        // 2. Try just the year prefix ("2024-25" from "2024-25 (revised)")
+        if (!sessFolder) {
+          var yearMatch = sessionFolder.match(/^(\d{4}-\d{2})/);
+          if (yearMatch) {
+            var altFolders = classFolder.getFoldersByName(yearMatch[1]);
+            if (altFolders.hasNext()) sessFolder = altFolders.next();
+          }
+        }
+        
+        // 3. Try hyphenated for BIAN ("2024-25 BIAN" -> "2024-25")
+        if (!sessFolder && sessionFolder.toUpperCase().indexOf('BIAN') !== -1) {
+           var bianMatch = sessionFolder.match(/^(\d{4}-\d{2})/);
+           if (bianMatch) {
+             var bianFolders = classFolder.getFoldersByName(bianMatch[1]);
+             if (bianFolders.hasNext()) sessFolder = bianFolders.next();
+           }
+        }
+
+        if (!sessFolder) continue;
+
+        // List ALL files in this session folder at once
+        var files = sessFolder.getFiles();
+        while (files.hasNext()) {
+          var file = files.next();
+          var fname = file.getName().toLowerCase();
+          // Extract the base name without extension (e.g. "1.jpg" → "1")
+          var dotIdx = fname.lastIndexOf('.');
+          if (dotIdx > 0) {
+            var ext = fname.substring(dotIdx + 1);
+            if (['jpg','jpeg','png','gif','bmp'].indexOf(ext) !== -1) {
+              var baseName = fname.substring(0, dotIdx).trim();
+              // Normalize roll numbers: "01" -> "1"
+              if (!isNaN(baseName) && baseName !== '') baseName = String(parseInt(baseName, 10));
+              
+              var mapKey = combo.cls + '|||' + combo.sess + '|||' + baseName;
+              if (!photoMap[mapKey]) {
+                try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(err){}
+                photoMap[mapKey] = { 
+                  url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100',
+                  id: file.getId()
+                };
+              }
+            }
+          }
+        }
+        break; // Found the folder, no need to try other variants
+      } catch(e) { continue; }
+    }
+  });
+
+  // 3. Attach photo_url to each record and track missing sheet IDs
+  var updatesNeeded = {}; 
+  var ret = records.map(function(row) {
+    // Check for explicit Drive ID first (supports 'photo_id' column from screenshot)
+    var rawId = (row['student_photo_filename'] || row['photo_id'] || '').trim();
+    var photoId = "";
+    if (rawId) {
+      // Extract ID if a full URL was pasted (common with copy-pasting from Drive)
+      var m = rawId.match(/[-\w]{25,}/); // IDs are long strings of letters/numbers/dashes
+      photoId = m ? m[0] : rawId;
+    }
+    
+    if (photoId && photoId.length > 20) {
+      row['photo_url'] = 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100';
+      return row;
+    }
+
+    var cls    = (row['class']      || '').trim();
+    var sess   = (row['session']    || '').trim();
+    var rollNo = (row['class_r_no'] || '').trim().toLowerCase();
+    
+    // Normalize roll numbers: "01" -> "1"
+    if (!isNaN(rollNo) && rollNo !== '') rollNo = String(parseInt(rollNo, 10));
+
+    if (cls && sess && rollNo) {
+      var mapKey = cls + '|||' + sess + '|||' + rollNo;
+      if (photoMap[mapKey]) {
+        row['photo_url'] = photoMap[mapKey].url;
+        // Schedule an update if the spreadsheet is missing the ID
+        updatesNeeded[mapKey] = photoMap[mapKey].id;
+      }
+    }
+    return row;
+  });
+
+  // 4. Update the Google Sheet with newly found photo IDs for instant caching
+  var updateKeys = Object.keys(updatesNeeded);
+  if (updateKeys.length > 0) {
+    try {
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+      var data = sheet.getDataRange().getValues();
+      var headers = data[0];
+      var photoIdColIndex = -1, clsCol = -1, sessCol = -1, rollCol = -1;
+      
+      // Find the user's photo ID and matching columns (case insensitive)
+      for (var c = 0; c < headers.length; c++) {
+        var h = headers[c].toString().trim().toLowerCase();
+        if (h === 'photo_id' || h === 'student_photo_filename') photoIdColIndex = c;
+        else if (h === 'class') clsCol = c;
+        else if (h === 'session') sessCol = c;
+        else if (h === 'class r.no.' || h === 'class_r_no') rollCol = c;
+      }
+      
+      if (photoIdColIndex > -1 && clsCol > -1 && sessCol > -1 && rollCol > -1) {
+        var madeChanges = false;
+        var colValues = sheet.getRange(1, photoIdColIndex + 1, data.length, 1).getValues();
+        
+        for (var i = 1; i < data.length; i++) {
+          var rCls = (data[i][clsCol] || '').toString().trim();
+          var rSess = (data[i][sessCol] || '').toString().trim();
+          var rRoll = (data[i][rollCol] || '').toString().trim().toLowerCase();
+          
+          if (!isNaN(rRoll) && rRoll !== '') rRoll = String(parseInt(rRoll, 10));
+          
+          if (rCls && rSess && rRoll) {
+            var mKey = rCls + '|||' + rSess + '|||' + rRoll;
+            if (updatesNeeded[mKey] && !colValues[i][0]) {
+              colValues[i][0] = updatesNeeded[mKey];
+              madeChanges = true;
+            }
+          }
+        }
+        
+        if (madeChanges) {
+          sheet.getRange(1, photoIdColIndex + 1, data.length, 1).setValues(colValues);
+          
+          // Invalidate cache so changes reflect instantly behind the scenes
+          try {
+            var cache = CacheService.getScriptCache();
+            var chunkCount = cache.get('advRpt_chunks');
+            if (chunkCount) {
+              cache.remove('advRpt_chunks');
+              for (var ci = 0; ci < parseInt(chunkCount); ci++) {
+                cache.remove('advRpt_data_' + ci);
+              }
+            }
+          } catch(ce) {}
+        }
+      }
+    } catch(e) {
+      // Ignore background writing errors to not break rendering
+    }
+  }
+
+  return ret;
+}
+
+// =========================================================
+// == ASYNC PHOTO RESOLVER (For Real-time UI)
+// =========================================================
+function loadPhotosAsync(records) {
+  var resolved = _attachPhotoUrls(records);
+  var photoUrls = {};
+  for (var i = 0; i < resolved.length; i++) {
+    if (resolved[i].photo_url) {
+      photoUrls[i] = resolved[i].photo_url;
+    }
+  }
+  return photoUrls;
+}
+
+// =========================================================
+// == PHOTO URL HELPER (mirrors PHP get_student_photo_url) ==
+// =========================================================
+/**
+ * Returns a served image URL for a student.
+ */
+function getPhotoUrl(studentRow) {
+  if (!studentRow) return null;
+
+  // Strategy 1: explicit photo filename/Drive ID in sheet
+  var rawId = (studentRow['student_photo_filename'] || studentRow['photo_id'] || '').trim();
+  var photoId = "";
+  if (rawId) {
+    var m = rawId.match(/[-\w]{25,}/);
+    photoId = m ? m[0] : rawId;
+  }
+  
+  if (photoId && photoId.length > 20) {
+    return 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100';
+  }
+
+  // Strategy 2: search in Drive folder hierarchy
+  if (!PHOTOS_FOLDER_ID) return null;
+  var cls     = (studentRow['class']    || '').trim();
+  var session = (studentRow['session']  || '').trim();
+  var rollNo  = (studentRow['class_r_no'] || '').trim();
+  if (!cls || !session || !rollNo) return null;
+
+  // Handle BIAN session folder naming (PHP: str_replace('/', ',', $session))
+  var sessionFolder = session;
+  if (session.toUpperCase().indexOf('BIAN') !== -1) {
+    sessionFolder = session.replace(/\//g, ',');
+  }
+
+  var url = _findPhotoInDrive(cls, sessionFolder, rollNo);
+  if (url) return url;
+
+  // Also try without 'th' suffix (e.g. folder might be '11' instead of '11th')
+  var clsNum = cls.replace(/[^0-9]/g, '');
+  if (clsNum !== cls) {
+    url = _findPhotoInDrive(clsNum, sessionFolder, rollNo);
+    if (url) return url;
+  }
+  // Try with 'th' suffix if not present
+  if (cls === clsNum) {
+    url = _findPhotoInDrive(clsNum + 'th', sessionFolder, rollNo);
+    if (url) return url;
+  }
+
+  return null;
+}
+
+/** Search Drive: PHOTOS_FOLDER_ID / classFolder / sessionFolder / rollNo.ext */
+function _findPhotoInDrive(classFolderName, sessionFolderName, rollNo) {
+  try {
+    var parentFolder = DriveApp.getFolderById(PHOTOS_FOLDER_ID);
+    var classFolders = parentFolder.getFoldersByName(classFolderName);
+    if (!classFolders.hasNext()) return null;
+    var classFolder = classFolders.next();
+
+    var sessionFolders = classFolder.getFoldersByName(sessionFolderName);
+    if (!sessionFolders.hasNext()) return null;
+    var sessionFolder = sessionFolders.next();
+
+    var exts = ['jpg','jpeg','png','gif','bmp'];
+    for (var e = 0; e < exts.length; e++) {
+      var files = sessionFolder.getFilesByName(rollNo + '.' + exts[e]);
+      if (files.hasNext()) {
+        var file = files.next();
+        try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(err) {}
+        return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+      }
+    }
+  } catch(e) { /* folder not accessible */ }
+  return null;
+}
+
+// =========================================================
+// == PHOTO URLS BATCH (called from client after data load) ==
+// =========================================================
+function getPhotoUrls(records) {
+  var result = {};
+  if (!PHOTOS_FOLDER_ID || !records) return result;
+  for (var i = 0; i < records.length; i++) {
+    var key = records[i]['class_r_no'] || String(i);
+    var url = getPhotoUrl(records[i]);
+    if (url) result[key] = url;
+  }
+  return result;
+}
+
+// =========================================================
+// == EXPORT: GOOGLE SHEETS SPREADSHEET ==
+// =========================================================
+/**
+ * Creates a temporary Google Spreadsheet with the filtered data and returns a download URL.
+ * This replaces PHPExcel export since Apps Script cannot produce .xlsx files directly in a
+ * streaming fashion; instead we produce a Google Sheet and offer export from there.
+ */
+function exportToSheetDirect(resultData, selectedColumns) {
+  const timestamp  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  const title      = SCHOOL_NAME + ' Advanced Report ' + timestamp;
+  const tmpSS      = SpreadsheetApp.create(title);
+  const sheet      = tmpSS.getActiveSheet();
+  sheet.setName('Student Report');
+
+  if (!resultData || resultData.type !== 'detailed') {
+    sheet.getRange(1,1).setValue('Summary reports export not yet supported in sheet format. Use Print instead.');
+    const url = tmpSS.getUrl();
+    return url;
+  }
+
+  const cols    = (selectedColumns && selectedColumns.length > 0) ? selectedColumns : DEFAULT_COLUMNS;
+  const records = resultData.records || [];
+
+  // Header row
+  const headerRow = cols.map(c => ALL_COLUMNS[c] || c);
+  sheet.appendRow(headerRow);
+
+  // Style header
+  const hRange = sheet.getRange(1, 1, 1, headerRow.length);
+  hRange.setBackground('#2c5aa0').setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+
+  // Data rows (Bulk insert for speed and to preserve formatting)
+  if (records.length > 0) {
+    let dataValues = [];
+    let backgrounds = [];
+    let sno = 1;
+
+    records.forEach(row => {
+      let dataRow = cols.map(c => {
+        if (c === 's_no') return sno;
+        if (c === 'student_photo') return row['student_photo_filename'] ? '(photo)' : '';
+        // Force string cast so it doesn't drop leading zeros before hitting the sheet
+        return String(row[c] || ''); 
+      });
+      dataValues.push(dataRow);
+      
+      let bgRow = [];
+      let bgColor = (sno % 2 === 0) ? '#f4f6f8' : '#ffffff';
+      for (let j = 0; j < dataRow.length; j++) bgRow.push(bgColor);
+      backgrounds.push(bgRow);
+      
+      sno++;
+    });
+
+    const blockRange = sheet.getRange(2, 1, dataValues.length, headerRow.length);
+    // Explicitly format as Plain Text so long numbers DO NOT convert to Scientific Notation!
+    blockRange.setNumberFormat('@'); 
+    blockRange.setValues(dataValues);
+    blockRange.setBackgrounds(backgrounds);
+  }
+
+  // Auto-resize columns
+  sheet.autoResizeColumns(1, headerRow.length);
+
+  // Freeze header
+  sheet.setFrozenRows(1);
+
+  // Move to temp folder
+  try {
+    var file = DriveApp.getFileById(tmpSS.getId());
+    var folder = DriveApp.getFolderById(TEMP_REPORTS_FOLDER_ID);
+    file.moveTo(folder);
+  } catch(e) {}
+
+  return 'https://docs.google.com/spreadsheets/d/' + tmpSS.getId() + '/export?format=xlsx';
+}
+// =========================================================
+// == ADMISSION NUMBER ASSIGNER TOOL ==
+// =========================================================
+function getAdmissionToolData(filters) {
+  const allResults = _getAllRows().records;
+  let maxVal = 0;
+  allResults.forEach(r => {
+    let rawStr = (r['adm_no'] || '').toString();
+    let ms = rawStr.match(/\d+/g);
+    if(ms){ ms.forEach(m => { let n = parseInt(m); if(n > maxVal) maxVal = n; }); }
+  });
+  let result = null;
+  try { result = getFilteredData(filters, true); }
+  catch(e) { return { maxNo: maxVal, pending: 0 }; }
+  let pendingCount = 0;
+  if (result && result.type === 'detailed') {
+    let rs = NaN, re = NaN;
+    if(filters.rollNoRange && typeof filters.rollNoRange === 'string') {
+      let parts = filters.rollNoRange.split('-');
+      if(parts.length === 2) {
+        rs = parseInt(parts[0].trim()); re = parseInt(parts[1].trim());
+        if(!isNaN(rs) && !isNaN(re) && rs > re) { let t=rs; rs=re; re=t; }
+      }
+    }
+    let pendingRecords = result.records.filter(row => {
+      let name = (row['student_name']||'').trim();
+      if(!name || name.toLowerCase() === '#n/a' || name === '-') return false;
+      let v = (row['adm_no']||'').trim().toLowerCase();
+      if(v && v !== 'n/a' && v !== '-') return false;
+      if(!isNaN(rs) && !isNaN(re)) {
+        let rno = parseInt(row['class_r_no']);
+        if(isNaN(rno) || rno < rs || rno > re) return false;
+      }
+      return true;
+    });
+    pendingRecords.sort((a,b) => (parseInt(a['class_r_no'])||0) - (parseInt(b['class_r_no'])||0));
+    pendingCount = pendingRecords.length;
+    let firstStudentStr = '', lastStudentStr = '';
+    if(pendingCount > 0) {
+      let first = pendingRecords[0], last = pendingRecords[pendingCount - 1];
+      firstStudentStr = (first['student_name']||'Unknown') + ' (Roll No: ' + (first['class_r_no']||'N/A') + ')';
+      lastStudentStr  = (last['student_name']||'Unknown')  + ' (Roll No: ' + (last['class_r_no']||'N/A')  + ')';
+    }
+    return { maxNo: maxVal, pending: pendingCount, firstStudent: firstStudentStr, lastStudent: lastStudentStr };
+  }
+  return { maxNo: maxVal, pending: 0, firstStudent: '', lastStudent: '' };
+}
+
+// =========================================================
+// == BULK ADMISSION NUMBER ASSIGNER ==
+// =========================================================
+function assignAdmissionNumbersBulk(startNo, filters) {
+  startNo = parseInt(startNo);
+  if(isNaN(startNo)) throw new Error('Start number must be an integer.');
+  const allRows = _getAllRows().records;
+  const result = getFilteredData(filters, true);
+  if(result.type !== 'detailed') throw new Error('Need detailed result.');
+  let rs = NaN, re = NaN;
+  if(filters.rollNoRange) {
+    let parts = filters.rollNoRange.split('-');
+    if(parts.length === 2) {
+      rs = parseInt(parts[0]); re = parseInt(parts[1]);
+      if(rs > re) { let t=rs; rs=re; re=t; }
+    }
+  }
+  const toAssign = result.records.filter(r => {
+    let n = (r['student_name']||'').trim();
+    if(!n || n.toLowerCase() === '#n/a') return false;
+    if((r['adm_no']||'').trim()) return false;
+    if(!isNaN(rs) && !isNaN(re)) {
+      let rno = parseInt(r['class_r_no']);
+      if(isNaN(rno) || rno < rs || rno > re) return false;
+    }
+    return true;
+  });
+  if(toAssign.length === 0) return { success:true, count:0 };
+  const regMap = {};
+  allRows.forEach(row => {
+    let reg = (row['board_reg_no']||'').trim().toLowerCase();
+    let adm = (row['adm_no']||'').trim();
+    if (reg && adm) {
+      if(!regMap[reg]) regMap[reg] = [];
+      regMap[reg].push({ adm: adm, rowIdx: row._rowIdx });
+    }
+  });
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const colIdx = _findSheetColIdx(sheet, 'adm_no');
+  let nextNo = startNo, count = 0;
+  
+  toAssign.forEach(s => {
+    const reg = (s['board_reg_no'] || '').trim().toLowerCase();
+    let old = '';
+    
+    // Readmission logic: find previous ID for this registration
+    if((s['readmission']||'').toString().toLowerCase() === 'yes' && reg && regMap[reg]) {
+      // Find the LATEST previous assignment (excluding the current row)
+      let matches = regMap[reg].filter(m => m.rowIdx !== s._rowIdx);
+      if(matches.length > 0) {
+        // Just take the first integer part of the most recent one found
+        let lastMatch = matches[matches.length-1].adm;
+        let m = lastMatch.match(/^\d+/);
+        if(m) old = m[0];
+      }
+    }
+    
+    let val = nextNo.toString();
+    if(old && old !== val) val += ' (' + old + ')';
+    sheet.getRange(s._rowIdx, colIdx).setValue(val);
+    nextNo++; count++;
+  });
+  _clearCache();
+  return { success:true, count: count };
+}
+
+// =========================================================
+// == BULK DB EDITOR SAVER ==
+// =========================================================
+function saveBulkStudentData(updates) {
+  if(!updates || !updates.length) return { success:true, count:0 };
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const byKey = {};
+  updates.forEach(u => { if(!byKey[u.key]) byKey[u.key]=[]; byKey[u.key].push(u); });
+  let saved = 0;
+  for(let key in byKey) {
+    const colIdx = _findSheetColIdx(sheet, key);
+    if(colIdx === -1) continue;
+    byKey[key].forEach(u => { sheet.getRange(u.rowIdx, colIdx).setValue(u.val); saved++; });
+  }
+  _clearCache();
+  return { success:true, count:saved };
+}
+
+// =========================================================
+// == SHEET COLUMN INDEX HELPER ==
+// =========================================================
+function _findSheetColIdx(sheet, targetKey) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const targetLabel = ALL_COLUMNS[targetKey] || '';
+  for (let i = 0; i < headers.length; i++) {
+    let h = String(headers[i]).trim(), hL = h.toLowerCase(), tL = targetKey.toLowerCase();
+    if (targetLabel && h === targetLabel) return i + 1;
+    if (HEADER_MAP[h] === targetKey) return i + 1;
+    if (hL === tL || hL.indexOf(tL) > -1) return i + 1;
+  }
+  return -1;
+}
+
+function syncReadmissionIDsBulk(filters) {
+  const allRows = _getAllRows().records;
+  const result = getFilteredData(filters, true);
+  if(result.type !== 'detailed') throw new Error('Need detailed result.');
+  
+  // Build Reg Map for faster lookup
+  const regMap = {};
+  allRows.forEach(row => {
+    let reg = (row['board_reg_no']||'').trim().toLowerCase();
+    let adm = (row['adm_no']||'').trim();
+    if (reg && adm) { 
+       if(!regMap[reg]) regMap[reg] = [];
+       regMap[reg].push({ adm: adm, rowIdx: row._rowIdx });
+    }
+  });
+
+  const studentsToFix = result.records.filter(s => {
+    let yes = (s['readmission'] || '').toString().toLowerCase() === 'yes';
+    let adm = (s['adm_no'] || '').trim();
+    return yes && adm && adm.indexOf('(') === -1; // Only fix if it has an ID but no bracket already
+  });
+
+  if(studentsToFix.length === 0) return { success:true, count:0 };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), sheet = ss.getSheetByName(SHEET_NAME);
+  const colIdx = _findSheetColIdx(sheet, 'adm_no');
+  let count = 0;
+
+  studentsToFix.forEach(s => {
+    const reg = (s['board_reg_no'] || '').trim().toLowerCase();
+    if(reg && regMap[reg]) {
+       let matches = regMap[reg].filter(m => m.rowIdx !== s._rowIdx);
+       if(matches.length > 0) {
+          let oldRaw = matches[matches.length-1].adm;
+          let m = oldRaw.match(/^\d+/);
+          if(m) {
+             let newVal = (s['adm_no']||'').match(/^\d+/)[0] + ' (' + m[0] + ')';
+             sheet.getRange(s._rowIdx, colIdx).setValue(newVal);
+             count++;
+          }
+       }
+    }
+  });
+
+  _clearCache();
+  return { success:true, count: count };
+}
+
+// =========================================================
+// == BULK ADMISSION DATE ASSIGNER ==
+// =========================================================
+function assignAdmissionDatesBulk(dateStr, rs, re, filters) {
+  if(!dateStr) throw new Error('Please select a date.');
+  rs = parseInt(rs); re = parseInt(re);
+  if(isNaN(rs) || isNaN(re)) throw new Error('Roll Number Range must be valid integers.');
+  filters.reportType = 'general';
+  const result = getFilteredData(filters, true);
+  if(result.type !== 'detailed') throw new Error('Detailed view required.');
+  const toUpdate = result.records.filter(r => {
+    let rno = parseInt(r['class_r_no']);
+    return !isNaN(rno) && rno >= rs && rno <= re;
+  });
+  if(toUpdate.length === 0) return { success:true, count:0 };
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const dateColIdx = _findSheetColIdx(sheet, 'adm_date');
+  if(dateColIdx === -1) throw new Error("Could not find 'Adm. Date' column.");
+  // Format date from yyyy-mm-dd to dd-mm-yyyy
+  let formattedDate = dateStr;
+  let parts = dateStr.split('-');
+  if(parts.length === 3 && parts[0].length === 4) { // yyyy-mm-dd
+    formattedDate = parts[2] + '-' + parts[1] + '-' + parts[0];
+  }
+  toUpdate.forEach(student => { sheet.getRange(student._rowIdx, dateColIdx).setValue(formattedDate); });
+  _clearCache();
+  return { success:true, count: toUpdate.length };
+}
+
+
+

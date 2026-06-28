@@ -1,0 +1,83 @@
+
+<div id="attendanceView" class="hidden">
+    <div class="card compact-dashboard">
+        <!-- Attendance Header -->
+        <div class="dashboard-header-compact">
+            <div class="header-main">
+                <span class="material-icons header-icon">how_to_reg</span>
+                <div>
+                    <h2>Student Attendance</h2>
+                    <p>Daily Attendance Management</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button onclick="backToTeacherDashboard()" class="btn btn-secondary btn-small">
+                    <span class="material-icons">arrow_back</span> Back
+                </button>
+                <div id="attendanceSyncStatus" class="sync-badge hidden">
+                    <span class="material-icons">sync</span> Saving...
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="attendance-toolbar">
+            <div class="toolbar-group">
+                <div class="filter-item">
+                    <label>Class</label>
+                    <select id="attendanceClass" onchange="loadAttendanceList()">
+                        <option value="11th">11th</option>
+                        <option value="12th">12th</option>
+                        <option value="9th">9th</option>
+                        <option value="10th">10th</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Date</label>
+                    <input type="date" id="attendanceDate" onchange="loadAttendanceList()">
+                </div>
+            </div>
+            <div class="toolbar-group" style="margin-left: auto; gap: 0.8rem;">
+                <div class="filter-item">
+                    <label>Mark All As</label>
+                    <select id="defaultStatusSelect" onchange="markAllAs(this.value)" style="width: auto; height: 32px; font-size: 0.85rem;">
+                        <option value="Present">Present (P)</option>
+                        <option value="Absent">Absent (A)</option>
+                        <option value="Leave">Leave (L)</option>
+                    </select>
+                </div>
+                <button id="saveAttendanceBtn" onclick="saveAttendance()" class="btn btn-primary btn-small" style="height: 32px;">
+                    <span class="material-icons">save</span> Save Attendance
+                </button>
+            </div>
+        </div>
+
+        <!-- Attendance Table -->
+        <div class="attendance-table-container">
+            <div id="attendanceLoading" class="loading-overlay">
+                <div class="spinner"></div>
+                <p>Fetching Student List...</p>
+            </div>
+            <table class="styled-table attendance-grid" id="attendanceTable">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Roll</th>
+                        <th>Student Name</th>
+                        <th style="width: 220px; text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceList">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Stats Footer -->
+        <div class="attendance-footer">
+            <div class="footer-stat">Total: <span id="totalStudentsCount">0</span></div>
+            <div class="footer-stat present">Present: <span id="presentCount">0</span></div>
+            <div class="footer-stat absent">Absent: <span id="absentCount">0</span></div>
+            <div class="footer-stat leave">Leave: <span id="leaveCount">0</span></div>
+        </div>
+    </div>
+</div>

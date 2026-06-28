@@ -1,0 +1,2243 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>BMHSS Handwara Admission Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <?!= include('CSS'); ?>
+    <script>
+        window.redirectTo = "<?= redirectTo ?>";
+    </script>
+</head>
+
+<body>
+    <!-- [MODIFIED] Floating Loading Popup (Non-blocking message box style) -->
+    <div id="loader" class="floating-loader hidden">
+        <div class="loader-card">
+            <div class="spinner-small"></div>
+            <div id="loader-text">Loading...</div>
+            <button id="loaderActionBtn" class="hidden"
+                style="margin-left: 10px; font-weight: 700; background: var(--primary); color: white; border: none; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; display: none;">Go
+                Now</button>
+            <button id="loaderStopBtn" class="btn btn-tiny" title="Stop process"
+                style="display:none; margin-left:8px; padding:2px 4px; font-size:10px; color:var(--danger); border-color:var(--danger-light);">Stop</button>
+        </div>
+    </div>
+
+    <!-- Global Task Progress Widget (Non-blocking) -->
+    <div id="globalProgressWrapper" class="hidden"
+        style="position: fixed; bottom: 20px; right: 24px; z-index: 10001; pointer-events: none; width: 380px; max-width: 90vw;">
+        <div class="modal-content"
+            style="pointer-events: auto; width: 100%; padding: 1.25rem; border: 1px solid var(--border); box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin: 0; background: var(--bg-card);">
+            <div style="display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.8rem;">
+                <div class="spinner-small" style="border-top-color: var(--primary); flex-shrink: 0; margin-top: 2px;">
+                </div>
+                <div style="flex: 1;">
+                    <h4 id="globalProgressMsg"
+                        style="margin: 0; font-size: 0.95rem; font-weight: 700; line-height: 1.3; color: var(--text-primary); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                        Processing Task...</h4>
+                    <div id="globalProgressSubDetails"
+                        style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px; display: none;">
+                        Preparing environment...</div>
+                </div>
+            </div>
+            <div class="progress-container" style="margin-bottom: 0.6rem;">
+                <div class="progress-bar-track"
+                    style="height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; border: 1px solid var(--border-light);">
+                    <div id="globalProgressBarFill"
+                        style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), #6366f1); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);">
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="globalProgressPercent"
+                        style="font-size: 0.8rem; font-weight: 800; color: var(--primary);">0%</span>
+                    <span id="globalProgressTimeRemaining"
+                        style="font-size: 0.7rem; color: var(--text-secondary); border-left: 1px solid var(--border); padding-left: 8px; font-weight: 600;">--:--</span>
+                </div>
+                <button id="abortTaskBtn" class="btn btn-secondary btn-small"
+                    style="padding: 0.25rem 0.6rem; font-size: 0.7rem; color: var(--danger); border-color: rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.03); display: flex; align-items: center; gap: 4px;">
+                    <span class="material-icons" style="font-size: 0.85rem;">stop_circle</span>
+                    <span>Stop Execution</span>
+                </button>
+            </div>
+            <div id="globalProgressResultArea"
+                style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); text-align: center;">
+                <a id="globalProgressResultBtn" href="#" target="_blank" class="btn btn-primary"
+                    style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 0.85rem; padding: 0.6rem;">
+                    <span class="material-icons" style="font-size: 1.1rem;">folder_open</span>
+                    <span id="globalProgressResultText">Open Results</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Preview Popup -->
+    <div id="photoPreviewOverlay" class="photo-preview-overlay"></div>
+    <div id="photoPreviewPopup" class="photo-preview-popup">
+        <img id="photoPreviewImage" src="" alt="Photo Preview">
+    </div>
+
+    <!-- [MODIFIED] Modals with blur overlay -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>Confirm Action</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-buttons">
+                <button class="btn modal-btn cancel" id="confirmCancel">Cancel</button>
+                <button class="btn modal-btn confirm" id="confirmOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="inputModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 id="inputModalTitle">Input Required</h3>
+            <p id="inputModalMessage"></p>
+            <div id="inputPresetContainer"
+                style="display:none; margin: 0 0 8px 0; gap:6px; flex-wrap:wrap; align-items:center;">
+            </div>
+            <div class="modal-input-group" id="inputModalGroup" style="display:none;">
+                <label id="inputModalLabel" for="inputModalInput"></label>
+                <input type="text" id="inputModalInput" />
+                <textarea id="inputModalTextarea" rows="6"
+                    style="display:none; width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:0.95rem;"></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn modal-btn cancel" id="inputCancel">Cancel</button>
+                <button class="btn modal-btn confirm" id="inputOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 360px;">
+            <h3>Edit Profile</h3>
+            <div class="modal-input-group">
+                <label for="profileName">Full Name</label>
+                <input type="text" id="profileName" />
+            </div>
+            <div class="modal-input-group">
+                <label for="profileMobile">Mobile No.</label>
+                <input type="tel" id="profileMobile" />
+            </div>
+            <div class="modal-input-group">
+                <label for="profileResidence">Residence Address</label>
+                <input type="text" id="profileResidence" />
+            </div>
+            <div class="modal-buttons">
+                <button class="btn modal-btn cancel" id="profileCancel">Cancel</button>
+                <button class="btn modal-btn confirm" id="profileSave">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="subjectEditModal" class="modal-overlay subject-editor-modal hidden">
+        <div class="modal-content wide">
+            <h3 id="subjectEditTitle">Edit Subjects</h3>
+            <div class="subject-list" id="subjectEditList">
+                <!-- JS will populate this -->
+            </div>
+            <div class="add-subject-row modal-input-group">
+                <input type="text" id="subjectEditInput" placeholder="Enter new subject name" />
+                <button class="icon-btn success" id="subjectEditAddBtn" title="Add subject">
+                    <span class="material-icons" style="font-size: 1.25rem;">add_circle</span>
+                </button>
+            </div>
+            <div class="modal-buttons" style="justify-content: flex-end;">
+                <button class="btn modal-btn confirm" id="subjectEditCloseBtn">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [NEW] Instructions Modal -->
+    <div id="instructionsModal" class="modal-overlay hidden">
+        <div class="modal-content wide">
+            <h3 style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; color:var(--primary);">
+                <span class="material-icons">info</span> Instructions for Admission
+            </h3>
+            <p style="margin-bottom:1rem; color:var(--text-secondary); font-size:0.9rem;">Please read the following
+                instructions carefully before proceeding to the application form:</p>
+            <div style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.5rem;">
+                <div
+                    style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem; background:var(--bg-secondary); border-radius:8px;">
+                    <span class="material-icons" style="font-size:1.25rem; color:var(--primary);">check_circle</span>
+                    <span style="font-size:0.85rem; line-height:1.4;">Ensure all details (Name, Parentage, DoB) match
+                        your <strong>official school records</strong> exactly.</span>
+                </div>
+                <div
+                    style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem; background:var(--bg-secondary); border-radius:8px;">
+                    <span class="material-icons" style="font-size:1.25rem; color:var(--primary);">smartphone</span>
+                    <span style="font-size:0.85rem; line-height:1.4;">Active mobile number (with WhatsApp) and parent's
+                        contact are mandatory for all communications.</span>
+                </div>
+                <div
+                    style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem; background:var(--bg-secondary); border-radius:8px;">
+                    <span class="material-icons" style="font-size:1.25rem; color:var(--primary);">add_a_photo</span>
+                    <span style="font-size:0.85rem; line-height:1.4;">Upload a clear, recent passport-size photograph
+                        (Max 200 KB) for your identity card.</span>
+                </div>
+                <div
+                    style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem; background:var(--bg-secondary); border-radius:8px;">
+                    <span class="material-icons" style="font-size:1.25rem; color:var(--primary);">category</span>
+                    <span style="font-size:0.85rem; line-height:1.4;">Carefully select your <strong>Admission
+                            Type</strong> (Full/Provisional) and stream/subjects. Correct choices prevent
+                        rejection.</span>
+                </div>
+                <div
+                    style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem; background:var(--bg-secondary); border-radius:8px;">
+                    <span class="material-icons" style="font-size:1.25rem; color:var(--primary);">save</span>
+                    <span style="font-size:0.85rem; line-height:1.4;">Use <strong>'Save Draft'</strong> to stop and
+                        continue later. Drafts are held until the final submission.</span>
+                </div>
+                <div
+                    style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem; background:var(--bg-secondary); border-radius:8px;">
+                    <span class="material-icons" style="font-size:1.25rem; color:var(--success);">verified</span>
+                    <span style="font-size:0.85rem; line-height:1.4;">After <strong>Final Submit</strong>, you will
+                        receive a PDF copy via email and cannot edit the form anymore.</span>
+                </div>
+            </div>
+            <div
+                style="padding:0.75rem; border:1px solid var(--border); border-radius:8px; background:rgba(99, 102, 241, 0.05); text-align:center; margin-bottom:1.5rem;">
+                <p style="margin:0; font-size:0.8rem; font-weight:600; color:var(--primary);">Fields marked with <span
+                        class="required" style="color:var(--danger);">*</span> are absolutely mandatory.</p>
+            </div>
+            <p>Click "I Understand and Agree" to proceed to the admission form.</p>
+            <div class="modal-buttons" style="justify-content: flex-end;">
+                <button class="btn modal-btn confirm" id="instructionsAgreeBtn">I Understand and Agree</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="authView">
+            <div class="card">
+                <a href="#" id="adminLoginLink"
+                    style="position:absolute; right:1rem; top:1rem; font-size:0.8rem; display: none;">Admin Login</a>
+                <a href="#" id="studentLoginLink"
+                    style="position:absolute; left:1rem; top:1rem; font-size:0.8rem; display:none;">Student Login</a>
+                <div id="auth-alert" class="alert hidden"></div>
+
+                <div id="loginPortalContainer">
+                    <div class="login-theme-container">
+                        <button id="loginThemeToggleBtn" class="login-theme-pill" title="Toggle Theme">
+                            <span class="material-icons" id="loginThemeIcon">dark_mode</span>
+                            <span id="loginThemeLabel">Dark</span>
+                        </button>
+                    </div>
+                    <div class="login-portal-header" style="padding-top: 0.5rem; padding-bottom: 0.25rem;">
+                        <div style="display: flex; justify-content: center; margin-bottom: 0.4rem;">
+                            <img id="authLogo" src="" alt="School Logo"
+                                style="display: none; width: 64px; height: 64px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; padding: 2px; background: white; object-fit: contain;">
+                        </div>
+                        <img id="loginHeaderLogo" src="" alt="" class="bg-logo">
+                        <h2 style="margin-bottom: 2px;">Login Portal</h2>
+                        <p style="font-size: 0.8rem; opacity: 0.8;">BMHSS Handwara</p>
+                    </div>
+
+                    <div class="login-tabs" style="margin-bottom: 0.75rem;">
+                        <div class="login-tab active" data-role="student">Student</div>
+                        <div class="login-tab" data-role="teacher">Teacher</div>
+                        <div class="login-tab" data-role="admin">Admin</div>
+                    </div>
+
+                    <form id="loginForm">
+                        <div class="floating-group" style="margin-bottom: 0.6rem;">
+                            <input type="text" id="loginEmail" required placeholder=" " autocomplete="username">
+                            <label for="loginEmail" id="loginUserLabel">Email Address <span
+                                    class="required">*</span></label>
+                        </div>
+                        <div class="floating-group input-inline" style="margin-bottom: 0.6rem;">
+                            <input type="password" id="loginPassword" required autocomplete="current-password"
+                                spellcheck="false" placeholder=" ">
+                            <label for="loginPassword">Password <span class="required">*</span></label>
+                            <button type="button" id="toggleLoginPassword" class="inline-action" title="Show/Hide">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <div class="form-group" style="padding: 0 0.5rem; margin-top: -0.1rem; margin-bottom: 0.75rem;">
+                            <label
+                                style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500; font-size: 0.7rem; color: var(--text-secondary);">
+                                <input type="checkbox" id="keepMeLoggedIn" style="width: auto; margin: 0;">
+                                <span>Keep me logged in</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-small" id="loginBtn"
+                            style="background: #0d9488; border: none; border-radius: 8px; font-weight: 700; height: 40px; width: 100%;">Secure Login</button>
+
+                        <div class="login-footer" style="margin-top: 1rem;">
+                            <a href="#" id="showForgotPassword"
+                                style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 0.4rem; display: block;">Forgot
+                                Password?</a>
+                            <a href="#" id="showRegister"
+                                style="color: #0d9488; font-size: 0.85rem; font-weight: 700;">Create Student Account</a>
+                        </div>
+
+                    </form>
+                </div>
+
+                <!-- [MODIFIED] Register Form -->
+                <form id="registerForm" class="hidden">
+                    <p style="text-align:center; margin-bottom: 1rem;">Create your account to start</p>
+                    <div id="registerStep1">
+                        <div class="floating-group">
+                            <input type="text" id="registerName" required placeholder=" ">
+                            <label for="registerName">Full Name <span class="required">*</span></label>
+                        </div>
+                        <div class="floating-group">
+                            <input type="email" id="registerEmail" required placeholder=" ">
+                            <label for="registerEmail">Email <span class="required">*</span></label>
+                            <div id="emailCheckHint" class="field-hint"></div>
+                        </div>
+                        <div class="floating-group">
+                            <input type="tel" id="registerMobile" required pattern="[0-9]{10}" maxlength="10"
+                                placeholder=" ">
+                            <label for="registerMobile">Mobile Number (10 digits) <span
+                                    class="required">*</span></label>
+                            <div id="mobileCheckHint" class="field-hint"></div>
+                        </div>
+
+                        <!-- [NEW] Teacher-specific Details Section -->
+                        <div id="teacherDetailsSection" class="teacher-fields hidden">
+                            <div
+                                style="margin: 0.5rem 0 1rem 0; border: 1.5px dashed var(--primary); padding: 0.85rem; border-radius: 12px; background: rgba(var(--primary-rgb, 185, 28, 28), 0.04); border-left: 4px solid var(--primary);">
+                                <h4
+                                    style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                                    <span class="material-icons" style="font-size: 1.1rem;">assignment_ind</span>
+                                    Teacher Assignment Details
+                                </h4>
+                                <div class="floating-group">
+                                    <select id="teacherInitialClass" style="width: 100%; border-color: var(--border);">
+                                        <option value="" disabled selected>Select Primary Class</option>
+                                        <optgroup label="Higher Secondary">
+                                            <option value="12th">12th Class</option>
+                                            <option value="11th">11th Class</option>
+                                        </optgroup>
+                                        <optgroup label="Secondary">
+                                            <option value="10th">10th Class</option>
+                                            <option value="9th">9th Class</option>
+                                        </optgroup>
+                                        <option value="Multi-Class">Multi-Class / Head</option>
+                                    </select>
+                                    <label for="teacherInitialClass">Primary Class Assignment <span
+                                            class="required">*</span></label>
+                                </div>
+                                <div class="floating-group" style="margin-bottom: 0;">
+                                    <input type="text" id="teacherInitialSubject" placeholder=" " list="subjectList">
+                                    <label for="teacherInitialSubject">Primary Subject Taught <span
+                                            class="required">*</span></label>
+                                    <datalist id="subjectList">
+                                        <option value="English">
+                                        <option value="Mathematics">
+                                        <option value="Physics">
+                                        <option value="Chemistry">
+                                        <option value="Biology">
+                                        <option value="General Science">
+                                        <option value="Social Science">
+                                        <option value="Urdu">
+                                        <option value="Kashmiri">
+                                        <option value="Environmental Science">
+                                        <option value="Economics">
+                                        <option value="SOCIOLOGY">
+                                        <option value="Education">
+                                    </datalist>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" id="sendOtpBtn" class="btn">Send Verification OTP</button>
+                    </div>
+                    <div id="registerStep2" class="hidden">
+                        <!-- Account Details Summary -->
+                        <div
+                            style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem;">
+                            <h4
+                                style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--primary); border:none; padding:0; display:flex; align-items:center; gap:0.4rem;">
+                                <span class="material-icons" style="font-size:1.1rem;">person_add</span>
+                                Creating Account For:
+                            </h4>
+                            <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.25rem 0;">
+                                    <span class="material-icons"
+                                        style="font-size:1rem; color:var(--text-secondary); width:20px;">person</span>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span
+                                            style="font-size:0.65rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.02em;">Full
+                                            Name</span>
+                                        <strong id="otpNameDisplay" style="color: var(--text-primary);"></strong>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.25rem 0;">
+                                    <span class="material-icons"
+                                        style="font-size:1rem; color:var(--text-secondary); width:20px;">email</span>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span
+                                            style="font-size:0.65rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.02em;">Email
+                                            Address</span>
+                                        <strong id="otpEmailDisplay" style="color: var(--text-primary);"></strong>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.25rem 0;">
+                                    <span class="material-icons"
+                                        style="font-size:1rem; color:var(--text-secondary); width:20px;">smartphone</span>
+                                    <div style="display:flex; flex-direction:column;">
+                                        <span
+                                            style="font-size:0.65rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.02em;">Mobile
+                                            Number</span>
+                                        <strong id="otpMobileDisplay" style="color: var(--text-primary);"></strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="margin-top: 0.75rem; padding: 0.5rem; background: rgba(16, 185, 129, 0.1); border-radius: 6px; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                                <span class="material-icons"
+                                    style="font-size:1rem; color:var(--success);">check_circle</span>
+                                <span style="font-size: 0.75rem; color: var(--success); font-weight: 500;">OTP has been
+                                    sent successfully</span>
+                            </div>
+                        </div>
+                        <div class="floating-group">
+                            <input type="text" id="registerOtp" required maxlength="6" pattern="[0-9]*" placeholder=" ">
+                            <label for="registerOtp">Enter 6-Digit OTP <span class="required">*</span></label>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                                <span id="registerOtpTimer"
+                                    style="font-size: 0.75rem; color: var(--text-secondary);"></span>
+                                <button type="button" id="resendRegisterOtpBtn" class="link-btn"
+                                    style="display: none; font-size: 0.8rem; border:none; background:none; color:var(--primary); cursor:pointer; padding:0; text-decoration:underline;">Resend
+                                    OTP</button>
+                            </div>
+                        </div>
+                        <div class="floating-group input-inline">
+                            <input type="password" id="registerPassword" required minlength="6"
+                                autocomplete="new-password" spellcheck="false" placeholder=" ">
+                            <label for="registerPassword">Password (min. 6 characters) <span
+                                    class="required">*</span></label>
+                            <button type="button" id="toggleRegisterPassword" class="inline-action" title="Show/Hide">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <div class="floating-group input-inline">
+                            <input type="password" id="confirmPassword" required minlength="6"
+                                autocomplete="new-password" spellcheck="false" placeholder=" ">
+                            <label for="confirmPassword">Confirm Password <span class="required">*</span></label>
+                            <button type="button" id="toggleConfirmPassword" class="inline-action" title="Show/Hide">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                            <div id="passwordMatchHint" class="field-hint"></div>
+                        </div>
+                        <button type="submit" class="btn" id="registerBtn">Create Account</button>
+                    </div>
+                    <div class="auth-links">
+                        <a href="#" id="showLogin"><span class="material-icons"
+                                style="font-size: 1.1rem; vertical-align: middle; margin-right: 2px;">arrow_back</span>
+                            Back to Login</a>
+                    </div>
+                </form>
+
+                <!-- [NEW] Forgot Password Form -->
+                <form id="forgotPasswordForm" class="hidden">
+                    <p style="text-align:center; margin-bottom: 1rem;">Reset your password</p>
+                    <div id="forgotStep1">
+                        <p style="font-size: 0.85rem; margin-bottom: 1rem;">Enter your registered email. We will send
+                            you an OTP to reset your password.</p>
+                        <div class="floating-group">
+                            <input type="email" id="forgotEmail" required placeholder=" ">
+                            <label for="forgotEmail">Email <span class="required">*</span></label>
+                        </div>
+                        <button type="button" id="sendResetOtpBtn" class="btn">Send Reset OTP</button>
+                        <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid var(--border);">
+                    </div>
+                    <div id="forgotStep2" class="hidden">
+                        <p style="text-align:center; font-size: 0.875rem; color: var(--success);">
+                            An OTP has been sent to <strong id="resetOtpEmailDisplay"></strong>
+                        </p>
+                        <div class="floating-group">
+                            <input type="text" id="resetOtp" required maxlength="6" pattern="[0-9]*" placeholder=" ">
+                            <label for="resetOtp">Enter 6-Digit OTP <span class="required">*</span></label>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                                <span id="resetOtpTimer"
+                                    style="font-size: 0.75rem; color: var(--text-secondary);"></span>
+                                <button type="button" id="resendResetOtpBtn" class="link-btn"
+                                    style="display: none; font-size: 0.8rem; border:none; background:none; color:var(--primary); cursor:pointer; padding:0; text-decoration:underline;">Resend
+                                    OTP</button>
+                            </div>
+                        </div>
+                        <div class="floating-group input-inline">
+                            <input type="password" id="resetPassword" required minlength="6" autocomplete="new-password"
+                                spellcheck="false" placeholder=" ">
+                            <label for="resetPassword">New Password (min. 6 characters) <span
+                                    class="required">*</span></label>
+                            <button type="button" id="toggleResetPassword" class="inline-action" title="Show/Hide">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                        <div class="floating-group input-inline">
+                            <input type="password" id="resetConfirmPassword" required minlength="6"
+                                autocomplete="new-password" spellcheck="false" placeholder=" ">
+                            <label for="resetConfirmPassword">Confirm New Password <span
+                                    class="required">*</span></label>
+                            <button type="button" id="toggleResetConfirmPassword" class="inline-action"
+                                title="Show/Hide">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                            <div id="resetPasswordMatchHint" class="field-hint"></div>
+                        </div>
+                        <button type="submit" class="btn" id="resetPasswordBtn">Reset Password</button>
+                    </div>
+                    <div class="auth-links">
+                        <a href="#" id="showLoginFromForgot"><span class="material-icons"
+                                style="font-size: 1.1rem; vertical-align: middle; margin-right: 2px;">arrow_back</span>
+                            Back to Login</a>
+                    </div>
+                </form>
+                <!-- [NEW] Interactive Selection Contact Footer -->
+                <div class="login-footer" style="padding: 0.5rem 1rem 1rem 1rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">For any
+                        queries, contact adms. office</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); border-radius: 12px; padding: 4px; width: 100%; max-width: 280px; margin: 0 auto; border: 1px solid var(--border-light);">
+                        <span onclick="toggleContactPicker('call')"
+                            style="flex: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 0; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); transition: all 0.18s;"
+                            onmouseover="this.style.background='var(--bg-card)'; this.style.color='var(--primary)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'"
+                            onmouseout="this.style.background='transparent'; this.style.color='var(--text-primary)'; this.style.boxShadow='none'">
+                            <span class="material-icons" style="font-size: 1rem;">phone</span> Call
+                        </span>
+                        <div style="width: 1px; height: 20px; background: var(--border); margin: 0 3px;"></div>
+                        <span onclick="toggleContactPicker('whatsapp')"
+                            style="flex: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 0; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); transition: all 0.18s;"
+                            onmouseover="this.style.background='rgba(37, 211, 102, 0.1)'; this.style.color='#25D366'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'"
+                            onmouseout="this.style.background='transparent'; this.style.color='var(--text-primary)'; this.style.boxShadow='none'">
+                            <span class="material-icons" style="font-size: 1rem;">chat</span> WhatsApp
+                        </span>
+                    </div>
+
+                    <!-- Contact Picker Container (Initially Hidden) -->
+                    <div id="contactPicker" class="hidden"
+                        style="margin-top: 0.6rem; padding: 0.6rem; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        <div id="contactPickerTitle"
+                            style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; color: var(--primary); text-align: left;">
+                            Choose Contact Number</div>
+                        <div id="contactPickerOptions" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div id="studentDashboardView" class="hidden">
+            <div class="card" style="max-width: 900px; margin: 0 auto;">
+                <div class="dashboard-header">
+                    <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                        <img id="studentLogo" class="form-logo" alt="School Logo">
+                        <div>
+                            <h2 id="studentWelcome" style="margin: 0; font-size: 1.5rem;"></h2>
+                            <p
+                                style="margin: 0.25rem 0 0 0; font-size: 0.875rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
+                                Manage your admission application
+                                <span id="studentAppVersionBadge"
+                                    style="font-size: 0.65rem; font-family: monospace; background: var(--bg-hover); padding: 0.1rem 0.3rem; border-radius: 0.2rem; display: none;"></span>
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center;">
+                        <button id="editProfileBtn" class="btn btn-secondary btn-small">
+                            <span class="material-icons"
+                                style="font-size: 1rem; vertical-align: middle; margin-right: 4px;">edit</span> Edit
+                            Profile
+                        </button>
+                        <button id="studentRefreshBtn" class="btn btn-secondary btn-small btn-refresh"
+                            title="Refresh data"><span class="material-icons"
+                                style="font-size: 1rem; vertical-align: middle;">refresh</span></button>
+                        <button id="studentThemeToggleBtn" class="btn btn-secondary btn-small"
+                            title="Toggle Dark Mode"><span class="material-icons"
+                                style="font-size: 1rem; vertical-align: middle;">dark_mode</span></button>
+                        <button id="studentLogoutBtn" class="btn btn-secondary btn-small">
+                            <span class="material-icons"
+                                style="font-size: 1rem; vertical-align: middle; margin-right: 4px;">logout</span> Logout
+                        </button>
+                    </div>
+                </div>
+                <div id="student-dashboard-alert" class="alert hidden"></div>
+                <div id="studentProfile"></div>
+                <div id="studentAppStatus"></div>
+            </div>
+        </div>
+        <div id="teacherDashboardView" class="hidden">
+            <div class="teacher-dashboard-container" style="max-width: 800px; margin: 2rem auto; padding: 0 1rem;">
+                <!-- Modern Top Header -->
+                <div class="teacher-header" style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 2rem; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <img id="teacherLogo" alt="Logo" style="height: 40px; width: auto; object-fit: contain;">
+                        <div>
+                            <h2 style="font-size: 1.1rem; color: var(--primary); font-weight: 700;">Welcome, <span id="teacherNameDisplay"></span></h2>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary);">Logged in as Teacher</p>
+                        </div>
+                    </div>
+                    <button id="teacherLogoutBtn" class="btn btn-secondary btn-small" style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">
+                        <span class="material-icons" style="font-size: 16px; margin-right: 4px;">logout</span> Logout
+                    </button>
+                </div>
+
+                <!-- Action Tiles -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                    <!-- Practicals Portal -->
+                    <div class="portal-card" onclick="switchPortal('practicals', true)" style="background: white; border-radius: 16px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s ease; border: 1px solid var(--border); box-shadow: var(--shadow);">
+                        <div style="width: 64px; height: 64px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                            <span class="material-icons" style="font-size: 32px;">science</span>
+                        </div>
+                        <h3 style="margin-bottom: 0.5rem; font-size: 1.25rem;">Practicals Portal</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">Record and manage internal/external practical marks and awards.</p>
+                        <button class="btn btn-primary btn-full" style="pointer-events: none;">Open Portal</button>
+                    </div>
+
+                    <!-- Attendance Portal -->
+                    <div class="portal-card" onclick="switchPortal('attendance', true)" style="background: white; border-radius: 16px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s ease; border: 1px solid var(--border); box-shadow: var(--shadow);">
+                        <div style="width: 64px; height: 64px; background: rgba(16, 185, 129, 0.1); color: var(--secondary); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                            <span class="material-icons" style="font-size: 32px;">how_to_reg</span>
+                        </div>
+                        <h3 style="margin-bottom: 0.5rem; font-size: 1.25rem;">Student Attendance</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">Mark and monitor daily student attendance for your classes.</p>
+                        <button class="btn btn-success btn-full" style="pointer-events: none;">Open Attendance</button>
+                    </div>
+                </div>
+
+                <!-- Information Section -->
+                <div style="margin-top: 2rem; background: rgba(99, 102, 241, 0.03); border-radius: 12px; padding: 1.5rem; border: 1px dashed var(--primary); opacity: 0.8;">
+                    <h4 style="font-size: 0.9rem; color: var(--primary); display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem;">
+                        <span class="material-icons" style="font-size: 18px;">info</span> Important Notice
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+                        Please ensure all practical marks are saved before the session deadline. For support regarding subject allocations or roll number corrections, contact the examination cell.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unified Portals -->
+        <?!= include('Attendance_View'); ?>
+        <?!= include('Practicals_View'); ?>
+
+        <div id="adminDashboardView" class="hidden" style="padding: 0; margin: 0;">
+            <div class="card" style="margin: 0; border-radius: 0; padding: 0;">
+                <div class="admin-sticky" style="padding: 0; margin: 0;">
+                    <!-- [NEW] Unified Gateway Bar (School Services) -->
+                    <div class="gateway-bar">
+                        <div class="gateway-container">
+                            <div class="gateway-label">School Services</div>
+                            <div class="gateway-items">
+                                <button onclick="switchPortal('practicals')" class="gateway-btn"
+                                    style="--accent: var(--primary);">
+                                    <span class="material-icons">science</span><span>Practicals</span>
+                                </button>
+                                <button onclick="switchPortal('automation')" class="gateway-btn"
+                                    style="--accent: var(--warning);">
+                                    <span class="material-icons">auto_fix_high</span><span>Automation</span>
+                                </button>
+                                <button onclick="switchPortal('advanced_reports')" class="gateway-btn"
+                                    style="--accent: #06b6d4;">
+                                    <span class="material-icons">analytics</span><span>Reports</span>
+                                </button>
+                                <button onclick="switchPortal('fund_distribution')" class="gateway-btn"
+                                    style="--accent: #ec4899;">
+                                    <span class="material-icons">payments</span><span>Distribution</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Combined Header: Row 1 (Logo/Title/User) + Row 2 (Tabs/Stats/Actions) -->
+                    <div class="admin-header-stack">
+                        <!-- [DESKTOP] Original Row 1 -->
+                        <div class="dashboard-header desktop-only">
+                            <div style="display:flex; align-items:center; gap:0.5rem; flex-shrink:0;">
+                                <img id="adminLogo" class="form-logo" alt="Logo" style="height: 24px; width: auto;">
+                                <h2
+                                    style="margin: 0; font-size: 0.9rem; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 0.4rem; color: var(--primary);">
+                                    <span class="material-icons" style="font-size: 1.1rem;">dashboard</span> Admin
+                                    <span id="adminAppVersionBadge"
+                                        style="font-weight: normal; font-size: 0.6rem; font-family: monospace; opacity: 0.6; background: var(--bg-hover); padding: 0.1rem 0.3rem; border-radius: 4px; display: none;"></span>
+                                </h2>
+                            </div>
+                            <!-- stats -->
+                            <div id="adminStatsInline" class="stats-inline" style="margin: 0 0.5rem;"></div>
+
+                            <div style="display:flex; align-items:center; gap:0.4rem; flex-shrink:0;">
+                                <div id="adminUserInfo" class="desktop-only">
+                                    <div id="adminWelcome"
+                                        style="font-weight:700; font-size: 0.75rem; color: var(--text-primary);"></div>
+                                    <div id="adminEmail"
+                                        style="font-size:0.65rem; color: var(--text-secondary); opacity: 0.8;"></div>
+                                </div>
+                                <div style="display: flex; gap: 0.4rem; align-items: center;">
+
+                                    <button id="adminLogoutBtn" class="btn btn-secondary btn-small" title="Logout">
+                                        <span class="material-icons" style="font-size: 1.1rem;">logout</span>
+                                    </button>
+                                    <button id="refreshBtn" class="btn btn-secondary btn-small" title="Refresh data">
+                                        <span class="material-icons" style="font-size: 1.1rem;">refresh</span>
+                                    </button>
+                                    <button id="themeToggleBtn" class="btn btn-secondary btn-small"
+                                        title="Toggle Theme">
+                                        <span class="material-icons" style="font-size: 1.1rem;">dark_mode</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- [MOBILE] Row 1: Logo + Version | Mobile Icons -->
+                        <div class="dashboard-header mobile-header-row mobile-only"
+                            style="flex-direction:row !important; flex-wrap:nowrap !important; width:100%; align-items:center; justify-content:space-between; padding:0.25rem 0.5rem; background:var(--bg-card); border-bottom:1px solid var(--border); box-sizing:border-box;">
+                            <div class="header-left-group"
+                                style="display:flex !important; flex-direction:row !important; align-items:center; gap:0.3rem;">
+                                <img id="adminLogoMobile" class="form-logo" alt="Logo"
+                                    style="height:18px !important; width:auto !important; display:block !important; margin:0 !important; padding:0 !important; float:none !important;">
+                                <div class="header-title-version"
+                                    style="display:flex !important; flex-direction:row !important; align-items:baseline; gap:0.2rem; white-space:nowrap;">
+                                    <h2 class="header-main-title"
+                                        style="margin:0 !important; font-size:0.75rem !important; font-weight:700 !important; line-height:1 !important;">
+                                        Admin</h2>
+                                    <span id="adminAppVersionBadgeMobile" class="version-badge"
+                                        style="font-size:0.55rem; opacity:0.6; font-family:monospace;"></span>
+                                </div>
+                            </div>
+
+                            <div class="header-right-actions"
+                                style="display:flex !important; flex-direction:row !important; align-items:center; gap:0.3rem;">
+
+                                <button id="adminLogoutBtnMobile" class="header-icon-btn" title="Logout"
+                                    style="min-width:28px; height:28px; padding:0; display:flex; justify-content:center; align-items:center;">
+                                    <span class="material-icons" style="font-size:1rem;">logout</span>
+                                </button>
+                                <button id="refreshBtnMobile" class="header-icon-btn" title="Refresh data"
+                                    style="min-width:28px; height:28px; padding:0; display:flex; justify-content:center; align-items:center;">
+                                    <span class="material-icons" style="font-size:1rem;">refresh</span>
+                                </button>
+                                <button id="themeToggleBtnMobile" class="header-icon-btn" title="Toggle Theme"
+                                    style="min-width:28px; height:28px; padding:0; display:flex; justify-content:center; align-items:center;">
+                                    <span class="material-icons" id="adminThemeIconMobile"
+                                        style="font-size:1rem;">dark_mode</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Tabs + Stats + Action Buttons -->
+                        <!-- Row 2: Tabs + Actions -->
+                        <div class="admin-nav-container">
+                            <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+                            <!-- Mobile Sidebar Drawer -->
+                            <div id="adminSidebar" class="sidebar-nav-container">
+                                <div class="sidebar-header-mobile">
+                                    <div style="font-weight: 800; font-size: 1.1rem; color: white;">HSS Portal</div>
+                                    <div id="mobileAdminEmail"
+                                        style="font-size: 0.7rem; color: rgba(255,255,255,0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    </div>
+                                </div>
+                                <div class="sidebar-nav-list" id="sidebarNavList">
+                                    <div class="sidebar-nav-item active" data-tab="apps">
+                                        <span class="material-icons">list_alt</span> Apps
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="panel">
+                                        <span class="material-icons">tune</span> Controls
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="subjects">
+                                        <span class="material-icons">inventory_2</span> Subjects
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="email">
+                                        <span class="material-icons">alternate_email</span> Email
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="activity">
+                                        <span class="material-icons">manage_search</span> Activity
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="otps">
+                                        <span class="material-icons">password</span> OTPs
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="whitelist">
+                                        <span class="material-icons">verified_user</span> Whitelist
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="tools">
+                                        <span class="material-icons">architecture</span> Tools
+                                    </div>
+                                    <div class="sidebar-nav-item" data-tab="security">
+                                        <span class="material-icons">security</span> Security
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- [MOBILE ROW 2] Menu + Action Buttons -->
+                            <div class="nav-tools-row">
+                                <button id="mobileTabToggle" class="btn btn-secondary btn-small mobile-btn"
+                                    title="Menu">
+                                    <span class="material-icons">menu</span>
+                                </button>
+
+                                <div class="header-actions mobile-flow">
+
+                                    <button id="backupBtn" class="btn btn-secondary btn-small" title="Backup Assets">
+                                        <span class="material-icons">cloud_download</span>
+                                    </button>
+                                    <button id="printReportBtn" class="btn btn-secondary btn-small"
+                                        title="Print Report">
+                                        <span class="material-icons">picture_as_pdf</span>
+                                    </button>
+                                    <button id="batchSendPassBtn" class="btn btn-info btn-small" title="Send Password">
+                                        <span class="material-icons">vpn_key</span>
+                                    </button>
+                                    <button id="batchUnlockBtn" class="btn btn-warning btn-small" title="Unlock">
+                                        <span class="material-icons">lock_open</span>
+                                    </button>
+                                    <button id="batchDeleteBtn" class="btn btn-danger btn-small" title="Delete">
+                                        <span class="material-icons">delete_forever</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Desktop Tabs (Visible on Desktop Only) -->
+                            <div id="adminTabs" class="admin-tabs desktop-only">
+                                <button class="btn btn-secondary btn-small active" data-tab="apps"><span
+                                        class="material-icons">list_alt</span> Apps</button>
+                                <button class="btn btn-secondary btn-small" data-tab="panel"><span
+                                        class="material-icons">tune</span> Controls</button>
+                                <button class="btn btn-secondary btn-small" data-tab="subjects"><span
+                                        class="material-icons">inventory_2</span> Subjects</button>
+                                <button class="btn btn-secondary btn-small" data-tab="email"><span
+                                        class="material-icons">alternate_email</span> Email</button>
+                                <button class="btn btn-secondary btn-small" data-tab="activity"><span
+                                        class="material-icons">manage_search</span> Activity</button>
+                                <button class="btn btn-secondary btn-small" data-tab="otps"><span
+                                        class="material-icons">password</span> OTPs</button>
+                                <button class="btn btn-secondary btn-small" data-tab="whitelist"><span
+                                        class="material-icons">verified_user</span> Whitelist</button>
+                                <button class="btn btn-secondary btn-small" data-tab="tools"><span
+                                        class="material-icons">architecture</span> Tools</button>
+                                <button class="btn btn-secondary btn-small" data-tab="security"><span
+                                        class="material-icons">security</span> Security</button>
+                            </div>
+
+                            <!-- [PAGINATION] Primary Navigation for Desktop and Mobile -->
+                            <div id="headerPagination" class="header-pagination">
+                                <button class="btn-pagination" id="mainHeaderPrev" title="Previous Page"><i class="material-icons">chevron_left</i></button>
+                                <span class="pagination-info" id="mainHeaderInfo">1 / 1</span>
+                                <button class="btn-pagination" id="mainHeaderNext" title="Next Page"><i class="material-icons">chevron_right</i></button>
+                            </div>
+
+                            <!-- [DESKTOP ONLY] Original Header Actions -->
+                            <div class="nav-right desktop-only" style="display: flex; gap: 0.4rem; flex-shrink: 0;">
+
+                                <button onclick="document.getElementById('backupBtn').click()"
+                                    class="btn btn-secondary btn-small" title="Backup Assets">
+                                    <span class="material-icons" style="font-size: 1.1rem;">cloud_download</span>
+                                </button>
+                                <button onclick="document.getElementById('printReportBtn').click()"
+                                    class="btn btn-secondary btn-small" title="Print Report">
+                                    <span class="material-icons" style="font-size: 1.1rem;">picture_as_pdf</span>
+                                </button>
+                                <button onclick="document.getElementById('batchSendPassBtn').click()"
+                                    class="btn btn-info btn-small" title="Send Password">
+                                    <span class="material-icons" style="font-size: 1.1rem;">vpn_key</span>
+                                </button>
+                                <button onclick="document.getElementById('batchUnlockBtn').click()"
+                                    class="btn btn-warning btn-small" title="Unlock">
+                                    <span class="material-icons" style="font-size: 1.1rem;">lock_open</span>
+                                </button>
+                                <button onclick="document.getElementById('batchDeleteBtn').click()"
+                                    class="btn btn-danger btn-small" title="Delete">
+                                    <span class="material-icons" style="font-size: 1.1rem;">delete_forever</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="admin-alert" class="alert hidden"></div>
+                <div id="adminControls" style="display:none;">
+                    <div id="adminControlsContainer" class="admin-controls-grid">
+                        <!-- Settings Section -->
+                        <div class="card"
+                            style="padding: 0.5rem; margin-bottom: 0.5rem; background: var(--bg-card); border: 1px solid var(--border);">
+                            <h3
+                                style="margin:0 0 0.5rem 0; font-size:0.9rem; color:var(--primary); border-bottom:1px solid var(--border); padding-bottom:0.25rem;">
+                                [SETTINGS] Admission Settings</h3>
+
+                            <div style="margin-bottom: 0.75rem;">
+                                <label
+                                    style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.4rem; color:var(--text-primary);">Admission
+                                    Status (Open/Close)</label>
+                                <div id="admissionToggles"
+                                    style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;"></div>
+                            </div>
+
+                            <div
+                                style="margin-bottom: 0.75rem; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;">
+                                <label
+                                    style="font-size:0.8rem; font-weight:700; display:block; margin-bottom:0.4rem; color:var(--text-primary);">Email
+                                    Functionality Controls (Emergency Quota Backup)</label>
+                                <div id="emailToggles"
+                                    style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+
+                            <div
+                                style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; background: var(--bg); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 0.75rem;">
+                                <!-- Session -->
+                                <div style="flex: 0 1 120px;">
+                                    <label for="sessionInput"
+                                        style="font-size:0.75rem; font-weight:600; display:block; margin-bottom:0.25rem;">Current
+                                        Session</label>
+                                    <input type="text" id="sessionInput" placeholder="e.g. 2025-26"
+                                        style="padding:0.4rem; width:100%; border:1px solid var(--border); border-radius:6px; font-size:0.9rem; background:var(--bg-card);" />
+                                </div>
+
+                                <!-- Print Order -->
+                                <div style="flex: 0 1 160px;">
+                                    <label for="printOrderSelect"
+                                        style="font-size:0.75rem; font-weight:600; display:block; margin-bottom:0.25rem;">Default
+                                        Print Order</label>
+                                    <select id="printOrderSelect"
+                                        style="padding:0.4rem; width:100%; border:1px solid var(--border); border-radius:6px; font-size:0.9rem; background:var(--bg-card);">
+                                        <option value="submitted_desc">Submitted: Newest</option>
+                                        <option value="submitted_asc">Submitted: Oldest</option>
+                                        <option value="form_asc">Form No: Asc</option>
+                                        <option value="class_form">Class -> Form</option>
+                                        <option value="class_roll">Class -> Roll No</option>
+                                        <option value="roll_class">Roll No -> Class</option>
+                                    </select>
+                                </div>
+
+                                <!-- Logo -->
+                                <div style="flex: 1 1 200px;">
+                                    <label for="logoUrlInput"
+                                        style="font-size:0.75rem; font-weight:600; display:block; margin-bottom:0.25rem;">School
+                                        Logo URL</label>
+                                    <input type="text" id="logoUrlInput" placeholder="Paste Google Drive link"
+                                        style="padding:0.4rem; width:100%; border:1px solid var(--border); border-radius:6px; font-size:0.9rem; background:var(--bg-card);" />
+                                </div>
+
+                                <!-- Max Marks -->
+                                <div style="flex: 0 1 auto; display: flex; gap: 0.5rem; align-items: flex-end;">
+                                    <div style="display:flex; flex-direction:column;">
+                                        <label
+                                            style="font-size:0.75rem; font-weight:600; margin-bottom:0.25rem; color:var(--text-secondary);">Eligibility
+                                            (Max Marks)</label>
+                                        <div style="display:flex; gap:0.4rem;">
+                                            <div style="display:flex; flex-direction:column; align-items:center;">
+                                                <span style="font-size:0.65rem; color:var(--text-secondary);">8th</span>
+                                                <input type="text" id="allowedMax8thInput" placeholder="500"
+                                                    style="padding:0.25rem; width:45px; border:1px solid var(--border); border-radius:4px; font-size:0.8rem; text-align:center;" />
+                                            </div>
+                                            <div style="display:flex; flex-direction:column; align-items:center;">
+                                                <span style="font-size:0.65rem; color:var(--text-secondary);">9th</span>
+                                                <input type="text" id="allowedMax9thInput" placeholder="500"
+                                                    style="padding:0.25rem; width:45px; border:1px solid var(--border); border-radius:4px; font-size:0.8rem; text-align:center;" />
+                                            </div>
+                                            <div style="display:flex; flex-direction:column; align-items:center;">
+                                                <span
+                                                    style="font-size:0.65rem; color:var(--text-secondary);">10th</span>
+                                                <input type="text" id="allowedMax10thInput" placeholder="500"
+                                                    style="padding:0.25rem; width:45px; border:1px solid var(--border); border-radius:4px; font-size:0.8rem; text-align:center;" />
+                                            </div>
+                                            <div style="display:flex; flex-direction:column; align-items:center;">
+                                                <span
+                                                    style="font-size:0.65rem; color:var(--text-secondary);">11th</span>
+                                                <input type="text" id="allowedMax11thInput" placeholder="500"
+                                                    style="padding:0.25rem; width:45px; border:1px solid var(--border); border-radius:4px; font-size:0.8rem; text-align:center;" />
+                                            </div>
+                                            <div style="display:flex; flex-direction:column; align-items:center;">
+                                                <span
+                                                    style="font-size:0.65rem; color:var(--text-secondary);">12th</span>
+                                                <input type="text" id="allowedMax12thInput" placeholder="500"
+                                                    style="padding:0.25rem; width:45px; border:1px solid var(--border); border-radius:4px; font-size:0.8rem; text-align:center;" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Save Button -->
+                                <div style="flex: 0 0 auto;">
+                                    <button id="saveSettingsBtn" class="btn btn-primary btn-small"
+                                        style="padding: 0.5rem 1rem; height: 36px; font-size: 0.8rem;">Save
+                                        Settings</button>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Test Panel -->
+                        <div id="testSubmissionsContainer" class="card"
+                            style="padding: 0.5rem; background: var(--bg-card); border: 1px solid var(--border);">
+                            <h3 style="margin:0 0 0.25rem 0; font-size:0.9rem; color:var(--text-primary);">[LAB] Test
+                                Data Generator</h3>
+                            <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.5rem;">
+                                Generate demo applications to test the system.</div>
+
+                            <div class="admin-test-buttons" style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                                <button id="testAll" class="btn btn-info btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">All Scenarios</button>
+                                <button id="test9th" class="btn btn-secondary btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">9th</button>
+                                <button id="test10th" class="btn btn-secondary btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">10th</button>
+                                <button id="test11thFull" class="btn btn-secondary btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">11th (F)</button>
+                                <button id="test11thProv" class="btn btn-secondary btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">11th (P)</button>
+                                <button id="test12thFull" class="btn btn-secondary btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">12th (F)</button>
+                                <button id="test12thProv" class="btn btn-secondary btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">12th (P)</button>
+                                <button id="testClearDemo" class="btn btn-danger btn-small"
+                                    style="font-size:0.75rem; padding: 0.25rem 0.5rem;">Clear Log</button>
+                            </div>
+
+                            <div id="testResultsDisplay"
+                                style="margin-top:0.5rem; padding: 0.4rem; background: var(--bg); border-radius: 4px; border: 1px solid var(--border); display: none; font-size:0.75rem;">
+                                <strong style="display:block; margin-bottom:2px;">Results:</strong>
+                                <div id="testResultsContent"
+                                    style="max-height:80px; overflow-y:auto; font-family:monospace;"></div>
+                            </div>
+                        </div>
+
+                </div>
+                <!-- [SEC] Admin Security Panel -->
+                <div id="adminSecurityPanel" style="display:none;">
+                    <div id="adminPermissionsContainer" class="card"
+                        style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
+                            <h3 style="margin:0; font-size:1rem; display:flex; align-items:center; gap:0.5rem; color:var(--primary);">
+                                <span class="material-icons">lock_person</span>
+                                Admin Tab Permissions
+                            </h3>
+                            <button id="saveAdminPermissionsBtn" class="btn btn-primary btn-small">Save Permissions</button>
+                        </div>
+                        <div style="margin-bottom:1rem; padding:0.75rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:0.8rem; color:var(--text-secondary);">
+                            <span class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px; color:var(--primary);">info</span>
+                            Select which administrative tabs are visible to each specific administrator. Super Admins always have full access.
+                        </div>
+                        <div id="adminPermissionsList"
+                            style="display:flex; flex-direction:column; gap:0.75rem; max-height:calc(100vh - 350px); overflow-y:auto; padding-right:5px;">
+                        </div>
+                    </div>
+                </div>
+                <div id="subjectsEditor" style="display:none;">
+                    <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+                        <!-- Subject Configuration -->
+                        <div style="flex:1;">
+                            <h4
+                                style="margin:0 0 0.5rem 0; font-size:0.9rem; font-weight:600; color:var(--text-primary);">
+                                Subject Configuration</h4>
+                            <div id="subjectsConfigContainer" style="display:block">
+                            </div>
+                            <button id="saveSubjectsBtn" class="btn btn-small"
+                                style="margin-top:0.5rem; width:auto;">Save Subjects Config (v2)</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="emailComposer" style="display:none; margin-top:0.5rem;" class="card">
+                    <div class="card-body" style="padding: 0;">
+                        <!-- Header -->
+                        <div
+                            style="padding: 0.75rem; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                            <h4
+                                style="margin:0; font-size:1rem; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem;">
+                                <span class="material-icons" style="color:var(--primary);">campaign</span>
+                                Group Email Composer
+                            </h4>
+                        </div>
+
+                        <!-- Integrated Toolbar Row -->
+                        <div class="email-toolbar-row">
+                            <div class="email-toolbar-item">
+                                <label>To:</label>
+                                <select id="emailStatusFilter">
+                                    <option value="all">Every Applicant</option>
+                                    <option value="draft">Drafts Only</option>
+                                    <option value="submitted">Submitted Only</option>
+                                    <option value="rejected">Rejected Only</option>
+                                    <option value="confirmed">Confirmed (Roll No)</option>
+                                    <option value="custom">Custom Selection</option>
+                                </select>
+                            </div>
+
+                            <div id="emailAdditionalFiltersDiv" class="email-toolbar-item">
+                                <label>Filters:</label>
+                                <div id="emailClassFilter" class="multi-select-container"></div>
+                                <div id="emailSessionFilter" class="multi-select-container" style="min-width:140px;">
+                                </div>
+                            </div>
+
+                            <div id="emailRecipientCount">
+                                <span class="material-icons">groups</span>
+                                <span id="emailRecipientCountText">0</span>
+                            </div>
+
+                            <button id="toggleRecipientsListBtn" class="btn btn-secondary btn-small"
+                                title="Manage specific recipients">
+                                <span class="material-icons">manage_accounts</span> Manage
+                            </button>
+
+                            <div class="email-toolbar-item" style="margin-left:auto;">
+                                <label style="cursor:pointer; display:flex; align-items:center; gap:0.25rem;">
+                                    <input type="checkbox" id="sendTestFirstCheckbox">
+                                    Test to admin
+                                </label>
+                                <span id="adminEmailDisplay"
+                                    style="font-size:0.7rem; color:var(--text-secondary); opacity:0.7;"></span>
+                            </div>
+                        </div>
+
+                        <!-- Recipients List (Mobile-friendly grid) -->
+                        <div id="customSelectionContainer"
+                            style="display:none; padding:1rem; background:var(--bg); border-bottom:1px solid var(--border);">
+                            <div
+                                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+                                <span style="font-size:0.8rem; font-weight:600;">Recipient Selection</span>
+                                <div style="display:flex; gap:0.4rem;">
+                                    <button id="selectAllRecipientsBtn" class="btn btn-secondary btn-small">All</button>
+                                    <button id="deselectAllRecipientsBtn"
+                                        class="btn btn-secondary btn-small">None</button>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:0.75rem; position:relative;">
+                                <span class="material-icons"
+                                    style="position:absolute; left:0.6rem; top:50%; transform:translateY(-50%); font-size:1rem; color:var(--text-secondary);">search</span>
+                                <input type="text" id="customRecipientSearch" placeholder="Filter by name or email..."
+                                    style="width:100%; padding:0.5rem 0.5rem 0.5rem 2rem; border:1px solid var(--border); border-radius:8px; font-size:0.85rem; background:var(--bg-card);">
+                            </div>
+                            <div id="customRecipientsList"
+                                style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0.5rem; max-height:200px; overflow-y:auto;">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Composer Body -->
+                        <div style="padding: 1rem;">
+                            <input type="text" id="emailSubject" placeholder="Enter Email Subject..."
+                                style="width:100%; padding:0.75rem; border:1px solid var(--border); border-radius:10px; font-size:0.95rem; background:var(--bg-card); margin-bottom:0.75rem; font-weight:500;">
+
+                            <div class="email-editor-container">
+                                <div id="emailFormatToolbar">
+                                    <button type="button" class="fmt-btn" data-cmd="bold" title="Bold"><span
+                                            class="material-icons">format_bold</span></button>
+                                    <button type="button" class="fmt-btn" data-cmd="italic" title="Italic"><span
+                                            class="material-icons">format_italic</span></button>
+                                    <button type="button" class="fmt-btn" data-cmd="underline" title="Underline"><span
+                                            class="material-icons">format_underlined</span></button>
+                                    <span
+                                        style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+                                    <button type="button" class="fmt-btn" data-cmd="insertUnorderedList"
+                                        title="Bullet List"><span
+                                            class="material-icons">format_list_bulleted</span></button>
+                                    <button type="button" class="fmt-btn" data-cmd="insertOrderedList"
+                                        title="Numbered List"><span
+                                            class="material-icons">format_list_numbered</span></button>
+                                    <span
+                                        style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+                                    <button type="button" class="fmt-btn" data-cmd="justifyLeft"
+                                        title="Align Left"><span
+                                            class="material-icons">format_align_left</span></button>
+                                    <button type="button" class="fmt-btn" data-cmd="justifyCenter" title="Center"><span
+                                            class="material-icons">format_align_center</span></button>
+                                    <button type="button" class="fmt-btn" data-cmd="justifyRight"
+                                        title="Align Right"><span
+                                            class="material-icons">format_align_right</span></button>
+                                    <span
+                                        style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+                                    <select id="emailFontSize" title="Text Size">
+                                        <option value="1">Small</option>
+                                        <option value="3" selected>Normal</option>
+                                        <option value="5">Large</option>
+                                        <option value="7">Huge</option>
+                                    </select>
+                                    <button type="button" class="fmt-btn" data-cmd="removeFormat"
+                                        title="Clear Formatting" style="color:var(--danger); margin-left:auto;">
+                                        <span class="material-icons">format_clear</span>
+                                    </button>
+                                </div>
+                                <div id="emailBodyEditor" contenteditable="true"
+                                    placeholder="Type your message here..."></div>
+                                <textarea id="emailBody" style="display:none;"></textarea>
+                            </div>
+
+                            <!-- Footer Section -->
+                            <div
+                                style="margin-top: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 10px; border: 1px solid var(--border);">
+                                <div
+                                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                    <span
+                                        style="font-size:0.75rem; font-weight:600; color:var(--text-secondary); display:flex; align-items:center; gap:0.3rem;">
+                                        <span class="material-icons" style="font-size:1rem;">signature</span> Email
+                                        Footer
+                                    </span>
+                                    <label
+                                        style="cursor:pointer; font-size:0.75rem; display:flex; align-items:center; gap:0.3rem; color:var(--primary); font-weight:600;">
+                                        <input type="checkbox" id="useCustomFooter"> Edit Custom Footer
+                                    </label>
+                                </div>
+                                <div id="emailFooterDisplay" class="email-footer-preview-box"></div>
+                                <textarea id="emailFooter" rows="2" placeholder="Enter custom footer text..."
+                                    style="width:100%; padding:0.75rem; border:1px solid var(--border); border-radius:8px; font-size:0.85rem; background:var(--bg-card); display:none; margin-top:0.5rem;"></textarea>
+                            </div>
+
+                            <div class="email-action-btns">
+                                <button id="previewEmailBtn" class="btn" title="View email before sending">
+                                    <span class="material-icons" style="margin-right:0.4rem;">visibility</span> Preview
+                                    Email
+                                </button>
+                                <button id="sendEmailBtn" class="btn" title="Send to selected recipients">
+                                    <span class="material-icons" style="margin-right:0.4rem;">send</span> Send Bulk
+                                    Emails
+                                </button>
+                            </div>
+
+                            <!-- Progress Logs -->
+                            <div id="emailResults" style="margin-top:1rem; display:none;">
+                                <div
+                                    style="background:#1e293b; color:#cbd5e1; border-radius:8px; padding:0.75rem; font-family:monospace; font-size:0.7rem; border:1px solid #334155;">
+                                    <div id="emailLog" style="max-height:120px; overflow-y:auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="adminOtps" style="display:none; margin-top:0.5rem;">
+                    <div class="admin-toolbar mobile-hide"
+                        style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0; font-size:1rem; color:var(--text-primary);">Live OTP Logs</h3>
+                        <button id="refreshOtpsBtn" class="btn btn-secondary btn-small">Refresh OTPs</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="styled-table compact" style="min-width: 900px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">S.No.</th>
+                                    <th>Timestamp</th>
+                                    <th>Email</th>
+                                    <th>Mobile</th>
+                                    <th>Name</th>
+                                    <th>OTP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="otpsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="mobileWhitelist" style="display:none; margin-top:0.5rem;">
+                    <div class="admin-toolbar mobile-hide">
+                        <input type="email" id="whitelistEmail" placeholder="Student Email" />
+                        <input type="text" id="whitelistMobile" placeholder="Parent Mobile (10 digits)" />
+                        <input type="text" id="whitelistReason" placeholder="Reason (e.g., twins)" />
+                        <button id="addWhitelistBtn" class="btn btn-secondary btn-small">Add</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="styled-table compact" style="min-width: 900px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">S.No.</th>
+                                    <th>Email</th>
+                                    <th>Mobile</th>
+                                    <th>Reason</th>
+                                    <th>Admin</th>
+                                    <th>Date Added</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mobileWhitelistBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+
+                <div id="adminTools" style="display:none; margin-top:0.5rem;">
+                    <!-- Tab Navigation -->
+                    <div class="tabs">
+                        <button class="tab-btn active btn-small" data-tab="tab-contact-saver"
+                            style="border:none; background:none;">Bulk Contact Saver</button>
+                        <button class="tab-btn btn-small" data-tab="tab-roll-assigner"
+                            style="border:none; background:none; color:var(--text-secondary);">Bulk Roll No
+                            Assigner</button>
+                        <button class="tab-btn btn-small" data-tab="tab-id-card-data"
+                            style="border:none; background:none; color:var(--text-secondary);">ID Card
+                            Data</button>
+                        <button class="tab-btn btn-small" data-tab="tab-subject-lists"
+                            style="border:none; background:none; color:var(--text-secondary);">Subject-wise
+                            Lists</button>
+                        <button class="tab-btn btn-small" data-tab="tab-push-source"
+                            style="border:none; background:none; color:var(--text-secondary); white-space:nowrap;">Push
+                            to Source</button>
+                        <button class="tab-btn btn-small" data-tab="tab-registration-excel"
+                            style="border:none; background:none; color:var(--text-secondary); white-space:nowrap;">Excel
+                            for Automation</button>
+                    </div>
+
+                    <!-- Tab Content: Contact Saver -->
+                    <div id="tab-contact-saver" class="tab-content" style="display:none;">
+                        <div class="dashboard-header"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                <div
+                                    style="background: linear-gradient(135deg, #4f46e5, #667eea); color: white; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-icons" style="font-size:1.2rem;">contacts</span>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0; font-size:1.1rem; font-weight:600;">Bulk Contact Saver
+                                    </h3>
+                                    <p style="margin:0; font-size:0.75rem; color:var(--text-secondary);">Save to
+                                        Google Contacts</p>
+                                </div>
+                            </div>
+                            <span class="material-icons" id="toggleToolsInfoIcon"
+                                style="font-size:1.2rem; color:var(--info); cursor:pointer; padding:8px; border-radius:8px; transition:background 0.2s;"
+                                title="How it works" onmouseover="this.style.background='var(--info-light)'"
+                                onmouseout="this.style.background='transparent'">info</span>
+                        </div>
+
+                        <!-- Hidden Info Section -->
+                        <div id="toolsInfoSection"
+                            style="display:none; margin-bottom:1rem; padding:1rem; background:linear-gradient(135deg, var(--info-light), rgba(99, 102, 241, 0.05)); border-radius:10px; border-left:4px solid var(--info);">
+                            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                                <span class="material-icons" style="color:var(--info); font-size:1rem;">lightbulb</span>
+                                <strong style="color:var(--info); font-size:0.85rem;">How it works</strong>
+                            </div>
+                            <ul
+                                style="margin:0; padding-left:1.5rem; font-size:0.8rem; color:var(--text-secondary); line-height:1.4;">
+                                <li>Contacts are saved to your Google Contacts account (HSS Students group)</li>
+                                <li>Duplicate detection prevents creating the same contact twice</li>
+                                <li>Notes include form number, class, and parent information</li>
+                            </ul>
+                        </div>
+
+                        <div class="form-group">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                <label for="toolsFormNumbers"
+                                    style="font-weight:600; font-size:0.85rem; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem;">
+                                    <span class="material-icons"
+                                        style="font-size:1rem; color:var(--primary);">format_list_numbered</span>
+                                    Enter Form Numbers
+                                </label>
+                                <span
+                                    style="font-size:0.75rem; color:var(--text-secondary); background:var(--bg-secondary); padding:0.25rem 0.5rem; border-radius:12px;">Comma
+                                    separated</span>
+                            </div>
+                            <div style="display:flex; gap:0.75rem; align-items:stretch;">
+                                <div style="flex:4; position:relative; min-width:0;">
+                                    <textarea id="toolsFormNumbers" rows="2"
+                                        placeholder="e.g. 101, 105, 120 (Leave empty to save all with roll numbers)"
+                                        style="width:100%; font-family:'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace; font-size:0.9rem; color:var(--text-primary); background-color:var(--bg-card); border:2px solid var(--border); border-radius:8px; padding:0.75rem 2.5rem 0.75rem 0.75rem !important; resize:none; height:60px; line-height:1.5; transition:all 0.2s ease; box-sizing:border-box;"
+                                        onfocus="this.style.borderColor='var(--primary)'; this.style.boxShadow='0 0 0 3px rgba(67, 56, 202, 0.1)'"
+                                        onblur="this.style.borderColor='var(--border)'; this.style.boxShadow='none'"></textarea>
+                                    <button type="button" id="toolsClearBtn"
+                                        onclick="document.getElementById('toolsFormNumbers').value=''; document.getElementById('toolsResultContainer').style.display='none';"
+                                        style="position:absolute; right:8px; top:50%; transform:translateY(-50%); width:24px; height:24px; border-radius:50%; border:1px solid var(--border); background:var(--bg-secondary); color:var(--text-secondary); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s ease; z-index:10;"
+                                        title="Clear"
+                                        onmouseover="this.style.background='var(--danger)'; this.style.color='white'; this.style.borderColor='var(--danger)'"
+                                        onmouseout="this.style.background='var(--bg-secondary)'; this.style.color='var(--text-secondary)'; this.style.borderColor='var(--border)'">
+                                        <span class="material-icons" style="font-size:12px;">close</span>
+                                    </button>
+                                </div>
+                                <div style="display:flex; gap:0.5rem; align-items:stretch;">
+                                    <button id="toolsSaveContactsBtn" class="btn btn-primary"
+                                        style="padding:0.6rem 0.75rem; white-space:nowrap; min-width:90px; background:linear-gradient(135deg, var(--primary), #667eea); border:none; border-radius:8px; font-weight:500; transition:all 0.2s ease;"
+                                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(67, 56, 202, 0.3)'"
+                                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                                        <span class="material-icons"
+                                            style="font-size:0.9rem; margin-right:0.25rem;">save</span> Save
+                                    </button>
+                                    <button id="toolsSaveAllWithRollNosBtn" class="btn btn-secondary"
+                                        style="padding:0.6rem 0.75rem; white-space:nowrap; min-width:90px; background:var(--bg-secondary); border:2px solid var(--border); border-radius:8px; font-weight:500; transition:all 0.2s ease; font-size:0.8rem;"
+                                        onmouseover="this.style.transform='translateY(-1px)'; this.style.background='var(--bg)'; this.style.borderColor='var(--primary)'"
+                                        onmouseout="this.style.transform='translateY(0)'; this.style.background='var(--bg-secondary)'; this.style.borderColor='var(--border)'">
+                                        <span class="material-icons"
+                                            style="font-size:0.9rem; margin-right:0.25rem;">groups</span> Save
+                                        All
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.5rem; font-size:0.75rem; color:var(--text-secondary);">
+                                <span class="material-icons"
+                                    style="font-size:0.75rem; vertical-align:middle; margin-right:0.25rem;">info</span>
+                                Enter form numbers above or click "Save All" to export all students with
+                                assigned
+                                roll numbers
+                            </div>
+                        </div>
+
+                        <div id="toolsResultContainer" style="display:none;">
+                            <div
+                                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+                                <h4
+                                    style="margin:0; font-size:0.9rem; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem;">
+                                    <span class="material-icons"
+                                        style="font-size:1rem; color:var(--primary);">receipt_long</span>
+                                    Results Log
+                                </h4>
+                                <button id="toggleToolsLogBtn" class="btn btn-secondary"
+                                    style="padding:0.25rem 0.75rem; font-size:0.75rem; background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--text-secondary); transition:all 0.2s ease;"
+                                    onmouseover="this.style.borderColor='var(--primary)'; this.style.color='var(--primary)'"
+                                    onmouseout="this.style.borderColor='var(--border)'; this.style.color='var(--text-secondary)'">Hide</button>
+                            </div>
+                            <div id="toolsResultLog"
+                                style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.75rem; font-family:'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace; font-size:0.8rem; max-height:200px; overflow-y:auto;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content: Roll No Assigner -->
+                    <div id="tab-roll-assigner" class="tab-content" style="display:none; padding:0.5rem;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <div
+                                    style="background: linear-gradient(135deg, #059669, #10b981); color: white; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-icons" style="font-size:1rem;">format_list_numbered</span>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0; font-size:0.95rem; font-weight:600;">Bulk Roll No
+                                        Assigner
+                                    </h3>
+                                    <p style="margin:0; font-size:0.7rem; color:var(--text-secondary);">Assign
+                                        roll
+                                        numbers to students</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            style="margin-bottom:0.5rem; background:var(--bg-secondary); padding:0.5rem; border-radius:6px; border:1px solid var(--border); display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                            <!-- Filter by Form No -->
+                            <div style="flex:1; min-width:120px; max-width:200px;">
+                                <label for="rollNoFormNumbers"
+                                    style="font-weight:600; font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:0.15rem;">Filter
+                                    by Form No</label>
+                                <input type="text" id="rollNoFormNumbers" placeholder="e.g. 101, 105"
+                                    style="width:100%; font-family:monospace; font-size:0.75rem; color:var(--text-primary); background-color:var(--bg-card); border:1px solid var(--border); border-radius:4px; padding:0.3rem;">
+                            </div>
+
+                            <!-- Load Button -->
+                            <div style="flex-shrink:0;">
+                                <button id="toolsLoadStudentsBtn" class="btn btn-primary"
+                                    style="padding:0.35rem 0.6rem; background:linear-gradient(135deg, var(--primary), #667eea); border:none; border-radius:4px; font-size:0.75rem; font-weight:500;">
+                                    <span class="material-icons"
+                                        style="font-size:0.8rem; margin-right:0.2rem; vertical-align:middle;">people</span>Load
+                                </button>
+                            </div>
+
+                            <!-- Vertical separator -->
+                            <div id="rollNoSep"
+                                style="width:1px; height:24px; background:var(--border); margin:0 0.2rem; display:none;">
+                            </div>
+
+                            <!-- Controls Container (inline flex) -->
+                            <div id="rollNoControls"
+                                style="display:none; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; flex:1;">
+                                <!-- Sort By -->
+                                <div style="min-width:100px;">
+                                    <label for="rollNoSortBy"
+                                        style="font-weight:600; font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:0.15rem;">Sort
+                                        By</label>
+                                    <select id="rollNoSortBy"
+                                        style="width:100%; padding:0.3rem; border-radius:4px; border:1px solid var(--border); font-size:0.75rem; background:var(--bg-card); cursor:pointer;">
+                                        <option value="class_name">Class -> Name</option>
+                                        <option value="class_roll">Class -> Roll No</option>
+                                        <option value="roll_class">Roll No -> Class</option>
+                                        <option value="form_asc">Form No: Asc</option>
+                                    </select>
+                                </div>
+
+                                <!-- Class Filter -->
+                                <div style="min-width:145px;">
+                                    <label for="rollNoFilterClass"
+                                        style="font-weight:600; font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:0.15rem;">Class
+                                        / Status</label>
+                                    <div id="rollNoFilterClass" class="multi-select-container" style="width:100%;">
+                                    </div>
+                                </div>
+
+                                <!-- Auto-generate -->
+                                <div style="min-width:80px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.7rem; color:var(--text-secondary); display:block; margin-bottom:0.15rem;">Auto
+                                        Fill</label>
+                                    <div style="display:flex; align-items:center; gap:0.2rem;">
+                                        <input type="number" id="rollNoStart" placeholder="Start"
+                                            style="width:50px; padding:0.3rem; border-radius:4px; border:1px solid var(--border); font-size:0.75rem; color:var(--text-primary); background-color:var(--bg-card);">
+                                        <button id="toolsGenerateRollNosBtn" class="btn btn-secondary" title="Auto-fill"
+                                            style="padding:0.25rem 0.35rem; background:var(--bg-card); border:1px solid var(--border); border-radius:4px;">
+                                            <span class="material-icons" style="font-size:0.8rem;">autorenew</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Save Button -->
+                                <div style="flex-shrink:0; margin-left:auto; display:flex; gap:0.5rem;">
+                                    <button id="toolsResetRollNosBtn" class="btn btn-secondary danger"
+                                        style="padding:0.35rem 0.6rem; border:1px solid var(--danger); color:var(--danger); background:transparent; border-radius:4px; font-weight:600; font-size:0.75rem;"
+                                        title="Reset ALL roll numbers for the selected class OR for specific Form Numbers entered above">
+                                        <span class="material-icons"
+                                            style="font-size:0.8rem; vertical-align:middle; margin-right:0.2rem;">delete_sweep</span>Reset
+                                        All
+                                    </button>
+                                    <button id="toolsSaveRollNosBtn" class="btn btn-primary"
+                                        style="padding:0.35rem 0.6rem; background:linear-gradient(135deg, #059669, #10b981); border:none; border-radius:4px; font-weight:600; font-size:0.75rem;">
+                                        <span class="material-icons"
+                                            style="font-size:0.8rem; vertical-align:middle; margin-right:0.2rem;">save</span>Save
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div id="rollNoTableContainer"
+                            style="display:none; max-height: 400px; overflow-y: auto; border: 2px solid var(--border); border-radius: 8px; background: var(--bg);">
+                            <table class="styled-table compact table-sticky" style="width:100%; font-size:0.8rem;">
+                                <thead>
+                                    <tr>
+                                        <th
+                                            style="padding:0.75rem; background:var(--bg-secondary); font-weight:600; width: 40px;">
+                                            S.No.</th>
+                                        <th style="padding:0.75rem; background:var(--bg-secondary); font-weight:600;">
+                                            Form</th>
+                                        <th style="padding:0.75rem; background:var(--bg-secondary); font-weight:600;">
+                                            Name</th>
+                                        <th style="padding:0.75rem; background:var(--bg-secondary); font-weight:600;">
+                                            Class</th>
+                                        <th style="padding:0.75rem; background:var(--bg-secondary); font-weight:600;">
+                                            Old</th>
+                                        <th style="padding:0.75rem; background:var(--bg-secondary); font-weight:600;">
+                                            New</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rollNoTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content: ID Card Data -->
+                    <div id="tab-id-card-data" class="tab-content" style="display:none; padding:1rem;">
+                        <!-- Improved Header Row -->
+                        <div
+                            style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; padding:0.5rem; background:var(--bg-secondary); border-radius:12px; border:1px solid var(--border);">
+                            <div style="display:flex; align-items:center; gap:0.8rem;">
+                                <div
+                                    style="background: linear-gradient(135deg, #10b981, #059669); color: white; width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 6px rgba(16, 185, 129, 0.2);">
+                                    <span class="material-icons" style="font-size:1.1rem;">badge</span>
+                                </div>
+                                <div>
+                                    <h3
+                                        style="margin:0; font-size:0.95rem; font-weight:700; color:var(--text-primary);">
+                                        ID Card Generator</h3>
+                                    <p style="margin:0; font-size:0.7rem; color:var(--text-secondary); opacity:0.8;">
+                                        Photos & CSV per class</p>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button class="btn btn-secondary btn-small" id="toggleIdCardInfoBtn" title="Help">
+                                    <span class="material-icons" style="font-size:1.1rem;">help_outline</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Hidden Info Section -->
+                        <div id="idCardInfoSection"
+                            style="display:none; margin-bottom:1rem; padding:1rem; background:linear-gradient(135deg, var(--info-light), rgba(99, 102, 241, 0.05)); border-radius:10px; border-left:4px solid var(--info);">
+                            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                                <span class="material-icons" style="color:var(--info); font-size:1rem;">lightbulb</span>
+                                <strong style="color:var(--info); font-size:0.85rem;">How it works</strong>
+                            </div>
+                            <ul
+                                style="margin:0; padding-left:1.5rem; font-size:0.8rem; color:var(--text-secondary); line-height:1.4;">
+                                <li>Creates folders named: "class_rollno_formnumber" for students with roll
+                                    numbers
+                                </li>
+                                <li>Copies student photos into respective folders</li>
+                                <li>Generates CSV file with: S.No., Form Number, Class Roll No., Name, Father,
+                                    Class, Stream, Subjects</li>
+                                <li>Only processes students who have been assigned class roll numbers</li>
+                                <li>Download the generated folder as ZIP/RAR for ID card printing</li>
+                            </ul>
+                        </div>
+
+                        <!-- Toolbar & Actions (Compact single row) -->
+                        <div
+                            style="display:flex; flex-wrap:wrap; align-items:center; gap:0.8rem; margin-bottom:1rem; background:var(--bg-card); padding:0.8rem; border-radius:12px; border:1px solid var(--border);">
+                            <div
+                                style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.8rem; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border); border-left:4px solid var(--warning);">
+                                <span class="material-icons" style="color:var(--warning); font-size:1rem;">info</span>
+                                <span
+                                    style="font-size:0.75rem; font-weight:600; color:var(--text-primary); white-space:nowrap;">Eligible:
+                                    Students with Roll Numbers</span>
+                            </div>
+
+                            <div
+                                style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.6rem; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border);">
+                                <label
+                                    style="font-size:0.75rem; font-weight:600; color:var(--text-secondary);">Filters:</label>
+                                <div id="idCardClassFilter" class="multi-select-container"></div>
+                                <div id="idCardSessionFilter" class="multi-select-container"></div>
+                            </div>
+
+                            <div
+                                style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.6rem; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border);">
+                                <label style="font-size:0.75rem; font-weight:600; color:var(--text-secondary);">Roll
+                                    Range:</label>
+                                <input type="number" id="idCardRollStart" placeholder="Start"
+                                    style="width:60px; padding:0.25rem; border-radius:4px; border:1px solid var(--border); font-size:0.75rem; background:var(--bg-card);">
+                                <span style="font-size:0.75rem;">to</span>
+                                <input type="number" id="idCardRollEnd" placeholder="End"
+                                    style="width:60px; padding:0.25rem; border-radius:4px; border:1px solid var(--border); font-size:0.75rem; background:var(--bg-card);">
+                            </div>
+
+                            <div style="margin-left:auto; display:flex; gap:0.5rem; align-items:center;">
+                                <button id="generateIdCardPdfsBtn" class="btn btn-secondary"
+                                    style="padding:0.4rem 1rem; border-radius:8px; height:36px; display:flex; align-items:center; gap:0.5rem; background:var(--bg-card); border:1px solid var(--primary); color:var(--primary);">
+                                    <span class="material-icons" style="font-size:1.1rem;">picture_as_pdf</span>
+                                    <span>Generate PDFs</span>
+                                </button>
+                                <button id="generateIdCardDataBtn" class="btn btn-primary"
+                                    style="padding:0.4rem 1rem; border-radius:8px; height:36px; display:flex; align-items:center; gap:0.5rem; background:linear-gradient(135deg, var(--primary), #4f46e5); border:none;">
+                                    <span class="material-icons" style="font-size:1.1rem;">auto_fix_high</span>
+                                    <span>Export Files</span>
+                                </button>
+
+                                <div id="idCardActionsAfterGen" style="display:none; gap:0.5rem; align-items:center;">
+                                    <span
+                                        style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+                                    <button id="downloadIdCardZipBtn" class="btn btn-secondary"
+                                        style="padding:0.4rem 1rem; height:36px; display:flex; align-items:center; gap:0.5rem; color:var(--success); border-color:var(--success-light);">
+                                        <span class="material-icons" style="font-size:1.1rem;">folder_zip</span>
+                                        <span>Download ZIP</span>
+                                    </button>
+                                    <button id="openIdCardFolderBtn" class="btn btn-secondary"
+                                        style="padding:0.4rem 1rem; height:36px; display:flex; align-items:center; gap:0.5rem;">
+                                        <span class="material-icons" style="font-size:1.1rem;">folder_open</span>
+                                        <span>Open Folder</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="idCardResultContainer" style="display:none; margin-top:0.25rem;">
+                            <div
+                                style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1rem; box-shadow:var(--shadow-sm);">
+                                <div
+                                    style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+                                    <h4
+                                        style="margin:0; font-size:0.85rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem;">
+                                        <span class="material-icons"
+                                            style="font-size:1rem; color:var(--primary);">terminal</span>
+                                        Process Log
+                                    </h4>
+                                    <div id="toggleIdCardLogBtn"
+                                        style="font-size:0.75rem; color:var(--primary); cursor:pointer;">Show Logs</div>
+                                </div>
+                                <div id="idCardLog" class="activity-log-display"
+                                    style="display:none; max-height:180px; font-family:var(--font-mono); font-size:0.75rem;">
+                                    <div style="color:var(--text-secondary); opacity:0.6; font-style:italic;">Standby...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content: Subject-wise Lists -->
+                    <div id="tab-subject-lists" class="tab-content" style="display:none;">
+                        <div class="dashboard-header"
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                <div
+                                    style="background: linear-gradient(135deg, #8b5cf6, #a78bfa); color: white; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-icons" style="font-size:1.2rem;">assignment</span>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0; font-size:1.1rem; font-weight:600;">Subject-wise Lists
+                                    </h3>
+                                    <p style="margin:0; font-size:0.75rem; color:var(--text-secondary);">
+                                        Generate
+                                        subject lists for teachers by class and session</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filters Row -- single flex row with generate button -->
+                        <div
+                            style="background:var(--bg-secondary); padding:0.75rem; border-radius:8px; border:1px solid var(--border); margin-bottom:0.75rem;">
+                            <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:0.6rem;">
+                                <!-- Session -->
+                                <div style="flex:1; min-width:130px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Session</label>
+                                    <div id="subjectListSession" class="multi-select-container" style="width:100%;">
+                                    </div>
+                                </div>
+                                <!-- Class -->
+                                <div style="flex:1; min-width:110px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Class</label>
+                                    <div id="subjectListClass" class="multi-select-container" style="width:100%;"></div>
+                                </div>
+                                <!-- Status -->
+                                <div style="flex:1; min-width:130px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Status</label>
+                                    <div id="subjectListStatus" class="multi-select-container" style="width:100%;">
+                                    </div>
+                                </div>
+                                <!-- Order By -->
+                                <div style="flex:1; min-width:140px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Order
+                                        By</label>
+                                    <select id="subjectListOrder"
+                                        style="width:100%; padding:0.38rem 0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem; background:var(--bg-card);">
+                                        <option value="roll_number">Class Roll No</option>
+                                        <option value="form_number">Form Number</option>
+                                        <option value="name">Student Name</option>
+                                        <option value="reg_no">Registration No</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Column Selection -->
+                            <div style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px dashed var(--border);">
+                                <label
+                                    style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.4rem;">Include
+                                    Columns:</label>
+                                <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="roll_no" checked>
+                                        Roll No
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="name" checked disabled>
+                                        Name
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="form_no" checked>
+                                        Form No
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="subjects" checked>
+                                        Subjects
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="stream"> Stream
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="mobile">
+                                        Student
+                                        Mob
+                                    </label>
+                                    <label
+                                        style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+                                        <input type="checkbox" class="subject-col-toggle" value="parent_mobile">
+                                        Parent Mob
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Generate Button -->
+                            <div style="flex-shrink:0; display:flex; gap:0.5rem; align-items:flex-end;">
+                                <button id="generateSubjectListsBtn" class="btn btn-primary"
+                                    style="padding:0.4rem 1rem; font-size:0.82rem; font-weight:600; white-space:nowrap; background:linear-gradient(135deg, #8b5cf6, #a78bfa); border:none; border-radius:6px; display:flex; align-items:center; gap:0.35rem;">
+                                    <span class="material-icons" style="font-size:0.95rem;">download</span>
+                                    Generate
+                                </button>
+                                <button id="downloadSubjectListsZipBtn" class="btn btn-secondary"
+                                    style="padding:0.4rem 1rem; border:1px solid var(--border); border-radius:6px; font-size:0.82rem; font-weight:600; display:none; align-items:center; justify-content:center; gap:0.35rem; background:var(--bg-card); color:var(--primary);">
+                                    <span class="material-icons" style="font-size:0.95rem;">archive</span>
+                                    ZIP
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Display -->
+                    <div id="subjectListResults" style="display:none;">
+                        <div
+                            style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.75rem;">
+                            <div
+                                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                                <h4
+                                    style="margin:0; font-size:0.85rem; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                                    <span class="material-icons"
+                                        style="font-size:0.9rem; color:var(--primary);">receipt_long</span>
+                                    Generation Results
+                                </h4>
+                            </div>
+                            <div id="subjectListLog"
+                                style="font-family:monospace; font-size:0.75rem; max-height:200px; overflow-y:auto; background:var(--bg-secondary); padding:0.5rem; border-radius:4px;">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Tab Content: Push to Source -->
+                    <div id="tab-push-source" class="tab-content" style="display:none; padding:0.5rem;">
+                        <div class="dashboard-header"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                <div
+                                    style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-icons" style="font-size:1.1rem;">cloud_upload</span>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0; font-size:0.95rem; font-weight:600;">Push to Source DB</h3>
+                                    <p style="margin:0; font-size:0.7rem; color:var(--text-secondary);">Sync
+                                        assigned roll numbers to the central source sheet</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            style="margin-top:0.75rem; background:var(--bg-secondary); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
+                            <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:0.6rem;">
+                                <!-- Session Filter -->
+                                <div style="flex:1; min-width:130px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Session</label>
+                                    <div id="pushSessionFilter" class="multi-select-container" style="width:100%;">
+                                    </div>
+                                </div>
+                                <!-- Class Filter -->
+                                <div style="flex:1; min-width:110px;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Class</label>
+                                    <div id="pushClassFilter" class="multi-select-container" style="width:100%;"></div>
+                                </div>
+                                <!-- Action Filter: Order By -->
+                                <div style="flex:1; min-width:120px;">
+                                    <label for="pushOrderFilter"
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Order
+                                        By</label>
+                                    <select id="pushOrderFilter"
+                                        style="width:100%; padding:0.38rem 0.5rem; border:1px solid var(--border); border-radius:6px; font-size:0.8rem; background:var(--bg-card);">
+                                        <option value="roll_number">Class Roll No</option>
+                                        <option value="form_number">Form Number</option>
+                                        <option value="name">Student Name</option>
+                                    </select>
+                                </div>
+                                <!-- Action Buttons -->
+                                <div style="flex-shrink:0;">
+                                    <label
+                                        style="font-weight:600; font-size:0.75rem; color:transparent; display:block; margin-bottom:0.2rem;">?</label>
+                                    <div style="display:flex; gap:0.5rem;">
+                                        <button id="previewPushToSourceBtn" class="btn btn-secondary"
+                                            style="padding:0.4rem 1rem; font-size:0.82rem; font-weight:600; white-space:nowrap; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; display:flex; align-items:center; gap:0.35rem;"
+                                            title="Preview what will be pushed">
+                                            <span class="material-icons" style="font-size:0.95rem;">visibility</span>
+                                            Load Preview
+                                        </button>
+                                        <button id="executePushToSourceBtn" class="btn btn-primary"
+                                            style="padding:0.4rem 1rem; font-size:0.82rem; font-weight:600; white-space:nowrap; background:linear-gradient(135deg, #f59e0b, #d97706); border:none; border-radius:6px; display:flex; align-items:center; gap:0.35rem;"
+                                            title="Push assigned roll nos data to Source Sheet" disabled>
+                                            <span class="material-icons" style="font-size:0.95rem;">cloud_upload</span>
+                                            Push Records
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="margin-top:0.75rem; font-size:0.7rem; color:var(--text-secondary); display:flex; align-items:center;">
+                                <span class="material-icons" style="font-size:0.8rem; margin-right:0.3rem;">info</span>
+                                Click 'Load Preview' to review the records before pushing.
+                            </div>
+
+                            <div id="pushProgressWrapper" class="global-progress-wrapper" style="display:none;">
+                                <div class="global-progress-header">
+                                    <div class="global-progress-left">
+                                        <div class="spinner-small" style="border-top-color:#f59e0b;"></div>
+                                        <span id="pushStatusMsg" class="global-progress-msg">Preparing data...</span>
+                                    </div>
+                                    <span id="pushPercentText" class="global-progress-percent"
+                                        style="color:#f59e0b;">0%</span>
+                                </div>
+                                <div class="global-progress-track">
+                                    <div id="pushProgressBarFill" class="global-progress-fill"
+                                        style="background:linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-top:0.5rem;">
+                                    <span style="font-size:0.75rem; color:var(--text-secondary);">Syncing with central
+                                        repository</span>
+                                    <span id="pushTimeRemaining"
+                                        style="font-size:0.75rem; color:var(--text-secondary);">Calculating time
+                                        remaining...</span>
+                                </div>
+                            </div>
+                            <div id="pushPreviewContainer"
+                                style="display:none; margin-top:1rem; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--bg-card);">
+                                <div
+                                    style="padding:0.6rem; background:var(--bg-secondary); border-bottom:1px solid var(--border); font-size:0.8rem; font-weight:600; display:flex; justify-content:space-between;">
+                                    <span>Preview Data (<span id="pushPreviewTargetCount">0</span> records
+                                        ready)</span>
+                                </div>
+                                <div style="max-height: 250px; overflow-y: auto;">
+                                    <table class="styled-table compact table-sticky"
+                                        style="width:100%; font-size:0.75rem; margin:0; border:none;">
+                                        <thead>
+                                            <tr>
+                                                <th
+                                                    style="padding:0.5rem; background:var(--bg-secondary); width: 40px;">
+                                                    S.No.</th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Form No
+                                                </th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Roll No
+                                                </th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Name
+                                                </th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Class
+                                                </th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Session
+                                                </th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Stream
+                                                </th>
+                                                <th style="padding:0.5rem; background:var(--bg-secondary);">Note
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pushPreviewTableBody">
+                                            <!-- Populate dynamics -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tab-registration-excel" class="tab-content" style="display:none; padding:1rem;">
+                        <div class="dashboard-header"
+                            style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                <div
+                                    style="background: linear-gradient(135deg, #0ea5e9, #38bdf8); color: white; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                                    <span class="material-icons" style="font-size:1.2rem;">table_view</span>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0; font-size:1.1rem; font-weight:600;">Excel for Automation</h3>
+                                    <p style="margin:0; font-size:0.75rem; color:var(--text-secondary);">Generate Excel
+                                        templates for registration portal automation</p>
+                                </div>
+                            </div>
+                            <span class="material-icons" id="toggleRegInfoIcon"
+                                style="font-size:1.2rem; color:var(--info); cursor:pointer; padding:8px; border-radius:8px; transition:background 0.2s;"
+                                title="How it works" onmouseover="this.style.background='var(--info-light)'"
+                                onmouseout="this.style.background='transparent'">info</span>
+                        </div>
+
+                        <!-- Hidden Info Section -->
+                        <div id="regInfoSection"
+                            style="display:none; margin-top:1rem; padding:1rem; background:linear-gradient(135deg, var(--info-light), rgba(14, 165, 233, 0.05)); border-radius:10px; border-left:4px solid #0ea5e9;">
+                            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                                <span class="material-icons" style="color:#0ea5e9; font-size:1rem;">lightbulb</span>
+                                <strong style="color:#0ea5e9; font-size:0.85rem;">About this tool</strong>
+                            </div>
+                            <ul
+                                style="margin:0; padding-left:1.5rem; font-size:0.8rem; color:var(--text-secondary); line-height:1.4;">
+                                <li>Generates a file with headers and mapped codes for the official registration portal.
+                                </li>
+                                <li>Applies internal logic to map subjects to their respective group codes (Sub_Grp_2 to
+                                    Sub_Grp_8).</li>
+                                <li>Maps religion, gender, category, and class based on official code mappings.</li>
+                                <li><strong>Note:</strong> Students who have been assigned Class Roll Nos are
+                                    automatically exported into the excel.</li>
+                            </ul>
+                        </div>
+
+                        <div
+                            style="margin-top:1rem; background:var(--bg-secondary); padding:1rem; border-radius:10px; border:1px solid var(--border);">
+                            <div
+                                style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; align-items:flex-end;">
+                                <!-- Session -->
+                                <div>
+                                    <label for="regExcelSession"
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">Session</label>
+                                    <select id="regExcelSession"
+                                        style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:8px; font-size:0.85rem; background:var(--bg-card);">
+                                        <!-- Dynamically populated -->
+                                    </select>
+                                </div>
+                                <!-- Class -->
+                                <div>
+                                    <label for="regExcelClass"
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">Admission
+                                        Class</label>
+                                    <select id="regExcelClass"
+                                        style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:8px; font-size:0.85rem; background:var(--bg-card);">
+                                        <option value="">All Classes</option>
+                                        <option value="11th">Class 11th</option>
+                                        <option value="12th">Class 12th</option>
+                                    </select>
+                                </div>
+                                <!-- Order By -->
+                                <div>
+                                    <label for="regExcelOrder"
+                                        style="font-weight:600; font-size:0.75rem; color:var(--text-secondary); display:block; margin-bottom:0.25rem;">Order
+                                        By</label>
+                                    <select id="regExcelOrder"
+                                        style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:8px; font-size:0.85rem; background:var(--bg-card);">
+                                        <option value="roll_number">Class Roll No</option>
+                                        <option value="form_number">Form Number</option>
+                                        <option value="name">Student Name</option>
+                                    </select>
+                                </div>
+                                <!-- Generate Button -->
+                                <div>
+                                    <button id="generateRegExcelBtn" class="btn btn-primary"
+                                        style="width:100%; padding:0.5rem; display:flex; align-items:center; justify-content:center; gap:0.5rem; background:linear-gradient(135deg, #0ea5e9, #38bdf8); border:none; border-radius:8px; font-weight:600; height:38px;">
+                                        <span class="material-icons" style="font-size:1.1rem;">file_download</span>
+                                        Generate Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Results/Log -->
+                        <div id="regExcelResult" style="display:none; margin-top:1rem;">
+                            <div
+                                style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                                <h4
+                                    style="margin:0; font-size:0.85rem; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                                    <span class="material-icons"
+                                        style="font-size:0.9rem; color:#0ea5e9;">insights</span>
+                                    Generation Log
+                                </h4>
+                                <button id="clearRegExcelLog"
+                                    style="background:none; border:none; color:var(--text-secondary); font-size:0.65rem; cursor:pointer; text-decoration:underline;">Clear
+                                    Log</button>
+                            </div>
+                            <div id="regExcelLog"
+                                style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.75rem; font-family:monospace; font-size:0.75rem; max-height:150px; overflow-y:auto; color:var(--text-primary);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="adminActivity" style="display:none; margin-top:0.5rem;">
+                    <div class="admin-toolbar mobile-hide">
+                        <input type="text" id="activitySearchInput"
+                            placeholder="Search across all fields: user, action, form no, name, mobiles, email, details...">
+                    </div>
+                    <div class="table-container">
+                        <table class="styled-table compact" style="min-width: 1100px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">S.No.</th>
+                                    <th class="col-date"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">schedule</span>Timestamp
+                                    </th>
+                                    <th class="col-admin"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">person</span>User
+                                    </th>
+                                    <th class="col-role"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">badge</span>Role
+                                    </th>
+                                    <th class="col-action"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">history</span>Action
+                                    </th>
+                                    <th class="col-form"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">tag</span>Form
+                                        No</th>
+                                    <th class="col-name"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">face</span>Name
+                                    </th>
+                                    <th class="col-class"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">class</span>Class
+                                    </th>
+                                    <th class="col-studentm"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">smartphone</span>Student
+                                        M</th>
+                                    <th class="col-email"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">mail</span>Email
+                                    </th>
+                                    <th class="col-details"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">info</span>Details
+                                    </th>
+                                    <th class="col-sent"><span class="material-icons"
+                                            style="font-size:1rem; vertical-align:middle; margin-right:4px;">send</span>Email
+                                        Sent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminActivityBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="adminApplications"
+                    style="margin-top:0; display: flex; flex-direction: column; flex: 1; height: 100%;">
+                    <!-- [ROW 3] Filters & Search (Mobile) -->
+                    <div class="toolbar-enhanced desktop-hide">
+                        <div class="toolbar-row-3">
+                            <button id="mobileFilterToggle" class="btn btn-secondary btn-small filter-btn">
+                                <span class="material-icons">filter_list</span>
+                                <span>Filters</span>
+                            </button>
+                            <div class="search-wrapper">
+                                <span class="material-icons search-icon">search</span>
+                                <input type="text" id="headerSearchInput" placeholder="Quick search students..."
+                                    class="search-input">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-toolbar mobile-hide" id="adminFiltersContainer" style="flex-wrap: nowrap; overflow: visible;">
+                        <input type="text" id="searchInput" placeholder="Search by Name, Roll Nos (comma-separated), or Form No...">
+                        <div id="filterSession" class="multi-select-container"></div>
+                        <div id="filterClass" class="multi-select-container"></div>
+                        <div id="filterStatus" class="multi-select-container"></div>
+                        <div id="filterType" class="multi-select-container"></div>
+                        <button type="button" class="btn btn-secondary btn-small" onclick="openColumnManager()"
+                            style="height: 24px !important; padding: 2px 8px !important; gap: 4px; min-height: 24px !important;">
+                            <span class="material-icons" style="font-size:1.1rem;">view_column</span>
+                            <span>Columns</span>
+                        </button>
+                        <select id="sortBy">
+                            <option value="submitted_desc">Submitted: Newest</option>
+                            <option value="submitted_asc">Submitted: Oldest</option>
+                            <option value="form_asc">Form No: Asc</option>
+                            <option value="class_form">Class -> Form</option>
+                            <option value="class_roll">Class -> Roll No</option>
+                            <option value="roll_class">Roll No -> Class</option>
+                        </select>
+                        <input type="number" id="pageSize" min="5" max="200" value="50" placeholder="Rows" style="width: 65px; height: 32px; flex-shrink: 0;" title="Rows per page">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="styled-table compact table-sticky admin-table">
+                            <thead id="adminTableHeader"></thead>
+                            <tbody id="adminTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="formEditorView" class="hidden">
+            <div class="card">
+                <div class="form-sticky-header">
+                    <div class="form-header-top">
+                        <div class="form-header-left">
+                            <img id="schoolLogo" class="form-logo" alt="School Logo">
+                            <h2 id="formEditorTitle">Admission Application</h2>
+                            <div style="margin-left: 0.5rem;">
+                                <div style="color: maroon; font-size: 0.95rem; font-weight: 600;">BMHSS Handwara</div>
+                                <div id="formEditorSubtitle" style="font-size: 0.75rem; color: var(--text-secondary);">
+                                </div>
+                            </div>
+                        </div>
+                        <button id="cancelEditBtn" class="btn btn-secondary btn-small">
+                            <span class="material-icons"
+                                style="font-size: 1rem; vertical-align: middle; margin-right: 4px;">arrow_back</span>
+                            Back
+                        </button>
+                    </div>
+                    <div class="form-header-info">
+                        <span id="formInfoForm"><strong>Form Number:</strong> --</span>
+                        <span id="formInfoClass"><strong>Class:</strong> --</span>
+                        <span id="formInfoSession"><strong>Session:</strong> --</span>
+                        <span id="formInfoStatus"><strong>Status:</strong> --</span>
+                        <div id="countdownTimer" class="countdown-timer hidden">
+                            <span class="countdown-timer-icon material-icons">schedule</span>
+                            <span><strong>Time Left:</strong> <span class="countdown-display"
+                                    id="countdownDisplay">--:--:--</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="form-alert" class="alert alert-info hidden"></div>
+                <form id="admissionForm" autocomplete="off">
+                    <div id="formFieldsContainer">
+                    </div>
+                    <div style="display:flex; flex-wrap: wrap; gap:1rem; margin-top:1rem;">
+                        <button type="button" id="saveDraftBtn" class="btn btn-secondary" style="flex: 1;"> Save
+                            Draft</button>
+                        <button type="button" id="finalSubmitBtn" class="btn" style="flex: 1;"> Final Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?!= include('JS_logic'); ?>
+    <?!= include('JS_Admin'); ?>
+
+    <!-- Unified Portal Logic (Must be after core JS) -->
+    <?!= include('Attendance_JS'); ?>
+    <?!= include('Attendance_CSS'); ?>
+    <?!= include('Practicals_JS'); ?>
+    <?!= include('Practicals_CSS'); ?>
+    <!-- [NEW] Column Manager Modal -->
+    <div id="columnManagerModal" class="modal-overlay" style="display:none; z-index:11000;">
+        <div class="modal-content" style="max-width:850px; padding:16px; text-align: left; background: var(--bg-card, #ffffff); box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid var(--border); width: 95%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <h4 style="margin:0; display:flex; align-items:center; gap:8px; font-weight:700;">
+                     <span class="material-icons" style="color:var(--primary); font-size:1.2rem;">view_column</span>
+                     Manage Table Columns
+                </h4>
+                <button type="button" class="btn-icon" onclick="closeColumnManager()" style="background:none; border:none; cursor:pointer;">
+                     <span class="material-icons" style="font-size:1.2rem;">close</span>
+                </button>
+            </div>
+            
+            <p style="font-size:0.7rem; color:var(--text-secondary); margin-bottom:12px;">
+                Select columns to display. Reorder by checking/unchecking.
+            </p>
+            
+            <div style="margin-bottom: 8px;">
+                <input type="text" id="columnManagerSearch" placeholder="Search columns..." style="width: 100%; height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.8rem;" oninput="filterColumnManager(this.value)">
+            </div>
+            
+            <div id="columnManagerList" class="column-grid" style="max-height: calc(85vh - 180px); overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:8px; display:grid; align-items:start; align-content:start; gap:6px; background:var(--bg-light); user-select:none;">
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; gap:8px;">
+                <button type="button" class="btn btn-secondary btn-small" onclick="resetColumnsToDefault()" style="flex:1; height:32px;">Reset to Default</button>
+                <div style="display:flex; gap:8px; flex:1.5;">
+                    <button type="button" class="btn btn-primary btn-small" onclick="applyColumnChanges()" style="flex:1; height:32px;">Apply Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- [NEW] Candidate Snapshot Modal -->
+    <div id="candidateSnapshotModal" class="modal-overlay" style="display:none; z-index:12000;">
+        <div class="modal-content snapshot-modal-content" style="text-align: left;">
+            <div class="snapshot-header">
+                <div class="snapshot-header-left">
+                    <span class="material-icons snapshot-icon">account_circle</span>
+                    <h2 id="snapshotTitle">Candidate Profile</h2>
+                </div>
+                <div class="snapshot-actions" style="display:flex; gap:10px;">
+                    <button class="btn btn-secondary btn-small" onclick="window.print()" title="Print Snapshot" style="min-height:32px; padding:0 12px;">
+                        <span class="material-icons" style="font-size:1.1rem;">print</span>
+                    </button>
+                    <button class="btn btn-icon" onclick="closeCandidateSnapshot()" title="Close" style="background:none; border:none; cursor:pointer;">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+            </div>
+            <div id="snapshotBody" class="snapshot-body">
+                <!-- JavaScript will generate the profile content here -->
+            </div>
+            <div class="snapshot-footer" style="padding: 12px 16px; gap: 8px;">
+                <button class="btn btn-primary btn-small" id="snapshotEditBtn" style="height:32px;">Edit Application</button>
+                <button class="btn btn-secondary btn-small" onclick="closeCandidateSnapshot()" style="height:32px;">Close Window</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

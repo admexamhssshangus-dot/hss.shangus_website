@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>BMHSS Handwara - Automation Portal</title>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --primary-hover: #1e3a8a;
+            --success: #15803d;
+            --error: #b91c1c;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 8px;
+            background-color: var(--bg);
+            color: var(--text);
+            font-size: 13px;
+        }
+
+        /* Auth Overlay */
+        #authView {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .login-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 350px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-login:hover { background: var(--primary-hover); }
+
+        /* Dashboard Styles */
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .f-group { display: flex; gap: 8px; align-items: center; }
+
+        select, button {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .btn-p { background: var(--primary); color: white; border: none; font-weight: 600; }
+        .btn-p:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .table-wrapper {
+            overflow: auto;
+            max-height: 60vh;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th { background: #f8fafc; text-align: left; padding: 10px; font-size: 11px; font-weight: 600; color: #64748b; position: sticky; top: 0; }
+        td { padding: 10px; border-bottom: 1px solid var(--border); }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .b-pending { background: #f1f5f9; color: #64748b; }
+        .b-success { background: #dcfce7; color: #166534; }
+        .b-error { background: #fee2e2; color: #991b1b; }
+        .b-running { background: #fef9c3; color: #854d0e; }
+
+        .view-link { color: var(--primary); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+        .view-link:hover { text-decoration: underline; }
+
+        .hidden { display: none !important; }
+
+        /* --- [NEW] Unified Gateway Bar Styles (Premium) --- */
+        .gateway-sticky { position: sticky; top: 0; z-index: 5000; width: 100%; }
+        .gateway-bar { background: linear-gradient(90deg, #0f172a 0%, #111827 50%, #0f172a 100%); color: white; padding: 2px 12px; display: flex; justify-content: center; align-items: center; width: 100%; border-bottom: 1px solid rgba(255,255,255,0.1); min-height: 26px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .gateway-container { display: flex; align-items: center; gap: 1.25rem; max-width: 1200px; width: 100%; margin: 0 auto; }
+        .gateway-label { font-size: 0.55rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.4); padding-right: 1rem; border-right: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; height: 14px; white-space: nowrap; }
+        .gateway-items { display: flex; align-items: center; gap: 0.2rem; flex: 1; overflow-x: auto; scrollbar-width: none; }
+        .gateway-items::-webkit-scrollbar { display: none; }
+        .gateway-btn { background: transparent; border: none; color: rgba(255,255,255,0.6); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); white-space: nowrap; }
+        .gateway-btn i { font-size: 0.85rem; color: var(--accent, #6366f1); opacity: 0.7; }
+        .gateway-btn:hover { background: rgba(255,255,255,0.08); color: white; transform: translateY(-1px); }
+        .gateway-btn:hover i { opacity: 1; transform: scale(1.1); filter: drop-shadow(0 0 5px var(--accent)); }
+        .gateway-btn.active { color: white; background: rgba(255,255,255,0.1); }
+        @media (max-width: 640px) { .gateway-bar { padding: 4px 10px; min-height: 32px; } .gateway-label { display: none; } .gateway-btn span { display: none; } }
+
+        /* --- [NEW] Premium Popups --- */
+        .swal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; animation: fadeIn 0.2s; }
+        .swal-card { background: white; width: 100%; max-width: 320px; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); transform-origin: center; animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .swal-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .swal-icon.success { background: #dcfce7; color: #15803d; }
+        .swal-icon.error { background: #fee2e2; color: #b91c1c; }
+        .swal-icon.warning { background: #fef9c3; color: #a16207; }
+        .swal-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
+        .swal-text { font-size: 13px; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
+        .swal-btns { display: flex; gap: 12px; }
+        .swal-btn { flex: 1; padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+        .swal-btn-p { background: var(--primary); color: white; }
+        .swal-btn-s { background: #f1f5f9; color: #475569; }
+        .swal-btn-d { background: var(--error); color: white; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+
+</head>
+
+<body>
+    <div class="gateway-sticky">
+        <div class="gateway-bar">
+            <div class="gateway-container">
+                <div class="gateway-label">School Services</div>
+                <div class="gateway-items">
+                    <button onclick="switchPortal('practicals')" class="gateway-btn" style="--accent: #6366f1;">
+                        <span class="material-icons">science</span><span>Practicals</span>
+                    </button>
+                    <button onclick="switchPortal('automation')" class="gateway-btn active" style="--accent: #f59e0b;">
+                        <span class="material-icons">auto_fix_high</span><span>Automation</span>
+                    </button>
+                    <button onclick="switchPortal('advanced_reports')" class="gateway-btn" style="--accent: #06b6d4;">
+                        <span class="material-icons">analytics</span><span>Reports</span>
+                    </button>
+                    <button onclick="switchPortal('fund_distribution')" class="gateway-btn" style="--accent: #ec4899;">
+                        <span class="material-icons">payments</span><span>Distribution</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [NEW] Loading Screen (Shows until JS initializes) -->
+    <div id="loadingView" style="position:fixed; inset:0; background:rgba(255,255,255,0.9); display:flex; align-items:center; justify-content:center; z-index:10000; flex-direction:column; gap:15px; font-family:sans-serif; backdrop-filter:blur(2px);">
+        <div style="width:40px; height:40px; border:3px solid #f3f3f3; border-top:3px solid var(--primary); border-radius:50%; animation: spin 1s linear infinite;"></div>
+        <div style="color:#64748b; font-size:14px; font-weight:600;">Initializing Portal...</div>
+        <div id="loadingStatus" style="color:#94a3b8; font-size:11px;">Checking session...</div>
+        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+
+    <!-- Auth Screen -->
+    <div id="authView" class="hidden">
+        <div class="login-card">
+            <h2 style="margin-top:0">Portal Security</h2>
+            <p style="color:#64748b; font-size:12px; margin-bottom:1.5rem">Log in using Admissions Admin credentials.</p>
+            <form id="loginForm">
+                <div class="input-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" required placeholder="admin@example.com">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••">
+                </div>
+                <div id="authError" class="hidden" style="color:var(--error); font-size:11px; margin-bottom:10px; font-weight:600"></div>
+                <button type="submit" id="loginBtn" class="btn-login">Log In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainView" class="hidden">
+        <div class="container">
+            <header>
+                <div style="display:flex; align-items:center; gap:8px">
+                    <div style="background:var(--primary); color:white; padding:6px; border-radius:8px">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <strong>Automation Dashboard</strong>
+                </div>
+                <div id="progressInfo" style="font-size:11px; color:#64748b; font-weight:600">Ready</div>
+            </header>
+
+            <div class="toolbar">
+                <div class="f-group" style="flex:1">
+                    <div style="position:relative; flex:1">
+                        <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:12px"></i>
+                        <input type="text" id="searchTerm" placeholder="Search name, roll, reg..." oninput="applyFilters()" 
+                               style="width:100%; padding:7px 10px 7px 30px; border-radius:8px; border:1px solid #e2e8f0; font-size:13px">
+                    </div>
+                    <select id="filterClass" onchange="loadData()"><option value="ALL">All Classes</option></select>
+                    <select id="filterSession" onchange="loadData()"><option value="ALL">All Sessions</option></select>
+                </div>
+                <div class="f-group">
+                    <button onclick="loadData()" title="Refresh / Sync list"><i class="fas fa-sync"></i> Refresh List</button>
+                    <button onclick="selectAll(true)">Select All</button>
+                    <button id="btnRun" class="btn-p" onclick="startProcessing()">Run Selected</button>
+                </div>
+            </div>
+
+            <div id="progressWrapper" class="hidden" style="height:4px; background:#e2e8f0; border-radius:2px; margin-bottom:12px; overflow:hidden">
+                <div id="progressBar" style="height:100%; width:0%; background:var(--primary); transition:width 0.3s"></div>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:20px"><input type="checkbox" onchange="selectAll(this.checked)"></th>
+                            <th>Roll/Reg</th>
+                            <th>Student Name</th>
+                            <th>Class</th>
+                            <th>Status / Result</th>
+                            <th style="width:40px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Student Modal -->
+    <div id="addModal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9000">
+        <div class="login-card" style="max-width:400px; text-align:left">
+            <h3 style="margin-top:0">Add Student Manually</h3>
+            <div class="input-group">
+                <label>Roll Number</label>
+                <input type="text" id="mRoll" placeholder="e.g. 123456">
+            </div>
+            <div class="input-group">
+                <label>Registration Number</label>
+                <input type="text" id="mReg" placeholder="e.g. 240101000...">
+            </div>
+            <div class="input-group">
+                <label>Full Name</label>
+                <input type="text" id="mName" placeholder="Student Name">
+            </div>
+            <div style="display:flex; gap:10px">
+                <div class="input-group" style="flex:1">
+                    <label>Class</label>
+                    <input type="text" id="mClass" placeholder="e.g. 11th">
+                </div>
+                <div class="input-group" style="flex:1">
+                    <label>Session</label>
+                    <input type="text" id="mSession" placeholder="e.g. 2025-26">
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px">
+                <button onclick="saveManualStudent()" class="btn-login" style="flex:1">Save Student</button>
+                <button onclick="closeAddModal()" class="btn-login" style="flex:1; background:#64748b">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <!-- Popup Container -->
+    <div id="swalContainer"></div>
+
+    <script>
+        var state = {
+            currentUser: <?!= user ?>,
+            adminEmail: 'adm.exam.bhsshandwara@gmail.com',
+            students: [],
+            queue: [],
+            totalQueue: 0
+        };
+
+        // --- POPUP SYSTEM ---
+        function showPopup(options) {
+            return new Promise((resolve) => {
+                const container = document.getElementById('swalContainer');
+                const id = 'swal-' + Date.now();
+                const iconMap = {
+                    success: 'fa-check-circle',
+                    error: 'fa-times-circle',
+                    warning: 'fa-exclamation-triangle'
+                };
+
+                const html = `
+                    <div id="${id}" class="swal-overlay">
+                        <div class="swal-card">
+                            <div class="swal-icon ${options.type || 'success'}">
+                                <i class="fas ${iconMap[options.type || 'success']}"></i>
+                            </div>
+                            <div class="swal-title">${options.title || 'Notification'}</div>
+                            <div class="swal-text">${options.text || ''}</div>
+                            <div class="swal-btns">
+                                ${options.confirmOnly ? '' : `<button class="swal-btn swal-btn-s" onclick="closePopup('${id}', false)">${options.cancelText || 'Cancel'}</button>`}
+                                <button class="swal-btn ${options.type === 'warning' ? 'swal-btn-d' : 'swal-btn-p'}" onclick="closePopup('${id}', true)">${options.confirmText || 'OK'}</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+                window['resolve_' + id] = resolve;
+            });
+        }
+
+        function closePopup(id, result) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+            if (window['resolve_' + id]) {
+                window['resolve_' + id](result);
+                delete window['resolve_' + id];
+            }
+        }
+
+        // --- AUTH LOGIC ---
+        function getDeviceId() {
+            var id = localStorage.getItem('hss_device_id');
+            if (!id) {
+                id = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+                localStorage.setItem('hss_device_id', id);
+            }
+            return id;
+        }
+
+        function initAuth() {
+            console.log('initAuth: Started');
+            const statusEl = document.getElementById('loadingStatus');
+            
+            try {
+                // 0. Priority: Server-Injected User (Initial Login/Handshake)
+                if (state.currentUser && state.currentUser.email) {
+                    console.log('initAuth: Server-injected user found');
+                    if (statusEl) statusEl.textContent = 'User verified...';
+                    localStorage.setItem('hss_user', JSON.stringify(state.currentUser));
+                    showView('mainView');
+                    cleanUrl();
+                    loadData();
+                    return;
+                }
+
+                // 1. Priority: Local Persistence (Refreshes/Returns)
+                var savedUser = localStorage.getItem('hss_user');
+                if (savedUser) {
+                    try {
+                        console.log('initAuth: Saved user found in localStorage', savedUser);
+                        if (statusEl) statusEl.textContent = 'Restoring session...';
+                        state.currentUser = JSON.parse(savedUser);
+                        showView('mainView');
+                        // Verify in background
+                        callServer('validateSession', state.currentUser.email)
+                          .then(function(res) {
+                            if (!res.success) {
+                                console.warn('initAuth: Background session validation FAILED for', state.currentUser.email);
+                                // Don't logout instantly to prevent reload loops
+                                // logout(); 
+                            } else {
+                                console.log('initAuth: Background session validation success');
+                            }
+                          })
+                          .catch(function(err){ 
+                              console.error('initAuth: Background validation error', err);
+                          });
+                        loadData();
+                        return;
+                    } catch(e) { 
+                        console.warn('initAuth: Failed to parse saved user', e);
+                        localStorage.removeItem('hss_user'); 
+                    }
+                }
+
+                // 2. Priority: URL Token (SSO Gateway)
+                var urlParams = new URLSearchParams(window.location.search);
+                var token = urlParams.get('token');
+                if (token) {
+                    console.log('initAuth: SSO token found in URL');
+                    if (statusEl) statusEl.textContent = 'Validating gateway token...';
+                    callServer('validateSSOToken', token)
+                      .then(function(res) {
+                        if (res && res.success) {
+                            console.log('initAuth: SSO Validation success');
+                            state.currentUser = res.user;
+                            localStorage.setItem('hss_user', JSON.stringify(res.user));
+                            cleanUrl();
+                            showView('mainView');
+                            loadData();
+                        } else { 
+                            console.warn('initAuth: SSO Validation failed', res?.message);
+                            redirectGate(); 
+                        }
+                      })
+                      .catch(function(err) {
+                          console.error('initAuth: callServer(validateSSOToken) error', err);
+                          redirectGate();
+                      });
+                    return;
+                }
+
+                console.log('initAuth: No user found, showing gate');
+                redirectGate();
+            } catch (err) {
+                console.error('initAuth: CRITICAL FAILURE', err);
+                document.getElementById('loadingStatus').innerHTML = '<span style="color:red">Initialization failed. Redirecting...</span>';
+                setTimeout(redirectGate, 2000);
+            }
+        }
+
+        function cleanUrl() {
+            try {
+                if (window.location.search.indexOf('token=') !== -1) {
+                    window.history.replaceState({}, '', window.location.pathname);
+                }
+            } catch (err) { console.warn('cleanUrl: History API blocked or failed', err); }
+        }
+
+        function logout() {
+            localStorage.removeItem('hss_user');
+            sessionStorage.clear();
+            redirectGate();
+        }
+
+        function redirectGate() {
+            var HUB_URL = "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec";
+            var currentUrl = window.location.href.split('?')[0];
+            var sep = HUB_URL.indexOf('?') !== -1 ? '&' : '?';
+            var dest = HUB_URL + sep + 'redirectTo=' + encodeURIComponent(currentUrl);
+            
+            // Show a brief message before redirecting
+            var authView = document.getElementById('authView');
+            authView.classList.remove('hidden');
+            authView.innerHTML = '<div class="login-card" style="text-align:center; max-width:400px; padding:2rem">' +
+                    '<div style="width:40px; height:40px; border:3px solid #f3f3f3; border-top:3px solid var(--primary); border-radius:50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem;"></div>' +
+                    '<h3 style="margin:0 0 10px 0; color:#1e293b">Redirecting to Login...</h3>' +
+                    '<p style="color:#64748b; font-size:13px; margin-bottom:1rem">Securing your session via Admission Hub.</p>' +
+                '</div>';
+
+            try {
+                // Try top-level navigation first for cleaner experience
+                window.top.location.href = dest;
+            } catch (e) {
+                // Fallback for strict sandbox/iframes: redirect the current frame
+                window.location.href = dest;
+            }
+        }
+
+        function isAdmin(user) {
+            if (!user) return false;
+            return user.role === 'Admin' || user.role === 'SuperAdmin' || user.email === state.adminEmail;
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var btn = document.getElementById('loginBtn');
+            btn.disabled = true; btn.innerText = 'Authenticating...';
+            document.getElementById('authError').classList.add('hidden');
+
+            callServer('authenticateUser', 
+                document.getElementById('loginEmail').value,
+                document.getElementById('loginPassword').value
+            ).then(function(res) {
+                if (res.success && isAdmin(res.user)) {
+                    state.currentUser = res.user;
+                    showView('mainView');
+                    loadData();
+                } else {
+                    document.getElementById('authError').innerText = res.message || 'Access Denied';
+                    document.getElementById('authError').classList.remove('hidden');
+                }
+            }).catch(function(err) {
+                document.getElementById('authError').innerText = 'Connection error.';
+                document.getElementById('authError').classList.remove('hidden');
+            }).finally(function() {
+                btn.disabled = false; btn.innerText = 'Log In';
+            });
+        });
+
+        // --- DASHBOARD LOGIC ---
+        function callServer(func) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            return new Promise(function(resolve, reject) {
+                var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+                runner[func].apply(runner, args);
+            });
+        }
+
+        function loadData() {
+            console.log('loadData: Fetching student list');
+            var tbody = document.getElementById('tableBody');
+            var cVal = document.getElementById('filterClass').value;
+            var sVal = document.getElementById('filterSession').value;
+
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:3rem">' +
+                '<i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary); margin-bottom:1rem"></i>' +
+                '<div style="color:#64748b; font-weight:600">Syncing with Admission Portal...</div>' +
+                '</td></tr>';
+            
+            callServer('getStudentList', cVal, sVal)
+              .then(function(data) {
+                console.log('loadData: Received', data.length, 'students');
+                state.students = data;
+                if (!document.getElementById('filterClass').options.length || document.getElementById('filterClass').options.length <= 1) {
+                    populateFilters();
+                }
+                renderTable(data);
+                document.getElementById('progressInfo').innerText = 'Synced ' + data.length + ' records';
+              })
+              .catch(function(e) { 
+                showPopup({ title: 'Fetch Error', text: String(e), type: 'error', confirmOnly: true });
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red; padding:2rem">Connection failed.</td></tr>'; 
+              });
+        }
+
+        function logout() {
+            sessionStorage.removeItem('hss_session_user');
+            window.location.reload();
+        }
+
+
+        function populateFilters() {
+            var classSet = {};
+            var sessionSet = {};
+            state.students.forEach(function(s) {
+                if (s.classVal) classSet[s.classVal] = 1;
+                if (s.sessionVal) sessionSet[s.sessionVal] = 1;
+            });
+            
+            // Sort classes naturally, sessions in reverse (newest first)
+            var classes = Object.keys(classSet).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+            var sessions = Object.keys(sessionSet).sort().reverse();
+
+            var fill = function(id, list) {
+                var el = document.getElementById(id);
+                var currentVal = el.value;
+                var html = '<option value="ALL">All ' + (id.indexOf('Class') !== -1 ? 'Classes' : 'Sessions') + '</option>';
+                list.forEach(function(v) { html += '<option value="' + v + '">' + v + '</option>'; });
+                el.innerHTML = html;
+                if (list.indexOf(currentVal) !== -1) el.value = currentVal;
+            };
+            fill('filterClass', classes);
+            fill('filterSession', sessions);
+        }
+
+        function applyFilters() {
+            var cVal = document.getElementById('filterClass').value;
+            var sVal = document.getElementById('filterSession').value;
+            var query = document.getElementById('searchTerm').value.toLowerCase();
+
+            var filtered = state.students.filter(function(s) {
+                var matchesClass = (cVal === 'ALL' || s.classVal === cVal);
+                var matchesSession = (sVal === 'ALL' || s.sessionVal === sVal);
+                var matchesSearch = !query || 
+                    (s.name && s.name.toLowerCase().indexOf(query) !== -1) || 
+                    (s.rollNo && s.rollNo.toLowerCase().indexOf(query) !== -1) || 
+                    (s.regNo && s.regNo.toLowerCase().indexOf(query) !== -1) ||
+                    (s.formNo && String(s.formNo).indexOf(query) !== -1);
+                
+                return matchesClass && matchesSession && matchesSearch;
+            });
+            renderTable(filtered);
+        }
+
+        function renderTable(students) {
+            var tbody = document.getElementById('tableBody');
+            var html = '';
+            students.forEach(function(s) {
+                var globalIndex = state.students.indexOf(s);
+                var badge = 'b-pending';
+                var text = s.status || 'Pending';
+                if (text === 'Success') badge = 'b-success';
+                else if (text.indexOf('Error') !== -1) badge = 'b-error';
+
+                html += '<tr>' +
+                    '<td><input type="checkbox" class="row-check" data-idx="' + globalIndex + '"></td>' +
+                    '<td>' +
+                        '<div style="font-family:monospace; font-weight:700; color:var(--primary); font-size:12px">' + s.rollNo + '</div>' +
+                        '<div style="font-family:monospace; font-size:9.5px; color:#94a3b8; letter-spacing:0.5px">' + s.regNo + '</div>' +
+                    '</td>' +
+                    '<td><strong>' + s.name + '</strong><br><span style="font-size:10px; color:#94a3b8">' + (s.formNo || "") + '</span></td>' +
+                    '<td><span style="font-weight:600; font-size:11px; color:#475569">' + s.classVal + '</span></td>' +
+                    '<td id="status-' + globalIndex + '">' +
+                        '<span class="badge ' + badge + '">' + text + '</span>' +
+                        (s.fileUrl ? '<br><a href="' + s.fileUrl + '" class="view-link" target="_blank"><i class="fas fa-external-link-alt"></i> View Result</a>' : '') +
+                    '</td>' +
+                    '<td style="text-align:center">' +
+                        '<button onclick="deleteResult(' + s.rowIndex + ', ' + globalIndex + ')" title="Remove record and PDF" style="padding:4px 8px; border-radius:4px; color:var(--error); border:none; background:#fee2e2; cursor:pointer"><i class="fas fa-trash-alt"></i></button>' +
+                    '</td>' +
+                '</tr>';
+            });
+            tbody.innerHTML = html;
+        }
+
+        function deleteResult(rowIdx, globalIdx) {
+            showPopup({
+                title: 'Confirm Deletion',
+                text: 'This will permanently delete the PDF file from Google Drive and clear the status. This action cannot be undone.',
+                type: 'warning',
+                confirmText: 'Delete Now',
+                cancelText: 'Go Back'
+            }).then(function(confirmed) {
+                if (!confirmed) return;
+                
+                // Show loading state in row
+                const badgeEl = document.getElementById('status-' + globalIdx);
+                const originalHtml = badgeEl.innerHTML;
+                badgeEl.innerHTML = '<span class="badge b-running"><i class="fas fa-spinner fa-spin"></i> Deleting...</span>';
+
+                callServer('deleteStudentResult', rowIdx)
+                  .then(function(res) {
+                    if (res.success) {
+                      state.students[globalIdx].status = '';
+                      state.students[globalIdx].fileUrl = '';
+                      applyFilters();
+                      showPopup({
+                        title: 'Deleted!',
+                        text: res.message,
+                        type: 'success',
+                        confirmOnly: true
+                      });
+                    } else { 
+                      badgeEl.innerHTML = originalHtml;
+                      showPopup({
+                        title: 'Error',
+                        text: res.message,
+                        type: 'error',
+                        confirmOnly: true
+                      });
+                    }
+                  })
+                  .catch(function(e) { 
+                    badgeEl.innerHTML = originalHtml;
+                    showPopup({
+                        title: 'System Failure',
+                        text: 'Failed to connect to server: ' + e,
+                        type: 'error',
+                        confirmOnly: true
+                    });
+                  });
+            });
+        }
+
+        function openAddModal() {
+            document.getElementById('addModal').classList.remove('hidden');
+            // Pre-fill session if possible
+            if (state.students.length > 0) {
+               document.getElementById('mSession').value = state.students[0].sessionVal;
+            }
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.add('hidden');
+        }
+
+        function saveManualStudent() {
+            var student = {
+                rollNo: document.getElementById('mRoll').value,
+                regNo: document.getElementById('mReg').value,
+                name: document.getElementById('mName').value,
+                class: document.getElementById('mClass').value,
+                session: document.getElementById('mSession').value
+            };
+            if (!student.rollNo || !student.regNo || !student.name) {
+                return showPopup({ title: 'Missing Info', text: 'Please fill all required fields.', type: 'warning', confirmOnly: true });
+            }
+            
+            callServer('addManualStudent', student)
+              .then(function(res) {
+                if (res.success) {
+                    closeAddModal();
+                    loadData();
+                    showPopup({ title: 'Saved', text: res.message, type: 'success', confirmOnly: true });
+                } else { 
+                    showPopup({ title: 'Error', text: res.message, type: 'error', confirmOnly: true });
+                }
+              })
+              .catch(function(e) { 
+                showPopup({ title: 'System Error', text: String(e), type: 'error', confirmOnly: true });
+              });
+        }
+
+        function selectAll(check) {
+            document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = check; });
+        }
+
+        function startProcessing() {
+            var selected = document.querySelectorAll('.row-check:checked');
+            state.queue = [];
+            for (var i = 0; i < selected.length; i++) {
+                state.queue.push(selected[i].getAttribute('data-idx'));
+            }
+            
+            if (!state.queue.length) {
+                return showPopup({ title: 'No Selection', text: 'Please select at least one student to process.', type: 'warning', confirmOnly: true });
+            }
+            
+            state.totalQueue = state.queue.length;
+            document.getElementById('btnRun').disabled = true;
+            document.getElementById('progressWrapper').classList.remove('hidden');
+            processNext();
+        }
+
+        function processNext() {
+            if (!state.queue.length) {
+                document.getElementById('btnRun').disabled = false;
+                document.getElementById('progressInfo').innerText = 'Processing Complete!';
+                return;
+            }
+
+            var idx = state.queue.shift();
+            var student = state.students[idx];
+            var badgeEl = document.getElementById('status-' + idx);
+            badgeEl.innerHTML = '<span class="badge b-running">Processing...</span>';
+
+                callServer('processSingleStudent', student)
+                  .then(function(res) {
+                    var badgeClass = res.success ? 'b-success' : 'b-error';
+                    state.students[idx].status = res.success ? 'Success' : 'Error';
+                    state.students[idx].fileUrl = res.fileUrl;
+                    if (res.newRowIndex) state.students[idx].rowIndex = res.newRowIndex;
+
+                    badgeEl.innerHTML = '<span class="badge ' + badgeClass + '">' + (res.success ? 'Success' : 'Error') + '</span>' +
+                        (res.fileUrl ? '<br><a href="' + res.fileUrl + '" class="view-link" target="_blank"><i class="fas fa-external-link-alt"></i> View Result</a>' : '');
+
+                var processed = state.totalQueue - state.queue.length;
+                var pct = Math.round((processed / state.totalQueue) * 100);
+                document.getElementById('progressBar').style.width = pct + '%';
+                document.getElementById('progressInfo').innerText = pct + '% (' + processed + '/' + state.totalQueue + ')';
+                processNext();
+              })
+              .catch(function(err) {
+                badgeEl.innerHTML = '<span class="badge b-error">Server Failure</span>';
+                processNext();
+              });
+        }
+
+        function showView(id) {
+            console.log('showView: Switching to', id);
+            var views = ['authView', 'mainView', 'loadingView'];
+            for (var i = 0; i < views.length; i++) {
+                const el = document.getElementById(views[i]);
+                if (el) el.classList.add('hidden');
+            }
+            const target = document.getElementById(id);
+            if (target) target.classList.remove('hidden');
+            else console.error('showView: Target not found', id);
+        }
+
+        function switchPortal(portalId) {
+            if (!state.currentUser || !state.currentUser.email) { 
+                showPopup({ title: 'Auth Required', text: 'Please log in first to access other portals.', type: 'warning', confirmOnly: true });
+                return; 
+            }
+            var localPortals = {
+                hub: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec",
+                practicals: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec",
+                automation: "https://script.google.com/macros/s/AKfycbwYo85Kxoi8XE--AQZsAB4xa88QVz3mA6htsk1jDbzbrN8XZy0yvZDoT96zH5VCWB6h/exec",
+                advanced_reports: "https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec",
+                fund_distribution: "https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec"
+            };
+            try {
+                google.script.run.withSuccessHandler(function(response) {
+                    if (response && response.success && response.token) {
+                        var portals = response.portals || localPortals;
+                        var target = portals[portalId];
+                        var base = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
+                        if (!base) { 
+                            showPopup({ title: 'Configuration Error', text: 'Portal not configured: ' + portalId, type: 'error', confirmOnly: true });
+                            return; 
+                        }
+                        var url = base + (base.indexOf('?') !== -1 ? '&' : '?') + 'token=' + response.token;
+                        window.open(url, '_blank');
+                    } else { 
+                        showPopup({ title: 'Gateway Error', text: response.message || 'Failed to generate session', type: 'error', confirmOnly: true });
+                    }
+                }).withFailureHandler(function(err) { 
+                    showPopup({ title: 'Connection Error', text: String(err), type: 'error', confirmOnly: true });
+                })
+                  .generateSSOToken(state.currentUser.email);
+            } catch (e) { console.error('Portal Switch Error:', e); }
+        }
+
+        window.onload = function() {
+            initAuth();
+        };
+    </script>
+</body>
+</html>
