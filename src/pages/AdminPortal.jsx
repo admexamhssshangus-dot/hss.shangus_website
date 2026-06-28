@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -2090,6 +2090,9 @@ export default function AdminPortal() {
       const updatedList = pagesList.filter(p => p.id !== pageId);
       setPagesList(updatedList);
       await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+
+      // Delete the actual page document from site collection
+      await deleteDoc(doc(db, 'site', `page_${pageId}`));
 
       if (selectedPage && selectedPage.id === pageId) {
         setSelectedPage(null);
