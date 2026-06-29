@@ -4888,10 +4888,17 @@ export default function AdminPortal() {
             transition: transform 0.4s ease-in-out;
           }
           .grecaptcha-badge {
-            bottom: 95px !important;
-            transform: scale(0.85);
+            bottom: 60px !important;
+            right: 12px !important;
+            transform: scale(0.8);
             transform-origin: bottom right;
-            z-index: 1000 !important;
+            z-index: 9998 !important;
+          }
+          @media (min-width: 768px) {
+            .grecaptcha-badge {
+              bottom: 80px !important;
+              right: 24px !important;
+            }
           }
         `}} />
 
