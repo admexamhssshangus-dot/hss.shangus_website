@@ -4887,6 +4887,12 @@ export default function AdminPortal() {
           .refresh-spin-hover svg {
             transition: transform 0.4s ease-in-out;
           }
+          .grecaptcha-badge {
+            bottom: 95px !important;
+            transform: scale(0.85);
+            transform-origin: bottom right;
+            z-index: 1000 !important;
+          }
         `}} />
 
         <div className="w-full max-w-md bg-slate-900 rounded-3xl border border-slate-800 p-6 sm:p-9 shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative z-10">
