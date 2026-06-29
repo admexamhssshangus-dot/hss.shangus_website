@@ -4995,117 +4995,126 @@ export default function AdminPortal() {
               </div>
             </form>
           ) : (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Administrative Email</label>
-                <div className="relative group">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 group-focus-within:text-[var(--teal-accent)] transition-colors">
-                    <Mail size={16} />
-                  </span>
-                  <input
-                    type="email"
-                    required
-                    placeholder="Enter admin email..."
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
-                    autoFocus
-                  />
-                </div>
+            <div className="space-y-5">
+              {/* Google Sign-In — primary method, displayed first */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-sm flex items-center justify-center gap-2.5 transition-all active:scale-[0.97] shadow-sm hover:shadow-md"
+              >
+                <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+                  <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.74 1.64 15.06 1 12 1 7.22 1 3.2 3.78 1.3 7.82l3.88 3A7.001 7.001 0 0 1 12 5.04z" />
+                  <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46a5.54 5.54 0 0 1-2.4 3.64l3.73 2.9c2.18-2.01 3.7-4.98 3.7-8.69z" />
+                  <path fill="#FBBC05" d="M5.18 10.82a6.99 6.99 0 0 1 0-4.24L1.3 3.58A11.96 11.96 0 0 0 0 12c0 3.12.8 6.05 2.21 8.62l3.78-3.04a6.98 6.98 0 0 1-.81-6.76z" />
+                  <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.73-2.9c-1.03.69-2.35 1.1-4.23 1.1a7.001 7.001 0 0 1-6.82-5.04l-3.88 3A11.98 11.98 0 0 0 12 23z" />
+                </svg>
+                <span className="text-slate-700">Sign in with Google</span>
+              </button>
+
+              {/* OR Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-grow h-px bg-slate-700/50" />
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.2em]">or</span>
+                <div className="flex-grow h-px bg-slate-700/50" />
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Administrative Password</label>
-                <div className="relative group">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 group-focus-within:text-[var(--teal-accent)] transition-colors">
-                    <Lock size={16} />
-                  </span>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    placeholder="Enter password..."
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-550 hover:text-[var(--teal-accent)] transition-colors"
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Security CAPTCHA</label>
-                <div className="flex items-center gap-2">
-                  <div className={`relative select-none pointer-events-none bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-center overflow-hidden h-[42px] w-28 sm:w-32 flex-shrink-0 transition-transform ${isShuffling ? 'captcha-animate-shuffle' : ''}`}>
-                    <svg className="absolute inset-0 w-full h-full opacity-25" xmlns="http://www.w3.org/2000/svg">
-                      <defs>
-                        <pattern id="captcha-grid" width="6" height="6" patternUnits="userSpaceOnUse">
-                          <path d="M 6 0 L 0 0 0 6" fill="none" stroke="#475569" strokeWidth="0.5" />
-                        </pattern>
-                      </defs>
-                      <rect width="100%" height="100%" fill="url(#captcha-grid)" />
-                      <path d="M 0 12 Q 25 2, 50 18 T 100 8 T 150 20" fill="none" stroke="var(--teal-accent)" strokeWidth="1.2" />
-                      <path d="M 0 25 Q 35 30, 70 10 T 140 18" fill="none" stroke="#961c14" strokeWidth="1" />
-                    </svg>
-                    <span className="font-mono text-base font-black tracking-widest text-slate-100 relative z-10 select-none filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.6)]" style={{ transform: 'rotate(-2deg)' }}>
-                      {isShuffling ? shuffleValue : `${captcha.num1} ${captcha.operation} ${captcha.num2}`}
+              {/* Email + Password Form */}
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Administrative Email</label>
+                  <div className="relative group">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 group-focus-within:text-[var(--teal-accent)] transition-colors">
+                      <Mail size={16} />
                     </span>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Enter admin email..."
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={generateCaptcha}
-                    className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-[var(--teal-accent)] transition-all border border-slate-800 flex items-center justify-center h-[42px] w-[42px] active:scale-90 refresh-spin-hover"
-                    title="Refresh CAPTCHA challenge"
-                  >
-                    <RefreshCw size={16} className={isShuffling ? 'animate-spin' : ''} />
-                  </button>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Answer..."
-                    value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value)}
-                    className="flex-grow min-w-0 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] font-mono text-sm h-[42px] transition-all"
-                  />
                 </div>
-              </div>
 
-              {authError && (
-                <div className="bg-red-950/50 border border-red-500/30 text-red-400 p-3 rounded-lg text-xs flex items-start gap-2">
-                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                  <span>{authError}</span>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Administrative Password</label>
+                  <div className="relative group">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 group-focus-within:text-[var(--teal-accent)] transition-colors">
+                      <Lock size={16} />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Enter password..."
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-550 hover:text-[var(--teal-accent)] transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-3.5 mt-5">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Security CAPTCHA</label>
+                  <div className="flex items-center gap-2">
+                    <div className={`relative select-none pointer-events-none bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-center overflow-hidden h-[42px] w-28 sm:w-32 flex-shrink-0 transition-transform ${isShuffling ? 'captcha-animate-shuffle' : ''}`}>
+                      <svg className="absolute inset-0 w-full h-full opacity-25" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <pattern id="captcha-grid" width="6" height="6" patternUnits="userSpaceOnUse">
+                            <path d="M 6 0 L 0 0 0 6" fill="none" stroke="#475569" strokeWidth="0.5" />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#captcha-grid)" />
+                        <path d="M 0 12 Q 25 2, 50 18 T 100 8 T 150 20" fill="none" stroke="var(--teal-accent)" strokeWidth="1.2" />
+                        <path d="M 0 25 Q 35 30, 70 10 T 140 18" fill="none" stroke="#961c14" strokeWidth="1" />
+                      </svg>
+                      <span className="font-mono text-base font-black tracking-widest text-slate-100 relative z-10 select-none filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.6)]" style={{ transform: 'rotate(-2deg)' }}>
+                        {isShuffling ? shuffleValue : `${captcha.num1} ${captcha.operation} ${captcha.num2}`}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={generateCaptcha}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-[var(--teal-accent)] transition-all border border-slate-800 flex items-center justify-center h-[42px] w-[42px] active:scale-90 refresh-spin-hover"
+                      title="Refresh CAPTCHA challenge"
+                    >
+                      <RefreshCw size={16} className={isShuffling ? 'animate-spin' : ''} />
+                    </button>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Answer..."
+                      value={captchaInput}
+                      onChange={(e) => setCaptchaInput(e.target.value)}
+                      className="flex-grow min-w-0 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] font-mono text-sm h-[42px] transition-all"
+                    />
+                  </div>
+                </div>
+
+                {authError && (
+                  <div className="bg-red-950/50 border border-red-500/30 text-red-400 p-3 rounded-lg text-xs flex items-start gap-2">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[var(--teal-accent)] to-[var(--teal-accent-hover)] hover:brightness-110 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 active:scale-[0.97] shadow-lg shadow-teal-950/20"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-[var(--teal-accent)] to-[var(--teal-accent-hover)] hover:brightness-110 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.97] shadow-lg shadow-teal-950/20 mt-2"
                 >
-                  <Unlock size={14} className="flex-shrink-0" />
-                  <span className="truncate">Unlock Console</span>
+                  <Unlock size={15} className="flex-shrink-0" />
+                  <span>Unlock Console</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] shadow-sm hover:shadow"
-                >
-                  <svg className="w-4 h-4 mr-0.5 flex-shrink-0" viewBox="0 0 24 24">
-                    <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.74 1.64 15.06 1 12 1 7.22 1 3.2 3.78 1.3 7.82l3.88 3A7.001 7.001 0 0 1 12 5.04z" />
-                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46a5.54 5.54 0 0 1-2.4 3.64l3.73 2.9c2.18-2.01 3.7-4.98 3.7-8.69z" />
-                    <path fill="#FBBC05" d="M5.18 10.82a6.99 6.99 0 0 1 0-4.24L1.3 3.58A11.96 11.96 0 0 0 0 12c0 3.12.8 6.05 2.21 8.62l3.78-3.04a6.98 6.98 0 0 1-.81-6.76z" />
-                    <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.73-2.9c-1.03.69-2.35 1.1-4.23 1.1a7.001 7.001 0 0 1-6.82-5.04l-3.88 3A11.98 11.98 0 0 0 12 23z" />
-                  </svg>
-                  <span className="truncate text-slate-700">Google Sign-In</span>
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           )}
           <div id="recaptcha-container"></div>
         </div>
