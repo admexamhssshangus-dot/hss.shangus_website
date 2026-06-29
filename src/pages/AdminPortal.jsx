@@ -3,7 +3,7 @@ import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, Al
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
-import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // ==========================================
@@ -665,6 +665,11 @@ export default function AdminPortal() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [loginStep, setLoginStep] = useState('credentials'); // 'credentials' | 'otp'
+  const [otpCode, setOtpCode] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [pendingUser, setPendingUser] = useState(null);
 
   // Dynamic admin accounts list
   const [admins, setAdmins] = useState([]);
@@ -676,6 +681,14 @@ export default function AdminPortal() {
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpCooldown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
 
   // New admin creation form states
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -1103,38 +1116,8 @@ export default function AdminPortal() {
     const inputHash = usePBKDF2 ? await hashPassword(password, foundAdmin.salt) : await hashPassword(password);
 
     if (foundAdmin && inputHash === foundAdmin.passwordHash) {
-      localStorage.removeItem('admin_failed_attempts');
-      localStorage.removeItem('admin_last_failed_time');
-      localStorage.removeItem('admin_lockout_until');
-
-      // Set unique session token for this device/tab
-      const newSessionId = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
-      sessionStorage.setItem('admin_session_id', newSessionId);
-      localStorage.setItem('admin_active_session_id', newSessionId);
-      sessionStorage.setItem('isAdminAuthenticated', 'true');
-      sessionStorage.setItem('adminUser', JSON.stringify(foundAdmin));
-
-      setCurrentUser(normalizeAdmin(foundAdmin));
-      setIsAuthenticated(true);
-      setAuthError('');
-      setEmail('');
-      setPassword('');
-      setCaptchaInput('');
-
-      // Auto-open first permitted tab (guard against missing allowedTabs)
-      const allowed = Array.isArray(foundAdmin.allowedTabs) ? foundAdmin.allowedTabs : [];
-      const firstTab = allowed.length ? allowed[0] : 'admissions';
-      setActiveTab(firstTab);
-      sessionStorage.setItem('activeAdminTab', firstTab);
-
-      // Notify other tabs
-      try {
-        const channel = new BroadcastChannel('hss_admin_session');
-        channel.postMessage({ type: 'LOGIN', sessionId: newSessionId });
-        channel.close();
-      } catch (err) {
-        // ignore
-      }
+      setPendingUser(foundAdmin);
+      await triggerOtpSend(foundAdmin);
     } else {
       const now = Date.now();
       const lastFailedTime = parseInt(localStorage.getItem('admin_last_failed_time') || '0');
@@ -1158,6 +1141,119 @@ export default function AdminPortal() {
       }
       generateCaptcha();
     }
+  };
+
+  const triggerOtpSend = async (userRecord) => {
+    setAuthError('');
+    try {
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {
+          console.warn('Error clearing recaptcha verifier:', e);
+        }
+      }
+
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: (response) => {
+          // Solved reCAPTCHA
+        },
+        'expired-callback': () => {
+          setAuthError('reCAPTCHA expired. Please try again.');
+        }
+      });
+
+      const phoneNumber = '+919682547458';
+      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
+      setConfirmationResult(confirmation);
+      setLoginStep('otp');
+      setOtpCooldown(60);
+      setOtpCode('');
+    } catch (err) {
+      console.error('Error sending OTP:', err);
+      let msg = err.message || 'Failed to send verification SMS.';
+      if (err.code === 'auth/captcha-check-failed') {
+        msg = 'reCAPTCHA check failed. Please refresh the page and try again.';
+      } else if (err.code === 'auth/invalid-phone-number') {
+        msg = 'The admin phone number is configured incorrectly.';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'SMS limit exceeded or too many attempts. Please try again later.';
+      }
+      setAuthError(msg);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    if (e) e.preventDefault();
+    if (!confirmationResult || !pendingUser) {
+      setAuthError('Session expired. Please restart the login process.');
+      setLoginStep('credentials');
+      return;
+    }
+
+    if (otpCode.length !== 6) {
+      setAuthError('Please enter a valid 6-digit verification code.');
+      return;
+    }
+
+    setAuthError('');
+    try {
+      await confirmationResult.confirm(otpCode);
+
+      // Successfully authenticated with OTP!
+      localStorage.removeItem('admin_failed_attempts');
+      localStorage.removeItem('admin_last_failed_time');
+      localStorage.removeItem('admin_lockout_until');
+
+      const newSessionId = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+      sessionStorage.setItem('admin_session_id', newSessionId);
+      localStorage.setItem('admin_active_session_id', newSessionId);
+      sessionStorage.setItem('isAdminAuthenticated', 'true');
+      sessionStorage.setItem('adminUser', JSON.stringify(pendingUser));
+
+      setCurrentUser(normalizeAdmin(pendingUser));
+      setIsAuthenticated(true);
+      setAuthError('');
+      setEmail('');
+      setPassword('');
+      setCaptchaInput('');
+      setLoginStep('credentials');
+      setPendingUser(null);
+      setConfirmationResult(null);
+
+      const allowed = Array.isArray(pendingUser.allowedTabs) ? pendingUser.allowedTabs : [];
+      const firstTab = allowed.length ? allowed[0] : 'admissions';
+      setActiveTab(firstTab);
+      sessionStorage.setItem('activeAdminTab', firstTab);
+
+      try {
+        const channel = new BroadcastChannel('hss_admin_session');
+        channel.postMessage({ type: 'LOGIN', sessionId: newSessionId });
+        channel.close();
+      } catch (err) {
+        // ignore
+      }
+    } catch (err) {
+      console.error('Error verifying OTP code:', err);
+      let msg = 'Incorrect 6-digit verification code. Please check and try again.';
+      if (err.code === 'auth/invalid-verification-code') {
+        msg = 'Incorrect 6-digit verification code. Please check and try again.';
+      } else if (err.code === 'auth/code-expired') {
+        msg = 'This verification code has expired. Please request a new one.';
+      }
+      setAuthError(msg);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpCooldown > 0) return;
+    if (!pendingUser) {
+      setAuthError('Session expired. Please restart the login process.');
+      setLoginStep('credentials');
+      return;
+    }
+    await triggerOtpSend(pendingUser);
   };
 
   // Firebase Google sign-in and sign-out handlers
@@ -4820,6 +4916,78 @@ export default function AdminPortal() {
                 {Math.floor(lockoutTimeLeft / 60)}:{(lockoutTimeLeft % 60).toString().padStart(2, '0')}
               </div>
             </div>
+          ) : loginStep === 'otp' ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-5">
+              <div className="text-center space-y-1.5 mb-2">
+                <p className="text-xs text-slate-400 font-medium">
+                  Enter the 6-digit verification code sent to
+                </p>
+                <p className="text-sm font-extrabold text-slate-200 tracking-wider">
+                  +91 96825 47458
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-center">Verification Code</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  placeholder="Enter 6-digit OTP..."
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full text-center tracking-[0.4em] font-mono font-bold text-xl py-3 rounded-xl bg-slate-950 border border-slate-800 text-[var(--teal-accent)] focus:outline-none focus:border-[var(--teal-accent)] focus:ring-1 focus:ring-[var(--teal-accent)] transition-all"
+                  autoFocus
+                />
+              </div>
+
+              {authError && (
+                <div className="bg-red-950/50 border border-red-500/30 text-red-400 p-3 rounded-lg text-xs flex items-start gap-2">
+                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3 pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-[var(--teal-accent)] to-[var(--teal-accent-hover)] hover:brightness-110 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 active:scale-[0.97] shadow-lg shadow-teal-950/20"
+                >
+                  <CheckCircle2 size={15} className="flex-shrink-0" />
+                  <span>Verify OTP</span>
+                </button>
+
+                <div className="flex justify-between items-center text-xs px-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginStep('credentials');
+                      setAuthError('');
+                      setPendingUser(null);
+                      setConfirmationResult(null);
+                    }}
+                    className="text-slate-400 hover:text-slate-300 font-bold transition-colors"
+                  >
+                    Back to Login
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={otpCooldown > 0}
+                    onClick={handleResendOtp}
+                    className={`font-bold transition-colors ${
+                      otpCooldown > 0 
+                        ? 'text-slate-650 cursor-not-allowed' 
+                        : 'text-[var(--teal-accent)] hover:text-teal-300'
+                    }`}
+                  >
+                    {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend Code'}
+                  </button>
+                </div>
+              </div>
+            </form>
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1">
@@ -4857,7 +5025,7 @@ export default function AdminPortal() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-505 hover:text-[var(--teal-accent)] transition-colors"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-550 hover:text-[var(--teal-accent)] transition-colors"
                     title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -4933,6 +5101,7 @@ export default function AdminPortal() {
               </div>
             </form>
           )}
+          <div id="recaptcha-container"></div>
         </div>
       </div>
     );
