@@ -1448,163 +1448,35 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
         .switch input:checked + .slider {
-            background-color: var(--primary);
-            border-color: var(--primary);
-        }
-        .switch input:checked + .slider:before {
-            transform: translateX(24px);
-        }
-
-        /* [NEW] Floating Loader Styles (Hub Identity) */
-        .floating-loader {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10002;
-            pointer-events: none;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .floating-loader.hidden { top: -60px; opacity: 0; }
-        .loader-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(8px);
-            padding: 10px 18px;
-            border-radius: 40px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border: 1px solid rgba(0,0,0,0.05);
-            pointer-events: auto;
-        }
-        .spinner-small {
-            width: 18px;
-            height: 18px;
-            border: 2px solid rgba(0,0,0,0.1);
-            border-top: 2px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        #loader-text { font-size: 13px; font-weight: 600; color: #334155; }
-        .btn-launch-portal { background: var(--primary); color: white; border: none; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
-        .btn-launch-portal:hover { transform: scale(1.05); }
-.switch input:checked + .slider {
             background-color: var(--secondary);
             border-color: var(--secondary);
         }
 .switch input:checked + .slider:before {
             transform: translateX(24px);
         }
-        /* --- [NEW] Unified Gateway Bar Styles (Premium) --- */
-        .gateway-sticky {
-            position: sticky;
-            top: 0;
-            z-index: 5000;
-            width: 100%;
-        }
-        .gateway-bar {
-            background: linear-gradient(90deg, #0f172a 0%, #111827 50%, #0f172a 100%);
-            color: white;
-            padding: 2px 12px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            min-height: 26px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        .gateway-container {
-            display: flex;
-            align-items: center;
-            gap: 1.25rem;
-            max-width: 1200px;
-            width: 100%;
-            margin: 0 auto;
-        }
-        .gateway-label {
-            font-size: 0.55rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: rgba(255,255,255,0.4);
-            padding-right: 1rem;
-            border-right: 1px solid rgba(255,255,255,0.1);
-            display: flex;
-            align-items: center;
-            height: 14px;
-            white-space: nowrap;
-        }
-        .gateway-items {
-            display: flex;
-            align-items: center;
-            gap: 0.2rem;
-            flex: 1;
-            overflow-x: auto;
-            scrollbar-width: none;
-        }
-        .gateway-items::-webkit-scrollbar { display: none; }
-        .gateway-btn {
-            background: transparent;
-            border: none;
-            color: rgba(255,255,255,0.6);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.65rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            white-space: nowrap;
-        }
-        .gateway-btn .material-icons {
-            font-size: 0.85rem;
-            color: var(--accent, #6366f1);
-            opacity: 0.7;
-        }
-        .gateway-btn:hover {
-            background: rgba(255,255,255,0.08);
-            color: white;
-            transform: translateY(-1px);
-        }
-        .gateway-btn:hover .material-icons {
-            opacity: 1;
-            transform: scale(1.1);
-            filter: drop-shadow(0 0 5px var(--accent));
-        }
-        .gateway-btn.active {
-            color: white;
-            background: rgba(255,255,255,0.1);
-        }
-        @media (max-width: 640px) {
-            .gateway-bar { padding: 4px 10px; min-height: 32px; }
-            .gateway-label { display: none; }
-            .gateway-btn span:not(.material-icons) { display: none; }
-        }
+        .gateway-sticky { position: sticky; top: 0; z-index: 1000; background: #fff; border-bottom: 1px solid #e2e8f0; }
+        .gateway-bar { padding: 8px 20px; display: flex; align-items: center; justify-content: space-between; }
+        .gateway-container { display: flex; align-items: center; gap: 20px; }
+        .gateway-label { font-weight: 700; color: #64748b; font-size: 0.85rem; text-transform: uppercase; }
+        .gateway-items { display: flex; gap: 8px; }
+        .gateway-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; cursor: pointer; font-size: 0.85rem; transition: 0.2s; }
+        .gateway-btn:hover { background: #f1f5f9; }
+        .gateway-btn.active { border-color: var(--accent); color: var(--accent); background: #fff; }
     </style>
 </head>
-<body>
-    <!-- [NEW] Floating Loader Overlay -->
-    <div id="loader" class="floating-loader hidden">
-        <div class="loader-card">
-            <div class="spinner-small"></div>
-            <div id="loader-text">Loading...</div>
-            <button id="loaderActionBtn" class="hidden btn-launch-portal">Go Now</button>
-        </div>
-    </div>    <? if (user && user.isAdmin) { ?>
-    <div class="gateway-sticky">
+<body>    <div class="gateway-sticky">
         <div class="gateway-bar">
             <div class="gateway-container">
                 <div class="gateway-label">School Services</div>
                 <div class="gateway-items">
-                    <button onclick="switchPortal('practicals')" class="gateway-btn active" style="--accent: #6366f1;">
+                    <!-- Home link back to master hub -->
+                    <button onclick="switchPortal('hub')" class="gateway-btn" style="--accent: #94a3b8;">
+                        <span class="material-icons">home</span><span>Hub</span>
+                    </button>
+                    <button onclick="switchPortal('practicals')" class="gateway-btn active" style="--accent: var(--primary);">
                         <span class="material-icons">science</span><span>Practicals</span>
                     </button>
-                    <button onclick="switchPortal('automation')" class="gateway-btn" style="--accent: #f59e0b;">
+                    <button onclick="switchPortal('automation')" class="gateway-btn" style="--accent: var(--warning);">
                         <span class="material-icons">auto_fix_high</span><span>Automation</span>
                     </button>
                     <button onclick="switchPortal('advanced_reports')" class="gateway-btn" style="--accent: #06b6d4;">
@@ -1617,7 +1489,6 @@
             </div>
         </div>
     </div>
-    <? } ?>
 
     <div class="app-container" id="appRoot">
         <div id="appContent"></div>
@@ -1659,47 +1530,11 @@
         
         const questions = <?!= questions ?>;
         const subjects = <?!= subjects ?>;
-        
-        // Session Security logic consolidated into DOMContentLoaded below.
         let filterSubjectsReqSeq = 0; // NEW: prevent duplicate population on async race
         // Load config from server, with fallbacks
         const config = <?!= config ?>;
 
         // NEW: Progress bar functions
-        // NEW: Progress bar and Loading functions
-        function setLoading(isLoading) {
-            const loader = document.getElementById('loader');
-            if (isLoading) {
-                loader.classList.remove('hidden');
-                setLoadingMessage('Working...');
-                setLoadingAction(null); // Clear any previous action
-            } else {
-                loader.classList.add('hidden');
-            }
-        }
-
-        function setLoadingMessage(msg) {
-            const textEl = document.getElementById('loader-text');
-            if (textEl) textEl.textContent = msg;
-        }
-
-        function setLoadingAction(label, callback = null) {
-            const btn = document.getElementById('loaderActionBtn');
-            if (!btn) return;
-            if (label && callback) {
-                btn.textContent = label;
-                btn.classList.remove('hidden');
-                btn.style.display = 'block';
-                btn.onclick = (e) => {
-                    e.stopPropagation();
-                    callback();
-                };
-            } else {
-                btn.classList.add('hidden');
-                btn.style.display = 'none';
-            }
-        }
-
         function showProgressBar() { }
         function hideProgressBar() { }
         const CONFIG_SETTINGS = config || {
@@ -1737,7 +1572,7 @@
             const center = getCenterFromExamRoll(examRoll);
             return !!(center && set.has(center));
         }
-        let currentUser = <?!= userJson ?>;
+        let currentUser = <?!= user ?>;
         let adminDashboardData = null; // Stores all data for admin
         let hasSavedAssessment = sessionStorage.getItem('hasSavedAssessment') === 'true'; // Track if assessment saved for pending highlight
         let currentSortMode = 'normal'; // NEW: Track sort mode: 'normal' or 'pendingFirst'
@@ -1745,21 +1580,18 @@
         document.addEventListener('DOMContentLoaded', async () => {
             setupTheme();
             const urlParams = new URLSearchParams(window.location.search);
-            const ssoToken = urlParams.get('token');
+            const token = urlParams.get('token');
 
             // 1. SSO Gateway Handshake (New Token in URL)
-            if (ssoToken) {
+            if (token) {
                 try {
                     const res = await new Promise((resolve, reject) => {
-                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).validateSSOToken(ssoToken);
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).validateSSOToken(token);
                     });
                     if (res && res.success && res.user) {
                         currentUser = {
                             email: res.user.email,
                             name: res.user.name,
-                            teacherName: res.user.teacherName || res.user.name,
-                            className: res.user.className || '',
-                            subject: res.user.subject || '',
                             role: res.user.role || 'Teacher',
                             isAdmin: String(res.user.role || '').toLowerCase().includes('admin')
                         };
@@ -1769,27 +1601,6 @@
                         window.history.replaceState({}, document.title, newUrl);
                     }
                 } catch(e) { console.error("SSO Failed", e); }
-            }
-
-            // [NEW] 1.5 Check for persisted session (Keep me logged in)
-            if (!currentUser) {
-                const persistedToken = localStorage.getItem('hss_token');
-                if (persistedToken) {
-                    try {
-                        const res = await new Promise((resolve, reject) => {
-                            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).validateToken(persistedToken);
-                        });
-                        if (res && res.success) {
-                            currentUser = res;
-                            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                        } else {
-                            localStorage.removeItem('hss_token');
-                        }
-                    } catch(e) { 
-                        console.error("Token validation failed", e);
-                        localStorage.removeItem('hss_token');
-                    }
-                }
             }
 
             // 2. Resolve final user state (Priority: Local Var from Template > Session Storage)
@@ -1802,81 +1613,55 @@
 
             // 3. Navigate to appropriate view
             if (currentUser && currentUser.email) {
+                // Normalize isAdmin for users arriving from template/session
                 if (currentUser.isAdmin === undefined && currentUser.role) {
                     currentUser.isAdmin = currentUser.role.toLowerCase().includes('admin');
                 }
-                if (currentUser.isAdmin) showAdminDashboard(); else showMainForm();
+                
+                if (currentUser.isAdmin) {
+                    showAdminDashboard();
+                } else {
+                    showMainForm();
+                }
             } else {
+                // No session: Show gateway
                 redirectGate();
             }
         });
 
-        async function redirectGate() {
+        function redirectGate() {
+            const HUB_URL = "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec";
+            const currentUrl = window.location.href.split('?')[0];
+            const sep = HUB_URL.includes('?') ? '&' : '?';
+            const dest = HUB_URL + sep + 'redirectTo=' + encodeURIComponent(currentUrl);
+            
+            // For Practicals, we don't have a simple authView div by default, we need to target the main container or create one
             const root = document.getElementById('appContent');
             if (root) {
                 root.innerHTML = `
-                    <div class="auth-card" style="text-align:center; max-width:400px; margin: 4rem auto; padding:2rem; background: var(--bg-card); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 1px solid var(--border);">
-                        <div class="spinner" style="margin: 0 auto 1.5rem; width: 40px; height: 40px;"></div>
-                        <h3 style="margin:0 0 10px 0; color:var(--primary); font-weight:800;">Securing Session...</h3>
-                        <p style="color:var(--text-secondary); font-size:13px; margin-bottom:1.5rem">
-                            Checking all portal sessions. Please wait...
-                        </p>
-                        <div id="redirFallback" style="display:none;">
-                            <p style="font-size:12px; margin-bottom:1rem; opacity:0.8;">Redirection taking too long?</p>
-                            <button id="manualRedirBtn" class="btn btn-primary btn-small btn-full">Continue to Hub</button>
+                    <div class="auth-card" style="text-align:center; max-width:400px; margin: 4rem auto; padding:2rem">
+                        <div style="background:rgba(239, 68, 68, 0.1); color:#ef4444; padding:12px; border-radius:12px; margin-bottom:1.5rem; font-size:13px; font-weight:600">
+                            <i class="material-icons" style="vertical-align:middle; font-size:18px; margin-right:4px">lock</i> Session Verification Required
                         </div>
+                        <h3 style="margin:0 0 10px 0">Authentication Needed</h3>
+                        <p style="color:var(--text-secondary); font-size:13px; margin-bottom:2rem">
+                            Your session has expired or requires validation. Please click below to securely sign in via the Admission Hub.
+                        </p>
+                        <a href="${dest}" target="_top" class="btn btn-primary btn-full" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center">
+                            PROCEED TO LOGIN <i class="material-icons" style="margin-left:8px; font-size:14px">launch</i>
+                        </a>
+                        <p style="margin-top:1.5rem; font-size:11px; color:#94a3b8">
+                            You will be redirected back here automatically after signing in.
+                        </p>
                     </div>
                 `;
-            }
-
-            try {
-                const hubUrl = await new Promise((resolve, reject) => {
-                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getHubUrl();
-                });
-                
-                const sitesLoginUrl = "https://sites.google.com/view/hssshangus/login";
-                const finalRedir = hubUrl + "?logout=true&redirectTo=" + encodeURIComponent(sitesLoginUrl);
-                
-                // Show fallback button after 2 seconds
-                setTimeout(() => {
-                    const fallback = document.getElementById('redirFallback');
-                    const btn = document.getElementById('manualRedirBtn');
-                    if (fallback && btn) {
-                        fallback.style.display = 'block';
-                        btn.onclick = () => window.open(finalRedir, '_top');
-                    }
-                }, 2000);
-
-                // Attempt automatic breakout
-                try {
-                    window.open(finalRedir, '_top');
-                } catch (e) {
-                    window.top.location.href = finalRedir;
-                }
-            } catch (err) {
-                console.error("Failed to fetch Hub URL", err);
-                showLoginForm();
-            }
-        }
-
-        async function handleLogout() {
-            if (!confirm('Are you sure you want to logout?')) return;
-            
-            try {
-                sessionStorage.clear();
-                localStorage.removeItem('token');
-                localStorage.removeItem('hss_token');
-                redirectGate();
-            } catch (e) {
-                console.error('Logout error:', e);
-                window.top.location.href = "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec?logout=true";
             }
         }
         // --- THEME (Enhanced with smoother transitions) ---
         function setupTheme() {
             const themeToggle = document.createElement('div');
             themeToggle.id = 'themeToggle';
-            themeToggle.innerHTML = `<span id="themeIcon" class="material-icons theme-toggle"></span>`;
+            themeToggle.innerHTML = `<svg id="themeIcon" class="theme-toggle" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"></svg>`;
             document.body.appendChild(themeToggle);
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.body.classList.toggle('dark-mode', savedTheme === 'dark');
@@ -1888,11 +1673,13 @@
             });
         }
         function updateThemeIcon(){
-            const isDark = document.body.classList.contains('dark-mode');
-            const iconName = isDark ? 'light_mode' : 'dark_mode';
+             const isDark = document.body.classList.contains('dark-mode');
+             const iconPath = isDark
+                ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>` // Sun
+                : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>`; // Moon
             const icon = document.getElementById('themeIcon');
             if (icon) {
-                icon.textContent = iconName;
+                icon.innerHTML = iconPath;
             }
         }
         function moveThemeToggle(containerId) {
@@ -2113,20 +1900,14 @@
                     <div class="logo">
                         <div class="logo-icon">IA</div>
                         <div id="themeContainer"></div>
-                        <span>BMHSS Handwara Portal</span>
+                        <span>HSS Shangus Portal</span>
                     </div>
                 </div>
                 <div class="auth-card">
-                    <div class="auth-header"><h2>Welcome to BMHSS Handwara's Assessment Portal!</h2><p>Sign in to continue</p></div>
+                    <div class="auth-header"><h2>Welcome to HSS Shangus's Assessment Portal!</h2><p>Sign in to continue</p></div>
                     <form id="loginForm" onsubmit="handleLogin(event)">
                         <div class="form-group"><label for="loginEmail">Email Address</label><input type="email" id="loginEmail" required autocomplete="email"></div>
-                         <div class="form-group"><label for="loginPassword">Password</label><input type="password" id="loginPassword" required></div>
-                         <div class="form-group" style="margin: 0.5rem 0;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500; font-size: 0.85rem; color: var(--text-secondary);">
-                                <input type="checkbox" id="loginKeep" style="width: auto; margin: 0;">
-                                <span>Keep me logged in</span>
-                            </label>
-                        </div>
+                        <div class="form-group"><label for="loginPassword">Password</label><input type="password" id="loginPassword" required></div>
                         <div class="form-group" style="text-align:right; margin-top:0.5rem;"><a href="javascript:void(0)" onclick="showPasswordResetForm(event)" style="color:var(--primary); text-decoration:none; font-size:0.875rem;">Forgot Password?</a></div>
                         <div class="form-group" style="margin-top: 1.5rem;"><button type="submit" class="btn btn-primary btn-small btn-full" id="loginBtn">Sign In</button></div>
                         <div class="form-group" style="text-align:center;"><button type="button" class="btn btn-secondary btn-full" onclick="showSignupForm()">Create New Account</button></div>
@@ -2140,7 +1921,7 @@
                     <div class="logo">
                         <div class="logo-icon">IA</div>
                         <div id="themeContainer"></div>
-                        <span>BMHSS Handwara Portal</span>
+                        <span>HSS Shangus Portal</span>
                     </div>
                 </div>
                 <div class="auth-card">
@@ -2207,7 +1988,7 @@
                             .withSuccessHandler(result => {
                                 if (result.exists) {
                                     emailFeedback.innerHTML = `<span style="color:var(--danger);">${result.message}</span>`;
-                                    disabledMessage.innerHTML = `If you forgot account details, please contact Admin (adm.exam.bhsshandwara@gmail.com; 9682547458) for further assistance.`;
+                                    disabledMessage.innerHTML = `If you forgot account details, please contact Admin (adm.exam.hss.shangus@gmail.com; 9682547458) for further assistance.`;
                                     disabledMessage.style.display = 'block';
                                     // Disable fields
                                     signupPasswordInput.disabled = true;
@@ -2299,7 +2080,7 @@
                     <div class="logo">
                         <div class="logo-icon">IA</div>
                         <div id="themeContainer"></div>
-                        <span>BMHSS Handwara Portal</span>
+                        <span>HSS Shangus Portal</span>
                     </div>
                 </div>
                 <div class="auth-card">
@@ -2452,12 +2233,8 @@
                     if (result.success) {
                         currentUser = result;
                         sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                        // Save persistent token if 'Keep me logged in' is checked
-                        if (result.token && document.getElementById('loginKeep')?.checked) {
-                            localStorage.setItem('hss_token', result.token);
-                        } else {
-                            localStorage.removeItem('hss_token');
-                        }
+                        // Save persistent token for future access
+                        if (result.token) localStorage.setItem('hss_token', result.token);
                         // Check for saved assessment on relogin
                         hasSavedAssessment = sessionStorage.getItem('hasSavedAssessment') === 'true';
                         if (currentUser.isAdmin) showAdminDashboard(); else showMainForm();
@@ -2473,11 +2250,7 @@
                     btn.disabled = false;
                     btn.textContent = 'Sign In';
                 })
-                .authenticateUser(
-                    document.getElementById('loginEmail').value.trim(), 
-                    document.getElementById('loginPassword').value, 
-                    document.getElementById('loginKeep')?.checked || false
-                );
+                .authenticateUser(document.getElementById('loginEmail').value.trim(), document.getElementById('loginPassword').value);
         }
         function handleSignup(e) {
             e.preventDefault();
@@ -2526,10 +2299,17 @@
                     document.getElementById('signupSubject').value
                 );
         }
+        function handleLogout() {
+            sessionStorage.removeItem('currentUser');
+            sessionStorage.removeItem('hasSavedAssessment');
+            currentUser = null;
+            hasSavedAssessment = false;
+            stopDashboardPolling(); // NEW: Stop polling on logout
+            showLoginForm();
+        }
         // --- ADMIN DASHBOARD (Compact stats, etc.) ---
         function showAdminDashboard() {
-            const displayName = currentUser.teacherName || currentUser.name || (currentUser.email ? currentUser.email.split('@')[0] : 'Admin');
-            const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+            const initials = currentUser.teacherName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
             document.getElementById('appContent').innerHTML = `
                 <div class="top-bar">
                    <div class="logo">
@@ -2552,7 +2332,7 @@
                      <div class="user-info">
                         <div class="user-avatar">${initials}</div>
                         <div class="user-details">
-                            <h4>${escapeHtml(displayName)}<span class="admin-badge">ADMIN</span></h4>
+                            <h4>${escapeHtml(currentUser.teacherName)}<span class="admin-badge">ADMIN</span></h4>
                             <p>${escapeHtml(currentUser.email)}</p>
                         </div>
                         <button class="btn btn-logout btn-small" onclick="handleLogout()">Logout</button>
@@ -4120,7 +3900,7 @@
                 const titleHtml = `<div class="print-header"><h1>${escapeHtml(printConfig.institutionName)}</h1><p>${classPart} - ${escapeHtml(printConfig.academicSessionText)}</p></div>`;
                 const tableHtml = `<table class="print-table">${colgroup}${headerHtml}<tbody>${subjectRows}${finalTotalRow}</tbody></table>`;
                 const specialNoteBlock = noteHtml ? `<p style="font-size: 10pt; margin: 0.4rem 0;"><em>Remarks</em></p><div class="special-note" style="margin: 0.25rem 0 0.5rem; font-size: 10pt;">${noteHtml}</div>` : '';
-                const signatureHtml = `<div style="text-align:right; margin-top:1rem; font-weight:600;">Sd/- Principal<br>Govt Boys Model Higher Secondary School Handwara</div>`;
+                const signatureHtml = `<div style="text-align:right; margin-top:1rem; font-weight:600;">Sd/- Principal<br>Govt HSS Shangus</div>`;
                 const firstNote = chunkIndex === 0 ? specialNoteBlock : '';
                 const lastSignature = chunkIndex === centreChunks.length - 1 ? signatureHtml : '';
                 pagesHtml += `<div class="print-external-roll-page" style="page-break-after:${chunkIndex === centreChunks.length - 1 ? 'auto' : 'always'};">${titleHtml}${tableHtml}${firstNote}${lastSignature}</div>`;
@@ -4922,8 +4702,8 @@
         // --- TEACHER FORM (Compact form-row gaps, etc.) ---
         function showMainForm() {
           if (!currentUser) { showLoginForm(); return; }
-            const initials = (currentUser.teacherName || currentUser.name || 'User').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-            document.getElementById('appContent').innerHTML = `
+          const initials = currentUser.teacherName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+          document.getElementById('appContent').innerHTML = `
                 <div class="top-bar">
                     <div class="logo">
                         <div class="logo-icon">IA</div>
@@ -4934,7 +4714,7 @@
                         <div class="user-info">
                             <div class="user-avatar">${initials}</div>
                             <div class="user-details">
-                                <h4>${escapeHtml(currentUser.teacherName || currentUser.name)}</h4>
+                                <h4>${escapeHtml(currentUser.teacherName)}</h4>
                                 <p>${escapeHtml(currentUser.email)}</p>
                             </div>
                         </div>
@@ -4978,30 +4758,10 @@
                 </div>`;
             moveThemeToggle('themeContainer');
             stopDashboardPolling(); // NEW: Stop polling on teacher form
-            
             const typeSelect = document.getElementById('typeSelect');
-            const classSelect = document.getElementById('classSelect');
-            const subjectSelect = document.getElementById('subjectSelect');
-
             if (typeSelect && window.CONFIG_SETTINGS) {
                 const defType = String(CONFIG_SETTINGS.currentPracticalType || 'internal').toLowerCase();
                 typeSelect.value = defType.startsWith('e') ? 'external' : 'internal';
-            }
-
-            // [NEW] Unified Auto-loading for Teachers
-            if (currentUser.className) {
-                classSelect.value = currentUser.className;
-                filterSubjects(); // This will populate subjectSelect asynchronously
-                
-                // Wait for filterSubjects to finish populating before setting value
-                setTimeout(() => {
-                    if (currentUser.subject) {
-                        subjectSelect.value = currentUser.subject;
-                        if (subjectSelect.value === currentUser.subject) {
-                            loadStudents();
-                        }
-                    }
-                }, 500); 
             }
         }
         function filterSubjects() {
@@ -5612,10 +5372,8 @@
                 })
                 .viewSubmissionAward(currentUser.email, className, subject, type, yearSuffix);
         }
-        async function switchPortal(portalId, isDirect = false) {
+        async function switchPortal(portalId) {
             if (!currentUser || !currentUser.email) { alert("Please login first"); return; }
-            
-            // Unified Portal Config
             const localPortals = {
                 hub: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec",
                 practicals: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec",
@@ -5623,42 +5381,25 @@
                 advanced_reports: "https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec",
                 fund_distribution: "https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec"
             };
-
-            setLoading(true);
-
             try {
                 google.script.run.withSuccessHandler(function(response) {
-                    setLoading(false);
                     if (response && response.success && response.token) {
                         const portals = response.portals || localPortals;
                         const target = portals[portalId];
-                        let finalUrlBase = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
-                        
+                        const finalUrlBase = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
                         if (!finalUrlBase) { alert("Portal not configured"); return; }
-
-                        // Adjust for dev mode in Hub
-                        if (portalId === 'hub' && window.location.href.includes('/dev')) {
-                            finalUrlBase = finalUrlBase.replace('/exec', '/dev');
-                        }
-
                         const sep = finalUrlBase.includes('?') ? '&' : '?';
                         const finalUrl = finalUrlBase + sep + 'token=' + response.token;
-
-                        if (isDirect || portalId === 'hub') {
-                            window.top.location.href = finalUrl;
-                        } else {
-                            window.open(finalUrl, '_blank');
+                        try {
+                            window.open(finalUrl, '_top');
+                        } catch(e) {
+                            window.location.href = finalUrl;
                         }
                     } else { alert("Gateway Error: " + (response.message || "Failed to generate session")); }
-                }).withFailureHandler(function(err) { 
-                    setLoading(false);
-                    alert("Connection Error: " + err); 
-                }).generateSSOToken(currentUser.email);
-            } catch (e) { 
-                setLoading(false);
-                console.error("Portal Switch Error:", e); 
-            }
+                }).withFailureHandler(function(err) { alert("Connection Error: " + err); }).generateSSOToken(currentUser.email);
+            } catch (e) { console.error("Portal Switch Error:", e); }
         }
     </script>
 </body>
+</html>
 

@@ -6,6 +6,10 @@
         <div class="gateway-container">
             <div class="gateway-label">School Services</div>
             <div class="gateway-items">
+                <button onclick="switchPortal('dashboard')" class="gateway-btn"
+                    style="--accent: var(--primary);">
+                    <span class="material-icons">dashboard</span><span>Admission Hub</span>
+                </button>
                 <button onclick="switchPortal('attendance')" class="gateway-btn"
                     style="--accent: var(--secondary);">
                     <span class="material-icons">how_to_reg</span><span>Attendance</span>
@@ -27,8 +31,8 @@
     </div>
 </div>
 
-    <div class="app-container" id="appRoot">
-        <div id="appContent"></div>
+    <div class="prac-app-container" id="prac_appRoot">
+        <div id="prac_appContent"></div>
     </div>
     <!-- NEW: Dashboard update notification -->
     <div id="dashboardUpdateNotification" class="dashboard-update-notification">Dashboard updated</div>

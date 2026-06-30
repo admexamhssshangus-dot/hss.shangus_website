@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
-    <title>Fund Distribution System - BMHSS Handwara</title>
+    <title>Fund Distribution System - HSS Shangus</title>
     <style>
         .loader-inline {
             border-top-color: transparent;
@@ -149,7 +149,7 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
-        /* --- [NEW] Preview Hover & Magnification Styles --- */
+        /* Preview Hover Styles */
         .preview-trigger {
             position: relative;
             cursor: zoom-in;
@@ -234,275 +234,344 @@
                 display: none;
             }
         }
+
+        /* [NEW] Premium Spinner & Redirect Overlay */
+        .spinner-circle {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(59, 130, 246, 0.1);
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin-premium 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin-premium {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #redirectOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            color: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        #redirectOverlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .progress-container {
+            width: 240px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            transition: width 0.3s ease;
+        }
     </style>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 
-<div class="gateway-sticky">
-    <div class="gateway-bar">
-        <div class="gateway-container">
-            <div class="gateway-label">School Services</div>
-            <div class="gateway-items">
-                <button onclick="switchPortal('practicals')" class="gateway-btn" style="--accent: #6366f1;">
-                    <span class="material-icons">science</span><span>Practicals</span>
-                </button>
-                <button onclick="switchPortal('automation')" class="gateway-btn" style="--accent: #f59e0b;">
-                    <span class="material-icons">auto_fix_high</span><span>Automation</span>
-                </button>
-                <button onclick="switchPortal('advanced_reports')" class="gateway-btn" style="--accent: #06b6d4;">
-                    <span class="material-icons">analytics</span><span>Reports</span>
-                </button>
-                <button onclick="switchPortal('fund_distribution')" class="gateway-btn active"
-                    style="--accent: #ec4899;">
-                    <span class="material-icons">payments</span><span>Distribution</span>
-                </button>
+<body>
+    <!-- [NEW] Initial Loading Screen -->
+    <div id="loadingView"
+        style="position:fixed; inset:0; background:rgba(255,255,255,0.95); display:flex; align-items:center; justify-content:center; z-index:50000; flex-direction:column; gap:8px; font-family:'Segoe UI', system-ui, sans-serif; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);">
+        <div class="spinner-circle"></div>
+        <div style="color:#0f172a; font-size:16px; font-weight:700; letter-spacing:-0.02em;">HSS Shangus</div>
+        <div id="loadingStatus" style="color:#64748b; font-size:11px; font-weight:500;">Initializing Secure Portal...</div>
+    </div>
+
+    <div class="gateway-sticky">
+        <div class="gateway-bar">
+            <div class="gateway-container">
+                <div class="gateway-label">School Services</div>
+                <div class="gateway-items">
+                    <button onclick="switchPortal('practicals')" class="gateway-btn" style="--accent: #6366f1;">
+                        <span class="material-icons">science</span><span>Practicals</span>
+                    </button>
+                    <button onclick="switchPortal('automation')" class="gateway-btn" style="--accent: #f59e0b;">
+                        <span class="material-icons">auto_fix_high</span><span>Automation</span>
+                    </button>
+                    <button onclick="switchPortal('advanced_reports')" class="gateway-btn" style="--accent: #06b6d4;">
+                        <span class="material-icons">analytics</span><span>Reports</span>
+                    </button>
+                    <button onclick="switchPortal('fund_distribution')" class="gateway-btn active"
+                        style="--accent: #ec4899;">
+                        <span class="material-icons">payments</span><span>Distribution</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- [NEW] Auth View (Login Screen) -->
-<div id="authView" class="hidden fixed inset-0 bg-blue-900 flex items-center justify-center z-[100] px-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 animate-in fade-in zoom-in duration-300">
-        <div class="text-center mb-8">
-            <div class="inline-flex p-3 bg-blue-100 rounded-full mb-4">
-                <svg class="w-8 h-8 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
-                    </path>
-                </svg>
-            </div>
-            <h2 class="text-2xl font-bold text-gray-800">Distribution Portal</h2>
-            <p class="text-gray-500 text-sm mt-1">Admin access required <span
-                    class="text-[8px] opacity-30">v2.SSO-2</span></p>
-        </div>
-
-        <form id="loginForm" class="space-y-4">
-            <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Email Address</label>
-                <input type="email" id="loginEmail" required
-                    class="w-100 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="name@example.com">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Password</label>
-                <input type="password" id="loginPassword" required
-                    class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
-                    placeholder="??????">
-            </div>
-            <div id="authError"
-                class="hidden text-red-600 text-xs font-medium text-center bg-red-50 py-2 rounded-lg border border-red-100">
-            </div>
-            <button type="submit" id="loginBtn"
-                class="w-full py-4 bg-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-900 active:scale-95 transition-all">Log
-                In</button>
-        </form>
-
-        <p class="text-center mt-6 text-[10px] text-gray-400 leading-tight">
-            Use your standard Admissions portal credentials.<br>
-            For help, contact adm.exam.bhsshandwara@gmail.com
-        </p>
-    </div>
-</div>
-
-</div>
- 
- <!-- Deletion Confirmation Modal -->
- <div id="deleteModal"
-    class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200">
-        <div class="flex items-center gap-3 text-red-600 mb-4">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
-                </path>
-            </svg>
-            <h3 class="text-lg font-bold">Delete Record?</h3>
-        </div>
-        <p class="text-gray-600 text-sm mb-6" id="deleteConfirmText">Are you sure you want to delete this
-            distribution record?</p>
-        <div class="flex gap-3">
-            <button onclick="closeDeleteModal()"
-                class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200 transition-all">Cancel</button>
-            <button id="confirmDeleteBtn"
-                class="flex-1 px-4 py-2.5 bg-red-600 text-white font-bold rounded-lg text-xs hover:bg-red-700 shadow-lg shadow-red-100 transition-all">Delete</button>
-        </div>
-    </div>
-</div>
-
-<!-- Duplicate Warning Modal -->
-<div id="duplicateModal"
-    class="hidden fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-300">
-        <div class="flex flex-col items-center text-center">
-            <div class="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mb-4">
-                <span class="material-icons text-3xl">warning</span>
-            </div>
-            <h3 class="text-xl font-bold text-gray-900 mb-2">Duplicate Found</h3>
-            <p class="text-gray-600 text-sm mb-6" id="duplicateText">
-                A distribution for <span id="dupClass" class="font-bold text-blue-700"></span> 
-                with amount <span id="dupAmount" class="font-bold text-blue-700"></span> 
-                already exists for <span id="dupMonth" class="font-bold text-blue-700"></span>.
-            </p>
-            
-            <div class="grid grid-cols-1 gap-3 w-full">
-                <button id="viewExistingBtn"
-                    class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
-                    <span class="material-icons text-sm">visibility</span> View/Edit Existing
-                </button>
-                <button id="generateNewBtn"
-                    class="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all">
-                    Generate New Anyway
-                </button>
-                <button onclick="closeDuplicateModal()"
-                    class="w-full py-3 text-gray-400 text-sm font-medium hover:text-gray-600 transition-all">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Report Preview Floating Card -->
-<div id="reportPreviewCard">
-    <div class="bg-blue-800 px-4 py-2 text-white flex justify-between items-center">
-        <span class="text-[9px] font-bold uppercase tracking-widest">Report Preview</span>
-        <span class="material-icons text-xs opacity-50">auto_awesome</span>
-    </div>
-    <div class="preview-mini-doc" id="previewContent">
-        <!-- Dynamic Content -->
-    </div>
-    <div class="bg-gray-50 px-4 py-2 border-t border-gray-100 text-[8px] text-gray-400 italic">
-        Hover to inspect details before opening
-    </div>
-</div>
-
-<div class="max-w-4xl mx-auto py-2 sm:py-4 px-2 sm:px-3">
-    <!-- Main Container -->
-    <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200">
-
-        <!-- App Header - Compact -->
-        <div
-            class="bg-blue-800 px-4 py-3 sm:px-6 sm:py-4 text-white flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-blue-700 rounded-lg hidden sm:block">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- [NEW] Auth View (Login Screen) -->
+    <div id="authView" class="hidden fixed inset-0 bg-blue-900 flex items-center justify-center z-[100] px-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 animate-in fade-in zoom-in duration-300">
+            <div class="text-center mb-8">
+                <div class="inline-flex p-3 bg-blue-100 rounded-full mb-4">
+                    <svg class="w-8 h-8 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
                         </path>
                     </svg>
                 </div>
-                <div class="text-center sm:text-left">
-                    <h1 class="text-lg sm:text-xl font-bold leading-tight">Fund Distribution</h1>
-                    <p class="text-blue-200 text-[10px] sm:text-xs font-medium uppercase tracking-wider">BMHSS Handwara
-                        | Anantnag</p>
-                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Distribution Portal</h2>
+                <p class="text-gray-500 text-sm mt-1">Admin access required <span
+                        class="text-[8px] opacity-30">v2.SSO-2</span></p>
             </div>
-            <div class="flex bg-blue-900/40 rounded-lg p-0.5 w-full sm:w-auto border border-blue-700/50">
-                <button onclick="switchView('form')" id="tabForm"
-                    class="flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-blue-800 shadow-sm">
-                    Entry
-                </button>
-                <button onclick="switchView('history')" id="tabHistory"
-                    class="flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all text-blue-100 hover:text-white">
-                    History
-                </button>
+
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Email Address</label>
+                    <input type="email" id="loginEmail" required
+                        class="w-100 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                        placeholder="name@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Password</label>
+                    <input type="password" id="loginPassword" required
+                        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                        placeholder="??????">
+                </div>
+                <div id="authError"
+                    class="hidden text-red-600 text-xs font-medium text-center bg-red-50 py-2 rounded-lg border border-red-100">
+                </div>
+                <button type="submit" id="loginBtn"
+                    class="w-full py-4 bg-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-900 active:scale-95 transition-all">Log
+                    In</button>
+            </form>
+
+            <p class="text-center mt-6 text-[10px] text-gray-400 leading-tight">
+                Use your standard Admissions portal credentials.<br>
+                For help, contact adm.exam.hss.shangus@gmail.com
+            </p>
+        </div>
+    </div>
+
+    <!-- Deletion Confirmation Modal -->
+    <div id="deleteModal"
+        class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center gap-3 text-red-600 mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                    </path>
+                </svg>
+                <h3 class="text-lg font-bold">Delete Record?</h3>
+            </div>
+            <p class="text-gray-600 text-sm mb-6" id="deleteConfirmText">Are you sure you want to delete this
+                distribution record?</p>
+            <div class="flex gap-3">
+                <button onclick="closeDeleteModal()"
+                    class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-lg text-xs hover:bg-gray-200 transition-all">Cancel</button>
+                <button id="confirmDeleteBtn"
+                    class="flex-1 px-4 py-2.5 bg-red-600 text-white font-bold rounded-lg text-xs hover:bg-red-700 shadow-lg shadow-red-100 transition-all">Delete</button>
             </div>
         </div>
+    </div>
 
-        <!-- NEW/EDIT ENTRY VIEW -->
-        <div id="formView" class="p-4 sm:p-6 transition-all duration-300">
-            <div class="flex items-center gap-2 mb-4 border-b border-gray-100 pb-3">
-                <h2 id="formTitle" class="text-sm sm:text-base font-bold text-gray-700 uppercase tracking-wide">
-                    Report Entry</h2>
-            </div>
-
-            <form id="distributionForm" class="space-y-4">
-                <input type="hidden" id="rowIndex" name="rowIndex" value="">
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div class="space-y-1">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Date</label>
-                        <input type="date" id="date" name="date" required
-                            class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50">
-                    </div>
-
-                    <div class="space-y-1">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Class</label>
-                        <select id="class" name="class" required
-                            class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50 outline-none">
-                            <option value="9th">9th</option>
-                            <option value="10th">10th</option>
-                            <option value="11th">11th</option>
-                            <option value="12th">12th</option>
-                        </select>
-                    </div>
-
-                    <div class="space-y-1">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Students (Paid)</label>
-                        <input type="number" id="noPaid" name="noPaid" placeholder="Count" required
-                            class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50">
-                    </div>
-
-                    <div class="space-y-1">
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase">Science <span
-                                class="lowercase font-normal opacity-60">(opt)</span></label>
-                        <input type="number" id="noScience" name="noScience" placeholder="Optional"
-                            class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50">
-                    </div>
+    <!-- Duplicate Warning Modal -->
+    <div id="duplicateModal"
+        class="hidden fixed inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-300">
+            <div class="flex flex-col items-center text-center">
+                <div class="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mb-4">
+                    <span class="material-icons text-3xl">warning</span>
                 </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-2">Duplicate Found</h3>
+                <p class="text-gray-600 text-sm mb-6" id="duplicateText">
+                    A distribution for <span id="dupClass" class="font-bold text-blue-700"></span>
+                    with amount <span id="dupAmount" class="font-bold text-blue-700"></span>
+                    already exists for <span id="dupMonth" class="font-bold text-blue-700"></span>.
+                </p>
 
-                <div class="pt-2 flex flex-col sm:flex-row gap-2">
-                    <button type="submit" id="submitBtn"
-                        class="w-full sm:flex-1 bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 rounded-lg transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2 text-sm disabled:bg-blue-400">
-                        <div id="btnSpinner" class="hidden loader-inline border-2 border-white rounded-full h-4 w-4">
-                        </div>
-                        <span id="btnLabel">Generate Report</span>
-                        <svg id="btnIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                        </svg>
+                <div class="grid grid-cols-1 gap-3 w-full">
+                    <button id="viewExistingBtn"
+                        class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
+                        <span class="material-icons text-sm">visibility</span> View/Edit Existing
                     </button>
-                    <button type="button" onclick="resetForm()" id="cancelBtn"
-                        class="hidden w-full sm:w-auto px-4 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-lg text-sm border border-gray-200">
+                    <button id="generateNewBtn"
+                        class="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all">
+                        Generate New Anyway
+                    </button>
+                    <button onclick="closeDuplicateModal()"
+                        class="w-full py-3 text-gray-400 text-sm font-medium hover:text-gray-600 transition-all">
                         Cancel
                     </button>
                 </div>
-            </form>
-
-            <!-- Status & Messages -->
-            <div id="statusArea" class="hidden mt-6 p-4 rounded-xl border border-blue-50 bg-blue-50/30">
-                <div id="successMsg" class="hidden text-center space-y-3">
-                    <div class="bg-white p-3 rounded-lg border border-green-100 inline-block w-full">
-                        <p class="text-gray-900 font-bold text-sm">Update Saved</p>
-                        <p id="distDetails" class="text-gray-500 text-[10px] mt-0.5 uppercase"></p>
-                    </div>
-                    <div class="flex gap-2">
-                        <a id="pdfLink" href="#" target="_blank"
-                            class="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-bold text-xs shadow-lg transition-all transform active:scale-95">
-                            Download PDF
-                        </a>
-                        <button onclick="resetForm()"
-                            class="flex-1 bg-gray-800 text-white py-2 rounded-lg font-bold text-xs">New</button>
-                    </div>
-                </div>
-                <div id="errorMsg"
-                    class="hidden bg-red-50 text-red-700 p-3 rounded-lg border border-red-100 font-bold text-xs">
-                </div>
-            </div>
-
-            <!-- [NEW] Recent Generations Quick Access -->
-            <div id="recentGenerations" class="mt-8">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Recent Generations</h3>
-                    <div class="h-px flex-1 bg-gray-100 mx-3"></div>
-                </div>
-                <div id="recentList" class="space-y-2">
-                    <!-- Dynamic Items -->
-                    <div class="text-center py-4 text-gray-400 text-[10px] italic">No recent activity</div>
-                </div>
             </div>
         </div>
+    </div>
+
+    <!-- Report Preview Floating Card -->
+    <div id="reportPreviewCard">
+        <div class="bg-blue-800 px-4 py-2 text-white flex justify-between items-center">
+            <span class="text-[9px] font-bold uppercase tracking-widest">Report Preview</span>
+            <span class="material-icons text-xs opacity-50">auto_awesome</span>
+        </div>
+        <div class="preview-mini-doc" id="previewContent">
+            <!-- Dynamic Content -->
+        </div>
+        <div class="bg-gray-50 px-4 py-2 border-t border-gray-100 text-[8px] text-gray-400 italic">
+            Hover to inspect details before opening
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainView" class="max-w-4xl mx-auto py-2 sm:py-4 px-2 sm:px-3 hidden">
+        <!-- Main Container -->
+        <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-200">
+
+            <!-- App Header - Compact -->
+            <div
+                class="bg-blue-800 px-4 py-3 sm:px-6 sm:py-4 text-white flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-700 rounded-lg hidden sm:block">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                            </path>
+                        </svg>
+                    </div>
+                    <div class="text-center sm:text-left">
+                        <h1 class="text-lg sm:text-xl font-bold leading-tight">Fund Distribution</h1>
+                        <p class="text-blue-200 text-[10px] sm:text-xs font-medium uppercase tracking-wider">HSS Shangus
+                            | Anantnag</p>
+                    </div>
+                </div>
+                <div class="flex bg-blue-900/40 rounded-lg p-0.5 w-full sm:w-auto border border-blue-700/50">
+                    <button onclick="switchView('form')" id="tabForm"
+                        class="flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-blue-800 shadow-sm">
+                        Entry
+                    </button>
+                    <button onclick="switchView('history')" id="tabHistory"
+                        class="flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all text-blue-100 hover:text-white">
+                        History
+                    </button>
+                </div>
+            </div>
+
+            <!-- NEW/EDIT ENTRY VIEW -->
+            <div id="formView" class="p-4 sm:p-6 transition-all duration-300">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-100 pb-3">
+                    <h2 id="formTitle" class="text-sm sm:text-base font-bold text-gray-700 uppercase tracking-wide">
+                        Report Entry</h2>
+                </div>
+
+                <form id="distributionForm" class="space-y-4">
+                    <input type="hidden" id="rowIndex" name="rowIndex" value="">
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase">Date</label>
+                            <input type="date" id="date" name="date" required
+                                class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50">
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase">Class</label>
+                            <select id="class" name="class" required
+                                class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50 outline-none">
+                                <option value="9th">9th</option>
+                                <option value="10th">10th</option>
+                                <option value="11th">11th</option>
+                                <option value="12th">12th</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase">Students (Paid)</label>
+                            <input type="number" id="noPaid" name="noPaid" placeholder="Count" required
+                                class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50">
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase">Science <span
+                                    class="lowercase font-normal opacity-60">(opt)</span></label>
+                            <input type="number" id="noScience" name="noScience" placeholder="Optional"
+                                class="w-full p-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50">
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex flex-col sm:flex-row gap-2">
+                        <button type="submit" id="submitBtn"
+                            class="w-full sm:flex-1 bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 rounded-lg transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2 text-sm disabled:bg-blue-400">
+                            <div id="btnSpinner"
+                                class="hidden loader-inline border-2 border-white rounded-full h-4 w-4">
+                            </div>
+                            <span id="btnLabel">Generate Report</span>
+                            <svg id="btnIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </button>
+                        <button type="button" onclick="resetForm()" id="cancelBtn"
+                            class="hidden w-full sm:w-auto px-4 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-lg text-sm border border-gray-200">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Status & Messages -->
+                <div id="statusArea" class="hidden mt-6 p-4 rounded-xl border border-blue-50 bg-blue-50/30">
+                    <div id="successMsg" class="hidden text-center space-y-3">
+                        <div class="bg-white p-3 rounded-lg border border-green-100 inline-block w-full">
+                            <p class="text-gray-900 font-bold text-sm">Update Saved</p>
+                            <p id="distDetails" class="text-gray-500 text-[10px] mt-0.5 uppercase"></p>
+                        </div>
+                        <div class="flex gap-2">
+                            <a id="pdfLink" href="#" target="_blank"
+                                class="flex-1 inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-bold text-xs shadow-lg transition-all transform active:scale-95">
+                                Download PDF
+                            </a>
+                            <button onclick="resetForm()"
+                                class="flex-1 bg-gray-800 text-white py-2 rounded-lg font-bold text-xs">New</button>
+                        </div>
+                    </div>
+                    <div id="errorMsg"
+                        class="hidden bg-red-50 text-red-700 p-3 rounded-lg border border-red-100 font-bold text-xs">
+                    </div>
+                </div>
+
+                <!-- [NEW] Recent Generations Quick Access -->
+                <div id="recentGenerations" class="mt-8">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Recent Generations
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-100 mx-3"></div>
+                    </div>
+                    <div id="recentList" class="space-y-2">
+                        <!-- Dynamic Items -->
+                        <div class="text-center py-4 text-gray-400 text-[10px] italic">No recent activity</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- HISTORY VIEW -->
@@ -555,70 +624,111 @@
         </div>
 
     </div>
-</div>
+    </div>
 
-<script>
-    let currentView = 'form';
-    let historyData = [];
-    let historyLinks = {};
-    let historyLoaded = false;
-    let pendingDeleteRow = null;
+    <script>
+        let currentView = 'form';
+        let historyData = [];
+        let historyLinks = {};
+        let historyLoaded = false;
+        let pendingDeleteRow = null;
 
-    function switchView(view) {
-        currentView = view;
-        document.getElementById('formView').classList.toggle('hidden', view !== 'form');
-        document.getElementById('historyView').classList.toggle('hidden', view !== 'history');
-
-        const tabForm = document.getElementById('tabForm');
-        const tabHistory = document.getElementById('tabHistory');
-
-        if (view === 'form') {
-            tabForm.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-blue-800 shadow-sm";
-            tabHistory.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all text-blue-100 hover:text-white";
-        } else {
-            tabHistory.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-blue-800 shadow-sm";
-            tabForm.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all text-blue-100 hover:text-white";
-            if (!historyLoaded) loadHistory(); else renderHistory(historyData, historyLinks);
-        }
-    }
-
-    function formatDate(dateStr) {
-        if (!dateStr) return 'N/A';
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    }
-
-    function loadHistory(isRefresh = false) {
-        const historyBody = document.getElementById('historyBody');
-        if (historyBody) historyBody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center text-gray-400 italic">Syncing...</td></tr>';
-
-        google.script.run.withSuccessHandler(function (data) {
-            historyData = data;
-            google.script.run.withSuccessHandler(function (links) {
-                historyLinks = links;
-                historyLoaded = true;
-                renderHistory(data, links);
-                renderRecentList(data);
-            }).getPdfLinks();
-        }).getDistributions();
-    }
-
-    function renderRecentList(data) {
-        const recentList = document.getElementById('recentList');
-        if (!recentList) return;
-        
-        if (!data || data.length === 0) {
-            recentList.innerHTML = '<div class="text-center py-4 text-gray-400 text-[10px] italic">No recent activity</div>';
-            return;
+        // Safe currency formatter that handles \u20B9 symbol encoding
+        function safeRupee(val) {
+            var n = parseCurrency(val);
+            return '\u20B9' + n.toLocaleString('en-IN');
         }
 
-        const recent = data.slice(0, 4); // Show top 4 recent
-        recentList.innerHTML = recent.map(item => `
+        function switchView(view) {
+            currentView = view;
+            document.getElementById('formView').classList.toggle('hidden', view !== 'form');
+            document.getElementById('historyView').classList.toggle('hidden', view !== 'history');
+
+            const tabForm = document.getElementById('tabForm');
+            const tabHistory = document.getElementById('tabHistory');
+
+            if (view === 'form') {
+                tabForm.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-blue-800 shadow-sm";
+                tabHistory.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all text-blue-100 hover:text-white";
+            } else {
+                tabHistory.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-blue-800 shadow-sm";
+                tabForm.className = "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-bold transition-all text-blue-100 hover:text-white";
+                if (!historyLoaded) loadHistory(); else renderHistory(historyData, historyLinks);
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function loadHistory(isRefresh = false) {
+            console.log('Loading history...');
+            const historyBody = document.getElementById('historyBody');
+            if (historyBody) {
+                historyBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center">
+                            <div class="spinner-circle" style="width: 24px; height: 24px; border-width: 2px; margin-bottom: 0.5rem;"></div>
+                            <div class="text-gray-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Syncing Records...</div>
+                        </td>
+                    </tr>`;
+            }
+
+            google.script.run
+                .withSuccessHandler(function (data) {
+                    console.log('History data received:', data ? data.length : 'null');
+                    historyData = data || [];
+                    google.script.run
+                        .withSuccessHandler(function (links) {
+                            historyLinks = links || {};
+                            historyLoaded = true;
+                            renderHistory(historyData, historyLinks);
+                            renderRecentList(historyData);
+                             const lv = document.getElementById('loadingView');
+                             if (lv) lv.style.display = 'none';
+                        })
+                        .withFailureHandler(function (err) {
+                            console.error('getPdfLinks error:', err);
+                            historyLinks = {};
+                            historyLoaded = true;
+                            renderHistory(historyData, {});
+                            renderRecentList(historyData);
+                             const lv = document.getElementById('loadingView');
+                             if (lv) lv.style.display = 'none';
+                        })
+                        .getPdfLinks();
+                })
+                .withFailureHandler(function (err) {
+                    console.error('getDistributions error:', err);
+                    historyData = [];
+                    historyLoaded = true;
+                    renderHistory([], {});
+                    renderRecentList([]);
+                     const lv = document.getElementById('loadingView');
+                     if (lv) lv.style.display = 'none';
+                })
+                .getDistributions();
+        }
+
+        function renderRecentList(data) {
+            const recentList = document.getElementById('recentList');
+            if (!recentList) return;
+            if (!data || !Array.isArray(data)) data = [];
+
+            if (data.length === 0) {
+                recentList.innerHTML = '<div class="text-center py-4 text-gray-400 text-[10px] italic">No recent activity</div>';
+                return;
+            }
+
+            const recent = data.slice(0, 4); // Show top 4 recent
+            recentList.innerHTML = recent.map(item => `
             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition-all group">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-white rounded-lg flex flex-col items-center justify-center shadow-sm border border-gray-100 group-hover:border-blue-100">
                         <span class="text-[10px] font-black text-blue-700">${item.className}</span>
-                        <span class="text-[7px] text-gray-400 uppercase font-bold">${item.month.slice(0,3)}</span>
+                        <span class="text-[7px] text-gray-400 uppercase font-bold">${item.month.slice(0, 3)}</span>
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
@@ -633,48 +743,52 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="text-right mr-2">
-                        <div class="text-[11px] font-black text-blue-800">₹${parseCurrency(item.total).toLocaleString('en-IN')}</div>
+                        <div class="text-[11px] font-black text-blue-800">\u20B9${parseCurrency(item.total).toLocaleString('en-IN')}</div>
                     </div>
-                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <div class="flex items-center gap-2 transition-all">
                         <div class="preview-trigger" onmouseenter="showPreview(event, ${item.rowIndex})" onmouseleave="hidePreview()" onmousemove="movePreview(event)">
-                            <button class="p-1.5 hover:bg-white hover:text-blue-600 text-gray-400 rounded-md transition-all shadow-sm">
-                                <span class="material-icons text-sm">visibility</span>
+                            <button class="w-9 h-9 bg-white text-blue-600 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                                <span class="material-icons text-lg">visibility</span>
                             </button>
                         </div>
-                        <button onclick="editItem(${item.rowIndex})" class="p-1.5 hover:bg-white hover:text-amber-600 text-gray-400 rounded-md transition-all shadow-sm">
-                            <span class="material-icons text-sm">edit</span>
+                        <button onclick="editItem(${item.rowIndex})" class="w-9 h-9 bg-white text-amber-600 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                            <span class="material-icons text-lg">edit</span>
                         </button>
-                        <a href="${item.pdfUrl}" target="_blank" class="p-1.5 hover:bg-white hover:text-red-600 text-gray-400 rounded-md transition-all shadow-sm">
-                            <span class="material-icons text-sm">picture_as_pdf</span>
+                        <a href="${item.pdfUrl}" target="_blank" class="w-9 h-9 bg-white text-red-600 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                            <span class="material-icons text-lg">picture_as_pdf</span>
                         </a>
                     </div>
                 </div>
             </div>
         `).join('');
-    }
-
-    function parseCurrency(val) {
-        if (typeof val === 'number') return val;
-        if (!val) return 0;
-        const cleaned = String(val).replace(/[^\d.]/g, '');
-        return parseFloat(cleaned) || 0;
-    }
-
-    function renderHistory(data, links) {
-        const historyBody = document.getElementById('historyBody');
-        if (!historyBody) return;
-        if (!data || data.length === 0) {
-            historyBody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center text-gray-400 italic">No records found</td></tr>';
-            return;
         }
 
-        historyBody.innerHTML = data.map(item => {
-            const numericTotal = parseCurrency(item.total);
-            const pdfAction = item.pdfUrl
-                ? `window.open('${item.pdfUrl}', '_blank')`
-                : `openFolder()`;
+        function parseCurrency(val) {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            const cleaned = String(val).replace(/[^\d.]/g, '');
+            return parseFloat(cleaned) || 0;
+        }
 
-            return `
+        function renderHistory(data, links) {
+            const historyBody = document.getElementById('historyBody');
+            if (!historyBody) return;
+            if (!data || !Array.isArray(data)) data = [];
+            if (!links) links = {};
+            if (data.length === 0) {
+                historyBody.innerHTML = '<tr><td colspan="6" class="px-6 py-10 text-center text-gray-400 italic">No records found</td></tr>';
+                const lv = document.getElementById('loadingView');
+                if (lv) lv.style.display = 'none';
+                return;
+            }
+
+            historyBody.innerHTML = data.map(item => {
+                const numericTotal = parseCurrency(item.total);
+                const pdfAction = item.pdfUrl
+                    ? `window.open('${item.pdfUrl}', '_blank')`
+                    : `openFolder()`;
+
+                return `
           <tr class="hover:bg-blue-50/30 transition-colors group">
             <td class="px-3 py-3 whitespace-nowrap font-bold text-gray-800">${item.className}</td>
             <td class="px-3 py-3 whitespace-nowrap text-gray-500">${item.month}</td>
@@ -684,61 +798,70 @@
                     <span class="bg-gray-100 px-1.5 py-0.5 rounded text-[9px]">S:${item.noScience}</span>
                 </div>
             </td>
-            <td class="px-3 py-3 whitespace-nowrap font-bold text-blue-600">₹${numericTotal.toLocaleString('en-IN')}</td>
+            <td class="px-3 py-3 whitespace-nowrap font-bold text-blue-600">\u20B9${numericTotal.toLocaleString('en-IN')}</td>
             <td class="px-3 py-3 whitespace-nowrap text-gray-400 hidden sm:table-cell">${formatDate(item.generatedOn)}</td>
-            <td class="px-3 py-3 whitespace-nowrap text-right space-x-1 font-bold uppercase tracking-tighter">
-              <div class="inline-flex items-center gap-1">
+            <td class="px-3 py-3 whitespace-nowrap text-right">
+              <div class="flex items-center justify-end gap-1.5">
                 <div class="preview-trigger" onmouseenter="showPreview(event, ${item.rowIndex})" onmouseleave="hidePreview()" onmousemove="movePreview(event)">
-                    <span class="material-icons text-base text-gray-300 hover:text-blue-500 transition-colors">visibility</span>
-                    <span class="magnify-text">Magnify Report</span>
+                    <button class="w-8 h-8 bg-white text-blue-600 rounded-lg shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                        <span class="material-icons text-base">visibility</span>
+                    </button>
                 </div>
-                <button onclick="editItem(${item.rowIndex})" class="text-blue-600 hover:bg-blue-50 p-1 rounded">Edit</button>
-                <button onclick="openDeleteModal(${item.rowIndex})" class="text-red-400 hover:bg-red-50 p-1 rounded">Del</button>
-                <button onclick="${pdfAction}" class="text-gray-600 hover:bg-gray-100 p-1 rounded">PDF</button>
+                <button onclick="editItem(${item.rowIndex})" class="w-8 h-8 bg-white text-amber-600 rounded-lg shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                    <span class="material-icons text-base">edit</span>
+                </button>
+                <button onclick="openDeleteModal(${item.rowIndex})" class="w-8 h-8 bg-white text-red-500 rounded-lg shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                    <span class="material-icons text-base">delete</span>
+                </button>
+                <button onclick="${pdfAction}" class="w-8 h-8 bg-white text-gray-700 rounded-lg shadow-sm border border-gray-100 flex items-center justify-center hover:shadow-md hover:scale-110 transition-all">
+                    <span class="material-icons text-base">picture_as_pdf</span>
+                </button>
               </div>
             </td>
           </tr>
         `;
-        }).join('');
-    }
-
-    // --- PREVIEW LOGIC ---
-    const previewCard = document.getElementById('reportPreviewCard');
-    const previewContent = document.getElementById('previewContent');
-
-    function showPreview(e, rowIndex) {
-        const item = historyData.find(i => i.rowIndex === rowIndex);
-        if (!item) return;
-
-        const amt = parseCurrency(item.total);
-        
-        // Define labels for the 13 accounts
-        const labels = {
-            school_improv: 'School Improv',
-            red_cross: 'Red Cross',
-            poor: 'Poor Fund',
-            games: 'Games',
-            printing: 'Printing',
-            science: 'Science',
-            computer: 'Computer',
-            library: 'Library',
-            social: 'Social',
-            sweeping: 'Sweeping',
-            magazine: 'Magazine',
-            electricity: 'Electricity',
-            news: 'News'
-        };
-
-        let fundsHtml = '';
-        if (item.funds) {
-            fundsHtml = Object.keys(labels).map(key => {
-                const val = parseCurrency(item.funds[key]);
-                if (val === 0) return ''; // Skip empty ones if needed, or keep for consistency
-                return `<div class="preview-item"><span>${labels[key]}</span><span>₹${val.toLocaleString('en-IN')}</span></div>`;
             }).join('');
+            const lv = document.getElementById('loadingView');
+            if (lv) lv.style.display = 'none';
         }
 
-        previewContent.innerHTML = `
+        // --- PREVIEW LOGIC ---
+        const previewCard = document.getElementById('reportPreviewCard');
+        const previewContent = document.getElementById('previewContent');
+
+        function showPreview(e, rowIndex) {
+            const item = historyData.find(i => i.rowIndex === rowIndex);
+            if (!item) return;
+
+            const amt = parseCurrency(item.total);
+
+            // Define labels for the 13 accounts
+            const labels = {
+                school_improv: 'School Improv',
+                red_cross: 'Red Cross',
+                poor: 'Poor Fund',
+                games: 'Games',
+                printing: 'Printing',
+                science: 'Science',
+                computer: 'Computer',
+                library: 'Library',
+                social: 'Social',
+                sweeping: 'Sweeping',
+                magazine: 'Magazine',
+                electricity: 'Electricity',
+                news: 'News'
+            };
+
+            let fundsHtml = '';
+            if (item.funds) {
+                fundsHtml = Object.keys(labels).map(key => {
+                    const val = parseCurrency(item.funds[key]);
+                    if (val === 0) return ''; // Skip empty ones if needed, or keep for consistency
+                    return `<div class="preview-item"><span>${labels[key]}</span><span>\u20B9${val.toLocaleString('en-IN')}</span></div>`;
+                }).join('');
+            }
+
+            previewContent.innerHTML = `
             <div class="text-center mb-3">
                 <div class="text-gray-400 uppercase text-[8px] font-bold tracking-widest">Fund Distribution Statement</div>
                 <div class="text-blue-900 font-bold text-xs">${item.className} Class | ${item.month}</div>
@@ -763,269 +886,307 @@
             </div>
             <div class="mt-4 pt-3 border-t border-blue-100 flex justify-between items-center">
                 <span class="text-blue-800 font-bold text-[10px]">TOTAL AMOUNT</span>
-                <span class="text-base font-black text-blue-900">₹${amt.toLocaleString('en-IN')}</span>
+                <span class="text-base font-black text-blue-900">\u20B9${amt.toLocaleString('en-IN')}</span>
             </div>
         `;
-        
-        previewCard.classList.add('visible');
-        movePreview(e);
-    }
 
-    function hidePreview() {
-        previewCard.classList.remove('visible');
-    }
-
-    function movePreview(e) {
-        const x = e.clientX + 20;
-        const y = e.clientY - (previewCard.offsetHeight / 2);
-        
-        // Keep inside window
-        const safeX = Math.min(x, window.innerWidth - previewCard.offsetWidth - 20);
-        const safeY = Math.max(20, Math.min(y, window.innerHeight - previewCard.offsetHeight - 20));
-        
-        previewCard.style.left = safeX + 'px';
-        previewCard.style.top = safeY + 'px';
-    }
-
-    // --- DUPLICATE CHECK ---
-    function closeDuplicateModal() {
-        document.getElementById('duplicateModal').classList.add('hidden');
-    }
-
-    function checkDuplicates(formData) {
-        const d = new Date(formData.date);
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        const month = monthNames[d.getMonth()];
-        
-        // Exact match: Class + Month + noPaid (Amount indicator)
-        const duplicate = historyData.find(item => 
-            item.className === formData.className && 
-            item.month === month && 
-            parseInt(item.noPaid) === parseInt(formData.noPaid)
-        );
-
-        if (duplicate && !formData.rowIndex) {
-            document.getElementById('dupClass').innerText = formData.className;
-            document.getElementById('dupAmount').innerText = "₹" + parseCurrency(duplicate.total).toLocaleString('en-IN');
-            document.getElementById('dupMonth').innerText = month;
-            
-            document.getElementById('duplicateModal').classList.remove('hidden');
-            
-            // Re-bind buttons
-            document.getElementById('viewExistingBtn').onclick = () => {
-                closeDuplicateModal();
-                editItem(duplicate.rowIndex);
-            };
-            document.getElementById('generateNewBtn').onclick = () => {
-                closeDuplicateModal();
-                performSubmit(formData);
-            };
-            return true;
+            previewCard.classList.add('visible');
+            movePreview(e);
         }
-        return false;
-    }
 
-    function openDeleteModal(rowIndex) {
-        const item = historyData.find(i => i.rowIndex === rowIndex);
-        if (!item) return;
-        pendingDeleteRow = rowIndex;
-        document.getElementById('deleteConfirmText').innerText = `Delete record for ${item.className} (${item.month} ${item.year})?`;
-        document.getElementById('deleteModal').classList.remove('hidden');
-    }
+        function hidePreview() {
+            previewCard.classList.remove('visible');
+        }
 
-    function closeDeleteModal() {
-        document.getElementById('deleteModal').classList.add('hidden');
-        pendingDeleteRow = null;
-    }
+        function movePreview(e) {
+            const x = e.clientX + 20;
+            const y = e.clientY - (previewCard.offsetHeight / 2);
 
-    document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
-        if (!pendingDeleteRow) return;
-        const btn = this;
-        btn.disabled = true;
-        btn.innerText = "Deleting...";
+            // Keep inside window
+            const safeX = Math.min(x, window.innerWidth - previewCard.offsetWidth - 20);
+            const safeY = Math.max(20, Math.min(y, window.innerHeight - previewCard.offsetHeight - 20));
 
-        google.script.run.withSuccessHandler(function (response) {
-            btn.disabled = false;
-            btn.innerText = "Delete Record";
-            closeDeleteModal();
-            if (response.success) {
-                loadHistory(true);
+            previewCard.style.left = safeX + 'px';
+            previewCard.style.top = safeY + 'px';
+        }
+
+        // --- DUPLICATE CHECK ---
+        function closeDuplicateModal() {
+            document.getElementById('duplicateModal').classList.add('hidden');
+        }
+
+        function checkDuplicates(formData) {
+            const d = new Date(formData.date);
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const month = monthNames[d.getMonth()];
+
+            // Exact match: Class + Month + noPaid (Amount indicator)
+            const duplicate = historyData.find(item =>
+                item.className === formData.className &&
+                item.month === month &&
+                parseInt(item.noPaid) === parseInt(formData.noPaid)
+            );
+
+            if (duplicate && !formData.rowIndex) {
+                document.getElementById('dupClass').innerText = formData.className;
+                document.getElementById('dupAmount').innerText = "\u20B9" + parseCurrency(duplicate.total).toLocaleString('en-IN');
+                document.getElementById('dupMonth').innerText = month;
+
+                document.getElementById('duplicateModal').classList.remove('hidden');
+
+                // Re-bind buttons
+                document.getElementById('viewExistingBtn').onclick = () => {
+                    closeDuplicateModal();
+                    editItem(duplicate.rowIndex);
+                };
+                document.getElementById('generateNewBtn').onclick = () => {
+                    closeDuplicateModal();
+                    performSubmit(formData);
+                };
+                return true;
             }
-        }).deleteDistribution(pendingDeleteRow);
-    });
-
-    function openFolder() {
-        window.open('https://drive.google.com/drive/folders/1PWX6R06uJ1_-1AdwOeDvrPGT_7V8PRi4', '_blank');
-    }
-
-    function editItem(rowIndex) {
-        const item = historyData.find(i => i.rowIndex === rowIndex);
-        if (!item) return;
-        document.getElementById('rowIndex').value = rowIndex;
-        document.getElementById('class').value = item.className;
-        document.getElementById('noPaid').value = item.noPaid;
-        document.getElementById('noScience').value = item.noScience;
-        document.getElementById('formTitle').innerText = "Edit Row #" + rowIndex;
-        document.getElementById('btnLabel').innerText = "Apply Update";
-        document.getElementById('cancelBtn').classList.remove('hidden');
-        switchView('form');
-        // Scroll to top
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    document.getElementById('distributionForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        const formData = {
-            rowIndex: document.getElementById('rowIndex').value,
-            date: document.getElementById('date').value,
-            className: document.getElementById('class').value,
-            noPaid: parseInt(document.getElementById('noPaid').value) || 0,
-            noScience: parseInt(document.getElementById('noScience').value) || 0
-        };
-
-        if (!checkDuplicates(formData)) {
-            performSubmit(formData);
+            return false;
         }
-    });
 
-    function performSubmit(formData) {
-        const submitBtn = document.getElementById('submitBtn');
-        const btnLabel = document.getElementById('btnLabel');
-        const btnIcon = document.getElementById('btnIcon');
-        const btnSpinner = document.getElementById('btnSpinner');
-        const statusArea = document.getElementById('statusArea');
-        const successMsg = document.getElementById('successMsg');
-        const errorMsg = document.getElementById('errorMsg');
+        function openDeleteModal(rowIndex) {
+            const item = historyData.find(i => i.rowIndex === rowIndex);
+            if (!item) return;
+            pendingDeleteRow = rowIndex;
+            document.getElementById('deleteConfirmText').innerText = `Delete record for ${item.className} (${item.month} ${item.year})?`;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
 
-        submitBtn.disabled = true;
-        btnLabel.innerText = "Processing...";
-        btnIcon.classList.add('hidden');
-        btnSpinner.classList.remove('hidden');
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            pendingDeleteRow = null;
+        }
 
-        statusArea.classList.add('hidden');
-        successMsg.classList.add('hidden');
-        errorMsg.classList.add('hidden');
+        document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+            if (!pendingDeleteRow) return;
+            const btn = this;
+            btn.disabled = true;
+            btn.innerText = "Deleting...";
 
-        google.script.run
-            .withSuccessHandler(function (response) {
-                submitBtn.disabled = false;
-                btnLabel.innerText = formData.rowIndex ? "Apply Update" : "Generate Report";
-                btnSpinner.classList.add('hidden');
-                btnIcon.classList.remove('hidden');
-
+            google.script.run.withSuccessHandler(function (response) {
+                btn.disabled = false;
+                btn.innerText = "Delete Record";
+                closeDeleteModal();
                 if (response.success) {
-                    statusArea.classList.remove('hidden');
-                    successMsg.classList.remove('hidden');
-                    document.getElementById('pdfLink').href = response.pdfUrl;
-                    document.getElementById('distDetails').innerText = `${formData.className} * ${response.totalAmount}`;
-                    historyLoaded = false;
-                    loadHistory(true); // Auto-refresh recent list
-                } else {
+                    loadHistory(true);
+                }
+            }).deleteDistribution(pendingDeleteRow);
+        });
+
+        function openFolder() {
+            window.open('https://drive.google.com/drive/folders/1PWX6R06uJ1_-1AdwOeDvrPGT_7V8PRi4', '_blank');
+        }
+
+        function editItem(rowIndex) {
+            const item = historyData.find(i => i.rowIndex === rowIndex);
+            if (!item) return;
+            document.getElementById('rowIndex').value = rowIndex;
+            document.getElementById('class').value = item.className;
+            document.getElementById('noPaid').value = item.noPaid;
+            document.getElementById('noScience').value = item.noScience;
+            document.getElementById('formTitle').innerText = "Edit Row #" + rowIndex;
+            document.getElementById('btnLabel').innerText = "Apply Update";
+            document.getElementById('cancelBtn').classList.remove('hidden');
+            switchView('form');
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        document.getElementById('distributionForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = {
+                rowIndex: document.getElementById('rowIndex').value,
+                date: document.getElementById('date').value,
+                className: document.getElementById('class').value,
+                noPaid: parseInt(document.getElementById('noPaid').value) || 0,
+                noScience: parseInt(document.getElementById('noScience').value) || 0
+            };
+
+            if (!checkDuplicates(formData)) {
+                performSubmit(formData);
+            }
+        });
+
+        function performSubmit(formData) {
+            const submitBtn = document.getElementById('submitBtn');
+            const btnLabel = document.getElementById('btnLabel');
+            const btnIcon = document.getElementById('btnIcon');
+            const btnSpinner = document.getElementById('btnSpinner');
+            const statusArea = document.getElementById('statusArea');
+            const successMsg = document.getElementById('successMsg');
+            const errorMsg = document.getElementById('errorMsg');
+
+            submitBtn.disabled = true;
+            btnLabel.innerText = "Processing...";
+            btnIcon.classList.add('hidden');
+            btnSpinner.classList.remove('hidden');
+
+            statusArea.classList.add('hidden');
+            successMsg.classList.add('hidden');
+            errorMsg.classList.add('hidden');
+
+            google.script.run
+                .withSuccessHandler(function (response) {
+                    submitBtn.disabled = false;
+                    btnLabel.innerText = formData.rowIndex ? "Apply Update" : "Generate Report";
+                    btnSpinner.classList.add('hidden');
+                    btnIcon.classList.remove('hidden');
+
+                    if (response.success) {
+                        statusArea.classList.remove('hidden');
+                        successMsg.classList.remove('hidden');
+                        document.getElementById('pdfLink').href = response.pdfUrl;
+                        document.getElementById('distDetails').innerText = `${formData.className} • ${response.totalAmount}`;
+                        historyLoaded = false;
+                        loadHistory(true); // Auto-refresh recent list
+                    } else {
+                        statusArea.classList.remove('hidden');
+                        errorMsg.classList.remove('hidden');
+                        errorMsg.innerText = "Error: " + response.message;
+                    }
+                })
+                .withFailureHandler(function (err) {
+                    submitBtn.disabled = false;
+                    btnLabel.innerText = formData.rowIndex ? "Apply Update" : "Generate Report";
+                    btnSpinner.classList.add('hidden');
+                    btnIcon.classList.remove('hidden');
                     statusArea.classList.remove('hidden');
                     errorMsg.classList.remove('hidden');
-                    errorMsg.innerText = "Error: " + response.message;
-                }
-            })
-            .withFailureHandler(function (err) {
-                submitBtn.disabled = false;
-                btnLabel.innerText = formData.rowIndex ? "Apply Update" : "Generate Report";
-                btnSpinner.classList.add('hidden');
-                btnIcon.classList.remove('hidden');
-                statusArea.classList.remove('hidden');
-                errorMsg.classList.remove('hidden');
-                errorMsg.innerText = "Fatal: " + err.message;
-            })
-            .processDistribution(formData);
-    }
-
-    function resetForm() {
-        document.getElementById('distributionForm').reset();
-        document.getElementById('rowIndex').value = "";
-        document.getElementById('formTitle').innerText = "Record New Distribution";
-        document.getElementById('btnLabel').innerText = "Generate Report";
-        document.getElementById('cancelBtn').classList.add('hidden');
-        document.getElementById('statusArea').classList.add('hidden');
-        document.getElementById('submitBtn').disabled = false;
-        document.getElementById('btnIcon').classList.remove('hidden');
-        document.getElementById('btnSpinner').classList.add('hidden');
-    }
-</script>
-<script>
-    // AUTH MODULE
-    const state = {
-        currentUser: <?!= user ?>,
-        adminEmail: 'adm.exam.bhsshandwara@gmail.com'
-    };
-
-    function getDeviceId() {
-        let id = localStorage.getItem('hss_device_id');
-        if (!id) {
-            id = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-            localStorage.setItem('hss_device_id', id);
+                    errorMsg.innerText = "Fatal: " + err.message;
+                })
+                .processDistribution(formData);
         }
-        return id;
-    }
 
-    async function initAuth() {
-        // 0. Use server-injected state if available
-        if (state.currentUser && state.currentUser.email) {
-            sessionStorage.setItem('hss_dist_user', JSON.stringify(state.currentUser));
-            document.getElementById('authView').classList.add('hidden');
-            if (window.location.search.includes('token=') && !window.location.search.includes('AuthDialog')) {
-                const newUrl = window.location.href.split('?')[0];
-                window.history.replaceState({}, document.title, newUrl);
+        function resetForm() {
+            document.getElementById('distributionForm').reset();
+            document.getElementById('rowIndex').value = "";
+            document.getElementById('formTitle').innerText = "Record New Distribution";
+            document.getElementById('btnLabel').innerText = "Generate Report";
+            document.getElementById('cancelBtn').classList.add('hidden');
+            document.getElementById('statusArea').classList.add('hidden');
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('btnIcon').classList.remove('hidden');
+            document.getElementById('btnSpinner').classList.add('hidden');
+        }
+    </script>
+    <script>
+        var state = {
+            currentUser: <?!= user ?>,
+            adminEmail: 'adm.exam.hss.shangus@gmail.com'
+        };
+
+        function getDeviceId() {
+            let id = localStorage.getItem('hss_device_id');
+            if (!id) {
+                id = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+                localStorage.setItem('hss_device_id', id);
             }
-            loadHistory(true);
-            return;
+            return id;
         }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        async function initAuth() {
+            console.log('initAuth: Started');
+            const statusEl = document.getElementById('loadingStatus');
 
-        // 1. SSO Gateway Handshake
-        if (token && !window.location.search.includes('AuthDialog')) {
-            try {
-                const res = await new Promise((resolve, reject) => {
-                    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).validateSSOToken(token);
-                });
-                if (res && res.success) {
-                    state.currentUser = res.user;
-                    sessionStorage.setItem('hss_dist_user', JSON.stringify(res.user));
-                    document.getElementById('authView').classList.add('hidden');
-
-                    // Clean up URL
+            // 0. Use server-injected state if available
+            if (state.currentUser && state.currentUser.email) {
+                console.log('initAuth: Server-injected user found');
+                localStorage.setItem('hss_user', JSON.stringify(state.currentUser));
+                document.getElementById('authView').classList.add('hidden');
+                document.getElementById('mainView').classList.remove('hidden');
+                if (window.location.search.includes('token=')) {
                     const newUrl = window.location.href.split('?')[0];
                     window.history.replaceState({}, document.title, newUrl);
-
-                    loadHistory(true);
-                    return;
                 }
-            } catch (e) { console.error("SSO Error", e); }
-        }
-
-        const savedUser = sessionStorage.getItem('hss_dist_user');
-        if (savedUser) {
-            try {
-                state.currentUser = JSON.parse(savedUser);
-                authView.classList.add('hidden');
                 loadHistory(true);
                 return;
-            } catch (e) { }
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+
+            // 1. SSO Gateway Handshake
+            if (token) {
+                try {
+                    const res = await new Promise((resolve, reject) => {
+                        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).validateSSOToken(token);
+                    });
+                    if (res && res.success) {
+                        if (isAdmin(res.user)) {
+                            state.currentUser = res.user;
+                            localStorage.setItem('hss_user', JSON.stringify(res.user));
+                            document.getElementById('authView').classList.add('hidden');
+                            document.getElementById('mainView').classList.remove('hidden');
+
+                            // Clean up URL
+                            const newUrl = window.location.href.split('?')[0];
+                            window.history.replaceState({}, document.title, newUrl);
+
+                            loadHistory(true);
+                            return;
+                        } else {
+                            showAccessDenied(res.user.email);
+                            return;
+                        }
+                    }
+                } catch (e) { console.error("SSO Error", e); }
+            }
+
+            const savedUser = localStorage.getItem('hss_user');
+            if (savedUser) {
+                try {
+                    state.currentUser = JSON.parse(savedUser);
+                    document.getElementById('authView').classList.add('hidden');
+                    document.getElementById('mainView').classList.remove('hidden');
+                    loadHistory(true);
+                    return;
+                } catch (e) { localStorage.removeItem('hss_user'); }
+            }
+
+            // Redirect to Hub if no session/token
+            redirectGate();
         }
 
-        // Redirect to Hub if no session/token
-        redirectGate();
-    }
+        function showAccessDenied(email) {
+            const lv = document.getElementById('loadingView');
+            if (lv) lv.style.display = 'none';
+            const authView = document.getElementById('authView');
+            authView.classList.remove('hidden');
+            authView.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 animate-in fade-in zoom-in duration-300 text-center border-t-4 border-red-600">
+                <div class="inline-flex p-3 bg-red-100 rounded-full mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m12-3V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2h8m10-5V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2h8"></path></svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+                <p class="text-gray-600 mb-1 text-sm font-bold">Admin Privileges Required</p>
+                <p class="text-gray-500 mb-6 text-xs italic">${email}</p>
+                <div class="space-y-3">
+                    <a href="https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec" target="_top" class="inline-flex items-center justify-center w-full px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-lg">
+                        Return to Admission Hub
+                    </a>
+                    <button onclick="localStorage.removeItem('hss_user'); location.reload();" class="text-gray-400 text-[10px] hover:text-gray-600 uppercase font-bold tracking-widest">
+                        Try different account
+                    </button>
+                </div>
+            </div>
+        `;
+        }
 
-    function redirectGate() {
-        const HUB_URL = "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec";
-        const currentUrl = window.location.href.split('?')[0];
-        const sep = HUB_URL.includes('?') ? '&' : '?';
-        const dest = HUB_URL + sep + 'redirectTo=' + encodeURIComponent(currentUrl);
+        function redirectGate() {
+            const lv = document.getElementById('loadingView');
+            if (lv) lv.style.display = 'none';
+            const HUB_URL = "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec";
+            const currentUrl = window.location.href.split('?')[0];
+            const sep = HUB_URL.includes('?') ? '&' : '?';
+            const dest = HUB_URL + sep + 'redirectTo=' + encodeURIComponent(currentUrl);
 
-        const authView = document.getElementById('authView');
-        authView.classList.remove('hidden');
-        authView.innerHTML = `
+            const authView = document.getElementById('authView');
+            authView.classList.remove('hidden');
+            authView.innerHTML = `
             <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 animate-in fade-in zoom-in duration-300 text-center">
                 <div class="inline-flex p-3 bg-red-100 rounded-full mb-4">
                     <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m12-3V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2h8m10-5V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2h8"></path></svg>
@@ -1038,91 +1199,160 @@
                 </a>
             </div>
         `;
-    }
+        }
 
-    // Initialize
-    window.onload = async () => {
-        const authView = document.getElementById('authView');
-        authView.classList.remove('hidden');
-        authView.innerHTML = `
+        // Initialize
+        window.onload = async () => {
+            const authView = document.getElementById('authView');
+            authView.classList.remove('hidden');
+            authView.innerHTML = `
             <div class="bg-white rounded-2xl p-8 flex flex-col items-center">
                 <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
                 <p class="text-gray-700 font-bold">Authenticating...</p>
             </div>
         `;
-        await initAuth();
-    };
+            // Safety timeout: hide loader if stuck after 10 seconds
+            setTimeout(() => {
+                const lv = document.getElementById('loadingView');
+                if (lv && lv.style.display !== 'none') {
+                    console.warn('Safety timeout: Hiding stuck loader');
+                    lv.style.display = 'none';
+                }
+            }, 10000);
 
-    function isAdmin(user) {
-        if (!user) return false;
-        const r = String(user.role || '').toLowerCase();
-        const e = String(user.email || '').toLowerCase();
-        return r === 'admin' || r === 'superadmin' || e === state.adminEmail;
-    }
-
-    function runServer(func, ...args) {
-        return new Promise((resolve, reject) => {
-            google.script.run
-                .withSuccessHandler(resolve)
-                .withFailureHandler(reject)[func](...args);
-        });
-    }
-
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('loginEmail').value;
-        const password = document.getElementById('loginPassword').value;
-        const btn = document.getElementById('loginBtn');
-        const error = document.getElementById('authError');
-
-        btn.disabled = true;
-        btn.textContent = 'Verifying...';
-        error.classList.add('hidden');
-
-        try {
-            const res = await runServer('authenticateUser', email, password);
-            if (res.success && isAdmin(res.user)) {
-                state.currentUser = res.user;
-                document.getElementById('authView').classList.add('hidden');
-                loadHistory(true);
-            } else {
-                error.textContent = res.message || 'Access Denied: Admin only.';
-                error.classList.remove('hidden');
-            }
-        } catch (err) {
-            error.textContent = 'Server Error. Try again.';
-            error.classList.remove('hidden');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Log In';
-        }
-    });
-
-    async function switchPortal(portalId) {
-        if (!state.currentUser || !state.currentUser.email) { alert('Please log in first'); return; }
-        const localPortals = {
-            hub: 'https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec',
-            practicals: 'https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec',
-            automation: 'https://script.google.com/macros/s/AKfycbwYo85Kxoi8XE--AQZsAB4xa88QVz3mA6htsk1jDbzbrN8XZy0yvZDoT96zH5VCWB6h/exec',
-            advanced_reports: 'https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec',
-            fund_distribution: 'https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec'
+            await initAuth();
         };
-        try {
-            google.script.run.withSuccessHandler(function (response) {
-                if (response && response.success && response.token) {
-                    const portals = response.portals || localPortals;
-                    const target = portals[portalId];
-                    const base = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
-                    if (!base) { alert('Portal not configured: ' + portalId); return; }
-                    const url = base + (base.includes('?') ? '&' : '?') + 'token=' + response.token;
-                    try { window.open(url, '_blank'); } catch (e) { window.open(url, '_blank'); }
-                } else { alert('Gateway Error: ' + (response.message || 'Failed to generate session')); }
-            }).withFailureHandler(function (err) {
-                alert('Connection Error: ' + err.message);
-            }).generateSSOToken(state.currentUser.email);
-        } catch (error) { console.error('Portal Switch Error:', error); }
-    }
-</script>
+
+        function isAdmin(user) {
+            if (!user) return false;
+            const r = String(user.role || '').toLowerCase();
+            const e = String(user.email || '').toLowerCase();
+            return r === 'admin' || r === 'superadmin' || r === 'president' || e === state.adminEmail;
+        }
+
+        function runServer(func, ...args) {
+            return new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(resolve)
+                    .withFailureHandler(reject)[func](...args);
+            });
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
+            const error = document.getElementById('authError');
+
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+            error.classList.add('hidden');
+
+            try {
+                const res = await runServer('authenticateUser', email, password);
+                if (res.success && isAdmin(res.user)) {
+                    state.currentUser = res.user;
+                    document.getElementById('authView').classList.add('hidden');
+                    document.getElementById('mainView').classList.remove('hidden');
+                    loadHistory(true);
+                } else {
+                    error.textContent = res.message || 'Access Denied: Admin only.';
+                    error.classList.remove('hidden');
+                }
+            } catch (err) {
+                error.textContent = 'Server Error. Try again.';
+                error.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Log In';
+            }
+        });
+
+        async function switchPortal(portalId) {
+            if (!state.currentUser || !state.currentUser.email) { alert('Please log in first'); return; }
+
+            // Show overlay
+            const overlay = document.getElementById('redirectOverlay');
+            const bar = document.getElementById('redirectProgressBar');
+            const pctText = document.getElementById('redirectPercent');
+            const targetName = document.getElementById('targetPortalName');
+
+            const portalNames = {
+                practicals: 'Practicals Portal',
+                automation: 'Automation Portal',
+                advanced_reports: 'Reports Portal',
+                fund_distribution: 'Distribution Portal',
+                hub: 'Admission Hub'
+            };
+
+            targetName.innerText = portalNames[portalId] || 'Portal';
+            overlay.classList.add('visible');
+            bar.style.width = '0%';
+            pctText.innerText = '0%';
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress < 85) {
+                    progress += Math.random() * 15;
+                    if (progress > 85) progress = 85;
+                    bar.style.width = progress + '%';
+                    pctText.innerText = Math.round(progress) + '%';
+                }
+            }, 200);
+
+            const localPortals = {
+                hub: 'https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec',
+                practicals: 'https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec',
+                automation: 'https://script.google.com/macros/s/AKfycbwYo85Kxoi8XE--AQZsAB4xa88QVz3mA6htsk1jDbzbrN8XZy0yvZDoT96zH5VCWB6h/exec',
+                advanced_reports: 'https://script.google.com/macros/s/AKfycbx2rPgxW8XBogVbhnrQtrwL3lTGHEHXvHASiwkQeG3Fh7o6ycwH8T_qUqEURm3M5agcIQ/exec',
+                fund_distribution: 'https://script.google.com/macros/s/AKfycbyr-H3b63f06w0LEZVXJuTb0muGUZg_SAoLXnlxLB-aQeM6puwdOIZ3EBDGf7huPGg_/exec'
+            };
+            try {
+                google.script.run.withSuccessHandler(function (response) {
+                    clearInterval(interval);
+                    bar.style.width = '100%';
+                    pctText.innerText = '100%';
+
+                    setTimeout(() => {
+                        if (response && response.success && response.token) {
+                            const portals = response.portals || localPortals;
+                            const target = portals[portalId];
+                            const base = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
+                            if (!base) { alert('Portal not configured: ' + portalId); overlay.classList.remove('visible'); return; }
+                            const url = base + (base.includes('?') ? '&' : '?') + 'token=' + response.token;
+                            window.open(url, '_blank');
+                            // Hide overlay after a delay
+                            setTimeout(() => overlay.classList.remove('visible'), 1000);
+                        } else {
+                            alert('Gateway Error: ' + (response.message || 'Failed to generate session'));
+                            overlay.classList.remove('visible');
+                        }
+                    }, 300);
+                }).withFailureHandler(function (err) {
+                    clearInterval(interval);
+                    alert('Connection Error: ' + err.message);
+                    overlay.classList.remove('visible');
+                }).generateSSOToken(state.currentUser.email);
+            } catch (error) {
+                console.error('Portal Switch Error:', error);
+                overlay.classList.remove('visible');
+            }
+        }
+    </script>
+
+    <div id="redirectOverlay">
+        <div class="spinner-circle"></div>
+        <div id="redirectStatus" class="text-sm font-bold tracking-tight">Preparing Secure Session</div>
+        <div class="text-[10px] text-blue-300 uppercase tracking-widest mt-1 opacity-60">Redirecting to <span
+                id="targetPortalName">Portal</span></div>
+        <div class="progress-container">
+            <div id="redirectProgressBar" class="progress-bar-fill"></div>
+        </div>
+        <div id="redirectPercent" class="text-[10px] font-bold mt-2 text-blue-400">0%</div>
+    </div>
+
+    <!-- Hidden data for JS -->
 </body>
 
 </html>

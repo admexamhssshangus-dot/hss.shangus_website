@@ -1,5 +1,5 @@
 const ADMISSIONS_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
-const ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+const ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 
 
 
@@ -57,7 +57,7 @@ function generateSSOToken(email) {
     let role = 'Teacher';
     if (userRow) {
       role = userRow[4] || 'Teacher';
-    } else if (email.toLowerCase() === 'adm.exam.bhsshandwara@gmail.com') {
+    } else if (email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com') {
       role = 'Admin';
     }
 
@@ -70,12 +70,26 @@ function generateSSOToken(email) {
   } catch (e) { return { success: false, message: e.message }; }
 }
 
+/**
+ * [NEW] Centralized Activity Logging back to Admission Portal
+ */
+function logActivity(action, email, details) {
+  try {
+    const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const sheet = ss.getSheetByName('Admin_Activity');
+    if (sheet) {
+      sheet.appendRow([new Date(), email, '', action, details]);
+    }
+  } catch (e) { console.error('Logging failed:', e); }
+}
+
 // =========================================================
 // == CONFIGURATION — EDIT THESE ==
 // =========================================================
-const SCHOOL_NAME    = 'Govt Boys Model Higher Secondary School Handwara';
+const SCHOOL_NAME    = 'Govt Higher Secondary School Shangus';
 const SHEET_NAME     = 'source_data';      // Tab name in your Google Sheet
 const PHOTOS_FOLDER_ID = '1Ms9E9qUT7XaBF1qmZn9ies1k-izMDg0V'; // student_photos parent folder
+const SOURCE_PHOTOS_FOLDER_ID = '1wcwjU5xB7MqtbNBO8Jv_1LHPxVoHgcvr'; // Formal Photos folder
 const TEMP_REPORTS_FOLDER_ID = '1cSPNMS3azhO7jPH2ZrmfiAbCpxDnuXQ6'; // Explicit folder for downloading Excel files
 // =========================================================
 
@@ -248,6 +262,7 @@ const SUBJECT_COLS  = ['subjects1','subjects2','subjects3','subjects4','subjects
 const NUMERIC_SORT_COLS = ['class_r_no','adm_no','form_no','marks_obt_prev','max_marks_prev',
                             'percentage_prev','vocational_percentage','height_cm','weight_kg',
                             'pin_code','exam_r_no_current'];
+
 
 const DEFAULT_COLUMNS = ['s_no','class_r_no','adm_no','student_name','father_name',
                           'dob_figures','village_town','gender','stream','subs',
@@ -423,16 +438,22 @@ function getMetadataOnly() {
     var cachedMeta = cache.get('advRpt_meta');
     if (cachedMeta) {
       var meta = JSON.parse(cachedMeta);
-      var fs = { sessions: meta.sessions.slice(0, 5), sortBy: 'class_r_no', sortOrder: 'ASC' };
-      return { meta: meta, initialResult: { records: [] }, initialFilters: fs };
+      var fs = { sessions: meta.sessions.slice(0, 1), sortBy: 'class_r_no', sortOrder: 'ASC' }; // Default to most recent session for speed
+      
+      // [NEW] To ensure "fetch and load default rows very fast", we return a subset of records immediately
+      var allRecords = _getAllRows().records;
+      var initialResult = _filterRows(allRecords, fs, false, 200); // Only first 200 of recent session
+      
+      return { meta: meta, initialResult: initialResult, initialFilters: fs };
     }
   } catch(e) {}
   
   // If no cache, we must read the headers at least
   var data = _getAllRows(), meta = _buildInitMeta(data);
   try { cache.put('advRpt_meta', JSON.stringify(meta), 900); } catch(e) {}
-  var fs = { sessions: meta.sessions.slice(0, 5), sortBy: 'class_r_no', sortOrder: 'ASC' };
-  return { meta: meta, initialResult: { records: [] }, initialFilters: fs };
+  var fs = { sessions: meta.sessions.slice(0, 1), sortBy: 'class_r_no', sortOrder: 'ASC' };
+  var initialResult = _filterRows(data.records, fs, false, 200);
+  return { meta: meta, initialResult: initialResult, initialFilters: fs };
 }
 
 function getInitialDataWithRecords() {
@@ -500,7 +521,8 @@ function _buildInitMeta(data) {
 // =========================================================
 function _sessionRank(session) {
   session = (session || '').trim();
-  const year = parseInt(session.substring(0, 4)) || 0;
+  const m = session.match(/\d{4}/);
+  const year = m ? parseInt(m[0]) : 0;
   let rank = 6; // Default standard session (e.g. 2025-26)
   if (session.indexOf('(revised)') !== -1)   rank = 7;
   else if (session.indexOf('APR/BIAN') !== -1) rank = 4;
@@ -621,21 +643,32 @@ function _filterRows(allRows, filters, skipFallbacks, rowLimit) {
   if (unifiedSearch) {
     var listSeparator = /[\n,;]/;
     if (listSeparator.test(unifiedSearch)) {
-      var listValues = unifiedSearch.split(listSeparator).map(function(v){return v.trim();}).filter(Boolean);
+      var listValues = unifiedSearch.split(/[\n,;]+/).map(function(v){return v.trim();}).filter(Boolean);
       var listCols = ['board_reg_no','form_no','adm_no','class_r_no','exam_r_no_current','student_name','father_name','mother_name','student_contact','parent_contact','aadhar_no'];
       var orderedResults = [], seen = {};
+      
+      // Strict order preservation: iterate by input values
       for (var li = 0; li < listValues.length; li++) {
         var val = listValues[li].toLowerCase();
         for (var fi = 0; fi < filtered.length; fi++) {
           var r = filtered[fi];
+          // Unique key to prevent duplicate results in list search
           var key = (r['adm_no']||'na') + '-' + (r['board_reg_no']||'na') + '-' + (r['student_name']||'na');
           if (seen[key]) continue;
+          
           for (var lci = 0; lci < listCols.length; lci++) {
-            if ((r[listCols[lci]]||'').toLowerCase() === val) { orderedResults.push(r); seen[key] = 1; break; }
+            var cellVal = String(r[listCols[lci]] || '').toLowerCase();
+            // Lenient matching: matches if exactly the same OR if it's a roll no pattern match
+            if (cellVal === val || cellVal.replace(/[^a-z0-9]/g, '') === val.replace(/[^a-z0-9]/g, '')) {
+              orderedResults.push(r);
+              seen[key] = 1;
+              break;
+            }
           }
         }
       }
       filtered = orderedResults;
+
     } else {
       var qs = unifiedSearch.toLowerCase();
       var searchCols = ['student_name','father_name','mother_name','dob_figures','village_town','board_reg_no','form_no','adm_no','class_r_no','exam_r_no_current','student_contact','parent_contact','aadhar_no','email1','email2','pen_no','remarks'];
@@ -666,7 +699,7 @@ function _filterRows(allRows, filters, skipFallbacks, rowLimit) {
   if (isSummary) return _buildSummaryReport(filtered, allRows, reportType, subjects);
 
   // ---- 6. Sort ----
-  if (!unifiedSearch || /[\n,;]/.test(unifiedSearch)) {
+  if (!unifiedSearch) {
     var isNumeric = NUMERIC_SORT_COLS.indexOf(sortBy) !== -1;
     filtered.sort(function(a,b) {
       var va = a[sortBy] || '', vb = b[sortBy] || '', cmp = 0;
@@ -1079,47 +1112,160 @@ function loadPhotosAsync(records) {
 function getPhotoUrl(studentRow) {
   if (!studentRow) return null;
 
+  // Strategy 0: Formal Photo Priority (RollNo_FormNo pattern)
+  var rollNo  = (studentRow['class_r_no'] || '').trim();
+  var formNum = (studentRow['form_no'] || '').trim();
+  
+  if (rollNo && formNum && SOURCE_PHOTOS_FOLDER_ID) {
+    var formalPrefix = rollNo + "_" + formNum;
+    var formalId = _findFileInFolderCached(SOURCE_PHOTOS_FOLDER_ID, formalPrefix, true);
+    if (formalId) return 'https://drive.google.com/thumbnail?id=' + formalId + '&sz=w100';
+    
+    // Try just form number as fallback in formal folder
+    var fallbackId = _findFileInFolderCached(SOURCE_PHOTOS_FOLDER_ID, formNum, true);
+    if (fallbackId) return 'https://drive.google.com/thumbnail?id=' + fallbackId + '&sz=w100';
+  }
+
   // Strategy 1: explicit photo filename/Drive ID in sheet
   var rawId = (studentRow['student_photo_filename'] || studentRow['photo_id'] || '').trim();
-  var photoId = "";
   if (rawId) {
     var m = rawId.match(/[-\w]{25,}/);
-    photoId = m ? m[0] : rawId;
+    var photoId = m ? m[0] : rawId;
+    if (photoId && photoId.length > 20) {
+      return 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100';
+    }
   }
   
-  if (photoId && photoId.length > 20) {
-    return 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100';
-  }
-
   // Strategy 2: search in Drive folder hierarchy
   if (!PHOTOS_FOLDER_ID) return null;
-  var cls     = (studentRow['class']    || '').trim();
-  var session = (studentRow['session']  || '').trim();
-  var rollNo  = (studentRow['class_r_no'] || '').trim();
+  var cls = (studentRow['class'] || '').trim();
+  var session = (studentRow['session'] || '').trim();
   if (!cls || !session || !rollNo) return null;
 
-  // Handle BIAN session folder naming (PHP: str_replace('/', ',', $session))
-  var sessionFolder = session;
-  if (session.toUpperCase().indexOf('BIAN') !== -1) {
-    sessionFolder = session.replace(/\//g, ',');
-  }
-
-  var url = _findPhotoInDrive(cls, sessionFolder, rollNo);
-  if (url) return url;
-
-  // Also try without 'th' suffix (e.g. folder might be '11' instead of '11th')
-  var clsNum = cls.replace(/[^0-9]/g, '');
-  if (clsNum !== cls) {
-    url = _findPhotoInDrive(clsNum, sessionFolder, rollNo);
-    if (url) return url;
-  }
-  // Try with 'th' suffix if not present
-  if (cls === clsNum) {
-    url = _findPhotoInDrive(clsNum + 'th', sessionFolder, rollNo);
-    if (url) return url;
+  var sessionFolder = session.toUpperCase().indexOf('BIAN') !== -1 ? session.replace(/\//g, ',') : session;
+  
+  // Find session folder via cache
+  var sessionFolderId = _findSessionFolderCached(cls, sessionFolder);
+  if (sessionFolderId) {
+    var fileId = _findFileInFolderCached(sessionFolderId, rollNo, false);
+    if (fileId) return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w100';
   }
 
   return null;
+}
+
+/**
+ * High-speed folder/file caching system.
+ */
+var _folderFileCache = {}; // folderId -> { fileName (lowercase) -> fileId }
+var _structureCache = {};  // classPath -> folderId
+
+function _findFileInFolderCached(folderId, fileNameOrPrefix, isPrefixSearch) {
+  if (!_folderFileCache[folderId]) {
+    _folderFileCache[folderId] = {};
+    try {
+      var folder = DriveApp.getFolderById(folderId);
+      var files = folder.getFiles();
+      while (files.hasNext()) {
+        var f = files.next();
+        _folderFileCache[folderId][f.getName().toLowerCase()] = f.getId();
+      }
+    } catch (e) { return null; }
+  }
+
+  var search = fileNameOrPrefix.toLowerCase();
+  var filesMap = _folderFileCache[folderId];
+  
+  if (isPrefixSearch) {
+    for (var name in filesMap) {
+      if (name.indexOf(search) === 0) return filesMap[name];
+    }
+  } else {
+    // Exact match or exact match with common extensions
+    if (filesMap[search]) return filesMap[search];
+    var exts = ['.jpg', '.jpeg', '.png', '.gif'];
+    for (var i = 0; i < exts.length; i++) {
+      if (filesMap[search + exts[i]]) return filesMap[search + exts[i]];
+    }
+  }
+  return null;
+}
+
+/**
+ * Enhanced session folder finder that accepts an optional rootId for cross-category caching.
+ */
+function _findSessionFolderCached(cls, sessionFolder, optionalRootId) {
+  const rootId = optionalRootId || PHOTOS_FOLDER_ID;
+  var cacheKey = cls + "||" + sessionFolder + "||" + rootId;
+  if (_structureCache[cacheKey]) return _structureCache[cacheKey];
+  
+  try {
+    var parent = DriveApp.getFolderById(rootId);
+    var clsVar = [cls, cls.replace(/[^0-9]/g, ''), cls.replace(/[^0-9]/g, '') + 'th'];
+    var sessionFolderId = null;
+    
+    for (var i = 0; i < clsVar.length; i++) {
+      var clsFolders = parent.getFoldersByName(clsVar[i]);
+      if (clsFolders.hasNext()) {
+        var clsF = clsFolders.next();
+        var sessFolders = clsF.getFoldersByName(sessionFolder);
+        if (sessFolders.hasNext()) {
+          sessionFolderId = sessFolders.next().getId();
+          break;
+        }
+      }
+    }
+    
+    if (sessionFolderId) {
+      _structureCache[cacheKey] = sessionFolderId;
+      return sessionFolderId;
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Helper to find a file by prefix in a specific folder.
+ */
+function _findPhotoInFolder(folderId, prefix) {
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    // Use searchFiles for efficiency
+    var files = folder.searchFiles("title contains '" + prefix + "' and trashed = false");
+    while (files.hasNext()) {
+      var file = files.next();
+      var name = file.getName();
+      // Ensure it starts with the prefix and is an image
+      if (name.indexOf(prefix) === 0 && (name.toLowerCase().endsWith('.jpg') || name.toLowerCase().endsWith('.jpeg') || name.toLowerCase().endsWith('.png'))) {
+        var url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100';
+        return url;
+      }
+    }
+  } catch (e) {
+    Logger.log("Error in _findPhotoInFolder: " + e.message);
+  }
+  return null;
+}
+
+// Global cache for folder listings to avoid repeated Drive API calls
+var _folderFileCache = {};
+
+function _findPhotoInDriveCached(folderId, fileName) {
+  if (!_folderFileCache[folderId]) {
+    _folderFileCache[folderId] = {};
+    try {
+      var folder = DriveApp.getFolderById(folderId);
+      var files = folder.getFiles();
+      while (files.hasNext()) {
+        var file = files.next();
+        var name = file.getName().toLowerCase();
+        // Store the thumbnail URL by filename (without extension)
+        var baseName = name.split('.')[0];
+        _folderFileCache[folderId][baseName] = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100';
+      }
+    } catch(e) {}
+  }
+  return _folderFileCache[folderId][fileName.toLowerCase()] || null;
 }
 
 /** Search Drive: PHOTOS_FOLDER_ID / classFolder / sessionFolder / rollNo.ext */
@@ -1236,6 +1382,9 @@ function exportToSheetDirect(resultData, selectedColumns) {
     file.moveTo(folder);
   } catch(e) {}
 
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Export to Excel', emailToLog, `Exported records to Excel.`);
+
   return 'https://docs.google.com/spreadsheets/d/' + tmpSS.getId() + '/export?format=xlsx';
 }
 // =========================================================
@@ -1350,6 +1499,10 @@ function assignAdmissionNumbersBulk(startNo, filters) {
     sheet.getRange(s._rowIdx, colIdx).setValue(val);
     nextNo++; count++;
   });
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Assign Admission Numbers', emailToLog, `Assigned ${count} new admission numbers starting from ${startNo}.`);
+  
   _clearCache();
   return { success:true, count: count };
 }
@@ -1368,6 +1521,10 @@ function saveBulkStudentData(updates) {
     if(colIdx === -1) continue;
     byKey[key].forEach(u => { sheet.getRange(u.rowIdx, colIdx).setValue(u.val); saved++; });
   }
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Bulk Data Update', emailToLog, `Updated ${saved} cells.`);
+  
   _clearCache();
   return { success:true, count:saved };
 }
@@ -1389,50 +1546,89 @@ function _findSheetColIdx(sheet, targetKey) {
 
 function syncReadmissionIDsBulk(filters) {
   const allRows = _getAllRows().records;
-  const result = getFilteredData(filters, true);
-  if(result.type !== 'detailed') throw new Error('Need detailed result.');
   
-  // Build Reg Map for faster lookup
+  // 1. Calculate the current global maximum Admission Number
+  let globalMaxAdmNo = 0;
+  allRows.forEach(r => {
+    let rawStr = (r['adm_no'] || '').toString();
+    // Match all numbers in the string (handles both single numbers and bracketed formats)
+    let matches = rawStr.match(/\d+/g);
+    if (matches) {
+      matches.forEach(m => {
+        let n = parseInt(m);
+        if (n > globalMaxAdmNo) globalMaxAdmNo = n;
+      });
+    }
+  });
+
+  // 2. Build a Map of all known Admission Numbers by Board Reg No for lookup
   const regMap = {};
   allRows.forEach(row => {
-    let reg = (row['board_reg_no']||'').trim().toLowerCase();
-    let adm = (row['adm_no']||'').trim();
-    if (reg && adm) { 
-       if(!regMap[reg]) regMap[reg] = [];
-       regMap[reg].push({ adm: adm, rowIdx: row._rowIdx });
+    let reg = (row['board_reg_no'] || '').trim().toLowerCase();
+    let adm = (row['adm_no'] || '').trim();
+    if (reg && adm) {
+      if (!regMap[reg]) regMap[reg] = [];
+      // Extract the primary (old) number if it's bracketed, otherwise use the whole thing
+      let primaryNo = adm.split('(')[0].trim();
+      if (!regMap[reg].includes(primaryNo)) regMap[reg].push(primaryNo);
     }
   });
 
-  const studentsToFix = result.records.filter(s => {
-    let yes = (s['readmission'] || '').toString().toLowerCase() === 'yes';
+  // 3. Filter target students based on UI selection (usually specific Session/Class)
+  // Note: We ignore the rollNoRange if it's not provided, processing the whole class
+  const result = getFilteredData(filters, true);
+  if (result.type !== 'detailed') throw new Error('Detailed data required for sync.');
+
+  const studentsToProcess = result.records.filter(s => {
+    let isReadm = (s['readmission'] || '').toString().toLowerCase() === 'yes';
     let adm = (s['adm_no'] || '').trim();
-    return yes && adm && adm.indexOf('(') === -1; // Only fix if it has an ID but no bracket already
+    // Process if it's a readmission case AND either empty OR not yet assigned a bracketed new ID
+    return isReadm && (adm === '' || adm === '-' || adm.toLowerCase() === 'n/a' || adm.indexOf('(') === -1);
   });
 
-  if(studentsToFix.length === 0) return { success:true, count:0 };
+  if (studentsToProcess.length === 0) return { success: true, count: 0 };
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet(), sheet = ss.getSheetByName(SHEET_NAME);
-  const colIdx = _findSheetColIdx(sheet, 'adm_no');
-  let count = 0;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const admColIdx = _findSheetColIdx(sheet, 'adm_no');
+  const regColIdx = _findSheetColIdx(sheet, 'board_reg_no');
+  let updateCount = 0;
 
-  studentsToFix.forEach(s => {
+  studentsToProcess.forEach(s => {
     const reg = (s['board_reg_no'] || '').trim().toLowerCase();
-    if(reg && regMap[reg]) {
-       let matches = regMap[reg].filter(m => m.rowIdx !== s._rowIdx);
-       if(matches.length > 0) {
-          let oldRaw = matches[matches.length-1].adm;
-          let m = oldRaw.match(/^\d+/);
-          if(m) {
-             let newVal = (s['adm_no']||'').match(/^\d+/)[0] + ' (' + m[0] + ')';
-             sheet.getRange(s._rowIdx, colIdx).setValue(newVal);
-             count++;
-          }
-       }
+    let currentAdm = (s['adm_no'] || '').trim();
+    if (currentAdm === '-' || currentAdm.toLowerCase() === 'n/a') currentAdm = '';
+
+    let oldID = '';
+    
+    // Step A: Determine the Old ID
+    if (currentAdm && currentAdm.indexOf('(') === -1) {
+      // If the cell already has a number, assume it's the Old ID being carried over
+      oldID = currentAdm;
+    } else if (reg && regMap[reg] && regMap[reg].length > 0) {
+      // Otherwise, find the ID from previous records in the sheet
+      oldID = regMap[reg][0]; 
+    }
+
+    // Step B: If we have an Old ID (or even if we don't, we need to assign a New one for Readmission)
+    if (oldID || reg) {
+      globalMaxAdmNo++;
+      let newID = globalMaxAdmNo;
+      
+      // If we couldn't find an old ID, we'll just use the new one, but the user wants tracking
+      // If no old ID exists, we just set the new one. If it exists, we use "Old (New)"
+      let newVal = oldID ? (oldID + ' (' + newID + ')') : newID.toString();
+      
+      sheet.getRange(s._rowIdx, admColIdx).setValue(newVal);
+      updateCount++;
     }
   });
 
-  _clearCache();
-  return { success:true, count: count };
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Sync Readmissions', emailToLog, `Synced ${updateCount} readmission IDs.`);
+
+  _clearCache(); // Force refresh of student data
+  return { success: true, count: updateCount };
 }
 
 // =========================================================
@@ -1460,9 +1656,586 @@ function assignAdmissionDatesBulk(dateStr, rs, re, filters) {
     formattedDate = parts[2] + '-' + parts[1] + '-' + parts[0];
   }
   toUpdate.forEach(student => { sheet.getRange(student._rowIdx, dateColIdx).setValue(formattedDate); });
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Bulk Update Admission Dates', emailToLog, `Updated dates for ${toUpdate.length} students to ${formattedDate}.`);
+  
   _clearCache();
   return { success:true, count: toUpdate.length };
 }
 
 
 
+// =========================================================
+// == ADMISSION REGISTER GENERATOR ==
+// =========================================================
+
+/**
+ * Fetches and filters data for the Admission Register.
+ * Criteria: All 11th grade students + 12th grade students marked as 'readmission' or 'yes'.
+ */
+/**
+ * Optimized data fetcher that avoids expensive Drive calls unless requested.
+ */
+function getAdmissionRegisterData(session, limit, hydrate) {
+  const records = _getAllRows().records;
+  
+  // Filter by session and grade rules
+  let filtered = records.filter(r => {
+    if (r.session !== session) return false;
+    const cls = (r['class'] || '').toLowerCase();
+    return cls.indexOf('11th') !== -1 || cls.indexOf('12th') !== -1;
+  });
+  
+  // Sort by Class Roll No
+  filtered.sort((a, b) => {
+    const rA = parseInt(a['class_r_no']) || 0;
+    const rB = parseInt(b['class_r_no']) || 0;
+    if (rA !== rB) return rA - rB;
+    return (a['student_name'] || '').localeCompare(b['student_name'] || '');
+  });
+  
+  // Apply limit if provided
+  if (limit && limit > 0) filtered = filtered.slice(0, limit);
+  
+  // Map to the format expected by AdmissionRegister.html
+  return filtered.map((r, i) => {
+    const data = {
+      sno: i + 1,
+      rollNo: r['class_r_no'] || '',
+      formNo: r['form_no'] || '',
+      onlineStatus: r['online_subm_date'] || 'NA',
+      admDate: r['adm_date'] || '',
+      admNo: r['adm_no'] || '',
+      class: r['class'] || '',
+      boardReg: r['board_reg_no'] || '',
+      name: r['student_name'] || '',
+      father: r['father_name'] || '',
+      mother: r['mother_name'] || '',
+      dobFigures: r['dob_figures'] || '',
+      gender: r['gender'] || '',
+      village: r['village_town'] || '',
+      block: r['block'] || '',
+      tehsil: r['tehsil'] || '',
+      district: r['district'] || '',
+      mobile: r['student_contact'] || '',
+      parentMobile: r['parent_contact'] || '',
+      stream: r['stream'] || '',
+      subs: r['subs'] || '',
+      aadhar: r['aadhar_no'] || '',
+      category: r['social_category'] || '',
+      socioEcon: r['socio_economic_category'] || '',
+      blood: r['blood_type'] || '',
+      account: r['bank_account_number'] || '',
+      ifsc: r['ifsc_code'] || '',
+      prevSchool: r['previous_school'] || '',
+      prevRoll: r['exam_r_no_prev'] || '',
+      prevResult: (r['marks_obt_prev'] || '') + ' / ' + (r['max_marks_prev'] || ''),
+      pen: r['pen_no'] || 'NA',
+      prevCC: r['cc_dc_no_date_prev_institution'] || '',
+      withdrawal: (r['result_current'] || '') + ' ' + (r['date_of_withdrawl'] || ''),
+      isReadm: (r['readmission'] || '').toLowerCase() === 'readmission' || (r['readmission'] || '').toLowerCase() === 'yes',
+      remarks: r['remarks'] || ''
+    };
+    
+    // Only perform expensive operations if hydrating
+    if (hydrate) {
+      data.photo = getPhotoUrl(r);
+      data.dobWords = formatDateToWords(r['dob_figures']);
+    }
+    
+    return data;
+  });
+}
+
+
+/**
+ * Converts a date string (dd-mm-yyyy) to formal words.
+ */
+function formatDateToWords(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const year = parseInt(parts[2]);
+    
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = months[month - 1];
+    
+    const ones = ["", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth", "Eleventh", "Twelfth", "Thirteenth", "Fourteenth", "Fifteenth", "Sixteenth", "Seventeenth", "Eighteenth", "Nineteenth", "Twentieth", "Twenty First", "Twenty Second", "Twenty Third", "Twenty Fourth", "Twenty Fifth", "Twenty Sixth", "Twenty Seventh", "Twenty Eighth", "Twenty Ninth", "Thirtieth", "Thirty First"];
+    
+    // Function to convert year to words
+    function yearToWords(y) {
+      if (y < 2000) return y.toString(); // Fallback for older years
+      const yOnes = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+      const yTens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+      
+      let word = "Two Thousand";
+      let rem = y % 2000;
+      if (rem > 0) {
+        if (rem < 20) word += " " + yOnes[rem];
+        else {
+          word += " " + yTens[Math.floor(rem / 10)];
+          if (rem % 10 > 0) word += " " + yOnes[rem % 10];
+        }
+      }
+      return word;
+    }
+    
+    return ones[day] + " of " + monthName + " " + yearToWords(year);
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+/**
+ * Generates the Admission Register HTML for a session.
+ */
+function getAdmissionRegisterHtml(session, isSample) {
+  // 1. Fetch ALL raw records once
+  const allRecords = _getAllRows().records;
+  const filteredRecords = allRecords.filter(r => r.session === session);
+  
+  // 2. Calculate stats for ALL students (LITE calculation)
+  const stats = {};
+  filteredRecords.forEach(r => {
+    const cls = (r['class'] || 'Unknown').trim();
+    const stream = (r['stream'] || 'General').trim();
+    const gender = (r['gender'] || 'Unknown').toLowerCase().trim();
+    if (!stats[cls]) stats[cls] = {};
+    if (!stats[cls][stream]) stats[cls][stream] = { male: 0, female: 0, total: 0 };
+    if (gender === 'male') stats[cls][stream].male++;
+    else if (gender === 'female') stats[cls][stream].female++;
+    stats[cls][stream].total++;
+  });
+  
+  // 3. Filter for Register: 11th students + 12th Readmissions
+  let registerRecords = filteredRecords.filter(r => {
+    const cls = (r['class'] || '').toLowerCase();
+    const is11th = cls.indexOf('11th') !== -1;
+    const isReadm = (r['readmission'] || '').toLowerCase() === 'readmission' || (r['readmission'] || '').toLowerCase() === 'yes';
+    return is11th || isReadm;
+  });
+
+  // 4. Sort: Regular first, then Readmissions
+  registerRecords.sort((a, b) => {
+    const isR_A = (a['readmission'] || '').toLowerCase() === 'readmission' || (a['readmission'] || '').toLowerCase() === 'yes';
+    const isR_B = (b['readmission'] || '').toLowerCase() === 'readmission' || (b['readmission'] || '').toLowerCase() === 'yes';
+    if (isR_A !== isR_B) return isR_A ? 1 : -1;
+    return (parseInt(a['class_r_no']) || 0) - (parseInt(b['class_r_no']) || 0);
+  });
+
+  // 5. Apply sample limit
+  if (isSample) registerRecords = registerRecords.slice(0, 10);
+
+  // 6. HYDRATE: Map to the format expected by UI and resolve photos/dates
+  const students = registerRecords.map((r, idx) => {
+    return {
+      sno: idx + 1,
+      photo: getPhotoUrl(r),
+      rollNo: r['class_r_no'] || '',
+      formNo: r['form_no'] || '',
+      onlineStatus: r['online_subm_date'] || 'NA',
+      admDate: r['adm_date'] || '',
+      admNo: r['adm_no'] || '',
+      class: r['class'] || '',
+      boardReg: r['board_reg_no'] || '',
+      name: r['student_name'] || '',
+      father: r['father_name'] || '',
+      mother: r['mother_name'] || '',
+      dobFigures: r['dob_figures'] || '',
+      dobWords: formatDateToWords(r['dob_figures']),
+      gender: r['gender'] || '',
+      village: r['village_town'] || '',
+      block: r['block'] || '',
+      tehsil: r['tehsil'] || '',
+      district: r['district'] || '',
+      mobile: r['student_contact'] || '',
+      parentMobile: r['parent_contact'] || '',
+      stream: r['stream'] || '',
+      subs: r['subs'] || '',
+      aadhar: r['aadhar_no'] || '',
+      category: r['social_category'] || '',
+      socioEcon: r['socio_economic_category'] || '',
+      blood: r['blood_type'] || '',
+      account: r['bank_account_number'] || '',
+      ifsc: r['ifsc_code'] || '',
+      prevSchool: r['previous_school'] || '',
+      prevRoll: r['exam_r_no_prev'] || '',
+      prevResult: (r['marks_obt_prev'] || '') + ' / ' + (r['max_marks_prev'] || ''),
+      pen: r['pen_no'] || 'NA',
+      prevCC: r['cc_dc_no_date_prev_institution'] || '',
+      withdrawal: (r['result_current'] || '') + ' ' + (r['date_of_withdrawl'] || ''),
+      isReadm: (r['readmission'] || '').toLowerCase() === 'readmission' || (r['readmission'] || '').toLowerCase() === 'yes',
+      remarks: r['remarks'] || ''
+    };
+  });
+  
+  const tmpl = HtmlService.createTemplateFromFile('AdmissionRegister');
+  const html = tmpl.evaluate().getContent();
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Generate Admission Register', emailToLog, `Generated Admission Register for session ${session}.`);
+
+  const dataScript = "<script>window.onload = function() { init(" + JSON.stringify(students) + ", '" + session + "', '" + SCHOOL_NAME + "', " + JSON.stringify(stats) + "); };</script>";
+  return html + dataScript;
+}
+// =========================================================
+// == SENTUP EXPORT GENERATOR ==
+// =========================================================
+
+/**
+ * Fetches and filters data for the Sentup list.
+ */
+function getSentupData(session, className, limit) {
+  try {
+    const data = _getAllRows();
+    const records = data.records;
+    
+    // Filter by session and class
+    let filtered = records.filter(r => {
+      return r.session === session && r['class'] === className;
+    });
+    
+    // [FIX] Fill missing Admission Nos using fallback logic from other sessions
+    filtered = _fillMissingAdmNos(filtered, records);
+    
+    // Sort by Class Roll No
+    filtered.sort((a, b) => {
+      const rA = parseInt(a['class_r_no']) || 0;
+      const rB = parseInt(b['class_r_no']) || 0;
+      if (rA !== rB) return rA - rB;
+      return (a['student_name'] || '').localeCompare(b['student_name'] || '');
+    });
+    
+    const signatureFolderId = '1NVy4n4dx-Gm0dGoI_Gj5ngOlgfDZT7Zh';
+    
+    // Apply limit if provided (Sample Export)
+    let results = filtered;
+    if (limit && limit > 0) results = results.slice(0, limit);
+
+    const students = results.map((r, idx) => {
+      const rollNo = r['class_r_no'] || '';
+      return {
+        sno: idx + 1,
+        admNo: r['adm_no'] || '',
+        photo: getPhotoUrl(r),
+        boardReg: r['board_reg_no'] || '',
+        name: r['student_name'] || '',
+        father: r['father_name'] || '',
+        mother: r['mother_name'] || '',
+        dob: r['dob_figures'] || '',
+        subs: r['subs'] || '',
+        boardRoll: r['exam_r_no_current'] || '',
+        result: r['result_current'] || '',
+        classRoll: rollNo,
+        signature: getSignatureUrl(rollNo, className, session, signatureFolderId)
+      };
+    });
+
+    return {
+      students: students,
+      session: session,
+      className: className,
+      schoolName: SCHOOL_NAME
+    };
+  } catch (e) {
+    Logger.log("getSentupData error: " + e.message);
+    throw new Error("Server failed to fetch data: " + e.message);
+  }
+}
+
+/**
+ * Helper to find signature URL in structured Drive folders
+ */
+function getSignatureUrl(rollNo, className, session, rootId) {
+  if (!rollNo) return '';
+  const cls = className.split(' ')[0];
+  const sigSessionFolderId = _findSessionFolderCached(cls, session, rootId);
+  if (sigSessionFolderId) {
+     const fileId = _findFileInFolderCached(sigSessionFolderId, rollNo, false);
+     if (fileId) return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+  }
+  return '';
+}
+
+
+
+/**
+ * Generates the Sentup Export HTML.
+ */
+function getSentupHtml(session, className, isSample) {
+  const records = _getAllRows().records;
+  const filtered = records.filter(r => r.session === session && r['class'] === className);
+  
+  // Sort by Roll No
+  filtered.sort((a, b) => (parseInt(a['class_r_no']) || 0) - (parseInt(b['class_r_no']) || 0));
+
+  // Apply limit if sample
+  const finalRecords = isSample ? filtered.slice(0, 10) : filtered;
+  
+  const signatureFolderId = '1NVy4n4dx-Gm0dGoI_Gj5ngOlgfDZT7Zh';
+  
+  // [FIX] Fill missing Admission Nos using fallback logic from other sessions
+  const hydratedRecords = _fillMissingAdmNos(finalRecords, records);
+
+  // Process only final records (Hydration)
+  const students = hydratedRecords.map((r, idx) => {
+    const rollNo = r['class_r_no'] || '';
+    return {
+      sno: idx + 1,
+      admNo: r['adm_no'] || '',
+      photo: getPhotoUrl(r),
+      boardReg: r['board_reg_no'] || '',
+      name: r['student_name'] || '',
+      father: r['father_name'] || '',
+      mother: r['mother_name'] || '',
+      dob: r['dob_figures'] || '',
+      subs: r['subs'] || '',
+      boardRoll: r['exam_r_no_current'] || '',
+      result: r['result_current'] || '',
+      classRoll: rollNo,
+      signature: getSignatureUrl(rollNo, className, session, signatureFolderId)
+    };
+  });
+
+  const tmpl = HtmlService.createTemplateFromFile('SentupExport');
+  const html = tmpl.evaluate().getContent();
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Generate Sentup List', emailToLog, `Generated Sentup Export for ${className} (${session}).`);
+
+  // Inject data
+  const dataScript = "<script>window.onload = function() { init(" + JSON.stringify(students) + ", '" + session + "', '" + className + "', '" + SCHOOL_NAME + "'); };</script>";
+  return html + dataScript;
+}
+
+/**
+ * [NEW] Photo Export Logic
+ */
+const EXPORT_ROOT_FOLDER_ID = '1Rbi-gpf8RSZRhATmi8qHTiYQxjFEC67v';
+
+function getStudentsForPhotoExport(session, className, rollFrom, rollTo) {
+  const data = _getAllRows();
+  const records = data.records;
+  
+  const rollF = parseInt(rollFrom) || 0;
+  const rollT = parseInt(rollTo) || 999999;
+
+  const result = [];
+  records.forEach(r => {
+    if (session && r.session !== session) return;
+    if (className && r.class !== className) return;
+    
+    const rno = parseInt(r.class_r_no);
+    if (rollFrom || rollTo) {
+      if (isNaN(rno)) return;
+      if (rollFrom && rno < rollF) return;
+      if (rollTo && rno > rollT) return;
+    }
+    
+    // Resolve actual File ID
+    const photoId = resolveStudentPhotoId(r);
+    if (photoId) {
+      result.push({
+        id: photoId,
+        name: r.student_name,
+        roll: r.class_r_no,
+        class: r.class,
+        session: r.session,
+        targetName: (r.class_r_no || 'NA') + '_' + (r.student_name || 'Student').replace(/[\/\\?%*:|"<>]/g, '') + '_' + (r.class || '').replace(/[\/\\?%*:|"<>]/g, '') + '.jpg'
+      });
+    }
+  });
+  return result;
+}
+
+/**
+ * [NEW] Resolves the actual Drive File ID for a student photo.
+ */
+function resolveStudentPhotoId(studentRow) {
+  if (!studentRow) return null;
+
+  // Strategy 0: Formal Photo Priority (RollNo_FormNo pattern)
+  var rollNo  = (studentRow['class_r_no'] || '').trim();
+  var formNum = (studentRow['form_no'] || '').trim();
+  if (rollNo && formNum && SOURCE_PHOTOS_FOLDER_ID) {
+    var formalPrefix = rollNo + "_" + formNum;
+    var formalId = _findPhotoIdInFolder(SOURCE_PHOTOS_FOLDER_ID, formalPrefix);
+    if (formalId) return formalId;
+    
+    var formalFallbackId = _findPhotoIdInFolder(SOURCE_PHOTOS_FOLDER_ID, formNum);
+    if (formalFallbackId) return formalFallbackId;
+  }
+
+  // Strategy 1: explicit photo filename/Drive ID in sheet
+  var rawId = (studentRow['student_photo_filename'] || studentRow['photo_id'] || '').trim();
+  if (rawId) {
+    var m = rawId.match(/[-\w]{25,}/);
+    if (m && m[0].length > 20) return m[0];
+  }
+
+  // Strategy 2: search in Drive folder hierarchy
+  if (!PHOTOS_FOLDER_ID) return null;
+  var cls     = (studentRow['class']    || '').trim();
+  var session = (studentRow['session']  || '').trim();
+  if (!cls || !session || !rollNo) return null;
+
+  var sessionFolder = session;
+  if (session.toUpperCase().indexOf('BIAN') !== -1) {
+    sessionFolder = session.replace(/\//g, ',');
+  }
+
+  var resolvedId = _findPhotoIdInDrive(cls, sessionFolder, rollNo);
+  if (resolvedId) return resolvedId;
+
+  // Fallback class naming
+  var clsNum = cls.replace(/[^0-9]/g, '');
+  if (clsNum !== cls) {
+    resolvedId = _findPhotoIdInDrive(clsNum, sessionFolder, rollNo);
+    if (resolvedId) return resolvedId;
+  }
+  if (cls === clsNum) {
+    resolvedId = _findPhotoIdInDrive(clsNum + 'th', sessionFolder, rollNo);
+    if (resolvedId) return resolvedId;
+  }
+
+  return null;
+}
+
+function _findPhotoIdInFolder(folderId, prefix) {
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    var files = folder.searchFiles("title contains '" + prefix + "' and trashed = false");
+    while (files.hasNext()) {
+      var file = files.next();
+      var name = file.getName();
+      if (name.indexOf(prefix) === 0 && (name.toLowerCase().endsWith('.jpg') || name.toLowerCase().endsWith('.jpeg') || name.toLowerCase().endsWith('.png'))) {
+        return file.getId();
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function _findPhotoIdInDrive(classFolderName, sessionFolderName, rollNo) {
+  try {
+    var parentFolder = DriveApp.getFolderById(PHOTOS_FOLDER_ID);
+    var classFolders = parentFolder.getFoldersByName(classFolderName);
+    if (!classFolders.hasNext()) return null;
+    var classFolder = classFolders.next();
+
+    var sessionFolders = classFolder.getFoldersByName(sessionFolderName);
+    if (!sessionFolders.hasNext()) return null;
+    var sessionFolder = sessionFolders.next();
+
+    var exts = ['jpg','jpeg','png','gif','bmp'];
+    for (var e = 0; e < exts.length; e++) {
+      var files = sessionFolder.getFilesByName(rollNo + '.' + exts[e]);
+      if (files.hasNext()) {
+        return files.next().getId();
+      }
+    }
+  } catch(e) {}
+  return null;
+}
+
+function processPhotoExportBatch(students, sessionName, className) {
+  if (!students || students.length === 0) return { success: true, processed: 0 };
+  
+  const root = DriveApp.getFolderById(EXPORT_ROOT_FOLDER_ID);
+  
+  // Get or create "studentphotos_export"
+  let exportMain;
+  const mainFolders = root.getFoldersByName('studentphotos_export');
+  if (mainFolders.hasNext()) {
+    exportMain = mainFolders.next();
+  } else {
+    exportMain = root.createFolder('studentphotos_export');
+  }
+  
+  // Get or create class-wise folder
+  const classFolderName = (className || 'AllClasses').replace(/[\/\\?%*:|"<>]/g, '_');
+  let classFolder;
+  const classFolders = exportMain.getFoldersByName(classFolderName);
+  if (classFolders.hasNext()) {
+    classFolder = classFolders.next();
+  } else {
+    classFolder = exportMain.createFolder(classFolderName);
+  }
+  
+  // Get existing files in class folder to avoid repetition
+  const existingFiles = {};
+  const files = classFolder.getFiles();
+  while (files.hasNext()) {
+    existingFiles[files.next().getName()] = true;
+  }
+  
+  let processed = 0;
+  let skipped = 0;
+  
+  students.forEach(student => {
+    if (existingFiles[student.targetName]) {
+      skipped++;
+      return;
+    }
+    
+    try {
+      const photoId = student.id;
+      if (!photoId) return;
+      
+      const sourceFile = DriveApp.getFileById(photoId);
+      sourceFile.makeCopy(student.targetName, classFolder);
+      processed++;
+    } catch (e) {
+      Logger.log("Failed to copy photo for " + student.name + ": " + e.message);
+    }
+  });
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  logActivity('Reports: Photo Export Batch', emailToLog, `Processed batch of ${processed} photos for ${className} (${sessionName}).`);
+
+  return { 
+    success: true, 
+    processed: processed, 
+    skipped: skipped, 
+    classFolderId: classFolder.getId(),
+    classFolderName: classFolderName
+  };
+}
+
+function finalizePhotoExport(classFolderId, zipName) {
+  try {
+    const folder = DriveApp.getFolderById(classFolderId);
+    const files = folder.getFiles();
+    const blobs = [];
+    
+    while (files.hasNext()) {
+      const file = files.next();
+      if (file.getName().toLowerCase().endsWith('.jpg') || file.getName().toLowerCase().endsWith('.png')) {
+        blobs.push(file.getBlob());
+      }
+    }
+    
+    if (blobs.length === 0) return { success: false, message: "No photos found to zip." };
+    
+    const zip = Utilities.zip(blobs, (zipName || "StudentPhotos") + ".zip");
+    const zipFile = folder.createFile(zip);
+    
+    const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+    logActivity('Reports: Finalize Photo ZIP', emailToLog, `Generated ZIP file: ${zipName}.zip with ${blobs.length} photos.`);
+    
+    // Set viewable for download
+    zipFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    return { 
+      success: true, 
+      downloadUrl: zipFile.getDownloadUrl().replace('/edit?usp=drivesdk', '') + '&export=download',
+      fileId: zipFile.getId()
+    };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}

@@ -11,7 +11,7 @@ const RESPONSES_SHEET_12 = 'responses12';
 const RESPONSES_SHEET_UNIFIED = 'responses_all';
 const RESPONSES_BUFFER_ROWS = 3;
 const UNIFIED_META_HEADERS = ['Timestamp', 'Email', 'Teacher Name', 'Class', 'Subject', 'PracticalType', 'YearSuffix', 'SessionText'];
-const USERS_SHEET_NAME = 'Users'; // MODIFIED: Matches Master Sheet naming convention
+const USERS_SHEET_NAME = 'users';
 const CONFIG_SHEET_NAME = 'config';
 const PERMISSIONS_SHEET_NAME = 'permissions';
 const EMAIL_TRACK_SHEET_NAME = 'emailTrack';
@@ -50,21 +50,21 @@ const SUBJECT_NAME_TO_CODE = {
 };
 const CONFIG_DEFAULTS = {
   ccEmail: 'bilalhcu@gmail.com',
-  replyToEmail: 'adm.exam.bhsshandwara@gmail.com',
-  senderName: 'BMHSS Handwara Awards System',
-  adminEmail: 'adm.exam.bhsshandwara@gmail.com',
+  replyToEmail: 'adm.exam.hss.shangus@gmail.com',
+  senderName: 'HSS Shangus Awards System',
+  adminEmail: 'adm.exam.hss.shangus@gmail.com',
   emailYearString: 'Internal Assessment-2025',
   currentPracticalType: getCurrentExamType(),
   currentYearSuffix: getCurrentYearSuffix(),
   hidden_centers_11th: '',
   hidden_centers_12th: '',
-  institutionName_11th: 'Govt Boys Model Higher Secondary School Handwara, Anantnag',
+  institutionName_11th: 'Govt. Higher Secondary School Shangus, Anantnag',
   institutionContact_11th: '9682641216',
   academicSessionText_11th: 'Annual Regular 2025',
   inchargeName_11th: 'Mr. Sheikh Gulfam',
   inchargeCPIS_11th: 'GRZEDU00060041',
   inchargeMobile_11th: '9682547458',
-  institutionName_12th: 'Govt Boys Model Higher Secondary School Handwara, Anantnag',
+  institutionName_12th: 'Govt. Higher Secondary School Shangus, Anantnag',
   institutionContact_12th: '9682641216',
   academicSessionText_12th: 'Annual Regular 2025',
   inchargeName_12th: 'Mr. Bilal Ahmad Khandy',
@@ -741,7 +741,7 @@ function deregisterTeacher(email) {
 function isAdminUser(email, config) {
   if (!email) return false;
   const emailLower = email.toLowerCase().trim();
-  const masterAdmin = (config.adminEmail || 'adm.exam.bhsshandwara@gmail.com').toLowerCase().trim();
+  const masterAdmin = (config.adminEmail || 'adm.exam.hss.shangus@gmail.com').toLowerCase().trim();
   if (emailLower === masterAdmin) return true;
   
   try {
@@ -1487,12 +1487,11 @@ function doGet(e) {
         teacherName: u.name || u.email.split('@')[0],
         name: u.name || u.email,
         role: u.role || 'Teacher',
-        isAdmin: roleStr === 'admin' || roleStr === 'superadmin' || u.email === 'adm.exam.bhsshandwara@gmail.com'
+        isAdmin: roleStr === 'admin' || roleStr === 'superadmin' || u.email === 'adm.exam.hss.shangus@gmail.com'
       };
     }
   }
-  t.user = user; 
-  t.userJson = user ? JSON.stringify(user) : 'null';
+  t.user = user ? JSON.stringify(user) : 'null';
 
   t.questions = JSON.stringify(questions);
   t.subjects = JSON.stringify(uniqueSubjects);
@@ -1503,71 +1502,6 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/**
- * Returns the correct Hub URL, handling dev mode automatically.
- */
-function getHubUrl() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const config = getConfigSettings(ss);
-  let hubUrl = config.hub_url || MASTER_PORTALS.hub.url;
-  
-  if (hubUrl && !hubUrl.includes('/exec') && !hubUrl.includes('/dev')) {
-    hubUrl = hubUrl.replace(/\/+$/, '') + '/exec';
-  }
-  
-  const scriptUrl = ScriptApp.getService().getUrl();
-  if (scriptUrl && scriptUrl.includes('/dev')) {
-    if (hubUrl && hubUrl.includes('/exec')) {
-      hubUrl = hubUrl.replace('/exec', '/dev');
-    }
-  }
-  return hubUrl;
-}
-
-/**
- * [NEW] Helper to hash tokens for comparison
- */
-function hashToken(token) {
-  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token)
-    .map(byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
-}
-
-/**
- * [NEW] Core Session Validation for Portals - Simplified for Practical Portal
- */
-function validateToken(token) {
-    if (!token) return { success: false, message: 'No token provided' };
-    try {
-        const decoded = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
-        if (decoded.exp && Date.now() > decoded.exp) {
-            return { success: false, message: 'Token expired' };
-        }
-        
-        // Re-authenticate user details from sheet to ensure they still exist/are active
-        const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-        const usersSheet = ss.getSheetByName(USERS_SHEET_NAME);
-        const data = usersSheet.getDataRange().getValues();
-        const headers = data[0].map(h => String(h).trim());
-        const emailIdx = headers.indexOf('Email');
-        
-        const userRow = data.find(row => String(row[emailIdx] || '').trim().toLowerCase() === decoded.email.toLowerCase());
-        if (!userRow) return { success: false, message: 'User not found' };
-
-        const isAdmin = isAdminUser(decoded.email, getConfigSettings(ss));
-        
-        return {
-            success: true,
-            email: decoded.email,
-            name: decoded.name,
-            role: userRow[headers.indexOf('Role')] || (isAdmin ? 'admin' : 'teacher'),
-            isAdmin: isAdmin,
-            className: userRow[headers.indexOf('InitialClass')] || '',
-            subject: userRow[headers.indexOf('InitialSubject')] || ''
-        };
-    } catch (e) {
-        return { success: false, message: 'Invalid token' };
-    }
-}
 
 /**
  * Converts a string to Title Case (Proper Case).
@@ -1917,7 +1851,7 @@ function registerUser(email, password, teacherName, className, subject) {
   }
   const validation = checkEmailExists(email);
   if (validation.exists) {
-    return { success: false, message: 'An account with this email already exists. Please sign in.' };
+    return { success: false, message: validation.message };
   }
   if (!className || !subject) {
     return { success: false, message: 'Class and subject are required for registration.' };
@@ -2010,8 +1944,8 @@ function sendPasswordReminder(email) {
       if (sheetEmail === email.toLowerCase().trim()) {
         const password = String(row[passIndex] || '');
         const teacherName = String(row[nameIndex] || sheetEmail.split('@')[0]);
-        const subject = `Password Reminder - BMHSS Handwara Portal`;
-        const body = `<p>Dear ${teacherName},<br>Here are your login details for the BMHSS Handwara Assessment Portal:<p><strong>Email:</strong> ${sheetEmail}<br><strong>Password:</strong> ${password}<br><p>Best regards,<br>Adms & Exams Team, BMHSS Handwara</p>`;
+        const subject = `Password Reminder - HSS Shangus Portal`;
+        const body = `<p>Dear ${teacherName},<br>Here are your login details for the HSS Shangus Assessment Portal:<p><strong>Email:</strong> ${sheetEmail}<br><strong>Password:</strong> ${password}<br><p>Best regards,<br>Adms & Exams Team, HSS Shangus</p>`;
         MailApp.sendEmail({
           to: sheetEmail, subject: subject, htmlBody: body, name: config.senderName, replyTo: config.replyToEmail
         });
@@ -2705,90 +2639,6 @@ function logActivity(email, activityType, details) {
   }
 }
 // ============================================================
-// Authentication
-// ============================================================
-/**
- * Authenticates a teacher with email and password.
- * Called by the client-side handleLogin() function.
- */
-function authenticateUser(email, password, keepLoggedIn = false) {
-  try {
-    const trimmedEmail = (email || '').trim().toLowerCase();
-    if (!trimmedEmail || !password) {
-      return { success: false, message: 'Email and password are required.' };
-    }
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const config = getConfigSettings(ss);
-    const usersSheet = getOrCreateUsersSheet(ss);
-    const data = usersSheet.getDataRange().getValues();
-    const headers = data[0].map(h => String(h).trim());
-    const emailIdx = headers.indexOf('Email');
-    const passIdx = headers.indexOf('Password');
-    const nameIdx = headers.indexOf('Teacher Name');
-    const activeIdx = headers.indexOf('Active');
-    const classIdx = headers.indexOf('InitialClass');
-    const subjectIdx = headers.indexOf('InitialSubject');
-
-    if (emailIdx === -1 || passIdx === -1) {
-      return { success: false, message: 'Database configuration error.' };
-    }
-
-    for (let i = 1; i < data.length; i++) {
-      const rowEmail = String(data[i][emailIdx] || '').trim().toLowerCase();
-      if (rowEmail !== trimmedEmail) continue;
-
-      // Check if account is active
-      const isActive = data[i][activeIdx];
-      if (isActive === false || isActive === 'FALSE' || String(isActive).toLowerCase() === 'false') {
-        logActivity(email, 'failed_login', { reason: 'account_inactive' });
-        return { success: false, message: 'Your account has been deactivated. Please contact the administrator.' };
-      }
-
-      const storedPassword = String(data[i][passIdx] || '').trim();
-      if (storedPassword !== password.trim()) {
-        logActivity(email, 'failed_login', { reason: 'wrong_password' });
-        return { success: false, message: 'Incorrect password. Please try again.' };
-      }
-
-      // Successful login
-      const teacherName = String(data[i][nameIdx] || trimmedEmail.split('@')[0]);
-      const initialClass = String(data[i][classIdx] || '');
-      const initialSubject = String(data[i][subjectIdx] || '');
-      const isAdmin = isAdminUser(email, config);
-
-      // Generate a persistent token (30 days if keepLoggedIn, otherwise 24 hours)
-      const duration = keepLoggedIn ? (30 * 24 * 60 * 60 * 1000) : (24 * 60 * 60 * 1000);
-      const payload = {
-        email: trimmedEmail,
-        name: teacherName,
-        role: isAdmin ? 'admin' : 'teacher',
-        exp: Date.now() + duration
-      };
-      const persistentToken = Utilities.base64EncodeWebSafe(JSON.stringify(payload));
-
-      logActivity(email, 'login', { method: 'password' });
-      return {
-        success: true,
-        email: trimmedEmail,
-        teacherName: teacherName,
-        name: teacherName,
-        initialClass: initialClass,
-        initialSubject: initialSubject,
-        isAdmin: isAdmin,
-        role: isAdmin ? 'admin' : 'teacher',
-        token: persistentToken
-      };
-    }
-
-    logActivity(email, 'failed_login', { reason: 'not_found' });
-    return { success: false, message: 'No account found with this email address. Please register first.' };
-  } catch (e) {
-    Logger.log('authenticateUser error: ' + e.toString());
-    return { success: false, message: 'A server error occurred. Please try again.' };
-  }
-}
-
-// ============================================================
 // Password Reset Functions
 // ============================================================
 function checkEmailExists(email) {
@@ -3049,7 +2899,7 @@ function generateCompletionEmailHTML(students, teacherName, subjectChosen, class
     const marksFigCell = `<td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.marksObtFigure}</td>`;
     const marksWordCell = `<td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: left; text-transform: capitalize; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.marksObtWords}</td>`;
     return `<tr style="${rowStyle}"><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.sNo}</td><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.classRollNo}</td><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.examRollNo}</td><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: left; word-break: break-word; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.name}</td>${marksFigCell}${marksWordCell}</tr>`}).join('');
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Submission Summary</title><style>body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; word-spacing: normal; } td { font-family: Arial, sans-serif; }</style></head><body style="background-color: #F3F4F6; margin: 0; padding: 0;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 0; background-color: #F3F4F6;"><tr><td align="center" style="padding: 20px 0;"><table role="presentation" style="width: 100%; max-width: 680px; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 8px; background-color: #FFFFFF;"><tr><td style="padding: 24px; background-color: #1F2937; border-top-left-radius: 8px; border-top-right-radius: 8px;"><h1 style="margin: 0; color: #FFFFFF; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">${typeLabel} Summary</h1><p style="margin: 4px 0 0; color: #D1D5DB; font-family: Arial, sans-serif; font-size: 16px;">${institutionName}</p></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0 0 16px; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">Dear <strong>${teacherName}</strong>,</p><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">${introMessage}</p></td></tr><tr><td style="padding: 0 24px;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 4px;"><thead><tr><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">S.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Class R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Exam R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Student Name</th><th colspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Marks Obt.</th></tr><tr><th style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Figures</th><th style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Words</th></tr></thead><tbody>${tableRows}</tbody></table></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px;">Best regards,<br><strong>Adms & Exams Team, BMHSS Handwara</strong></p><p style="margin: 20px 0 0; color: #6B7280; font-family: Arial, sans-serif; font-size: 12px; text-align: center;">This is an automated email. For any queries, contact <a href="mailto:${config.replyToEmail}" style="color: #3B82F6; text-decoration: none;">${config.replyToEmail}</a>.</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Submission Summary</title><style>body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; word-spacing: normal; } td { font-family: Arial, sans-serif; }</style></head><body style="background-color: #F3F4F6; margin: 0; padding: 0;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 0; background-color: #F3F4F6;"><tr><td align="center" style="padding: 20px 0;"><table role="presentation" style="width: 100%; max-width: 680px; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 8px; background-color: #FFFFFF;"><tr><td style="padding: 24px; background-color: #1F2937; border-top-left-radius: 8px; border-top-right-radius: 8px;"><h1 style="margin: 0; color: #FFFFFF; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">${typeLabel} Summary</h1><p style="margin: 4px 0 0; color: #D1D5DB; font-family: Arial, sans-serif; font-size: 16px;">${institutionName}</p></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0 0 16px; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">Dear <strong>${teacherName}</strong>,</p><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">${introMessage}</p></td></tr><tr><td style="padding: 0 24px;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 4px;"><thead><tr><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">S.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Class R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Exam R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Student Name</th><th colspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Marks Obt.</th></tr><tr><th style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Figures</th><th style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Words</th></tr></thead><tbody>${tableRows}</tbody></table></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px;">Best regards,<br><strong>Adms & Exams Team, HSS Shangus</strong></p><p style="margin: 20px 0 0; color: #6B7280; font-family: Arial, sans-serif; font-size: 12px; text-align: center;">This is an automated email. For any queries, contact <a href="mailto:${config.replyToEmail}" style="color: #3B82F6; text-decoration: none;">${config.replyToEmail}</a>.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 /**
@@ -3261,28 +3111,11 @@ function validateSSOToken(token) {
                 ssoSheet.deleteRow(i + 1);
                 return { success: false, message: 'Token expired' };
             }
-            const email = data[i][1];
-            const role = data[i][2] || 'Teacher';
-            let userData = { 
+            const userData = { 
                name: 'Gateway User', 
-               email: email, 
-               role: role 
+               email: data[i][1], 
+               role: data[i][2] || 'Teacher' 
             };
-
-            // Attempt to enrich from local users sheet
-            try {
-              const localUsersSheet = ss.getSheetByName(USERS_SHEET_NAME); // MODIFIED: Use the correct constant (Users)
-              if (localUsersSheet) {
-                const udata = localUsersSheet.getDataRange().getValues();
-                const urow = udata.find(r => String(r[0]).toLowerCase() === email.toLowerCase());
-                if (urow) {
-                  userData.teacherName = urow[2] || userData.name;
-                  userData.className = urow[5] || '';
-                  userData.subject = urow[6] || '';
-                }
-              }
-            } catch(e) {}
-
             ssoSheet.deleteRow(i + 1);
             return { success: true, user: userData };
         }
@@ -3308,12 +3141,12 @@ function generateSSOToken(email) {
     const ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
     const usersSheet = ss.getSheetByName('Users');
     const udata = usersSheet.getDataRange().getValues();
-    const userRow = udata.find(r => r[0] && r[0].toLowerCase() === email.toLowerCase());
+    const userRow = udata.find(r => r[1] && r[1].toLowerCase() === email.toLowerCase());
     
     let role = 'Teacher';
     if (userRow) {
       role = userRow[4] || 'Teacher';
-    } else if (email.toLowerCase() === 'adm.exam.bhsshandwara@gmail.com') {
+    } else if (email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com') {
       role = 'Admin';
     }
 
