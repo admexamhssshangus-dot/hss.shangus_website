@@ -24,6 +24,7 @@ const SUBJECT_NAME_TO_CODE = {
   'Education': 'ED',
   'Environmental Science': 'ES',
   'General English': 'EN',
+  'English': 'EN',
   'Geography': 'GG',
   'Healthcare': 'HTC',
   'History': 'HT',
@@ -46,25 +47,27 @@ const SUBJECT_NAME_TO_CODE = {
   'Geology': 'GO',
   'Biotechnology': 'BT',
   'Statistics': 'SS',
-  'Tourism And Hospitality': 'TH'
+  'Tourism And Hospitality': 'TH',
+  'Retail': 'RT',
+  'Security': 'SEC'
 };
 const CONFIG_DEFAULTS = {
   ccEmail: 'bilalhcu@gmail.com',
-  replyToEmail: 'adm.exam.bhsshandwara@gmail.com',
-  senderName: 'BMHSS Handwara Awards System',
-  adminEmail: 'adm.exam.bhsshandwara@gmail.com',
+  replyToEmail: 'adm.exam.hss.shangus@gmail.com',
+  senderName: 'HSS Shangus Awards System',
+  adminEmail: 'adm.exam.hss.shangus@gmail.com',
   emailYearString: 'Internal Assessment-2025',
   currentPracticalType: prac_getCurrentExamType(),
   currentYearSuffix: prac_getCurrentYearSuffix(),
   hidden_centers_11th: '',
   hidden_centers_12th: '',
-  institutionName_11th: 'Govt Boys Model Higher Secondary School Handwara, Anantnag',
+  institutionName_11th: 'Govt. Higher Secondary School Shangus, Anantnag',
   institutionContact_11th: '9682641216',
   academicSessionText_11th: 'Annual Regular 2025',
   inchargeName_11th: 'Mr. Sheikh Gulfam',
   inchargeCPIS_11th: 'GRZEDU00060041',
   inchargeMobile_11th: '9682547458',
-  institutionName_12th: 'Govt Boys Model Higher Secondary School Handwara, Anantnag',
+  institutionName_12th: 'Govt. Higher Secondary School Shangus, Anantnag',
   institutionContact_12th: '9682641216',
   academicSessionText_12th: 'Annual Regular 2025',
   inchargeName_12th: 'Mr. Bilal Ahmad Khandy',
@@ -294,19 +297,81 @@ function prac_getHiddenCenters(config, className){
 }
 function prac_normalizeSubjectCode(subject){
   if (!subject) return '';
-  const m = String(subject).match(/\(([^)]+)\)/);
-  let code = m ? String(m[1]).trim().toUpperCase() : '';
-  if (!code){
-    const nameOnly = String(subject).replace(/\(([^)]+)\)/, '').trim();
-    code = SUBJECT_NAME_TO_CODE[nameOnly] || '';
+  const raw = String(subject).trim();
+  
+  // 1. If it contains parenthesis, try to extract it first (e.g. "(ITE)" or "(BO)")
+  const parenMatch = raw.match(/\(([^)]+)\)/);
+  if (parenMatch) {
+    const code = parenMatch[1].trim().toUpperCase();
+    if (code) return code;
   }
-  if (code === 'BI'){
-    const lower = String(subject).toLowerCase();
-    // Return BI consistently unless it's specifically for Botany or Zoology sheets
-    // For general status matching, BI in student list should match BI in subject config
-    return 'BI'; 
+  
+  // 2. Direct check if the string itself is a 2 or 3 letter uppercase code
+  const cleanUpper = raw.toUpperCase().replace(/[^A-Z]/g, '');
+  const standardCodes = ['BI', 'BO', 'ZO', 'CH', 'PH', 'MA', 'UR', 'ED', 'HT', 'PS', 'EC', 'ES', 'PD', 'HTC', 'ITE', 'TH', 'RT', 'SEC', 'BS', 'EP', 'AY', 'TS', 'TOU', 'PE', 'AR', 'SO', 'FE', 'PY', 'GO', 'BT', 'SS'];
+  if (standardCodes.indexOf(cleanUpper) !== -1) {
+    return cleanUpper;
   }
-  return code;
+  
+  // Helper to normalize keys of SUBJECT_NAME_TO_CODE
+  const normalizeName = (name) => {
+    return name.toUpperCase()
+      .replace(/&/g, 'AND')
+      .replace(/[^A-Z0-9]/g, '');
+  };
+  
+  const targetNormalized = normalizeName(raw);
+  
+  // Check against our mapped names
+  for (const [name, code] of Object.entries(SUBJECT_NAME_TO_CODE)) {
+    if (normalizeName(name) === targetNormalized) {
+      return code;
+    }
+  }
+  
+  // Additional regex check for specific subjects
+  if (targetNormalized.includes('ITANDITES') || targetNormalized.includes('INFORMATIONTECH') || targetNormalized.includes('ITE') || targetNormalized.includes('ITES')) {
+    return 'ITE';
+  }
+  if (targetNormalized.includes('BOTANY') || targetNormalized === 'BO') {
+    return 'BO';
+  }
+  if (targetNormalized.includes('ZOOLOGY') || targetNormalized === 'ZO') {
+    return 'ZO';
+  }
+  if (targetNormalized.includes('BIOLOGY') || targetNormalized === 'BI') {
+    return 'BI';
+  }
+  if (targetNormalized.includes('PHYSICS')) {
+    return 'PH';
+  }
+  if (targetNormalized.includes('CHEMISTRY')) {
+    return 'CH';
+  }
+  if (targetNormalized.includes('MATHEMATICS')) {
+    return 'MA';
+  }
+  if (targetNormalized.includes('HEALTHCARE') || targetNormalized.includes('HEALTH')) {
+    return 'HTC';
+  }
+  if (targetNormalized.includes('RETAIL') || targetNormalized === 'RT') {
+    return 'RT';
+  }
+  if (targetNormalized.includes('SECURITY') || targetNormalized === 'SEC') {
+    return 'SEC';
+  }
+  if (targetNormalized.includes('TOURISM') || targetNormalized.includes('HOSPITALITY')) {
+    return 'TH';
+  }
+  
+  // Fallback to substring checking in the standard code map
+  for (const [name, code] of Object.entries(SUBJECT_NAME_TO_CODE)) {
+    if (targetNormalized.includes(normalizeName(name)) || normalizeName(name).includes(targetNormalized)) {
+      return code;
+    }
+  }
+  
+  return '';
 }
 function prac_getMarksConfig(config, className, practicalType) {
   const typeKey = String(practicalType || config.currentPracticalType || 'internal').toLowerCase();
@@ -379,37 +444,22 @@ function prac_getAvailableYearSuffixes() {
   let listSheetSuffixes = [];
   const listSheet = ss.getSheetByName('list');
   if (listSheet && listSheet.getLastRow() > 1) {
-    const data = listSheet.getDataRange().getValues();
-    if (data.length > 1) {
-      // Find the session column index
-      const headers = data[0].map(h => String(h).trim().toLowerCase().replace(/\s+/g, ' '));
-      const sessionIndex = headers.indexOf('session');
-      
-      if (sessionIndex !== -1) {
-        const sessionSet = new Set();
-        for (let i = 1; i < data.length; i++) {
-          const sessionValue = String(data[i][sessionIndex] || '').trim();
-          if (sessionValue) {
-            let yearSuffix = '';
-            // Handle different session formats
-            if (sessionValue.includes('-')) {
-              // Format like "2025-2026" -> take the last year
-              const parts = sessionValue.split('-');
-              yearSuffix = parts[parts.length - 1].slice(-2);
-            } else if (sessionValue.length === 4) {
-              // Format like "2026"
-              yearSuffix = sessionValue.slice(-2);
-            } else if (sessionValue.length === 2) {
-              // Format like "26"
-              yearSuffix = sessionValue;
-            }
-            if (yearSuffix && /^\d{2}$/.test(yearSuffix)) {
-              sessionSet.add(yearSuffix);
-            }
+    const headers = listSheet.getRange(1, 1, 1, listSheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toLowerCase().replace(/\s+/g, ' '));
+    const sessionIndex = headers.indexOf('session');
+    
+    if (sessionIndex !== -1) {
+      const sessionValues = listSheet.getRange(2, sessionIndex + 1, listSheet.getLastRow() - 1, 1).getValues();
+      const sessionSet = new Set();
+      for (let i = 0; i < sessionValues.length; i++) {
+        const sessionValue = String(sessionValues[i][0] || '').trim();
+        if (sessionValue) {
+          const yearSuffix = prac_normalizeYearSuffixValue_(sessionValue);
+          if (yearSuffix && /^\d{2}$/.test(yearSuffix)) {
+            sessionSet.add(yearSuffix);
           }
         }
-        listSheetSuffixes = Array.from(sessionSet).sort();
       }
+      listSheetSuffixes = Array.from(sessionSet).sort();
     }
   }
   
@@ -489,10 +539,10 @@ function prac_getOrCreatePermissionsSheet(ss) {
 }
 // NEW: Updated users sheet to include InitialClass and InitialSubject
 function prac_getOrCreateUsersSheet(ss) {
-  const usersSheet = prac_getOrCreateSheet(ss, USERS_SHEET_NAME, ['Email', 'Password', 'Teacher Name', 'Created Date', 'Active', 'InitialClass', 'InitialSubject']);
+  const usersSheet = prac_getOrCreateSheet(ss, USERS_SHEET_NAME, ['Email', 'Password', 'Teacher Name', 'Role', 'Created Date', 'Active', 'InitialClass', 'InitialSubject']);
   // Ensure all columns exist
   const headers = usersSheet.getRange(1, 1, 1, usersSheet.getLastColumn()).getValues()[0];
-  const requiredHeaders = ['Email', 'Password', 'Teacher Name', 'Created Date', 'Active', 'InitialClass', 'InitialSubject'];
+  const requiredHeaders = ['Email', 'Password', 'Teacher Name', 'Role', 'Created Date', 'Active', 'InitialClass', 'InitialSubject'];
   requiredHeaders.forEach((header, index) => {
     if (!headers.includes(header)) {
       usersSheet.insertColumnAfter(usersSheet.getLastColumn());
@@ -505,6 +555,36 @@ function prac_getOrCreateUsersSheet(ss) {
   });
   return usersSheet;
 }
+function prac_parseStudentTitleForForm_(title) {
+  let baseName = title.split('_')[0].trim();
+  const result = {
+    rollPrefix: 'N/A',
+    name: baseName,
+    fatherName: '',
+    subjects: title.split('_')[1] || ''
+  };
+  const fatherNameMatch = baseName.match(/\(([^)]+)\)/);
+  if (fatherNameMatch) {
+    result.fatherName = fatherNameMatch[1].trim();
+  }
+  const fullMatch = title.match(/^(\d*)\/(\d+)\.\s*([^(]+?)\s*(?:\(([^)]+)\))?_/);
+  const simpleMatch = title.match(/^(\d*)\/(\d+)\.\s*([^_]+?)\s*_/);
+  const classRollOnlyMatch = title.match(/^(\d+)\.\s*([^(]+?)\s*(?:\(([^)]+)\))?_/);
+  if (fullMatch) {
+    result.rollPrefix = (fullMatch[1] || '') + '/' + fullMatch[2];
+    result.name = fullMatch[3].trim();
+    result.fatherName = fullMatch[4] ? fullMatch[4].trim() : result.fatherName;
+  } else if (simpleMatch) {
+    result.rollPrefix = (simpleMatch[1] || '') + '/' + simpleMatch[2];
+    result.name = simpleMatch[3].trim();
+    result.fatherName = '';
+  } else if (classRollOnlyMatch) {
+    result.rollPrefix = classRollOnlyMatch[1];
+    result.name = classRollOnlyMatch[2].trim();
+    result.fatherName = classRollOnlyMatch[3] ? classRollOnlyMatch[3].trim() : result.fatherName;
+  }
+  return result;
+}
 function prac_parseStudentTitle(title) {
     const result = {
         examRoll: 'N/A',
@@ -513,17 +593,17 @@ function prac_parseStudentTitle(title) {
         fatherName: ''
     };
     // Make trailing boundary (underscore or end of string) optional for robust matching
-    const fullMatch = title.match(/^(\d+)\/(\d+)\.\s*([^(]+?)\s*\(([^)]+)\)?(?:_|$)/);
-    const simpleMatch = title.match(/^(\d+)\/(\d+)\.\s*([^_]+?)\s*(?:_|$)/);
+    const fullMatch = title.match(/^(\d*)\/(\d+)\.\s*([^(]+?)\s*\(([^)]+)\)?(?:_|$)/);
+    const simpleMatch = title.match(/^(\d*)\/(\d+)\.\s*([^_]+?)\s*(?:_|$)/);
     const classRollOnlyMatch = title.match(/^(\d+)\.\s*([^(]+?)\s*(?:\(([^)]+)\))?(?:_|$)/);
     
     if (fullMatch) {
-        result.classRoll = fullMatch[1];
+        result.classRoll = fullMatch[1] || 'N/A';
         result.examRoll = fullMatch[2];
         result.baseName = fullMatch[3].trim();
         result.fatherName = fullMatch[4] ? fullMatch[4].trim() : '';
     } else if (simpleMatch) {
-        result.classRoll = simpleMatch[1];
+        result.classRoll = simpleMatch[1] || 'N/A';
         result.examRoll = simpleMatch[2];
         result.baseName = simpleMatch[3].trim();
         result.fatherName = '';
@@ -741,25 +821,30 @@ function prac_deregisterTeacher(email) {
 function prac_isAdminUser(email, config) {
   if (!email) return false;
   const emailLower = email.toLowerCase().trim();
-  const masterAdmin = (config.adminEmail || 'adm.exam.bhsshandwara@gmail.com').toLowerCase().trim();
+  const masterAdmin = (config.adminEmail || 'adm.exam.hss.shangus@gmail.com').toLowerCase().trim();
   if (emailLower === masterAdmin) return true;
   
   try {
-    // Cross-check with Admissions Portal Users table (Source of Truth for Admins)
-    // Cross-check with Admissions Portal Users table (Shared Database)
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const usersSheet = ss.getSheetByName('Users');
     if (usersSheet) {
-      const data = usersSheet.getRange(2, 1, usersSheet.getLastRow() - 1, 5).getValues();
-      for (const row of data) {
-        if (String(row[0]).toLowerCase().trim() === emailLower) {
-          const role = String(row[4] || '').trim().toLowerCase();
-          return role === 'admin' || role === 'superadmin';
+      const data = usersSheet.getDataRange().getValues();
+      if (data.length < 2) return false;
+      const headers = data[0].map(h => String(h).trim().toLowerCase());
+      const emailIdx = headers.indexOf('email');
+      const roleIdx = headers.indexOf('role');
+      
+      if (emailIdx === -1 || roleIdx === -1) return false;
+      
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][emailIdx]).toLowerCase().trim() === emailLower) {
+          const role = String(data[i][roleIdx] || '').trim().toLowerCase();
+          return ['admin', 'superadmin', 'president'].includes(role);
         }
       }
     }
   } catch (e) {
-    Logger.log('Security check failed: ' + e.message);
+    Logger.log(`Error in prac_isAdminUser: ${e.toString()}`);
   }
   return false;
 }
@@ -808,6 +893,27 @@ function prac_isTeacherAuthorized(ss, email, className, subject, config) {
   }
 
   return false;
+}
+function prac_getTeacherAllocation(email) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const config = prac_getConfigSettings(ss);
+  const usersSheet = prac_getOrCreateUsersSheet(ss);
+  const userData = usersSheet.getDataRange().getValues();
+  const headers = userData[0].map(h => String(h).trim());
+  const emailIdx = headers.indexOf('Email');
+  const classIdx = headers.indexOf('InitialClass');
+  const subjectIdx = headers.indexOf('InitialSubject');
+
+  for (let i = 1; i < userData.length; i++) {
+    if (String(userData[i][emailIdx] || '').trim().toLowerCase() === email.trim().toLowerCase()) {
+      return {
+        initialClass: String(userData[i][classIdx] || '').trim(),
+        initialSubject: String(userData[i][subjectIdx] || '').trim(),
+        isAdmin: prac_isAdminUser(email, config)
+      };
+    }
+  }
+  return { initialClass: '', initialSubject: '', isAdmin: prac_isAdminUser(email, config) };
 }
 function prac_getEmailSentTimestamp(teacherEmail, className, subject, practicalType, yearSuffix) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -951,6 +1057,7 @@ function prac_getAdminDashboardData(practicalType = null, yearSuffix = null) {
       const headers = userData[0].map(h => String(h).trim());
       const emailIndex = headers.indexOf('Email');
       const nameIndex = headers.indexOf('Teacher Name');
+      const roleIndex = headers.indexOf('Role');
       const dateIndex = headers.indexOf('Created Date');
       const activeIndex = headers.indexOf('Active');
       const initialClassIndex = headers.indexOf('InitialClass');
@@ -982,7 +1089,13 @@ function prac_getAdminDashboardData(practicalType = null, yearSuffix = null) {
 
       for (let i = 1; i < userData.length; i++) {
         const userEmail = String(userData[i][emailIndex] || '').trim();
+        const userRole = String(userData[i][roleIndex] || '').trim().toLowerCase();
+        
         if (!userEmail) continue;
+        
+        // Only include teacher-related roles
+        const isStaff = ['teacher', 'admin', 'superadmin', 'president'].includes(userRole) || userRole === '';
+        if (!isStaff) continue;
         
         const isSubmitted = submittedEmails.has(userEmail.toLowerCase());
         const submissionWarning = isSubmitted ? ' (Has Submissions)' : '';
@@ -1074,19 +1187,7 @@ function prac_getAdminDashboardData(practicalType = null, yearSuffix = null) {
   }
 }
 function prac_getCentresFromListSheet(ss, yearSuffix){
-  const sh = ss.getSheetByName('list');
-  const set = new Set();
-  if (sh && sh.getLastRow() > 1) {
-    const data = sh.getDataRange().getValues();
-    for (let i=1; i<data.length; i++){
-      for (let j=0; j<data[i].length; j++){
-        const cell = String(data[i][j] || '');
-        const matches = cell.match(/\b(\d{6})\b/g);
-        if (matches){ matches.forEach(m => set.add(m)); }
-      }
-    }
-  }
-  return set;
+  return new Set(); // Optimized: center codes are dynamically and accurately extracted from student roll numbers per class
 }
 function prac_getCentresForClass(ss, className, yearSuffix, allQuestions){
   const listSet = prac_getCentresFromListSheet(ss, yearSuffix);
@@ -1487,7 +1588,7 @@ function DISABLED_prac_doGet(e) {
         teacherName: u.name || u.email.split('@')[0],
         name: u.name || u.email,
         role: u.role || 'Teacher',
-        isAdmin: roleStr === 'admin' || roleStr === 'superadmin' || u.email === 'adm.exam.bhsshandwara@gmail.com'
+        isAdmin: roleStr === 'admin' || roleStr === 'superadmin' || u.email === 'adm.exam.hss.shangus@gmail.com'
       };
     }
   }
@@ -1580,6 +1681,13 @@ function prac_toTitleCase(str) {
   }).join(' ');
 }
 
+// Helper to normalize class roll numbers for robust matching
+function prac_normalizeClassRoll(val) {
+  const str = String(val || '').trim();
+  if (!str) return '';
+  return str.replace(/\.0$/, '');
+}
+
 function prac_getAllQuestions(yearSuffix = null) {
   Logger.log(`[DEBUG] getAllQuestions called with yearSuffix: ${yearSuffix}`);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1589,6 +1697,61 @@ function prac_getAllQuestions(yearSuffix = null) {
 
   const data = listSheet.getDataRange().getValues();
   if (data.length < 2) return [];
+
+  // Load source_data lookup table from external database to resolve current board exam rolls
+  const lookupMap = new Map();
+  try {
+    const sourceSsId = '1pZz0YkcTvWJnnDlBSguUIU4Ujc0aPf5119B7nX7TRZg';
+    const sourceSs = SpreadsheetApp.openById(sourceSsId);
+    const sourceSheet = sourceSs.getSheetByName('source_data');
+    if (sourceSheet) {
+      const sourceData = sourceSheet.getDataRange().getValues();
+      if (sourceData.length > 1) {
+        const sourceHeaders = sourceData[0].map(h => String(h || '').trim().toLowerCase());
+        const findSourceIdx = (terms) => {
+          for (const term of terms) {
+            const i = sourceHeaders.indexOf(term.toLowerCase());
+            if (i !== -1) return i;
+          }
+          for (const term of terms) {
+            const i = sourceHeaders.findIndex(h => h.includes(term.toLowerCase()));
+            if (i !== -1) return i;
+          }
+          return -1;
+        };
+
+        const sIdx = {
+          roll: findSourceIdx(['class r.no.', 'class roll no', 'roll no', 'class roll', 'r.no']),
+          examRollCurrent: findSourceIdx(['exam r.no. (current)', 'exam r.no.', 'exam roll no', 'exam roll', 'board roll']),
+          class: findSourceIdx(['class', 'grade']),
+          session: findSourceIdx(['session', 'academic session'])
+        };
+
+        for (let r = 1; r < sourceData.length; r++) {
+          const row = sourceData[r];
+          const classRoll = sIdx.roll !== -1 ? prac_normalizeClassRoll(row[sIdx.roll]) : '';
+          let cls = sIdx.class !== -1 ? String(row[sIdx.class] || '').trim() : '';
+          const lowerCls = cls.toLowerCase();
+          if (lowerCls === '11' || lowerCls === '11th' || lowerCls === 'class 11' || lowerCls === 'class 11th') {
+            cls = '11th';
+          } else if (lowerCls === '12' || lowerCls === '12th' || lowerCls === 'class 12' || lowerCls === 'class 12th') {
+            cls = '12th';
+          }
+          const rawSession = sIdx.session !== -1 ? String(row[sIdx.session] || '').trim() : '';
+          const normalizedSession = rawSession ? prac_normalizeYearSuffixValue_(rawSession) : '';
+          const examRollCurrent = sIdx.examRollCurrent !== -1 ? String(row[sIdx.examRollCurrent] || '').trim() : '';
+
+          if (classRoll && cls && normalizedSession) {
+            const key = `${classRoll}_${cls}_${normalizedSession}`;
+            lookupMap.set(key, examRollCurrent || 'NA');
+          }
+        }
+        Logger.log(`[DEBUG] Built lookupMap with ${lookupMap.size} records from source_data.`);
+      }
+    }
+  } catch (e) {
+    Logger.log(`[ERROR] Failed to load lookupMap from source_data: ${e.message}`);
+  }
 
   const rawHeaders = data[0].map(h => String(h).trim().toLowerCase().replace(/\s+/g, ' '));
   const findIdx = (terms) => {
@@ -1601,12 +1764,17 @@ function prac_getAllQuestions(yearSuffix = null) {
 
   const idx = {
     classRoll: findIdx(['class roll no', 'class rno', 'class roll', 'roll no', 'sno', 's.no', 'roll_no']),
-    examRoll: findIdx(['exam roll number of class 10th', 'exam roll number of class 11th', 'exam roll no', 'exam roll', 'exam_roll_no']),
+    examRoll: findIdx(['exam r.no. (current)', 'exam r.no.', 'exam roll no', 'exam roll', 'exam_roll_no']),
+    examRoll11: findIdx(['exam roll number of class 11th']),
+    examRoll10: findIdx(['exam roll number of class 10th']),
     name: findIdx(["student's name (as per school records)", 'name', 'student name', 'candidate name', 'full name']),
     father: findIdx(["father's/guardian's name (as per school records)", 'father name', 'parentage']),
     subjects: findIdx(['subjects to be taken in class 11th', 'subjects to be taken in class 12th', 'subjects to be taken in class 9th', 'subjects to be taken in class 10th', 'subjects', 'subject']),
-    session: findIdx(['session', 'academic session', 'year']),
-    class: findIdx(['admission sought for class', 'class', 'grade']),
+    subjects11: findIdx(['subjects to be taken in class 11th']),
+    subjects11for12: findIdx(['subjects studied in class 11th']),
+    subjects12: findIdx(['stream & subjects for class 12th', 'stream and subjects for class 12th', 'subjects to be taken in class 12th']),
+    session: findIdx(['session', 'academic session', 'year', 'current session']),
+    class: findIdx(['admission sought for class', 'class to which admission is sought', 'class', 'grade']),
     mobile: findIdx(['mobile no. (with working whatsapp)', 'mobile', 'phone', 'contact'])
   };
 
@@ -1625,6 +1793,13 @@ function prac_getAllQuestions(yearSuffix = null) {
     const name = idx.name !== -1 ? String(row[idx.name] || '').trim() : '';
     if (!name) {
       skippedByName++;
+      continue;
+    }
+
+    const classRollVal = idx.classRoll !== -1 ? String(row[idx.classRoll] || '').trim() : '';
+    
+    // Require at least a Class Roll No. to filter out incomplete rows
+    if (!classRollVal) {
       continue;
     }
 
@@ -1648,24 +1823,79 @@ function prac_getAllQuestions(yearSuffix = null) {
       className = '12th';
     }
 
-    const rawSubjects = idx.subjects !== -1 ? String(row[idx.subjects] || '').trim() : '';
-    const studentSubjectList = rawSubjects.toUpperCase().split(',').map(s => s.trim());
-    if (studentSubjectList.includes('BI')) {
-      studentSubjectList.push('BO', 'ZO');
+    // Resolve Exam Roll Value
+    let examRollVal = '';
+    const isAdmSpreadsheet = (ss.getId() === '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg' || listSheet.getName() === 'adm_form');
+    const classRollNormalized = prac_normalizeClassRoll(classRollVal);
+    
+    if (isAdmSpreadsheet) {
+      if (classRollNormalized && className && studentYearSuffix) {
+        const lookupKey = `${classRollNormalized}_${className}_${studentYearSuffix}`;
+        examRollVal = lookupMap.get(lookupKey) || 'NA';
+      } else {
+        examRollVal = 'NA';
+      }
+    } else {
+      // First check the lookup map if available
+      if (classRollNormalized && className && studentYearSuffix && lookupMap.size > 0) {
+        const lookupKey = `${classRollNormalized}_${className}_${studentYearSuffix}`;
+        examRollVal = lookupMap.get(lookupKey) || 'NA';
+      }
+      // Fallback to sheet columns if not resolved or empty
+      if (!examRollVal || examRollVal === 'NA') {
+        if (idx.examRoll !== -1 && String(row[idx.examRoll] || '').trim() !== '') {
+          examRollVal = String(row[idx.examRoll]).trim();
+        } else if (className === '12th' && idx.examRoll11 !== -1) {
+          examRollVal = String(row[idx.examRoll11] || '').trim();
+        } else if (className === '11th' && idx.examRoll10 !== -1) {
+          examRollVal = String(row[idx.examRoll10] || '').trim();
+        }
+      }
+    }
+
+    if (!examRollVal) {
+      examRollVal = 'NA';
+    }
+
+    // Resolve Subjects
+    let rawSubjects = '';
+    if (className === '12th') {
+      const ss12 = idx.subjects12 !== -1 ? String(row[idx.subjects12] || '').trim() : '';
+      const subjects11For12th = idx.subjects11for12 !== -1 ? String(row[idx.subjects11for12] || '').trim() : '';
+      if (!ss12 || ss12.toLowerCase().includes('same as') || ss12.toLowerCase().includes('11th')) {
+        rawSubjects = subjects11For12th;
+      } else if (ss12.includes(' - ')) {
+        const parts = ss12.split(' - ');
+        rawSubjects = parts.slice(1).join(' - ').trim();
+      } else {
+        rawSubjects = ss12;
+      }
+    } else if (className === '11th') {
+      rawSubjects = idx.subjects11 !== -1 ? String(row[idx.subjects11] || '').trim() : '';
+    } else {
+      rawSubjects = idx.subjects !== -1 ? String(row[idx.subjects] || '').trim() : '';
+    }
+
+    const studentSubjectList = rawSubjects.split(',').map(s => prac_normalizeSubjectCode(s.trim())).filter(Boolean);
+    if (studentSubjectList.indexOf('BI') !== -1) {
+      if (studentSubjectList.indexOf('BO') === -1) studentSubjectList.push('BO');
+      if (studentSubjectList.indexOf('ZO') === -1) studentSubjectList.push('ZO');
     }
     const fatherStr = idx.father !== -1 ? String(row[idx.father] || '').trim() : '';
-    const classRollVal = String(row[idx.classRoll] || '').trim();
-    const examRollVal = String(row[idx.examRoll] || '').trim();
-    const rollPart = (classRollVal || examRollVal) ? `${classRollVal}/${examRollVal}. ${name}${fatherStr ? ' (' + fatherStr + ')' : ''}` : `${name}${fatherStr ? ' (' + fatherStr + ')' : ''}`;
+    const nameFormatted = prac_toTitleCase(name);
+    const fatherFormatted = fatherStr ? prac_toTitleCase(fatherStr) : '';
+    const rollPart = examRollVal 
+      ? `${classRollVal}/${examRollVal}. ${nameFormatted}${fatherFormatted ? ' (' + fatherFormatted + ')' : ''}`
+      : `${classRollVal}. ${nameFormatted}${fatherFormatted ? ' (' + fatherFormatted + ')' : ''}`;
 
     const sInfo = {
-      id: String(row[idx.examRoll] || i),
+      id: String(examRollVal || classRollVal || i),
       title: `${rollPart}_${rawSubjects}`,
       class: className,
-      name: prac_toTitleCase(name),
-      father: idx.father !== -1 ? prac_toTitleCase(fatherStr) : '',
+      name: nameFormatted,
+      father: fatherFormatted,
       classRoll: classRollVal,
-      examRoll: examRollVal,
+      examRoll: examRollVal || 'N/A',
       rawSubjects: rawSubjects,
       subjectCodes: studentSubjectList,
       contact: idx.mobile !== -1 ? String(row[idx.mobile] || '').trim() : '',
@@ -1828,7 +2058,9 @@ function prac_getSubjectsForClassType(className, practicalType) {
   const questions = prac_getAllQuestions(config.currentYearSuffix);
   const rawSubjSet = new Set();
   questions.forEach(q => {
-      if (q.class === className && q.rawSubjects) {
+      // Flexible class matching
+      const studentClass = String(q.class || '').trim();
+      if (className && studentClass.includes(className) && q.rawSubjects) {
           q.rawSubjects.split(',').forEach(s => {
               const code = s.trim().toUpperCase();
               if (code) rawSubjSet.add(code);
@@ -1945,7 +2177,7 @@ function prac_registerUser(email, password, teacherName, className, subject) {
     email: email,
     name: teacherName,
     role: prac_isAdminUser(email, config) ? 'admin' : 'teacher',
-    exp: Date.now() + (30 * 24 * 60 * 60 * 1000)
+    exp: Date.now() + (15 * 24 * 60 * 60 * 1000)
   };
   const persistentToken = Utilities.base64EncodeWebSafe(JSON.stringify(payload));
   
@@ -2010,8 +2242,8 @@ function prac_sendPasswordReminder(email) {
       if (sheetEmail === email.toLowerCase().trim()) {
         const password = String(row[passIndex] || '');
         const teacherName = String(row[nameIndex] || sheetEmail.split('@')[0]);
-        const subject = `Password Reminder - BMHSS Handwara Portal`;
-        const body = `<p>Dear ${teacherName},<br>Here are your login details for the BMHSS Handwara Assessment Portal:<p><strong>Email:</strong> ${sheetEmail}<br><strong>Password:</strong> ${password}<br><p>Best regards,<br>Adms & Exams Team, BMHSS Handwara</p>`;
+        const subject = `Password Reminder - HSS Shangus Portal`;
+        const body = `<p>Dear ${teacherName},<br>Here are your login details for the HSS Shangus Assessment Portal:<p><strong>Email:</strong> ${sheetEmail}<br><strong>Password:</strong> ${password}<br><p>Best regards,<br>Adms & Exams Team, HSS Shangus</p>`;
         MailApp.sendEmail({
           to: sheetEmail, subject: subject, htmlBody: body, name: config.senderName, replyTo: config.replyToEmail
         });
@@ -2035,24 +2267,39 @@ function prac_normalizePracticalTypeValue(practicalType, config) {
 function prac_normalizeYearSuffixValue_(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
+  
   // Accept already-normalized 2-digit year
   if (/^\d{2}$/.test(raw)) return raw;
-  // Accept full year like 2025
+  
+  // Accept ranges like 2025-26 or 2025-2026 or 2025/26 or 2025/2026
+  // Extract the CONCLUDING/ENDING year of the range (e.g., 26 or 25 or 24)
+  const rangeMatch = raw.match(/[-\/]\s*(\d{2,4})/);
+  if (rangeMatch) {
+    return rangeMatch[1].trim().slice(-2);
+  }
+  
+  const first4Digit = raw.match(/\b(19|20)\d{2}\b/);
+  if (first4Digit) {
+    return first4Digit[0].slice(-2);
+  }
+  
+  const first2Digit = raw.match(/\b\d{2}\b/);
+  if (first2Digit) {
+    return first2Digit[0];
+  }
+  
+  // Fallbacks:
   if (/^\d{4}$/.test(raw)) return raw.slice(-2);
-  // Accept ranges like 2025-2026 or 2025/2026
+  
   const matches = raw.match(/(19|20)\d{2}/g);
-  if (matches && matches.length > 0) return matches[matches.length - 1].slice(-2);
-  // Fallback: grab last two digits present
+  if (matches && matches.length > 0) return matches[0].slice(-2);
+  
   const last2 = raw.match(/(\d{2})\D*$/);
   return last2 ? last2[1] : raw;
 }
 
 function prac_deriveYearSuffixFromSessionText_(sessionText) {
-  const raw = String(sessionText || '').trim();
-  if (!raw) return '';
-  const matches = raw.match(/(19|20)\d{2}/g);
-  if (matches && matches.length > 0) return matches[matches.length - 1].slice(-2);
-  return prac_normalizeYearSuffixValue_(raw);
+  return prac_normalizeYearSuffixValue_(sessionText);
 }
 
 function prac_getUnifiedRowYearSuffix_(row) {
@@ -2196,11 +2443,21 @@ function prac_getUnifiedAnswersForRow(block, rowValues, allQuestions) {
   const answers = {};
   if (!block || !block.headers) return answers;
 
-  // Build a map of ExamRoll to Student ID for students in THIS class/group for robust matching
+  // Build maps of ExamRoll -> ID, ClassRoll -> ID, and Name -> ID for students in THIS class
   const examRollToId = new Map();
+  const classRollToId = new Map();
+  const nameToId = new Map();
+
   allQuestions.forEach(q => {
-    if (q.examRoll && q.examRoll !== 'N/A') {
+    const cleanName = String(q.name || '').trim().toLowerCase();
+    if (q.examRoll && q.examRoll !== 'N/A' && String(q.examRoll).trim()) {
       examRollToId.set(String(q.examRoll).trim(), q.id);
+    }
+    if (q.classRoll && q.classRoll !== 'N/A' && String(q.classRoll).trim()) {
+      classRollToId.set(String(q.classRoll).trim(), q.id);
+    }
+    if (cleanName) {
+      nameToId.set(cleanName, q.id);
     }
   });
 
@@ -2208,9 +2465,24 @@ function prac_getUnifiedAnswersForRow(block, rowValues, allQuestions) {
     const header = block.headers[j];
     if (!header) continue;
 
-    // Try parsing ExamRoll from header and mapping to student
     const headerInfo = prac_parseStudentTitle(header);
-    const qId = examRollToId.get(String(headerInfo.examRoll).trim());
+    let qId = null;
+
+    // 1. Try exact Board Exam Roll Number match
+    if (headerInfo.examRoll && headerInfo.examRoll !== 'N/A' && String(headerInfo.examRoll).trim()) {
+      qId = examRollToId.get(String(headerInfo.examRoll).trim());
+    }
+
+    // 2. Try Class Roll Number match if Exam Roll match is not found
+    if (!qId && headerInfo.classRoll && headerInfo.classRoll !== 'N/A' && String(headerInfo.classRoll).trim()) {
+      qId = classRollToId.get(String(headerInfo.classRoll).trim());
+    }
+
+    // 3. Fallback to Student Name match (stripped of parenthesis)
+    if (!qId && headerInfo.baseName) {
+      const cleanHeaderName = String(headerInfo.baseName).trim().toLowerCase();
+      qId = nameToId.get(cleanHeaderName);
+    }
 
     if (qId) {
       answers[qId] = rowValues[j];
@@ -2542,6 +2814,16 @@ function prac_getUserData(email, className, subject, practicalType, yearSuffix) 
       return studentSubjects.includes(subjectCode);
     });
     
+    // Sort by Class Roll Number ascending (numeric sort)
+    filteredStudents.sort((a, b) => {
+      const rollA = parseInt(a.classRoll, 10);
+      const rollB = parseInt(b.classRoll, 10);
+      if (isNaN(rollA) && isNaN(rollB)) return 0;
+      if (isNaN(rollA)) return 1;
+      if (isNaN(rollB)) return -1;
+      return rollA - rollB;
+    });
+    
     const { filledCount, pendingCount } = prac_calculateStats(filteredStudents, historicalAnswers, config);
     return {
       success: true, 
@@ -2638,39 +2920,37 @@ function prac_submitResponses(formObject) {
   };
 }
 function prac_getRelevantStudents(allQuestions, className, subject, config, yearSuffix = null) {
-  const subjectCodeMatch = subject.match(/\(([^)]+)\)/);
-  if (!subjectCodeMatch) return [];
-  let subjectCode = subjectCodeMatch[1].trim().toUpperCase();
-  if (subjectCode === 'BI') {
-    if (subject.toLowerCase().includes('botany')) {
-      subjectCode = 'BO';
-    } else if (subject.toLowerCase().includes('zoology')) {
-      subjectCode = 'ZO';
-    }
+  const subjectCode = prac_normalizeSubjectCode(subject);
+  if (!subjectCode) {
+    Logger.log(`[ERROR] Could not determine subject code for: ${subject}`);
+    return [];
   }
   
   const hiddenCenters = prac_getHiddenCenters(config, className);
-  return allQuestions.filter(q => {
-    if (q.class !== className) return false;
-    const underscoreIndex = q.title.indexOf('_');
-    if (underscoreIndex === -1) return false;
-    const subjectsOnlyString = q.title.substring(underscoreIndex + 1);
-    const studentSubjectList = subjectsOnlyString.split(',').map(s => s.trim().toUpperCase());
-    if (studentSubjectList.includes('BI')) {
-      studentSubjectList.push('BO', 'ZO');
-    }
-    if (!studentSubjectList.includes(subjectCode)) return false;
-    const sInfo = prac_parseStudentTitle(q.title);
-    const centerCode = String(sInfo.examRoll || '').replace(/\D/g,'').slice(0,6);
-    if (centerCode && hiddenCenters.has(centerCode)) return false;
+  const filtered = allQuestions.filter(q => {
+    // Flexible class matching
+    const studentClass = String(q.class || '').trim();
+    if (className && !studentClass.includes(className)) return false;
     
-    // Session filtering - match admin dashboard logic
+    // Check normalized subject code list
+    let isMatch = (q.subjectCodes || []).includes(subjectCode);
+    
+    // Biology (BI) students should be shown for both Botany (BO) and Zoology (ZO)
+    if (!isMatch && (subjectCode === 'BO' || subjectCode === 'ZO')) {
+      isMatch = (q.subjectCodes || []).includes('BI');
+    }
+    
+    if (!isMatch) return false;
+
+    // Center Filtering logic
+    const examRoll = q.examRoll || '';
+    const centerCode = String(examRoll).replace(/\D/g,'').slice(0,6);
+    
+    if (centerCode && hiddenCenters.has(centerCode)) return false;
+
+    // Session/Year Filtering
     if (yearSuffix && q.session) {
-      const studentSession = String(q.session || '').trim();
-      let studentYearSuffix = '';
-      if (studentSession) {
-        studentYearSuffix = studentSession.slice(-2);
-      }
+      const studentYearSuffix = prac_normalizeYearSuffixValue_(q.session);
       if (studentYearSuffix && studentYearSuffix !== yearSuffix) {
         return false;
       }
@@ -2678,6 +2958,18 @@ function prac_getRelevantStudents(allQuestions, className, subject, config, year
     
     return true;
   });
+
+  // Sort by Class Roll Number ascending (numeric sort)
+  filtered.sort((a, b) => {
+    const rollA = parseInt(a.classRoll, 10);
+    const rollB = parseInt(b.classRoll, 10);
+    if (isNaN(rollA) && isNaN(rollB)) return 0;
+    if (isNaN(rollA)) return 1;
+    if (isNaN(rollB)) return -1;
+    return rollA - rollB;
+  });
+
+  return filtered;
 }
 function prac_calculateStats(relevantStudents, answers, config) {
   let filledCount = 0;
@@ -2696,9 +2988,12 @@ function prac_calculateStats(relevantStudents, answers, config) {
 // ============================================================
 function prac_logActivity(email, activityType, details) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const logSheet = prac_getOrCreateActivityLogSheet(ss);
-    logSheet.appendRow([new Date(), email, activityType, JSON.stringify(details)]);
+    let detailsStr = details;
+    if (typeof details === 'object') {
+      try { detailsStr = JSON.stringify(details); } catch(e) { detailsStr = String(details); }
+    }
+    // Call the global logActivity function to track in Admin_Activity sheet
+    logActivity(`Science Practicals: ${activityType}`, email, detailsStr);
   } catch(e) {
     // Fail silently to not interrupt user flow
     Logger.log(`Failed to log activity for ${email}: ${e.toString()}`);
@@ -3049,7 +3344,7 @@ function prac_generateCompletionEmailHTML(students, teacherName, subjectChosen, 
     const marksFigCell = `<td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.marksObtFigure}</td>`;
     const marksWordCell = `<td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: left; text-transform: capitalize; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.marksObtWords}</td>`;
     return `<tr style="${rowStyle}"><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.sNo}</td><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.classRollNo}</td><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: center; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.examRollNo}</td><td style="font-family: Arial, sans-serif; font-size: 14px; padding: 10px 12px; text-align: left; word-break: break-word; border-bottom: 1px solid #E5E7EB; ${cellStyle}">${s.name}</td>${marksFigCell}${marksWordCell}</tr>`}).join('');
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Submission Summary</title><style>body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; word-spacing: normal; } td { font-family: Arial, sans-serif; }</style></head><body style="background-color: #F3F4F6; margin: 0; padding: 0;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 0; background-color: #F3F4F6;"><tr><td align="center" style="padding: 20px 0;"><table role="presentation" style="width: 100%; max-width: 680px; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 8px; background-color: #FFFFFF;"><tr><td style="padding: 24px; background-color: #1F2937; border-top-left-radius: 8px; border-top-right-radius: 8px;"><h1 style="margin: 0; color: #FFFFFF; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">${typeLabel} Summary</h1><p style="margin: 4px 0 0; color: #D1D5DB; font-family: Arial, sans-serif; font-size: 16px;">${institutionName}</p></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0 0 16px; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">Dear <strong>${teacherName}</strong>,</p><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">${introMessage}</p></td></tr><tr><td style="padding: 0 24px;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 4px;"><thead><tr><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">S.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Class R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Exam R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Student Name</th><th colspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Marks Obt.</th></tr><tr><th style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Figures</th><th style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Words</th></tr></thead><tbody>${tableRows}</tbody></table></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px;">Best regards,<br><strong>Adms & Exams Team, BMHSS Handwara</strong></p><p style="margin: 20px 0 0; color: #6B7280; font-family: Arial, sans-serif; font-size: 12px; text-align: center;">This is an automated email. For any queries, contact <a href="mailto:${config.replyToEmail}" style="color: #3B82F6; text-decoration: none;">${config.replyToEmail}</a>.</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Submission Summary</title><style>body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; word-spacing: normal; } td { font-family: Arial, sans-serif; }</style></head><body style="background-color: #F3F4F6; margin: 0; padding: 0;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 0; background-color: #F3F4F6;"><tr><td align="center" style="padding: 20px 0;"><table role="presentation" style="width: 100%; max-width: 680px; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 8px; background-color: #FFFFFF;"><tr><td style="padding: 24px; background-color: #1F2937; border-top-left-radius: 8px; border-top-right-radius: 8px;"><h1 style="margin: 0; color: #FFFFFF; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">${typeLabel} Summary</h1><p style="margin: 4px 0 0; color: #D1D5DB; font-family: Arial, sans-serif; font-size: 16px;">${institutionName}</p></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0 0 16px; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">Dear <strong>${teacherName}</strong>,</p><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5;">${introMessage}</p></td></tr><tr><td style="padding: 0 24px;"><table role="presentation" style="width: 100%; border-collapse: collapse; border: 1px solid #E5E7EB; border-radius: 4px;"><thead><tr><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">S.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Class R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Exam R.No</th><th rowspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Student Name</th><th colspan="2" style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Marks Obt.</th></tr><tr><th style="background-color: #F9FAFB; padding: 12px; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Figures</th><th style="background-color: #F9FAFB; padding: 12px; text-align: left; font-family: Arial, sans-serif; font-size: 12px; color: #4B5563; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #E5E7EB;">Words</th></tr></thead><tbody>${tableRows}</tbody></table></td></tr><tr><td style="padding: 32px 24px;"><p style="margin: 0; color: #374151; font-family: Arial, sans-serif; font-size: 16px;">Best regards,<br><strong>Adms & Exams Team, HSS Shangus</strong></p><p style="margin: 20px 0 0; color: #6B7280; font-family: Arial, sans-serif; font-size: 12px; text-align: center;">This is an automated email. For any queries, contact <a href="mailto:${config.replyToEmail}" style="color: #3B82F6; text-decoration: none;">${config.replyToEmail}</a>.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 /**

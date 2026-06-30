@@ -9,7 +9,7 @@ var CLOUD_RUN_URL = "https://" + "run-automation-278255418735.asia-south1.run.ap
 var SECRET_KEY = "my_super_secret_password_123";
 
 var ADMISSIONS_SHEET_ID = '1pZz0YkcTvWJnnDlBSguUIU4Ujc0aPf5119B7nX7TRZg';
-var ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+var ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 
 // 1. Serve the HTML Interface
 function doGet(e) {
@@ -56,6 +56,19 @@ function doGet(e) {
 // Helper to include other files
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/**
+ * [NEW] Centralized Activity Logging back to Admission Portal
+ */
+function logActivity(action, email, details) {
+  try {
+    const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const sheet = ss.getSheetByName('Admin_Activity');
+    if (sheet) {
+      sheet.appendRow([new Date(), email, '', action, details]);
+    }
+  } catch (e) { console.error('Logging failed:', e); }
 }
 
 /**
@@ -345,6 +358,9 @@ function syncWithAdmissionPortal(classFilter, sessionFilter) {
       }
     });
 
+    const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+    logActivity('Automation: Sync Hub Data', emailToLog, `Synced ${recordsToSync.length} students (${addedCount} new, ${updatedCount} updated). Filters: ${classFilter}, ${sessionFilter}`);
+
     return { 
       success: true, 
       message: `Sync complete! Synced ${recordsToSync.length} students (${addedCount} new, ${updatedCount} updated).` 
@@ -375,6 +391,10 @@ function deleteStudentResult(rowIndex) {
     
     // Delete local row completely
     sheet.deleteRow(rowIndex);
+    
+    const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+    logActivity('Automation: Delete Result', emailToLog, `Deleted result row ${rowIndex}`);
+    
     return { success: true, message: "Result and record removed from local storage." };
   } catch (e) {
     return { success: false, message: "Deletion Error: " + e.message };
@@ -438,6 +458,9 @@ function processSingleStudent(student) {
         // Update existing row
         sheet.getRange(targetRow, 6, 1, 2).setValues([["Success", fileUrl]]);
       }
+
+      const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+      logActivity('Automation: Process PDF', emailToLog, `Generated PDF for ${student.rollNo} - ${student.name}`);
 
       return { success: true, message: "Success", fileUrl: fileUrl, newRowIndex: targetRow };
     } else {

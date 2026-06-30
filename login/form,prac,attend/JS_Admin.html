@@ -1,94 +1,94 @@
 <script>
-function openColumnManager() {
-    const modal = document.getElementById('columnManagerModal');
-    const list = document.getElementById('columnManagerList');
-    if (!modal || !list) return;
+    function openColumnManager() {
+        const modal = document.getElementById('columnManagerModal');
+        const list = document.getElementById('columnManagerList');
+        if (!modal || !list) return;
 
-    const skipHeaders = [
-        'SNo', 'Checkbox', 'Form Number', 'Class Roll No', 'Student Photo',
-        "Student's Name (as per school records)", 'Status', 'Actions',
-        'photo_id', 'readmission',
-        'Lock Status', 'Submission Attempts'
-    ];
+        const skipHeaders = [
+            'SNo', 'Checkbox', 'Form Number', 'Class Roll No', 'Student Photo',
+            "Student's Name (as per school records)", 'Status', 'Actions',
+            'photo_id', 'readmission',
+            'Lock Status', 'Submission Attempts'
+        ];
 
-    // All available fields from sheet + core columns defined in ADMIN_TABLE_COLUMNS
-    const coreKeys = Object.keys(ADMIN_TABLE_COLUMNS).filter(k => !ADMIN_TABLE_COLUMNS[k].fixed && !skipHeaders.includes(k));
-    const sheetHeaders = (state.adminData.allHeaders || []).filter(h => !skipHeaders.includes(h) && !h.startsWith('isUnlocked'));
+        // All available fields from sheet + core columns defined in ADMIN_TABLE_COLUMNS
+        const coreKeys = Object.keys(ADMIN_TABLE_COLUMNS).filter(k => !ADMIN_TABLE_COLUMNS[k].fixed && !skipHeaders.includes(k));
+        const sheetHeaders = (state.adminData.allHeaders || []).filter(h => !skipHeaders.includes(h) && !h.startsWith('isUnlocked'));
 
-    // Combine and remove duplicates
-    const allAvailable = [...new Set([...coreKeys, ...sheetHeaders])];
-    const visible = new Set(state.visibleColumns);
+        // Combine and remove duplicates
+        const allAvailable = [...new Set([...coreKeys, ...sheetHeaders])];
+        const visible = new Set(state.visibleColumns);
 
-    list.innerHTML = allAvailable.map(field => {
-        const label = ADMIN_TABLE_COLUMNS[field] ? ADMIN_TABLE_COLUMNS[field].label : field;
-        const checked = visible.has(field);
-        return `
-            <label class="col-grid-item" title="${label}">
-                <input type="checkbox" data-column="${field}" ${checked ? 'checked' : ''}>
-                <span>${label}</span>
+        list.innerHTML = allAvailable.map(field => {
+            const label = ADMIN_TABLE_COLUMNS[field] ? ADMIN_TABLE_COLUMNS[field].label : field;
+            const checked = visible.has(field);
+            return `
+            <label class="col-grid-item" style="display:flex; align-items:center; gap:8px; padding:6px 8px; cursor:pointer; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; overflow: hidden; white-space: nowrap;" title="${label}">
+                <input type="checkbox" data-column="${field}" ${checked ? 'checked' : ''} style="accent-color:var(--primary); flex-shrink: 0; width:16px; height:16px;">
+                <span style="font-size:0.8rem; font-weight:500; color:var(--text-primary); text-overflow: ellipsis; overflow: hidden; width: 100%;">${label}</span>
             </label>
         `;
-    }).join('');
+        }).join('');
 
-    modal.style.display = 'flex';
-}
-
-function closeColumnManager() {
-    const modal = document.getElementById('columnManagerModal');
-    if (modal) modal.style.display = 'none';
-}
-
-function resetColumnsToDefault() {
-    if (typeof ADMIN_DEFAULT_COLUMNS !== 'undefined') {
-        state.visibleColumns = [...ADMIN_DEFAULT_COLUMNS];
-    } else {
-        state.visibleColumns = [
-            'Email Address', 'Account Mobile', 'Mobile No. (with working WhatsApp)',
-            "Parent's Mobile No. (must be working)", 'Residence',
-            'Admission sought for class', 'Session', 'Stream', 'Subjects'
-        ];
-    }
-    localStorage.setItem('adminVisibleColumns', JSON.stringify(state.visibleColumns));
-    if (typeof renderAdminDashboard === 'function') renderAdminDashboard();
-    closeColumnManager();
-}
-
-function applyColumnChanges() {
-    const list = document.getElementById('columnManagerList');
-    const checked = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.dataset.column);
-
-    if (checked.length === 0) {
-        if (window.showAlert) showAlert('admin-alert', 'Please select at least one column.', 'warning');
-        else alert('Please select at least one column.');
-        return;
+        modal.style.display = 'flex';
     }
 
-    state.visibleColumns = checked;
-    localStorage.setItem('adminVisibleColumns', JSON.stringify(state.visibleColumns));
-    if (typeof renderAdminDashboard === 'function') renderAdminDashboard();
-    closeColumnManager();
-}
+    function closeColumnManager() {
+        const modal = document.getElementById('columnManagerModal');
+        if (modal) modal.style.display = 'none';
+    }
 
-function filterColumnManager(query) {
-    const list = document.getElementById('columnManagerList');
-    if (!list) return;
-    const lowerQuery = query.toLowerCase();
-    Array.from(list.children).forEach(label => {
-        const text = label.textContent.toLowerCase();
-        const input = label.querySelector('input');
-        const val = input ? input.dataset.column.toLowerCase() : '';
-        if (text.includes(lowerQuery) || val.includes(lowerQuery)) {
-            label.style.display = 'flex';
+    function resetColumnsToDefault() {
+        if (typeof ADMIN_DEFAULT_COLUMNS !== 'undefined') {
+            state.visibleColumns = [...ADMIN_DEFAULT_COLUMNS];
         } else {
-            label.style.display = 'none';
+            state.visibleColumns = [
+                'Email Address', 'Mobile No. (with working WhatsApp)',
+                "Parent's Mobile No. (must be working)", 'Residence',
+                'Admission sought for class', 'Stream', 'Subjects'
+            ];
         }
-    });
-}
+        localStorage.setItem('adminVisibleColumns', JSON.stringify(state.visibleColumns));
+        if (typeof renderAdminDashboard === 'function') renderAdminDashboard();
+        closeColumnManager();
+    }
 
-// Ensure global exposure
-window.openColumnManager = openColumnManager;
-window.closeColumnManager = closeColumnManager;
-window.resetColumnsToDefault = resetColumnsToDefault;
-window.applyColumnChanges = applyColumnChanges;
-window.filterColumnManager = filterColumnManager;
+    function applyColumnChanges() {
+        const list = document.getElementById('columnManagerList');
+        const checked = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.dataset.column);
+
+        if (checked.length === 0) {
+            if (window.showAlert) showAlert('admin-alert', 'Please select at least one column.', 'warning');
+            else alert('Please select at least one column.');
+            return;
+        }
+
+        state.visibleColumns = checked;
+        localStorage.setItem('adminVisibleColumns', JSON.stringify(state.visibleColumns));
+        if (typeof renderAdminDashboard === 'function') renderAdminDashboard();
+        closeColumnManager();
+    }
+
+    function filterColumnManager(query) {
+        const list = document.getElementById('columnManagerList');
+        if (!list) return;
+        const lowerQuery = query.toLowerCase();
+        Array.from(list.children).forEach(label => {
+            const text = label.textContent.toLowerCase();
+            const input = label.querySelector('input');
+            const val = input ? input.dataset.column.toLowerCase() : '';
+            if (text.includes(lowerQuery) || val.includes(lowerQuery)) {
+                label.style.display = 'flex';
+            } else {
+                label.style.display = 'none';
+            }
+        });
+    }
+
+    // Ensure global exposure
+    window.openColumnManager = openColumnManager;
+    window.closeColumnManager = closeColumnManager;
+    window.resetColumnsToDefault = resetColumnsToDefault;
+    window.applyColumnChanges = applyColumnChanges;
+    window.filterColumnManager = filterColumnManager;
 </script>

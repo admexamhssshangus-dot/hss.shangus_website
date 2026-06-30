@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <title>BMHSS Handwara - Automation Portal</title>
+    <title>HSS Shangus - Automation Portal</title>
     <style>
         :root {
             --primary: #1e40af;
@@ -190,6 +190,61 @@
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* [NEW] Premium Spinner & Redirect Overlay */
+        .spinner-circle {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(245, 158, 11, 0.1);
+            border-top: 3px solid #f59e0b;
+            border-radius: 50%;
+            animation: spin-premium 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin-premium {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        #redirectOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20000;
+            color: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            font-family: sans-serif;
+        }
+
+        #redirectOverlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .progress-container {
+            width: 240px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+            transition: width 0.3s ease;
+        }
     </style>
 
 </head>
@@ -218,11 +273,10 @@
     </div>
 
     <!-- [NEW] Loading Screen (Shows until JS initializes) -->
-    <div id="loadingView" style="position:fixed; inset:0; background:rgba(255,255,255,0.9); display:flex; align-items:center; justify-content:center; z-index:10000; flex-direction:column; gap:15px; font-family:sans-serif; backdrop-filter:blur(2px);">
-        <div style="width:40px; height:40px; border:3px solid #f3f3f3; border-top:3px solid var(--primary); border-radius:50%; animation: spin 1s linear infinite;"></div>
-        <div style="color:#64748b; font-size:14px; font-weight:600;">Initializing Portal...</div>
-        <div id="loadingStatus" style="color:#94a3b8; font-size:11px;">Checking session...</div>
-        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    <div id="loadingView" style="position:fixed; inset:0; background:rgba(255,255,255,0.95); display:flex; align-items:center; justify-content:center; z-index:10000; flex-direction:column; gap:8px; font-family:sans-serif; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);">
+        <div class="spinner-circle"></div>
+        <div style="color:#0f172a; font-size:16px; font-weight:700; letter-spacing:-0.02em;">HSS Shangus</div>
+        <div id="loadingStatus" style="color:#64748b; font-size:11px; font-weight:500;">Initializing Secure Portal...</div>
     </div>
 
     <!-- Auth Screen -->
@@ -335,7 +389,7 @@
     <script>
         var state = {
             currentUser: <?!= user ?>,
-            adminEmail: 'adm.exam.bhsshandwara@gmail.com',
+            adminEmail: 'adm.exam.hss.shangus@gmail.com',
             students: [],
             queue: [],
             totalQueue: 0
@@ -488,6 +542,9 @@
         }
 
         function redirectGate() {
+            const lv = document.getElementById('loadingView');
+            if (lv) lv.style.display = 'none';
+
             var HUB_URL = "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec";
             var currentUrl = window.location.href.split('?')[0];
             var sep = HUB_URL.indexOf('?') !== -1 ? '&' : '?';
@@ -513,7 +570,7 @@
 
         function isAdmin(user) {
             if (!user) return false;
-            return user.role === 'Admin' || user.role === 'SuperAdmin' || user.email === state.adminEmail;
+            return user.role === 'Admin' || user.role === 'SuperAdmin' || user.role === 'President' || user.email === state.adminEmail;
         }
 
         document.getElementById('loginForm').addEventListener('submit', function(e) {
@@ -558,8 +615,8 @@
             var sVal = document.getElementById('filterSession').value;
 
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:3rem">' +
-                '<i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--primary); margin-bottom:1rem"></i>' +
-                '<div style="color:#64748b; font-weight:600">Syncing with Admission Portal...</div>' +
+                '<div class="spinner-circle" style="width: 24px; height: 24px; border-width: 2px; margin-bottom: 0.5rem;"></div>' +
+                '<div style="color:#64748b; font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:1px" class="animate-pulse">Syncing with Admission Portal...</div>' +
                 '</td></tr>';
             
             callServer('getStudentList', cVal, sVal)
@@ -571,10 +628,15 @@
                 }
                 renderTable(data);
                 document.getElementById('progressInfo').innerText = 'Synced ' + data.length + ' records';
+                // Final hide of initial premium loader
+                const lv = document.getElementById('loadingView');
+                if (lv) lv.style.display = 'none';
               })
               .catch(function(e) { 
                 showPopup({ title: 'Fetch Error', text: String(e), type: 'error', confirmOnly: true });
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red; padding:2rem">Connection failed.</td></tr>'; 
+                const lv = document.getElementById('loadingView');
+                if (lv) lv.style.display = 'none';
               });
         }
 
@@ -802,6 +864,12 @@
 
         function showView(id) {
             console.log('showView: Switching to', id);
+            // Hide premium loader ONLY if we are showing the auth view (login gate)
+            if (id === 'authView') {
+                const lv = document.getElementById('loadingView');
+                if (lv) lv.style.display = 'none';
+            }
+
             var views = ['authView', 'mainView', 'loadingView'];
             for (var i = 0; i < views.length; i++) {
                 const el = document.getElementById(views[i]);
@@ -817,6 +885,36 @@
                 showPopup({ title: 'Auth Required', text: 'Please log in first to access other portals.', type: 'warning', confirmOnly: true });
                 return; 
             }
+
+            // Show overlay
+            const overlay = document.getElementById('redirectOverlay');
+            const bar = document.getElementById('redirectProgressBar');
+            const pctText = document.getElementById('redirectPercent');
+            const targetName = document.getElementById('targetPortalName');
+
+            const portalNames = {
+                practicals: 'Practicals Portal',
+                automation: 'Automation Portal',
+                advanced_reports: 'Reports Portal',
+                fund_distribution: 'Distribution Portal',
+                hub: 'Admission Hub'
+            };
+
+            targetName.innerText = portalNames[portalId] || 'Portal';
+            overlay.classList.add('visible');
+            bar.style.width = '0%';
+            pctText.innerText = '0%';
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress < 85) {
+                    progress += Math.random() * 15;
+                    if (progress > 85) progress = 85;
+                    bar.style.width = progress + '%';
+                    pctText.innerText = Math.round(progress) + '%';
+                }
+            }, 200);
+
             var localPortals = {
                 hub: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec",
                 practicals: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec",
@@ -826,27 +924,63 @@
             };
             try {
                 google.script.run.withSuccessHandler(function(response) {
-                    if (response && response.success && response.token) {
-                        var portals = response.portals || localPortals;
-                        var target = portals[portalId];
-                        var base = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
-                        if (!base) { 
-                            showPopup({ title: 'Configuration Error', text: 'Portal not configured: ' + portalId, type: 'error', confirmOnly: true });
-                            return; 
-                        }
-                        var url = base + (base.indexOf('?') !== -1 ? '&' : '?') + 'token=' + response.token;
-                        window.open(url, '_blank');
-                    } else { 
-                        showPopup({ title: 'Gateway Error', text: response.message || 'Failed to generate session', type: 'error', confirmOnly: true });
-                    }
-                }).withFailureHandler(function(err) { 
-                    showPopup({ title: 'Connection Error', text: String(err), type: 'error', confirmOnly: true });
-                })
-                  .generateSSOToken(state.currentUser.email);
-            } catch (e) { console.error('Portal Switch Error:', e); }
-        }
+                    clearInterval(interval);
+                    bar.style.width = '100%';
+                    pctText.innerText = '100%';
 
+                    setTimeout(() => {
+                        if (response && response.success && response.token) {
+                            var portals = response.portals || localPortals;
+                            var target = portals[portalId];
+                            var base = (target && typeof target === 'object') ? target.url : (target || localPortals[portalId]);
+                            if (!base) { 
+                                showPopup({ title: 'Configuration Error', text: 'Portal not configured: ' + portalId, type: 'error', confirmOnly: true });
+                                overlay.classList.remove('visible');
+                                return; 
+                            }
+                            var url = base + (base.indexOf('?') !== -1 ? '&' : '?') + 'token=' + response.token;
+                            window.open(url, '_blank');
+                            setTimeout(() => overlay.classList.remove('visible'), 1000);
+                        } else { 
+                            showPopup({ title: 'Gateway Error', text: response.message || 'Failed to generate session', type: 'error', confirmOnly: true });
+                            overlay.classList.remove('visible');
+                        }
+                    }, 300);
+                }).withFailureHandler(function(err) { 
+                    clearInterval(interval);
+                    showPopup({ title: 'Connection Error', text: String(err), type: 'error', confirmOnly: true });
+                    overlay.classList.remove('visible');
+                }).generateSSOToken(state.currentUser.email);
+            } catch (e) { 
+                console.error('Portal Switch Error:', e); 
+                overlay.classList.remove('visible');
+            }
+        }
+    </script>
+
+    <div id="redirectOverlay">
+        <div class="spinner-circle"></div>
+        <div id="redirectStatus" style="font-size: 16px; font-weight: 700; letter-spacing: -0.02em;">Preparing Secure
+            Session</div>
+        <div style="font-size: 10px; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 4px; opacity: 0.8;">
+            Redirecting to <span id="targetPortalName">Portal</span></div>
+        <div class="progress-container">
+            <div id="redirectProgressBar" class="progress-bar-fill"></div>
+        </div>
+        <div id="redirectPercent" style="font-size: 10px; font-weight: 700; mt: 8px; color: #f59e0b; margin-top: 8px;">0%
+        </div>
+    </div>
+
+    <script>
         window.onload = function() {
+            // Safety timeout
+            setTimeout(() => {
+                const lv = document.getElementById('loadingView');
+                if (lv && lv.style.display !== 'none') {
+                    console.warn('Safety timeout: Hiding stuck loader');
+                    lv.style.display = 'none';
+                }
+            }, 10000);
             initAuth();
         };
     </script>

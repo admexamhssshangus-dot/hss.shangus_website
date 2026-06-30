@@ -62,8 +62,8 @@ export default function About() {
       </div>
 
       {/* Glimpse + Vision & Mission (moved prospectus content) */}
-      <div className="max-w-6xl mx-auto px-4 py-12 relative -mt-16 z-20">
-        <div className="bg-white rounded-xl shadow-xl p-8 border-t-4 border-teal-500 mb-8 relative overflow-hidden">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-12 relative -mt-16 z-20">
+        <div className="bg-white rounded-xl shadow-xl p-4 sm:p-8 border-t-4 border-teal-500 mb-6 sm:mb-8 relative overflow-hidden">
           {/* Large decorative chinar leaf watermark for the whole card */}
           <svg className="absolute -right-12 -top-8 w-64 h-64 text-teal-500/[0.04] pointer-events-none select-none" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
@@ -75,7 +75,7 @@ export default function About() {
           <h3 className="text-2xl font-bold text-teal-800 mb-6 relative z-10">Glimpse of the Institution</h3>
 
           {/* A Haven of Learning */}
-          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-teal-50 to-emerald-50/50 border border-teal-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+          <div className="mb-4 sm:mb-6 relative overflow-hidden rounded-lg sm:rounded-xl p-3.5 sm:p-6 bg-gradient-to-br from-teal-50 to-emerald-50/50 border border-teal-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – right side */}
             <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-teal-600/[0.08] pointer-events-none select-none group-hover:scale-110 group-hover:text-teal-600/[0.12] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
@@ -87,7 +87,7 @@ export default function About() {
           </div>
 
           {/* A Legacy of Education Since 1917 */}
-          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-bl from-amber-50 to-orange-50/50 border border-amber-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+          <div className="mb-4 sm:mb-6 relative overflow-hidden rounded-lg sm:rounded-xl p-3.5 sm:p-6 bg-gradient-to-bl from-amber-50 to-orange-50/50 border border-amber-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – left side, rotated */}
             <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-amber-600/[0.08] pointer-events-none select-none -rotate-12 group-hover:scale-110 group-hover:rotate-0 group-hover:text-amber-600/[0.12] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
@@ -99,7 +99,7 @@ export default function About() {
           </div>
 
           {/* Excellence in Academics and Beyond */}
-          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-indigo-50 to-blue-50/50 border border-indigo-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+          <div className="mb-4 sm:mb-6 relative overflow-hidden rounded-lg sm:rounded-xl p-3.5 sm:p-6 bg-gradient-to-br from-indigo-50 to-blue-50/50 border border-indigo-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – right side */}
             <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-28 h-28 text-indigo-600/[0.06] pointer-events-none select-none rotate-12 group-hover:scale-110 group-hover:rotate-0 group-hover:text-indigo-600/[0.1] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>
@@ -111,7 +111,7 @@ export default function About() {
           </div>
 
           {/* Shaping Tomorrow's Leaders */}
-          <div className="mb-6 relative overflow-hidden rounded-xl p-6 bg-gradient-to-bl from-rose-50 to-pink-50/50 border border-rose-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+          <div className="mb-4 sm:mb-6 relative overflow-hidden rounded-lg sm:rounded-xl p-3.5 sm:p-6 bg-gradient-to-bl from-rose-50 to-pink-50/50 border border-rose-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             {/* Chinar leaf – left side */}
             <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-28 h-28 text-rose-600/[0.05] pointer-events-none select-none rotate-[20deg] group-hover:scale-110 group-hover:rotate-[10deg] group-hover:text-rose-600/[0.1] transition-all duration-500" viewBox="0 0 200 200" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M100 10 C95 30, 70 35, 50 25 C60 50, 55 70, 30 80 C55 85, 65 95, 60 120 C75 105, 90 100, 100 110 C110 100, 125 105, 140 120 C135 95, 145 85, 170 80 C145 70, 140 50, 150 25 C130 35, 105 30, 100 10Z M100 110 L100 190" strokeWidth="3" stroke="currentColor" fillOpacity="0.5"/>

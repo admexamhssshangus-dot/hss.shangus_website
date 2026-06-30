@@ -13,7 +13,8 @@ service firebase.storage {
           request.auth.token.email.lower() in firestore.get(/databases/(default)/documents/site/admins).data.emails
         )) ||
         // Route 2: Phone-based admin (2FA OTP login)
-        request.auth.token.phone_number == "+919682547458"
+        request.auth.token.phone_number == "+919682547458" ||
+        request.auth.token.phone_number in firestore.get(/databases/(default)/documents/site/admins).data.phones
       ) && (
         request.resource == null || (
           request.resource.size < 1 * 1024 * 1024 &&

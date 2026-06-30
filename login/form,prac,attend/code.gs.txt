@@ -1,8 +1,8 @@
 // =================================================================
-// BMHSS HANDWARA ADMISSION PORTAL - SERVER-SIDE CODE
+// HSS SHANGUS ADMISSION PORTAL - SERVER-SIDE CODE
 // =================================================================
 // Configuration
-var PORTAL_VERSION = '2026.04.7-02';
+var PORTAL_VERSION = '2026.04.7-01';
 var SCRIPT_PROPERTIES = {
   sheetId: '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg', // <-- Make sure this is your Sheet ID
   rootFolderId: '1t2ywnZxeRiTZqvzsONl7Xvp2oEjhdBt2', // <-- Make sure this is your Folder ID
@@ -13,7 +13,7 @@ var SCRIPT_PROPERTIES = {
   templateDocIdRegular: '1UDNHXBdWPBKEdHcEUo3i7hcYF6cOZ0lm1heCN8m6udc', // <-- Your "Regular 11th/12th" template
   templateDocIdProvisional: '10t-0WmRjCBCq8ANTbK6-N1Z4uQG4Ga0vPR2fhc34nyU', // <-- Your "Provisional" template (updated)
   watermarkText: 'https://drive.google.com/drive/folders/1hgN6pqPJPhGgerRbs92h5CDAIDJqPzeL',
-  adminEmail: 'adm.exam.bhsshandwara@gmail.com',
+  adminEmail: 'adm.exam.hss.shangus@gmail.com',
   // WhatsApp API Configuration - Set these values in Script Properties (File > Project Properties > Script Properties)
   whatsappApiUrl: PropertiesService.getScriptProperties().getProperty('WHATSAPP_API_URL') || '',
   whatsappApiKey: PropertiesService.getScriptProperties().getProperty('WHATSAPP_API_KEY') || '',
@@ -57,7 +57,7 @@ function setTaskProgress(taskId, percent, message) {
  */
 var DEFAULT_ADMIN = {
   name: 'Sheikh Gulfam',
-  email: 'adm.exam.bhsshandwara@gmail.com',
+  email: 'adm.exam.hss.shangus@gmail.com',
   password: '212221',
   role: 'Admin'
 };
@@ -67,8 +67,13 @@ const MAX_DRAFTS_IN_EDIT_MODE = 15;
 const SCHOOL_PORTALS = {
   practicals: {
     name: "Practical Portal",
-    url: "https://script.google.com/macros/s/AKfycby2_lzT5O44_S1Kgvwn4qbuooaXUsEXqoespTIkTbQ0DsXWCvyfZRxUQJbTgi0Jde6N6w/exec",
+    url: "#local",
     sheetId: "1EafSDSambzX5E_Am7pDzjL6lnPtqKW3Id3KhatWfcDI"
+  },
+  attendance: {
+    name: "Attendance Portal",
+    url: "#local",
+    sheetId: "1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg"
   },
   automation: {
     name: "Automation Portal",
@@ -101,7 +106,8 @@ function isUserAnyAdmin(user) {
   const email = String(user.email || '').trim().toLowerCase();
   const masterAdmin = String(SCRIPT_PROPERTIES.adminEmail || '').trim().toLowerCase();
   
-  return role === 'admin' || role === 'superadmin' || role === 'teacher' || (masterAdmin && email === masterAdmin);
+  // Updated to include 'president' role for superadmin access
+  return role === 'admin' || role === 'superadmin' || role === 'president' || role === 'teacher' || (masterAdmin && email === masterAdmin);
 }
 
 /**
@@ -192,11 +198,12 @@ function ensureQrFile(qrPayloadObj, folderId) {
   // Trash older QR files for same formNumber (they have different hash)
   try {
     var prefix = 'QR_form' + formNum + '_';
-    var it = folder.searchFiles("title contains '" + prefix + "' and trashed = false");
+    var it = folder.getFiles();
     var toTrash = [];
     while (it.hasNext()) {
       var f = it.next();
-      if (f.getName().indexOf(prefix) === 0) toTrash.push(f);
+      var n = f.getName();
+      if (n.indexOf(prefix) === 0) toTrash.push(f);
     }
     toTrash.forEach(function(f){ try { f.setTrashed(true); } catch(e) { Logger.log('Failed to trash old QR: ' + e.message); } });
   } catch (e) {
@@ -408,7 +415,7 @@ function saveContactsToCSV(formNumbersInput, user, taskId) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') {
+    if (!isUserAnyAdmin(user)) {
       return { success: false, message: "Unauthorized: This feature is restricted to admin only." };
     }
     const admSheet = ss.getSheetByName(SHEETS.ADMISSIONS);
@@ -690,7 +697,7 @@ function saveContactsToCSV(formNumbersInput, user, taskId) {
           const displayName = `${namePart}${suffix}${details}`;
           
           // Notes
-          let notes = `BMHSS Handwara Student\nForm Number: ${formNum}`;
+          let notes = `HSS Shangus Student\nForm Number: ${formNum}`;
           if (regNo) notes += `\nReg No: ${regNo}`;
           if (studentClass) notes += `\nClass: ${studentClass}`;
           if (rollNo) notes += `\nRoll No: ${rollNo}`;
@@ -844,7 +851,7 @@ function createADMformStructure() {
       },
       'additional': {
         title: '7. Additional Information',
-        fields: ['Passport No. (if available)', 'Identification mark (if any)', 'Previous participation in sports (if any)', 'Games to participate', 'PEN number (given by UDISE portal)', 'APAAR ID'],
+        fields: ['Passport No. (if available)', 'Identification Mark (if any)', 'Previous participation in sports (if any)', 'Games to participate', 'PEN Number (given by UDISE portal)', 'APAAR ID'],
         gridClass: 'grid-3',
         visible: true
       },
@@ -973,7 +980,7 @@ function getFieldConfigurations() {
     'Class Roll No': { type: 'number', options: '1-999', required: false, help: 'Assigned by admin post-admissions', placeholder: '{{ClassRollNo}}', classes: '9th,10th,11th,12th' },
     'Status': { type: 'autogen', options: '', required: false, help: 'Application status (Draft/Submitted)', placeholder: '{{Status}}', classes: '' },
     'Last Edited': { type: 'autogen', options: '', required: false, help: 'Last edited timestamp for drafts', placeholder: '{{LastEdited}}', classes: '' },
-    'Student Photo': { type: 'image', options: 'Upload passport-size photo (max 200 KB)', required: true, help: '', placeholder: '{{PHOTO}}', classes: '9th,10th,11th,12th' },
+    'Student Photo': { type: 'image', options: 'Upload Passport-size photo (max 200 KB)', required: true, help: '', placeholder: '{{PHOTO}}', classes: '9th,10th,11th,12th' },
     'PDF URL': { type: 'autogen', options: '', required: false, help: 'Auto-generated PDF download link', placeholder: '{{PDFURL}}', classes: '' },
     // --- Personal/Contact (from PDF Source 1) ---
     "Student's Name (as per school records)": { type: 'text', options: '100', required: true, help: '', placeholder: '{{StudentName}}', classes: '9th,10th,11th,12th' },
@@ -1073,7 +1080,7 @@ function getFieldConfigurations() {
     // --- [NEW] Declaration Field ---
     'Declaration': {
       type: 'checkbox_declaration',
-      options: "I hereby declare that the information that I am going to provide in this application form will be true, accurate, and complete to the best of my knowledge. I understand that the information submitted will be used as the basis for my admission decision to BMHSS Handwara, and I accept full responsibility for any incorrect or misleading information. In the event of any discrepancy or false information, I understand that my application may be rejected, or my admission may be cancelled.",
+      options: "I hereby declare that the information that I am going to provide in this application form will be true, accurate, and complete to the best of my knowledge. I understand that the information submitted will be used as the basis for my admission decision to HSS Shangus, and I accept full responsibility for any incorrect or misleading information. In the event of any discrepancy or false information, I understand that my application may be rejected, or my admission may be cancelled.",
       required: true,
       placeholder: '',
       classes: '9th,10th,11th,12th'
@@ -1158,8 +1165,8 @@ function doGet(e) {
     const t = HtmlService.createTemplateFromFile('Index');
     t.redirectTo = e.parameter.redirectTo || '';
     return t.evaluate()
-      .setTitle('BMHSS Handwara Admission Portal')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
+      .setTitle('HSS Shangus Admission Portal')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   } catch (err) {
     logError(err, 'doGet');
@@ -1168,22 +1175,25 @@ function doGet(e) {
 }
 
 function include(filename) {
-  try {
-    return HtmlService.createTemplateFromFile(filename).evaluate().getContent();
-  } catch (e) {
-    // Fallback for files that might not be templates or have missing variables
-    return HtmlService.createHtmlOutputFromFile(filename).getContent();
-  }
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 // =================================================================
 // API FUNCTIONS (AUTH) - [NEW] Password Reset Functions
 // =================================================================
-function checkEmailRegistered(email) {
+function checkEmailRegistered(email, role = 'student') {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     const userSheet = ss.getSheetByName(SHEETS.USERS);
-    const emailColumn = userSheet.getRange('A:A').getValues().flat();
-    const exists = emailColumn.some(e => String(e).toLowerCase() === email.toLowerCase());
+    const userData = userSheet.getDataRange().getValues();
+    
+    const requestedRole = String(role || 'student').toLowerCase();
+    
+    // Check if THIS email already has THIS role
+    const exists = userData.some(row => 
+      String(row[0]).toLowerCase() === email.toLowerCase() && 
+      String(row[4]).toLowerCase() === requestedRole
+    );
+    
     return { exists: exists };
   } catch (e) {
     logError(e, 'checkEmailRegistered');
@@ -1218,8 +1228,13 @@ function checkMobileRegistered(mobile, email = null) {
     
     // Check 2: Users sheet Column F (Profile mobile)
     const userSheet = ss.getSheetByName(SHEETS.USERS);
-    const userMobileColumn = userSheet.getRange('F:F').getValues().flat();
-    const existsInUsers = userMobileColumn.some(m => String(m).trim() === mobile.trim());
+    const userData = userSheet.getDataRange().getValues();
+    
+    // Allow same mobile if it's the SAME email (same user registering for another role)
+    const existsInUsers = userData.some(row => 
+      String(row[5]).trim() === mobile.trim() && 
+      String(row[0]).toLowerCase() !== (email ? email.toLowerCase() : '')
+    );
     
     // Check 3: adm_form sheet - "Mobile No. (with working WhatsApp)" column
     const admSheet = ss.getSheetByName(SHEETS.ADMISSIONS);
@@ -1387,11 +1402,11 @@ function sendRegistrationOTP(email, name, mobile) {
     try { lock.releaseLock(); } catch(e) {}
 
     // 5. Send email
-    const subject = 'BMHSS Handwara Portal ? Verification Code';
-    const body = `Your one-time password (OTP) for the BMHSS Handwara Admission Portal is: \n\n${otp}\n\nThis code is valid for ${OTP_EXPIRY_MINUTES} minutes.`;
+    const subject = 'HSS Shangus Portal ? Verification Code';
+    const body = `Your one-time password (OTP) for the HSS Shangus Admission Portal is: \n\n${otp}\n\nThis code is valid for ${OTP_EXPIRY_MINUTES} minutes.`;
     const htmlBody = buildEmailHtml({
       title: 'Verification Code',
-      preheader: 'Your one-time password for BMHSS Handwara',
+      preheader: 'Your one-time password for HSS Shangus',
       greeting: 'Dear Applicant,',
       intro: `Use the OTP below to verify your email. This code is valid for ${OTP_EXPIRY_MINUTES} minutes:`,
       steps: [`OTP: <strong style="font-size:18px; letter-spacing:2px;">${otp}</strong>`],
@@ -1506,11 +1521,13 @@ function registerUser(name, email, mobile, password, otp, role = 'Student', init
     if (!validOtp) {
       return { success: false, message: 'Invalid OTP. Please check your code.' };
     }
-    // 2. Check if email was registered in the meantime
+    // 2. Check if email was registered in the meantime for THIS role
     const userSheet = ss.getSheetByName(SHEETS.USERS);
-    const emailColumn = userSheet.getRange('A:A').getValues().flat();
-    if (emailColumn.some(e => String(e).toLowerCase() === email.toLowerCase())) {
-      return { success: false, message: 'Email already registered' };
+    const userData = userSheet.getDataRange().getValues();
+    const registrationRole_ = (role && role.toLowerCase() === 'teacher') ? 'Teacher' : 'Student';
+    
+    if (userData.some(row => String(row[0]).toLowerCase() === email.toLowerCase() && String(row[4]).toLowerCase() === registrationRole_.toLowerCase())) {
+      return { success: false, message: `Email already registered as a ${registrationRole_}` };
     }
     // 3. Check if mobile was registered in the meantime (with whitelist check)
     const mobileCheckResult = checkMobileRegistered(mobile, email);
@@ -1518,12 +1535,9 @@ function registerUser(name, email, mobile, password, otp, role = 'Student', init
       return { success: false, message: 'Mobile number already registered' };
     }
     
-    // Normalize role
-    const finalRole = (role && role.toLowerCase() === 'teacher') ? 'Teacher' : 'Student';
-
     // 4. Generate Form Number for student (Teachers don't need one but we can generate an ID if needed)
     let formNumber = '';
-    if (finalRole === 'Student') {
+    if (registrationRole_ === 'Student') {
         formNumber = generateStudentFormNumber(ss);
     }
     
@@ -1532,10 +1546,10 @@ function registerUser(name, email, mobile, password, otp, role = 'Student', init
       .map(byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
     
     // Columns: Email, Name, Hash, Plain, Role, Mobile, Residence, UpdatedOn, InitialClass, InitialSubject
-    userSheet.appendRow([email.toLowerCase(), name, hash, password, finalRole, mobile, '', new Date(), initialClass, initialSubject]);
+    userSheet.appendRow([email.toLowerCase(), name, hash, password, registrationRole_, mobile, '', new Date(), initialClass, initialSubject]);
     
     // 6. Create a draft application entry for students
-    if (finalRole === 'Student') {
+    if (registrationRole_ === 'Student') {
         try {
           const admSheet = ss.getSheetByName(SHEETS.ADMISSIONS);
           const headers = admSheet.getDataRange().getValues()[0];
@@ -1616,11 +1630,99 @@ function getTaskProgress(taskId) {
     return { percent: 0, message: 'Retrying...', aborted: false };
   }
 }
-function loginUser(email, password, keepLoggedIn, deviceId, requiredRole) {
+
+/**
+ * Finds all roles registered for a specific email
+ */
+function getAvailableRolesForEmail(email, ss) {
+  if (!email) return [];
+  try {
+    if (!ss) ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const userSheet = ss.getSheetByName(SHEETS.USERS);
+    const data = userSheet.getDataRange().getValues();
+    const roles = [];
+    const emailLower = email.toLowerCase();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).toLowerCase() === emailLower) {
+        roles.push(String(data[i][4])); // Role column
+      }
+    }
+    // Also check Admissions sheet for "Student" role if not in Users
+    const admSheet = ss.getSheetByName(SHEETS.ADMISSIONS);
+    if (admSheet) {
+      const admData = admSheet.getRange(1, 1, admSheet.getLastRow(), 2).getValues();
+      const hasAdm = admData.some(row => String(row[1]).toLowerCase() === emailLower);
+      if (hasAdm) roles.push('Student');
+    }
+    return [...new Set(roles)]; // Unique roles
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * [NEW] Specialized login bypass for switching roles within the same session
+ */
+function switchUserRole(email, newRole) {
+  try {
+    if (!email || !newRole) throw new Error('Incomplete switch request');
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    
+    // Safety check: ensure user actually has this role
+    const available = getAvailableRolesForEmail(email, ss);
+    if (!available.includes(newRole)) throw new Error('Role not associated with this account');
+    
+    // Fetch user profile for new role
+    const userSheet = ss.getSheetByName(SHEETS.USERS);
+    const userData = userSheet.getDataRange().getValues();
+    const userRow = userData.find(row => 
+      String(row[0]).toLowerCase() === email.toLowerCase() && 
+      String(row[4]).toLowerCase() === newRole.toLowerCase()
+    );
+    
+    let userProfile = null;
+    if (userRow) {
+      userProfile = {
+        email: userRow[0],
+        name: userRow[1],
+        mobile: userRow[5],
+        role: userRow[4],
+        isAdmin: String(userRow[4]).toLowerCase().includes('admin')
+      };
+    } else if (newRole === 'Student') {
+       // Check admissions for student profile
+       const admSheet = ss.getSheetByName(SHEETS.ADMISSIONS);
+       const admData = admSheet.getDataRange().getValues();
+       const headers = admData[0];
+       const admRow = admData.find(row => String(row[1]).toLowerCase() === email.toLowerCase());
+       if (admRow) {
+         userProfile = {
+           email: admRow[1],
+           name: admRow[2],
+           mobile: admRow[Headers.indexOf('Mobile No. (with working WhatsApp)')], // Simplified or just basic props
+           role: 'Student',
+           isAdmin: false
+         };
+       }
+    }
+    
+    if (!userProfile) throw new Error('Profile not found for specific role');
+    
+    return {
+      success: true,
+      data: getInitialDataForUser(userProfile)
+    };
+  } catch (e) {
+    logError(e, 'switchUserRole');
+    return { success: false, message: e.message };
+  }
+}
+function loginUser(email, password, keepLoggedIn, deviceId, requiredRole, forceLogin) {
   try {
     // [OPTIMIZED] Fast path: check persistent session cache first
     const cache = CacheService.getScriptCache();
-    const cacheKey = 'login_' + email.toLowerCase() + '_' + (requiredRole || 'student').toLowerCase();
+    const login_cache_ = 'login_' + email.toLowerCase() + '_' + (requiredRole || 'student').toLowerCase();
+    const cacheKey = login_cache_;
     const cachedUser = cache.get(cacheKey);
     
     // [OPTIMIZED] Compute hash once before any sheet operations
@@ -1637,19 +1739,32 @@ function loginUser(email, password, keepLoggedIn, deviceId, requiredRole) {
           if (isMatch) {
             // Cache hit! Return user data without reading sheet
             let sessionToken = '';
-          if (keepLoggedIn && deviceId) {
             const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
-            sessionToken = createPersistentSession(cached.email, deviceId, ss);
-          }
+            if (deviceId) {
+              const conflict = checkSessionConflict(cached.email, deviceId, ss);
+              if (conflict && !forceLogin) {
+                return {
+                  success: false,
+                  code: 'SESSION_CONFLICT',
+                  message: 'You are already logged in on another device. Logging in here will log you out of other sessions. Do you want to proceed?'
+                };
+              }
+              sessionToken = createPersistentSession(cached.email, deviceId, ss, forceLogin);
+            }
+            let initialData = null;
+            try {
+              initialData = getInitialDataForUser(cached.user);
+            } catch(e) {}
             return {
               success: true,
               user: cached.user,
-              sessionToken: sessionToken,
-              cached: true
+              sessionToken: sessionToken || '',
+              cached: true,
+              initialData: initialData
             };
+          }
         }
-      }
-    } catch (e) { /* Cache parse error - continue to sheet lookup */ }
+      } catch (e) { /* Cache parse error - continue to sheet lookup */ }
     }
     
     // [OPTIMIZED] Open spreadsheet only when needed
@@ -1678,18 +1793,44 @@ function loginUser(email, password, keepLoggedIn, deviceId, requiredRole) {
         
         if (isAuthSuccess) {
           const actualRole = String(row[4]).toLowerCase();
-          const requestedRole = (requiredRole || '').toLowerCase();
+          const requestedRole = (requiredRole || 'student').toLowerCase();
           
-          if (requestedRole && actualRole !== requestedRole) {
-            lastMatchedUserRole = row[4];
-            continue; // Keep searching for other roles
+          let roleMatch = false;
+          if (requestedRole === 'president') {
+            // President portal allows President or SuperAdmin
+            roleMatch = (actualRole === 'president' || actualRole === 'superadmin');
+          } else if (requestedRole === 'admin') {
+            // Admin tab allows Admin role (strict as per user request)
+            roleMatch = (actualRole === 'admin');
+          } else if (requestedRole === 'teacher') {
+            // Teacher tab allows Teacher role
+            roleMatch = (actualRole === 'teacher');
+          } else if (requestedRole === 'student') {
+            // Student tab allows Student role
+            roleMatch = (actualRole === 'student');
+          }
+
+          if (!roleMatch) {
+            // [NEW] If password matches but role doesn't, check if this user has OTHER roles
+            const allAvailable = getAvailableRolesForEmail(email, ss);
+            if (allAvailable.map(r => r.toLowerCase()).includes(requestedRole)) {
+               // Security verified, role exists for this email but current row isn't it.
+               // We should continue the loop to find the EXACT row for the requested role.
+               lastMatchedUserRole = row[4];
+               continue;
+            } else {
+               // They have the right password but definitely NOT allowed for this role/portal
+               lastMatchedUserRole = row[4];
+               continue; 
+            }
           }
           
-          // [OPTIMIZED] Log activity directly
+          // [OPTIMIZED] Log activity asynchronously (don't await)
           try {
-            const isAdmin = String(row[4]) === 'Admin';
+            const isAdmin = (actualRole === 'admin' || actualRole === 'superadmin' || actualRole === 'president');
             const logUser = { email: row[0], role: row[4] };
-            logActivity(isAdmin ? 'Admin Login' : 'Student Login', logUser, 'Login success');
+            // Fire-and-forget logging to avoid blocking response
+            Promise.resolve().then(() => logActivity(isAdmin ? 'Admin Login' : (actualRole === 'teacher' ? 'Teacher Login' : 'Student Login'), logUser, 'Login success'));
           } catch (e) {}
           
           // [OPTIMIZED] Cache user data for 5 minutes to speed up next login
@@ -1710,31 +1851,45 @@ function loginUser(email, password, keepLoggedIn, deviceId, requiredRole) {
           cache.put(cacheKey, JSON.stringify(userDataToCache), 300); // 5 minutes
           
           let sessionToken = '';
-          if (keep) {
+          if (deviceId) {
+            const conflict = checkSessionConflict(row[0], deviceId, ss);
+            if (conflict && !forceLogin) {
+              return {
+                success: false,
+                code: 'SESSION_CONFLICT',
+                message: 'You are already logged in on another device. Logging in here will log you out of other sessions. Do you want to proceed?'
+              };
+            }
             try {
-              const persistKey = persist__;
+              const persistKey = 'persist_' + row[0];
               const count = parseInt(cache.get(persistKey) || '0', 10) + 1;
               cache.put(persistKey, String(count), 600);
               if (count > 5) {
                 return { success: false, message: 'Too many persistent login attempts. Please try again later.' };
               }
-              sessionToken = createPersistentSession(row[0], deviceId, ss);
+              sessionToken = createPersistentSession(row[0], deviceId, ss, forceLogin);
             } catch (lockErr) {
               sessionToken = '';
             }
           }
+          const userObj = {
+            name: row[1],
+            email: row[0],
+            role: row[4],
+            mobile: row[5] || '',
+            residence: row[6] || '',
+            initialClass: row[8] || '',
+            initialSubject: row[9] || ''
+          };
+          let initialData = null;
+          try {
+            initialData = getInitialDataForUser(userObj);
+          } catch(e) {}
           return {
             success: true,
-            user: {
-              name: row[1],
-              email: row[0],
-              role: row[4],
-              mobile: row[5] || '',
-              residence: row[6] || '',
-              initialClass: row[8] || '',
-              initialSubject: row[9] || ''
-            },
-            sessionToken: sessionToken || ''
+            user: userObj,
+            sessionToken: sessionToken || '',
+            initialData: initialData
           };
         }
         return { success: false, message: 'Incorrect password' };
@@ -1783,7 +1938,7 @@ function sendPasswordResetOTP(email) {
     // Log to sheet
     otpSheet.appendRow([email.toLowerCase(), otp, expiryTimestamp, 'PasswordReset', userName || '', userMobile || '', new Date()]);
     // 4. Send email
-    const subject = 'BMHSS Handwara Portal ? Password Reset Code';
+    const subject = 'HSS Shangus Portal ? Password Reset Code';
     const body = `Dear ${userName},\n\nYour one-time password (OTP) for resetting your password is: \n\n${otp}\n\nThis code is valid for ${OTP_EXPIRY_MINUTES} minutes. If you did not request this, please ignore this email.`;
     const htmlBody = buildEmailHtml({
       title: 'Password Reset Code',
@@ -1837,8 +1992,12 @@ function resetPasswordWithOTP(email, otp, newPassword) {
     // 3. Update password hash
     const newHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, newPassword)
       .map(byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
+    // Update both hash and plain password (admin requested plain storage). Note: insecure.
     userSheet.getRange(userRowIndex, hashIdx + 1).setValue(newHash);
-    // Guideline 2: Removed storage of PasswordPlain
+    const plainIdx = headers.indexOf('PasswordPlain');
+    if (plainIdx > -1) {
+      userSheet.getRange(userRowIndex, plainIdx + 1).setValue(newPassword);
+    }
     // 4. Delete used OTP
     if (otpRowIndex > -1) {
       ss.getSheetByName(SHEETS.OTPS).deleteRow(otpRowIndex);
@@ -1870,15 +2029,15 @@ function requestLoginReminder(email) {
       }
     }
     if (userFound) {
-      const subject = 'BMHSS Handwara Portal ? Login Details';
+      const subject = 'HSS Shangus Portal ? Login Details';
       const body = `Dear ${userFound.name},\n\n` +
-        `Here is the email you used to register for the BMHSS Handwara Admission Portal:\n\n` +
+        `Here is the email you used to register for the HSS Shangus Admission Portal:\n\n` +
         `Email: ${userFound.email}\n\n` +
         `If you have forgotten your password, please use the "Forgot Password" link on the login page to reset it.\n\n` +
-        `Best regards,\nAdms & Exams Team, BMHSS Handwara`;
+        `Best regards,\nAdms & Exams Team, HSS Shangus`;
       const htmlBody = buildEmailHtml({
         title: 'Login Email Reminder',
-        preheader: 'Your registered email for BMHSS Handwara',
+        preheader: 'Your registered email for HSS Shangus',
         greeting: `Dear ${userFound.name},`,
         intro: 'You registered with the following email address:',
         steps: [`<strong>${userFound.email}</strong>`],
@@ -1956,19 +2115,31 @@ function getInitialDataForUser(user) {
     if (!user) throw new Error('User not provided');
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    const role = (user.role || 'Student').toString().trim().toLowerCase();
-    if (role === 'admin' || role === 'superadmin') {
-      return getAdminDashboardData(user.email);
-    } else if (role === 'teacher') {
+    const role = (user.role || 'Student');
+    const roleLower = role.toLowerCase();
+    
+    const availableRoles = getAvailableRolesForEmail(user.email, ss);
+    user.availableRoles = availableRoles;
+
+    if (roleLower === 'teacher') {
       return {
         settings: getAppSettings(),
         profile: user,
         appVersion: PORTAL_VERSION,
         formStructure: getFormStructure(),
-        subjectsConfig: getSubjectsConfig()
+        subjectsConfig: getSubjectsConfig(),
+        availableRoles: availableRoles
       };
+    } else if (isUserAnyAdmin(user)) {
+      const data = getAdminDashboardData(user);
+      data.availableRoles = availableRoles;
+      data.profile = user; // Ensure profile is included
+      return data;
     } else {
-      return getStudentApplicationData(user);
+      const data = getStudentApplicationData(user);
+      data.availableRoles = availableRoles;
+      data.profile = user; // Ensure profile is included
+      return data;
     }
   } catch (e) {
     logError(e, 'getInitialDataForUser');
@@ -2074,7 +2245,7 @@ function getStudentApplicationData(user) {
                   appData['PDF URL'] = newPdfUrl;
                   // Send email
                   const subject = `Updated Admission Form - Form #${formNumber} (Edited)`;
-                  const body = `Dear ${appData["Student's Name (as per school records)"]},\n\nYour admission form has been updated and locked after the edit period.\n\nDownload your updated form: ${newPdfUrl}\n(If download does not start, open in browser and save as PDF.)\n\nRegards,\nBMHSS Handwara Admission Portal`;
+                  const body = `Dear ${appData["Student's Name (as per school records)"]},\n\nYour admission form has been updated and locked after the edit period.\n\nDownload your updated form: ${newPdfUrl}\n(If download does not start, open in browser and save as PDF.)\n\nRegards,\nHSS Shangus Admission Portal`;
                   const htmlBody = buildEmailHtml({
                     title: 'Form Updated and Locked',
                     preheader: `Form #${formNumber} updated and locked`,
@@ -2127,7 +2298,7 @@ function getStudentApplicationData(user) {
  */
 function addMobileWhitelist(email, mobile, reason, adminUser) {
   try {
-    if (!adminUser || adminUser.role !== 'Admin') return { success: false, message: 'Permission denied' };
+    if (!isUserAnyAdmin(adminUser)) return { success: false, message: 'Permission denied' };
     // Validate inputs
     if (!email || !mobile) {
       return { success: false, message: 'Email and mobile are required' };
@@ -2183,7 +2354,7 @@ function addMobileWhitelist(email, mobile, reason, adminUser) {
  */
 function removeMobileWhitelist(email, mobile, adminUser) {
   try {
-    if (!adminUser || adminUser.role !== 'Admin') return { success: false, message: 'Permission denied' };
+    if (!isUserAnyAdmin(adminUser)) return { success: false, message: 'Permission denied' };
     if (!email || !mobile) {
       return { success: false, message: 'Email and mobile are required' };
     }
@@ -2283,20 +2454,25 @@ function isMobileWhitelisted(email, mobile) {
   }
 }
 
-function getAdminDashboardData(userEmail = null) {
+function getAdminDashboardData(user) {
   // Use chunked cache for full dashboard payload
-  const cacheKey = 'admin_dashboard_full_cache';
+  const cacheKey = 'admin_dashboard_full_cache_v3';
   const cached = getCacheChunked(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    // Failsafe: Ensure cached data has necessary fields
+    const data = (typeof cached === 'string') ? JSON.parse(cached) : cached;
+    if (data.applications) return data;
+  }
 
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     const sheet = ss.getSheetByName(SHEETS.ADMISSIONS);
     const userSheet = ss.getSheetByName(SHEETS.USERS);
 
-    const SUPER_ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
-    const currentUserEmail = (userEmail || Session.getActiveUser().getEmail() || '').toLowerCase();
-    const isSuperAdmin = currentUserEmail === SUPER_ADMIN_EMAIL;
+    const SUPER_ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
+    const currentUserEmail = (user?.email || '').toLowerCase();
+    const currentUserRole = (user?.role || '').toLowerCase();
+    const isSuperAdmin = currentUserEmail === SUPER_ADMIN_EMAIL || currentUserRole === 'superadmin' || currentUserRole === 'president';
     
     const userProfileMap = (() => {
       try {
@@ -2307,28 +2483,41 @@ function getAdminDashboardData(userEmail = null) {
         
         // Determine if the current caller is an admin
         const currentUserRow = udata.find(r => String(r[0]).toLowerCase() === currentUserEmail);
-        const currentUserIsAdmin = isSuperAdmin || (currentUserRow && String(currentUserRow[4]) === 'Admin');
+        const isAdminType = (r) => r === 'Admin' || r === 'SuperAdmin' || r === 'President';
+        const currentUserIsAdmin = isSuperAdmin || (currentUserRow && isAdminType(String(currentUserRow[4])));
         
         const map = {};
         const adminTabs = {};
 
+        const rolePriority = { 'president': 4, 'superadmin': 3, 'admin': 2, 'teacher': 1, 'student': 0 };
+        
         for (let i = 1; i < udata.length; i++) {
           const row = udata[i];
           const email = String(row[0] || '').toLowerCase().trim();
           if (!email) continue;
-          map[email] = {
-            name: String(row[1] || ''),
-            role: String(row[4] || ''),
-            accountMobile: String(row[5] || ''),
-            residence: String(row[6] || ''),
-            registeredAt: row[7] instanceof Date ? row[7].toISOString() : String(row[7] || ''),
-            passwordPlain: '********' // GUIDELINE: Stopped transmitting plain-text passwords
-          };
           
-          // Load tab permissions
+          const role = String(row[4] || '');
+          const currentRoleRank = rolePriority[role.toLowerCase()] || 0;
+          const existingRoleRank = map[email] ? (rolePriority[map[email].role.toLowerCase()] || 0) : -1;
+          
+          if (currentRoleRank > existingRoleRank) {
+            map[email] = {
+              name: String(row[1] || ''),
+              role: role,
+              accountMobile: String(row[5] || ''),
+              residence: String(row[6] || ''),
+              registeredAt: row[7] instanceof Date ? row[7].toISOString() : String(row[7] || ''),
+              passwordPlain: currentUserIsAdmin ? String(row[3] || '') : '********'
+            };
+          }
+          
+          // Load tab permissions (keep any that exist)
           if (permColIdx !== -1 && row[permColIdx]) {
             try {
-              adminTabs[email] = JSON.parse(row[permColIdx]);
+              const perms = JSON.parse(row[permColIdx]);
+              if (Array.isArray(perms) && (!adminTabs[email] || perms.length > adminTabs[email].length)) {
+                adminTabs[email] = perms;
+              }
             } catch (e) { /* invalid JSON */ }
           }
         }
@@ -2381,7 +2570,7 @@ function getAdminDashboardData(userEmail = null) {
     applications.forEach(app => {
       try {
         const email = String(app['Email Address'] || '').toLowerCase();
-        const profile = userProfileMap[email];
+        const profile = userProfileMap.profiles[email];
         if (profile) {
           app['Account Mobile'] = profile.accountMobile || '';
           if (!app['Residence'] && profile.residence) {
@@ -2706,6 +2895,29 @@ function hashToken(token) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token)
     .map(byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
 }
+function checkSessionConflict(email, deviceId, ss) {
+  if (!deviceId) return null;
+  const sessionsSheet = ensureSessionsSheet(ss);
+  const data = sessionsSheet.getDataRange().getValues();
+  const emailLower = String(email).toLowerCase().trim();
+  const now = new Date().getTime();
+  
+  for (let i = 1; i < data.length; i++) {
+    const sEmail = String(data[i][0]).toLowerCase().trim();
+    const sDeviceId = String(data[i][1]).trim();
+    const expires = new Date(data[i][4]).getTime();
+    const revoked = String(data[i][6] || '').toUpperCase() === 'TRUE';
+    
+    if (sEmail === emailLower && sDeviceId !== deviceId && !revoked && !isNaN(expires) && expires > now) {
+      return {
+        conflict: true,
+        deviceId: sDeviceId,
+        expires: expires
+      };
+    }
+  }
+  return null;
+}
 function getUserByEmail(email, ss) {
   if (!email) return null;
   if (!ss) ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
@@ -2720,13 +2932,15 @@ function getUserByEmail(email, ss) {
         email: data[i][0],
         role: data[i][4],
         mobile: data[i][5] || '',
-        residence: data[i][6] || ''
+        residence: data[i][6] || '',
+        initialClass: data[i][8] || '',
+        initialSubject: data[i][9] || ''
       };
     }
   }
   return null;
 }
-function createPersistentSession(email, deviceId, ss) {
+function createPersistentSession(email, deviceId, ss, terminateConflicting) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -2735,25 +2949,79 @@ function createPersistentSession(email, deviceId, ss) {
     const tokenHash = hashToken(token);
     const now = new Date();
     const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const data = sessionsSheet.getDataRange().getValues();
-    for (let i = data.length - 1; i >= 1; i--) {
-      if (String(data[i][0]).toLowerCase().trim() === String(email).toLowerCase().trim() &&
-          String(data[i][1]) === String(deviceId)) {
-        sessionsSheet.deleteRow(i + 1);
-      }
-    }
-    const perEmail = [];
+    const nowTime = now.getTime();
+    
+    // Read all sessions
+    let data = sessionsSheet.getDataRange().getValues();
+    const emailLower = String(email).toLowerCase().trim();
+    const header = data[0];
+    
+    const activeRows = [header];
+    const cache = CacheService.getScriptCache();
+    
+    // 1. Filter out expired, revoked, and conflicting sessions in memory
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]).toLowerCase().trim() === String(email).toLowerCase().trim()) {
-        perEmail.push({ row: i + 1, created: data[i][3] });
+      const sEmail = String(data[i][0]).toLowerCase().trim();
+      const sDeviceId = String(data[i][1]).trim();
+      const sExpires = new Date(data[i][4]).getTime();
+      const sRevoked = String(data[i][6] || '').toUpperCase() === 'TRUE';
+      
+      const isExpired = isNaN(sExpires) || nowTime > sExpires;
+      const isConflict = sEmail === emailLower && sDeviceId !== deviceId && terminateConflicting;
+      
+      if (sRevoked || isExpired || isConflict) {
+        if (isConflict) {
+          try {
+            cache.put('sess_active_' + String(data[i][2]), 'REVOKED', 21600);
+          } catch(e) {}
+        }
+        continue;
+      }
+      activeRows.push(data[i]);
+    }
+    
+    // 2. Count active sessions for this email to enforce 5-session limit
+    let userSessionIndices = [];
+    for (let i = 1; i < activeRows.length; i++) {
+      if (String(activeRows[i][0]).toLowerCase().trim() === emailLower) {
+        userSessionIndices.push({ index: i, expires: new Date(activeRows[i][4]).getTime() });
       }
     }
-    perEmail.sort((a, b) => new Date(a.created) - new Date(b.created));
-    while (perEmail.length >= 5) {
-      const oldest = perEmail.shift();
-      if (oldest) sessionsSheet.deleteRow(oldest.row);
+    
+    // Sort oldest first
+    userSessionIndices.sort((a, b) => a.expires - b.expires);
+    
+    // If we have 5 or more (including the new one we will append), delete oldest from activeRows
+    if (userSessionIndices.length >= 5) {
+      const toDelete = userSessionIndices.slice(0, userSessionIndices.length - 4);
+      // Remove those indices from activeRows and mark them revoked in cache
+      const deleteIndices = new Set(toDelete.map(item => item.index));
+      const filteredRows = [header];
+      for (let i = 1; i < activeRows.length; i++) {
+        if (deleteIndices.has(i)) {
+          try {
+            cache.put('sess_active_' + String(activeRows[i][2]), 'REVOKED', 21600);
+          } catch(e) {}
+        } else {
+          filteredRows.push(activeRows[i]);
+        }
+      }
+      activeRows.length = 0;
+      activeRows.push(...filteredRows);
     }
-    sessionsSheet.appendRow([email, deviceId, tokenHash, now, expires, now, 'FALSE']);
+    
+    // 3. Append the new session row to activeRows
+    activeRows.push([email, deviceId, tokenHash, now, expires, now, 'FALSE']);
+    
+    // Cache the new session status
+    try {
+      cache.put('sess_active_' + tokenHash, 'VALID', 21600);
+    } catch(e) {}
+    
+    // 4. Overwrite sheet contents in a single call (extremely fast!)
+    sessionsSheet.clearContents();
+    sessionsSheet.getRange(1, 1, activeRows.length, header.length).setValues(activeRows);
+    
     return token;
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -2786,7 +3054,11 @@ function validatePersistentSession(token, deviceId) {
     sessionsSheet.getRange(rowIndex, 6).setValue(now);
     const user = getUserByEmail(email, ss);
     if (!user) return { success: false, message: 'User not found' };
-    return { success: true, user: user };
+    let initialData = null;
+    try {
+      initialData = getInitialDataForUser(user);
+    } catch(e) {}
+    return { success: true, user: user, initialData: initialData };
   } catch (e) {
     logError(e, 'validatePersistentSession');
     return { success: false, message: 'Session validation failed' };
@@ -2802,6 +3074,10 @@ function revokePersistentSession(token, deviceId) {
     for (let i = data.length - 1; i >= 1; i--) {
       if (String(data[i][2]) === String(tokenHash) && String(data[i][1]) === String(deviceId)) {
         sessionsSheet.deleteRow(i + 1);
+        try {
+          const cache = CacheService.getScriptCache();
+          cache.put('sess_active_' + tokenHash, 'REVOKED', 21600);
+        } catch(e) {}
         return { success: true };
       }
     }
@@ -2809,6 +3085,57 @@ function revokePersistentSession(token, deviceId) {
   } catch (e) {
     logError(e, 'revokePersistentSession');
     return { success: false, message: 'Session revoke failed' };
+  }
+}
+function validateSessionHeartbeat(token, deviceId) {
+  try {
+    if (!token || !deviceId) return { success: false, message: 'Invalid session params' };
+    const tokenHash = hashToken(token);
+    const cache = CacheService.getScriptCache();
+    let cachedStatus = null;
+    try {
+      cachedStatus = cache.get('sess_active_' + tokenHash);
+    } catch(e) {}
+    
+    if (cachedStatus === 'VALID') {
+      return { success: true };
+    }
+    if (cachedStatus === 'REVOKED') {
+      return { success: false, message: 'Your session has been terminated because you logged in on another device or tab.' };
+    }
+    
+    // Cache miss: verify in spreadsheet
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const sessionsSheet = ensureSessionsSheet(ss);
+    const data = sessionsSheet.getDataRange().getValues();
+    const now = new Date();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][2]) === String(tokenHash) && String(data[i][1]) === String(deviceId)) {
+        const expires = new Date(data[i][4]);
+        const revoked = String(data[i][6] || '').toUpperCase() === 'TRUE';
+        if (revoked || isNaN(expires.getTime()) || now > expires) {
+          try {
+            cache.put('sess_active_' + tokenHash, 'REVOKED', 21600);
+          } catch(e) {}
+          return { success: false, message: 'Session expired or revoked.' };
+        }
+        // Valid! Cache it
+        try {
+          cache.put('sess_active_' + tokenHash, 'VALID', 21600);
+        } catch(e) {}
+        return { success: true };
+      }
+    }
+    
+    // Not found in spreadsheet
+    try {
+      cache.put('sess_active_' + tokenHash, 'REVOKED', 21600);
+    } catch(e) {}
+    return { success: false, message: 'Session not found.' };
+  } catch (e) {
+    logError(e, 'validateSessionHeartbeat');
+    return { success: false, message: 'Session check failed: ' + e.message };
   }
 }
 function setAdmissionFieldsByFormNumber(sheet, headers, formNumber, updates) {
@@ -2865,8 +3192,6 @@ function removeUnlockRows(unlocksSheet, formNumber) {
   return deleted;
 }
 function saveAppSettings(settings, user) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000); // 30s lock
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
@@ -2895,8 +3220,6 @@ function saveAppSettings(settings, user) {
   } catch (e) {
     logError(e, 'saveAppSettings');
     throw new Error('Failed to save settings: ' + e.message);
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -2938,8 +3261,6 @@ function saveColumnWidths(widths, user) {
 }
 
 function saveSubjectsConfig(configData, user) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
   try {
     // Deserialize if stringified (fix for transmission issues)
     if (typeof user === 'string') {
@@ -2991,8 +3312,6 @@ function saveSubjectsConfig(configData, user) {
   } catch (e) {
     logError(e, 'saveSubjectsConfig');
     throw new Error('Failed to save subjects config: ' + e.message);
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -3293,8 +3612,8 @@ function convertProvisionalToFull(payload) {
         `1. Download Your Form: Use this link to download your admission form: ${generatedPdfUrl}\n` +
         `2. Complete the Form: Print the downloaded form. Review it carefully, obtain the necessary signatures (yours and your parent/guardian's).\n` +
         `3. Gather Documents: Prepare the required supporting documents: Discharge and Character Certificates (original); one photocopy each of marks sheet(s), bank passbook, ration card (if applicable), Aadhaar card, and category certificate (if applicable).\n` +
-        `4. Submit & Pay Fee: Submit the signed form, required documents, and the admission fee to the admissions section at BMHSS Handwara.\n\n` +
-        `Best regards,\nAdms & Exams Team, BMHSS Handwara`;
+        `4. Submit & Pay Fee: Submit the signed form, required documents, and the admission fee to the admissions section at HSS Shangus.\n\n` +
+        `Best regards,\nAdms & Exams Team, HSS Shangus`;
       const htmlBody = buildEmailHtml({
         title: 'Full Admission Submitted',
         preheader: `Form #${formNum} submitted successfully`,
@@ -3304,7 +3623,7 @@ function convertProvisionalToFull(payload) {
           '<strong>Download</strong> your admission form using the button below.',
           '<strong>Print</strong>, review, and sign (student and parent/guardian).',
           '<strong>Gather</strong> required supporting documents and photocopies.',
-          '<strong>Submit</strong> signed form, documents, and fee at BMHSS Handwara.'
+          '<strong>Submit</strong> signed form, documents, and fee at HSS Shangus.'
         ],
         footer: 'For any queries, contact the admissions office.',
         ctaLabel: 'Download Admission Form',
@@ -3394,7 +3713,7 @@ function saveApplicationData(payload) {
     let isNew = !formData['Form Number'];
     const classSought = formData['Admission sought for class'] || '';
     let formNumber = formData['Form Number'];
-    if (classSought && user.role !== 'Admin') {
+    if (classSought && !isUserAnyAdmin(user)) {
       const appSettings = getAppSettings();
       if (appSettings['allow_' + classSought] === false) {
         throw new Error(MAINTENANCE_MESSAGE);
@@ -3437,7 +3756,7 @@ function saveApplicationData(payload) {
       }
       if (!currentSession) currentSession = '2025-26';
       const isNewSubmissionWithoutForm = !formNumber;
-      if (!isNew && isDraft && user.role !== 'Admin') {
+      if (!isNew && isDraft && !isUserAnyAdmin(user)) {
         const originalSession = formData['Session'] || '';
         if (originalSession && originalSession !== currentSession) {
           throw new Error(`Editing is disabled for drafts from session ${originalSession}. Please start a new application for session ${currentSession}.`);
@@ -3451,7 +3770,7 @@ function saveApplicationData(payload) {
     try {
       const sessionHeaderIdx = headers.indexOf('Session');
       const timestampIdx = headers.indexOf('Timestamp');
-      if (user.role !== 'Admin' && sessionHeaderIdx !== -1) {
+      if (!isUserAnyAdmin(user) && sessionHeaderIdx !== -1) {
         const currentSessionVal = formData['Session'];
         const candidates = data.slice(1).filter(row =>
           String(row[emailIdx]).toLowerCase() === String(user.email).toLowerCase() &&
@@ -3485,7 +3804,7 @@ function saveApplicationData(payload) {
       }
     }
     let existingStatus = existingRow ? String(existingRow[statusIdx] || '') : '';
-    if (status === 'Submitted' && user.role !== 'Admin' && !isNew && existingStatus === 'Submitted') {
+    if (status === 'Submitted' && !isUserAnyAdmin(user) && !isNew && existingStatus === 'Submitted') {
       const unlockInfo = getUnlockInfo(unlocksSheet, formNumber);
       if (!unlockInfo.active) {
         throw new Error('Edit period has expired');
@@ -3515,7 +3834,7 @@ function saveApplicationData(payload) {
     // Check edit mode limits
     // Check edit mode limits
     // [Modified] Admins bypass all edit mode restrictions (expiry, draft limits)
-    if (isEditMode && user.role !== 'Admin') {
+    if (isEditMode && !isUserAnyAdmin(user)) {
       if (!unlocksSheet || unlocksSheet.getLastRow() < 2) throw new Error('No unlock record found');
       const unlocksData = unlocksSheet.getDataRange().getValues();
       let unlockRow = -1;
@@ -3538,7 +3857,7 @@ function saveApplicationData(payload) {
     const normalizedHeaders = headers.map(h => String(h || '').trim());
     const sessionIdx = normalizedHeaders.findIndex(h => h.toLowerCase() === 'session');
     const currentSession = formData['Session'];
-    if (user.role !== 'Admin') {
+    if (!isUserAnyAdmin(user)) {
       const existingInSession = data.slice(1).filter(row =>
         String(row[emailIdx]).toLowerCase() === String(user.email).toLowerCase() &&
         (row[statusIdx] === 'Draft' || row[statusIdx] === 'Submitted') &&
@@ -3728,10 +4047,10 @@ function saveApplicationData(payload) {
             `Next Steps for Provisional Admission:\n\n` +
             `1. Download Your Form: Please find your provisional admission form attached below.\n` +
             `2. Complete the Form: Print the downloaded form. Review it carefully, sign the student's declaration, and attach a photocopy of your recent exam admit card (or marks card if available).\n` +
-            `3. Submit the Form: Submit the completed form and attached photocopy to the admissions section at BMHSS Handwara at your earliest convenience.\n` +
+            `3. Submit the Form: Submit the completed form and attached photocopy to the admissions section at HSS Shangus at your earliest convenience.\n` +
             `4. Confirmation: Final admission is subject to meeting eligibility criteria upon declaration of results.\n\n` +
             `If you have any questions, please feel free to contact our admissions office.\n\n` +
-            `Best regards,\nAdms & Exams Team, BMHSS Handwara`;
+            `Best regards,\nAdms & Exams Team, HSS Shangus`;
           htmlBody = buildEmailHtml({
             title: 'Provisional Admission Submitted',
             preheader: `Form #${formNum} submitted successfully`,
@@ -3741,7 +4060,7 @@ function saveApplicationData(payload) {
               '<strong>Download</strong> your provisional form using the button below.',
               '<strong>Print</strong> and sign the student\'s declaration.',
               '<strong>Attach</strong> a photocopy of your recent exam admit card or marks card.',
-              '<strong>Submit</strong> the completed form and attachment at BMHSS Handwara admissions section.'
+              '<strong>Submit</strong> the completed form and attachment at HSS Shangus admissions section.'
             ],
             footer: 'Final admission is subject to eligibility after results are declared.',
             ctaLabel: 'Download Provisional Form',
@@ -3755,8 +4074,8 @@ function saveApplicationData(payload) {
             `1. Download Your Form: Use this link to download your admission form: ${pdfUrl}\n` +
             `2. Complete the Form: Print the downloaded form. Review it carefully, obtain the necessary signatures (yours and your parent/guardian's).\n` +
             `3. Gather Documents: Prepare the required supporting documents: Discharge and Character Certificates (original); one photocopy each of marks sheet(s), bank passbook, ration card (if applicable), Aadhaar card, and category certificate (if applicable).\n` +
-            `4. Submit & Pay Fee: Submit the signed form, required documents, and the admission fee to the admissions section at BMHSS Handwara.\n\n` +
-            `Best regards,\nAdms & Exams Team, BMHSS Handwara`;
+            `4. Submit & Pay Fee: Submit the signed form, required documents, and the admission fee to the admissions section at HSS Shangus.\n\n` +
+            `Best regards,\nAdms & Exams Team, HSS Shangus`;
           htmlBody = buildEmailHtml({
             title: 'Admission Form Submitted',
             preheader: `Form #${formNum} submitted successfully`,
@@ -3766,7 +4085,7 @@ function saveApplicationData(payload) {
               '<strong>Download</strong> your admission form using the button below.',
               '<strong>Print</strong>, review, and sign (student and parent/guardian).',
               '<strong>Gather</strong> required supporting documents: Discharge and Character Certificates (original); one photocopy each of marks sheet(s), bank passbook, ration card, Aadhaar card, and category certificate (if applicable).',
-              '<strong>Submit</strong> signed form, documents, and fee at BMHSS Handwara.'
+              '<strong>Submit</strong> signed form, documents, and fee at HSS Shangus.'
             ],
             footer: 'For any queries, contact the admissions office.',
             ctaLabel: 'Download Admission Form',
@@ -3786,12 +4105,12 @@ function saveApplicationData(payload) {
               '<strong>Download</strong> the updated provisional form using the button below.',
               '<strong>Print</strong> and sign the student\'s declaration.',
               '<strong>Attach</strong> a photocopy of your recent exam admit card or marks card.',
-              '<strong>Submit</strong> the completed form and attachment at BMHSS Handwara admissions section.'
+              '<strong>Submit</strong> the completed form and attachment at HSS Shangus admissions section.'
             ] : [
               '<strong>Download</strong> the updated admission form using the button below.',
               '<strong>Print</strong>, review, and sign (student and parent/guardian).',
               '<strong>Gather</strong> required documents and photocopies.',
-              '<strong>Submit</strong> signed form, documents, and fee at BMHSS Handwara.'
+              '<strong>Submit</strong> signed form, documents, and fee at HSS Shangus.'
             ],
             footer: 'For any queries, contact the admissions office.',
             ctaLabel: 'Download Updated Form',
@@ -3849,7 +4168,7 @@ function saveApplicationData(payload) {
     };
   } catch (e) {
     logError(e, 'saveApplicationData');
-    throw new Error('Failed to save application: ' + e.message);
+    throw new Error('Save failed: ' + e.message);
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -3861,7 +4180,7 @@ function validateFormForSubmission(formData, classSought, user) {
   const errors = [];
   const formStructure = getFormStructure();
   const appSettings = getAppSettings();
-  if (classSought && (!user || user.role !== 'Admin')) {
+  if (classSought && (!user || !isUserAnyAdmin(user))) {
     if (appSettings['allow_' + classSought] === false) {
       errors.push(MAINTENANCE_MESSAGE);
       return errors;
@@ -4099,7 +4418,7 @@ function rejectApplication(formNumber, reason, adminUser) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(adminUser, ss);
-    if (!adminUser || adminUser.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(adminUser)) throw new Error('Permission denied');
     const sheet = ss.getSheetByName(SHEETS.ADMISSIONS);
     const unlocksSheet = ss.getSheetByName(SHEETS.UNLOCKS);
     if (!sheet) throw new Error('Admissions sheet not found');
@@ -4147,7 +4466,7 @@ function rejectApplication(formNumber, reason, adminUser) {
       'Lock Status': 'Unlocked'
     });
     const subject = `Application #${formNumber} Rejected ? Action Required`;
-    const plainBody = `Dear ${studentName || email},\n\nYour admission application (Form No. ${formNumber}) has been rejected by the admin.\nReason: ${reason || 'Not specified'}.\n\nYour form has been unlocked for editing for 24 hours. Please log in at https://sites.google.com/view/hssshangus/login, correct the issues, and resubmit.\n\nRegards,\nBMHSS Handwara Admissions`;
+    const plainBody = `Dear ${studentName || email},\n\nYour admission application (Form No. ${formNumber}) has been rejected by the admin.\nReason: ${reason || 'Not specified'}.\n\nYour form has been unlocked for editing for 24 hours. Please log in at https://sites.google.com/view/hssshangus/login, correct the issues, and resubmit.\n\nRegards,\nHSS Shangus Admissions`;
     const htmlBody = buildEmailHtml({
       title: 'Application Rejected ? Action Required',
       preheader: `Form #${formNumber} rejected; please edit and resubmit`,
@@ -4167,7 +4486,7 @@ function rejectApplication(formNumber, reason, adminUser) {
     }
     
     // Send WhatsApp message to student and/or father
-    const whatsappMessage = `BMHSS Handwara: Your admission application (Form No. ${formNumber}) has been rejected. Reason: ${reason || 'Not specified'}. Your form has been unlocked for 24 hours for editing. Please log in at https://sites.google.com/view/hssshangus/login, correct the issues, and resubmit. -BMHSS Handwara Admissions`;
+    const whatsappMessage = `HSS Shangus: Your admission application (Form No. ${formNumber}) has been rejected. Reason: ${reason || 'Not specified'}. Your form has been unlocked for 24 hours for editing. Please log in at https://sites.google.com/view/hssshangus/login, correct the issues, and resubmit. -HSS Shangus Admissions`;
     
     let whatsappResult1 = null;
     let whatsappResult2 = null;
@@ -4575,7 +4894,7 @@ function generatePdf(appData, isEdit = false) {
 }
 function generatePdfForForm(formNumber, user) {
   try {
-    if (user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     const sheet = ss.getSheetByName(SHEETS.ADMISSIONS);
     const data = sheet.getDataRange().getValues();
@@ -4611,7 +4930,7 @@ function copyBatchFiles(formNumbersStr, user) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000); // Prevent concurrent operations
   try {
-    if (user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const formNumbers = formNumbersStr.split(',').map(f => String(f).trim()).filter(f => f && !isNaN(f));
     if (formNumbers.length === 0) throw new Error('Invalid form numbers: Provide comma-separated numbers (e.g., 250001,250002)');
     // Helper: try getFolderById, otherwise try to find/create by name under root
@@ -4755,7 +5074,7 @@ function unlockWithExpiry(formNumber, expiryStr, user) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const expiry = new Date(expiryStr);
     if (isNaN(expiry.getTime())) throw new Error('Invalid expiry date/time');
     const unlocksSheet = ss.getSheetByName(SHEETS.UNLOCKS);
@@ -4800,7 +5119,7 @@ function unlockForSession(formNumber, user) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const now = new Date();
     const expiry = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours fail?safe
     const unlocksSheet = ss.getSheetByName(SHEETS.UNLOCKS);
@@ -4835,7 +5154,7 @@ function lockTempUnlocksForAdmin(user) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const unlocksSheet = ss.getSheetByName(SHEETS.UNLOCKS);
     if (!unlocksSheet || unlocksSheet.getLastRow() < 2) return { success: true, locked: 0 };
     const data = unlocksSheet.getDataRange().getValues();
@@ -4925,12 +5244,10 @@ function incrementDraftCount(formNumber) {
 }
 
 function deleteApplication(formNumber, user) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const sheet = ss.getSheetByName(SHEETS.ADMISSIONS);
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     const formNumberIdx = headers.indexOf('Form Number');
@@ -4972,19 +5289,17 @@ function deleteApplication(formNumber, user) {
     try { cleanupOldPdfs(formNumber, null); } catch (err) {}
     sheet.deleteRow(rowIdx + 2);
     try { logActivity('Delete Application', user, `Form ${formNumber}`); } catch (e) {}
-    return { success: true, message: `Application #${formNumber} and associated files have been permanently deleted.` };
+    return { success: true, message: 'Application, PDF and Photo deleted.' };
   } catch (e) {
     logError(e, 'deleteApplication');
-    throw new Error('Deletion failed: ' + e.message);
-  } finally {
-    lock.releaseLock();
+    throw new Error(`Delete failed: ${e.message}`);
   }
 }
 function exportToCSV(user) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const sheet = ss.getSheetByName(SHEETS.ADMISSIONS);
     const data = sheet.getDataRange().getValues();
     if (data.length < 2) return "No data to export.";
@@ -5046,13 +5361,15 @@ function logActivity(action, user, details) {
     sheet.appendRow(rowData);
   } catch (err) {}
 }
-function getAdminActivityLog(user) {
+function getAdminActivityLog(user, options = {}) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || (user.role !== 'Admin' && String(user.email).toLowerCase() !== String(SCRIPT_PROPERTIES.adminEmail).toLowerCase())) {
+    if (!user || (!isUserAnyAdmin(user) && String(user.email).toLowerCase() !== String(SCRIPT_PROPERTIES.adminEmail).toLowerCase())) {
       throw new Error('Permission denied');
     }
+    const limit = options.limit || 0;
+    const offset = options.offset || 0;
     const actSheet = ss.getSheetByName(SHEETS.ADMIN_ACTIVITY);
     const admSheet = ss.getSheetByName(SHEETS.ADMISSIONS);
     const usersSheet = ss.getSheetByName(SHEETS.USERS);
@@ -5094,10 +5411,30 @@ function getAdminActivityLog(user) {
 
     // Activity rows
     let logs = [];
-    if (actSheet && actSheet.getLastRow() >= 2) {
-      const data = actSheet.getDataRange().getValues();
-      const headers = data[0];
-      const rows = data.slice(1).map(r => headers.reduce((o, h, i) => { o[h] = r[i] instanceof Date ? r[i].toISOString() : r[i]; return o; }, {}));
+    const lastRow = actSheet ? actSheet.getLastRow() : 0;
+    const totalLogs = Math.max(0, lastRow - 1);
+
+    if (actSheet && lastRow >= 2) {
+      let rowsToProcess = [];
+      let headers = [];
+
+      if (limit > 0) {
+        // Fetch specific slice (most recent first)
+        const endRow = lastRow - offset;
+        const startRow = Math.max(2, endRow - limit + 1);
+        const numRows = endRow - startRow + 1;
+
+        if (numRows > 0) {
+          headers = actSheet.getRange(1, 1, 1, actSheet.getLastColumn()).getValues()[0];
+          const data = actSheet.getRange(startRow, 1, numRows, actSheet.getLastColumn()).getValues();
+          rowsToProcess = data.map(r => headers.reduce((o, h, i) => { o[h] = r[i] instanceof Date ? r[i].toISOString() : r[i]; return o; }, {}));
+        }
+      } else {
+        // Legacy/All
+        const data = actSheet.getDataRange().getValues();
+        headers = data[0];
+        rowsToProcess = data.slice(1).map(r => headers.reduce((o, h, i) => { o[h] = r[i] instanceof Date ? r[i].toISOString() : r[i]; return o; }, {}));
+      }
       
       // Map for standardizing actions between Activity Log and Email Log
       const activityToEmailAction = {
@@ -5110,7 +5447,7 @@ function getAdminActivityLog(user) {
       };
 
       // Enrich
-      logs = rows.map(r => {
+      logs = rowsToProcess.map(r => {
         const details = String(r['Details'] || r['details'] || '');
         const userEmail = String(
           r['UserEmail'] || r['AdminEmail'] || r['User Email'] || r['Admin Email'] || r['Email'] || 
@@ -5187,7 +5524,7 @@ function getAdminActivityLog(user) {
         });
       }
     }
-    return { logs, otps, emails, lastModified: new Date().toISOString() };
+    return { logs, otps, emails, totalLogs, lastModified: new Date().toISOString() };
   } catch (e) {
     logError(e, 'getAdminActivityLog');
     throw new Error('Failed to fetch admin activity: ' + e.message);
@@ -5203,7 +5540,7 @@ function lockImmediately(formNumber, user) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const unlocksSheet = ss.getSheetByName(SHEETS.UNLOCKS);
     if (!unlocksSheet || unlocksSheet.getLastRow() < 2) {
       return { success: true, message: `No active unlock found for #${formNumber}.` };
@@ -5278,7 +5615,7 @@ function lockImmediately(formNumber, user) {
       }
       try { cleanupOldPdfs(formNumber, pdfId); } catch (e) {}
       const subject = `Updated Admission Form Locked - Form #${formNumber}`;
-      const plainBody = `Dear ${studentName},\n\nYour admission form was updated during the unlock period and is now locked.\n\nDownload your updated form: ${pdfUrl}\n(If download does not start, open in browser and save as PDF.)\n\nRegards,\nBMHSS Handwara Admission Portal`;
+      const plainBody = `Dear ${studentName},\n\nYour admission form was updated during the unlock period and is now locked.\n\nDownload your updated form: ${pdfUrl}\n(If download does not start, open in browser and save as PDF.)\n\nRegards,\nHSS Shangus Admission Portal`;
       const htmlBody = buildEmailHtml({
         title: 'Form Updated and Locked',
         preheader: `Form #${formNumber} locked`,
@@ -5324,8 +5661,8 @@ function buildEmailHtml({ title, preheader, greeting, intro, steps = [], footer 
       @media (max-width: 480px) { .email-body { padding: 16px; } .email-title { font-size: 18px; } }
     </style>`;
   const preheaderHtml = `<div style="display:none; max-height:0; overflow:hidden; opacity:0;">${preheader || ''}</div>`;
-  const defaultFooter = 'You are receiving this email because you registered or interacted with the BMHSS Handwara Admission Portal. If you did not request this, please ignore this email or reply to let us know.';
-  const footerCombined = `${footer ? footer + '<br><br>' : ''}<strong>BMHSS Handwara Admissions Office</strong><br>${SCRIPT_PROPERTIES.adminEmail}<br>${defaultFooter}`;
+  const defaultFooter = 'You are receiving this email because you registered or interacted with the HSS Shangus Admission Portal. If you did not request this, please ignore this email or reply to let us know.';
+  const footerCombined = `${footer ? footer + '<br><br>' : ''}<strong>HSS Shangus Admissions Office</strong><br>${SCRIPT_PROPERTIES.adminEmail}<br>${defaultFooter}`;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">${style}</head><body style="background:#f1f5f9; margin:0; padding:24px;">
     ${preheaderHtml}
     <div class="email-container">
@@ -5394,7 +5731,7 @@ function sendEmailSafe(to, subject, plainBody, options) {
       subject: subject,
       body: plainBody,
       htmlBody: opts.htmlBody || plainBody,
-      name: 'BMHSS Handwara Admissions',
+      name: 'HSS Shangus Admissions',
       replyTo: adminEmail
     };
 
@@ -5579,54 +5916,43 @@ function sendWhatsAppMessage(phoneNumber, message, options) {
  * NOTE: This function sends plaintext passwords stored in the sheet. This is insecure but requested by admin.
  */
 function sendPasswordToUser(email, adminUser) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(adminUser, ss);
-    if (!adminUser || adminUser.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(adminUser)) throw new Error('Permission denied');
     const userSheet = ss.getSheetByName(SHEETS.USERS);
     const data = userSheet.getDataRange().getValues();
     const headers = data[0];
     const emailIdx = headers.indexOf('Email');
     const nameIdx = headers.indexOf('Name');
-    const hashIdx = headers.indexOf('PasswordHash');
-
+    const plainIdx = headers.indexOf('PasswordPlain');
     for (let i = 1; i < data.length; i++) {
-        if (String(data[i][emailIdx]).toLowerCase() === email.toLowerCase()) {
-            const userName = data[i][nameIdx] || email;
-            // GUIDELINE 2: Auto-generate a new temporary password
-            const tempPassword = Math.random().toString(36).slice(-8).toUpperCase();
-            const tempHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, tempPassword)
-                .map(byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('');
-            
-            // Save new hash
-            userSheet.getRange(i + 1, hashIdx + 1).setValue(tempHash);
-            
-            const subject = 'BMHSS Handwara Portal - Temporary Password';
-            const body = `Dear ${userName},\n\nAs requested by the admin, a temporary password has been generated for your account:\n\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nIMPORTANT: Please change your password immediately after logging in.`;
-            const htmlBody = buildEmailHtml({
-                title: 'Temporary Password',
-                preheader: 'Your temporary portal password',
-                greeting: `Dear ${userName},`,
-                intro: 'A temporary password has been generated for your account as requested by the administrator.',
-                steps: [`Email: <strong>${email}</strong>`, `Temporary Password: <strong>${tempPassword}</strong>`],
-                footer: 'IMPORTANT: Please change your password immediately after logging in.'
-            });
-            const emailResult = sendEmailSafe(email, subject, body, { htmlBody: htmlBody, emailAction: 'Send Password', adminEmail: adminUser.email });
-            if (!emailResult.success) {
-                return { success: false, message: 'Failed to send email. Error: ' + emailResult.message };
-            }
-            return { success: true, message: 'A temporary password has been generated and emailed to the user.' };
+      if (String(data[i][emailIdx]).toLowerCase() === email.toLowerCase()) {
+        const userName = data[i][nameIdx] || email;
+        const plain = plainIdx > -1 ? data[i][plainIdx] : '';
+        if (!plain) throw new Error('No plain password available for this user');
+        const subject = 'HSS Shangus Portal ? Your Account Password';
+        const body = `Dear ${userName},\n\nAs requested by the admin, here is your login information:\n\nEmail: ${email}\nPassword: ${plain}\n\nPlease change your password after logging in.`;
+        const htmlBody = buildEmailHtml({
+          title: 'Your Account Password',
+          preheader: 'Your HSS Shangus account password',
+          greeting: `Dear ${userName},`,
+          intro: 'As requested by the admin, here is your login information:',
+          steps: [`Email: <strong>${email}</strong>`, `Password: <strong>${plain}</strong>`],
+          footer: 'Please change your password after logging in.'
+        });
+        const emailResult = sendEmailSafe(email, subject, body, { htmlBody: htmlBody, emailAction: 'Send Password', adminEmail: adminUser.email });
+        if (!emailResult.success) {
+          return { success: false, message: 'Failed to send password email. Error: ' + emailResult.message };
         }
+        try { logActivity('Send Password', adminUser, `To ${email}`); } catch (e) {}
+        return { success: true, message: `Password sent to ${email}.` };
+      }
     }
-    
     return { success: false, message: 'Email not registered.' };
   } catch (e) {
     logError(e, 'sendPasswordToUser');
     return { success: false, message: 'Failed to send password: ' + e.message };
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -5637,7 +5963,7 @@ function getAdminOtpLogs(adminUser) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(adminUser, ss);
-    if (!adminUser || adminUser.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(adminUser)) throw new Error('Permission denied');
     
     const otpSheet = ss.getSheetByName(SHEETS.OTPS);
     if (!otpSheet) return { logs: [] };
@@ -5875,7 +6201,7 @@ function createDemoTestApplications(scenario = 'all', user) {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
-    if (!user || user.role !== 'Admin') throw new Error('Permission denied');
+    if (!isUserAnyAdmin(user)) throw new Error('Permission denied');
     const results = {
       success: [],
       failed: [],
@@ -6038,7 +6364,7 @@ function submitDemoApplication(email, applicationData, classSelected) {
       const pdfResult = generatePdf(applicationData);
       // Send email to admin/test address with PDF attached
       try {
-        const adminEmail = 'adm.exam.bhsshandwara@gmail.com';
+        const adminEmail = 'adm.exam.hss.shangus@gmail.com';
         const subject = `Demo Application Submitted - Form ${formNumber} (${classSelected})`;
         const plainBody = `A demo application was submitted.\nForm Number: ${formNumber}\nClass: ${classSelected}\nEmail: ${email}`;
         const htmlBody = `<p>A demo application was submitted.</p><ul><li><strong>Form Number:</strong> ${formNumber}</li><li><strong>Class:</strong> ${classSelected}</li><li><strong>Email:</strong> ${email}</li></ul><p>PDF attached.</p><p>Download: <a href="${pdfResult.pdfDownloadUrl}">${pdfResult.pdfDownloadUrl}</a></p>`;
@@ -6799,7 +7125,7 @@ function saveContactsToGoogleInputsWithPeopleAPI(formNumbersInput, user) {
             formattedType: 'Mobile'
           }],
           biographies: [{
-            value: `BMHSS Handwara Student\nForm Number: ${formNum}${studentClass ? '\nClass: ' + studentClass : ''}${fatherName ? '\nFather: ' + fatherName : ''}${motherName ? '\nMother: ' + motherName : ''}${subjects ? '\nSubjects: ' + subjects : ''}\nAdded on: ${new Date().toLocaleDateString()}\nAdded via: Bulk Contact Saver`,
+            value: `HSS Shangus Student\nForm Number: ${formNum}${studentClass ? '\nClass: ' + studentClass : ''}${fatherName ? '\nFather: ' + fatherName : ''}${motherName ? '\nMother: ' + motherName : ''}${subjects ? '\nSubjects: ' + subjects : ''}\nAdded on: ${new Date().toLocaleDateString()}\nAdded via: Bulk Contact Saver`,
             contentType: 'TEXT_PLAIN'
           }]
         };
@@ -6838,7 +7164,7 @@ function saveContactsToGoogleInputsWithPeopleAPI(formNumbersInput, user) {
  * Syncs assigned roll number records to an external Source DB.
  * Appends data to 'source_data' sheet of 1pZz0YkcTvWJnnDlBSguUIU4Ujc0aPf5119B7nX7TRZg
  */
-function syncDataToSource(classFilter, sessionFilter, previewOnly, user, order, taskId) {
+function syncDataToSource(classFilter, sessionFilter, previewOnly, user, order, taskId, protectedColumns) {
   try {
     const sortOrder = order || 'roll_number';
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
@@ -6878,6 +7204,15 @@ function syncDataToSource(classFilter, sessionFilter, previewOnly, user, order, 
     const getVal = (row, name) => {
       let idx = getIdx(name);
       return idx !== -1 ? String(row[idx] || '').trim() : '';
+    };
+
+    // --- PROTECTED COLUMNS LOGIC ---
+    const protectedColsSet = new Set(Array.isArray(protectedColumns) ? protectedColumns : []);
+    const isFieldProtected = (portalKey) => {
+        if (!portalKey) return false;
+        const pIdx = cIdxMap[portalKey];
+        const pHeader = (pIdx !== undefined && pIdx !== -1) ? headers[pIdx] : null;
+        return pHeader && protectedColsSet.has(pHeader);
     };
     // --- TARGET DATA OPTIMIZATION ---
     // User requested to absolutely NOT touch/read upto row 5664.
@@ -7233,76 +7568,116 @@ function syncDataToSource(classFilter, sessionFilter, previewOnly, user, order, 
             mappedRow = new Array(totalTargetColumns).fill('');
         }
 
-        // Apply shared field mapping to mappedRow - Allow updating/clearing Roll No
-        if (formNum) mappedRow[fIdx] = formNum; 
-        mappedRow[rIdx] = rollNo; 
-        mappedRow[3] = ts;
-        mappedRow[cIdx] = studentClass; 
+        // --- COMMITTEE UPDATES WITH PROTECTION ---
+        const setM = (tIdx, val, pKey) => {
+            if (existingIdx !== undefined && isFieldProtected(pKey) && String(mappedRow[tIdx]).trim() !== "") return;
+            mappedRow[tIdx] = val;
+        };
+
+        if (formNum) setM(fIdx, formNum, 'formNum');
+        setM(rIdx, rollNo, 'rollNo');
+        setM(3, ts, 'timestamp');
+        setM(cIdx, studentClass, 'studentClass');
         
         // Session Logic: Keep existing if portal is empty
         if (portalSession) {
-          mappedRow[sIdx] = portalSession; 
+          setM(sIdx, portalSession, 'session');
         } else if (!mappedRow[sIdx]) {
-          mappedRow[sIdx] = studentSession; // Fallback for new records
+          setM(sIdx, studentSession, 'session');
         }
-        if (prevReg) mappedRow[8] = prevReg; 
-        mappedRow[9] = prevBoard;
-        mappedRow[10] = name; 
-        mappedRow[11] = father; 
-        mappedRow[12] = mother;
-        mappedRow[13] = dob; 
-        mappedRow[15] = village; 
-        mappedRow[16] = block; 
-        mappedRow[17] = tehsil;
-        mappedRow[18] = district; 
-        mappedRow[19] = pincode; 
-        mappedRow[20] = stateUt;
-        const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-        const v_clean = clean(village), d_clean = clean(district);
-        mappedRow[21] = (v_clean && d_clean) ? `${v_clean}, ${d_clean}` : (v_clean || d_clean);
-        mappedRow[22] = gender; 
-        mappedRow[23] = socialCat; 
-        mappedRow[24] = religion;
-        mappedRow[25] = disability; 
-        mappedRow[26] = disabilityType; 
-        mappedRow[27] = stream;
-        mappedRow[28] = subArrRaw[0] || ''; 
-        mappedRow[29] = subArrRaw[1] || ''; 
-        mappedRow[30] = subArrRaw[2] || '';
-        mappedRow[31] = subArrRaw[3] || ''; 
-        mappedRow[32] = subArrRaw[4] || ''; 
-        mappedRow[33] = subArrRaw[5] || '';
-        mappedRow[34] = finalSubsStr; 
-        mappedRow[35] = email1; 
-        mappedRow[36] = email2;
-        mappedRow[37] = studentMob; 
-        mappedRow[38] = parentMob; 
-        mappedRow[39] = aadhar;
-        mappedRow[40] = accNo; 
-        mappedRow[41] = bankName; 
-        mappedRow[42] = ifsc;
-        mappedRow[43] = bloodGroup; 
-        mappedRow[44] = height; 
-        mappedRow[45] = weight;
-        mappedRow[46] = socialCat; 
-        mappedRow[47] = socioEcon; 
-        mappedRow[48] = houseNo;
-        mappedRow[49] = vocPerc; 
-        mappedRow[50] = prevComplex; 
-        mappedRow[51] = penNum;
-        mappedRow[52] = prevSchool; 
-        mappedRow[55] = prevExamRoll; 
-        mappedRow[56] = prevMarks;
-        mappedRow[57] = prevMax; 
-        mappedRow[58] = prevPerc; 
-        mappedRow[59] = prevDiv; 
-        mappedRow[66] = remarks;
+
+        if (prevReg) {
+            const regKey = studentClass.includes('11') ? 'prevReg10' : (studentClass.includes('12') ? 'prevReg11' : (studentClass.includes('9') ? 'prevRegDiet' : 'prevReg9'));
+            setM(8, prevReg, regKey);
+        }
         
-        if (bpPhotoIdIdx !== -1) mappedRow[bpPhotoIdIdx] = photo;
-        else if (managedColumns > 67) mappedRow[67] = photo; 
+        const boardKey = studentClass.includes('11') ? 'prevBoard10' : (studentClass.includes('12') ? 'prevBoard11' : (studentClass.includes('9') ? 'prevBoard8' : 'prevBoard9'));
+        setM(9, boardKey, boardKey); 
+
+        setM(10, name, 'name'); 
+        setM(11, father, 'father'); 
+        setM(12, mother, 'mother');
+        setM(13, dob, 'dob'); 
+        setM(15, village, 'village'); 
+        setM(16, block, 'block'); 
+        setM(17, tehsil, 'tehsil');
+        setM(18, district, 'district'); 
+        setM(19, pincode, 'pincode'); 
+        setM(20, stateUt, 'stateUt');
+        
+        // Combined Residence/Address
+        const cleanStr = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+        const v_c = cleanStr(village), d_c = cleanStr(district);
+        const combinedAddress = (v_c && d_c) ? `${v_c}, ${d_c}` : (v_c || d_c);
+        if (!(existingIdx !== undefined && (isFieldProtected('village') || isFieldProtected('district')) && String(mappedRow[21]).trim() !== "")) {
+            mappedRow[21] = combinedAddress;
+        }
+
+        setM(22, gender, 'gender'); 
+        setM(23, socialCat, 'socialCat'); 
+        setM(24, religion, 'religion');
+        setM(25, disability, 'disability'); 
+        setM(26, disabilityType, 'disabilityType'); 
+        setM(27, stream, 'streamRaw');
+
+        const subsKeys = studentClass.includes('11') ? ['subs11_taken', 'subs11_studied'] : (studentClass.includes('12') ? ['ss12'] : (studentClass.includes('9') ? ['subs9'] : ['subs10']));
+        const isSubsProtected = () => subsKeys.some(k => isFieldProtected(k));
+        
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[28]).trim() !== "")) mappedRow[28] = subArrRaw[0] || ''; 
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[29]).trim() !== "")) mappedRow[29] = subArrRaw[1] || ''; 
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[30]).trim() !== "")) mappedRow[30] = subArrRaw[2] || '';
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[31]).trim() !== "")) mappedRow[31] = subArrRaw[3] || ''; 
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[32]).trim() !== "")) mappedRow[32] = subArrRaw[4] || ''; 
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[33]).trim() !== "")) mappedRow[33] = subArrRaw[5] || '';
+        if (!(existingIdx !== undefined && isSubsProtected() && String(mappedRow[34]).trim() !== "")) mappedRow[34] = finalSubsStr;
+
+        setM(35, email1, 'email1'); 
+        setM(36, email2, 'email2');
+        setM(37, studentMob, 'studentMob'); 
+        setM(38, parentMob, 'parentMob'); 
+        setM(39, aadhar, 'aadhar');
+        setM(40, accNo, 'accNo'); 
+        setM(41, bankName, 'bankName'); 
+        setM(42, ifsc, 'ifsc');
+        setM(43, bloodGroup, 'bloodGroup'); 
+        setM(44, height, 'height'); 
+        setM(45, weight, 'weight');
+        setM(46, socialCat, 'socialCat'); 
+        setM(47, socioEcon, 'socioEcon'); 
+        setM(48, houseNo, 'houseNo');
+        setM(49, vocPerc, 'vocPerc'); 
+        setM(50, prevComplex, 'prevComplex'); 
+        setM(51, penNum, 'penNum');
+        
+        const prevSchoolKey = studentClass.includes('11') ? 'prevSchool10' : (studentClass.includes('12') ? 'prevSchool11' : (studentClass.includes('9') ? 'prevSchool8' : 'prevSchool9'));
+        setM(52, prevSchool, prevSchoolKey); 
+
+        const prevRollKey = studentClass.includes('11') ? 'prevExamRoll10' : (studentClass.includes('12') ? 'prevExamRoll11' : (studentClass.includes('9') ? 'prevExamRoll8' : 'prevExamRoll9'));
+        setM(55, prevExamRoll, prevRollKey); 
+
+        const prevMarksKey = studentClass.includes('11') ? 'prevMarks10' : (studentClass.includes('12') ? 'prevMarks11' : (studentClass.includes('9') ? 'prevMarks8' : 'prevMarks9'));
+        setM(56, prevMarks, prevMarksKey);
+
+        const prevMaxKey = studentClass.includes('11') ? 'prevMax10' : (studentClass.includes('12') ? 'prevMax11' : (studentClass.includes('9') ? 'prevMax8' : 'prevMax9'));
+        setM(57, prevMax, prevMaxKey); 
+
+        if (!(existingIdx !== undefined && (isFieldProtected(prevMarksKey) || isFieldProtected(prevMaxKey)) && String(mappedRow[58]).trim() !== "")) mappedRow[58] = prevPerc; 
+        
+        const prevDivKey = studentClass.includes('11') ? 'prevDiv10' : (studentClass.includes('12') ? 'prevDiv11' : (studentClass.includes('9') ? 'prevDiv8' : 'prevDiv9'));
+        setM(59, prevDiv, prevDivKey); 
+
+        setM(66, remarks, 'remarks');
+        
+        if (bpPhotoIdIdx !== -1) {
+            if (!(existingIdx !== undefined && isFieldProtected('Student Photo') && String(mappedRow[bpPhotoIdIdx]).trim() !== "")) mappedRow[bpPhotoIdIdx] = photo;
+        } else if (managedColumns > 67) {
+            if (!(existingIdx !== undefined && isFieldProtected('Student Photo') && String(mappedRow[67]).trim() !== "")) mappedRow[67] = photo; 
+        }
         
         const pdfIdxFind = targetHeadersRaw.findIndex(h => String(h).toUpperCase().includes("PDF"));
-        if (pdfIdxFind !== -1) mappedRow[pdfIdxFind] = pdfUrl;
+        if (pdfIdxFind !== -1) {
+            if (!(existingIdx !== undefined && isFieldProtected('PDF URL') && String(mappedRow[pdfIdxFind]).trim() !== "")) mappedRow[pdfIdxFind] = pdfUrl;
+        }
 
         // --- COMMIT CHANGES ---
         if (existingIdx !== undefined) {
@@ -7412,33 +7787,66 @@ function syncToPracticalsList() {
         listSheet = practicalsSs.insertSheet('list');
     }
 
+    const headers = sourceData[0].map(h => String(h || '').trim().toLowerCase());
+    const findIdx = (terms) => {
+      for (const term of terms) {
+        const i = headers.indexOf(term.toLowerCase());
+        if (i !== -1) return i;
+      }
+      for (const term of terms) {
+        const i = headers.findIndex(h => h.includes(term.toLowerCase()));
+        if (i !== -1) return i;
+      }
+      return -1;
+    };
+
+    const idx = {
+      roll: findIdx(['class roll no', 'class r.no.', 'roll no', 'r.no']),
+      examRoll: findIdx(['exam r.no. (current)', 'exam r.no.', 'exam roll no', 'exam roll', 'board roll']),
+      name: findIdx(['student\'s name', 'name']),
+      father: findIdx(['father\'s name', 'father name']),
+      class: findIdx(['class', 'grade']),
+      session: findIdx(['session', 'academic session']),
+      mobile: findIdx(['mobile', 'phone', 'contact']),
+      sub1: findIdx(['subjects1', 'subject 1', 'sub1']),
+      sub2: findIdx(['subjects2', 'subject 2', 'sub2']),
+      sub3: findIdx(['subjects3', 'subject 3', 'sub3']),
+      sub4: findIdx(['subjects4', 'subject 4', 'sub4']),
+      sub5: findIdx(['subjects5', 'subject 5', 'sub5'])
+    };
+
     const listData = [];
-    // Header Row
     listData.push(['class roll no', 'exam roll no', 'name', 'fathers name', 'subjects (comma separated)', 'session', 'class', 'mobile']);
 
     for (let i = 1; i < sourceData.length; i++) {
       const row = sourceData[i];
-      const rollNo = String(row[2] || '').trim(); // Index 2 is Class Roll No
-      
-      // Only sync if roll number exists
+      const rollNo = idx.roll !== -1 ? String(row[idx.roll] || '').trim() : '';
       if (!rollNo) continue;
 
-      let sessionVal = String(row[7] || '').trim(); // Index 7 is Session
-      // Transform "2025-26" -> "2026"
+      let sessionVal = idx.session !== -1 ? String(row[idx.session] || '').trim() : '';
       const sessionMatch = sessionVal.match(/-(\d{2})$/);
       if (sessionMatch) {
           sessionVal = "20" + sessionMatch[1];
       }
 
+      // Aggregate subjects
+      const subArr = [];
+      if (idx.sub1 !== -1 && row[idx.sub1]) subArr.push(String(row[idx.sub1]).trim());
+      if (idx.sub2 !== -1 && row[idx.sub2]) subArr.push(String(row[idx.sub2]).trim());
+      if (idx.sub3 !== -1 && row[idx.sub3]) subArr.push(String(row[idx.sub3]).trim());
+      if (idx.sub4 !== -1 && row[idx.sub4]) subArr.push(String(row[idx.sub4]).trim());
+      if (idx.sub5 !== -1 && row[idx.sub5]) subArr.push(String(row[idx.sub5]).trim());
+      const subjectsJoined = subArr.filter(s => s !== '').join(', ');
+
       listData.push([
         rollNo,
-        row[55] || '', // Index 55 is Exam Roll No
-        row[10] || '', // Index 10 is Name
-        row[11] || '', // Index 11 is Father's Name
-        row[34] || '', // Index 34 is Subjects
+        idx.examRoll !== -1 ? row[idx.examRoll] : '',
+        idx.name !== -1 ? row[idx.name] : '',
+        idx.father !== -1 ? row[idx.father] : '',
+        subjectsJoined,
         sessionVal,    
-        row[6] || '',  // Index 6 is Class
-        row[37] || ''  // Index 37 is Mobile
+        idx.class !== -1 ? row[idx.class] : '',
+        idx.mobile !== -1 ? row[idx.mobile] : ''
       ]);
     }
 
@@ -7588,7 +7996,7 @@ function syncDataToAutomation(classFilter, sessionFilter, user, taskId) {
  */
 function updateAdminTabPermissions(permissions, user) {
   try {
-    const SUPER_ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+    const SUPER_ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
     if (String(user.email).toLowerCase() !== SUPER_ADMIN_EMAIL) {
       throw new Error('Unauthorized: Only super admin can change permissions.');
     }
@@ -7635,7 +8043,7 @@ function updateAdminTabPermissions(permissions, user) {
  */
 function saveAdminSettings(settings, user) {
   try {
-    const SUPER_ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+    const SUPER_ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
     if (String(user.email).toLowerCase() !== SUPER_ADMIN_EMAIL) {
       throw new Error('Unauthorized: Only super admin can change settings.');
     }
@@ -7693,8 +8101,6 @@ function getFolderAsZip(folderId, fileName) {
  * Resets roll numbers in admissions sheet.
  */
 function resetRollNumbers(params, user) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     ensureUserRole(user, ss);
@@ -7770,8 +8176,6 @@ function resetRollNumbers(params, user) {
   } catch (e) {
     logError(e, 'resetRollNumbers');
     return { success: false, message: e.message };
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -8315,10 +8719,24 @@ function validateSSOToken(token) {
                 return standardResponse(false, null, 'Token has expired');
             }
             // Token is valid! Return user data
-            const user = { email: data[i][1], role: data[i][2] };
+            const email = data[i][1];
+            const role = data[i][2];
+            
+            let userObj = getUserByEmail(email, ss);
+            if (!userObj) {
+              userObj = { email: email, role: role };
+            } else {
+              userObj.role = role; // Ensure role from token is preserved
+            }
+            
+            let initialData = null;
+            try {
+              initialData = getInitialDataForUser(userObj);
+            } catch (e) {}
+            
             // Optional: Delete token after one-time use for maximum security
             ssoSheet.deleteRow(i + 1);
-            return standardResponse(true, user);
+            return standardResponse(true, { user: userObj, initialData: initialData });
         }
     }
     return standardResponse(false, null, 'Invalid session token');
@@ -8329,3 +8747,221 @@ function validateSSOToken(token) {
 }
 
 
+
+/**
+ * [NEW] Fetches data for the Admission Register report.
+ * Filters: All 11th grade, and 12th grade with "readmission" or "yes" in readmission column.
+ */
+function getAdmissionRegisterData(session, user) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    ensureUserRole(user, ss);
+    if (!isUserAnyAdmin(user)) throw new Error("Unauthorized access");
+
+    const sheet = ss.getSheetByName(SHEETS.ADMISSIONS);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    const getIdx = (name) => {
+        let idx = headers.indexOf(name);
+        if (idx === -1) {
+            // Case-insensitive fallback
+            idx = headers.findIndex(h => String(h).toLowerCase().trim() === String(name).toLowerCase().trim());
+        }
+        return idx;
+    };
+
+    const idxSession = getIdx('Session');
+    const idxClass = getIdx('Class');
+    const idxStatus = getIdx('Status'); // Still checking this if present, fallback to readmission
+    const idxReadmission = getIdx('readmission');
+    
+    // Core details
+    const idxForm = getIdx('Form No.');
+    const idxRoll = getIdx('Class R.No.');
+    const idxTimestamp = getIdx('Online Subm. Date');
+    const idxAdmDate = getIdx('Adm. Date');
+    const idxAdmNo = getIdx('Adm. No.');
+    const idxBoardReg = getIdx('Board Reg. No.');
+    const idxName = getIdx("Student's Name");
+    const idxFather = getIdx("Father's Name");
+    const idxMother = getIdx("Mother's Name");
+    const idxDob = getIdx("DoB (figures)");
+    const idxGender = getIdx('Gender');
+    const idxVillage = getIdx('Village/Town');
+    const idxTehsil = getIdx('Tehsil');
+    const idxDistrict = getIdx('District');
+    const idxBlock = getIdx('Block');
+    const idxMobile = getIdx("Student's Contact");
+    const idxParentMobile = getIdx("Parent's Contact");
+    const idxPhoto = getIdx('photo_id');
+
+    // Page 2 details
+    const idxStream = getIdx('Stream');
+    const idxSubs = getIdx('Subs');
+    const idxAadhar = getIdx('Aadhar No.');
+    const idxCategory = getIdx('Social category');
+    const idxSocioEcon = getIdx('Socio-economic category');
+    const idxBlood = getIdx('Blood Type');
+    const idxAccount = getIdx('Bank Account Number');
+    const idxIfsc = getIdx('IFSC Code');
+    const idxPrevSchool = getIdx('Previous School');
+    const idxPrevRoll = getIdx('Exam R.No. (Prev.)');
+    const idxMarksObt = getIdx('Marks Obt. (Prev.)');
+    const idxMaxMarks = getIdx('Max. Marks (Prev.)');
+    const idxPen = getIdx('PEN No.');
+    const idxRemarks = getIdx('Remarks');
+
+    const students = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[idxStatus] !== 'Submitted' && row[idxStatus] !== 'Draft') continue; // [MODIFIED] Include drafts? User usually wants submitted
+      if (session && row[idxSession] !== session) continue;
+
+      const cls = String(row[idxClass]);
+      const is11th = cls.includes('11th');
+      const is12th = cls.includes('12th');
+
+      let include = false;
+      if (is11th) {
+        include = true;
+      } else if (is12th && idxReadmission !== -1) {
+        const val = String(row[idxReadmission]).toLowerCase();
+        if (val.includes('readmission') || val.includes('yes')) {
+          include = true;
+        }
+      }
+
+      if (include) {
+        // Format dates
+        const rawDob = row[idxDob];
+        let dobFigures = '';
+        let dobWords = '';
+        if (rawDob) {
+            const d = new Date(rawDob);
+            if (!isNaN(d.getTime())) {
+                dobFigures = Utilities.formatDate(d, Session.getScriptTimeZone(), "dd-MM-yyyy");
+                dobWords = formatDateToWords(d);
+            }
+        }
+
+        const rawTimestamp = row[idxTimestamp];
+        let onlineStatus = '';
+        if (rawTimestamp) {
+            const dt = new Date(rawTimestamp);
+            if (!isNaN(dt.getTime())) onlineStatus = Utilities.formatDate(dt, Session.getScriptTimeZone(), "dd-MM-yyyy");
+        }
+
+        // PEN Logic: Use 'PEN No.' only, return 'NA' if 'Not Found' or empty
+        let penVal = idxPen !== -1 ? String(row[idxPen] || '').trim() : '';
+        if (!penVal || penVal.toLowerCase() === 'not found') penVal = 'NA';
+
+        let admDateStr = '';
+        if (idxAdmDate !== -1 && row[idxAdmDate]) {
+            const dAdm = new Date(row[idxAdmDate]);
+            if (!isNaN(dAdm.getTime())) admDateStr = Utilities.formatDate(dAdm, Session.getScriptTimeZone(), "dd-MM-yyyy");
+        }
+
+        const student = {
+            sno: students.length + 1,
+            photo: idxPhoto !== -1 ? (row[idxPhoto] || '') : '',
+            rollNo: idxRoll !== -1 ? (row[idxRoll] || '') : '',
+            formNo: idxForm !== -1 ? (row[idxForm] || '') : '',
+            onlineStatus: onlineStatus,
+            admDate: admDateStr || onlineStatus, // Use Adm. Date if available, else Subm. Date
+            admNo: idxAdmNo !== -1 ? row[idxAdmNo] : '',
+            class: cls,
+            boardReg: idxBoardReg !== -1 ? (row[idxBoardReg] || '') : '',
+            name: idxName !== -1 ? (row[idxName] || '') : '',
+            father: idxFather !== -1 ? (row[idxFather] || '') : '',
+            mother: idxMother !== -1 ? (row[idxMother] || '') : '',
+            dobFigures: dobFigures,
+            dobWords: dobWords,
+            gender: idxGender !== -1 ? (row[idxGender] || '') : '',
+            village: idxVillage !== -1 ? (row[idxVillage] || '') : '',
+            block: idxBlock !== -1 ? row[idxBlock] : '',
+            tehsil: idxTehsil !== -1 ? (row[idxTehsil] || '') : '',
+            district: idxDistrict !== -1 ? (row[idxDistrict] || '') : '',
+            mobile: idxMobile !== -1 ? (row[idxMobile] || '') : '',
+            parentMobile: idxParentMobile !== -1 ? (row[idxParentMobile] || '') : '',
+            stream: idxStream !== -1 ? (row[idxStream] || '') : '',
+            subs: idxSubs !== -1 ? (row[idxSubs] || '') : '',
+            aadhar: idxAadhar !== -1 ? (row[idxAadhar] || '') : '',
+            category: idxCategory !== -1 ? (row[idxCategory] || '') : '',
+            socioEcon: idxSocioEcon !== -1 ? row[idxSocioEcon] : '',
+            blood: idxBlood !== -1 ? (row[idxBlood] || '') : '',
+            account: idxAccount !== -1 ? (row[idxAccount] || '') : '',
+            ifsc: idxIfsc !== -1 ? (row[idxIfsc] || '') : '',
+            prevSchool: idxPrevSchool !== -1 ? (row[idxPrevSchool] || '') : '',
+            prevRoll: idxPrevRoll !== -1 ? (row[idxPrevRoll] || '') : '',
+            prevResult: (idxMarksObt !== -1 && idxMaxMarks !== -1) ? `${row[idxMarksObt] || ''}/${row[idxMaxMarks] || ''}` : '',
+            pen: penVal,
+            remarks: idxRemarks !== -1 ? (row[idxRemarks] || '') : ''
+        };
+        students.push(student);
+      }
+    }
+
+    return standardResponse(true, students);
+  } catch (e) {
+    logError(e, 'getAdmissionRegisterData');
+    return standardResponse(false, null, e.message);
+  }
+}
+
+/**
+ * [NEW] Converts a Date object to words as per the requested format.
+ * Example: 11-04-2008 -> eleventh of April two thousand eight
+ */
+function formatDateToWords(date) {
+  try {
+    const days = ['zero', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth', 'twenty-first', 'twenty-second', 'twenty-third', 'twenty-fourth', 'twenty-fifth', 'twenty-sixth', 'twenty-seventh', 'twenty-eighth', 'twenty-ninth', 'thirtieth', 'thirty-first'];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const d = date.getDate();
+    const m = date.getMonth();
+    const y = date.getFullYear();
+
+    const dayWord = days[d];
+    const monthWord = months[m];
+    
+    // Year conversion (simplified for 2000-2030)
+    let yearWord = '';
+    if (y >= 2000 && y < 2010) {
+        const ones = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+        yearWord = 'two thousand ' + ones[y - 2000];
+    } else if (y >= 2010 && y < 2020) {
+        const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        yearWord = 'two thousand ' + teens[y - 2010];
+    } else if (y >= 2020 && y <= 2030) {
+        const twenties = ['twenty', 'twenty-one', 'twenty-two', 'twenty-three', 'twenty-four', 'twenty-five', 'twenty-six', 'twenty-seven', 'twenty-eight', 'twenty-nine', 'thirty'];
+        yearWord = 'two thousand ' + twenties[y - 2020];
+    } else {
+        yearWord = String(y); // Fallback
+    }
+
+    return `${dayWord} of ${monthWord} ${yearWord}`;
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * [NEW] Generates the Admission Register HTML for a new tab.
+ */
+function getAdmissionRegisterHtml(session, user) {
+  try {
+    const response = getAdmissionRegisterData(session, user);
+    if (!response.success) throw new Error(response.message);
+
+    const students = response.data;
+    const template = HtmlService.createTemplateFromFile('AdmissionRegister');
+    const html = template.evaluate().getContent();
+    
+    // Inject data via script tag
+    const script = `<script>init(${JSON.stringify(students)}, ${JSON.stringify(session)})</script>`;
+    return html + script;
+  } catch (e) {
+    return `<h1>Error</h1><p>${e.message}</p>`;
+  }
+}

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f0f2f5;
+            color: #1a202c;
+        }
+
+        .page-container {
+            width: 297mm; /* A4 Landscape width */
+            margin: 20px auto;
+            background: white;
+            padding: 10mm;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        @media print {
+            body { background: white; }
+            .page-container {
+                margin: 0;
+                box-shadow: none;
+                width: 100%;
+                height: 100%;
+                page-break-after: always;
+                padding: 5mm;
+            }
+            .no-print { display: none; }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #2d3748;
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #2d3748;
+            text-transform: uppercase;
+        }
+
+        .header p {
+            margin: 5px 0;
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px; /* Small font for many columns */
+        }
+
+        th, td {
+            border: 1px solid #cbd5e0;
+            padding: 4px;
+            text-align: left;
+            word-wrap: break-word;
+        }
+
+        th {
+            background: #edf2f7;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .photo-cell img {
+            width: 40px;
+            height: 50px;
+            object-fit: cover;
+            border: 1px solid #e2e8f0;
+        }
+
+        .sub-header-row th {
+            font-size: 7px;
+        }
+
+        .page-title {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-weight: bold;
+            color: #718096;
+        }
+
+        .register-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            background: #2d3748;
+            color: white;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="padding: 10px; background: #2d3748; color: white; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <strong>Admission Register Generator</strong>
+            <span style="margin-left: 20px; font-size: 0.8rem; opacity: 0.8;">Session: <span id="displaySession"></span></span>
+        </div>
+        <button onclick="window.print()" style="padding: 8px 16px; background: #48bb78; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">Print Register</button>
+    </div>
+
+    <div id="content">
+        <!-- Page 1 -->
+        <div class="page-container" id="page1Container">
+            <div class="page-title">PAGE 1</div>
+            <div class="register-title">ADMISSION REGISTER - SESSION <span class="session-label"></span></div>
+            <table id="tablePage1">
+                <thead>
+                    <tr>
+                        <th rowspan="2">S.No.</th>
+                        <th rowspan="2">Photo</th>
+                        <th rowspan="2">Class R.No.</th>
+                        <th rowspan="2">Form No.</th>
+                        <th rowspan="2">Online Status</th>
+                        <th rowspan="2">Adm. Date</th>
+                        <th rowspan="2">Adm. No.</th>
+                        <th rowspan="2">Class adm. to</th>
+                        <th rowspan="2">Board Reg. No.</th>
+                        <th rowspan="2">Student's Name</th>
+                        <th colspan="2">Parentage</th>
+                        <th colspan="2">Date of Birth</th>
+                        <th rowspan="2">Gender</th>
+                        <th colspan="3">Residence</th>
+                        <th colspan="2">Contact</th>
+                    </tr>
+                    <tr class="sub-header-row">
+                        <th>Father's Name</th>
+                        <th>Mother's Name</th>
+                        <th>Figures</th>
+                        <th>Words</th>
+                        <th>Village/Town</th>
+                        <th>Tehsil</th>
+                        <th>District</th>
+                        <th>Student's Mob</th>
+                        <th>Parent's Mob</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyPage1"></tbody>
+            </table>
+        </div>
+
+        <!-- Page 2 -->
+        <div class="page-container" id="page2Container">
+            <div class="page-title">PAGE 2</div>
+            <div class="register-title">ADMISSION REGISTER - SESSION <span class="session-label"></span></div>
+            <table id="tablePage2">
+                <thead>
+                    <tr>
+                        <th rowspan="2">S.No.</th>
+                        <th rowspan="2">Stream</th>
+                        <th rowspan="2">Subs</th>
+                        <th rowspan="2">Aadhaar No.</th>
+                        <th rowspan="2">Rev. Cat.</th>
+                        <th rowspan="2">Blood Grp</th>
+                        <th rowspan="2">A/C No.</th>
+                        <th rowspan="2">IFSC Code</th>
+                        <th rowspan="2">Previous School</th>
+                        <th rowspan="2">Prev R.No.</th>
+                        <th rowspan="2">Prev result</th>
+                        <th rowspan="2">PEN, DOB (UDISE)</th>
+                        <th rowspan="2">admid. m/y/yr</th>
+                        <th rowspan="2">Date of joid</th>
+                        <th rowspan="2">Withdrawal (result) Date</th>
+                        <th rowspan="2">Issued DC/CC (No./Date)</th>
+                        <th colspan="3">Receipt</th>
+                        <th rowspan="2">Remarks</th>
+                    </tr>
+                    <tr class="sub-header-row">
+                        <th>E.No.</th>
+                        <th>Dt.</th>
+                        <th>Rs.</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyPage2"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function init(students, session) {
+            document.getElementById('displaySession').textContent = session;
+            const labels = document.querySelectorAll('.session-label');
+            labels.forEach(l => l.textContent = session);
+
+            const body1 = document.getElementById('bodyPage1');
+            const body2 = document.getElementById('bodyPage2');
+
+            students.forEach(s => {
+                // Page 1 Row
+                const tr1 = document.createElement('tr');
+                tr1.innerHTML = `
+                    <td>${s.sno}</td>
+                    <td class="photo-cell">${s.photo ? `<img src="${s.photo}" />` : ''}</td>
+                    <td>${s.rollNo}</td>
+                    <td>${s.formNo}</td>
+                    <td>${s.onlineStatus}</td>
+                    <td>${s.admDate}</td>
+                    <td>${s.admNo}</td>
+                    <td>${s.class}</td>
+                    <td>${s.boardReg}</td>
+                    <td><strong>${s.name}</strong></td>
+                    <td>${s.father}</td>
+                    <td>${s.mother}</td>
+                    <td>${s.dobFigures}</td>
+                    <td style="font-size: 7px;">${s.dobWords}</td>
+                    <td>${s.gender}</td>
+                    <td>${s.village}</td>
+                    <td>${s.tehsil}</td>
+                    <td>${s.district}</td>
+                    <td>${s.mobile}</td>
+                    <td>${s.parentMobile}</td>
+                `;
+                body1.appendChild(tr1);
+
+                // Page 2 Row
+                const tr2 = document.createElement('tr');
+                tr2.innerHTML = `
+                    <td>${s.sno}</td>
+                    <td>${s.stream}</td>
+                    <td style="max-width: 100px;">${s.subs}</td>
+                    <td>${s.aadhar}</td>
+                    <td>${s.category}</td>
+                    <td>${s.blood}</td>
+                    <td>${s.account}</td>
+                    <td>${s.ifsc}</td>
+                    <td>${s.prevSchool}</td>
+                    <td>${s.prevRoll}</td>
+                    <td>${s.prevResult}</td>
+                    <td>${s.pen}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td>${s.remarks}</td>
+                `;
+                body2.appendChild(tr2);
+            });
+        }
+    </script>
+</body>
+</html>

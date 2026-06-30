@@ -37,8 +37,8 @@
             setLoadingMessage(msg);
         }
 
-        function prac_showProgressBar() { setProgressBar(true); }
-        function prac_hideProgressBar() { setProgressBar(false); }
+        function prac_showProgressBar() { /* setProgressBar(true); - Disabled as per user request */ }
+        function prac_hideProgressBar() { /* setProgressBar(false); - Disabled as per user request */ }
 
         function prac_setLoadingAction(label, callback = null) {
             const btn = document.getElementById('loaderActionBtn');
@@ -125,7 +125,7 @@
         };
 
         async function prac_redirectGate() {
-            const root = document.getElementById('appContent');
+            const root = document.getElementById('prac_appContent');
             if (root) {
                 root.innerHTML = `
                     <div class="auth-card" style="text-align:center; max-width:400px; margin: 4rem auto; padding:2rem; background: var(--bg-card); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 1px solid var(--border);">
@@ -393,16 +393,16 @@
         // --- AUTH & NAVIGATION (Enhanced Signup with Class/Subject) ---
         function prac_showLoginForm() {
             prac_stopDashboardPolling(); // NEW: Stop polling on login
-            document.getElementById('appContent').innerHTML = `
+            document.getElementById('prac_appContent').innerHTML = `
                 <div class="top-bar">
                     <div class="logo">
                         <div class="logo-icon">IA</div>
                         <div id="themeContainer"></div>
-                        <span>BMHSS Handwara Portal</span>
+                        <span>HSS Shangus Portal</span>
                     </div>
                 </div>
                 <div class="auth-card">
-                    <div class="auth-header"><h2>Welcome to BMHSS Handwara's Assessment Portal!</h2><p>Sign in to continue</p></div>
+                    <div class="auth-header"><h2>Welcome to HSS Shangus's Assessment Portal!</h2><p>Sign in to continue</p></div>
                     <form id="loginForm" onsubmit="prac_handleLogin(event)">
                         <div class="form-group"><label for="loginEmail">Email Address</label><input type="email" id="loginEmail" required autocomplete="email"></div>
                          <div class="form-group"><label for="loginPassword">Password</label><input type="password" id="loginPassword" required></div>
@@ -420,12 +420,12 @@
             // moveThemeToggle removed
         }
         function prac_showSignupForm() {
-            document.getElementById('appContent').innerHTML = `
+            document.getElementById('prac_appContent').innerHTML = `
                 <div class="top-bar">
                     <div class="logo">
                         <div class="logo-icon">IA</div>
                         <div id="themeContainer"></div>
-                        <span>BMHSS Handwara Portal</span>
+                        <span>HSS Shangus Portal</span>
                     </div>
                 </div>
                 <div class="auth-card">
@@ -492,7 +492,7 @@
                             .withSuccessHandler(result => {
                                 if (result.exists) {
                                     emailFeedback.innerHTML = `<span style="color:var(--danger);">${result.message}</span>`;
-                                    disabledMessage.innerHTML = `If you forgot account details, please contact Admin (adm.exam.bhsshandwara@gmail.com; 9682547458) for further assistance.`;
+                                    disabledMessage.innerHTML = `If you forgot account details, please contact Admin (adm.exam.hss.shangus@gmail.com; 9682547458) for further assistance.`;
                                     disabledMessage.style.display = 'block';
                                     // Disable fields
                                     signupPasswordInput.disabled = true;
@@ -575,7 +575,7 @@
         }
         function prac_showPasswordResetForm(event) {
             if (event) event.preventDefault();
-            const container = document.getElementById('appContent');
+            const container = document.getElementById('prac_appContent');
             if (!container) return;
             container.innerHTML = ''; // Clear first to prevent glitching
             container.innerHTML = `
@@ -583,7 +583,7 @@
                     <div class="logo">
                         <div class="logo-icon">IA</div>
                         <div id="themeContainer"></div>
-                        <span>BMHSS Handwara Portal</span>
+                        <span>HSS Shangus Portal</span>
                     </div>
                 </div>
                 <div class="auth-card">
@@ -814,7 +814,7 @@
         function prac_showAdminDashboard() {
             const displayName = prac_currentUser.teacherName || prac_currentUser.name || (prac_currentUser.email ? prac_currentUser.email.split('@')[0] : 'Admin');
             const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-            document.getElementById('appContent').innerHTML = `
+            document.getElementById('prac_appContent').innerHTML = `
                 <div class="top-bar">
                    <div class="logo">
                        <div class="logo-icon">IA</div>
@@ -840,9 +840,9 @@
                             <p>${prac_escapeHtml(prac_currentUser.email)}</p>
                         </div>
                         <button class="btn btn-logout btn-small" onclick="prac_handleLogout()">Logout</button>
-                        <a href="https://sites.google.com/view/hssshangus/" target="_top" class="btn btn-secondary btn-small" style="color: var(--primary); margin-left: 0.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
-                            <span class="material-icons" style="font-size: 1.1rem;">home</span> Admissions
-                        </a>
+                        <button class="btn btn-secondary btn-small" onclick="switchPortal('dashboard', true)" style="color: var(--primary); margin-left: 0.5rem;">
+                            <span class="material-icons" style="font-size: 1.1rem; vertical-align: middle;">dashboard</span> Dashboard
+                        </button>
                      </div>
                    </div>
                 </div>
@@ -2404,7 +2404,7 @@
                 const titleHtml = `<div class="print-header"><h1>${prac_escapeHtml(printConfig.institutionName)}</h1><p>${classPart} - ${prac_escapeHtml(printConfig.academicSessionText)}</p></div>`;
                 const tableHtml = `<table class="print-table">${colgroup}${headerHtml}<tbody>${subjectRows}${finalTotalRow}</tbody></table>`;
                 const specialNoteBlock = noteHtml ? `<p style="font-size: 10pt; margin: 0.4rem 0;"><em>Remarks</em></p><div class="special-note" style="margin: 0.25rem 0 0.5rem; font-size: 10pt;">${noteHtml}</div>` : '';
-                const signatureHtml = `<div style="text-align:right; margin-top:1rem; font-weight:600;">Sd/- Principal<br>Govt Boys Model Higher Secondary School Handwara</div>`;
+                const signatureHtml = `<div style="text-align:right; margin-top:1rem; font-weight:600;">Sd/- Principal<br>Govt HSS Shangus</div>`;
                 const firstNote = chunkIndex === 0 ? specialNoteBlock : '';
                 const lastSignature = chunkIndex === centreChunks.length - 1 ? signatureHtml : '';
                 pagesHtml += `<div class="print-external-roll-page" style="page-break-after:${chunkIndex === centreChunks.length - 1 ? 'auto' : 'always'};">${titleHtml}${tableHtml}${firstNote}${lastSignature}</div>`;
@@ -3208,7 +3208,7 @@
         function prac_showMainForm() {
           if (!prac_currentUser) { prac_showLoginForm(); return; }
             const initials = (prac_currentUser.teacherName || prac_currentUser.name || 'User').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-            document.getElementById('appContent').innerHTML = `
+            document.getElementById('prac_appContent').innerHTML = `
                 <div class="top-bar">
                     <div class="logo">
                         <div class="logo-icon">IA</div>
@@ -3270,26 +3270,64 @@
             const classSelect = document.getElementById('classSelect');
             const subjectSelect = document.getElementById('subjectSelect');
 
+            // Disable select dropdowns during initial allocation fetch to avoid race condition double-triggers
+            classSelect.disabled = true;
+            subjectSelect.disabled = true;
+
             if (typeSelect && PRAC_CONFIG_SETTINGS) {
                 const defType = String(PRAC_CONFIG_SETTINGS.currentPracticalType || 'internal').toLowerCase();
                 typeSelect.value = defType.startsWith('e') ? 'external' : 'internal';
             }
 
-            // [NEW] Unified Auto-loading for Teachers
-            if (prac_currentUser.className) {
-                classSelect.value = prac_currentUser.className;
-                prac_filterSubjects(); // This will populate subjectSelect asynchronously
-                
-                // Wait for filterSubjects to finish populating before setting value
-                setTimeout(() => {
-                    if (prac_currentUser.subject) {
-                        subjectSelect.value = prac_currentUser.subject;
-                        if (subjectSelect.value === prac_currentUser.subject) {
-                            prac_loadStudents();
+            // Enforce Teacher Allocation
+            google.script.run
+                .withSuccessHandler(allocation => {
+                    classSelect.disabled = false; // Re-enable once allocation details successfully load
+
+                    if (!allocation.isAdmin && allocation.initialClass && allocation.initialSubject) {
+                        // Enforce restriction for non-admins
+                        const classes = allocation.initialClass.split(',').map(c => c.trim());
+                        classSelect.innerHTML = '<option value="">-- Choose Class --</option>';
+                        classes.forEach(c => {
+                            classSelect.innerHTML += `<option value="${c}">Class ${c}</option>`;
+                        });
+                        if (classes.length === 1) {
+                            classSelect.value = classes[0];
+                        }
+                        
+                        // Force subject
+                        subjectSelect.innerHTML = `<option value="${allocation.initialSubject}">${allocation.initialSubject}</option>`;
+                        subjectSelect.value = allocation.initialSubject;
+                        subjectSelect.disabled = true; // Lock subject
+                        
+                        if (classSelect.value) {
+                             prac_loadStudents();
+                        } else {
+                             // Allow them to pick from their assigned classes, but subject is locked
+                             classSelect.onchange = () => {
+                                 document.getElementById('studentsContainer').innerHTML = '';
+                                 if(classSelect.value) prac_loadStudents();
+                             };
+                        }
+                    } else {
+                        // Admin or unallocated fallback: only auto-select initial values if the user hasn't selected another class yet
+                        if (prac_currentUser.className) {
+                            if (!classSelect.value) {
+                                classSelect.value = prac_currentUser.className;
+                                prac_filterSubjects();
+                                setTimeout(() => {
+                                    if (classSelect.value === prac_currentUser.className && prac_currentUser.subject && !subjectSelect.value) {
+                                        subjectSelect.value = prac_currentUser.subject;
+                                        if (subjectSelect.value === prac_currentUser.subject) {
+                                            prac_loadStudents();
+                                        }
+                                    }
+                                }, 600);
+                            }
                         }
                     }
-                }, 500); 
-            }
+                })
+                .prac_getTeacherAllocation(prac_currentUser.email);
         }
         function prac_filterSubjects() {
             const className = document.getElementById('classSelect').value;
@@ -3369,7 +3407,7 @@
             const sortToggles = document.getElementById('sortToggles');
             formStatus.innerHTML = '';
             const SUBJECT_NAME_TO_CODE = {
-                'Biology': 'BI','Chemistry': 'CH','Economics': 'EC','Education': 'ED','Environmental Science': 'ES','General English': 'EN','Geography': 'GG','Healthcare': 'HTC','History': 'HT','IT And ITES': 'ITE','Mathematics': 'MA','Physical Education': 'PD','Physics': 'PH','Political Science': 'PS','Urdu': 'UR','Business Studies': 'BS','Entrepreneurship': 'EP','Accountancy': 'AY','Typewriting And Shorthand': 'TS','Tourism': 'TOU','Persian': 'PE','Arabic': 'AR','Sociology': 'SO','Functional English': 'FE','Psychology': 'PY','Geology': 'GO','Biotechnology': 'BT','Statistics': 'SS','Tourism And Hospitality': 'TH'
+                'Biology': 'BI','Chemistry': 'CH','Economics': 'EC','Education': 'ED','Environmental Science': 'ES','General English': 'EN','English': 'EN','Geography': 'GG','Healthcare': 'HTC','History': 'HT','IT And ITES': 'ITE','Mathematics': 'MA','Physical Education': 'PD','Physics': 'PH','Political Science': 'PS','Urdu': 'UR','Business Studies': 'BS','Entrepreneurship': 'EP','Accountancy': 'AY','Typewriting And Shorthand': 'TS','Tourism': 'TOU','Persian': 'PE','Arabic': 'AR','Sociology': 'SO','Functional English': 'FE','Psychology': 'PY','Geology': 'GO','Biotechnology': 'BT','Statistics': 'SS','Tourism And Hospitality': 'TH', 'Retail': 'RT', 'Security': 'SEC'
             };
             const subjectCodeMatch = subject.match(/\(([^)]+)\)/);
             let subjectCode = subjectCodeMatch ? subjectCodeMatch[1].trim().toUpperCase() : '';
@@ -3446,16 +3484,29 @@
                 const value = userData && userData.answers ? (userData.answers[student.id] || '') : '';
                 const studentInfo = prac_parseStudentTitleForForm(student.title);
                 const valueStr = String(value || '').trim().toUpperCase();
-                const isPending = hasSavedAssessment && valueStr === '';
-                const pendingClass = isPending ? 'pending-highlight' : '';
-                html += `<div class="card ${pendingClass}" style="padding:0.5rem; margin-bottom:0.4rem;">
-                            <label for="${student.id}" style="font-weight:600; font-size: 0.85rem; line-height: 1.3;">
-                                <span style="color:var(--primary);">${index + 1}.</span>
-                                <span style="color: var(--text-secondary); font-size: 0.75rem;">${prac_escapeHtml(studentInfo.rollPrefix)}.</span>
-                                ${prac_escapeHtml(studentInfo.displayName)}
-                                <span style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 500;">_${studentInfo.subjects}</span>
-                            </label>
-                            <input type="text" id="${student.id}" value="${value}" placeholder="Enter marks (0-${subjectMaxMarks}) or '${PRAC_ABSENT_MARKER}' for absent students" oninput="prac_validateMarks(this, ${subjectMaxMarks})">
+                
+                // Determine card status class based on existing/saved value
+                let statusClass = 'card-pending';
+                if (valueStr === 'A' || valueStr === PRAC_ABSENT_MARKER) {
+                    statusClass = 'card-absent';
+                } else if (valueStr !== '' && valueStr !== '0' && valueStr !== 'N/A') {
+                    statusClass = 'card-completed';
+                }
+                
+                html += `<div class="student-card-container ${statusClass}" id="student-card-${student.id}">
+                            <div class="student-info-section">
+                                <label for="${student.id}" class="student-name-row">
+                                    <span class="student-index-badge">${index + 1}</span>
+                                    <span class="student-roll-badge">${prac_escapeHtml(studentInfo.rollPrefix)}</span>
+                                    <span>${prac_escapeHtml(studentInfo.displayName)}</span>
+                                </label>
+                                <div style="display: flex; gap: 0.4rem; align-items: center; margin-top: 0.15rem;">
+                                    <span class="student-subjects-badge">📚 ${studentInfo.subjects}</span>
+                                </div>
+                            </div>
+                            <div class="student-marks-input-wrapper">
+                                <input type="text" id="${student.id}" value="${value}" placeholder="Marks (0-${subjectMaxMarks}) or '${PRAC_ABSENT_MARKER}'" oninput="prac_validateMarks(this, ${subjectMaxMarks})">
+                            </div>
                          </div>`;
             });
             container.innerHTML = html;
@@ -3556,21 +3607,37 @@
             const statsContainer = document.getElementById('subjectStats');
             let filledCount = filled;
             let pendingCount = pending;
-            if (filled === undefined) {
-                const inputs = document.querySelectorAll('#studentsContainer input');
-                if(inputs.length === 0) {
-                    statsContainer.style.display = 'none';
-                    return;
-                }
-                filledCount = 0;
-                inputs.forEach(input => {
-                    const value = input.value.trim().toUpperCase();
-                    if (value !== '' && value !== '0' && value !== 'N/A') {
-                        filledCount++;
-                    }
-                });
-                pendingCount = inputs.length - filledCount;
+            
+            // Re-calculate stats from input values if not explicitly passed
+            const inputs = document.querySelectorAll('#studentsContainer input');
+            if(inputs.length === 0) {
+                statsContainer.style.display = 'none';
+                return;
             }
+            
+            filledCount = 0;
+            inputs.forEach(input => {
+                const value = input.value.trim().toUpperCase();
+                const card = document.getElementById('student-card-' + input.id) || input.closest('.student-card-container');
+                
+                if (value !== '' && value !== '0' && value !== 'N/A') {
+                    filledCount++;
+                }
+                
+                // Dynamically transition the student card colors as they type!
+                if (card) {
+                    card.classList.remove('card-pending', 'card-completed', 'card-absent');
+                    if (value === '') {
+                        card.classList.add('card-pending');
+                    } else if (value === 'A' || value === PRAC_ABSENT_MARKER) {
+                        card.classList.add('card-absent');
+                    } else {
+                        card.classList.add('card-completed');
+                    }
+                }
+            });
+            pendingCount = inputs.length - filledCount;
+            
             statsContainer.innerHTML = `
                 <div class="stat-box">
                     <div class="stat-box-number" style="color: var(--secondary);">
@@ -3712,16 +3779,17 @@
             if (fatherNameMatch) {
                 result.fatherName = fatherNameMatch[1].trim();
             }
-            const fullMatch = title.match(/^(\d+\/\d+)\.\s*([^(]+?)\s*(?:\(([^)]+)\))?_/);
-            const simpleMatch = title.match(/^(\d+\/\d+)\.\s*([^_]+?)\s*_/);
+            const fullMatch = title.match(/^(\d*)\/(\d+)\.\s*([^(]+?)\s*(?:\(([^)]+)\))?_/);
+            const simpleMatch = title.match(/^(\d*)\/(\d+)\.\s*([^_]+?)\s*_/);
             const classRollOnlyMatch = title.match(/^(\d+)\.\s*([^(]+?)\s*(?:\(([^)]+)\))?_/);
             if (fullMatch) {
-                result.rollPrefix = fullMatch[1];
-                result.name = fullMatch[2].trim();
-                result.fatherName = fullMatch[3] ? fullMatch[3].trim() : result.fatherName;
+                result.rollPrefix = fullMatch[1] ? `${fullMatch[1]}/${fullMatch[2]}` : `/${fullMatch[2]}`;
+                result.rollPrefix = (fullMatch[1] || '') + '/' + fullMatch[2];
+                result.name = fullMatch[3].trim();
+                result.fatherName = fullMatch[4] ? fullMatch[4].trim() : result.fatherName;
             } else if (simpleMatch) {
-                result.rollPrefix = simpleMatch[1];
-                result.name = simpleMatch[2].trim();
+                result.rollPrefix = (simpleMatch[1] || '') + '/' + simpleMatch[2];
+                result.name = simpleMatch[3].trim();
                 result.fatherName = '';
             } else if (classRollOnlyMatch) {
                 result.rollPrefix = classRollOnlyMatch[1];

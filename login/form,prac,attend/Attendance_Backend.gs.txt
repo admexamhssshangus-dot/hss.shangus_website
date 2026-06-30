@@ -4,60 +4,374 @@
 // =================================================================
 
 const ATTENDANCE_RECORDS_SHEET_NAME = 'Attendance_Records';
+const ATTENDANCE_STUDENTS_SHEET_NAME = 'Attendance_Student_List';
 
 /**
- * Fetches student list for attendance for a specific class.
- * Filters by current session defined in Practicals_Config.
+ * Fast native date formatter replacing expensive Utilities.formatDate
+ * Returns 'yyyy-MM-dd' format or empty string if invalid
  */
-function getAttendanceStudentList(className) {
+function att_formatDateNative(dateVal) {
+  if (!dateVal) return '';
+  const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Converts a string to Title Case (Proper Case) for consistent formatting
+ */
+function att_toTitleCase(str) {
+  if (!str) return "";
+  return String(str).split(' ').map(word => {
+    if (!word) return "";
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+}
+
+/**
+ * Normalizes a session string to a 2-digit year suffix (start year) for robust matching
+ */
+function att_normalizeYearSuffixValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  
+  // Accept already-normalized 2-digit year
+  if (/^\d{2}$/.test(raw)) return raw;
+  
+  // Accept ranges like 2025-26 or 2025-2026 or 2025/26 or 2025/2026
+  // Extract the CONCLUDING/ENDING year of the range (e.g., 26 or 25 or 24)
+  const rangeMatch = raw.match(/[-\/]\s*(\d{2,4})/);
+  if (rangeMatch) {
+    return rangeMatch[1].trim().slice(-2);
+  }
+  
+  const first4Digit = raw.match(/\b(19|20)\d{2}\b/);
+  if (first4Digit) {
+    return first4Digit[0].slice(-2);
+  }
+  
+  const first2Digit = raw.match(/\b\d{2}\b/);
+  if (first2Digit) {
+    return first2Digit[0];
+  }
+  
+  // Fallbacks:
+  if (/^\d{4}$/.test(raw)) return raw.slice(-2);
+  
+  const matches = raw.match(/(19|20)\d{2}/g);
+  if (matches && matches.length > 0) return matches[0].slice(-2);
+  
+  const last2 = raw.match(/(\d{2})\D*$/);
+  return last2 ? last2[1] : raw;
+}
+
+/**
+ * Syncs students from source_data into a dedicated attendance list sheet.
+ */
+function syncAttendanceStudentList() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('adm_form') || ss.getSheetByName('Database');
-    if (!sheet) throw new Error("Could not find admission data sheet.");
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    // [FIXED] Source data is in an external spreadsheet
+    const sourceSsId = '1pZz0YkcTvWJnnDlBSguUIU4Ujc0aPf5119B7nX7TRZg';
+    const sourceSs = SpreadsheetApp.openById(sourceSsId);
+    const sourceSheet = sourceSs.getSheetByName('source_data');
+    if (!sourceSheet) throw new Error("Source data sheet (source_data) not found in external database.");
     
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    const sourceData = sourceSheet.getDataRange().getValues();
+    const headers = sourceData[0].map(h => String(h).trim().toLowerCase());
     
     const findIdx = (terms) => {
+      // 1. Try exact match first
       for (const term of terms) {
         const i = headers.indexOf(term.toLowerCase());
         if (i !== -1) return i;
       }
+      // 2. Try partial match if no exact match found
+      for (const term of terms) {
+        const i = headers.findIndex(h => h.includes(term.toLowerCase()));
+        if (i !== -1) return i;
+      }
       return -1;
     };
-
-    // Get current session from Practicals_Config
-    const config = prac_getConfigSettings(ss);
-    const sessionText = (config[`academicSessionText_${className}`] || config.academicSessionText_11th || '').trim();
     
     const idx = {
-        name: findIdx(["student's name (as per school records)", 'name', 'student name']),
-        roll: findIdx(['class roll no', 'roll no', 'class rno']),
-        class: findIdx(['admission sought for class', 'class']),
-        session: findIdx(['session', 'academic session'])
+      form: findIdx(['form no.', 'form number', 'form no']),
+      roll: findIdx(['class r.no.', 'class roll no', 'roll no', 'class rno', 'r.no']),
+      reg: findIdx(['board reg. no.', 'registration no', 'reg no', 'board reg no']),
+      name: findIdx(["student's name", "student's name (as per school records)", 'student name', 'name']),
+      father: findIdx(["father's name", "father name", 'father']),
+      mother: findIdx(["mother's name", "mother name", 'mother']),
+      class: findIdx(['class', 'admission sought for class', 'grade']),
+      session: findIdx(['session', 'academic session', 'academic session/year', 'year']),
+      subjects1: findIdx(['subjects1', 'subject 1', 'subject1', 'sub1']),
+      subjects2: findIdx(['subjects2', 'subject 2', 'subject2', 'sub2']),
+      subjects3: findIdx(['subjects3', 'subject 3', 'subject3', 'sub3']),
+      subjects4: findIdx(['subjects4', 'subject 4', 'subject4', 'sub4']),
+      subjects5: findIdx(['subjects5', 'subject 5', 'subject5', 'sub5']),
+      status: findIdx(['online subm. i', 'status', 'overall_status', 'adm. date', 'submission status'])
     };
     
+    // Diagnostic: which headers were found?
+    const foundHeaders = Object.keys(idx).filter(k => idx[k] !== -1);
+    console.log("[SYNC] Found columns: " + foundHeaders.join(', '));
+    if (idx.subjects1 === -1 && idx.subjects2 === -1 && idx.subjects3 === -1 && idx.subjects4 === -1 && idx.subjects5 === -1) {
+        console.warn("[SYNC] Could not find any Subjects column. Available headers: " + headers.slice(0, 50).join(', '));
+    }
+    
+    const studentList = [];
+    const now = new Date();
+    
+    for (let i = 1; i < sourceData.length; i++) {
+      const row = sourceData[i];
+      
+      // [IMPROVED] Aggregate all 5 subject columns
+      const subArr = [];
+      if (idx.subjects1 !== -1 && row[idx.subjects1]) subArr.push(String(row[idx.subjects1]).trim());
+      if (idx.subjects2 !== -1 && row[idx.subjects2]) subArr.push(String(row[idx.subjects2]).trim());
+      if (idx.subjects3 !== -1 && row[idx.subjects3]) subArr.push(String(row[idx.subjects3]).trim());
+      if (idx.subjects4 !== -1 && row[idx.subjects4]) subArr.push(String(row[idx.subjects4]).trim());
+      if (idx.subjects5 !== -1 && row[idx.subjects5]) subArr.push(String(row[idx.subjects5]).trim());
+      const subjectsJoined = subArr.filter(s => s !== '').join(', ');
+
+      // [IMPROVED] More inclusive filter: name must exist, and shouldn't be 'draft'
+      const name = String(row[idx.name] || '').trim();
+      const status = String(row[idx.status] || '').toLowerCase().trim();
+      const isInvalid = (name === '' || status === 'draft' || status === 'none');
+      
+      if (isInvalid) continue;
+      
+      studentList.push([
+        row[idx.form] ? "'" + String(row[idx.form]) : '',
+        row[idx.roll] ? "'" + String(row[idx.roll]) : '',
+        row[idx.reg] ? "'" + String(row[idx.reg]) : '',
+        att_toTitleCase(name),
+        row[idx.father] ? att_toTitleCase(row[idx.father]) : '',
+        row[idx.mother] ? att_toTitleCase(row[idx.mother]) : '',
+        row[idx.class] || '',
+        row[idx.session] || '',
+        subjectsJoined,
+        '', // Status (Filled by getAttendanceStudentList)
+        now
+      ]);
+    }
+    
+    let targetSheet = ss.getSheetByName(ATTENDANCE_STUDENTS_SHEET_NAME);
+    if (!targetSheet) {
+      // Robust check: try to find by name again or create
+      const allSheets = ss.getSheets();
+      targetSheet = allSheets.find(s => s.getName().trim() === ATTENDANCE_STUDENTS_SHEET_NAME);
+      
+      if (!targetSheet) {
+        try {
+          targetSheet = ss.insertSheet(ATTENDANCE_STUDENTS_SHEET_NAME);
+          targetSheet.setFrozenRows(1);
+        } catch (err) {
+          // Final fallback: try to find again, maybe it was created by a parallel process
+          targetSheet = ss.getSheetByName(ATTENDANCE_STUDENTS_SHEET_NAME);
+          if (!targetSheet) throw new Error("Could not find or create sheet: " + ATTENDANCE_STUDENTS_SHEET_NAME);
+        }
+      }
+    }
+    
+    targetSheet.clearContents();
+    const targetHeaders = [
+      'Form No', 'Roll No', 'Reg No', 'Name', 'Father Name', 'Mother Name', 'Class', 'Session', 'Subjects', 'Status', 'Last Synced'
+    ];
+    
+    targetSheet.getRange(1, 1, 1, targetHeaders.length).setValues([targetHeaders])
+      .setFontWeight('bold').setBackground('#f3f4f6');
+    
+    if (studentList.length > 0) {
+      targetSheet.getRange(2, 1, studentList.length, targetHeaders.length).setValues(studentList);
+      
+      // [FIXED] Force Plain Text formatting to prevent scientific notation (e.g., 2.4E+15)
+      // Form No (Col 1), Roll No (Col 2), Reg No (Col 3)
+      targetSheet.getRange(2, 1, studentList.length, 3).setNumberFormat("@");
+    }
+    
+    let msg = `Attendance list updated from source_data (${studentList.length} students).`;
+    if (idx.subjects === -1) msg += " WARNING: 'Subjects' column not found in source.";
+    
+    return { success: true, count: studentList.length, message: msg };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Fetches student list for attendance for a specific class.
+ * Reads from the dedicated Attendance_Student_List sheet.
+ */
+function getAttendanceStudentList(className, date, forceSync = false, passedSession = '', subjectFilter = '', teacherEmail = '') {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    let sheet = ss.getSheetByName(ATTENDANCE_STUDENTS_SHEET_NAME);
+    
+    // Auto-sync if sheet doesn't exist or if forceSync is true
+    if (!sheet || forceSync) {
+      const syncResult = syncAttendanceStudentList();
+      if (!syncResult.success) throw new Error(syncResult.message);
+      sheet = ss.getSheetByName(ATTENDANCE_STUDENTS_SHEET_NAME);
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    
+    const col = {
+      form: headers.indexOf('form no'),
+      roll: headers.indexOf('roll no'),
+      reg: headers.indexOf('reg no'),
+      name: headers.indexOf('name'),
+      father: headers.indexOf('father name'),
+      mother: headers.indexOf('mother name'),
+      class: headers.indexOf('class'),
+      session: headers.indexOf('session'),
+      subjects: headers.indexOf('subjects')
+    };
+
+    // Get session from passed param or fall back to Config
+    let targetSession = passedSession;
+    if (!targetSession) {
+        const config = prac_getConfigSettings(ss);
+        targetSession = (config[`academicSessionText_${className}`] || config.academicSessionText_11th || '').trim();
+    }
+    
+    // Fetch existing attendance for this date, class, teacher, and subject to pre-fill
+    // Using timezone-safe date parsing to avoid UTC day-shift bugs
+    const existingAttendance = {};
+    const attSheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    if (attSheet) {
+        const attData = attSheet.getDataRange().getValues();
+        const scriptTz = Session.getScriptTimeZone();
+        const targetTeacher = String(teacherEmail || '').trim().toLowerCase();
+        const targetSubject = String(subjectFilter || '').trim().toLowerCase();
+        
+        const attHeaders = attData[0].map(h => String(h).trim().toLowerCase());
+        const subColIdx = attHeaders.indexOf('subject');
+        
+        for (let i = 1; i < attData.length; i++) {
+            const rowClass = attData[i][3];
+            if (rowClass !== className) continue; // Fast class pre-filtering!
+            
+            const rowTeacher = String(attData[i][2] || '').trim().toLowerCase();
+            if (targetTeacher && rowTeacher !== targetTeacher) continue;
+            
+            // Filter by subject if column is present in the sheet (allowing legacy blank subjects to match)
+            if (subColIdx !== -1) {
+                const rowSubject = String(attData[i][subColIdx] || '').trim().toLowerCase();
+                if (rowSubject && rowSubject !== targetSubject) continue;
+            }
+            
+            const dateVal = attData[i][1];
+            if (!dateVal) continue;
+            
+            let localDateStr;
+            try {
+                localDateStr = (dateVal instanceof Date)
+                    ? Utilities.formatDate(dateVal, scriptTz, 'yyyy-MM-dd')
+                    : String(dateVal).substring(0, 10);
+            } catch(e) { continue; }
+            
+            if (localDateStr === date) {
+                const rowRoll = String(attData[i][subColIdx !== -1 ? 5 : 4]);
+                const rowStatus = attData[i][subColIdx !== -1 ? 6 : 5];
+                existingAttendance[rowRoll] = rowStatus;
+            }
+        }
+    }
+
+    // [NEW] Sunday & Holiday Automated Detection
+    let isNonWorkingDay = false;
+    let nonWorkingDayReason = '';
+    
+    try {
+        const dateObj = new Date(date);
+        if (dateObj.getDay() === 0) {
+            isNonWorkingDay = true;
+            nonWorkingDayReason = 'Sunday';
+        } else {
+            const holidaySheet = ss.getSheetByName('Attendance_Holidays');
+            if (holidaySheet) {
+                const hData = holidaySheet.getDataRange().getValues();
+                for (let i = 1; i < hData.length; i++) {
+                    const hDateStr = att_formatDateNative(hData[i][0]);
+                    if (hDateStr === date) {
+                        isNonWorkingDay = true;
+                        nonWorkingDayReason = hData[i][1]; // Holiday Label (e.g. "Eid-ul-Fitr")
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Non-working day check warning:', err.message);
+    }
+
     let students = [];
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
-      // Filter by class
-      if (className && idx.class !== -1 && String(row[idx.class]).trim() !== className) continue;
+      
+      // Filter by class - Robust matching
+      let studentClass = String(row[col.class]).trim().toLowerCase();
+      let targetClass = className.toLowerCase();
+      if (/^\d+$/.test(studentClass)) studentClass += 'th';
+      if (/^\d+$/.test(targetClass)) targetClass += 'th';
+      if (!studentClass.includes(targetClass) && !targetClass.includes(studentClass)) continue;
       
       // Filter by Session
-      if (sessionText && idx.session !== -1) {
-          const studentSession = String(row[idx.session]).trim();
-          if (studentSession !== sessionText) continue;
+      const studentYearSuffix = att_normalizeYearSuffixValue(row[col.session]);
+      const targetYearSuffix = att_normalizeYearSuffixValue(targetSession);
+      if (studentYearSuffix && targetYearSuffix && studentYearSuffix !== targetYearSuffix) continue;
+      
+      // Filter by Subject - with Biology mapping
+      if (subjectFilter) {
+          const sFilter = subjectFilter.toLowerCase().trim();
+          const sVal = String(row[col.subjects] || '').toLowerCase();
+          
+          let subjectMatch = false;
+          // Special logic: Botany/Zoology also match "Biology"
+          if (sFilter === 'botany' || sFilter === 'zoology') {
+              subjectMatch = sVal.includes(sFilter) || sVal.includes('biology');
+          } else {
+              subjectMatch = sVal.includes(sFilter);
+          }
+          
+          if (!subjectMatch) continue;
       }
       
+      const rollNo = String(row[col.roll]);
       students.push({
-        name: idx.name !== -1 ? row[idx.name] : 'Unknown',
-        rollNo: idx.roll !== -1 ? String(row[idx.roll]) : '',
-        class: idx.class !== -1 ? row[idx.class] : className
+        formNo: row[col.form],
+        regNo: row[col.reg],
+        name: att_toTitleCase(row[col.name]),
+        fatherName: row[col.father] ? att_toTitleCase(row[col.father]) : '',
+        motherName: row[col.mother] ? att_toTitleCase(row[col.mother]) : '',
+        rollNo: rollNo,
+        class: String(row[col.class]).trim(),
+        session: String(row[col.session]),
+        subjects: row[col.subjects] || '',
+        status: existingAttendance[rollNo] || (Object.keys(existingAttendance).length > 0 ? 'Absent' : '')
       });
     }
-    
+
+    if (students.length === 0) {
+        let msg = `No active students found for ${className} (Session: ${targetSession}).`;
+        if (subjectFilter) msg = `No active students found for ${className} - ${subjectFilter} (Session: ${targetSession}).`;
+        return { success: true, students: [], message: msg, isNonWorkingDay: isNonWorkingDay, nonWorkingDayReason: nonWorkingDayReason };
+    }
+
     students.sort((a, b) => (parseInt(a.rollNo) || 0) - (parseInt(b.rollNo) || 0));
-    return { success: true, students: students };
+    return { 
+      success: true, 
+      students: students, 
+      session: targetSession,
+      isNonWorkingDay: isNonWorkingDay,
+      nonWorkingDayReason: nonWorkingDayReason,
+      availableSubjects: []
+    };
   } catch (e) {
     return { success: false, message: e.message };
   }
@@ -65,34 +379,98 @@ function getAttendanceStudentList(className) {
 
 /**
  * Saves attendance records.
- * Records are stored in the main Admission Portal spreadsheet for centralized management.
+ * Optimized to replace existing records for the same date/class/subject.
  */
-function saveAttendanceRecords(records, className, date, teacherEmail) {
+function saveAttendanceRecords(records, className, date, teacherEmail, subject = '') {
   try {
     const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
     let sheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
     if (!sheet) {
       sheet = ss.insertSheet(ATTENDANCE_RECORDS_SHEET_NAME);
-      sheet.getRange(1, 1, 1, 6).setValues([['Timestamp', 'Date', 'Teacher', 'Class', 'Roll No', 'Status']])
+      sheet.getRange(1, 1, 1, 7).setValues([['Timestamp', 'Date', 'Teacher', 'Class', 'Subject', 'Roll No', 'Status']])
         .setFontWeight('bold').setBackground('#4f46e5').setFontColor('#ffffff');
       sheet.setFrozenRows(1);
+    } else {
+      const headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0].map(h => String(h).trim().toLowerCase());
+      if (headers.indexOf('subject') === -1) {
+        sheet.insertColumnBefore(5); // Insert column E (5th column)
+        sheet.getRange(1, 5).setValue('Subject').setFontWeight('bold');
+      }
     }
     
+    // Ensure we always have an INIT record to indicate that attendance has been marked/saved
+    const recordList = [...records];
+    if (!recordList.some(r => String(r.rollNo) === 'INIT')) {
+      recordList.push({ rollNo: 'INIT', status: 'Saved' });
+    }
+    
+    const lastRow = sheet.getLastRow();
     const timestamp = new Date();
-    const rows = records.map(r => [
-      timestamp,
-      date,
-      teacherEmail,
-      className,
-      r.rollNo,
-      r.status // 'Present', 'Absent', 'Leave'
-    ]);
     
-    if (rows.length > 0) {
-      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 6).setValues(rows);
+    if (lastRow > 1) {
+        const fullData = sheet.getDataRange().getValues();
+        const header = fullData[0];
+        const newData = [header];
+        
+        // Convert incoming records to a map for easy lookup
+        const recordsMap = new Map();
+        recordList.forEach(r => {
+            recordsMap.set(String(r.rollNo), r.status);
+        });
+        
+        // Track which rolls were updated
+        const updatedRolls = new Set();
+        
+        const targetTeacher = String(teacherEmail || '').trim().toLowerCase();
+        const targetSubject = String(subject || '').trim().toLowerCase();
+        
+        // Keep existing records unless they are being updated in this save operation, or are Absent
+        for (let i = 1; i < fullData.length; i++) {
+            const row = fullData[i];
+            const rowDate = att_formatDateNative(row[1]);
+            const rowClass = String(row[3]);
+            const rowSubject = String(row[4] || '').trim().toLowerCase();
+            const rowRoll = String(row[5]);
+            const rowStatus = String(row[6]);
+            const rowTeacher = String(row[2] || '').trim().toLowerCase();
+            
+            // Clean up any existing 'Absent' rows from the sheet for compaction (only for the current teacher, class, date, and subject)
+            if (rowStatus === 'Absent' && rowDate === date && rowClass === className && rowTeacher === targetTeacher && rowSubject === targetSubject) {
+                continue;
+            }
+            
+            if (rowDate === date && rowClass === className && rowTeacher === targetTeacher && rowSubject === targetSubject && recordsMap.has(rowRoll)) {
+                // Update this record
+                const status = recordsMap.get(rowRoll);
+                if (status && status !== 'Absent') {
+                    newData.push([timestamp, date, teacherEmail, className, subject, rowRoll, status]);
+                    updatedRolls.add(rowRoll);
+                }
+                // If status is empty or 'Absent', it's effectively deleted (not written)
+            } else {
+                // Keep other records (different date, different class, different teacher, different subject, or roll not in current save list)
+                newData.push(row);
+            }
+        }
+        
+        // Add new records for rolls that didn't exist before in the sheet for this date/class/teacher/subject
+        recordList.forEach(r => {
+            const rollStr = String(r.rollNo);
+            if (!updatedRolls.has(rollStr) && r.status && r.status !== 'Absent') {
+                newData.push([timestamp, date, teacherEmail, className, subject, rollStr, r.status]);
+            }
+        });
+        
+        sheet.clearContents();
+        sheet.getRange(1, 1, newData.length, 7).setValues(newData);
+    } else {
+        const rows = recordList.filter(r => r.status && r.status !== 'Absent').map(r => [timestamp, date, teacherEmail, className, subject, String(r.rollNo), r.status]);
+        if (rows.length > 0) {
+            sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+        }
     }
     
-    return { success: true, message: `Attendance for ${rows.length} students saved successfully.` };
+    return { success: true, message: `Attendance updated successfully for ${records.filter(r => r.status && r.status !== 'Absent').length} active students.` };
   } catch (e) {
     return { success: false, message: e.message };
   }
@@ -108,20 +486,1398 @@ function getTeacherAttendanceStats(email) {
     if (!sheet) return { success: true, stats: { totalMarked: 0, lastMarked: 'Never' } };
     
     const data = sheet.getDataRange().getValues();
-    let count = 0;
+    const scriptTz = Session.getScriptTimeZone();
+    const markedSessions = new Set(); // Set of "date|className"
     let lastDate = 'Never';
     
     for (let i = data.length - 1; i >= 1; i--) {
       if (data[i][2] === email) {
-        count++;
-        if (lastDate === 'Never') {
-          lastDate = new Date(data[i][1]).toLocaleDateString();
+        const dateVal = data[i][1];
+        if (!dateVal) continue;
+        
+        let localDateStr;
+        try {
+          localDateStr = (dateVal instanceof Date)
+              ? Utilities.formatDate(dateVal, scriptTz, 'yyyy-MM-dd')
+              : String(dateVal).substring(0, 10);
+        } catch(e) { continue; }
+        
+        const className = String(data[i][3]);
+        const sessionKey = `${localDateStr}|${className}`;
+        
+        if (!markedSessions.has(sessionKey)) {
+          markedSessions.add(sessionKey);
+          if (lastDate === 'Never') {
+            // Convert 'yyyy-MM-dd' to a local-friendly display format if needed, but 'yyyy-MM-dd' is highly legible
+            lastDate = localDateStr;
+          }
         }
       }
     }
     
-    return { success: true, stats: { totalMarked: count, lastMarked: lastDate } };
+    return { success: true, stats: { totalMarked: markedSessions.size, lastMarked: lastDate } };
   } catch (e) {
     return { success: false, message: e.message };
   }
 }
+
+/**
+ * Helper to format day ranges compactly (e.g. [5,6,7,12,15] -> "5-7, 12, 15")
+ */
+function att_formatDayRanges(days) {
+  if (!days || days.length === 0) return '';
+  const sorted = [...days].map(Number).sort((a, b) => a - b);
+  const parts = [];
+  let i = 0;
+  while (i < sorted.length) {
+    let start = sorted[i];
+    let end = start;
+    while (i + 1 < sorted.length && sorted[i + 1] === end + 1) {
+      end = sorted[i + 1];
+      i++;
+    }
+    if (start === end) {
+      parts.push(String(start));
+    } else {
+      parts.push(`${start}-${end}`);
+    }
+    i++;
+  }
+  return parts.join(', ');
+}
+
+/**
+ * Generates a landscape monthly PDF report of attendance covering all days of the month.
+ */
+function generateMonthlyAttendancePDF(className, monthYear, subject, session, teacherEmail = '') {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    
+    // Resolve subject part for naming and cleanup searches
+    const subjectPart = subject ? '_' + subject.replace(/[^a-zA-Z0-9]/g, '_') : '';
+    
+    // Resolve target folder
+    let folder = DriveApp.getRootFolder();
+    try {
+        const folders = DriveApp.getFoldersByName("_Temp_PDF_Work");
+        if (folders.hasNext()) folder = folders.next();
+    } catch(e) {}
+    
+    // Deletion of older PDFs is now handled asynchronously by the client
+    
+    // Get student list for the class (passing first day of month to fetch correct rosters and force syncing from master)
+    const studentDataRes = getAttendanceStudentList(className, monthYear + '-01', true, session || '', subject, teacherEmail);
+    if (!studentDataRes.success || !studentDataRes.students || studentDataRes.students.length === 0) {
+        return { success: false, message: 'No students found for this class.' };
+    }
+    const students = studentDataRes.students;
+    
+    // Extract year and month
+    const parts = monthYear.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1; // 0-indexed
+    
+    // Number of days in the month
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    // Extract Sundays in this month
+    const sundays = [];
+    const sundaysSet = new Set();
+    for (let d = 1; d <= totalDays; d++) {
+        const dateObj = new Date(year, month, d);
+        if (dateObj.getDay() === 0) {
+            sundays.push(d);
+            sundaysSet.add(d);
+        }
+    }
+    
+    // Get holidays defined in Holidays sheet
+    const holidaysMap = {}; // dayNum -> { label, purpose }
+    const holidaySheet = ss.getSheetByName('Attendance_Holidays');
+    if (holidaySheet) {
+        const hData = holidaySheet.getDataRange().getValues();
+        for (let i = 1; i < hData.length; i++) {
+            const hDateStr = att_formatDateNative(hData[i][0]);
+            if (hDateStr.startsWith(monthYear)) {
+                const dayNum = parseInt(hDateStr.split('-')[2]);
+                holidaysMap[dayNum] = {
+                    label: hData[i][1],
+                    purpose: hData[i][2]
+                };
+            }
+        }
+    }
+    
+    // Get attendance records in nested map [rollNo][dayNum]
+    // Using timezone-safe date parsing to avoid UTC day-shift bugs
+    const attSheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    const existingAttendance = {}; // rollNo -> { dayNum -> status }
+    const markedDaysSet = new Set(); // days confirmed to have had a class session
+    
+    if (attSheet) {
+        const attData = attSheet.getDataRange().getValues();
+        const [tYear, tMonth] = monthYear.split('-').map(Number);
+        const scriptTz = Session.getScriptTimeZone();
+        const targetTeacher = String(teacherEmail || '').trim().toLowerCase();
+        const targetSubject = String(subject || '').trim().toLowerCase();
+        
+        const attHeaders = attData[0].map(h => String(h).trim().toLowerCase());
+        const subColIdx = attHeaders.indexOf('subject');
+        
+        for (let i = 1; i < attData.length; i++) {
+            const row = attData[i];
+            const rowClass = String(row[3]);
+            if (rowClass !== className) continue; // Fast class pre-filtering!
+            
+            const rowTeacher = String(row[2] || '').trim().toLowerCase();
+            if (targetTeacher && rowTeacher !== targetTeacher) continue;
+            
+            // Filter by subject if column is present in the sheet (allowing legacy blank subjects to match)
+            if (subColIdx !== -1) {
+                const rowSubject = String(row[subColIdx] || '').trim().toLowerCase();
+                if (rowSubject && rowSubject !== targetSubject) continue;
+            }
+            
+            const dateVal = row[1];
+            if (!dateVal) continue;
+            
+            // Timezone-safe: extract local date string from Date or string
+            let localDateStr;
+            try {
+                localDateStr = (dateVal instanceof Date)
+                    ? Utilities.formatDate(dateVal, scriptTz, 'yyyy-MM-dd')
+                    : String(dateVal).substring(0, 10);
+            } catch(e) { continue; }
+            
+            const dp = localDateStr.split('-').map(Number);
+            if (dp.length < 3 || isNaN(dp[0])) continue;
+            const [rYear, rMonth, dayNum] = dp;
+            
+            if (rYear !== tYear || rMonth !== tMonth) continue;
+            
+            const rowRoll = String(row[subColIdx !== -1 ? 5 : 4]);
+            const rowStatus = String(row[subColIdx !== -1 ? 6 : 5]);
+            
+            if (!existingAttendance[rowRoll]) existingAttendance[rowRoll] = {};
+            existingAttendance[rowRoll][dayNum] = rowStatus;
+            
+            // A day is a class session day if INIT record exists OR any student was marked P/L
+            if (rowRoll === 'INIT' || rowStatus === 'Present' || rowStatus === 'Leave') {
+                markedDaysSet.add(dayNum);
+            }
+        }
+    }
+    
+    // Group holidays for compact footnotes
+    const holidayGroups = {};
+    for (const dayNum in holidaysMap) {
+        const h = holidaysMap[dayNum];
+        const key = `${h.label}|${h.purpose}`;
+        if (!holidayGroups[key]) {
+            holidayGroups[key] = [];
+        }
+        holidayGroups[key].push(Number(dayNum));
+    }
+    
+    const groupedHolidays = [];
+    for (const key in holidayGroups) {
+        const [label, purpose] = key.split('|');
+        const days = holidayGroups[key];
+        groupedHolidays.push({
+            label: label,
+            purpose: purpose,
+            days: days,
+            daysStr: att_formatDayRanges(days)
+        });
+    }
+    groupedHolidays.sort((a, b) => a.days[0] - b.days[0]);
+    
+    // Build HTML for Landscape PDF
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @page { size: landscape; margin: 0.3in; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 8.5pt; color: #1e293b; margin: 0; padding: 0; }
+            .header-container { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f766e; padding-bottom: 8px; }
+            h1 { margin: 0; color: #0f766e; font-size: 16pt; text-transform: uppercase; letter-spacing: 0.05em; }
+            .meta-info { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10pt; font-weight: 600; }
+            
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            th, td { border: 1px solid #cbd5e1; padding: 4px 1px; text-align: center; font-size: 7.5pt; overflow: hidden; text-overflow: ellipsis; }
+            th { background-color: #f1f5f9; font-weight: bold; color: #0f172a; text-transform: uppercase; font-size: 8pt; }
+            
+            .sno-col { width: 3%; }
+            .roll-col { width: 3.5%; font-weight: bold; }
+            .name-col { width: 14%; text-align: left; padding-left: 6px; white-space: nowrap; }
+            .day-col { width: 2.0%; }
+            .stat-hdr { background-color: #e2e8f0; font-weight: bold; color: #0f172a; text-transform: uppercase; font-size: 7.5pt; width: 3.5%; }
+            .stat-val { font-weight: bold; font-size: 7.5pt; width: 3.5%; }
+            .stat-col { width: 7%; font-weight: bold; }
+            .rate-green { color: #10b981 !important; font-weight: bold; }
+            .rate-black { color: #0f172a !important; font-weight: bold; }
+            .rate-maroon { color: #800000 !important; font-weight: bold; }
+            .rate-red { color: #ef4444 !important; font-weight: bold; }
+            
+            .P { color: #10b981; font-weight: bold; }
+            .A { color: #ef4444; font-weight: bold; background-color: #fee2e2; }
+            .L { color: #f59e0b; font-weight: bold; background-color: #fef3c7; }
+            .sunday-cell { background-color: #f1f5f9; color: #64748b; font-weight: 700; font-size: 7.5pt; }
+            .holiday-cell { background-color: #ffe4e6; color: #be123c; font-weight: 700; font-size: 7.5pt; }
+            .empty { color: #ccc; }
+            
+            tr:nth-child(even) { background-color: #f8fafc; }
+            thead { display: table-header-group; }
+            tr { page-break-inside: avoid; }
+            .notes-section { page-break-before: always; margin-top: 0px; padding-top: 10px; display: block; }
+            .notes-title { font-size: 12pt; font-weight: bold; color: #0f766e; text-transform: uppercase; margin-top: 15px; margin-bottom: 8px; border-bottom: 2px solid #0f766e; padding-bottom: 5px; letter-spacing: 0.05em; text-align: left; }
+            .notes-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .notes-table td { border: none; text-align: left; padding: 6px 10px; font-size: 8.5pt; vertical-align: top; }
+            .notes-table tr:nth-child(even) { background-color: #f8fafc; }
+            .note-symbol { font-weight: bold; color: #0f766e; width: 40px; font-size: 10pt; text-align: center; }
+            .note-text { color: #334155; }
+            .footer { margin-top: 25px; font-size: 8pt; color: #64748b; font-style: italic; text-align: right; border-top: 1px solid #cbd5e1; padding-top: 6px; }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <h1>Monthly Student Attendance Register</h1>
+            <div class="meta-info">
+                <span>Class: <span style="color:#0f766e">${className}</span></span>
+                <span>Month: <span style="color:#0f766e">${monthYear}</span></span>
+                <span>Subject: <span style="color:#0f766e">${subject || 'All Subjects'}</span></span>
+            </div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="sno-col">Sl</th>
+                    <th class="roll-col">RNo</th>
+                    <th class="name-col">Student Name</th>`;
+                    
+    for (let d = 1; d <= totalDays; d++) {
+        html += `<th class="day-col">${d}</th>`;
+    }
+    
+    html += `       <th class="stat-hdr">Wdays</th>
+                    <th class="stat-hdr">P</th>
+                    <th class="stat-hdr">A</th>
+                    <th class="stat-hdr">L</th>
+                    <th class="stat-col">Rate</th>
+                </tr>
+            </thead>
+            <tbody>`;
+            
+    students.forEach((student, index) => {
+        const cellAttrs = (index % 2 === 1) ? ' bgcolor="#f1f5f9" style="background-color: #f1f5f9;"' : '';
+        html += `<tr>
+            <td class="sno-col"${cellAttrs}>${index + 1}</td>
+            <td class="roll-col"${cellAttrs}>${student.rollNo}</td>
+            <td class="name-col"${cellAttrs}>${student.name}</td>`;
+            
+        let presentCount = 0;
+        let absentCount = 0;
+        let leaveCount = 0;
+        let totalActiveDays = 0;
+        const studentRecord = existingAttendance[String(student.rollNo)] || {};
+        
+        for (let d = 1; d <= totalDays; d++) {
+            if (sundaysSet.has(d)) {
+                html += `<td class="sunday-cell">S</td>`;
+            } else if (holidaysMap[d]) {
+                html += `<td class="holiday-cell">H</td>`;
+            } else {
+                const dayWasMarked = markedDaysSet.has(d);
+                const status = studentRecord[d];
+                let display = '';
+                let cls = 'empty';
+                if (dayWasMarked) {
+                    totalActiveDays++;
+                    if (status === 'Present') { display = 'P'; cls = 'P'; presentCount++; }
+                    else if (status === 'Leave') { display = 'L'; cls = 'L'; leaveCount++; }
+                    else { display = 'A'; cls = 'A'; absentCount++; }
+                }
+                
+                // Keep status indicators (A, L) colors; shade transparent cells on even rows
+                const isStatusColored = (cls === 'A' || cls === 'L');
+                const dayCellAttrs = (index % 2 === 1 && !isStatusColored) ? ' bgcolor="#f1f5f9" style="background-color: #f1f5f9;"' : '';
+                html += `<td class="${cls}"${dayCellAttrs}>${display}</td>`;
+            }
+        }
+        
+        const percentage = totalActiveDays > 0 ? Math.round((presentCount / totalActiveDays) * 100) : 0;
+        let rateCls = 'rate-green';
+        if (percentage < 50) rateCls = 'rate-red';
+        else if (percentage < 75) rateCls = 'rate-maroon';
+        else if (percentage < 85) rateCls = 'rate-black';
+        
+        html += `<td class="stat-val"${cellAttrs}>${totalActiveDays}</td>
+            <td class="stat-val P"${cellAttrs}>${presentCount}</td>
+            <td class="stat-val A"${cellAttrs}>${absentCount}</td>
+            <td class="stat-val L"${cellAttrs}>${leaveCount}</td>
+            <td class="stat-col ${rateCls}"${cellAttrs}>${percentage}%</td></tr>`;
+    });
+    
+    html += `</tbody></table>`;
+    
+    // Add Sundays & Holidays Footnotes on separate page with header
+    html += `<div class="notes-section">`;
+    html += `    <div class="header-container">`;
+    html += `        <h1>Monthly Student Attendance Register</h1>`;
+    html += `        <div class="meta-info">`;
+    html += `            <span>Class: <span style="color:#0f766e">${className}</span></span>`;
+    html += `            <span>Month: <span style="color:#0f766e">${monthYear}</span></span>`;
+    html += `            <span>Subject: <span style="color:#0f766e">${subject || 'All Subjects'}</span></span>`;
+    html += `        </div>`;
+    html += `    </div>`;
+    html += `    <div class="notes-title">Footnotes & Explanations</div>`;
+    html += `    <table class="notes-table">`;
+    html += `        <tr>`;
+    html += `            <td class="note-symbol">S</td>`;
+    html += `            <td class="note-text"><b>Sunday (Weekly Holiday)</b>. Sundays in this month: ${sundays.join(', ')}.</td>`;
+    html += `        </tr>`;
+    
+    if (groupedHolidays.length > 0) {
+        html += `        <tr>`;
+        html += `            <td class="note-symbol">H</td>`;
+        html += `            <td class="note-text"><b>Labeled School Holidays</b>. Labeled days details below:`;
+        html += `                <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.4;">`;
+        groupedHolidays.forEach(g => {
+            const dayLabel = g.days.length > 1 ? `Days ${g.daysStr}` : `Day ${g.daysStr}`;
+            html += `                    <li><b>${dayLabel}</b>: <b>${g.label}</b> - <i>${g.purpose}</i></li>`;
+        });
+        html += `                </ul>`;
+        html += `            </td>`;
+        html += `        </tr>`;
+    } else {
+        html += `        <tr>`;
+        html += `            <td class="note-symbol">H</td>`;
+        html += `            <td class="note-text"><b>Labeled School Holidays</b>. No official school holidays were labeled in the register for this month.</td>`;
+        html += `        </tr>`;
+    }
+    
+    html += `        <tr>`;
+    html += `            <td class="note-symbol" style="color:#10b981;">P</td>`;
+    html += `            <td class="note-text"><b>Present</b>. Student was present and marked active in the class session.</td>`;
+    html += `        </tr>`;
+    html += `        <tr>`;
+    html += `            <td class="note-symbol" style="color:#ef4444;">A</td>`;
+    html += `            <td class="note-text"><b>Absent</b>. Student was absent without prior approved leave.</td>`;
+    html += `        </tr>`;
+    html += `        <tr>`;
+    html += `            <td class="note-symbol" style="color:#f59e0b;">L</td>`;
+    html += `            <td class="note-text"><b>On Leave</b>. Student was excused from class with prior approved leave.</td>`;
+    html += `        </tr>`;
+    html += `        <tr>`;
+    html += `            <td class="note-symbol" style="color:#ccc;">-</td>`;
+    html += `            <td class="note-text"><b>Empty / Unmarked</b>. No class session was conducted, or attendance was not marked for this date.</td>`;
+    html += `        </tr>`;
+    html += `    </table>`;
+    html += `    <div class="footer">Generated by HSS Portal on: ${new Date().toLocaleString()}</div>`;
+    html += `</div>`;
+    
+    html += `</body></html>`;
+    
+    const blob = Utilities.newBlob(html, MimeType.HTML).getAs(MimeType.PDF);
+    blob.setName(`Attendance_${className}${subjectPart}_${monthYear}.pdf`);
+    
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    return { success: true, url: file.getUrl(), fileId: file.getId() };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Generates a landscape multi-page PDF report of attendance covering a range of months (inclusive).
+ */
+function generateAttendancePDFRange(className, startMonth, endMonth, subject, session, teacherEmail = '') {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    
+    // Resolve subject part for naming and cleanup searches
+    const subjectPart = subject ? '_' + subject.replace(/[^a-zA-Z0-9]/g, '_') : '';
+    const dateRangeStr = startMonth === endMonth ? startMonth : `${startMonth}_to_${endMonth}`;
+    
+    // Resolve target folder
+    let folder = DriveApp.getRootFolder();
+    try {
+      const folders = DriveApp.getFoldersByName("_Temp_PDF_Work");
+      if (folders.hasNext()) folder = folders.next();
+    } catch(e) {}
+    
+    // Deletion of older PDFs is now handled asynchronously by the client
+    
+    // Parse range of months
+    const months = [];
+    const current = new Date(startMonth + '-01');
+    const end = new Date(endMonth + '-01');
+    while (current <= end) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      months.push(`${y}-${m}`);
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    if (months.length === 0) {
+      return { success: false, message: 'Invalid month range selected.' };
+    }
+    
+    // Generate monthly reports HTML content
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @page { size: landscape; margin: 0.3in; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 8.5pt; color: #1e293b; margin: 0; padding: 0; }
+            .month-page { page-break-after: always; }
+            .month-page:last-child { page-break-after: avoid; }
+            
+            .header-container { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f766e; padding-bottom: 8px; }
+            h1 { margin: 0; color: #0f766e; font-size: 16pt; text-transform: uppercase; letter-spacing: 0.05em; }
+            .meta-info { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10pt; font-weight: 600; }
+            
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            th, td { border: 1px solid #cbd5e1; padding: 4px 1px; text-align: center; font-size: 7.5pt; overflow: hidden; text-overflow: ellipsis; }
+            th { background-color: #f1f5f9; font-weight: bold; color: #0f172a; text-transform: uppercase; font-size: 8pt; }
+            
+            .sno-col { width: 3%; }
+            .roll-col { width: 3.5%; font-weight: bold; }
+            .name-col { width: 14%; text-align: left; padding-left: 6px; white-space: nowrap; }
+            .day-col { width: 2.0%; }
+            .stat-hdr { background-color: #e2e8f0; font-weight: bold; color: #0f172a; text-transform: uppercase; font-size: 7.5pt; width: 3.5%; }
+            .stat-val { font-weight: bold; font-size: 7.5pt; width: 3.5%; }
+            .stat-col { width: 7%; font-weight: bold; }
+            .rate-green { color: #10b981 !important; font-weight: bold; }
+            .rate-black { color: #0f172a !important; font-weight: bold; }
+            .rate-maroon { color: #800000 !important; font-weight: bold; }
+            .rate-red { color: #ef4444 !important; font-weight: bold; }
+            
+            .P { color: #10b981; font-weight: bold; }
+            .A { color: #ef4444; font-weight: bold; background-color: #fee2e2; }
+            .L { color: #f59e0b; font-weight: bold; background-color: #fef3c7; }
+            .sunday-cell { background-color: #f1f5f9; color: #64748b; font-weight: 700; font-size: 7.5pt; }
+            .holiday-cell { background-color: #ffe4e6; color: #be123c; font-weight: 700; font-size: 7.5pt; }
+            .empty { color: #ccc; }
+            
+            tr:nth-child(even) { background-color: #f8fafc; }
+            thead { display: table-header-group; }
+            tr { page-break-inside: avoid; }
+            .notes-section { page-break-before: always; margin-top: 0px; padding-top: 10px; display: block; }
+            .notes-title { font-size: 12pt; font-weight: bold; color: #0f766e; text-transform: uppercase; margin-top: 15px; margin-bottom: 8px; border-bottom: 2px solid #0f766e; padding-bottom: 5px; letter-spacing: 0.05em; text-align: left; }
+            .notes-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .notes-table td { border: none; text-align: left; padding: 6px 10px; font-size: 8.5pt; vertical-align: top; }
+            .notes-table tr:nth-child(even) { background-color: #f8fafc; }
+            .note-symbol { font-weight: bold; color: #0f766e; width: 40px; font-size: 10pt; text-align: center; }
+            .note-text { color: #334155; }
+            .footer { margin-top: 25px; font-size: 8pt; color: #64748b; font-style: italic; text-align: right; border-top: 1px solid #cbd5e1; padding-top: 6px; }
+        </style>
+    </head>
+    <body>`;
+    
+    const holidaySheet = ss.getSheetByName('Attendance_Holidays');
+    const hData = holidaySheet ? holidaySheet.getDataRange().getValues() : [];
+    
+    const attSheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    const attData = attSheet ? attSheet.getDataRange().getValues() : [];
+    
+    const cumulativeStats = {};
+    
+    // Compile attendance for each month in the range
+    for (let mIdx = 0; mIdx < months.length; mIdx++) {
+      const monthYear = months[mIdx];
+      
+      // Get student list for the class (passing first day of month to fetch correct active rosters and force syncing from master)
+      const studentDataRes = getAttendanceStudentList(className, monthYear + '-01', true, session || '', subject, teacherEmail);
+      if (!studentDataRes.success || !studentDataRes.students || studentDataRes.students.length === 0) {
+        continue;
+      }
+      const students = studentDataRes.students;
+      
+      // Extract year and month
+      const parts = monthYear.split('-');
+      const year = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1; // 0-indexed
+      
+      // Number of days in the month
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      
+      // Extract Sundays
+      const sundays = [];
+      const sundaysSet = new Set();
+      for (let d = 1; d <= totalDays; d++) {
+        const dateObj = new Date(year, month, d);
+        if (dateObj.getDay() === 0) {
+          sundays.push(d);
+          sundaysSet.add(d);
+        }
+      }
+      
+      // Get holidays defined in Holidays sheet for this month
+      const holidaysMap = {}; // dayNum -> { label, purpose }
+      for (let i = 1; i < hData.length; i++) {
+        const hDateStr = att_formatDateNative(hData[i][0]);
+        if (hDateStr.startsWith(monthYear)) {
+          const dayNum = parseInt(hDateStr.split('-')[2]);
+          holidaysMap[dayNum] = {
+            label: hData[i][1],
+            purpose: hData[i][2]
+          };
+        }
+      }
+      
+      // Get attendance records — timezone-safe date parsing + robust markedDaysSet
+      const existingAttendance = {}; // rollNo -> { dayNum -> status }
+      const markedDaysSet = new Set(); // days confirmed to have had a class session
+      const scriptTz = Session.getScriptTimeZone();
+      const targetTeacher = String(teacherEmail || '').trim().toLowerCase();
+      const targetSubject = String(subject || '').trim().toLowerCase();
+      
+      const attHeaders = attData.length > 0 ? attData[0].map(h => String(h).trim().toLowerCase()) : [];
+      const subColIdx = attHeaders.indexOf('subject');
+      
+      for (let i = 1; i < attData.length; i++) {
+        const row = attData[i];
+        const rowClass = String(row[3]);
+        if (rowClass !== className) continue; // Fast class pre-filtering!
+        
+        const rowTeacher = String(row[2] || '').trim().toLowerCase();
+        if (targetTeacher && rowTeacher !== targetTeacher) continue;
+        
+        if (subColIdx !== -1) {
+          const rowSubject = String(row[subColIdx] || '').trim().toLowerCase();
+          if (rowSubject && rowSubject !== targetSubject) continue;
+        }
+        
+        const dateVal = row[1];
+        if (!dateVal) continue;
+        
+        // Timezone-safe: extract local date string from Date or string
+        let localDateStr;
+        try {
+          localDateStr = (dateVal instanceof Date)
+              ? Utilities.formatDate(dateVal, scriptTz, 'yyyy-MM-dd')
+              : String(dateVal).substring(0, 10);
+        } catch(e) { continue; }
+        
+        const dp = localDateStr.split('-').map(Number);
+        if (dp.length < 3 || isNaN(dp[0])) continue;
+        const [rYear, rMonth, dayNum] = dp;
+        
+        if (rYear !== year || rMonth !== (month + 1)) continue;
+        
+        const rowRoll = String(row[subColIdx !== -1 ? 5 : 4]);
+        const rowStatus = String(row[subColIdx !== -1 ? 6 : 5]);
+        
+        if (!existingAttendance[rowRoll]) existingAttendance[rowRoll] = {};
+        existingAttendance[rowRoll][dayNum] = rowStatus;
+        
+        // A day is a class session day if INIT record exists OR any student was marked P/L
+        if (rowRoll === 'INIT' || rowStatus === 'Present' || rowStatus === 'Leave') {
+          markedDaysSet.add(dayNum);
+        }
+      }
+      
+      // Group holidays for compact footnotes
+      const holidayGroups = {};
+      for (const dayNum in holidaysMap) {
+        const h = holidaysMap[dayNum];
+        const key = `${h.label}|${h.purpose}`;
+        if (!holidayGroups[key]) {
+          holidayGroups[key] = [];
+        }
+        holidayGroups[key].push(Number(dayNum));
+      }
+      
+      const groupedHolidays = [];
+      for (const key in holidayGroups) {
+        const [label, purpose] = key.split('|');
+        const days = holidayGroups[key];
+        groupedHolidays.push({
+          label: label,
+          purpose: purpose,
+          days: days,
+          daysStr: att_formatDayRanges(days)
+        });
+      }
+      groupedHolidays.sort((a, b) => a.days[0] - b.days[0]);
+      
+      // Build HTML Page for this Month
+      html += `<div class="month-page">
+          <div class="header-container">
+              <h1>Monthly Student Attendance Register</h1>
+              <div class="meta-info">
+                  <span>Class: <span style="color:#0f766e">${className}</span></span>
+                  <span>Month: <span style="color:#0f766e">${att_formatMonthLabel(monthYear)}</span></span>
+                  <span>Subject: <span style="color:#0f766e">${subject || 'All Subjects'}</span></span>
+              </div>
+          </div>
+          
+          <table>
+              <thead>
+                  <tr>
+                      <th class="sno-col">Sl</th>
+                      <th class="roll-col">RNo</th>
+                      <th class="name-col">Student Name</th>`;
+                      
+      for (let d = 1; d <= totalDays; d++) {
+        html += `<th class="day-col">${d}</th>`;
+      }
+      
+      html += `       <th class="stat-hdr">Wdays</th>
+                      <th class="stat-hdr">P</th>
+                      <th class="stat-hdr">A</th>
+                      <th class="stat-hdr">L</th>
+                      <th class="stat-col">Rate</th>
+                  </tr>
+              </thead>
+              <tbody>`;
+              
+      students.forEach((student, index) => {
+        const cellAttrs = (index % 2 === 1) ? ' bgcolor="#f1f5f9" style="background-color: #f1f5f9;"' : '';
+        html += `<tr>
+            <td class="sno-col"${cellAttrs}>${index + 1}</td>
+            <td class="roll-col"${cellAttrs}>${student.rollNo}</td>
+            <td class="name-col"${cellAttrs}>${student.name}</td>`;
+            
+        let presentCount = 0;
+        let absentCount = 0;
+        let leaveCount = 0;
+        let totalActiveDays = 0;
+        const studentRecord = existingAttendance[String(student.rollNo)] || {};
+        
+        for (let d = 1; d <= totalDays; d++) {
+          if (sundaysSet.has(d)) {
+            html += `<td class="sunday-cell">S</td>`;
+          } else if (holidaysMap[d]) {
+            html += `<td class="holiday-cell">H</td>`;
+          } else {
+            const dayWasMarked = markedDaysSet.has(d);
+            const status = studentRecord[d];
+            let display = '';
+            let cls = 'empty';
+            if (dayWasMarked) {
+              totalActiveDays++;
+              if (status === 'Present') { display = 'P'; cls = 'P'; presentCount++; }
+              else if (status === 'Leave') { display = 'L'; cls = 'L'; leaveCount++; }
+              else { display = 'A'; cls = 'A'; absentCount++; }
+            }
+            
+            // Keep status indicators (A, L) colors; shade transparent cells on even rows
+            const isStatusColored = (cls === 'A' || cls === 'L');
+            const dayCellAttrs = (index % 2 === 1 && !isStatusColored) ? ' bgcolor="#f1f5f9" style="background-color: #f1f5f9;"' : '';
+            html += `<td class="${cls}"${dayCellAttrs}>${display}</td>`;
+          }
+        }
+        
+        const percentage = totalActiveDays > 0 ? Math.round((presentCount / totalActiveDays) * 100) : 0;
+        let rateCls = 'rate-green';
+        if (percentage < 50) rateCls = 'rate-red';
+        else if (percentage < 75) rateCls = 'rate-maroon';
+        else if (percentage < 85) rateCls = 'rate-black';
+        
+        // Track running total cumulative statistics
+        const rollKey = String(student.rollNo);
+        if (!cumulativeStats[rollKey]) {
+          cumulativeStats[rollKey] = { present: 0, active: 0 };
+        }
+        cumulativeStats[rollKey].present += presentCount;
+        cumulativeStats[rollKey].active += totalActiveDays;
+        
+        const cumPresent = cumulativeStats[rollKey].present;
+        const cumActive = cumulativeStats[rollKey].active;
+        const cumulativePercentage = cumActive > 0 ? Math.round((cumPresent / cumActive) * 100) : 0;
+        
+        let rateDisplay = `${percentage}%`;
+        if (mIdx > 0) {
+          const startShort = att_getShortMonthName(months[0]);
+          const currShort = att_getShortMonthName(monthYear);
+          rateDisplay += `<div style="font-size: 6.5pt; color: #475569; font-weight: normal; margin-top: 2px; line-height: 1.1; white-space: nowrap;">${startShort}-${currShort}: ${cumulativePercentage}%</div>`;
+        }
+        
+        html += `<td class="stat-val"${cellAttrs}>${totalActiveDays}</td>
+            <td class="stat-val P"${cellAttrs}>${presentCount}</td>
+            <td class="stat-val A"${cellAttrs}>${absentCount}</td>
+            <td class="stat-val L"${cellAttrs}>${leaveCount}</td>
+            <td class="stat-col ${rateCls}"${cellAttrs}>${rateDisplay}</td></tr>`;
+      });
+      
+      html += `</tbody></table>`;
+      
+      // Add Sundays & Holidays Footnotes on separate page with header
+      html += `<div class="notes-section">`;
+      html += `    <div class="header-container">`;
+      html += `        <h1>Monthly Student Attendance Register</h1>`;
+      html += `        <div class="meta-info">`;
+      html += `            <span>Class: <span style="color:#0f766e">${className}</span></span>`;
+      html += `            <span>Month: <span style="color:#0f766e">${att_formatMonthLabel(monthYear)}</span></span>`;
+      html += `            <span>Subject: <span style="color:#0f766e">${subject || 'All Subjects'}</span></span>`;
+      html += `        </div>`;
+      html += `    </div>`;
+      html += `    <div class="notes-title">Footnotes & Explanations</div>`;
+      html += `    <table class="notes-table">`;
+      html += `        <tr>`;
+      html += `            <td class="note-symbol">S</td>`;
+      html += `            <td class="note-text"><b>Sunday (Weekly Holiday)</b>. Sundays in this month: ${sundays.join(', ')}.</td>`;
+      html += `        </tr>`;
+      
+      if (groupedHolidays.length > 0) {
+        html += `        <tr>`;
+        html += `            <td class="note-symbol">H</td>`;
+        html += `            <td class="note-text"><b>Labeled School Holidays</b>. Labeled days details below:`;
+        html += `                <ul style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.4;">`;
+        groupedHolidays.forEach(g => {
+            const dayLabel = g.days.length > 1 ? `Days ${g.daysStr}` : `Day ${g.daysStr}`;
+            html += `                    <li><b>${dayLabel}</b>: <b>${g.label}</b> - <i>${g.purpose}</i></li>`;
+        });
+        html += `                </ul>`;
+        html += `            </td>`;
+        html += `        </tr>`;
+      } else {
+        html += `        <tr>`;
+        html += `            <td class="note-symbol">H</td>`;
+        html += `            <td class="note-text"><b>Labeled School Holidays</b>. No official school holidays were labeled in the register for this month.</td>`;
+        html += `        </tr>`;
+      }
+      
+      html += `        <tr>`;
+      html += `            <td class="note-symbol" style="color:#10b981;">P</td>`;
+      html += `            <td class="note-text"><b>Present</b>. Student was present and marked active in the class session.</td>`;
+      html += `        </tr>`;
+      html += `        <tr>`;
+      html += `            <td class="note-symbol" style="color:#ef4444;">A</td>`;
+      html += `            <td class="note-text"><b>Absent</b>. Student was absent without prior approved leave.</td>`;
+      html += `        </tr>`;
+      html += `        <tr>`;
+      html += `            <td class="note-symbol" style="color:#f59e0b;">L</td>`;
+      html += `            <td class="note-text"><b>On Leave</b>. Student was excused from class with prior approved leave.</td>`;
+      html += `        </tr>`;
+      html += `        <tr>`;
+      html += `            <td class="note-symbol" style="color:#ccc;">-</td>`;
+      html += `            <td class="note-text"><b>Empty / Unmarked</b>. No class session was conducted, or attendance was not marked for this date.</td>`;
+      html += `        </tr>`;
+      html += `    </table>`;
+      html += `    <div class="footer">Generated by HSS Portal on: ${new Date().toLocaleString()}</div>`;
+      html += `</div>`;
+      html += `</div>`; // Close month-page
+    }
+    
+    html += `</body></html>`;
+    
+    const blob = Utilities.newBlob(html, MimeType.HTML).getAs(MimeType.PDF);
+    blob.setName(`Attendance_${className}${subjectPart}_${dateRangeStr}.pdf`);
+    
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    return { success: true, url: file.getUrl(), fileId: file.getId() };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Formats a month code to word (e.g. "2026-04" -> "April 2026")
+ */
+function att_formatMonthLabel(monthYear) {
+  const parts = monthYear.split('-');
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1]) - 1;
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  return `${monthNames[monthIdx]} ${year}`;
+}
+
+/**
+ * Saves or updates a labeled holiday record.
+ */
+function saveHolidayRecord(dateStr, label, purpose) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    let sheet = ss.getSheetByName('Attendance_Holidays');
+    if (!sheet) {
+      sheet = ss.insertSheet('Attendance_Holidays');
+      sheet.getRange(1, 1, 1, 4).setValues([['Date', 'Label', 'Purpose', 'Timestamp']])
+        .setFontWeight('bold').setBackground('#ef4444').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    let rowIdx = -1;
+    for (let i = 1; i < data.length; i++) {
+      const hDateStr = att_formatDateNative(data[i][0]);
+      if (hDateStr === dateStr) {
+        rowIdx = i + 1;
+        break;
+      }
+    }
+    
+    const timestamp = new Date();
+    if (rowIdx !== -1) {
+      // Update existing
+      sheet.getRange(rowIdx, 2).setValue(label);
+      sheet.getRange(rowIdx, 3).setValue(purpose);
+      sheet.getRange(rowIdx, 4).setValue(timestamp);
+    } else {
+      // Append new
+      sheet.appendRow([dateStr, label, purpose, timestamp]);
+    }
+    
+    return { success: true, message: `Holiday saved successfully for ${dateStr}.` };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Fetches all labeled holidays for a month, grouped into contiguous ranges.
+ */
+function getHolidaysList(monthYear) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const sheet = ss.getSheetByName('Attendance_Holidays');
+    if (!sheet) return { success: true, holidays: [] };
+    
+    const data = sheet.getDataRange().getValues();
+    const [tYear, tMonth] = monthYear.split('-').map(Number);
+    
+    // Group holidays by key: label|purpose
+    const groups = {};
+    
+    for (let i = 1; i < data.length; i++) {
+      const dateStr = att_formatDateNative(data[i][0]);
+      if (!dateStr) continue;
+      
+      const [rYear, rMonth, rDay] = dateStr.split('-').map(Number);
+      if (rYear === tYear && rMonth === tMonth) {
+        const label = data[i][1];
+        const purpose = data[i][2];
+        const key = `${label}|${purpose}`;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(dateStr);
+      }
+    }
+    
+    const holidays = [];
+    for (const key in groups) {
+      const [label, purpose] = key.split('|');
+      const dates = groups[key].sort(); // Sort dates chronologically
+      
+      // Identify contiguous sub-ranges
+      let i = 0;
+      while (i < dates.length) {
+        const rangeDates = [dates[i]];
+        let j = i;
+        while (j + 1 < dates.length) {
+          const d1 = new Date(dates[j]);
+          const d2 = new Date(dates[j + 1]);
+          const diffTime = Math.abs(d2 - d1);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays === 1) {
+            rangeDates.push(dates[j + 1]);
+            j++;
+          } else {
+            break;
+          }
+        }
+        
+        const startDate = rangeDates[0];
+        const endDate = rangeDates[rangeDates.length - 1];
+        
+        holidays.push({
+          startDate: startDate,
+          endDate: endDate,
+          date: startDate === endDate ? startDate : `${startDate} to ${endDate}`,
+          label: label,
+          purpose: purpose,
+          allDates: rangeDates
+        });
+        
+        i = j + 1;
+      }
+    }
+    
+    // Sort grouped holidays chronologically by startDate
+    holidays.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    return { success: true, holidays: holidays };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Removes multiple labeled holiday records in a single transaction.
+ */
+function deleteHolidayRecords(dateStrings) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const sheet = ss.getSheetByName('Attendance_Holidays');
+    if (!sheet) return { success: true, message: 'Holidays deleted successfully.' };
+    
+    const data = sheet.getDataRange().getValues();
+    const datesSet = new Set(dateStrings);
+    const newData = [data[0]]; // Keep headers
+    
+    let deletedCount = 0;
+    for (let i = 1; i < data.length; i++) {
+      const hDateStr = att_formatDateNative(data[i][0]);
+      if (datesSet.has(hDateStr)) {
+        deletedCount++;
+      } else {
+        newData.push(data[i]);
+      }
+    }
+    
+    if (deletedCount > 0) {
+      sheet.clearContents();
+      sheet.getRange(1, 1, newData.length, data[0].length).setValues(newData);
+      return { success: true, message: `Successfully deleted ${deletedCount} holiday records.` };
+    }
+    return { success: false, message: 'No matching holidays found to delete.' };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Updates a holiday range by deleting old date records and writing new ones.
+ * Automatically clears duplicates.
+ */
+function updateHolidayRecords(oldDates, newDates, label, purpose) {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    let sheet = ss.getSheetByName('Attendance_Holidays');
+    if (!sheet) {
+      sheet = ss.insertSheet('Attendance_Holidays');
+      sheet.getRange(1, 1, 1, 4).setValues([['Date', 'Label', 'Purpose', 'Timestamp']])
+        .setFontWeight('bold').setBackground('#ef4444').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const oldDatesSet = new Set(oldDates);
+    const newDatesSet = new Set(newDates);
+    const timestamp = new Date();
+    
+    const newData = [data[0]]; // Headers
+    
+    // Keep existing rows unless they match oldDates OR are overwritten by newDates
+    for (let i = 1; i < data.length; i++) {
+      const hDateStr = att_formatDateNative(data[i][0]);
+      if (oldDatesSet.has(hDateStr) || newDatesSet.has(hDateStr)) {
+        continue; // Skip so we don't have duplicates or old records
+      }
+      newData.push(data[i]);
+    }
+    
+    // Add all new dates
+    newDates.forEach(dStr => {
+      newData.push([dStr, label, purpose, timestamp]);
+    });
+    
+    sheet.clearContents();
+    sheet.getRange(1, 1, newData.length, 4).setValues(newData);
+    
+    return { success: true, message: `Holiday records saved successfully for ${newDates.length} days.` };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Legacy single holiday deletion helper for backwards compatibility.
+ */
+function deleteHolidayRecord(dateStr) {
+  return deleteHolidayRecords([dateStr]);
+}
+
+/**
+ * Generates month-wise summary statistics for a class.
+ */
+function getMonthlyAttendanceSummary(className, subjectFilter, teacherEmail = '') {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const attSheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    if (!attSheet) return { success: true, months: [] };
+    
+    // Load holidays count per month
+    const holidaysByMonth = {};
+    const holidaySheet = ss.getSheetByName('Attendance_Holidays');
+    if (holidaySheet) {
+      const hData = holidaySheet.getDataRange().getValues();
+      for (let i = 1; i < hData.length; i++) {
+        const hDateStr = att_formatDateNative(hData[i][0]);
+        const monthKey = hDateStr.substring(0, 7); // yyyy-MM
+        holidaysByMonth[monthKey] = (holidaysByMonth[monthKey] || 0) + 1;
+      }
+    }
+
+    const data = attSheet.getDataRange().getValues();
+    const monthlyStats = {}; // monthKey -> { present, dates }
+    
+    // Count studentCount dynamically
+    let studentCount = 0;
+    const studentSheet = ss.getSheetByName(ATTENDANCE_STUDENTS_SHEET_NAME);
+    if (studentSheet) {
+      const studentData = studentSheet.getDataRange().getValues();
+      const headers = studentData[0].map(h => String(h).trim().toLowerCase());
+      const classColIdx = headers.indexOf('class');
+      const subjectColIdx = headers.indexOf('subjects');
+      
+      for (let i = 1; i < studentData.length; i++) {
+        let sClass = String(studentData[i][classColIdx]).trim().toLowerCase();
+        let targetClass = className.toLowerCase();
+        if (/^\d+$/.test(sClass)) sClass += 'th';
+        if (/^\d+$/.test(targetClass)) targetClass += 'th';
+        
+        if (sClass.includes(targetClass) || targetClass.includes(sClass)) {
+          if (subjectFilter) {
+            const sFilter = subjectFilter.toLowerCase().trim();
+            const sVal = String(studentData[i][subjectColIdx] || '').toLowerCase();
+            let subjectMatch = false;
+            if (sFilter === 'botany' || sFilter === 'zoology') {
+              subjectMatch = sVal.includes(sFilter) || sVal.includes('biology');
+            } else {
+              subjectMatch = sVal.includes(sFilter);
+            }
+            if (!subjectMatch) continue;
+          }
+          studentCount++;
+        }
+      }
+    }
+    if (studentCount === 0) studentCount = 1; // Avoid division by zero
+    
+    const scriptTz = Session.getScriptTimeZone();
+    const targetTeacher = String(teacherEmail || '').trim().toLowerCase();
+    
+    const attHeaders = data.length > 0 ? data[0].map(h => String(h).trim().toLowerCase()) : [];
+    const subColIdx = attHeaders.indexOf('subject');
+    const rollColIdx = subColIdx !== -1 ? 5 : 4;
+    const statusColIdx = subColIdx !== -1 ? 6 : 5;
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const rowClass = String(row[3]);
+      if (rowClass !== className) continue; // Fast class pre-filtering!
+      
+      const rowTeacher = String(row[2] || '').trim().toLowerCase();
+      if (targetTeacher && rowTeacher !== targetTeacher) continue;
+      
+      // Filter by subject if column is present in the sheet (allowing legacy blank subjects to match)
+      if (subColIdx !== -1 && subjectFilter) {
+        const rowSubject = String(row[subColIdx] || '').trim().toLowerCase();
+        const targetSubject = String(subjectFilter).trim().toLowerCase();
+        if (rowSubject && rowSubject !== targetSubject) continue;
+      }
+      
+      const dateVal = row[1];
+      if (!dateVal) continue;
+      
+      let localDateStr;
+      try {
+        localDateStr = (dateVal instanceof Date)
+            ? Utilities.formatDate(dateVal, scriptTz, 'yyyy-MM-dd')
+            : String(dateVal).substring(0, 10);
+      } catch(e) { continue; }
+      
+      const dp = localDateStr.split('-').map(Number);
+      if (dp.length < 3 || isNaN(dp[0])) continue;
+      const [rYear, rMonth, dayNum] = dp;
+      
+      const monthKey = rYear + '-' + (rMonth < 10 ? '0' + rMonth : rMonth);
+      
+      if (!monthlyStats[monthKey]) {
+        monthlyStats[monthKey] = {
+          present: 0,
+          dates: new Set()
+        };
+      }
+      
+      monthlyStats[monthKey].dates.add(localDateStr);
+      const rowRoll = String(row[rollColIdx]);
+      const rowStatus = String(row[statusColIdx]);
+      if (rowRoll !== 'INIT') {
+        if (rowStatus === 'Present') {
+          monthlyStats[monthKey].present++;
+        }
+      }
+    }
+    
+    const summary = [];
+    for (const monthKey in monthlyStats) {
+      const stats = monthlyStats[monthKey];
+      const totalMarkedDays = stats.dates.size;
+      const totalPossibleMarked = totalMarkedDays * studentCount;
+      const rate = totalPossibleMarked > 0 ? Math.round((stats.present / totalPossibleMarked) * 100) : 0;
+      
+      // Auto-compute calendar days and sundays count
+      const year = parseInt(monthKey.split('-')[0]);
+      const month = parseInt(monthKey.split('-')[1]) - 1;
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      
+      let sundaysCount = 0;
+      for (let d = 1; d <= totalDays; d++) {
+        if (new Date(year, month, d).getDay() === 0) {
+          sundaysCount++;
+        }
+      }
+      
+      const holidaysCount = holidaysByMonth[monthKey] || 0;
+      
+      summary.push({
+        month: monthKey,
+        workingDaysMarked: totalMarkedDays,
+        totalDays: totalDays,
+        sundays: sundaysCount,
+        holidays: holidaysCount,
+        rate: rate
+      });
+    }
+    
+    summary.sort((a, b) => b.month.localeCompare(a.month));
+    return { success: true, months: summary };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Run this function once in the Google Apps Script editor to compact all existing attendance records.
+ * It deletes all rows with status 'Absent' and ensures an 'INIT' marker is present for any date/class
+ * combination that had records, so that unmarked days are not confused with days where everyone was absent.
+ */
+function runOneTimeAttendanceCompaction() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(60000); // Wait up to 1 minute
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const sheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    if (!sheet) {
+      return { success: false, message: "Attendance records sheet not found." };
+    }
+    
+    const fullData = sheet.getDataRange().getValues();
+    if (fullData.length <= 1) {
+      return { success: true, message: "No data to compact." };
+    }
+    
+    const header = fullData[0];
+    const compactedData = [header];
+    
+    // Track which (date + class) combinations have been saved
+    const markedSets = new Set();
+    
+    // First, identify all (date + class) combinations that have at least one record
+    for (let i = 1; i < fullData.length; i++) {
+      const row = fullData[i];
+      const rowDate = att_formatDateNative(row[1]);
+      const rowClass = String(row[3]);
+      if (rowDate && rowClass) {
+        markedSets.add(`${rowDate}|${rowClass}`);
+      }
+    }
+    
+    // We also want to keep track of which (date + class) combinations already have an 'INIT' marker
+    const hasInitMarker = new Set();
+    for (let i = 1; i < fullData.length; i++) {
+      const row = fullData[i];
+      const rowDate = att_formatDateNative(row[1]);
+      const rowClass = String(row[3]);
+      const rowRoll = String(row[4]);
+      if (rowRoll === 'INIT') {
+        hasInitMarker.add(`${rowDate}|${rowClass}`);
+      }
+    }
+    
+    // Now, filter out 'Absent' rows, and add 'INIT' markers for combinations that don't have them
+    const timestamp = new Date();
+    
+    // Keep non-absent rows
+    for (let i = 1; i < fullData.length; i++) {
+      const row = fullData[i];
+      const rowStatus = String(row[5]);
+      if (rowStatus === 'Absent') {
+        continue; // Filter out Absent rows
+      }
+      compactedData.push(row);
+    }
+    
+    // Add missing 'INIT' markers for any (date + class) combinations that were marked but lack a marker
+    markedSets.forEach(key => {
+      if (!hasInitMarker.has(key)) {
+        const [date, className] = key.split('|');
+        // Write the INIT record using a default system description
+        compactedData.push([timestamp, date, 'System Migration', className, 'INIT', 'Saved']);
+      }
+    });
+    
+    // Write back to sheet
+    sheet.clearContents();
+    sheet.getRange(1, 1, compactedData.length, 6).setValues(compactedData);
+    
+    return { 
+      success: true, 
+      message: `Database compacted. Total rows reduced from ${fullData.length} to ${compactedData.length}. Deleted all 'Absent' rows and verified 'INIT' markers.` 
+    };
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch(e) {}
+  }
+}
+
+/**
+ * Asynchronously cleans up older compiled PDFs for a class and subject in the background.
+ * Excludes the newly generated PDF ID from trashing.
+ */
+function cleanupOlderAttendancePDFs(className, subject, excludeFileId) {
+  try {
+    const subjectPart = subject ? '_' + subject.replace(/[^a-zA-Z0-9]/g, '_') : '';
+    const prefix = `Attendance_${className}${subjectPart}_`;
+    
+    let folder = DriveApp.getRootFolder();
+    try {
+      const folders = DriveApp.getFoldersByName("_Temp_PDF_Work");
+      if (folders.hasNext()) folder = folders.next();
+    } catch(e) {}
+    
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const f = files.next();
+      if (f.getId() === excludeFileId) continue; // Skip newly created PDF!
+      
+      if (f.getName().startsWith(prefix) && f.getName().endsWith('.pdf')) {
+        f.setTrashed(true);
+      }
+    }
+    return { success: true };
+  } catch (e) {
+    console.warn("Cleanup older PDFs warning:", e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Helper to get 3-letter month abbreviation
+ */
+function att_getShortMonthName(monthYearStr) {
+  const parts = monthYearStr.split('-');
+  const monthIdx = parseInt(parts[1]) - 1;
+  const monthNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  ];
+  return monthNames[monthIdx];
+}
+
+/**
+ * Maintenance/Repair Utility: Run this once in the Apps Script editor to retroactively 
+ * populate missing Subject cells and fix 'System Migration' teachers on legacy rows.
+ */
+function repairAttendanceMissingSubjects() {
+  try {
+    const ss = SpreadsheetApp.openById(SCRIPT_PROPERTIES.sheetId);
+    const userSheet = ss.getSheetByName('Users');
+    const attSheet = ss.getSheetByName(ATTENDANCE_RECORDS_SHEET_NAME);
+    
+    if (!attSheet) {
+      return { success: false, message: 'Attendance records sheet not found.' };
+    }
+    
+    // 1. Build teacher email -> subject mapping
+    const teacherSubjectMap = {};
+    if (userSheet) {
+      const userData = userSheet.getDataRange().getValues();
+      for (let i = 1; i < userData.length; i++) {
+        const email = String(userData[i][0]).trim().toLowerCase();
+        const subject = String(userData[i][9] || '').trim();
+        if (email && subject) {
+          teacherSubjectMap[email] = subject;
+        }
+      }
+    }
+    
+    // 2. Scan Attendance_Records sheet
+    const attDataRange = attSheet.getDataRange();
+    const attData = attDataRange.getValues();
+    const headers = attData[0].map(h => String(h).trim().toLowerCase());
+    const subColIdx = headers.indexOf('subject');
+    
+    if (subColIdx === -1) {
+      return { success: false, message: 'Subject column does not exist in Attendance_Records sheet.' };
+    }
+    
+    // Group teacher/subject by date + class from non-legacy rows
+    const dateClassMeta = {};
+    for (let i = 1; i < attData.length; i++) {
+      const row = attData[i];
+      const rowDate = att_formatDateNative(row[1]);
+      const rowClass = String(row[3]);
+      const rowRoll = String(row[headers.indexOf('roll no')]);
+      const rowTeacher = String(row[2] || '').trim();
+      const rowSubject = String(row[subColIdx] || '').trim();
+      
+      if (rowRoll !== 'INIT' && rowTeacher && rowSubject && rowTeacher.toLowerCase() !== 'system migration') {
+        dateClassMeta[`${rowDate}|${rowClass}`] = { teacher: rowTeacher, subject: rowSubject };
+      }
+    }
+    
+    let repairedCount = 0;
+    
+    for (let i = 1; i < attData.length; i++) {
+      const row = attData[i];
+      const rowSubject = String(row[subColIdx] || '').trim();
+      const rowDate = att_formatDateNative(row[1]);
+      const rowClass = String(row[3]);
+      const key = `${rowDate}|${rowClass}`;
+      
+      let matchedSubject = rowSubject;
+      let matchedTeacher = String(row[2] || '').trim();
+      let needsUpdate = false;
+      
+      // If the subject is empty, resolve it
+      if (!rowSubject) {
+        if (dateClassMeta[key]) {
+          matchedSubject = dateClassMeta[key].subject;
+        } else {
+          const rowTeacher = String(row[2] || '').trim().toLowerCase();
+          matchedSubject = teacherSubjectMap[rowTeacher] || '';
+        }
+        if (matchedSubject) {
+          needsUpdate = true;
+        }
+      }
+      
+      // If the teacher email is 'System Migration' or missing, resolve it
+      if (!row[2] || String(row[2]).trim().toLowerCase() === 'system migration' || String(row[2]).trim().toLowerCase() === 'system') {
+        if (dateClassMeta[key]) {
+          matchedTeacher = dateClassMeta[key].teacher;
+          needsUpdate = true;
+        } else {
+          // If no non-INIT row exists, fallback to class teacher assignment or default
+        }
+      }
+      
+      if (needsUpdate) {
+        attSheet.getRange(i + 1, subColIdx + 1).setValue(matchedSubject);
+        attSheet.getRange(i + 1, 3).setValue(matchedTeacher);
+        repairedCount++;
+      }
+    }
+    
+    return { success: true, message: `Successfully repaired ${repairedCount} legacy attendance records.` };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+

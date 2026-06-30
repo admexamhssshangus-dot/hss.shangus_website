@@ -4,12 +4,13 @@
 const CONFIG = {
   TEMPLATE_DOC_ID: '1B7bW-trcYDJEtsK-Jn7Wlb_bXoc2FAqbpRuGk1uUJ5o',
   OUTPUT_FOLDER_ID: '1PWX6R06uJ1_-1AdwOeDvrPGT_7V8PRi4',
+  TRASH_FOLDER_ID: '11XEOle6RH3gjTdoMb42TVZDMrolw8IEz',
   SHEET_NAME_DIST: 'distributions',
   SHEET_NAME_RATE: 'rate'
 };
 
 const ADMISSIONS_SHEET_ID = '1KBYYRQfF7algsgYIxrbBmVOv7Yr78ypYC9knwdaRZPg';
-const ADMIN_EMAIL = 'adm.exam.bhsshandwara@gmail.com';
+const ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 
 const MASTER_PORTALS = {
   hub: { name: "Admission Hub", url: "https://script.google.com/macros/s/AKfycbzEe_LloyQhSkwha2rvGbHqAfzJV_8LzimDKzNTu8H/exec" },
@@ -25,8 +26,10 @@ const MASTER_PORTALS = {
 function doGet(e) {
   const tmpl = HtmlService.createTemplateFromFile('index');
   
-  // SSO Token Logic
+  // 1. Identify User
   let user = null;
+  
+  // A. Priority: SSO Token from URL (Official Handshake)
   if (e.parameter.token) {
     const auth = validateSSOToken(e.parameter.token);
     if (auth.success) {
@@ -34,12 +37,49 @@ function doGet(e) {
       user = { email: u.email, name: u.name || u.email, role: u.role || 'Admin', isAdmin: true };
     }
   }
+  
+  // B. Fallback: Active Google Session (Seamless access for logged-in Admin)
+  if (!user) {
+    const activeEmail = Session.getActiveUser().getEmail();
+    if (activeEmail && isUserAnyAdmin({ email: activeEmail })) {
+      user = { email: activeEmail, name: 'Admin (Auto)', role: 'Admin', isAdmin: true };
+    }
+  }
+
   tmpl.user = user ? JSON.stringify(user) : 'null';
   
+  // 2. Authorization Check
+  if (user && !isUserAnyAdmin(user)) {
+    return HtmlService.createHtmlOutput(`
+      <div style="font-family: sans-serif; text-align: center; padding: 50px; background: #fef2f2; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 40px; border-radius: 20px; shadow: 0 20px 25px -5px rgba(0,0,0,0.1); max-width: 400px; border-top: 5px solid #dc2626;">
+          <h1 style="color: #dc2626; margin-top: 0;">Access Denied</h1>
+          <p style="color: #4b5563; font-weight: 500;">Administrative privileges are required.</p>
+          <p style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 25px;">Account: ${user.email}</p>
+          <a href="${MASTER_PORTALS.hub.url}" style="display: block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; transition: all 0.2s;">Return to Secure Hub</a>
+        </div>
+      </div>
+    `).setTitle('Access Denied').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+  
+  // 3. Serve Interface (Content is hidden by default in index.html until client-side auth confirms)
   return tmpl.evaluate()
-    .setTitle('BMHSS Handwara - Fund Distribution')
+    .setTitle('HSS Shangus - Fund Distribution')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * [NEW] Centralized Activity Logging back to Admission Portal
+ */
+function logActivity(action, email, details) {
+  try {
+    const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const sheet = ss.getSheetByName('Admin_Activity');
+    if (sheet) {
+      sheet.appendRow([new Date(), email, '', action, details]);
+    }
+  } catch (e) { console.error('Logging failed:', e); }
 }
 
 /**
@@ -51,13 +91,13 @@ function isUserAnyAdmin(user) {
   const email = String(user.email || '').trim().toLowerCase();
   const masterAdmin = String(ADMIN_EMAIL || '').trim().toLowerCase();
   
-  if (role === 'admin' || role === 'superadmin' || (masterAdmin && email === masterAdmin)) return true;
+  if (role === 'admin' || role === 'superadmin' || role === 'president' || (masterAdmin && email === masterAdmin)) return true;
   
   // Verify against sheet just in case role in token is stale
   try {
     const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
     const users = ss.getSheetByName('Users').getDataRange().getValues();
-    return users.some(r => r[0] && r[0].toLowerCase() === email && (r[4] === 'Admin' || r[4] === 'SuperAdmin'));
+    return users.some(r => r[0] && r[0].toLowerCase() === email && (r[4] === 'Admin' || r[4] === 'SuperAdmin' || r[4] === 'President'));
   } catch(err) { return false; }
 }
 
@@ -125,6 +165,12 @@ function generateSSOToken(email) {
  * Handles both NEW entries and UPDATES to existing rows
  */
 function processDistribution(input) {
+  // Security Check
+  const activeUserEmail = Session.getActiveUser().getEmail();
+  if (activeUserEmail && !isUserAnyAdmin({ email: activeUserEmail })) {
+     return { success: false, message: "Unauthorized: Admin access required." };
+  }
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const rateSheet = ss.getSheetByName(CONFIG.SHEET_NAME_RATE);
@@ -213,9 +259,11 @@ function processDistribution(input) {
     if (input.rowIndex && input.rowIndex > 1) {
       // Edit mode: overwrite specific row
       distSheet.getRange(input.rowIndex, 1, 1, rowData.length).setValues([rowData]);
+      logActivity('Distribution: Update Fund', activeUserEmail, `Updated ${input.className} for date ${input.date}. Total: ₹${grandTotal.toLocaleString('en-IN')}`);
     } else {
       // New mode: append to end
       distSheet.appendRow(rowData);
+      logActivity('Distribution: Generate Fund', activeUserEmail, `Generated ${input.className} for date ${input.date}. Total: ₹${grandTotal.toLocaleString('en-IN')}`);
     }
 
     return { 
@@ -233,6 +281,10 @@ function processDistribution(input) {
  * Fetch all entries from the distributions sheet for the history table
  */
 function getDistributions() {
+  // Security Check
+  const activeUserEmail = Session.getActiveUser().getEmail();
+  if (activeUserEmail && !isUserAnyAdmin({ email: activeUserEmail })) return [];
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_DIST);
@@ -267,7 +319,7 @@ function getDistributions() {
       },
       total: row[22], // Total Fee received column
       pdfUrl: row[23], // PDF link saved in Column X
-      generatedOn: row[24] // Generated On timestamp in Column Y
+      generatedOn: row[24] instanceof Date ? row[24].toISOString() : String(row[24]) 
     })).reverse();
   } catch (e) {
     return [];
@@ -278,14 +330,47 @@ function getDistributions() {
  * Delete a specific entry from the distributions sheet
  */
 function deleteDistribution(rowIndex) {
+  // Security Check
+  const activeUserEmail = Session.getActiveUser().getEmail();
+  if (activeUserEmail && !isUserAnyAdmin({ email: activeUserEmail })) {
+     return { success: false, message: "Unauthorized: Admin access required." };
+  }
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_DIST);
     if (!sheet) throw new Error("Sheet not found.");
     
     if (rowIndex <= 1) throw new Error("Cannot delete header row.");
+
+    // 1. Get the PDF URL from Column X (index 24) before deleting the row
+    const pdfUrl = sheet.getRange(rowIndex, 24).getValue();
     
+    // 2. Delete the row
     sheet.deleteRow(rowIndex);
+    
+    logActivity('Distribution: Delete Fund', activeUserEmail, `Deleted fund entry at row ${rowIndex}`);
+
+    // 3. Move the file to the "Trash/Archive" folder if it exists
+    if (pdfUrl && typeof pdfUrl === 'string') {
+      try {
+        let fileId = "";
+        if (pdfUrl.includes('id=')) {
+          fileId = pdfUrl.split('id=')[1].split('&')[0];
+        } else if (pdfUrl.includes('/d/')) {
+          fileId = pdfUrl.split('/d/')[1].split('/')[0];
+        }
+
+        if (fileId) {
+          const file = DriveApp.getFileById(fileId);
+          const trashFolder = DriveApp.getFolderById(CONFIG.TRASH_FOLDER_ID);
+          file.moveTo(trashFolder);
+        }
+      } catch (fileErr) {
+        console.error("Could not move file:", fileErr.toString());
+      }
+    }
+    
     return { success: true };
   } catch (e) {
     return { success: false, message: e.toString() };
@@ -393,6 +478,41 @@ function numberToWords(n) {
   if (n > 0) res += (res !== '' ? 'and ' : '') + formatT(n);
   
   return res.trim();
+}
+
+/**
+ * [NEW] Authenticate user credentials against the master sheet
+ */
+function authenticateUser(email, password) {
+  try {
+    const ss = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID);
+    const usersSheet = ss.getSheetByName('Users');
+    if (!usersSheet) return { success: false, message: 'User database not found' };
+    
+    const data = usersSheet.getDataRange().getValues();
+    const emailLower = email.toLowerCase().trim();
+    
+    for (let i = 1; i < data.length; i++) {
+      const rowEmail = String(data[i][0] || '').toLowerCase().trim();
+      const rowPassword = String(data[i][3] || '');
+      const rowRole = String(data[i][4] || '');
+      const rowName = String(data[i][1] || '');
+      
+      if (rowEmail === emailLower && rowPassword === password) {
+        return { 
+          success: true, 
+          user: { 
+            email: data[i][0], 
+            name: rowName || email,
+            role: rowRole
+          } 
+        };
+      }
+    }
+    return { success: false, message: 'Invalid credentials' };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
 }
 
 /**

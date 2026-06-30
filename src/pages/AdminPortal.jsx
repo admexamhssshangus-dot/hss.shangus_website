@@ -55,7 +55,8 @@ const DEFAULT_ADMINS = [
     passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482',
     hashAlgo: 'sha256',
     role: 'Super Admin',
-    allowedTabs: ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins']
+    allowedTabs: ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins'],
+    phone: '+919682547458'
   }
 ];
 
@@ -140,7 +141,8 @@ const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides }
   await setDoc(doc(db, 'site', 'faculty'), { items: (faculty || []).map(({ id, ...r }) => r) });
   await setDoc(doc(db, 'site', 'admins'), {
     items: admins || [],
-    emails: (admins || []).map(a => (a.email || '').toLowerCase()).filter(Boolean)
+    emails: (admins || []).map(a => (a.email || '').toLowerCase()).filter(Boolean),
+    phones: (admins || []).map(a => (a.phone || '').trim()).filter(Boolean)
   });
   if (slides) {
     await setDoc(doc(db, 'site', 'slideshow'), { items: slides });
@@ -693,6 +695,7 @@ export default function AdminPortal() {
   // New admin creation form states
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminPhone, setNewAdminPhone] = useState('');
   const [newAdminRole, setNewAdminRole] = useState('Admin');
   const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'pages_cms']);
 
@@ -1164,7 +1167,7 @@ export default function AdminPortal() {
         }
       });
 
-      const phoneNumber = '+919682547458';
+      const phoneNumber = userRecord?.phone || '+919682547458';
       const confirmation = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
       setConfirmationResult(confirmation);
       setLoginStep('otp');
@@ -3573,7 +3576,8 @@ export default function AdminPortal() {
         passwordHash,
         hashAlgo: 'pbkdf2',
         role: newAdminRole,
-        allowedTabs: newAdminPermissions
+        allowedTabs: newAdminPermissions,
+        phone: newAdminPhone.trim()
       };
 
       const updatedAdmins = [...admins, newAdmin];
@@ -3582,6 +3586,7 @@ export default function AdminPortal() {
       // Clear fields
       setNewAdminEmail('');
       setNewAdminPassword('');
+      setNewAdminPhone('');
       setNewAdminRole('Super Admin');
       setNewAdminPermissions(['admissions', 'notices', 'faculty', 'tax', 'export', 'admins']);
 
@@ -4936,7 +4941,11 @@ export default function AdminPortal() {
                   Enter the 6-digit verification code sent to
                 </p>
                 <p className="text-sm font-extrabold text-slate-200 tracking-wider">
-                  +91 96825 47458
+                  {(() => {
+                    const rawPhone = pendingUser?.phone || '+919682547458';
+                    const cleaned = rawPhone.replace(/\s+/g, '');
+                    return cleaned.length > 4 ? `•••••• ${cleaned.slice(-4)}` : cleaned;
+                  })()}
                 </p>
               </div>
 
@@ -7681,6 +7690,11 @@ export default function AdminPortal() {
                                 <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${roleBadgeClass}`}>
                                   {admin.role}
                                 </span>
+                                {admin.phone && (
+                                  <span className="block text-[10px] text-slate-400 font-semibold mt-1">
+                                    Phone: {admin.phone}
+                                  </span>
+                                )}
                               </div>
                               <button
                                 type="button"
@@ -7755,6 +7769,17 @@ export default function AdminPortal() {
                             placeholder="At least 6 characters..."
                             value={newAdminPassword}
                             onChange={(e) => setNewAdminPassword(e.target.value)}
+                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Phone Number (with country code e.g. +91)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. +919682547458"
+                            value={newAdminPhone}
+                            onChange={(e) => setNewAdminPhone(e.target.value)}
                             className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
                           />
                         </div>

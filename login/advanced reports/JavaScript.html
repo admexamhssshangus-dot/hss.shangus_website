@@ -9,11 +9,14 @@
     currentFilters: {},
     currentRecords: [],
     masterRecords: [], // Master copy for instant local searching
+    editorFullList: [], // [NEW] Full list for DB Editor local search
+    editorScope: '',    // [NEW] Track current session+class in editor
     currentResult: null,
     sortBy: 'class_r_no',
     sortOrder: 'ASC',
     schoolName: '',
-    columnWidths: {} // Persisted from localStorage
+    columnWidths: {}, // Persisted from localStorage
+    isProcessing: false // [NEW] Security flag for long-running tasks
   };
 
 
@@ -21,10 +24,10 @@
   // [NEW] Debounce helper to prevent excessive UI updates during typing
   function debounce(func, wait) {
     var timeout;
-    return function() {
+    return function () {
       var context = this, args = arguments;
       clearTimeout(timeout);
-      timeout = setTimeout(function() {
+      timeout = setTimeout(function () {
         func.apply(context, args);
       }, wait);
     };
@@ -75,12 +78,12 @@
     var uploadBtn = document.getElementById('upload-list-btn');
     var fileInput = document.getElementById('list_file_upload');
     if (uploadBtn && fileInput) {
-      uploadBtn.onclick = function() { fileInput.click(); };
-      fileInput.onchange = function(e) {
+      uploadBtn.onclick = function () { fileInput.click(); };
+      fileInput.onchange = function (e) {
         var file = e.target.files[0]; if (!file) return;
         var reader = new FileReader();
-        reader.onload = function(ev) {
-          document.getElementById('unified_search').value = ev.target.result.split('\n').map(function(l) { return l.trim(); }).filter(Boolean).join('\n');
+        reader.onload = function (ev) {
+          document.getElementById('unified_search').value = ev.target.result.split('\n').map(function (l) { return l.trim(); }).filter(Boolean).join('\n');
           fileInput.value = '';
         };
         reader.readAsText(file);
@@ -91,6 +94,8 @@
     updateLocalTime();
 
     function fetchInitial() {
+      // Loader persists until processServerData
+
       // 0. Reset state for fresh load
       var sb = document.getElementById('unified_search');
       if (sb) sb.value = '';
@@ -98,56 +103,56 @@
       // 1. CRITICAL: Always use Server Meta (INIT_DATA) first.
       // This ensures allColumns, defaultColumns, and sessions are DEFINED even if cache is stale.
       if (typeof INIT_DATA !== 'undefined' && INIT_DATA && INIT_DATA.meta) {
-          processServerData(INIT_DATA);
-          console.log('Core system definitions loaded from server.');
+        processServerData(INIT_DATA);
+        console.log('Core system definitions loaded from server.');
       }
 
       // 2. Now try to layer on cached student records for instant display
       var cached = loadFromLocalCache();
       if (cached && cached.initialResult && cached.initialResult.records && cached.initialResult.records.length > 0) {
-          // Use cached records but enforce the fresh server filters (Top 5 sessions)
-          STATE.masterRecords = cached.initialResult.records;
-          
-          if (typeof INIT_DATA !== 'undefined' && INIT_DATA.initialFilters) {
-             STATE.currentFilters = INIT_DATA.initialFilters;
-             var localFiltered = _localFilter(STATE.masterRecords, STATE.currentFilters);
-             renderResult({ records: localFiltered, total: localFiltered.length, initialFilters: STATE.currentFilters });
-          } else {
-             STATE.currentResult = cached.initialResult;
-             renderResult(cached.initialResult);
-          }
-          
-          console.log('Instant records loaded from cache. Syncing with server in background...');
-          google.script.run
-            .withSuccessHandler(function(resp) { 
-              if (!document.getElementById('unified_search').value) {
-                processServerData(resp);
-              } else {
-                STATE.masterRecords = resp.initialResult ? (resp.initialResult.records || []) : [];
-                saveToLocalCache(resp);
-              }
-            })
-            .getInitialDataWithRecords();
-          return;
+        // Use cached records but enforce the fresh server filters (Top 5 sessions)
+        STATE.masterRecords = cached.initialResult.records;
+
+        if (typeof INIT_DATA !== 'undefined' && INIT_DATA.initialFilters) {
+          STATE.currentFilters = INIT_DATA.initialFilters;
+          var localFiltered = _localFilter(STATE.masterRecords, STATE.currentFilters);
+          renderResult({ records: localFiltered, total: localFiltered.length, initialFilters: STATE.currentFilters });
+        } else {
+          STATE.currentResult = cached.initialResult;
+          renderResult(cached.initialResult);
+        }
+
+        console.log('Instant records loaded from cache. Syncing with server in background...');
+        google.script.run
+          .withSuccessHandler(function (resp) {
+            if (!document.getElementById('unified_search').value) {
+              processServerData(resp);
+            } else {
+              STATE.masterRecords = resp.initialResult ? (resp.initialResult.records || []) : [];
+              saveToLocalCache(resp);
+            }
+          })
+          .getInitialDataWithRecords();
+        return;
       }
 
       // 3. Fallback: Full server fetch if no cache or metadata injection failed
       showLoading(true);
       google.script.run
-        .withSuccessHandler(function(resp) {
-           processServerData(resp);
-           showLoading(false);
+        .withSuccessHandler(function (resp) {
+          processServerData(resp);
+          showLoading(false);
         })
         .getInitialDataWithRecords();
     }
 
     // Helper for instant local filtering of cached data
     function _localFilter(records, f) {
-        return records.filter(function(r) {
-            if (f.sessions && f.sessions.length > 0 && f.sessions.indexOf(r.session) === -1) return false;
-            if (f.classes && f.classes.length > 0 && f.classes.indexOf(r['class']) === -1) return false;
-            return true;
-        });
+      return records.filter(function (r) {
+        if (f.sessions && f.sessions.length > 0 && f.sessions.indexOf(r.session) === -1) return false;
+        if (f.classes && f.classes.length > 0 && f.classes.indexOf(r['class']) === -1) return false;
+        return true;
+      });
     }
 
     function processServerData(resp) {
@@ -171,83 +176,130 @@
       if (df.sessions) setMultiSelectValues('session-dropdown', df.sessions);
       STATE.currentFilters = df;
 
+      // [NEW] Ensure initial records are available for instant local searching
+      if (resp.initialResult && resp.initialResult.records) {
+        STATE.masterRecords = resp.initialResult.records;
+        STATE.currentResult = resp.initialResult;
+      }
+
       showLoading(false);
-      STATE.masterRecords = resp.initialResult ? (resp.initialResult.records || []) : [];
-      STATE.currentResult = resp.initialResult;
       renderResult(resp.initialResult);
-      
+      // Final hide of initial premium loader
+      var lv = document.getElementById('loadingView');
+      if (lv) lv.style.display = 'none';
+
       // IMPORTANT: Only save to local cache if we actually have student records
-      // This prevents the "metadata-only" result from wiping out the real cache
       if (STATE.masterRecords.length > 0) {
         saveToLocalCache(resp);
       }
     }
 
     function applyCachedData(cache) {
-        if (!cache || !cache.meta) return;
-        const data = cache.meta;
-        STATE.allColumns = data.allColumns;
-        STATE.defaultColumns = data.defaultColumns;
-        STATE.selectedColumns = data.defaultColumns ? data.defaultColumns.slice() : [];
-        STATE.orderedColumns = data.orderedColumns || [];
-        STATE.classes = data.classes || [];
-        STATE.sessions = data.sessions || [];
-        STATE.genders = data.genders || [];
-        STATE.streams = data.streams || [];
-        STATE.subjects = data.subjects || [];
-        STATE.schoolName = data.schoolName || 'BMHSS Handwara';
-        
-        populateDropdowns();
-        STATE.masterRecords = cache.initialResult ? (cache.initialResult.records || []) : [];
-        STATE.currentResult = cache.initialResult;
-        renderResult(cache.initialResult);
-        showLoading(false);
+      if (!cache || !cache.meta) return;
+      const data = cache.meta;
+      STATE.allColumns = data.allColumns;
+      STATE.defaultColumns = data.defaultColumns;
+      STATE.selectedColumns = data.defaultColumns ? data.defaultColumns.slice() : [];
+      STATE.orderedColumns = data.orderedColumns || [];
+      STATE.classes = data.classes || [];
+      STATE.sessions = data.sessions || [];
+      STATE.genders = data.genders || [];
+      STATE.streams = data.streams || [];
+      STATE.subjects = data.subjects || [];
+      STATE.schoolName = data.schoolName || 'HSS Shangus';
+
+      populateDropdowns();
+      STATE.masterRecords = cache.initialResult ? (cache.initialResult.records || []) : [];
+      STATE.currentResult = cache.initialResult;
+      renderResult(cache.initialResult);
+      showLoading(false);
     }
 
     function saveToLocalCache(data) {
-        try {
-            const cacheObj = {
-                timestamp: Date.now(),
-                data: data
-            };
-            localStorage.setItem('advRpt_v1_cache', JSON.stringify(cacheObj));
-        } catch(e) { console.warn('Cache save failed', e); }
+      try {
+        const cacheObj = {
+          timestamp: Date.now(),
+          data: data
+        };
+        localStorage.setItem('advRpt_v1_cache', JSON.stringify(cacheObj));
+      } catch (e) { console.warn('Cache save failed', e); }
     }
 
     function loadFromLocalCache() {
-        try {
-            const raw = localStorage.getItem('advRpt_v1_cache');
-            if (!raw) return null;
-            const cache = JSON.parse(raw);
-            // Expire cache after 15 minutes to ensure freshness 
-            if (Date.now() - cache.timestamp > 15 * 60 * 1000) return null;
-            return cache.data;
-        } catch(e) { return null; }
+      try {
+        const raw = localStorage.getItem('advRpt_v1_cache');
+        if (!raw) return null;
+        const cache = JSON.parse(raw);
+        // Expire cache after 15 minutes to ensure freshness 
+        if (Date.now() - cache.timestamp > 15 * 60 * 1000) return null;
+        return cache.data;
+      } catch (e) { return null; }
     }
 
     // Initialize Auth and View
     function initAuth() {
-        // If AUTH_USER was injected, use it
-        if (typeof AUTH_USER !== 'undefined' && AUTH_USER) {
-            AUTH_STATE.user = AUTH_USER;
-        } 
-        
-        if (AUTH_STATE.user && AUTH_STATE.user.email) {
-            document.getElementById('authView').classList.add('hidden');
-            document.getElementById('mainView').classList.remove('hidden');
-            fetchInitial();
-        } else {
-            document.getElementById('authView').classList.remove('hidden');
-            document.getElementById('mainView').classList.add('hidden');
-        }
+      // Loader persists until login determined or data fetched
+
+      // If AUTH_USER was injected, use it
+      if (typeof AUTH_USER !== 'undefined' && AUTH_USER) {
+        AUTH_STATE.user = AUTH_USER;
+      }
+
+      if (AUTH_STATE.user && AUTH_STATE.user.email) {
+        document.getElementById('authView').classList.add('hidden');
+        document.getElementById('mainView').classList.remove('hidden');
+        fetchInitial();
+      } else {
+        document.getElementById('authView').classList.remove('hidden');
+        document.getElementById('mainView').classList.add('hidden');
+        // Hide loader to show login gate
+        var lv = document.getElementById('loadingView');
+        if (lv) lv.style.display = 'none';
+      }
     }
-    // Real-time search listener
+    // Real-time search listener with one-line default and Alt+Enter expansion
     var searchBox = document.getElementById('unified_search');
     if (searchBox) {
-      searchBox.addEventListener('input', debounce(function () {
-        handleRealtimeSearch(this.value);
-      }, 300));
+      var debouncedSearch = debounce(function (val) {
+        handleRealtimeSearch(val);
+      }, 300);
+
+      searchBox.addEventListener('input', function () {
+        // [MODIFIED] Do NOT auto-expand on every input if user hasn't explicitly made it taller
+        // If it's a multi-line input (from paste), we allow scroll, but keep height unless forced
+        debouncedSearch(this.value);
+      });
+
+      searchBox.addEventListener('keydown', function (e) {
+        // Alt+Enter to add a new line and expand height
+        if (e.key === 'Enter' && e.altKey) {
+            e.preventDefault();
+            var start = this.selectionStart;
+            var end = this.selectionEnd;
+            this.value = this.value.substring(0, start) + "\n" + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + 1;
+            
+            // Expand height to show new content
+            this.style.height = 'auto';
+            this.style.height = Math.min(300, this.scrollHeight) + 'px';
+        }
+        // Normal Enter triggers search (applyFilters)
+        else if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+            e.preventDefault();
+            applyFilters();
+        }
+      });
     }
+
+
+    // Safety timeout
+    setTimeout(() => {
+      const lv = document.getElementById('loadingView');
+      if (lv && lv.style.display !== 'none') {
+        console.warn('Safety timeout: Hiding stuck loader');
+        lv.style.display = 'none';
+      }
+    }, 10000);
 
     initAuth();
   });
@@ -262,7 +314,7 @@
     // After initial load: use inline spinner in data area
     var mainArea = document.getElementById('report-main-area');
     if (show) {
-      mainArea.innerHTML = '<div class="inline-loading"><div class="mini-spinner"></div>Fetching data...</div>';
+      mainArea.innerHTML = '<div class="inline-loading"><div class="spinner-circle" style="width:24px;height:24px;border-width:2px;margin-bottom:0.5rem"></div>Fetching data...</div>';
     }
     // hide is handled by renderResult replacing innerHTML
   }
@@ -426,7 +478,8 @@
 
     // If search looks like a multi-line list (from file upload), use server for safety
     if (val.includes('\n') || val.includes(',')) {
-      applyFilters();
+      // For multi-line, we must use server, but we skip showLoading if possible or use a subtle one
+      applyFilters(true); // pass true to indicate it's a silent/realtime update
       return;
     }
 
@@ -443,15 +496,18 @@
       tempResult.records = filtered;
       tempResult.total = filtered.length;
       tempResult.isLocalSearch = true;
+      
+      // CRITICAL: We bypass showLoading here to prevent the "spinning circle animation"
       renderResult(tempResult);
     } else {
-      applyFilters();
+      applyFilters(true);
     }
   }
 
   // ---- APPLY FILTERS (Server Call) ----
-  function applyFilters() {
-    showLoading(true);
+  function applyFilters(isSilent) {
+    if (!isSilent) showLoading(true);
+    
     var filters = {
       classes: getMultiSelectValues('class-dropdown'),
       sessions: getMultiSelectValues('session-dropdown'),
@@ -654,26 +710,26 @@
       google.script.run
         .withSuccessHandler(function (photoUrls) {
           records.forEach(function (r, i) {
-            ['student_photo', 'photo_id'].forEach(function(col) {
-                var cell = document.getElementById('photo-cell-' + col + '-' + r['_record_idx']);
-                if (!cell) return;
-                var url = photoUrls[i];
-                if (url) {
-                  cell.innerHTML = '<a href="' + escHtml(url) + '" target="_blank" title="View photo" style="display:block;margin:auto">'
-                    + '<img loading="lazy" decoding="async" src="' + escHtml(url) + '" alt="Photo" style="max-width:40px;max-height:40px;border-radius:4px;display:block;margin:auto" onerror="this.parentNode.parentNode.textContent=\'N/A\'">'
-                    + '</a>';
-                } else {
-                  cell.textContent = 'N/A';
-                }
+            ['student_photo', 'photo_id'].forEach(function (col) {
+              var cell = document.getElementById('photo-cell-' + col + '-' + r['_record_idx']);
+              if (!cell) return;
+              var url = photoUrls[i];
+              if (url) {
+                cell.innerHTML = '<a href="' + escHtml(url) + '" target="_blank" title="View photo" style="display:block;margin:auto">'
+                  + '<img loading="lazy" decoding="async" src="' + escHtml(url) + '" alt="Photo" style="max-width:40px;max-height:40px;border-radius:4px;display:block;margin:auto" onerror="this.parentNode.parentNode.textContent=\'N/A\'">'
+                  + '</a>';
+              } else {
+                cell.textContent = 'N/A';
+              }
             });
           });
         })
         .withFailureHandler(function (err) {
           showNotification('Error fetching photos.', true);
           records.forEach(function (r, i) {
-            ['student_photo', 'photo_id'].forEach(function(col) {
-                var cell = document.getElementById('photo-cell-' + col + '-' + r['_record_idx']);
-                if (cell) cell.textContent = 'N/A';
+            ['student_photo', 'photo_id'].forEach(function (col) {
+              var cell = document.getElementById('photo-cell-' + col + '-' + r['_record_idx']);
+              if (cell) cell.textContent = 'N/A';
             });
           });
         })
@@ -684,7 +740,7 @@
   function renderCell(c, row, sno) {
     var cellClass = 'col-cell-' + c;
     if (c === 's_no') return '<td class="' + cellClass + '" data-col="' + c + '">' + sno + '</td>';
-    
+
     // [MODIFIED] Special handling for Multi-Media/Virtual Columns
     if (c === 'student_photo' || c === 'photo_id') {
       var photoId = row['photo_id'] || row['student_photo'] || row['student_photo_filename'] || '';
@@ -839,14 +895,14 @@
       var html = '';
       for (var catName in categories) {
         var groupKeys = categories[catName];
-        var availableInGroup = orderedCols.filter(function(oc) { return groupKeys.indexOf(oc.key) !== -1; });
+        var availableInGroup = orderedCols.filter(function (oc) { return groupKeys.indexOf(oc.key) !== -1; });
 
         if (availableInGroup.length > 0) {
           html += '<div class="column-category-group" style="margin-bottom:12px; width:100%">' +
             '<h4 class="category-title" style="margin:0 0 6px; border-bottom:1.5px solid #2c5aa0; padding-bottom:2px; font-size:11.5px; color:#1a3a5c; text-transform:uppercase; letter-spacing:0.5px">' + catName + '</h4>' +
             '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:4px;">';
 
-          availableInGroup.forEach(function(oc) {
+          availableInGroup.forEach(function (oc) {
             var isSno = (oc.key === 's_no');
             var isChecked = (isSno || STATE.selectedColumns.indexOf(oc.key) !== -1);
             var disabled = isSno ? 'disabled' : '';
@@ -863,12 +919,12 @@
       // Catch-all for any columns in orderedCols that aren't in categories
       var categorizedKeys = [];
       for (var ck in categories) { categorizedKeys = categorizedKeys.concat(categories[ck]); }
-      var uncategorized = orderedCols.filter(function(oc) { return categorizedKeys.indexOf(oc.key) === -1; });
+      var uncategorized = orderedCols.filter(function (oc) { return categorizedKeys.indexOf(oc.key) === -1; });
       if (uncategorized.length > 0) {
         html += '<div class="column-category-group" style="margin-bottom:12px; width:100%">' +
           '<h4 class="category-title" style="margin:0 0 6px; border-bottom:1.5px solid #666; padding-bottom:2px; font-size:11.5px; color:#333; text-transform:uppercase">Misc</h4>' +
           '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:4px;">';
-        uncategorized.forEach(function(oc) {
+        uncategorized.forEach(function (oc) {
           var isChecked = STATE.selectedColumns.indexOf(oc.key) !== -1;
           html += '<label class="modern-checkbox-label">' +
             '<input type="checkbox" class="col-check" value="' + oc.key + '" ' + (isChecked ? 'checked' : '') + '> ' + escHtml(oc.label) + '</label>';
@@ -900,16 +956,16 @@
     document.body.classList.remove('modal-open');
   }
   function selectAllColumns() {
-    document.querySelectorAll('.col-check').forEach(function(cb) { cb.checked = true; });
+    document.querySelectorAll('.col-check').forEach(function (cb) { cb.checked = true; });
   }
   function resetDefaultColumns() {
-    document.querySelectorAll('.col-check').forEach(function(cb) {
+    document.querySelectorAll('.col-check').forEach(function (cb) {
       cb.checked = (cb.value === 's_no' || STATE.defaultColumns.indexOf(cb.value) !== -1);
     });
   }
   function applyColumns() {
     var selected = [];
-    document.querySelectorAll('.col-check').forEach(function(cb) {
+    document.querySelectorAll('.col-check').forEach(function (cb) {
       if (cb.checked || cb.value === 's_no') selected.push(cb.value);
     });
     STATE.selectedColumns = selected;
@@ -942,6 +998,13 @@
     fillSel('tool-session-select', STATE.sessions, curS, true);
     fillSel('tool-class-select', STATE.classes, curC, true);
 
+    // Register Tab
+    fillSel('register-tool-session-select', STATE.sessions, curS, false);
+
+    // Sentup Tab
+    fillSel('sentup-tool-session-select', STATE.sessions, curS, false);
+    fillSel('sentup-tool-class-select', STATE.classes, curC, false);
+
     // Dates Tab
     fillSel('date-tool-session-select', STATE.sessions, curS, true);
     fillSel('date-tool-class-select', STATE.classes, curC, true);
@@ -968,6 +1031,7 @@
 
     modal.classList.add('active');
     document.body.classList.add('modal-open');
+    STATE.editorScope = ''; // Reset scope to force re-fetch on first load
     refreshToolData();
   }
 
@@ -986,13 +1050,17 @@
 
     var filters = { sessions: session ? [session] : [], classes: cls ? [cls] : [] };
 
+    showGlobalProcessing(true, "Updating Dates", "Assigning admission dates to the selected range...");
+
     google.script.run
       .withSuccessHandler(function (res) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = "Update Adm. Dates";
         if (res.success) showNotification("Updated " + res.count + " records.", true);
         else showNotification("Error updating records.", false);
       })
       .withFailureHandler(function (err) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = "Update Adm. Dates";
         showNotification(err.message, false);
       })
@@ -1007,6 +1075,41 @@
     document.getElementById('tool-section-' + tab).classList.add('active');
 
     if (tab === 'editor') initDbEditor();
+    if (tab === 'register' || tab === 'sentup' || tab === 'photos') {
+        var curS = (STATE.currentFilters.sessions && STATE.currentFilters.sessions.length === 1) ? STATE.currentFilters.sessions[0] : (STATE.sessions[0] || "");
+        var curC = (STATE.currentFilters.classes && STATE.currentFilters.classes.length === 1) ? STATE.currentFilters.classes[0] : (STATE.classes[0] || "");
+        
+        var sessSelId = tab === 'register' ? 'register-tool-session-select' : 
+                        (tab === 'sentup' ? 'sentup-tool-session-select' : 'photo-tool-session-select');
+        var classSelId = tab === 'sentup' ? 'sentup-tool-class-select' : 
+                         (tab === 'photos' ? 'photo-tool-class-select' : null);
+        
+        var regSel = document.getElementById(sessSelId);
+        if (regSel) {
+            regSel.innerHTML = '';
+            STATE.sessions.forEach(function(s) {
+                var opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                regSel.appendChild(opt);
+            });
+            if (curS) regSel.value = curS;
+        }
+        
+        if (classSelId) {
+            var clsSel = document.getElementById(classSelId);
+            if (clsSel) {
+                clsSel.innerHTML = '';
+                STATE.classes.forEach(function(c) {
+                    var opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = c;
+                    clsSel.appendChild(opt);
+                });
+                if (curC) clsSel.value = curC;
+            }
+        }
+    }
   }
 
   var editorTimer;
@@ -1014,49 +1117,103 @@
     var colKey = document.getElementById('editor-column-select').value;
     var tableBody = document.getElementById('db-editor-rows');
     var header = document.getElementById('editor-target-header');
+    var searchVal = document.getElementById('editor-search').value.trim().toLowerCase();
+    var session = document.getElementById('editor-session-select').value;
+    var cls = document.getElementById('editor-class-select').value;
 
     if (!colKey) {
-      tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:#999">Please select a column to begin.</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Please select a column to begin.</td></tr>';
       header.textContent = 'Value';
+      var countEl = document.getElementById('editor-count-display');
+      if (countEl) countEl.textContent = 'Ready';
       return;
     }
 
     header.textContent = STATE.allColumns[colKey] || 'Value';
-    tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:#999">Fetching students...</td></tr>';
 
-    clearTimeout(editorTimer);
-    editorTimer = setTimeout(function () {
+    // 1. Determine if we need a server fetch (Scope changed or List empty)
+    var currentScope = session + "||" + cls;
+    if (STATE.editorScope !== currentScope || !STATE.editorFullList || STATE.editorFullList.length === 0) {
+      tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999"><div class="mini-spinner" style="display:inline-block; vertical-align:middle; margin-right:8px"></div> Fetching all students for ' + (cls || 'selected class') + '...</td></tr>';
+      
+      STATE.editorScope = currentScope;
       var toolFilters = {
-        sessions: document.getElementById('editor-session-select').value ? [document.getElementById('editor-session-select').value] : [],
-        classes: document.getElementById('editor-class-select').value ? [document.getElementById('editor-class-select').value] : [],
-        unifiedSearch: document.getElementById('editor-search').value.trim(),
+        sessions: session ? [session] : [],
+        classes: cls ? [cls] : [],
+        unifiedSearch: '', // Fetch ALL first for local search capability
         reportType: 'general',
         sortBy: 'class_r_no',
         sortOrder: 'ASC',
-        selectedColumns: [colKey, 'class_r_no', 'student_name']
+        selectedColumns: [colKey, 'class_r_no', 'student_name', 'adm_no', 'form_no']
       };
 
-      google.script.run
-        .withSuccessHandler(function (data) {
-          if (!data.records || !data.records.length) {
-            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">No students found matching these filters.</td></tr>';
-            return;
-          }
-          var html = '';
-          data.records.forEach(function (r, idx) {
-            html += '<tr class="editor-row" id="editor-row-' + idx + '">' +
-              '<td style="text-align:center"><input type="checkbox" class="editor-row-cb" data-idx="' + idx + '"></td>' +
-              '<td>' + escHtml(r.class_r_no || '-') + '</td>' +
-              '<td>' + escHtml(r.student_name || 'Unk') + '</td>' +
-              '<td><input type="text" class="db-editor-input" data-rowidx="' + r._rowIdx + '" data-idx="' + idx + '" value="' + escHtml(r[colKey] || '') + '" oninput="handleEditorSync(this)" onpaste="handleEditorPaste(event, this)"></td>' +
-              '<td></td>' +
-              '</tr>';
-          });
-          tableBody.innerHTML = html;
-          document.getElementById('editor-select-all').checked = false;
-        })
-        .getFilteredData(toolFilters, true);
-    }, 250);
+      clearTimeout(editorTimer);
+      editorTimer = setTimeout(function() {
+        google.script.run
+          .withSuccessHandler(function (data) {
+            STATE.editorFullList = data.records || [];
+            renderDbEditorRows(colKey, searchVal);
+          })
+          .getFilteredData(toolFilters, true);
+      }, 100);
+      return;
+    }
+
+    // 2. Local search logic (No server call)
+    renderDbEditorRows(colKey, searchVal);
+  }
+
+  function renderDbEditorRows(colKey, searchVal) {
+    var tableBody = document.getElementById('db-editor-rows');
+    var records = STATE.editorFullList;
+    
+    // High-speed local filtering
+    var filtered = records;
+    if (searchVal) {
+      filtered = records.filter(function(r) {
+        return (String(r.student_name || '')).toLowerCase().includes(searchVal) ||
+               (String(r.class_r_no || '')).toLowerCase().includes(searchVal) ||
+               (String(r.adm_no || '')).toLowerCase().includes(searchVal) ||
+               (String(r.form_no || '')).toLowerCase().includes(searchVal);
+      });
+    }
+
+    if (!filtered.length) {
+      tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">No students found matching "' + escHtml(searchVal) + '".</td></tr>';
+      var countEl = document.getElementById('editor-count-display');
+      if (countEl) countEl.textContent = 'No matches found';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function (r, idx) {
+      var inputHtml = '';
+      if (colKey === 'readmission') {
+          var curVal = (r[colKey] || '').toString().toLowerCase();
+          inputHtml = '<select class="db-editor-input" data-rowidx="' + r._rowIdx + '" data-idx="' + idx + '" onchange="handleEditorSync(this)">' +
+                      '<option value="">-- Empty --</option>' +
+                      '<option value="Yes" ' + (curVal === 'yes' ? 'selected' : '') + '>Readmission</option>' +
+                      '</select>';
+      } else {
+          inputHtml = '<input type="text" class="db-editor-input" data-rowidx="' + r._rowIdx + '" data-idx="' + idx + '" value="' + escHtml(r[colKey] || '') + '" oninput="handleEditorSync(this)" onpaste="handleEditorPaste(event, this)">';
+      }
+
+      html += '<tr class="editor-row" id="editor-row-' + idx + '">' +
+        '<td style="text-align:center"><input type="checkbox" class="editor-row-cb" data-idx="' + idx + '"></td>' +
+        '<td>' + escHtml(r.class_r_no || '-') + '</td>' +
+        '<td>' + escHtml(r.student_name || 'Unk') + '</td>' +
+        '<td>' + inputHtml + '</td>' +
+        '<td style="text-align:center; color:#ccc; font-size:9px">#' + r._rowIdx + '</td>' +
+        '</tr>';
+    });
+    tableBody.innerHTML = html;
+    document.getElementById('editor-select-all').checked = false;
+    
+    // Update count display
+    var countEl = document.getElementById('editor-count-display');
+    if (countEl) {
+        countEl.innerHTML = 'Showing <strong>' + filtered.length + '</strong> of ' + records.length + ' students';
+    }
   }
 
   function toggleAllEditorRows(cb) {
@@ -1161,13 +1318,19 @@
 
     var btn = document.getElementById('editor-save-btn');
     btn.disabled = true; btn.textContent = 'Saving...';
+    showGlobalProcessing(true, "Saving Changes", "Writing " + updates.length + " updates to the database...");
 
     google.script.run
       .withSuccessHandler(function (res) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = 'Save ALL Changes';
         showNotification('Successfully updated ' + res.count + ' records!', true);
+        // Refresh editor records so local list matches server
+        STATE.editorScope = '';
+        initDbEditor();
       })
       .withFailureHandler(function (err) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = 'Save ALL Changes';
         showNotification('Error: ' + err.message, false);
       })
@@ -1302,8 +1465,11 @@
     var toolRollEnd = (document.getElementById('tool-roll-end').value || '').trim();
     targetFilters.rollNoRange = (toolRollStart && toolRollEnd) ? (toolRollStart + "-" + toolRollEnd) : "";
 
+    showGlobalProcessing(true, "Assigning IDs", "Calculating and assigning new admission numbers...");
+
     google.script.run
       .withSuccessHandler(function (res) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = '🚀 Run New ID Assignment';
         if (res.success) {
           showNotification('Success! Assigned IDs to ' + res.count + ' students.', false);
@@ -1314,6 +1480,7 @@
         }
       })
       .withFailureHandler(function (err) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = '🚀 Run New ID Assignment';
         showNotification('Error during assignment: ' + err.message, true);
       })
@@ -1330,14 +1497,17 @@
 
     var btn = document.getElementById('tool-btn-sync-ids');
     btn.disabled = true; btn.textContent = 'Linking...';
+    showGlobalProcessing(true, "Linking IDs", "Analyzing readmission cases and assigning bracketed IDs...");
 
     google.script.run
       .withSuccessHandler(function (res) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = '🔗 Link Old IDs (Readm. Check)';
         showNotification('Successfully linked ' + res.count + ' readmission IDs.', false);
         applyFilters();
       })
       .withFailureHandler(function (err) {
+        showGlobalProcessing(false);
         btn.disabled = false; btn.textContent = '🔗 Link Old IDs (Readm. Check)';
         showNotification('Error syncing: ' + err.message, true);
       })
@@ -1353,14 +1523,17 @@
 
     // Use toast notification instead of the destructive full-table loading spinner
     showNotification('Generating Excel file... Please wait.', false);
+    showGlobalProcessing(true, "Generating Excel", "Preparing student data for export...");
 
     // Send data directly to server to skip redundant recalculation
     google.script.run
       .withSuccessHandler(function (url) {
+        showGlobalProcessing(false);
         showNotification('Excel download started!', false);
         window.open(url, '_blank');
       })
       .withFailureHandler(function (err) {
+        showGlobalProcessing(false);
         showNotification('Export error: ' + err.message, true);
       })
       .exportToSheetDirect(STATE.currentResult, STATE.selectedColumns);
@@ -1382,6 +1555,49 @@
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
+  // ==== PROCESSING OVERLAY & SECURITY ====
+  function showGlobalProcessing(active, title, msg) {
+    STATE.isProcessing = active;
+    var overlay = document.getElementById('processingOverlay');
+    if (!overlay) return;
+
+    if (active) {
+      document.getElementById('processingTitle').textContent = title || 'Processing...';
+      document.getElementById('processingMsg').textContent = msg || 'Please do not close this window to avoid data corruption.';
+      
+      // Reset progress
+      document.getElementById('global-progress-bar').style.width = '0%';
+      document.getElementById('global-progress-percent').textContent = '0%';
+      document.getElementById('global-progress-status').textContent = 'Initializing...';
+      
+      overlay.classList.add('active');
+      document.body.classList.add('modal-open');
+    } else {
+      overlay.classList.remove('active');
+      if (!document.getElementById('tools-modal').classList.contains('active') &&
+        !document.getElementById('columns-modal').classList.contains('active')) {
+        document.body.classList.remove('modal-open');
+      }
+    }
+  }
+
+  function updateGlobalProgress(pct, status) {
+    var bar = document.getElementById('global-progress-bar');
+    var txt = document.getElementById('global-progress-percent');
+    var st = document.getElementById('global-progress-status');
+    if (bar) bar.style.width = pct + '%';
+    if (txt) txt.textContent = Math.round(pct) + '%';
+    if (st && status) st.textContent = status;
+  }
+
+  // Prevent accidental window close during processing
+  window.addEventListener('beforeunload', function (e) {
+    if (STATE.isProcessing) {
+      e.preventDefault();
+      e.returnValue = 'A process is currently running. Closing the window may result in incomplete data updates. Are you sure?';
+    }
+  });
+
   // ==== NOTIFICATION TOAST ====
   function showNotification(msg, isError) {
     var t = document.getElementById('notification-toast');
@@ -1398,6 +1614,247 @@
     setTimeout(function () {
       t.classList.remove('show');
     }, 4000); // hide after 4 seconds
+  }
+
+  function generateAdmissionRegisterReport(isSample) {
+    const session = document.getElementById('register-tool-session-select').value;
+    if (!session) {
+      showNotification('Please select a session.', true);
+      return;
+    }
+
+    showGlobalProcessing(true, 'Preparing Admission Register...', 'Fetching student data and generating print layout. This may take a moment for large datasets.');
+    updateGlobalProgress(10, 'Connecting...');
+
+    let prog = 10;
+    const interval = setInterval(() => {
+        if (prog < 95) {
+            prog += Math.random() * 5;
+            if (prog > 95) prog = 95;
+            updateGlobalProgress(prog, 'Processing Records...');
+        }
+    }, 450);
+
+    google.script.run
+      .withSuccessHandler(function (html) {
+        clearInterval(interval);
+        updateGlobalProgress(100, 'Complete!');
+        setTimeout(() => {
+            showGlobalProcessing(false);
+            const newWindow = window.open();
+            if (newWindow) {
+              newWindow.document.write(html);
+              newWindow.document.close();
+            } else {
+              alert('Pop-up blocked! Please allow pop-ups for this site to view the report.');
+            }
+        }, 500);
+      })
+      .withFailureHandler(function (err) {
+        clearInterval(interval);
+        showGlobalProcessing(false);
+        showNotification('Failed to generate register: ' + err.message, true);
+      })
+      .getAdmissionRegisterHtml(session, isSample);
+  }
+
+  function generateSentupReport(isSample) {
+    const session = document.getElementById('sentup-tool-session-select').value;
+    const className = document.getElementById('sentup-tool-class-select').value;
+    
+    if (!session || !className) {
+      showNotification('Please select both session and class.', true);
+      return;
+    }
+
+    showGlobalProcessing(true, 'Generating Sentup List...', 'Fetching student data and applying class theme. Please wait.');
+    updateGlobalProgress(10, 'Connecting...');
+
+    let prog = 10;
+    const interval = setInterval(() => {
+        if (prog < 95) {
+            prog += Math.random() * 6;
+            if (prog > 95) prog = 95;
+            updateGlobalProgress(prog, 'Fetching Data...');
+        }
+    }, 400);
+
+    google.script.run
+      .withSuccessHandler(function (html) {
+        clearInterval(interval);
+        updateGlobalProgress(100, 'Done!');
+        setTimeout(() => {
+            showGlobalProcessing(false);
+            const newWindow = window.open();
+            if (newWindow) {
+              newWindow.document.write(html);
+              newWindow.document.close();
+            } else {
+              alert('Pop-up blocked! Please allow pop-ups to view the report.');
+            }
+        }, 500);
+      })
+      .withFailureHandler(function (err) {
+        clearInterval(interval);
+        showGlobalProcessing(false);
+        showNotification('Failed to generate sentup: ' + err.message, true);
+      })
+      .getSentupHtml(session, className, isSample);
+  }
+
+  // ---- PHOTO EXPORT TOOL (NEW) ----
+  var PHOTO_EXPORT_STATE = {
+    students: [],
+    total: 0,
+    processed: 0,
+    batchSize: 20,
+    classFolderId: '',
+    className: '',
+    sessionName: ''
+  };
+
+  async function startPhotoExport() {
+    const session = document.getElementById('photo-tool-session-select').value;
+    const className = document.getElementById('photo-tool-class-select').value;
+    const rollFrom = document.getElementById('photo-roll-start').value;
+    const rollTo = document.getElementById('photo-roll-end').value;
+
+    if (!session || !className) {
+      showNotification('Please select both session and class.', true);
+      return;
+    }
+
+    const btn = document.getElementById('tool-btn-photo-export');
+    const prog = document.getElementById('photo-export-progress-container');
+    const status = document.getElementById('photo-export-status');
+    const details = document.getElementById('photo-export-details');
+    const resumeNote = document.getElementById('photo-export-resume-note');
+    const bar = document.getElementById('photo-export-progress-bar');
+    const pctText = document.getElementById('photo-export-percent');
+
+    btn.disabled = true;
+    btn.textContent = 'Preparing...';
+    prog.classList.remove('hidden');
+    resumeNote.classList.add('hidden');
+    status.textContent = 'Fetching student list...';
+    details.textContent = 'Please wait...';
+    bar.style.width = '0%';
+    pctText.textContent = '0%';
+
+    google.script.run
+      .withSuccessHandler(function (students) {
+        if (!students || students.length === 0) {
+          showNotification('No students found with photos for the selected criteria.', true);
+          btn.disabled = false;
+          btn.textContent = '🚀 Export & Download ZIP';
+          prog.classList.add('hidden');
+          return;
+        }
+
+        PHOTO_EXPORT_STATE.students = students;
+        PHOTO_EXPORT_STATE.total = students.length;
+        PHOTO_EXPORT_STATE.processed = 0;
+        PHOTO_EXPORT_STATE.className = className;
+        PHOTO_EXPORT_STATE.sessionName = session;
+        PHOTO_EXPORT_STATE.classFolderId = '';
+
+        status.textContent = 'Processing photos...';
+        details.textContent = '0 / ' + PHOTO_EXPORT_STATE.total + ' student(s) processed';
+        
+        processNextPhotoBatch();
+      })
+      .withFailureHandler(function (err) {
+        showNotification('Error: ' + err.message, true);
+        btn.disabled = false;
+        btn.textContent = '🚀 Export & Download ZIP';
+        prog.classList.add('hidden');
+      })
+      .getStudentsForPhotoExport(session, className, rollFrom, rollTo);
+  }
+
+  function processNextPhotoBatch() {
+    const start = PHOTO_EXPORT_STATE.processed;
+    const end = Math.min(start + PHOTO_EXPORT_STATE.batchSize, PHOTO_EXPORT_STATE.total);
+    const batch = PHOTO_EXPORT_STATE.students.slice(start, end);
+
+    if (batch.length === 0) {
+      finalizeZip();
+      return;
+    }
+
+    const status = document.getElementById('photo-export-status');
+    const details = document.getElementById('photo-export-details');
+    const bar = document.getElementById('photo-export-progress-bar');
+    const pctText = document.getElementById('photo-export-percent');
+
+    status.textContent = 'Copying batch (' + (start + 1) + '-' + end + ')...';
+    
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.skipped > 0) {
+          document.getElementById('photo-export-resume-note').classList.remove('hidden');
+        }
+        
+        PHOTO_EXPORT_STATE.processed = end;
+        PHOTO_EXPORT_STATE.classFolderId = res.classFolderId;
+
+        const pct = Math.round((PHOTO_EXPORT_STATE.processed / PHOTO_EXPORT_STATE.total) * 100);
+        bar.style.width = pct + '%';
+        pctText.textContent = pct + '%';
+        details.textContent = PHOTO_EXPORT_STATE.processed + ' / ' + PHOTO_EXPORT_STATE.total + ' student(s) processed';
+
+        processNextPhotoBatch();
+      })
+      .withFailureHandler(function (err) {
+        showNotification('Batch Error: ' + err.message, true);
+        document.getElementById('tool-btn-photo-export').disabled = false;
+        document.getElementById('tool-btn-photo-export').textContent = 'Retry Export';
+      })
+      .processPhotoExportBatch(batch, PHOTO_EXPORT_STATE.sessionName, PHOTO_EXPORT_STATE.className);
+  }
+
+  function finalizeZip() {
+    const status = document.getElementById('photo-export-status');
+    const details = document.getElementById('photo-export-details');
+    const btn = document.getElementById('tool-btn-photo-export');
+
+    status.textContent = 'Creating ZIP archive...';
+    details.textContent = 'This may take a minute for many photos...';
+
+    const zipName = PHOTO_EXPORT_STATE.className.replace(/\s+/g, '_') + "_Photos_" + PHOTO_EXPORT_STATE.sessionName.replace(/\s+/g, '_');
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          status.textContent = 'Success! Downloading...';
+          details.textContent = 'ZIP file ready.';
+          
+          // Trigger download
+          const link = document.createElement('a');
+          link.href = res.downloadUrl;
+          link.target = "_blank";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          showNotification('Photo export complete. ZIP downloaded.', false);
+        } else {
+          showNotification('Finalize error: ' + res.message, true);
+        }
+
+        btn.disabled = false;
+        btn.textContent = '🚀 Export & Download ZIP';
+        // Keep progress visible for a moment
+        setTimeout(() => {
+          document.getElementById('photo-export-progress-container').classList.add('hidden');
+        }, 5000);
+      })
+      .withFailureHandler(function (err) {
+        showNotification('Finalize error: ' + err.message, true);
+        btn.disabled = false;
+        btn.textContent = '🚀 Export & Download ZIP';
+      })
+      .finalizePhotoExport(PHOTO_EXPORT_STATE.classFolderId, zipName);
   }
 
 </script>
