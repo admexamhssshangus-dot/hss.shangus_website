@@ -49,16 +49,7 @@ const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e92
 
 // Default fallback admin. `hashAlgo` is explicit so the login routine
 // can deterministically pick the proper verification method.
-const DEFAULT_ADMINS = [
-  {
-    email: 'adm.exam.hss.shangus@gmail.com',
-    passwordHash: '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482',
-    hashAlgo: 'sha256',
-    role: 'Super Admin',
-    allowedTabs: ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins'],
-    phone: '+919682547458'
-  }
-];
+const DEFAULT_ADMINS = [];
 
 async function hashPassword(plainText, saltHex = null) {
   if (saltHex) {
@@ -701,7 +692,7 @@ export default function AdminPortal() {
 
   // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
   const [activeTab, setActiveTab] = useState('admissions');
-  const allowedTabs = currentUser?.email?.toLowerCase() === 'adm.exam.hss.shangus@gmail.com'
+  const allowedTabs = currentUser?.role === 'Super Admin'
     ? ALL_ADMIN_TABS
     : (currentUser?.allowedTabs || []);
 
@@ -999,12 +990,11 @@ export default function AdminPortal() {
         const listedAdmin = Array.isArray(admins) && admins.find(a => a.email.toLowerCase() === userEmail);
         // Also check hardcoded defaults as a fallback during initial load race
         const defaultAdmin = DEFAULT_ADMINS.find(a => a.email.toLowerCase() === userEmail);
-        const isSuperAdmin = userEmail === 'adm.exam.hss.shangus@gmail.com';
 
         if (!user.emailVerified && !isAdminClaim) {
           setIsAuthenticated(false);
           setAuthError('Your email address has not been verified. Please verify your email before logging in as an administrator.');
-        } else if (isAdminClaim || listedAdmin || defaultAdmin || isSuperAdmin) {
+        } else if (isAdminClaim || listedAdmin || defaultAdmin) {
           // If we have a local admin entry, use it as the currentUser for permissions
           const matchedAdmin = listedAdmin || defaultAdmin;
           if (matchedAdmin) {
@@ -1167,7 +1157,10 @@ export default function AdminPortal() {
         }
       });
 
-      const phoneNumber = userRecord?.phone || '+919682547458';
+      const phoneNumber = userRecord?.phone;
+      if (!phoneNumber) {
+        throw new Error('No registered phone number found for this administrator. Please contact a Super Admin.');
+      }
       const confirmation = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
       setConfirmationResult(confirmation);
       setLoginStep('otp');
@@ -4942,7 +4935,8 @@ export default function AdminPortal() {
                 </p>
                 <p className="text-sm font-extrabold text-slate-200 tracking-wider">
                   {(() => {
-                    const rawPhone = pendingUser?.phone || '+919682547458';
+                    const rawPhone = pendingUser?.phone || '';
+                    if (!rawPhone) return 'Unknown Number';
                     const cleaned = rawPhone.replace(/\s+/g, '');
                     return cleaned.length > 4 ? `•••••• ${cleaned.slice(-4)}` : cleaned;
                   })()}
