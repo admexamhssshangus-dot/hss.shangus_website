@@ -10,11 +10,9 @@ service cloud.firestore {
         // Route 1: Email-based admin (Google Sign-In or verified email)
         (request.auth.token.email_verified == true && (
           request.auth.token.admin == true ||
-          request.auth.token.email.lower() == "adm.exam.hss.shangus@gmail.com" ||
           request.auth.token.email.lower() in get(/databases/$(database)/documents/site/admins).data.emails
         )) ||
         // Route 2: Phone-based admin (2FA OTP login)
-        request.auth.token.phone_number == "+919682547458" ||
         request.auth.token.phone_number in get(/databases/$(database)/documents/site/admins).data.phones
       );
     }
