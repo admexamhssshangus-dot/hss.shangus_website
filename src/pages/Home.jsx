@@ -122,6 +122,7 @@ export default function Home() {
         const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
         if (res.ok) {
           const text = await res.text();
+          if (text.trim().startsWith('<')) throw new Error('Offline fallback HTML received');
           const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
           const mapped = lines.map((line, idx) => {
             const parts = line.split(',');
@@ -295,6 +296,7 @@ export default function Home() {
         const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
         if (!res.ok) throw new Error('Notices config file not found');
         const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('Offline fallback HTML received');
         const parsed = parseNotices(text);
         
         if (active) {

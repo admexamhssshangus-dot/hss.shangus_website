@@ -27,6 +27,12 @@ export default function ThemeSelector() {
     // PWA Check
     if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
       setIsInstalled(true);
+    } else if (navigator.getInstalledRelatedApps) {
+      navigator.getInstalledRelatedApps().then(relatedApps => {
+        if (relatedApps && relatedApps.length > 0) {
+          setIsInstalled(true);
+        }
+      }).catch(() => {});
     }
 
     const handleBeforeInstallPrompt = (e) => {
@@ -59,7 +65,7 @@ export default function ThemeSelector() {
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
-      alert("Please use your browser's menu (Add to Home Screen) to install the app.");
+      alert("The app is already installed, or installation is not supported on this browser.\n\nIf already installed, look for the 'Open in app' icon in your browser's address bar (next to the URL) to launch it directly!");
       return;
     }
     try {

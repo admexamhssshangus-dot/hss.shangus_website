@@ -1,4 +1,4 @@
-<script>
+
     // Global utility to escape HTML characters
     window.escapeHtmlStr = function (str) {
         if (!str) return '';
@@ -1332,9 +1332,9 @@
         const countSpan = document.getElementById('pushPreviewTargetCount');
         const container = document.getElementById('pushPreviewContainer');
 
-        if (previewBtn) {
-            previewBtn.disabled = true;
-            previewBtn.innerHTML = '<div class="loader-inline" style="border-top-color:white; width:14px; height:14px; margin-right:8px;"></div> Loading...';
+        if (previewBtn) { 
+            previewBtn.disabled = true; 
+            previewBtn.innerHTML = '<div class="loader-inline" style="border-top-color:white; width:14px; height:14px; margin-right:8px;"></div> Loading...'; 
         }
         if (executeBtn) executeBtn.disabled = true;
         if (tbody) {
@@ -1710,10 +1710,10 @@
 
         // [DECOUPLED] We now enforce inactivity logout even if 'Keep me logged in' is active.
         // The persistent token will simply allow them to re-log in automatically upon next visit.
-
+        
         inactivityTimer = setTimeout(() => {
             if (!state.currentUser) return;
-
+            
             // [SYNC] Check if another tab was active more recently before showing prompt
             const lastGlobal = parseInt(localStorage.getItem('hss_last_activity') || '0');
             const now = Date.now();
@@ -1737,7 +1737,7 @@
         ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
             window.addEventListener(evt, () => resetInactivityTimer(false), { passive: true });
         });
-
+        
         // [NEW] Multi-tab synchronization listener
         window.addEventListener('storage', (e) => {
             if (e.key === 'hss_last_activity' && e.newValue) {
@@ -1745,7 +1745,7 @@
             }
             if ((e.key === 'hss_user' || e.key === 'hss_persist_token') && !e.newValue && state.currentUser) {
                 // Logout detected in another tab
-                handleLogout(true, 'Logged out from another tab.');
+                handleLogout(true, 'Logged out from another tab.'); 
             }
             if (e.key === 'hss_active_token' && e.newValue && state.currentUser) {
                 const currentToken = localStorage.getItem('hss_persist_token') || sessionStorage.getItem('hss_session_token');
@@ -2402,7 +2402,7 @@
                 if (filters) {
                     const willBeVisible = filters.classList.contains('mobile-hide');
                     filters.classList.toggle('mobile-hide');
-
+                    
                     // Add active class to button for visual feedback
                     mobileFilterToggle.classList.toggle('btn-primary', willBeVisible);
                     mobileFilterToggle.classList.toggle('btn-secondary', !willBeVisible);
@@ -2710,7 +2710,7 @@
         const active = _loadingRefCounter > 0;
 
         state.isLoading = active;
-
+        
         // Handle Prominent Loader
         const pLoader = document.getElementById('prominentGlobalLoader');
         if (pLoader) {
@@ -2945,7 +2945,7 @@
     function setLoadingMessage(msg) {
         const el = document.getElementById('loader-text');
         if (el) el.textContent = msg || 'Loading, please wait...';
-
+        
         const pEl = document.getElementById('prominentLoaderMsg');
         if (pEl) pEl.textContent = msg || 'Preparing Secure Environment...';
     }
@@ -3323,7 +3323,7 @@
                 if (pctText) pctText.innerText = '100%';
 
                 const targetUrl = portal.url + (portal.url.includes('?') ? '&' : '?') + 'token=' + token;
-
+                
                 setTimeout(() => {
                     if (isDirect) {
                         try {
@@ -4452,10 +4452,10 @@
                 }
             } catch (e) { }
             // Render Profile
-            if (dom.studentProfile) {
-                const studentEmail = toLowerCase(state.currentUser.email || '');
-                const profilePwd = (state.adminData && state.adminData.userProfiles && state.adminData.userProfiles[studentEmail]) ? (state.adminData.userProfiles[studentEmail].passwordPlain || '********') : '********';
-                dom.studentProfile.innerHTML = `
+                        if (dom.studentProfile) {
+                                const studentEmail = toLowerCase(state.currentUser.email || '');
+                                const profilePwd = (state.adminData && state.adminData.userProfiles && state.adminData.userProfiles[studentEmail]) ? (state.adminData.userProfiles[studentEmail].passwordPlain || '********') : '********';
+                                dom.studentProfile.innerHTML = `
                 <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.75rem; margin-bottom: 1.75rem;">
                      <h3 style="font-size: 1rem; margin-top: 0;">Profile</h3>
                      <div style="display: grid; gap: 0.5rem; font-size: 0.875rem;">
@@ -4472,9 +4472,9 @@
                      </div>
                 </div>
             `;
-            } else {
-                console.warn('[UI] studentProfile element not found in DOM');
-            }
+                        } else {
+                                console.warn('[UI] studentProfile element not found in DOM');
+                        }
             // [MODIFIED] Find current application strictly for the logged-in user
             const emailLower = String(state.currentUser?.email || '').toLowerCase();
             const normalizeSession = (s) => String(s || '').replace(/[?-]/g, '-').trim();
@@ -5434,7 +5434,7 @@
                                     return '<div style="width: 38px; height: 38px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 0.6rem; text-align: center;">No Photo</div>';
                                 })()} </td>`;
 
-                            const actionsHtml = `<td class="actions col-actions" data-label="Actions" style="padding: 6px 12px !important; background: var(--bg-secondary);">
+                                                        const actionsHtml = `<td class="actions col-actions" data-label="Actions" style="padding: 6px 12px !important; background: var(--bg-secondary);">
                                                     <div class="action-buttons" style="justify-content: center; gap: 4px;">
                                                         ${unifiedActivityIcon}
                                                         ${hasPdf ? `<button type="button" class="btn btn-secondary btn-small btn-view-pdf" data-form="${app['Form Number']}" title="View PDF" style="padding: 2px 5px; font-size: 0.65rem; min-height: 0 !important; height: auto !important; width: auto !important; line-height: 1; display: inline-flex; align-items: center; border-radius: 3px; font-weight: 600;">PDF</button>` : ''}
@@ -5508,156 +5508,137 @@
                         }
                     }).join('');
 
-                    targetTableBody.innerHTML = rowsHtml;
-
-                    // [NEW] Force layout and scroll to top of table
-                    const parent = targetTableBody.closest('.table-responsive');
-                    if (parent) {
-                        parent.scrollTop = 0;
-                        parent.style.display = 'none';
-                        parent.offsetHeight; // Force reflow
-                        parent.style.display = 'block';
-                    }
-                }
+            // [FIX] Use DocumentFragment for performant batch insertion
+            const fragment = document.createDocumentFragment();
+            const tempBody = document.createElement('tbody');
+            tempBody.innerHTML = rowsHtml;
+            while (tempBody.firstChild) {
+                fragment.appendChild(tempBody.firstChild);
             }
+            targetTableBody.innerHTML = '';
+            targetTableBody.appendChild(fragment);
 
-            // Initialize tooltips for the newly rendered activity icons
-            setTimeout(() => initActivityTooltips(), 50);
+            // [NEW] Force layout and scroll to top of table
+            const parent = targetTableBody.closest('.table-responsive');
+            if (parent) {
+                parent.scrollTop = 0;
+                parent.style.display = 'none';
+                parent.offsetHeight; // Force reflow
+                parent.style.display = 'block';
+            }
+        }
+    }
 
-            // [NEW] Unified Pagination: Single point of truth in the header
-            const paginationConfigs = [
-                { info: 'mainHeaderInfo', prev: 'mainHeaderPrev', next: 'mainHeaderNext' }
-            ];
+    // Initialize tooltips for the newly rendered activity icons
+    setTimeout(() => initActivityTooltips(), 50);
 
-            paginationConfigs.forEach(paginationConfig => {
-                const infoEl = document.getElementById(paginationConfig.info);
-                if (infoEl) infoEl.textContent = `${state.adminData.page} / ${totalPages}`;
+    // [NEW] Unified Pagination: Single point of truth in the header
+    const paginationConfigs = [
+        { info: 'mainHeaderInfo', prev: 'mainHeaderPrev', next: 'mainHeaderNext' }
+    ];
 
-                const prevBtn = document.getElementById(paginationConfig.prev);
-                if (prevBtn) {
-                    prevBtn.disabled = state.adminData.page <= 1;
-                    prevBtn.onclick = () => {
-                        state.adminData.page = Math.max(1, state.adminData.page - 1);
-                        if (typeof clearIdCardResults === 'function') clearIdCardResults();
-                        renderAdminDashboard();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    };
-                }
+    paginationConfigs.forEach(paginationConfig => {
+        const infoEl = document.getElementById(paginationConfig.info);
+        if (infoEl) infoEl.textContent = `${state.adminData.page} / ${totalPages}`;
 
-                const nextBtn = document.getElementById(paginationConfig.next);
-                if (nextBtn) {
-                    nextBtn.disabled = state.adminData.page >= totalPages;
-                    nextBtn.onclick = () => {
-                        state.adminData.page = Math.min(totalPages, state.adminData.page + 1);
-                        if (typeof clearIdCardResults === 'function') clearIdCardResults();
-                        renderAdminDashboard();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    };
-                }
-            });
-            // Re-attach listeners
-            document.querySelectorAll('.btn-actions-menu').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const targetBtn = e.currentTarget;
-                    const cell = targetBtn.closest('td');
-                    const menu = cell.querySelector('.actions-menu');
+        const prevBtn = document.getElementById(paginationConfig.prev);
+        if (prevBtn) {
+            prevBtn.disabled = state.adminData.page <= 1;
+            prevBtn.onclick = () => {
+                state.adminData.page = Math.max(1, state.adminData.page - 1);
+                if (typeof clearIdCardResults === 'function') clearIdCardResults();
+                renderAdminDashboard();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+        }
 
-                    // Close all other menus
-                    document.querySelectorAll('.actions-menu.show').forEach(m => {
-                        if (m !== menu) {
-                            m.classList.remove('show');
-                            const otherCell = m.closest('td');
-                            if (otherCell) otherCell.style.zIndex = '10';
-                        }
-                    });
+        const nextBtn = document.getElementById(paginationConfig.next);
+        if (nextBtn) {
+            nextBtn.disabled = state.adminData.page >= totalPages;
+            nextBtn.onclick = () => {
+                state.adminData.page = Math.min(totalPages, state.adminData.page + 1);
+                if (typeof clearIdCardResults === 'function') clearIdCardResults();
+                renderAdminDashboard();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+        }
+    });
 
-                    // If already shown, hide and exit
-                    if (menu.classList.contains('show')) {
-                        menu.classList.remove('show');
-                        cell.style.zIndex = '10';
-                        return;
-                    }
+    // Re-attach listeners (scoped to targetTableBody for massive performance boost)
+    if (targetTableBody) {
+        targetTableBody.querySelectorAll('.btn-actions-menu').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const targetBtn = e.currentTarget;
+                const cell = targetBtn.closest('td');
+                const menu = cell.querySelector('.actions-menu');
 
-                    // Ensure the current cell is above other sticky cells
-                    cell.style.zIndex = '1001';
-
-                    // [FIX] Pre-measure menu dimensions BEFORE showing it to prevent blink:
-                    // Temporarily make it visible-but-transparent off-screen, measure, then position & show.
-                    const rect = targetBtn.getBoundingClientRect();
-                    menu.style.position = 'fixed';
-                    menu.style.zIndex = '100000';
-                    menu.style.visibility = 'hidden'; // hide from user
-                    menu.style.top = '-9999px';        // move off-screen
-                    menu.style.left = '-9999px';
-                    menu.style.display = 'block';      // make it renderable so we can measure
-
-                    // Force layout/reflow so the browser computes real dimensions
-                    const menuWidth = menu.offsetWidth;
-                    const menuHeight = menu.offsetHeight;
-
-                    // Compute correct position
-                    let top = rect.bottom + 6;
-                    let left = rect.right - menuWidth;
-
-                    // Adjust if overflowing right/left
-                    if (left + menuWidth > window.innerWidth - 10) {
-                        left = window.innerWidth - menuWidth - 10;
-                    }
-                    if (left < 10) left = 10;
-
-                    // Adjust if overflowing bottom
-                    if (top + menuHeight > window.innerHeight - 10) {
-                        top = rect.top - menuHeight - 6;
-                    }
-
-                    // Apply final position and reveal in one go
-                    menu.style.top = `${top}px`;
-                    menu.style.left = `${left}px`;
-                    menu.style.display = ''; // reset (let .show class handle display)
-                    menu.style.visibility = '';
-                    menu.classList.add('show');
-                });
-            });
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.col-actions')) {
-                    document.querySelectorAll('.actions-menu.show').forEach(m => {
+                document.querySelectorAll('.actions-menu.show').forEach(m => {
+                    if (m !== menu) {
                         m.classList.remove('show');
-                        const cell = m.closest('td');
-                        if (cell) cell.style.zIndex = '10';
-                    });
-                }
-                if (!e.target.closest('.event-tooltip') && !e.target.closest('.event-icon')) {
-                    document.querySelectorAll('.event-tooltip').forEach(t => t.remove());
-                }
-            });
-            document.querySelectorAll('.event-icon').forEach(icon => {
-                icon.addEventListener('click', async (e) => {
-                    const row = e.target.closest('tr');
-                    const formNumber = row?.dataset?.formNumber;
-                    if (!formNumber) return;
-                    await openEventDetailsPopup(formNumber);
+                        const otherCell = m.closest('td');
+                        if (otherCell) otherCell.style.zIndex = '10';
+                    }
                 });
-            });
-            // [FIX] Use direct onclick/onchange assignments instead of addEventListener to prevent double-binding when dashboard re-renders
-            document.querySelectorAll('.btn-view-pdf').forEach(btn => btn.onclick = handleAdminViewPDF);
-            document.querySelectorAll('.menu-view').forEach(btn => btn.onclick = handleAdminView);
-            document.querySelectorAll('.menu-edit').forEach(btn => btn.onclick = handleAdminEdit);
-            document.querySelectorAll('.menu-delete').forEach(btn => btn.onclick = handleAdminDelete);
-            document.querySelectorAll('.menu-unlock').forEach(btn => btn.onclick = handleAdminUnlock);
-            document.querySelectorAll('.menu-history').forEach(btn => btn.onclick = (e) => { const row = e.currentTarget.closest('tr'); const form = row?.dataset?.formNumber; if (form) openEventDetailsPopup(form); });
-            document.querySelectorAll('.menu-lock-now').forEach(btn => btn.onclick = handleAdminLockNow);
-            document.querySelectorAll('.menu-download-pdf').forEach(btn => btn.onclick = handleAdminDownloadPDF);
-            document.querySelectorAll('.menu-send-pass').forEach(btn => btn.onclick = handleAdminSendPassword);
-            document.querySelectorAll('.menu-reject').forEach(btn => btn.onclick = handleAdminReject);
-            document.querySelectorAll('.menu-send-whatsapp').forEach(btn => btn.onclick = handleAdminSendWhatsApp);
 
-            document.querySelectorAll('.btn-copy-email').forEach(btn => btn.onclick = async (ev) => {
-                const email = ev.currentTarget.dataset.email || '';
-                if (!email) return;
-                try { await navigator.clipboard.writeText(email); showAlert('admin-alert', 'Email copied', 'success'); } catch (e) { }
-            });
+                if (menu.classList.contains('show')) {
+                    menu.classList.remove('show');
+                    cell.style.zIndex = '10';
+                    return;
+                }
 
+                cell.style.zIndex = '1001';
+                const rect = targetBtn.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.zIndex = '100000';
+                menu.style.visibility = 'hidden';
+                menu.style.top = '-9999px';
+                menu.style.left = '-9999px';
+                menu.style.display = 'block';
+
+                const menuWidth = menu.offsetWidth;
+                const menuHeight = menu.offsetHeight;
+                let top = rect.bottom + 6;
+                let left = rect.right - menuWidth;
+
+                if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
+                if (left < 10) left = 10;
+                if (top + menuHeight > window.innerHeight - 10) top = rect.top - menuHeight - 6;
+
+                menu.style.top = `${top}px`;
+                menu.style.left = `${left}px`;
+                menu.style.display = '';
+                menu.style.visibility = '';
+                menu.classList.add('show');
+            });
+        });
+
+        targetTableBody.querySelectorAll('.event-icon').forEach(icon => {
+            icon.addEventListener('click', async (e) => {
+                const row = e.target.closest('tr');
+                const formNumber = row?.dataset?.formNumber;
+                if (!formNumber) return;
+                await openEventDetailsPopup(formNumber);
+            });
+        });
+
+        targetTableBody.querySelectorAll('.btn-view-pdf').forEach(btn => btn.onclick = handleAdminViewPDF);
+        targetTableBody.querySelectorAll('.menu-view').forEach(btn => btn.onclick = handleAdminView);
+        targetTableBody.querySelectorAll('.menu-edit').forEach(btn => btn.onclick = handleAdminEdit);
+        targetTableBody.querySelectorAll('.menu-delete').forEach(btn => btn.onclick = handleAdminDelete);
+        targetTableBody.querySelectorAll('.menu-unlock').forEach(btn => btn.onclick = handleAdminUnlock);
+        targetTableBody.querySelectorAll('.menu-history').forEach(btn => btn.onclick = (e) => { const row = e.currentTarget.closest('tr'); const form = row?.dataset?.formNumber; if (form) openEventDetailsPopup(form); });
+        targetTableBody.querySelectorAll('.menu-lock-now').forEach(btn => btn.onclick = handleAdminLockNow);
+        targetTableBody.querySelectorAll('.menu-download-pdf').forEach(btn => btn.onclick = handleAdminDownloadPDF);
+        targetTableBody.querySelectorAll('.menu-send-pass').forEach(btn => btn.onclick = handleAdminSendPassword);
+        targetTableBody.querySelectorAll('.menu-reject').forEach(btn => btn.onclick = handleAdminReject);
+        targetTableBody.querySelectorAll('.menu-send-whatsapp').forEach(btn => btn.onclick = handleAdminSendWhatsApp);
+        targetTableBody.querySelectorAll('.btn-copy-email').forEach(btn => btn.onclick = async (ev) => {
+            const email = ev.currentTarget.dataset.email || '';
+            if (!email) return;
+            try { await navigator.clipboard.writeText(email); showAlert('admin-alert', 'Email copied', 'success'); } catch (e) { }
+        });
+            
             document.querySelectorAll('.roll-no-input').forEach(input => {
                 input.addEventListener('change', async (e) => {
                     const formNo = e.target.dataset.form;
@@ -5685,6 +5666,7 @@
                     }
                 });
             });
+        } // [FIX] Add missing closing brace for if (targetTableBody) block
             // Batch actions
             const selectAll = document.getElementById('adminSelectAll');
             if (selectAll) {
@@ -9090,10 +9072,10 @@
                 if (s) sessions.add(s);
             });
             const sessionList = Array.from(sessions).sort().reverse();
-
+            
             // Classes (Standard School Classes)
             const classList = ['9th', '10th', '11th', '12th'];
-
+            
             // Streams (Science/Humanities/General)
             const streamList = ['Science', 'Humanities', 'General'];
 
@@ -9143,7 +9125,7 @@
         const btn = document.getElementById('loadFilteredContactsBtn');
         const input = document.getElementById('toolsFormNumbers');
         const onlyRollNos = document.getElementById('contactSaverOnlyRollNos').checked;
-
+        
         // Helper to get multi-select values
         const getSelected = (id) => {
             const container = document.getElementById(id);
@@ -9159,7 +9141,7 @@
 
         try {
             let students = state.adminData.applications || [];
-
+            
             // 1. Session Filter
             if (selSessions.length > 0) {
                 const sessSet = new Set(selSessions);
@@ -9180,20 +9162,20 @@
                 students = students.filter(s => {
                     const cls = (s['Admission sought for class'] || s['class'] || '').toLowerCase();
                     const subjects = (s.Subjects || s.subs || '').toLowerCase();
-
+                    
                     const is11or12 = cls.includes('11') || cls.includes('12');
                     const is9or10 = cls.includes('9') || cls.includes('10');
                     const hasScienceSubjects = subjects.includes('physics') && subjects.includes('chemistry');
 
                     // Science: 11th/12th with Physics & Chemistry
                     if (streamSet.has('science') && is11or12 && hasScienceSubjects) return true;
-
+                    
                     // Humanities: 11th/12th without Science subjects
                     if (streamSet.has('humanities') && is11or12 && !hasScienceSubjects) return true;
-
+                    
                     // General: 9th/10th
                     if (streamSet.has('general') && is9or10) return true;
-
+                    
                     return false;
                 });
             }
@@ -9211,7 +9193,7 @@
             const formNumbers = students.map(s => s['Form Number'] || s['form_no']).filter(v => v).join(', ');
             input.value = formNumbers;
             showAlert('admin-alert', `Loaded ${students.length} students into the list.`, 'success');
-
+            
         } catch (e) {
             console.error('Filter Error:', e);
             showAlert('admin-alert', 'Filter Error: ' + e.message, 'danger');
@@ -10510,7 +10492,7 @@
                 }
 
                 // Open most recent ID Card folder when clicking the Open Folder button
-                (function attachOpenIdCardFolderBtn() {
+                (function attachOpenIdCardFolderBtn(){
                     try {
                         const btn = document.getElementById('openIdCardFolderBtn');
                         if (!btn) return;
@@ -10947,10 +10929,10 @@
                 } else {
                     state.adminActivity = logs;
                 }
-
+                
                 state.adminActivityFiltered = [...state.adminActivity];
                 state.activityOffset += logs.length;
-
+                
                 if (logs.length < state.activityLimit) {
                     state.activityHasMore = false;
                 }
@@ -10968,7 +10950,7 @@
     function renderActivityLoadingStatus() {
         const container = document.querySelector('#adminActivity .table-container');
         if (!container) return;
-
+        
         let status = document.getElementById('activityLoadingStatus');
         if (!status) {
             status = document.createElement('div');
@@ -10992,16 +10974,16 @@
     function initActivityScroll() {
         const container = document.querySelector('#adminActivity .table-container');
         if (!container || container.dataset.scrollBound) return;
-
+        
         container.addEventListener('scroll', debounce(() => {
             if (state.activityLoading || !state.activityHasMore) return;
-
+            
             const { scrollTop, scrollHeight, clientHeight } = container;
             if (scrollTop + clientHeight >= scrollHeight - 100) {
                 loadAdminActivity(true);
             }
         }, 150));
-
+        
         container.dataset.scrollBound = 'true';
     }
 
@@ -11069,7 +11051,7 @@
           </tr>
         `).join('');
         }
-
+        
         initActivityScroll();
         renderActivityLoadingStatus();
 
@@ -11095,17 +11077,17 @@
     function initWhitelistSearch() {
         const searchInput = document.getElementById('whitelistSearch');
         if (!searchInput || searchInput.dataset.bound) return;
-
+        
         searchInput.addEventListener('input', debounce(() => {
             const q = (searchInput.value || '').toLowerCase();
-            state.whitelistEntries = (state.adminData?.mobileWhitelist || []).filter(r =>
+            state.whitelistEntries = (state.adminData?.mobileWhitelist || []).filter(r => 
                 String(r.email || '').toLowerCase().includes(q) ||
                 String(r.mobile || '').toLowerCase().includes(q) ||
                 String(r.reason || '').toLowerCase().includes(q)
             );
             renderMobileWhitelist();
         }, 200));
-
+        
         searchInput.dataset.bound = 'true';
     }
 
@@ -11164,7 +11146,7 @@
         </tr>
       `).join('');
         }
-
+        
         initWhitelistSearch();
 
         document.querySelectorAll('.btn-remove-whitelist').forEach(btn => {
@@ -11713,7 +11695,7 @@
 
         try {
             const res = await runServerFunction('switchUserRole', state.currentUser.email, newRole);
-
+            
             if (res.success) {
                 // Update cache and state
                 sessionStorage.setItem('hss_user', JSON.stringify(res.data.profile));
@@ -11733,4 +11715,3 @@
 
 
 
-</script>

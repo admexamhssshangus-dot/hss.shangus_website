@@ -245,7 +245,7 @@ export default function Admissions() {
               </div>
             </div>
 
-            <div className="hidden sm:block overflow-x-auto md:col-span-1">
+            <div className="hidden sm:block overflow-x-auto md:col-span-1 mt-6 md:mt-0">
               <h4 className="text-sm font-extrabold text-slate-400 mb-3 text-center md:text-left uppercase tracking-wider">Secondary</h4>
               <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-white">
                 <table className="w-full text-sm text-center border-collapse">
@@ -269,43 +269,92 @@ export default function Admissions() {
               </div>
             </div>
 
-            {/* Mobile stacked cards (visible < sm) */}
-            <div className="sm:hidden space-y-3 w-full">
-              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Subject Combinations</h4>
-              {[
-                { label: '11th Science (Boys)', fee: getFee('11th_science_boys', 'Rs. 1900'), type: 'science' },
-                { label: '11th Science (Girls)', fee: getFee('11th_science_girls', 'Rs. 1700'), type: 'science' },
-                { label: '11th Humanities (Boys)', fee: getFee('11th_humanities_boys', 'Rs. 1800'), type: 'humanities' },
-                { label: '11th Humanities (Girls)', fee: getFee('11th_humanities_girls', 'Rs. 1600'), type: 'humanities' },
-                { label: '12th Science (Boys)', fee: getFee('12th_science_boys', 'Rs. 1650'), type: 'science' },
-                { label: '12th Science (Girls)', fee: getFee('12th_science_girls', 'Rs. 1650'), type: 'science' },
-                { label: '12th Humanities (Boys)', fee: getFee('12th_humanities_boys', 'Rs. 1550'), type: 'humanities' },
-                { label: '12th Humanities (Girls)', fee: getFee('12th_humanities_girls', 'Rs. 1550'), type: 'humanities' }
-              ].map(r => (
-                <div key={r.label} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center hover:border-teal-500/35 transition-colors shadow-sm w-full">
-                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${r.type === 'science' ? 'bg-teal-600' : 'bg-amber-600'}`} />
-                    {r.label}
+            {/* Mobile stacked blocks (visible < sm) */}
+            <div className="sm:hidden flex flex-col gap-6 w-full">
+              {/* Science Stream Card */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
+                <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-teal-500"></div>
+                <div className="p-5 pl-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                    </div>
+                    <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Science Stream</h4>
                   </div>
-                  <div className="text-teal-700 font-extrabold text-sm">{r.fee}</div>
+                  <div className="space-y-3">
+                    {[
+                      { label: '11th Science (Boys)', fee: getFee('11th_science_boys', 'Rs. 1900') },
+                      { label: '11th Science (Girls)', fee: getFee('11th_science_girls', 'Rs. 1700') },
+                      { label: '12th Science (Boys)', fee: getFee('12th_science_boys', 'Rs. 1650') },
+                      { label: '12th Science (Girls)', fee: getFee('12th_science_girls', 'Rs. 1650') }
+                    ].map(r => (
+                      <div key={r.label} className="flex justify-between items-center text-sm">
+                        <span className="text-slate-600 font-medium">{r.label}</span>
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded px-2.5 py-1">
+                          <span className="text-teal-600 font-bold text-[10px]">Rs.</span>
+                          <span className="text-slate-800 font-bold">{r.fee.replace('Rs. ', '')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <div className="sm:hidden space-y-3 w-full mt-6">
-              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Secondary Subjects</h4>
-              {[
-                {cls: '9th', fee: getFee('9th', 'Rs. 1700')},
-                {cls: '10th', fee: getFee('10th', 'Rs. 1700')}
-              ].map(r => (
-                <div key={r.cls} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center hover:border-teal-500/35 transition-colors shadow-sm w-full">
-                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-violet-600" />
-                    {r.cls} Class
+              {/* Humanities Stream Card */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
+                <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-amber-500"></div>
+                <div className="p-5 pl-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                    </div>
+                    <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Humanities Stream</h4>
                   </div>
-                  <div className="text-teal-700 font-extrabold text-sm">{r.fee}</div>
+                  <div className="space-y-3">
+                    {[
+                      { label: '11th Humanities (Boys)', fee: getFee('11th_humanities_boys', 'Rs. 1800') },
+                      { label: '11th Humanities (Girls)', fee: getFee('11th_humanities_girls', 'Rs. 1600') },
+                      { label: '12th Humanities (Boys)', fee: getFee('12th_humanities_boys', 'Rs. 1550') },
+                      { label: '12th Humanities (Girls)', fee: getFee('12th_humanities_girls', 'Rs. 1550') }
+                    ].map(r => (
+                      <div key={r.label} className="flex justify-between items-center text-sm">
+                        <span className="text-slate-600 font-medium">{r.label}</span>
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded px-2.5 py-1">
+                          <span className="text-amber-500 font-bold text-[10px]">Rs.</span>
+                          <span className="text-slate-800 font-bold">{r.fee.replace('Rs. ', '')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Secondary Classes Card */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
+                <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-indigo-500"></div>
+                <div className="p-5 pl-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    </div>
+                    <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Secondary Classes</h4>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { label: '9th Class Subjects', fee: getFee('9th', 'Rs. 1700') },
+                      { label: '10th Class Subjects', fee: getFee('10th', 'Rs. 1700') }
+                    ].map(r => (
+                      <div key={r.label} className="flex justify-between items-center text-sm">
+                        <span className="text-slate-600 font-medium">{r.label}</span>
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded px-2.5 py-1">
+                          <span className="text-indigo-500 font-bold text-[10px]">Rs.</span>
+                          <span className="text-slate-800 font-bold">{r.fee.replace('Rs. ', '')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
