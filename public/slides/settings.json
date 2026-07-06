@@ -143,5 +143,76 @@
         }
       ]
     }
+  },
+  "fieldLayout": {
+    "groups": [
+      {
+        "id": "personal",
+        "name": "Personal Details",
+        "builtIn": true,
+        "customFields": [
+          "Name",
+          "Father's Name",
+          "Date of Birth",
+          "Gender",
+          "Mobile No.",
+          "Email Address",
+          "Permanent Address",
+          "Present Address",
+          "Aadhar No."
+        ]
+      },
+      {
+        "id": "service",
+        "name": "Service & Appointment Details",
+        "builtIn": true,
+        "customFields": [
+          "CPIS No.",
+          "Designation",
+          "Department",
+          "Subject",
+          "Date of 1st Appointment",
+          "Stay Period",
+          "Govt. Mail ID",
+          "Service Cadre",
+          "Date of Regularization"
+        ]
+      },
+      {
+        "id": "qualifications",
+        "name": "Qualifications & Health",
+        "builtIn": true,
+        "customFields": [
+          "Qualifications",
+          "Health/Security Grounds"
+        ]
+      },
+      {
+        "id": "tax",
+        "name": "Tax & Financial Details",
+        "builtIn": true,
+        "customFields": [
+          "PAN",
+          "TDS",
+          "Gross Salary",
+          "Tax Regime",
+          "Other Deductions",
+          "HRA Exemption",
+          "80D Deductions",
+          "80C Deductions"
+        ]
+      },
+      {
+        "id": "sli_subscription_details",
+        "name": "SLI Subscription Details",
+        "builtIn": false,
+        "customFields": [
+          "SLI Application No.",
+          "SLI Policy Number",
+          "SLI Sum Assured (Amount in INR)",
+          "Monthly SLI Premium (Amount in INR)"
+        ]
+      }
+    ]
   }
 }

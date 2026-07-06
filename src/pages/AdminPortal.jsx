@@ -3,7 +3,7 @@ import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, Al
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
-import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // ==========================================
@@ -341,6 +341,266 @@ function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', lab
 const STANDARD_DEPTS = ['Administration', 'Science', 'Humanities', 'Science/Humanities', 'Secondary', 'MTS'];
 const STANDARD_DESIGNATIONS = ['Principal', 'Vice Principal/Sr. Lecturer', 'Lecturer', 'I/C Lecturer', 'Master', 'Teacher', 'Teacher Grade II', 'Lab Assistant', 'Multi-tasking Staff'];
 const STANDARD_SUBJECTS = ['Biology', 'Chemistry', 'Economics', 'Education', 'Environmental Science', 'General English', 'Healthcare', 'History', 'IT and ITES', 'Mathematics', 'Physical Education', 'Physics', 'Political Science', 'Urdu', 'Science', 'Social Studies', 'English'];
+
+// Default field layout groups for organizing custom fields in the faculty edit form and PDF export
+const DEFAULT_FIELD_LAYOUT = {
+  groups: [
+    { id: 'personal', name: 'Personal Details', builtIn: true, customFields: [
+      'Name', "Father's Name", 'Date of Birth', 'Gender', 'Mobile No.', 'Email Address', 'Permanent Address', 'Present Address'
+    ] },
+    { id: 'service', name: 'Service & Appointment Details', builtIn: true, customFields: [
+      'CPIS No.', 'Designation', 'Department', 'Subject', 'Date of 1st Appointment', 'Stay Period', 'Govt. Mail ID', 'Service Cadre'
+    ] },
+    { id: 'qualifications', name: 'Qualifications & Health', builtIn: true, customFields: [
+      'Qualifications', 'Health/Security Grounds'
+    ] },
+    { id: 'tax', name: 'Tax & Financial Details', builtIn: true, customFields: [
+      'PAN', 'TDS'
+    ] },
+  ]
+};
+
+const ALL_STANDARD_FIELDS = [
+  'Name', "Father's Name", 'Date of Birth', 'Gender', 'Mobile No.', 'Email Address', 'Permanent Address', 'Present Address',
+  'CPIS No.', 'Designation', 'Department', 'Subject', 'Date of 1st Appointment', 'Stay Period', 'Govt. Mail ID', 'Service Cadre',
+  'Qualifications', 'Health/Security Grounds', 'PAN', 'TDS'
+];
+
+const STANDARD_FIELDS_MAP = {
+  'Name': {
+    dbKey: 'name',
+    render: (data, onChange) => <FInput key="name" label="Full Name" field="name" data={data} onChange={onChange} required />
+  },
+  "Father's Name": {
+    dbKey: 'parentage',
+    render: (data, onChange) => <FInput key="parentage" label="Parentage (Father's Name)" field="parentage" data={data} onChange={onChange} />
+  },
+  'Date of Birth': {
+    dbKey: 'dob',
+    render: (data, onChange) => <FInput key="dob" label="Date of Birth" field="dob" data={data} onChange={onChange} />
+  },
+  'Gender': {
+    dbKey: 'gender',
+    render: (data, onChange) => <FInput key="gender" label="Gender" field="gender" data={data} onChange={onChange} />
+  },
+  'Mobile No.': {
+    dbKey: 'mobile',
+    render: (data, onChange) => <FInput key="mobile" label="Contact Number" field="mobile" data={data} onChange={onChange} />
+  },
+  'Email Address': {
+    dbKey: 'email',
+    render: (data, onChange) => <FInput key="email" label="Email Address" field="email" data={data} onChange={onChange} type="email" />
+  },
+  'Permanent Address': {
+    dbKey: 'permanent_address',
+    render: (data, onChange) => <FInput key="permanent_address" label="Permanent Address" field="permanent_address" data={data} onChange={onChange} />
+  },
+  'Present Address': {
+    dbKey: 'present_address',
+    render: (data, onChange) => <FInput key="present_address" label="Present Address" field="present_address" data={data} onChange={onChange} />
+  },
+  'CPIS No.': {
+    dbKey: 'cpis_no',
+    render: (data, onChange) => <FInput key="cpis_no" field="cpis_no" label="CPIS No (Unique Govt ID)" data={data} onChange={onChange} mono />
+  },
+  'Designation': {
+    dbKey: 'designation',
+    render: (data, onChange) => (
+      <div key="designation">
+        <label className={panelLabel} style={panelLabelStyle}>Present Designation <span className="text-orange-500">*</span></label>
+        <select
+          value={STANDARD_DESIGNATIONS.includes(data.designation) ? data.designation : 'Other'}
+          onChange={e => {
+            const val = e.target.value;
+            onChange('designation', val === 'Other' ? '' : val);
+          }}
+          className={panelInput}
+          style={panelInputStyle}
+          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+        >
+          <option value="">Select Designation</option>
+          {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+          <option value="Other">Other...</option>
+        </select>
+        {!STANDARD_DESIGNATIONS.includes(data.designation) && (
+          <input
+            type="text"
+            placeholder="Enter custom designation..."
+            value={data.designation || ''}
+            onChange={e => onChange('designation', e.target.value)}
+            className={panelInput + " mt-1.5 font-semibold"}
+            style={panelInputStyle}
+            onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+            onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+          />
+        )}
+      </div>
+    )
+  },
+  'Department': {
+    dbKey: 'department',
+    render: (data, onChange) => (
+      <div key="department">
+        <label className={panelLabel} style={panelLabelStyle}>Department</label>
+        <select
+          value={STANDARD_DEPTS.includes(data.department) ? data.department : 'Other'}
+          onChange={e => {
+            const val = e.target.value;
+            if (val === 'Other') {
+              onChange('department', '');
+            } else {
+              onChange('department', val);
+            }
+          }}
+          className={panelInput}
+          style={panelInputStyle}
+          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+        >
+          <option value="Administration">Administration</option>
+          <option value="Science">Science</option>
+          <option value="Humanities">Humanities</option>
+          <option value="Secondary">Secondary (9th–10th)</option>
+          <option value="MTS">MTS (Multi-Tasking Staff)</option>
+          <option value="Other">Other...</option>
+        </select>
+        {!STANDARD_DEPTS.includes(data.department) && (
+          <input
+            type="text"
+            placeholder="Enter custom department..."
+            value={data.department || ''}
+            onChange={e => onChange('department', e.target.value)}
+            className={panelInput + " mt-1.5 font-semibold"}
+            style={panelInputStyle}
+            onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+            onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+          />
+        )}
+      </div>
+    )
+  },
+  'Subject': {
+    dbKey: 'subject',
+    render: (data, onChange) => (
+      <div key="subject">
+        <label className={panelLabel} style={panelLabelStyle}>Subject/s Teaching (shown on website)</label>
+        <select
+          value={STANDARD_SUBJECTS.includes(data.subject) ? data.subject : (data.subject ? 'Other' : '')}
+          onChange={e => {
+            const val = e.target.value;
+            onChange('subject', val === 'Other' ? ' ' : val);
+          }}
+          className={panelInput}
+          style={panelInputStyle}
+          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+        >
+          <option value="">Select Subject</option>
+          {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+          <option value="Other">Other...</option>
+        </select>
+        {data.subject && !STANDARD_SUBJECTS.includes(data.subject) && (
+          <input
+            type="text"
+            placeholder="Enter custom subject..."
+            value={(data.subject || '').trim()}
+            onChange={e => onChange('subject', e.target.value)}
+            className={panelInput + " mt-1.5 font-semibold"}
+            style={panelInputStyle}
+            onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+            onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+          />
+        )}
+      </div>
+    )
+  },
+  'Date of 1st Appointment': {
+    dbKey: 'date_of_first_appointment',
+    render: (data, onChange) => <FInput key="date_of_first_appointment" field="date_of_first_appointment" label="Date of 1st Appointment" data={data} onChange={onChange} mono />
+  },
+  'Stay Period': {
+    dbKey: 'stay_period',
+    render: (data, onChange) => <FInput key="stay_period" field="stay_period" label="Stay from (Period)" data={data} onChange={onChange} />
+  },
+  'Govt. Mail ID': {
+    dbKey: 'gov_mail_id',
+    render: (data, onChange) => <FInput key="gov_mail_id" field="gov_mail_id" label="Govt. Mail ID" data={data} onChange={onChange} />
+  },
+  'Service Cadre': {
+    dbKey: 'cadre',
+    render: (data, onChange) => <FInput key="cadre" field="cadre" label="Service Cadre" data={data} onChange={onChange} />
+  },
+  'Qualifications': {
+    dbKey: 'qualification',
+    render: (data, onChange) => <FInput key="qualification" field="qualification" label="Qualifications" data={data} onChange={onChange} />
+  },
+  'Health/Security Grounds': {
+    dbKey: 'health_issues',
+    render: (data, onChange) => <FInput key="health_issues" field="health_issues" label="Health / Security Grounds" data={data} onChange={onChange} />
+  },
+  'PAN': {
+    dbKey: 'pan',
+    render: (data, onChange) => (
+      <div key="pan">
+        <label className={panelLabel} style={panelLabelStyle}>PAN (Permanent Account Number)</label>
+        <input
+          type="text"
+          value={data.pan !== undefined ? data.pan : (data.customFields && (data.customFields.PAN || data.customFields.pan)) || ''}
+          onChange={e => {
+            const val = e.target.value;
+            onChange('pan', val);
+          }}
+          className={panelInput}
+          style={panelInputStyle}
+          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+        />
+      </div>
+    )
+  },
+  'TDS': {
+    dbKey: 'tds',
+    render: (data, onChange) => (
+      <div key="tds">
+        <label className={panelLabel} style={panelLabelStyle}>TDS Paid (Up-To-Date)</label>
+        <input
+          type="number"
+          value={data.tds !== undefined ? data.tds : (data.customFields && (data.customFields.TDS || data.customFields.tds || data.customFields['TDS Paid'])) || ''}
+          onChange={e => {
+            const val = e.target.value;
+            onChange('tds', val);
+          }}
+          className={panelInput}
+          style={panelInputStyle}
+          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+        />
+      </div>
+    )
+  }
+};
+
+const hydrateFieldLayout = (layout) => {
+  if (!layout || !layout.groups) return DEFAULT_FIELD_LAYOUT;
+  const hydrated = JSON.parse(JSON.stringify(layout));
+  const assigned = new Set();
+  hydrated.groups.forEach(g => {
+    (g.customFields || []).forEach(f => assigned.add(f));
+  });
+  DEFAULT_FIELD_LAYOUT.groups.forEach(defaultGroup => {
+    const targetGroup = hydrated.groups.find(g => g.id === defaultGroup.id);
+    if (targetGroup) {
+      defaultGroup.customFields.forEach(field => {
+        if (!assigned.has(field)) {
+          targetGroup.customFields.push(field);
+          assigned.add(field);
+        }
+      });
+    }
+  });
+  return hydrated;
+};
 const panelInput = "w-full px-2.5 py-1.5 rounded text-xs font-medium focus:outline-none transition-colors";
 const panelInputStyle = { background: 'var(--bg-page)', border: '1px solid var(--border-ui)', color: 'var(--text-main)' };
 const panelInputFocusStyle = { borderColor: '#f97316' };
@@ -663,6 +923,7 @@ export default function AdminPortal() {
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [pendingUser, setPendingUser] = useState(null);
+  const [magicLinkSuccess, setMagicLinkSuccess] = useState(false);
 
   // Dynamic admin accounts list
   const [admins, setAdmins] = useState([]);
@@ -682,6 +943,31 @@ export default function AdminPortal() {
     }, 1000);
     return () => clearInterval(timer);
   }, [otpCooldown]);
+
+  // Handle Email Magic Link Sign In
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
+      const isSameBrowser = !!emailForSignIn;
+      if (!emailForSignIn) {
+        emailForSignIn = window.prompt('Please provide your email for confirmation to complete sign in:');
+      }
+      if (emailForSignIn) {
+        signInWithEmailLink(auth, emailForSignIn, window.location.href)
+          .then((result) => {
+            window.localStorage.removeItem('emailForSignIn');
+            window.history.replaceState(null, '', window.location.pathname);
+            if (isSameBrowser) {
+              setMagicLinkSuccess(true);
+            }
+          })
+          .catch((error) => {
+            console.error('Error signing in with email link:', error);
+            setAuthError('Error signing in with email link. It may have expired or already been used.');
+          });
+      }
+    }
+  }, []);
 
   // New admin creation form states
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -739,6 +1025,52 @@ export default function AdminPortal() {
   const [bulkPrintDept, setBulkPrintDept] = useState('All');
   const [selectedBulkPrintNames, setSelectedBulkPrintNames] = useState([]);
   const [selectedFaculty, setSelectedFaculty] = useState([]);
+
+  // Field Layout Manager States
+  const [showFieldLayoutModal, setShowFieldLayoutModal] = useState(false);
+  const [fieldLayoutDraft, setFieldLayoutDraft] = useState(null);
+  const [newGroupName, setNewGroupName] = useState('');
+
+  // Derive fieldLayout from settings with hydration
+  const fieldLayout = React.useMemo(() => {
+    return hydrateFieldLayout(settings?.fieldLayout || DEFAULT_FIELD_LAYOUT);
+  }, [settings?.fieldLayout]);
+
+  const setFieldLayout = (layout) => {
+    setSettings(prev => ({ ...prev, fieldLayout: layout }));
+  };
+
+  // Gather all custom field keys across all faculty members
+  const allCustomFieldKeys = React.useMemo(() => {
+    const keys = new Set();
+    faculty.forEach(emp => {
+      if (emp.customFields) {
+        Object.keys(emp.customFields).forEach(k => keys.add(k));
+      }
+    });
+    return Array.from(keys).sort();
+  }, [faculty]);
+
+  // Combine standard fields and custom fields for layout
+  const allMovableFields = React.useMemo(() => {
+    const keys = new Set(ALL_STANDARD_FIELDS);
+    allCustomFieldKeys.forEach(k => keys.add(k));
+    return Array.from(keys);
+  }, [allCustomFieldKeys]);
+
+  // Get custom field keys that are assigned to any group
+  const assignedFieldKeys = React.useMemo(() => {
+    const assigned = new Set();
+    (fieldLayout.groups || []).forEach(g => {
+      (g.customFields || []).forEach(f => assigned.add(f));
+    });
+    return assigned;
+  }, [fieldLayout]);
+
+  // Get custom field keys that are NOT assigned to any group (remain in "Additional")
+  const unassignedFieldKeys = React.useMemo(() => {
+    return allMovableFields.filter(k => !assignedFieldKeys.has(k));
+  }, [allMovableFields, assignedFieldKeys]);
 
   // Photo Upload States
   const [newTeacherPhotoFile, setNewTeacherPhotoFile] = useState(null);
@@ -1004,19 +1336,43 @@ export default function AdminPortal() {
               }
               return normalizeAdmin(matchedAdmin);
             });
+            
+            // Establish full session in case it was a Magic Link or Google Sign In
+            if (!sessionStorage.getItem('admin_session_id')) {
+              // Prevent race conditions where two tabs generate different session IDs and kick each other out
+              let sessionId = localStorage.getItem('admin_active_session_id');
+              if (!sessionId) {
+                sessionId = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+                localStorage.setItem('admin_active_session_id', sessionId);
+              }
+              sessionStorage.setItem('admin_session_id', sessionId);
+              sessionStorage.setItem('isAdminAuthenticated', 'true');
+              sessionStorage.setItem('adminUser', JSON.stringify(matchedAdmin));
+              
+              const allowed = Array.isArray(matchedAdmin.allowedTabs) ? matchedAdmin.allowedTabs : [];
+              const firstTab = allowed.length ? allowed[0] : 'admissions';
+              sessionStorage.setItem('activeAdminTab', firstTab);
+              setActiveTab(firstTab);
+            }
           }
           setIsAuthenticated(true);
           setAuthError('');
+          // Clean up login flow state (e.g. after Magic Link or Google Sign In)
+          setLoginStep('credentials');
+          setPendingUser(null);
+          setEmail('');
+          setPassword('');
+          setCaptchaInput('');
         } else {
           // Signed in to Firebase but not authorized as admin locally
           setIsAuthenticated(false);
-          setAuthError('Signed in with Google, but this account is not registered as an administrator. Use local admin login or ask a Super Admin to add you.');
+          setAuthError('This account is not registered as an administrator. Use local admin login or ask a Super Admin to add your email.');
         }
       } catch (err) {
         console.warn('Failed to verify Firebase ID token:', err);
         // Conservatively do not authenticate UI until verification completes
         setIsAuthenticated(false);
-        setAuthError('Failed to validate Google sign-in. Please try again.');
+        setAuthError('Failed to validate sign-in. Please try again.');
       }
     });
     return () => unsub();
@@ -1250,6 +1606,30 @@ export default function AdminPortal() {
       return;
     }
     await triggerOtpSend(pendingUser);
+  };
+
+  const handleSendEmailLink = async () => {
+    if (!pendingUser?.email) {
+      setAuthError('Email not found. Please restart the login process.');
+      setLoginStep('credentials');
+      return;
+    }
+    
+    setAuthError('');
+    const actionCodeSettings = {
+      url: window.location.origin + window.location.pathname,
+      handleCodeInApp: true,
+    };
+
+    try {
+      await sendSignInLinkToEmail(auth, pendingUser.email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', pendingUser.email);
+      setAuthError('');
+      setLoginStep('email-link-sent');
+    } catch (err) {
+      console.error('Error sending email link:', err);
+      setAuthError('Failed to send email link. ' + err.message);
+    }
   };
 
   // Firebase Google sign-in and sign-out handlers
@@ -4422,6 +4802,117 @@ export default function AdminPortal() {
   const activeRegimeConfig = activeRegimeSettingsTab === 'old' ? taxConfig.oldRegime : taxConfig.newRegime;
   const taxFreeGrossSalary = activeRegimeConfig.standardDeduction + activeRegimeConfig.rebateThreshold;
 
+  const getFieldsForGroup = (t, groupId) => {
+    const group = fieldLayout.groups?.find(g => g.id === groupId);
+    if (!group || !group.customFields) return [];
+
+    const list = group.customFields.map(key => {
+      const isStandard = ALL_STANDARD_FIELDS.includes(key);
+      let val = '';
+      if (isStandard) {
+        const mapping = STANDARD_FIELDS_MAP[key];
+        const dbKey = mapping?.dbKey;
+        if (key === 'Stay Period') {
+          val = getCalculatedStayPeriod(t.stay_period);
+        } else if (dbKey) {
+          val = t[dbKey];
+        }
+      } else {
+        val = (t.customFields || {})[key];
+      }
+      return { label: key, value: val };
+    });
+
+    // Append group-specific administrative extra fields
+    if (groupId === 'personal') {
+      list.push({ label: 'Category', value: t.category || 'OM' });
+    } else if (groupId === 'service') {
+      list.push({ label: 'Designation at 1st Appt', value: t.designation_at_first_appointment || '-' });
+      list.push({ label: 'Present Place of Posting', value: t.present_place_of_posting || 'HSS Shangus' });
+      list.push({ label: 'Zone Name', value: t.zone_name || 'Shangus' });
+      list.push({ label: 'UDISE Code', value: t.ddo_code || '01061400618' });
+      list.push({ label: 'DDO Code HRMS', value: t.ddo_code_hrms || 'SHGEDU0022' });
+    } else if (groupId === 'qualifications') {
+      list.push({ label: 'B.Ed Completed', value: t.bed || 'NO' });
+      list.push({ label: 'Deployment Status', value: t.if_deployed === 'in' ? 'Deployed In (from another school)' : t.if_deployed === 'out' ? 'Deployed Out (sent to another school)' : t.if_deployed === 'Yes' ? 'On Deployment' : 'No' });
+    }
+
+    return list;
+  };
+
+  const formatTwoColumnTable = (fields) => {
+    const filtered = fields.filter(f => f && f.label);
+    const rowsHtml = [];
+    
+    const getValText = (val) => {
+      if (val === undefined || val === null || String(val).trim() === '' || val === '-') {
+        return 'N/A';
+      }
+      return val;
+    };
+
+    for (let i = 0; i < filtered.length; i += 2) {
+      const f1 = filtered[i];
+      const f2 = filtered[i + 1];
+      if (f2) {
+        const isName1 = f1.label === 'Full Name' || f1.label === 'Name';
+        const isName2 = f2.label === 'Full Name' || f2.label === 'Name';
+        const isCpis1 = f1.label === 'CPIS No' || f1.label === 'CPIS No.';
+        const isCpis2 = f2.label === 'CPIS No' || f2.label === 'CPIS No.';
+
+        rowsHtml.push(`
+          <tr>
+            <td class="label" style="width: 20%;">${f1.label}:</td>
+            <td class="value" style="width: 30%;${isName1 ? ' font-size: 13px; font-weight: bold; color: #961c14;' : ''}${isCpis1 ? ' font-family: monospace; font-weight: bold; color: #0f766e;' : ''}">${getValText(f1.value)}</td>
+            <td class="label" style="width: 20%; padding-left: 15px;">${f2.label}:</td>
+            <td class="value" style="width: 30%;${isName2 ? ' font-size: 13px; font-weight: bold; color: #961c14;' : ''}${isCpis2 ? ' font-family: monospace; font-weight: bold; color: #0f766e;' : ''}">${getValText(f2.value)}</td>
+          </tr>
+        `);
+      } else {
+        const isName = f1.label === 'Full Name' || f1.label === 'Name';
+        const isCpis = f1.label === 'CPIS No' || f1.label === 'CPIS No.';
+        rowsHtml.push(`
+          <tr>
+            <td class="label" style="width: 20%;">${f1.label}:</td>
+            <td class="value" colspan="3" style="${isName ? ' font-size: 13px; font-weight: bold; color: #961c14;' : ''}${isCpis ? ' font-family: monospace; font-weight: bold; color: #0f766e;' : ''}">${getValText(f1.value)}</td>
+          </tr>
+        `);
+      }
+    }
+    return rowsHtml.join('');
+  };
+
+  const generatePdfUnassignedFields = (t) => {
+    const assignedKeys = new Set((fieldLayout.groups || []).flatMap(g => g.customFields || []));
+    const unassignedKeys = allMovableFields.filter(key => !assignedKeys.has(key));
+    
+    const fields = unassignedKeys.map(key => {
+      const isStandard = ALL_STANDARD_FIELDS.includes(key);
+      let val = '';
+      if (isStandard) {
+        const mapping = STANDARD_FIELDS_MAP[key];
+        const dbKey = mapping?.dbKey;
+        if (key === 'Stay Period') {
+          val = getCalculatedStayPeriod(t.stay_period);
+        } else if (dbKey) {
+          val = t[dbKey];
+        }
+      } else {
+        val = (t.customFields || {})[key];
+      }
+      return { label: key, value: val };
+    }).filter(f => f.value !== undefined && f.value !== null && f.value !== '');
+
+    if (fields.length === 0) return '';
+    
+    return `
+      <div class="section-title">Additional Info (Unassigned)</div>
+      <table class="profile-grid">
+        ${formatTwoColumnTable(fields)}
+      </table>
+    `;
+  };
+
   const printEmployeeProfile = (t) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -4445,11 +4936,28 @@ export default function AdminPortal() {
         <head>
           <title>Profile - ${t.name}</title>
           <style>
-            @media print {
-              body { font-family: 'Segoe UI', sans-serif; color: #1e293b; line-height: 1.5; padding: 20px; }
-              .no-print { display: none; }
+            @page {
+              size: A4;
+              margin: 0.3in;
             }
-            body { font-family: 'Segoe UI', sans-serif; color: #1e293b; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; }
+            @media print {
+              body { font-family: 'Segoe UI', sans-serif; color: #1e293b; line-height: 1.5; padding: 0; margin: 0; }
+              .no-print { display: none; }
+              .pdf-group-block { page-break-inside: avoid; break-inside: avoid; }
+              .print-footer {
+                display: block !important;
+                margin-top: 30px;
+                border-top: 1px solid #cbd5e1;
+                padding-top: 6px;
+                font-size: 8px;
+                color: #64748b;
+                text-align: center;
+                font-family: sans-serif;
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+            }
+            body { font-family: 'Segoe UI', sans-serif; color: #1e293b; padding: 20px 40px; max-width: 800px; margin: 0 auto; background: #fff; }
             .header-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; border-bottom: 3px double #0f766e; }
             .header-title { text-align: center; padding-bottom: 10px; }
             .header-title h1 { margin: 0; font-size: 20px; color: #961c14; text-transform: uppercase; font-family: 'Georgia', serif; }
@@ -4459,7 +4967,7 @@ export default function AdminPortal() {
             
             .profile-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
             .profile-grid td { padding: 6px 10px; font-size: 12px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
-            .label { font-weight: bold; color: #475569; width: 35%; }
+            .label { font-weight: bold; color: #475569; }
             .value { color: #0f172a; }
             
             .photo-box { width: 130px; height: 160px; border: 2px dashed #cbd5e1; text-align: center; font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; align-items: center; justify-content: center; float: right; margin-left: 20px; border-radius: 4px; overflow: hidden; background: #fafafa; }
@@ -4473,6 +4981,7 @@ export default function AdminPortal() {
             
             .print-btn { display: inline-flex; align-items: center; background: #961c14; color: white; border: none; padding: 8px 16px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-bottom: 20px; transition: background 0.2s; }
             .print-btn:hover { background: #0f766e; }
+            .print-footer { display: none; }
           </style>
         </head>
         <body>
@@ -4488,8 +4997,8 @@ export default function AdminPortal() {
               </td>
             </tr>
           </table>
-
-          <div style="overflow: hidden; margin-bottom: 15px;">
+ 
+          <div class="pdf-group-block" style="overflow: hidden; margin-bottom: 15px;">
             <div class="photo-box">
               ${t.photo ? `<img src="${t.photo}" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : 'Affix Passport Photo'}
             </div>
@@ -4497,135 +5006,64 @@ export default function AdminPortal() {
             <div style="margin-right: 160px;">
               <div class="section-title" style="margin-top: 0;">Personal Details</div>
               <table class="profile-grid">
-                <tr>
-                  <td class="label">Full Name:</td>
-                  <td class="value" style="font-size: 14px; font-weight: bold; color: #961c14;">${t.name || ''}</td>
-                </tr>
-                <tr>
-                  <td class="label">Parentage:</td>
-                  <td class="value">${t.parentage || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Date of Birth:</td>
-                  <td class="value">${t.dob || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Category:</td>
-                  <td class="value">${t.category || 'OM'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Permanent Address:</td>
-                  <td class="value">${t.permanent_address || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Present Address:</td>
-                  <td class="value">${t.present_address || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Contact Number:</td>
-                  <td class="value" style="font-family: monospace; font-weight: 600;">${t.mobile || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Email Address:</td>
-                  <td class="value">${t.email || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Govt. Mail ID:</td>
-                  <td class="value">${t.gov_mail_id || '-'}</td>
-                </tr>
+                ${formatTwoColumnTable(getFieldsForGroup(t, 'personal'))}
               </table>
             </div>
           </div>
-
-          <div class="section-title">Service & Appointment Details</div>
-          <table class="profile-grid">
-            <tr>
-              <td class="label">CPIS No:</td>
-              <td class="value" style="font-family: monospace; font-weight: bold; color: #0f766e;">${t.cpis_no || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Present Place of Posting:</td>
-              <td class="value">${t.present_place_of_posting || 'HSS Shangus'}</td>
-            </tr>
-            <tr>
-              <td class="label">Date of 1st Appointment:</td>
-              <td class="value">${t.date_of_first_appointment || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Stay from (Period):</td>
-              <td class="value">${getCalculatedStayPeriod(t.stay_period)}</td>
-            </tr>
-            <tr>
-              <td class="label">Designation at 1st Appt:</td>
-              <td class="value">${t.designation_at_first_appointment || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Present Designation:</td>
-              <td class="value">${t.designation || '-'}</td>
-            </tr>
-            <tr>
-              <td class="label">Zone Name:</td>
-              <td class="value">${t.zone_name || 'Shangus'}</td>
-              <td class="label" style="padding-left: 20px;">UDISE Code:</td>
-              <td class="value" style="font-family: monospace;">${t.ddo_code || '01061400618'}</td>
-            </tr>
-            <tr>
-              <td class="label">DDO Code HRMS:</td>
-              <td class="value" style="font-family: monospace;">${t.ddo_code_hrms || 'SHGEDU0022'}</td>
-              <td class="label" style="padding-left: 20px;">Service Cadre:</td>
-              <td class="value" style="text-transform: uppercase;">${t.cadre || 'GAZETTED'}</td>
-            </tr>
-          </table>
-
-          <div class="section-title">Qualifications & Health Credentials</div>
-          <table class="profile-grid">
-            <tr>
-              <td class="label">Qualifications:</td>
-              <td class="value">${t.qualification || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Subject in PG:</td>
-              <td class="value">${t.subject || 'NA'}</td>
-            </tr>
-            <tr>
-              <td class="label">B.Ed Completed:</td>
-              <td class="value">${t.bed || 'NO'}</td>
-              <td class="label" style="padding-left: 20px;">Deployment Status:</td>
-              <td class="value">${t.if_deployed === 'in' ? 'Deployed In (from another school)' : t.if_deployed === 'out' ? 'Deployed Out (sent to another school)' : t.if_deployed === 'Yes' ? 'On Deployment' : 'No'}</td>
-            </tr>
-            <tr>
-              <td class="label">Health/Security Grounds:</td>
-              <td class="value" colspan="3">${t.health_issues || 'No'}</td>
-            </tr>
-          </table>
-
-          ${t.customFields && Object.keys(t.customFields).length > 0 ? `
-            <div class="section-title">Additional Details</div>
-            <table class="profile-grid">
-              ${Object.entries(t.customFields).map(([key, val]) => `
+ 
+          ${(fieldLayout.groups || []).filter(g => g.id !== 'personal').map(group => {
+            const fields = getFieldsForGroup(t, group.id);
+            if (fields.length === 0 && !group.builtIn) return '';
+            
+            const rowsHtml = formatTwoColumnTable(fields);
+            if (!rowsHtml) return '';
+            
+            return `
+              <div class="pdf-group-block">
+                <div class="section-title">${group.name}</div>
+                <table class="profile-grid">
+                  ${rowsHtml}
+                </table>
+              </div>
+            `;
+          }).join('')}
+          
+          ${(() => {
+            const unassignedHtml = generatePdfUnassignedFields(t);
+            return unassignedHtml ? `<div class="pdf-group-block">${unassignedHtml}</div>` : '';
+          })()}
+ 
+          <div class="pdf-group-block">
+            <div class="section-title">Historical Posting Profile</div>
+            <table class="posting-table">
+              <thead>
                 <tr>
-                  <td class="label">${key}:</td>
-                  <td class="value">${val || '-'}</td>
+                  <th style="width: 5%; text-align: center;">S.No</th>
+                  <th style="width: 45%;">Posting Office / Institution</th>
+                  <th style="width: 25%;">Designation</th>
+                  <th style="width: 12.5%; text-align: center;">From Date</th>
+                  <th style="width: 12.5%; text-align: center;">To Date</th>
                 </tr>
-              `).join('')}
+              </thead>
+              <tbody>
+                ${postingsHtml}
+              </tbody>
             </table>
-          ` : ''}
-
-          <div class="section-title">Historical Posting Profile</div>
-          <table class="posting-table">
-            <thead>
+          </div>
+ 
+          <div class="pdf-group-block">
+            <table class="footer-signatures">
               <tr>
-                <th style="width: 5%; text-align: center;">S.No</th>
-                <th style="width: 45%;">Posting Office / Institution</th>
-                <th style="width: 25%;">Designation</th>
-                <th style="width: 12.5%; text-align: center;">From Date</th>
-                <th style="width: 12.5%; text-align: center;">To Date</th>
+                <td style="text-align: left; border-top: 1px solid #94a3b8; width: 40%;">Signature of Employee</td>
+                <td style="width: 20%; border: none;"></td>
+                <td style="text-align: right; border-top: 1px solid #94a3b8; width: 40%;">Counter Signature of Principal<br/><span style="font-size: 9px; font-weight: normal; color: #64748b;">(Govt. HSS Shangus)</span></td>
               </tr>
-            </thead>
-            <tbody>
-              ${postingsHtml}
-            </tbody>
-          </table>
+            </table>
+          </div>
 
-          <table class="footer-signatures">
-            <tr>
-              <td style="text-align: left; border-top: 1px solid #94a3b8; width: 40%;">Signature of Employee</td>
-              <td style="width: 20%; border: none;"></td>
-              <td style="text-align: right; border-top: 1px solid #94a3b8; width: 40%;">Counter Signature of Principal<br/><span style="font-size: 9px; font-weight: normal; color: #64748b;">(Govt. HSS Shangus)</span></td>
-            </tr>
-          </table>
+          <div class="print-footer">
+            Generated on: ${new Date().toLocaleString()} | Employee Service Record | Govt. HSS Shangus
+          </div>
         </body>
       </html>
     `);
@@ -4666,7 +5104,7 @@ export default function AdminPortal() {
             </tr>
           </table>
 
-          <div style="overflow: hidden; margin-bottom: 15px;">
+          <div class="pdf-group-block" style="overflow: hidden; margin-bottom: 15px;">
             <div class="photo-box">
               ${t.photo ? `<img src="${t.photo}" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : (t.designation && t.designation.toLowerCase() === 'principal' ? `<img src="/slides/Principal.jpg" alt="${t.name}" onerror="this.style.display='none'; this.parentElement.innerText='Affix Passport Photo'"/>` : 'Affix Passport Photo')}
             </div>
@@ -4674,135 +5112,60 @@ export default function AdminPortal() {
             <div style="margin-right: 160px;">
               <div class="section-title" style="margin-top: 0;">Personal Details</div>
               <table class="profile-grid">
-                <tr>
-                  <td class="label">Full Name:</td>
-                  <td class="value" style="font-size: 14px; font-weight: bold; color: #961c14;">${t.name || ''}</td>
-                </tr>
-                <tr>
-                  <td class="label">Parentage:</td>
-                  <td class="value">${t.parentage || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Date of Birth:</td>
-                  <td class="value">${t.dob || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Category:</td>
-                  <td class="value">${t.category || 'OM'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Permanent Address:</td>
-                  <td class="value">${t.permanent_address || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Present Address:</td>
-                  <td class="value">${t.present_address || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Contact Number:</td>
-                  <td class="value" style="font-family: monospace; font-weight: 600;">${t.mobile || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Email Address:</td>
-                  <td class="value">${t.email || '-'}</td>
-                </tr>
-                <tr>
-                  <td class="label">Govt. Mail ID:</td>
-                  <td class="value">${t.gov_mail_id || '-'}</td>
-                </tr>
+                ${formatTwoColumnTable(getFieldsForGroup(t, 'personal'))}
               </table>
             </div>
           </div>
 
-          <div class="section-title">Service & Appointment Details</div>
-          <table class="profile-grid">
-            <tr>
-              <td class="label">CPIS No:</td>
-              <td class="value" style="font-family: monospace; font-weight: bold; color: #0f766e;">${t.cpis_no || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Present Place of Posting:</td>
-              <td class="value">${t.present_place_of_posting || 'HSS Shangus'}</td>
-            </tr>
-            <tr>
-              <td class="label">Date of 1st Appointment:</td>
-              <td class="value">${t.date_of_first_appointment || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Stay from (Period):</td>
-              <td class="value">${getCalculatedStayPeriod(t.stay_period)}</td>
-            </tr>
-            <tr>
-              <td class="label">Designation at 1st Appt:</td>
-              <td class="value">${t.designation_at_first_appointment || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Present Designation:</td>
-              <td class="value">${t.designation || '-'}</td>
-            </tr>
-            <tr>
-              <td class="label">Zone Name:</td>
-              <td class="value">${t.zone_name || 'Shangus'}</td>
-              <td class="label" style="padding-left: 20px;">UDISE Code:</td>
-              <td class="value" style="font-family: monospace;">${t.ddo_code || '01061400618'}</td>
-            </tr>
-            <tr>
-              <td class="label">DDO Code HRMS:</td>
-              <td class="value" style="font-family: monospace;">${t.ddo_code_hrms || 'SHGEDU0022'}</td>
-              <td class="label" style="padding-left: 20px;">Service Cadre:</td>
-              <td class="value" style="text-transform: uppercase;">${t.cadre || 'GAZETTED'}</td>
-            </tr>
-          </table>
+          ${(fieldLayout.groups || []).filter(g => g.id !== 'personal').map(group => {
+            const fields = getFieldsForGroup(t, group.id);
+            if (fields.length === 0 && !group.builtIn) return '';
+            
+            const rowsHtml = formatTwoColumnTable(fields);
+            if (!rowsHtml) return '';
+            
+            return `
+              <div class="pdf-group-block">
+                <div class="section-title">${group.name}</div>
+                <table class="profile-grid">
+                  ${rowsHtml}
+                </table>
+              </div>
+            `;
+          }).join('')}
+          
+          ${(() => {
+            const unassignedHtml = generatePdfUnassignedFields(t);
+            return unassignedHtml ? `<div class="pdf-group-block">${unassignedHtml}</div>` : '';
+          })()}
 
-          <div class="section-title">Qualifications & Health Credentials</div>
-          <table class="profile-grid">
-            <tr>
-              <td class="label">Qualifications:</td>
-              <td class="value">${t.qualification || '-'}</td>
-              <td class="label" style="padding-left: 20px;">Subject in PG:</td>
-              <td class="value">${t.subject || 'NA'}</td>
-            </tr>
-            <tr>
-              <td class="label">B.Ed Completed:</td>
-              <td class="value">${t.bed || 'NO'}</td>
-              <td class="label" style="padding-left: 20px;">Deployment Status:</td>
-              <td class="value">${t.if_deployed === 'in' ? 'Deployed In (from another school)' : t.if_deployed === 'out' ? 'Deployed Out (sent to another school)' : t.if_deployed === 'Yes' ? 'On Deployment' : 'No'}</td>
-            </tr>
-            <tr>
-              <td class="label">Health/Security Grounds:</td>
-              <td class="value" colspan="3">${t.health_issues || 'No'}</td>
-            </tr>
-          </table>
-
-          ${t.customFields && Object.keys(t.customFields).length > 0 ? `
-            <div class="section-title">Additional Details</div>
-            <table class="profile-grid">
-              ${Object.entries(t.customFields).map(([key, val]) => `
+          <div class="pdf-group-block">
+            <div class="section-title">Historical Posting Profile</div>
+            <table class="posting-table">
+              <thead>
                 <tr>
-                  <td class="label">${key}:</td>
-                  <td class="value">${val || '-'}</td>
+                  <th style="width: 5%; text-align: center;">S.No</th>
+                  <th style="width: 45%;">Posting Office / Institution</th>
+                  <th style="width: 25%;">Designation</th>
+                  <th style="width: 12.5%; text-align: center;">From Date</th>
+                  <th style="width: 12.5%; text-align: center;">To Date</th>
                 </tr>
-              `).join('')}
+              </thead>
+              <tbody>
+                ${postingsHtml}
+              </tbody>
             </table>
-          ` : ''}
+          </div>
 
-          <div class="section-title">Historical Posting Profile</div>
-          <table class="posting-table">
-            <thead>
+          <div class="pdf-group-block">
+            <table class="footer-signatures" style="width: 100%; margin-top: 60px; border-collapse: collapse;">
               <tr>
-                <th style="width: 5%; text-align: center;">S.No</th>
-                <th style="width: 45%;">Posting Office / Institution</th>
-                <th style="width: 25%;">Designation</th>
-                <th style="width: 12.5%; text-align: center;">From Date</th>
-                <th style="width: 12.5%; text-align: center;">To Date</th>
+                <td style="text-align: left; border-top: 1px solid #94a3b8; width: 40%; padding-top: 8px; font-weight: bold; border-bottom: none;">Signature of Employee</td>
+                <td style="width: 20%; border: none;"></td>
+                <td style="text-align: right; border-top: 1px solid #94a3b8; width: 40%; padding-top: 8px; font-weight: bold; border-bottom: none;">Counter Signature of Principal<br/><span style="font-size: 9px; font-weight: normal; color: #64748b;">(Govt. HSS Shangus)</span></td>
               </tr>
-            </thead>
-            <tbody>
-              ${postingsHtml}
-            </tbody>
-          </table>
-
-          <table class="footer-signatures" style="width: 100%; margin-top: 60px; border-collapse: collapse;">
-            <tr>
-              <td style="text-align: left; border-top: 1px solid #94a3b8; width: 40%; padding-top: 8px; font-weight: bold; border-bottom: none;">Signature of Employee</td>
-              <td style="width: 20%; border: none;"></td>
-              <td style="text-align: right; border-top: 1px solid #94a3b8; width: 40%; padding-top: 8px; font-weight: bold; border-bottom: none;">Counter Signature of Principal<br/><span style="font-size: 9px; font-weight: normal; color: #64748b;">(Govt. HSS Shangus)</span></td>
-            </tr>
-          </table>
+            </table>
+          </div>
         </div>
       `;
     }).join('');
@@ -4813,13 +5176,30 @@ export default function AdminPortal() {
           <base href="${window.location.origin}" />
           <title>Bulk Profiles - Govt HSS Shangus</title>
           <style>
+            @page {
+              size: A4;
+              margin: 0.3in;
+            }
             @media print {
               body { font-family: 'Segoe UI', sans-serif; color: #1e293b; line-height: 1.5; padding: 0; margin: 0; }
               .no-print { display: none; }
-              .profile-page { page-break-after: always; break-after: page; padding: 20px; }
+              .pdf-group-block { page-break-inside: avoid; break-inside: avoid; }
+              .profile-page { page-break-after: always; break-after: page; padding: 0; margin: 0; }
               .profile-page:last-child { page-break-after: avoid; break-after: avoid; }
+              .print-footer {
+                display: block !important;
+                margin-top: 30px;
+                border-top: 1px solid #cbd5e1;
+                padding-top: 6px;
+                font-size: 8px;
+                color: #64748b;
+                text-align: center;
+                font-family: sans-serif;
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
             }
-            body { font-family: 'Segoe UI', sans-serif; color: #1e293b; padding: 40px; max-width: 800px; margin: 0 auto; background: #fff; }
+            body { font-family: 'Segoe UI', sans-serif; color: #1e293b; padding: 20px 40px; max-width: 800px; margin: 0 auto; background: #fff; }
             .profile-page { border-bottom: 2px dashed #cbd5e1; padding-bottom: 40px; margin-bottom: 40px; }
             @media print {
               .profile-page { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
@@ -4833,7 +5213,7 @@ export default function AdminPortal() {
             
             .profile-grid { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
             .profile-grid td { padding: 6px 10px; font-size: 12px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
-            .label { font-weight: bold; color: #475569; width: 35%; }
+            .label { font-weight: bold; color: #475569; }
             .value { color: #0f172a; }
             
             .photo-box { width: 130px; height: 160px; border: 2px dashed #cbd5e1; text-align: center; font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; align-items: center; justify-content: center; float: right; margin-left: 20px; border-radius: 4px; overflow: hidden; background: #fafafa; }
@@ -4847,6 +5227,7 @@ export default function AdminPortal() {
             
             .print-btn { display: inline-flex; align-items: center; background: #961c14; color: white; border: none; padding: 8px 16px; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-bottom: 20px; transition: background 0.2s; }
             .print-btn:hover { background: #0f766e; }
+            .print-footer { display: none; }
           </style>
         </head>
         <body>
@@ -4854,11 +5235,33 @@ export default function AdminPortal() {
             <button onclick="window.print()" class="print-btn">Print Roster / Save PDF</button>
           </div>
           ${profilesHtml}
+          <div class="print-footer">
+            Generated on: ${new Date().toLocaleString()} | Faculty Roster | Govt. HSS Shangus
+          </div>
         </body>
       </html>
     `);
     printWindow.document.close();
   };
+
+  if (magicLinkSuccess) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[var(--teal-accent)]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[10s]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#961c14]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[8s]" />
+        
+        <div className="max-w-md w-full bg-slate-900 rounded-3xl border border-[var(--teal-accent)]/30 p-8 text-center space-y-5 shadow-2xl relative z-10">
+          <div className="w-20 h-20 rounded-full bg-[var(--teal-accent)]/10 flex items-center justify-center mx-auto mb-2 shadow-[0_0_30px_rgba(20,184,166,0.2)]">
+            <CheckCircle2 size={40} className="text-[var(--teal-accent)]" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-200 tracking-tight">Login Successful!</h2>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            You have been securely authenticated. You can safely close this window and return to your original tab, which will now automatically open the Admin Portal.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -4926,6 +5329,27 @@ export default function AdminPortal() {
               <div className="font-mono text-xl font-extrabold text-red-400 tracking-widest bg-slate-950/60 py-2 rounded-lg border border-slate-850">
                 {Math.floor(lockoutTimeLeft / 60)}:{(lockoutTimeLeft % 60).toString().padStart(2, '0')}
               </div>
+            </div>
+          ) : loginStep === 'email-link-sent' ? (
+            <div className="bg-slate-900/50 border border-[var(--teal-accent)]/30 text-[var(--teal-accent)] p-6 rounded-xl text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-[var(--teal-accent)]/10 flex items-center justify-center mx-auto mb-2">
+                <Mail size={32} className="text-[var(--teal-accent)] animate-pulse" />
+              </div>
+              <h3 className="font-bold text-lg text-slate-200">Check Your Email</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                We've sent a magic link to <strong className="text-slate-300">{pendingUser?.email}</strong>. 
+                Click the link in the email to instantly sign in.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginStep('credentials');
+                  setPendingUser(null);
+                }}
+                className="mt-4 text-slate-500 hover:text-slate-300 font-bold transition-colors text-xs"
+              >
+                Back to Login
+              </button>
             </div>
           ) : loginStep === 'otp' ? (
             <form onSubmit={handleVerifyOtp} className="space-y-5">
@@ -5000,6 +5424,17 @@ export default function AdminPortal() {
                     }`}
                   >
                     {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend Code'}
+                  </button>
+                </div>
+
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleSendEmailLink}
+                    className="text-slate-400 hover:text-[var(--teal-accent)] font-bold transition-colors text-xs flex items-center gap-1.5"
+                  >
+                    <Mail size={14} />
+                    <span>Can't access phone? Send Magic Link</span>
                   </button>
                 </div>
               </div>
@@ -5131,6 +5566,55 @@ export default function AdminPortal() {
       </div>
     );
   }
+
+  // Helper to render globally assigned standard/custom fields for a specific group in the Edit Form
+  const renderFieldsForGroup = (groupId) => {
+    const group = fieldLayout.groups?.find(g => g.id === groupId);
+    if (!group || !group.customFields || group.customFields.length === 0) return null;
+
+    return group.customFields.map((key) => {
+      if (STANDARD_FIELDS_MAP[key]) {
+        // Standard field rendering
+        return STANDARD_FIELDS_MAP[key].render(fullEditData, fullEditField);
+      } else {
+        // Custom field rendering
+        const val = (fullEditData.customFields || {})[key] || '';
+        return (
+          <div key={key} className="relative group/cf">
+            <label className={panelLabel} style={panelLabelStyle}>
+              {key} <span className="text-[7px] text-indigo-400 font-normal normal-case ml-1 opacity-0 group-hover/cf:opacity-100 transition-opacity">(Global Custom Field)</span>
+            </label>
+            <div className="flex gap-1.5 items-center">
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => {
+                  const updatedCustom = { ...(fullEditData.customFields || {}), [key]: e.target.value };
+                  fullEditField('customFields', updatedCustom);
+                }}
+                className={panelInput}
+                style={panelInputStyle}
+                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+              />
+              <button
+                onClick={() => {
+                  const updatedCustom = { ...(fullEditData.customFields || {}) };
+                  delete updatedCustom[key];
+                  fullEditField('customFields', updatedCustom);
+                }}
+                className="p-1.5 rounded text-slate-500 hover:bg-slate-800/40 hover:text-slate-300 transition-colors flex-shrink-0"
+                style={{ border: '1px solid #334155' }}
+                title={`Clear value for "${key}"`}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+        );
+      }
+    });
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 py-4 admin-portal-container">
@@ -5283,7 +5767,7 @@ export default function AdminPortal() {
           color: #ffffff !important;
         }
       `}} />
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-6">
 
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-800 pb-3 mb-4">
@@ -5718,32 +6202,28 @@ export default function AdminPortal() {
             {/* TAB 2: LATEST NOTICES */}
             {activeTab === 'notices' && allowedTabs.includes('notices') && (
               <div className="space-y-3 animate-in fade-in duration-200">
-                <div className="flex justify-between items-center mb-1">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-1 border-b border-slate-800 pb-2.5">
                   <div>
                     <h3 className="text-sm font-bold text-slate-200">Latest Notices Configuration</h3>
                     <p className="text-[11px] text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
                   </div>
-                </div>
-
-                {/* Global default new days setting card */}
-                <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-200">Global Notice Expiry Settings</h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Determine how many days a notice is considered "NEW" on the homepage and notice board.</p>
-                  </div>
-                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded px-2 py-0.5">
-                    <span className="text-[10px] text-slate-400 font-bold">Default Days:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={settings.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setSettings(s => ({ ...s, defaultNewNoticeDays: isNaN(val) ? 7 : val }));
-                      }}
-                      className="w-12 bg-transparent border-none text-center text-xs font-mono text-white focus:outline-none focus:ring-0"
-                    />
+                  {/* Inline Notice Expiry Setting */}
+                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded px-2 py-1 w-full sm:w-auto">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">New tag tag expiry:</span>
+                    <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5">
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={settings.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setSettings(s => ({ ...s, defaultNewNoticeDays: isNaN(val) ? 7 : val }));
+                        }}
+                        className="w-10 bg-transparent border-none text-center text-xs font-mono text-white focus:outline-none focus:ring-0"
+                      />
+                      <span className="text-[9px] text-slate-500 font-extrabold uppercase">days</span>
+                    </div>
                   </div>
                 </div>
 
@@ -5818,65 +6298,6 @@ export default function AdminPortal() {
                     <Plus size={12} />
                     Add Notice
                   </button>
-                </div>
-
-                {/* Notice Preview Section */}
-                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2.5">
-                  <h3 className="text-[10px] font-bold text-slate-200 uppercase tracking-wider">Live Preview</h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {/* Home Page Sidebar Preview */}
-                    <div>
-                      <h4 className="text-[10px] font-bold text-slate-400 mb-1.5">Home Page (Sidebar)</h4>
-                      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-2.5 w-full">
-                        <div className="flex items-start gap-3">
-                          <span className="text-[10px] font-bold text-slate-400 mt-1 w-14 flex-shrink-0 whitespace-nowrap">
-                            {newNotice.date || 'Jun 12'}
-                          </span>
-                          <div className="flex-1 min-w-0 relative">
-                            {/* Single-line text with truncation */}
-                            <span className="text-sm font-medium text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
-                              {newNotice.title || 'Your Notice Title Here'}
-                            </span>
-                          </div>
-                        </div>
-                        {/* Vertical Dotted Line Indicator */}
-                        <div className="mt-1.5 text-[9px] text-orange-500 font-bold flex items-center gap-2">
-                          <span>┃</span>
-                          <span>← Text beyond this will wrap to a new line</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notice Board Page Preview */}
-                    <div>
-                      <h4 className="text-[10px] font-bold text-slate-400 mb-1.5">Notice Board Page</h4>
-                      <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm">
-                        <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 rounded bg-teal-100/40 border border-teal-100 flex flex-col items-center justify-center flex-shrink-0">
-                            <span className="text-[8px] font-bold text-teal-800 uppercase tracking-tight text-center whitespace-nowrap">
-                              {newNotice.date || 'Jun 12'}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0 relative">
-                            {/* Single-line text with truncation */}
-                            <h4 className="font-bold text-slate-800 text-sm leading-snug whitespace-nowrap overflow-hidden text-ellipsis block border-b border-dashed border-orange-500">
-                              {newNotice.title || 'Your Notice Title Here'}
-                            </h4>
-                          </div>
-                        </div>
-                        {/* Vertical Dotted Line Indicator */}
-                        <div className="mt-1.5 text-[9px] text-orange-500 font-bold flex items-center gap-2">
-                          <span>┃</span>
-                          <span>← Text beyond this will wrap to a new line</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-slate-400">
-                    The dashed line shows the maximum text that fits on a single line.
-                  </p>
                 </div>
 
                 {/* Notices List Table */}
@@ -6022,65 +6443,64 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Add new slide form */}
-                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800 space-y-1.5">
-                  <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-orange-400">Add New Slide</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <div>
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="w-[200px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Slide Heading (Title)</label>
                       <input
                         type="text"
-                        placeholder="e.g. Welcome to HSS Shangus"
+                        placeholder="Welcome to HSS Shangus"
                         value={newSlide.title}
                         onChange={(e) => setNewSlide({ ...newSlide, title: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-[220px]">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Slide Caption</label>
                       <input
                         type="text"
-                        placeholder="e.g. Nurturing minds, shaping futures"
+                        placeholder="Nurturing minds, shaping futures"
                         value={newSlide.caption}
                         onChange={(e) => setNewSlide({ ...newSlide, caption: e.target.value })}
-                        className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div>
+                    <div className="w-[220px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Upload Image (Max 500KB)</label>
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5 h-[23px] items-center">
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
                           onChange={(e) => handleSlidePhotoFileChange(e, 'new')}
-                          className="w-full text-slate-400 file:bg-slate-950 file:border file:border-slate-800 file:text-[10px] file:text-slate-300 file:px-2 file:py-1 file:rounded file:hover:bg-slate-800 text-[11px]"
+                          className="w-full text-slate-400 file:bg-slate-950 file:border file:border-slate-800 file:text-[9px] file:text-slate-300 file:px-2 file:py-0.5 file:rounded file:hover:bg-slate-800 text-[10px]"
                         />
                       </div>
                       {newSlidePhotoFile && (
-                        <div className="mt-1 text-[9px] text-slate-400 flex items-center justify-between">
-                          <span>File: {newSlidePhotoFile.name} ({Math.round(newSlidePhotoFile.size / 1024)}KB)</span>
+                        <div className="mt-1 text-[8px] text-slate-450 flex items-center justify-between">
+                          <span className="truncate max-w-[150px]">File: {newSlidePhotoFile.name}</span>
                           <button
                             type="button"
                             onClick={() => {
                               setNewSlidePhotoFile(null);
                               setNewSlidePhotoName('');
                             }}
-                            className="text-red-400 hover:underline"
+                            className="text-red-400 hover:underline ml-1"
                           >
                             Remove
                           </button>
                         </div>
                       )}
                     </div>
-                  </div>
-                  <div className="flex justify-end mt-1">
-                    <button
-                      type="button"
-                      onClick={handleAddSlide}
-                      className="px-3 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-1 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      <Plus size={12} />
-                      Add Slide
-                    </button>
+                    <div className="shrink-0 mb-[1px]">
+                      <button
+                        type="button"
+                        onClick={handleAddSlide}
+                        className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-[10px] flex items-center justify-center gap-1 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow h-[23px] uppercase tracking-wide"
+                      >
+                        <Plus size={12} />
+                        Add Slide
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -6236,14 +6656,14 @@ export default function AdminPortal() {
             {activeTab === 'faculty' && allowedTabs.includes('faculty') && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-1.5">
-                  <div>
+                  <div className="max-w-[360px] lg:max-w-[500px] shrink-0">
                     <h3 className="text-sm font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
-                    <p className="text-[11px] text-slate-400">Configure cards, department settings, and contacts inside the dynamic directory.</p>
+                    <p className="text-[11px] text-slate-400 leading-tight mt-0.5">Configure cards, department settings, and contacts inside the dynamic directory.</p>
                   </div>
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full sm:w-auto">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 w-full sm:w-auto ml-auto">
                     <button
                       onClick={handleDownloadCSVTemplate}
-                      className="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-amber-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
+                      className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-amber-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
                       title="Download the standard CSV template with headers and a sample row"
                     >
                       <FileSpreadsheet size={13} />
@@ -6251,7 +6671,7 @@ export default function AdminPortal() {
                     </button>
                     <button
                       onClick={() => document.getElementById('csv-import-input').click()}
-                      className="px-3 py-1.5 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-blue-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
+                      className="px-2 py-1 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-blue-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
                       title="Upload a CSV roster of employees"
                     >
                       <Upload size={13} />
@@ -6266,7 +6686,7 @@ export default function AdminPortal() {
                     />
                     <button
                       onClick={handleCSVExport}
-                      className="px-3 py-1.5 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
+                      className="px-2 py-1 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
                       title="Choose employees and columns, then download a custom CSV roster"
                     >
                       <Download size={13} />
@@ -6279,29 +6699,40 @@ export default function AdminPortal() {
                         setBulkPrintDept('All');
                         setShowBulkPrintModal(true);
                       }}
-                      className="px-3 py-1.5 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto"
+                      className="px-2 py-1 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
                       title="Export multiple profile sheets as PDF at once"
                     >
                       <Printer size={13} />
                       Bulk PDF / Print
                     </button>
+                    <button
+                      onClick={() => {
+                        setFieldLayoutDraft(JSON.parse(JSON.stringify(fieldLayout)));
+                        setShowFieldLayoutModal(true);
+                      }}
+                      className="px-2 py-1 rounded bg-indigo-500 hover:bg-indigo-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-indigo-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
+                      title="Manage how custom fields are grouped in forms and exports"
+                    >
+                      <Layers size={13} />
+                      Manage Field Groups
+                    </button>
                   </div>
                 </div>
 
                 {/* Add new faculty form */}
-                <div className="bg-slate-900/30 p-2 rounded-lg border border-slate-800 space-y-1.5">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-1.5">
-                    <div>
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2.5">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="w-[160px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Full Name</label>
                       <input
                         type="text"
-                        placeholder="e.g. Mr. Sheikh Gulfam"
+                        placeholder="Mr. Sheikh Gulfam"
                         value={newTeacher.name}
                         onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div>
+                    <div className="w-[85px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Designation</label>
                       <select
                         value={STANDARD_DESIGNATIONS.includes(newTeacher.designation) ? newTeacher.designation : 'Other'}
@@ -6309,23 +6740,23 @@ export default function AdminPortal() {
                           const val = e.target.value;
                           setNewTeacher({ ...newTeacher, designation: val === 'Other' ? '' : val });
                         }}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
-                        <option value="">Select Designation</option>
+                        <option value="">Select</option>
                         {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
                         <option value="Other">Other...</option>
                       </select>
                       {!STANDARD_DESIGNATIONS.includes(newTeacher.designation) && (
                         <input
                           type="text"
-                          placeholder="Custom Designation"
+                          placeholder="Custom"
                           value={newTeacher.designation}
                           onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                          className="w-full mt-1 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                          className="w-full mt-1 px-1.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                         />
                       )}
                     </div>
-                    <div>
+                    <div className="w-[130px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Subject</label>
                       <select
                         value={STANDARD_SUBJECTS.includes(newTeacher.subject) ? newTeacher.subject : (newTeacher.subject ? 'Other' : '')}
@@ -6349,7 +6780,7 @@ export default function AdminPortal() {
                         />
                       )}
                     </div>
-                    <div>
+                    <div className="w-[160px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Department</label>
                       <select
                         value={STANDARD_DEPTS.includes(newTeacher.department) ? newTeacher.department : 'Other'}
@@ -6381,34 +6812,31 @@ export default function AdminPortal() {
                         />
                       )}
                     </div>
-                    <div>
+                    <div className="w-[180px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Email Address</label>
                       <input
                         type="email"
-                        placeholder="e.g. example@gmail.com"
+                        placeholder="example@gmail.com"
                         value={newTeacher.email}
                         onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                  </div>
-
-                  <div className={`grid grid-cols-1 gap-1.5 ${newTeacher.hidden ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-                    <div>
+                    <div className="w-[98px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Mobile No</label>
                       <input
                         type="text"
-                        placeholder="e.g. +91-7006XXXXXX"
+                        placeholder="+91-7006XXXXXX"
                         value={newTeacher.mobile}
                         onChange={(e) => setNewTeacher({ ...newTeacher, mobile: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div>
+                    <div className="w-[76px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Photo Upload</label>
                       <div className="flex h-[23px] items-center">
-                        <label className={`w-full h-full rounded text-slate-950 text-[9px] font-extrabold cursor-pointer transition-all flex items-center justify-center border whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
-                          {newTeacherPhotoFile ? 'File Loaded' : 'Choose File'}
+                        <label className={`w-full h-full rounded text-slate-950 text-[8px] font-extrabold cursor-pointer transition-all flex items-center justify-center border whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
+                          {newTeacherPhotoFile ? 'Loaded' : 'Choose'}
                           <input
                             type="file"
                             accept="image/*"
@@ -6418,12 +6846,12 @@ export default function AdminPortal() {
                         </label>
                       </div>
                       {newTeacherPhotoFile && (
-                        <div className="text-[8.5px] text-emerald-400 mt-0.5 font-semibold truncate">
-                          Selected: {newTeacherPhotoFile.name} ({Math.round(newTeacherPhotoFile.size / 1024)}KB)
+                        <div className="text-[7.5px] text-emerald-400 mt-0.5 font-semibold truncate max-w-[80px]" title={newTeacherPhotoFile.name}>
+                          {newTeacherPhotoFile.name.substring(0, 8)}...
                         </div>
                       )}
                     </div>
-                    <div>
+                    <div className="w-[150px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Visibility Status</label>
                       <select
                         value={newTeacher.hidden ? 'hidden' : 'visible'}
@@ -6441,7 +6869,7 @@ export default function AdminPortal() {
                         <option value="hidden">Hidden (Inactive)</option>
                       </select>
                     </div>
-                    <div>
+                    <div className="w-[150px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Deployment Status</label>
                       <select
                         value={newTeacher.if_deployed || 'No'}
@@ -6453,8 +6881,18 @@ export default function AdminPortal() {
                         <option value="out">Deployed Out ← (our employee, sent to another school)</option>
                       </select>
                     </div>
+                    <div className="shrink-0 mb-[1px]">
+                      <button
+                        onClick={handleAddTeacher}
+                        className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-[10px] flex items-center justify-center gap-1 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow h-[23px] uppercase tracking-wide"
+                        title="Add Teacher"
+                      >
+                        <UserPlus size={12} />
+                        Add
+                      </button>
+                    </div>
                     {newTeacher.hidden && (
-                      <div className="animate-in fade-in duration-200">
+                      <div className="w-[150px] shrink-0 animate-in fade-in duration-200">
                         <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Reason for Inactive</label>
                         <select
                           value={['Transferred', 'Retired', 'Deployed Out'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
@@ -6485,16 +6923,6 @@ export default function AdminPortal() {
                         )}
                       </div>
                     )}
-                  </div>
-
-                  <div className="text-right">
-                    <button
-                      onClick={handleAddTeacher}
-                      className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-[11px] flex items-center gap-1.5 inline-flex border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
-                    >
-                      <UserPlus size={12} />
-                      Add Teacher
-                    </button>
                   </div>
                 </div>
 
@@ -7057,7 +7485,7 @@ export default function AdminPortal() {
                 {showTaxRules && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
                     {/* Modal Card */}
-                    <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                    <div className="theme-dark bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
                       {/* Close button */}
                       <button
                         onClick={() => setShowTaxRules(false)}
@@ -7737,49 +8165,49 @@ export default function AdminPortal() {
                   </div>
 
                   {/* Right: Add new account Form */}
-                  <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-4 flex flex-col justify-between">
+                  <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-1.5">
                         <UserPlus size={15} className="text-orange-400" />
                         Create Admin Account
                       </h4>
 
-                      <div className="space-y-3 mt-3">
+                      <div className="space-y-2.5 mt-2.5">
                         <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Email Address</label>
+                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Email Address</label>
                           <input
                             type="email"
                             placeholder="e.g. user@shangus.com"
                             value={newAdminEmail}
                             onChange={(e) => setNewAdminEmail(e.target.value)}
-                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Password</label>
+                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Password</label>
                           <input
                             type="password"
                             placeholder="At least 6 characters..."
                             value={newAdminPassword}
                             onChange={(e) => setNewAdminPassword(e.target.value)}
-                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Phone Number (with country code e.g. +91)</label>
+                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Phone Number (with country code e.g. +91)</label>
                           <input
                             type="text"
                             placeholder="e.g. +919682547458"
                             value={newAdminPhone}
                             onChange={(e) => setNewAdminPhone(e.target.value)}
-                            className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
+                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Default Role Template</label>
+                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Default Role Template</label>
                           <select
                             value={newAdminRole}
                             onChange={(e) => {
@@ -7795,7 +8223,7 @@ export default function AdminPortal() {
                                 setNewAdminPermissions(['notices']);
                               }
                             }}
-                            className="w-full px-2 py-2 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500"
+                            className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500"
                           >
                             <option value="Super Admin">Super Admin</option>
                             <option value="Accounts Assistant">Accounts Assistant</option>
@@ -7806,8 +8234,8 @@ export default function AdminPortal() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">Configure Tab Permissions</label>
-                          <div className="bg-slate-950 p-3 rounded border border-slate-850 space-y-2.5">
+                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Configure Tab Permissions</label>
+                          <div className="bg-slate-950 p-2 rounded border border-slate-850 grid grid-cols-2 gap-x-2 gap-y-1.5">
                             {[
                               { id: 'admissions', label: 'Admissions & Fees' },
                               { id: 'notices', label: 'Latest Notices' },
@@ -7820,7 +8248,7 @@ export default function AdminPortal() {
                             ].map((perm) => {
                               const checked = newAdminPermissions.includes(perm.id);
                               return (
-                                <label key={perm.id} className="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-slate-200">
+                                <label key={perm.id} className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-200">
                                   <input
                                     type="checkbox"
                                     checked={checked}
@@ -7851,9 +8279,9 @@ export default function AdminPortal() {
                                         setNewAdminRole('Custom');
                                       }
                                     }}
-                                    className="rounded border-slate-800 bg-slate-900 text-orange-600 focus:ring-orange-500 focus:ring-opacity-25 w-3.5 h-3.5"
+                                    className="rounded border-slate-800 bg-slate-900 text-orange-600 focus:ring-orange-500 focus:ring-opacity-25 w-3 h-3"
                                   />
-                                  <span className="text-xs font-semibold">{perm.label}</span>
+                                  <span className="text-[10px] font-semibold truncate" title={perm.label}>{perm.label}</span>
                                 </label>
                               );
                             })}
@@ -7865,7 +8293,7 @@ export default function AdminPortal() {
                     <button
                       type="button"
                       onClick={handleAddAdmin}
-                      className="w-full mt-4 py-2.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] border border-orange-500/20 shadow-md shadow-orange-950/20"
+                      className="w-full mt-3 py-2 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] border border-orange-500/20 shadow-md shadow-orange-950/20"
                     >
                       <Plus size={14} className="stroke-[2.5px]" />
                       Add Admin Account
@@ -8689,10 +9117,326 @@ export default function AdminPortal() {
           </div>
         )}
 
+        {/* FIELD LAYOUT MANAGER MODAL */}
+        {showFieldLayoutModal && fieldLayoutDraft && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="theme-dark w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3 flex-shrink-0">
+                <div>
+                  <h3 className="text-base font-bold flex items-center gap-2" style={{ color: '#818cf8' }}>
+                    <Layers size={18} />
+                    Field Group Layout Manager
+                  </h3>
+                  <p className="text-[10px] mt-0.5" style={{ color: '#94a3b8' }}>
+                    Organize how custom fields appear in the faculty edit form and PDF profile.
+                  </p>
+                </div>
+                <button onClick={() => setShowFieldLayoutModal(false)} className="text-slate-500 hover:text-white transition-colors p-1">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar min-h-0">
+                {/* Custom Group Creator */}
+                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 flex flex-col sm:flex-row gap-2 items-end">
+                  <div className="flex-1 w-full">
+                    <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: '#94a3b8' }}>Create New Custom Group</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. SLI Subscription Details"
+                      value={newGroupName}
+                      onChange={e => setNewGroupName(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded border text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                      style={{ color: '#e2e8f0', backgroundColor: '#0f172a', borderColor: '#334155' }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newGroupName.trim()) {
+                          e.preventDefault();
+                          const newId = newGroupName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+                          if (fieldLayoutDraft.groups.some(g => g.id === newId)) {
+                            showAlert('A group with a similar name already exists.', 'Duplicate Group');
+                            return;
+                          }
+                          setFieldLayoutDraft(prev => ({
+                            ...prev,
+                            groups: [...prev.groups, { id: newId, name: newGroupName.trim(), builtIn: false, customFields: [] }]
+                          }));
+                          setNewGroupName('');
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!newGroupName.trim()) return;
+                      const newId = newGroupName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+                      if (fieldLayoutDraft.groups.some(g => g.id === newId)) {
+                        showAlert('A group with a similar name already exists.', 'Duplicate Group');
+                        return;
+                      }
+                      setFieldLayoutDraft(prev => ({
+                        ...prev,
+                        groups: [...prev.groups, { id: newId, name: newGroupName.trim(), builtIn: false, customFields: [] }]
+                      }));
+                      setNewGroupName('');
+                    }}
+                    className="px-4 py-1.5 rounded text-xs font-bold transition-colors whitespace-nowrap bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1 border border-indigo-500"
+                  >
+                    <Plus size={14} /> Add Group
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {fieldLayoutDraft.groups.map((group, groupIdx) => (
+                    <div key={group.id} className="bg-slate-800/40 rounded-xl border border-slate-700">
+                      <div className="px-3 py-2 bg-slate-800/80 border-b border-slate-700 flex justify-between items-center rounded-t-xl">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-[11px] font-extrabold text-slate-200 uppercase tracking-wider">{group.name}</h4>
+                          {group.builtIn ? (
+                            <span className="text-[8px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-bold">BUILT-IN</span>
+                          ) : (
+                            <span className="text-[8px] bg-indigo-900/60 text-indigo-300 px-1.5 py-0.5 rounded font-bold border border-indigo-800">CUSTOM</span>
+                          )}
+                        </div>
+                        {!group.builtIn && group.customFields.length === 0 && (
+                          <button
+                            onClick={() => {
+                              setFieldLayoutDraft(prev => ({
+                                ...prev,
+                                groups: prev.groups.filter(g => g.id !== group.id)
+                              }));
+                            }}
+                            className="p-1 rounded text-red-400 hover:bg-red-500/20 transition-colors"
+                            title="Delete this empty custom group"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="p-2 flex flex-wrap gap-1.5 min-h-[40px] items-center">
+                        {group.customFields.length === 0 && (
+                          <span className="text-[10px] text-slate-500 italic px-2" style={{ color: '#64748b' }}>No fields assigned to this group.</span>
+                        )}
+                        {group.customFields.map((field, fieldIdx) => {
+                          const isStandard = ALL_STANDARD_FIELDS.includes(field);
+                          return (
+                            <div
+                              key={field}
+                              className="relative group/btn flex items-center border rounded-full pl-2 pr-1 py-0.5 text-[10px] transition-colors"
+                              style={{ backgroundColor: '#0f172a', borderColor: isStandard ? '#475569' : '#334155' }}
+                            >
+                              <span
+                                className="font-semibold mr-1 flex items-center cursor-pointer select-none"
+                                style={{ color: isStandard ? '#cbd5e1' : '#f1f5f9' }}
+                              >
+                                {field}
+                                {isStandard && (
+                                  <span
+                                    className="text-[6.5px] px-1 py-0.2 rounded font-extrabold uppercase tracking-wider ml-1 border"
+                                    style={{ backgroundColor: '#020617', borderColor: '#1e293b', color: '#64748b' }}
+                                  >
+                                    Std
+                                  </span>
+                                )}
+                                <ChevronDown size={10} className="inline ml-0.5 opacity-70" style={{ color: '#94a3b8' }} />
+                              </span>
+                              
+                              {/* Dropdown to move to another group */}
+                              <div
+                                className="absolute left-0 top-full mt-1 w-48 border rounded-lg shadow-xl z-50 hidden group-hover/btn:block p-1 text-left before:content-[''] before:absolute before:-top-1.5 before:left-0 before:right-0 before:h-1.5"
+                                style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                              >
+                                <div className="text-[8px] font-bold uppercase px-2 py-1" style={{ color: '#64748b' }}>Move to...</div>
+                                {fieldLayoutDraft.groups.filter(g => g.id !== group.id).map((otherGroup) => (
+                                  <div
+                                    role="button"
+                                    key={otherGroup.id}
+                                    onClick={() => {
+                                      const newDraft = { ...fieldLayoutDraft };
+                                      // Remove from current group
+                                      newDraft.groups[groupIdx].customFields = newDraft.groups[groupIdx].customFields.filter(f => f !== field);
+                                      // Add to other group
+                                      const otherIdx = newDraft.groups.findIndex(g => g.id === otherGroup.id);
+                                      newDraft.groups[otherIdx].customFields.push(field);
+                                      setFieldLayoutDraft(newDraft);
+                                    }}
+                                    className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-indigo-600 hover:text-white rounded transition-colors cursor-pointer"
+                                    style={{ color: '#e2e8f0' }}
+                                  >
+                                    {otherGroup.name}
+                                  </div>
+                                ))}
+                                <div className="border-t my-1" style={{ borderColor: '#334155' }}></div>
+                                <div
+                                  role="button"
+                                  onClick={() => {
+                                    const newDraft = { ...fieldLayoutDraft };
+                                    newDraft.groups[groupIdx].customFields = newDraft.groups[groupIdx].customFields.filter(f => f !== field);
+                                    setFieldLayoutDraft(newDraft);
+                                  }}
+                                  className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-orange-500/20 rounded transition-colors cursor-pointer"
+                                  style={{ color: '#f87171' }}
+                                >
+                                  Unassign Field
+                                </div>
+                              </div>
+
+                              <div className="flex items-center ml-1 border-l border-slate-700 pl-1 gap-0.5">
+                                <button
+                                  onClick={() => {
+                                    if (fieldIdx > 0) {
+                                      const newDraft = { ...fieldLayoutDraft };
+                                      const arr = newDraft.groups[groupIdx].customFields;
+                                      [arr[fieldIdx - 1], arr[fieldIdx]] = [arr[fieldIdx], arr[fieldIdx - 1]];
+                                      setFieldLayoutDraft(newDraft);
+                                    }
+                                  }}
+                                  disabled={fieldIdx === 0}
+                                  className="p-0.5 text-slate-500 hover:text-white disabled:opacity-30 disabled:hover:text-slate-500"
+                                >
+                                  <ArrowUp size={10} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (fieldIdx < group.customFields.length - 1) {
+                                      const newDraft = { ...fieldLayoutDraft };
+                                      const arr = newDraft.groups[groupIdx].customFields;
+                                      [arr[fieldIdx + 1], arr[fieldIdx]] = [arr[fieldIdx], arr[fieldIdx + 1]];
+                                      setFieldLayoutDraft(newDraft);
+                                    }
+                                  }}
+                                  disabled={fieldIdx === group.customFields.length - 1}
+                                  className="p-0.5 text-slate-500 hover:text-white disabled:opacity-30 disabled:hover:text-slate-500"
+                                >
+                                  <ArrowDown size={10} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    // Remove from group
+                                    const newDraft = { ...fieldLayoutDraft };
+                                    newDraft.groups[groupIdx].customFields = newDraft.groups[groupIdx].customFields.filter(f => f !== field);
+                                    setFieldLayoutDraft(newDraft);
+                                  }}
+                                  className="p-0.5 text-orange-400 hover:text-orange-300 ml-0.5"
+                                  title="Unassign field"
+                                >
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="bg-orange-950/20 rounded-xl border border-orange-900/30 mt-4 mb-4">
+                    <div className="px-3 py-2 bg-orange-900/20 border-b border-orange-900/30 flex justify-between items-center rounded-t-xl">
+                      <h4 className="text-[11px] font-extrabold text-orange-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <AlertCircle size={12} />
+                        Unassigned Custom Fields
+                      </h4>
+                    </div>
+                    <div className="p-3">
+                      {(() => {
+                        const draftAssigned = new Set();
+                        fieldLayoutDraft.groups.forEach(g => {
+                          g.customFields.forEach(f => draftAssigned.add(f));
+                        });
+                        const draftUnassigned = allMovableFields.filter(k => !draftAssigned.has(k));
+                        
+                        if (draftUnassigned.length === 0) {
+                          return <p className="text-[10px] text-orange-300/60 italic" style={{ color: '#fdba74' }}>All fields are currently assigned to groups.</p>;
+                        }
+                        
+                        return (
+                          <div className="space-y-2">
+                            <p className="text-[10px] text-orange-300/80 mb-2" style={{ color: '#fdba74' }}>Click a field to assign it to a group:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {draftUnassigned.map(field => {
+                                const isStandard = ALL_STANDARD_FIELDS.includes(field);
+                                return (
+                                  <div key={field} className="relative group/btn">
+                                    <div
+                                      className="bg-slate-900 border text-orange-300 px-2.5 py-1 rounded-full text-[10px] font-semibold cursor-pointer hover:bg-slate-800 transition-colors"
+                                      style={{ borderColor: isStandard ? '#475569' : '#b45309', color: '#fdba74' }}
+                                    >
+                                      {field}
+                                      {isStandard && (
+                                        <span
+                                          className="text-[6.5px] px-1 py-0.2 rounded font-extrabold uppercase tracking-wider ml-1 border"
+                                          style={{ backgroundColor: '#020617', borderColor: '#1e293b', color: '#64748b' }}
+                                        >
+                                          Std
+                                        </span>
+                                      )}
+                                      <ChevronDown size={10} className="inline ml-0.5 opacity-70" />
+                                    </div>
+                                    <div
+                                      className="absolute left-0 bottom-full mb-1 w-48 border rounded-lg shadow-xl z-50 hidden group-hover/btn:block p-1 text-left before:content-[''] before:absolute before:-bottom-1.5 before:left-0 before:right-0 before:h-1.5"
+                                      style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                    >
+                                      <div className="text-[8px] font-bold uppercase px-2 py-1" style={{ color: '#64748b' }}>Assign to...</div>
+                                      {fieldLayoutDraft.groups.map((group, gIdx) => (
+                                        <div
+                                          role="button"
+                                          key={group.id}
+                                          onClick={() => {
+                                            const newDraft = { ...fieldLayoutDraft };
+                                            newDraft.groups[gIdx].customFields.push(field);
+                                            setFieldLayoutDraft(newDraft);
+                                          }}
+                                          className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-indigo-600 hover:text-white rounded transition-colors cursor-pointer"
+                                          style={{ color: '#e2e8f0' }}
+                                        >
+                                          {group.name}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-3 border-t border-slate-800 mt-2 flex-shrink-0">
+                <p className="text-[10px]" style={{ color: '#94a3b8' }}>
+                  Groups will appear in this order in the PDF export.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowFieldLayoutModal(false)}
+                    className="px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 transition-colors border border-slate-700"
+                    style={{ color: '#cbd5e1' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFieldLayout(fieldLayoutDraft);
+                      setShowFieldLayoutModal(false);
+                      showAlert('Field layout updated successfully. Click "Apply & Save" to make it permanent.', 'Layout Updated');
+                    }}
+                    className="px-4 py-1.5 rounded-lg text-xs font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center gap-1 border border-indigo-500"
+                  >
+                    <Check size={14} /> Apply Layout
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* BULK PRINT SELECTION MODAL */}
         {showBulkPrintModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200">
+            <div className="theme-dark w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200">
               <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3">
                 <div>
                   <h3 className="text-base font-bold text-orange-400">Bulk Profile PDF Export</h3>
@@ -8843,7 +9587,7 @@ export default function AdminPortal() {
         {/* CSV EXPORT MODAL */}
         {showCsvExportModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[90vh] text-slate-100">
+            <div className="theme-dark w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[90vh] text-slate-100">
               <div className="flex justify-between items-start border-b border-slate-700 pb-2.5 mb-3">
                 <div>
                   <h3 className="text-base font-bold text-orange-300">
@@ -9014,7 +9758,7 @@ export default function AdminPortal() {
         {/* CSV IMPORT PREVIEW MODAL */}
         {showCsvPreviewModal && csvPreviewData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="theme-dark w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[85vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3">
                 <div>
                   <h3 className="text-base font-bold text-orange-400">CSV Import Preview</h3>
@@ -9190,7 +9934,7 @@ export default function AdminPortal() {
         {/* CSV VALIDATION ERRORS MODAL */}
         {showCsvErrorModal && csvValidationErrors && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[80vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="theme-dark w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col max-h-[80vh] text-slate-200 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex justify-between items-start border-b border-slate-800 pb-2.5 mb-3">
                 <div>
                   <h3 className="text-base font-bold text-red-400">CSV Import Failed</h3>
@@ -9258,309 +10002,108 @@ export default function AdminPortal() {
               {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto p-5 space-y-6" style={{ scrollbarColor: 'var(--text-muted) transparent' }}>
 
-                {/* Section: Basic Info */}
-                <section>
-                  <h4 className={sectionHeader}>
-                    <span style={divider} />
-                    <span style={sectionTitleStyle}>Basic Information</span>
-                    <span style={divider} />
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FInput field="name" label="Full Name" data={fullEditData} onChange={fullEditField} required />
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>Present Designation <span className="text-orange-500">*</span></label>
-                      <select
-                        value={STANDARD_DESIGNATIONS.includes(fullEditData.designation) ? fullEditData.designation : 'Other'}
-                        onChange={e => {
-                          const val = e.target.value;
-                          fullEditField('designation', val === 'Other' ? '' : val);
-                        }}
-                        className={panelInput}
-                        style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                      >
-                        <option value="">Select Designation</option>
-                        {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                        <option value="Other">Other...</option>
-                      </select>
-                      {!STANDARD_DESIGNATIONS.includes(fullEditData.designation) && (
-                        <input
-                          type="text"
-                          placeholder="Enter custom designation..."
-                          value={fullEditData.designation || ''}
-                          onChange={e => fullEditField('designation', e.target.value)}
-                          className={panelInput + " mt-1.5 font-semibold"}
-                          style={panelInputStyle}
-                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>Subject/s Teaching (shown on website)</label>
-                      <select
-                        value={STANDARD_SUBJECTS.includes(fullEditData.subject) ? fullEditData.subject : (fullEditData.subject ? 'Other' : '')}
-                        onChange={e => {
-                          const val = e.target.value;
-                          fullEditField('subject', val === 'Other' ? ' ' : val);
-                        }}
-                        className={panelInput}
-                        style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                      >
-                        <option value="">Select Subject</option>
-                        {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                        <option value="Other">Other...</option>
-                      </select>
-                      {fullEditData.subject && !STANDARD_SUBJECTS.includes(fullEditData.subject) && (
-                        <input
-                          type="text"
-                          placeholder="Enter custom subject..."
-                          value={(fullEditData.subject || '').trim()}
-                          onChange={e => fullEditField('subject', e.target.value)}
-                          className={panelInput + " mt-1.5 font-semibold"}
-                          style={panelInputStyle}
-                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                        />
-                      )}
-                    </div>
-                    <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="email" label="Email Address" data={fullEditData} onChange={fullEditField} type="email" />
-                    <FInput field="mobile" label="Contact Number" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="gov_mail_id" label="Govt. Mail ID" data={fullEditData} onChange={fullEditField} />
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>Department</label>
-                      <select
-                        value={STANDARD_DEPTS.includes(fullEditData.department) ? fullEditData.department : 'Other'}
-                        onChange={e => {
-                          const val = e.target.value;
-                          if (val === 'Other') {
-                            fullEditField('department', '');
-                          } else {
-                            fullEditField('department', val);
-                          }
-                        }}
-                        className={panelInput}
-                        style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                      >
-                        <option value="Administration">Administration</option>
-                        <option value="Science">Science</option>
-                        <option value="Humanities">Humanities</option>
-                        <option value="Secondary">Secondary (9th–10th)</option>
-                        <option value="MTS">MTS (Multi-Tasking Staff)</option>
-                        <option value="Other">Other...</option>
-                      </select>
-                      {!STANDARD_DEPTS.includes(fullEditData.department) && (
-                        <input
-                          type="text"
-                          placeholder="Enter custom department..."
-                          value={fullEditData.department || ''}
-                          onChange={e => fullEditField('department', e.target.value)}
-                          className={panelInput + " mt-1.5 font-semibold"}
-                          style={panelInputStyle}
-                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
-                      <select value={fullEditData.hidden ? 'hidden' : 'visible'}
-                        onChange={e => {
-                          const isHidden = e.target.value === 'hidden';
-                          fullEditField('hidden', isHidden);
-                          if (isHidden && !fullEditData.inactiveReason) {
-                            fullEditField('inactiveReason', 'Transferred');
-                          }
-                        }}
-                        className={panelInput} style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
-                        <option value="visible">Visible (Active on Website)</option>
-                        <option value="hidden">Hidden (Inactive)</option>
-                      </select>
-                    </div>
-                    {fullEditData.hidden && (
-                      <div className="animate-in fade-in duration-200">
-                        <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
-                        <select
-                          value={['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')}
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (val === 'Other') {
-                              const custom = window.prompt("Enter custom reason for inactive status:");
-                              fullEditField('inactiveReason', custom || 'Other');
-                            } else {
-                              fullEditField('inactiveReason', val);
-                            }
-                          }}
-                          className={panelInput} style={panelInputStyle}
-                          onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                          onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                        >
-                          <option value="Transferred">Transferred</option>
-                          <option value="Retired">Retired</option>
-                          <option value="Deployed Out">Deployed Out</option>
-                          <option value="Other">Other...</option>
-                        </select>
-                        {fullEditData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) && (
-                          <input
-                            type="text"
-                            placeholder="Enter custom reason..."
-                            value={fullEditData.inactiveReason || ''}
-                            onChange={e => fullEditField('inactiveReason', e.target.value)}
-                            className={panelInput + " mt-1.5 font-semibold"}
-                            style={panelInputStyle}
-                            onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                            onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                {/* Section: Service Details */}
-                <section>
-                  <h4 className={sectionHeader}>
-                    <span style={divider} />
-                    <span style={sectionTitleStyle}>Service Details</span>
-                    <span style={divider} />
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FInput field="cpis_no" label="CPIS No (Unique Govt ID)" data={fullEditData} onChange={fullEditField} mono />
-                    <FInput field="date_of_first_appointment" label="Date of 1st Appointment" data={fullEditData} onChange={fullEditField} mono />
-                    <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="stay_period" label="Stay from (Period)" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
-                    <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
-                    <FInput field="cadre" label="Service Cadre" data={fullEditData} onChange={fullEditField} />
-                  </div>
-                </section>
-
-                {/* Section: Tax & Financial Details */}
-                <section>
-                  <h4 className={sectionHeader}>
-                    <span style={divider} />
-                    <span style={sectionTitleStyle}>Tax & Financial Details</span>
-                    <span style={divider} />
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>PAN No</label>
-                      <input
-                        type="text"
-                        value={fullEditData.pan || (fullEditData.customFields && (fullEditData.customFields.PAN || fullEditData.customFields.pan)) || ''}
-                        onChange={e => {
-                          const val = e.target.value.toUpperCase();
-                          setFullEditData(d => ({
-                            ...d,
-                            pan: val,
-                            customFields: { ...(d.customFields || {}), PAN: val }
-                          }));
-                        }}
-                        className={panelInput + ' font-mono'}
-                        style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                      />
-                    </div>
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>Gross Salary (Annual)</label>
-                      <input
-                        type="number"
-                        value={fullEditData.grossSalary !== undefined ? fullEditData.grossSalary : (fullEditData.customFields && (fullEditData.customFields['Gross Salary'] || fullEditData.customFields.grossSalary)) || ''}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setFullEditData(d => ({
-                            ...d,
-                            grossSalary: val,
-                            customFields: { ...(d.customFields || {}), 'Gross Salary': val }
-                          }));
-                        }}
-                        className={panelInput}
-                        style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                      />
-                    </div>
-                    <div>
-                      <label className={panelLabel} style={panelLabelStyle}>TDS Paid (Up-To-Date)</label>
-                      <input
-                        type="number"
-                        value={fullEditData.tds !== undefined ? fullEditData.tds : (fullEditData.customFields && (fullEditData.customFields.TDS || fullEditData.customFields.tds || fullEditData.customFields['TDS Paid'])) || ''}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setFullEditData(d => ({
-                            ...d,
-                            tds: val,
-                            customFields: { ...(d.customFields || {}), TDS: val }
-                          }));
-                        }}
-                        className={panelInput}
-                        style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                {/* Section: Personal Details */}
-                <section>
-                  <h4 className={sectionHeader}>
-                    <span style={divider} />
-                    <span style={sectionTitleStyle}>Personal Details</span>
-                    <span style={divider} />
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FInput field="dob" label="Date of Birth" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="parentage" label="Parentage (Father's Name)" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="qualification" label="Highest Qualification" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
-                    <FInput field="health_issues" label="Health / Security Grounds" data={fullEditData} onChange={fullEditField} />
-                    <div>
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Deployment Status</label>
-                      <select
-                        value={fullEditData.if_deployed || 'No'}
-                        onChange={(e) => fullEditField('if_deployed', e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-orange-400"
-                      >
-                        <option value="No">No Deployment</option>
-                        <option value="in">Deployed In → (from another school, works here)</option>
-                        <option value="out">Deployed Out ← (our employee, sent to another school)</option>
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className={panelLabel} style={panelLabelStyle}>Permanent Address</label>
-                      <input type="text" value={fullEditData.permanent_address || ''} onChange={e => fullEditField('permanent_address', e.target.value)}
-                        className={panelInput} style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className={panelLabel} style={panelLabelStyle}>Present Address</label>
-                      <input type="text" value={fullEditData.present_address || ''} onChange={e => fullEditField('present_address', e.target.value)}
-                        className={panelInput} style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
-                      <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
-                        className={panelInput + ' resize-none'} style={panelInputStyle}
-                        onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                        onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                    </div>
-                  </div>
-                </section>
+                 {/* Dynamically Render Layout Groups (Movable Standard & Custom Fields) */}
+                 {(fieldLayout.groups || []).map(group => {
+                   const fields = renderFieldsForGroup(group.id);
+                   if (!fields && group.builtIn) return null;
+                   return (
+                     <section key={group.id} className="mt-8 border-t border-slate-700/50 pt-6">
+                       <h4 className={sectionHeader}>
+                         <span style={divider} />
+                         <span style={sectionTitleStyle}>{group.name}</span>
+                         <span style={divider} />
+                       </h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                         {fields}
+                         
+                         {/* Placeholder for empty custom groups */}
+                         {!group.builtIn && (!group.customFields || group.customFields.length === 0) && (
+                           <p className="text-[10px] text-slate-500 italic col-span-full">No fields have been assigned to this group yet.</p>
+                         )}
+                         
+                         {/* Personal Details administrative additions */}
+                         {group.id === 'personal' && (
+                           <>
+                             <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
+                             <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
+                             <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
+                             <div>
+                               <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
+                               <select value={fullEditData.hidden ? 'hidden' : 'visible'}
+                                 onChange={e => {
+                                   const isHidden = e.target.value === 'hidden';
+                                   fullEditField('hidden', isHidden);
+                                   if (isHidden && !fullEditData.inactiveReason) {
+                                     fullEditField('inactiveReason', 'Transferred');
+                                   }
+                                 }}
+                                 className={panelInput} style={panelInputStyle}
+                                 onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                 onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
+                                 <option value="visible">Visible (Active on Website)</option>
+                                 <option value="hidden">Hidden (Inactive)</option>
+                               </select>
+                             </div>
+                             {fullEditData.hidden && (
+                               <div className="animate-in fade-in duration-200">
+                                 <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
+                                 <select
+                                   value={['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')}
+                                   onChange={e => {
+                                     const val = e.target.value;
+                                     if (val === 'Other') {
+                                       const custom = window.prompt("Enter custom reason for inactive status:");
+                                       fullEditField('inactiveReason', custom || 'Other');
+                                     } else {
+                                       fullEditField('inactiveReason', val);
+                                     }
+                                   }}
+                                   className={panelInput} style={panelInputStyle}
+                                   onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                   onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                 >
+                                   <option value="Transferred">Transferred</option>
+                                   <option value="Retired">Retired</option>
+                                   <option value="Deployed Out">Deployed Out</option>
+                                   <option value="Other">Other...</option>
+                                 </select>
+                                 {fullEditData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) && (
+                                   <input
+                                     type="text"
+                                     placeholder="Enter custom reason..."
+                                     value={fullEditData.inactiveReason || ''}
+                                     onChange={e => fullEditField('inactiveReason', e.target.value)}
+                                     className={panelInput + " mt-1.5 font-semibold"}
+                                     style={panelInputStyle}
+                                     onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                     onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                   />
+                                 )}
+                               </div>
+                             )}
+                             <div className="sm:col-span-2">
+                               <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
+                               <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
+                                 className={panelInput + ' resize-none'} style={panelInputStyle}
+                                 onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                 onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                             </div>
+                           </>
+                         )}
+                         
+                         {/* Service Details administrative additions */}
+                         {group.id === 'service' && (
+                           <>
+                             <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
+                             <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
+                             <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
+                             <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
+                           </>
+                         )}
+                       </div>
+                     </section>
+                   );
+                 })}
 
                 {/* Section: Photo */}
                 <section>
@@ -9609,6 +10152,8 @@ export default function AdminPortal() {
                     </div>
                   </div>
                 </section>
+
+
 
                 {/* Section: Posting History */}
                 <section>
@@ -9682,42 +10227,59 @@ export default function AdminPortal() {
                     <span style={divider} />
                   </h4>
                   <div className="space-y-3">
-                    {/* List existing custom fields */}
-                    {Object.keys(fullEditData.customFields || {}).length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {Object.keys(fullEditData.customFields || {}).map((key) => (
-                          <div key={key}>
-                            <label className={panelLabel} style={panelLabelStyle}>{key}</label>
-                            <div className="flex gap-1.5 items-center">
-                              <input
-                                type="text"
-                                value={fullEditData.customFields[key] || ''}
-                                onChange={(e) => {
-                                  const updatedCustom = { ...fullEditData.customFields, [key]: e.target.value };
-                                  fullEditField('customFields', updatedCustom);
-                                }}
-                                className={panelInput}
-                                style={panelInputStyle}
-                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                              />
-                              <button
-                                onClick={() => {
-                                  const updatedCustom = { ...fullEditData.customFields };
-                                  delete updatedCustom[key];
-                                  fullEditField('customFields', updatedCustom);
-                                }}
-                                className="p-1.5 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex-shrink-0"
-                                style={{ border: '1px solid #334155' }}
-                                title={`Remove field "${key}"`}
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* List unassigned custom fields */}
+                    {(() => {
+                      const keysToRender = new Set(unassignedFieldKeys);
+                      if (fullEditData.customFields) {
+                        Object.keys(fullEditData.customFields).forEach(k => {
+                          if (!assignedFieldKeys.has(k)) keysToRender.add(k);
+                        });
+                      }
+                      const sortedKeys = Array.from(keysToRender).sort();
+
+                      if (sortedKeys.length === 0) {
+                        return <p className="text-[10px] text-slate-500 italic">No additional custom fields found. Add new fields below.</p>;
+                      }
+
+                      return (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {sortedKeys.map((key) => {
+                            const val = (fullEditData.customFields || {})[key] || '';
+                            return (
+                              <div key={key}>
+                                <label className={panelLabel} style={panelLabelStyle}>{key}</label>
+                                <div className="flex gap-1.5 items-center">
+                                  <input
+                                    type="text"
+                                    value={val}
+                                    onChange={(e) => {
+                                      const updatedCustom = { ...(fullEditData.customFields || {}), [key]: e.target.value };
+                                      fullEditField('customFields', updatedCustom);
+                                    }}
+                                    className={panelInput}
+                                    style={panelInputStyle}
+                                    onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                    onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const updatedCustom = { ...(fullEditData.customFields || {}) };
+                                      delete updatedCustom[key];
+                                      fullEditField('customFields', updatedCustom);
+                                    }}
+                                    className="p-1.5 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex-shrink-0"
+                                    style={{ border: '1px solid #334155' }}
+                                    title={`Remove field "${key}"`}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
 
                     {/* Add a new custom field inline builder */}
                     <div className="p-3 rounded-lg border border-dashed border-slate-700 bg-slate-950/40 flex flex-col sm:flex-row gap-2.5 items-end">

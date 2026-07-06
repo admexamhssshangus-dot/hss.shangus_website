@@ -393,7 +393,7 @@
     "subject_pg": "Botany",
     "grossSalary": 1325262,
     "tds": 0,
-    "qualification": "M.Sc., B.Ed.; (Csir Jrf)",
+    "qualification": "M.Sc., B.Ed.; (Csir Net-Jrf)",
     "parentage": "Gulzar Ahmad Sheikh",
     "stay_period": "01.09.2023",
     "health_issues": "No",
@@ -429,7 +429,11 @@
       "Tax Regime": "new",
       "80C Deductions": "0",
       "HRA Exemption": "0",
-      "Aadhar No.": "285184247588"
+      "Aadhar No.": "285184247588",
+      "SLI Application No.": "721001421",
+      "SLI Policy Number": "722001421",
+      "SLI Sum Assured (Amount in INR)": "200000",
+      "Monthly SLI Premium (Amount in INR)": "704"
     },
     "hidden": false,
     "gov_mail_id": "SHEIKHGUL.9132@JK.GOV.IN",
@@ -1780,7 +1784,7 @@
     "mobile": "+919697371041",
     "present_district": "Anantnag",
     "ddo_code": "01061400618",
-    "photo": "",
+    "photo": "https://firebasestorage.googleapis.com/v0/b/hsssdb.firebasestorage.app/o/slides%2Fphotos%2Fmanzoor_ahmad_shilla.jpg?alt=media&token=3de50f35-5dcf-4983-abe6-7ea0deb7ecc8",
     "date_of_first_appointment": ""
   },
   {
