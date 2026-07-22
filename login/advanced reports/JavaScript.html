@@ -973,7 +973,21 @@
     applyFilters();
   }
   // Close modal on Esc / overlay click (matches PHP §3606-3607)
-  document.addEventListener('keyup', function (e) { if (e.key === 'Escape') { closeColumnsModal(); closeToolsModal(); } });
+  document.addEventListener('keyup', function (e) { if (e.key === 'Escape') { closeColumnsModal(); requestCloseToolsModal(); } });
+
+  // ---- SAFE CLOSE: prevents closing when processing ----
+  function requestCloseToolsModal() {
+    if (STATE.isProcessing) {
+      showCustomConfirm(
+        '<strong style="color:#d93025">⚠ A process is currently running.</strong><br><br>' +
+        'Closing this window now may result in <strong>incomplete data updates</strong> or <strong>data corruption</strong>.<br><br>' +
+        'Are you sure you want to close?',
+        function() { closeToolsModal(); }
+      );
+      return;
+    }
+    closeToolsModal();
+  }
 
   // ---- TOOLS MODAL ----
   function openToolsModal() {
@@ -1029,6 +1043,23 @@
       colSel.appendChild(opt);
     });
 
+    // Import Tab
+    fillSel('import-session-select', STATE.sessions, curS, false);
+    // Add "+ New Session" option
+    var importSessSel = document.getElementById('import-session-select');
+    if (importSessSel) {
+      var newOpt = document.createElement('option');
+      newOpt.value = '__new__';
+      newOpt.textContent = '+ Add New Session...';
+      newOpt.style.color = '#f39c12';
+      newOpt.style.fontWeight = '700';
+      importSessSel.appendChild(newOpt);
+    }
+    document.getElementById('import-session-custom').style.display = 'none';
+    document.getElementById('import-session-custom').value = '';
+    fillSel('import-class-select', STATE.classes, curC, false);
+    initImportColumnSelector();
+
     modal.classList.add('active');
     document.body.classList.add('modal-open');
     STATE.editorScope = ''; // Reset scope to force re-fetch on first load
@@ -1075,14 +1106,18 @@
     document.getElementById('tool-section-' + tab).classList.add('active');
 
     if (tab === 'editor') initDbEditor();
-    if (tab === 'register' || tab === 'sentup' || tab === 'photos') {
+    if (tab === 'register' || tab === 'sentup' || tab === 'photos' || tab === 'photoupload' || tab === 'import') {
         var curS = (STATE.currentFilters.sessions && STATE.currentFilters.sessions.length === 1) ? STATE.currentFilters.sessions[0] : (STATE.sessions[0] || "");
         var curC = (STATE.currentFilters.classes && STATE.currentFilters.classes.length === 1) ? STATE.currentFilters.classes[0] : (STATE.classes[0] || "");
         
         var sessSelId = tab === 'register' ? 'register-tool-session-select' : 
-                        (tab === 'sentup' ? 'sentup-tool-session-select' : 'photo-tool-session-select');
+                        (tab === 'sentup' ? 'sentup-tool-session-select' : 
+                        (tab === 'photos' ? 'photo-tool-session-select' : 
+                        (tab === 'photoupload' ? 'photoupload-tool-session-select' : 'import-session-select')));
         var classSelId = tab === 'sentup' ? 'sentup-tool-class-select' : 
-                         (tab === 'photos' ? 'photo-tool-class-select' : null);
+                         (tab === 'photos' ? 'photo-tool-class-select' : 
+                         (tab === 'photoupload' ? 'photoupload-tool-class-select' :
+                         (tab === 'import' ? 'import-class-select' : null)));
         
         var regSel = document.getElementById(sessSelId);
         if (regSel) {
@@ -1093,6 +1128,15 @@
                 opt.textContent = s;
                 regSel.appendChild(opt);
             });
+            // Add "+ New Session" option for import tab
+            if (tab === 'import') {
+                var newOpt = document.createElement('option');
+                newOpt.value = '__new__';
+                newOpt.textContent = '+ Add New Session...';
+                newOpt.style.color = '#f39c12';
+                newOpt.style.fontWeight = '700';
+                regSel.appendChild(newOpt);
+            }
             if (curS) regSel.value = curS;
         }
         
@@ -1108,6 +1152,10 @@
                 });
                 if (curC) clsSel.value = curC;
             }
+        }
+        
+        if (tab === 'photos') {
+            renderRecentExports();
         }
     }
   }
@@ -1399,7 +1447,18 @@
   }
   function closeToolsModal() {
     document.getElementById('tools-modal').classList.remove('active');
-    document.body.classList.remove('modal-open');
+    document.getElementById('tools-modal').classList.remove('minimized');
+    if (toolUpdateTimer) clearTimeout(toolUpdateTimer);
+  }
+
+  function toggleMinimizeToolsModal() {
+    var overlay = document.getElementById('tools-modal');
+    var isMin = overlay.classList.toggle('minimized');
+    var btn = document.querySelector('.modal-minimize-button');
+    if (btn) {
+      btn.textContent = isMin ? '□' : '_';
+      btn.title = isMin ? 'Restore' : 'Minimize';
+    }
   }
 
   function showCustomConfirm(msg, onConfirm) {
@@ -1705,6 +1764,7 @@
   // ---- PHOTO EXPORT TOOL (NEW) ----
   var PHOTO_EXPORT_STATE = {
     students: [],
+    missingStudents: [],
     total: 0,
     processed: 0,
     batchSize: 20,
@@ -1742,17 +1802,18 @@
     pctText.textContent = '0%';
 
     google.script.run
-      .withSuccessHandler(function (students) {
-        if (!students || students.length === 0) {
+      .withSuccessHandler(function (response) {
+        if (!response || !response.valid || response.valid.length === 0) {
           showNotification('No students found with photos for the selected criteria.', true);
           btn.disabled = false;
-          btn.textContent = '🚀 Export & Download ZIP';
+          btn.textContent = '🚀 Export to Drive Folder';
           prog.classList.add('hidden');
           return;
         }
 
-        PHOTO_EXPORT_STATE.students = students;
-        PHOTO_EXPORT_STATE.total = students.length;
+        PHOTO_EXPORT_STATE.students = response.valid;
+        PHOTO_EXPORT_STATE.missingStudents = response.missing || [];
+        PHOTO_EXPORT_STATE.total = response.valid.length;
         PHOTO_EXPORT_STATE.processed = 0;
         PHOTO_EXPORT_STATE.className = className;
         PHOTO_EXPORT_STATE.sessionName = session;
@@ -1766,7 +1827,7 @@
       .withFailureHandler(function (err) {
         showNotification('Error: ' + err.message, true);
         btn.disabled = false;
-        btn.textContent = '🚀 Export & Download ZIP';
+        btn.textContent = '🚀 Export to Drive Folder';
         prog.classList.add('hidden');
       })
       .getStudentsForPhotoExport(session, className, rollFrom, rollTo);
@@ -1778,7 +1839,7 @@
     const batch = PHOTO_EXPORT_STATE.students.slice(start, end);
 
     if (batch.length === 0) {
-      finalizeZip();
+      finalizeFolderExport();
       return;
     }
 
@@ -1813,23 +1874,24 @@
       .processPhotoExportBatch(batch, PHOTO_EXPORT_STATE.sessionName, PHOTO_EXPORT_STATE.className);
   }
 
-  function finalizeZip() {
+  function finalizeFolderExport() {
     const status = document.getElementById('photo-export-status');
     const details = document.getElementById('photo-export-details');
     const btn = document.getElementById('tool-btn-photo-export');
 
-    status.textContent = 'Creating ZIP archive...';
-    details.textContent = 'This may take a minute for many photos...';
+    status.textContent = 'Finalizing Export Folder...';
+    details.textContent = 'Getting Drive link...';
 
-    const zipName = PHOTO_EXPORT_STATE.className.replace(/\s+/g, '_') + "_Photos_" + PHOTO_EXPORT_STATE.sessionName.replace(/\s+/g, '_');
+    const safeSessionForName = PHOTO_EXPORT_STATE.sessionName.replace(/\//g, ',');
+    const folderName = PHOTO_EXPORT_STATE.className.replace(/\s+/g, '_') + "_Photos_" + safeSessionForName.replace(/\s+/g, '_');
 
     google.script.run
       .withSuccessHandler(function (res) {
         if (res.success) {
-          status.textContent = 'Success! Downloading...';
-          details.textContent = 'ZIP file ready.';
+          status.textContent = 'Success! Export Ready.';
+          details.innerHTML = '<a href="' + res.downloadUrl + '" target="_blank" style="color:#2563eb;font-weight:bold;text-decoration:underline;background:#eff6ff;padding:4px 8px;border-radius:4px;display:inline-block;margin-top:4px;">Open Folder in Google Drive</a>';
           
-          // Trigger download
+          // Open folder automatically
           const link = document.createElement('a');
           link.href = res.downloadUrl;
           link.target = "_blank";
@@ -1837,24 +1899,589 @@
           link.click();
           document.body.removeChild(link);
 
-          showNotification('Photo export complete. ZIP downloaded.', false);
+          // Remember the export in localStorage
+          saveRecentExport(folderName, res.downloadUrl, res.fileId);
+
+          showNotification('Photo export complete. Google Drive folder opened.', false);
         } else {
           showNotification('Finalize error: ' + res.message, true);
         }
 
         btn.disabled = false;
-        btn.textContent = '🚀 Export & Download ZIP';
-        // Keep progress visible for a moment
-        setTimeout(() => {
-          document.getElementById('photo-export-progress-container').classList.add('hidden');
-        }, 5000);
+        btn.textContent = '🚀 Export to Drive Folder';
+        // Keep progress visible so user can click the link if popup was blocked
       })
       .withFailureHandler(function (err) {
         showNotification('Finalize error: ' + err.message, true);
         btn.disabled = false;
-        btn.textContent = '🚀 Export & Download ZIP';
+        btn.textContent = '🚀 Export to Drive Folder';
       })
-      .finalizePhotoExport(PHOTO_EXPORT_STATE.classFolderId, zipName);
+      .finalizePhotoExport(PHOTO_EXPORT_STATE.classFolderId, folderName, PHOTO_EXPORT_STATE.missingStudents);
+  }
+  
+  function saveRecentExport(name, url, fileId) {
+    try {
+      var exports = JSON.parse(localStorage.getItem('recentPhotoExports') || '[]');
+      exports.unshift({ name: name, url: url, fileId: fileId, date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() });
+      if (exports.length > 8) exports.pop(); // Keep last 8
+      localStorage.setItem('recentPhotoExports', JSON.stringify(exports));
+      renderRecentExports();
+    } catch(e) {}
+  }
+  
+  function deleteExportFolder(index) {
+    try {
+      var exports = JSON.parse(localStorage.getItem('recentPhotoExports') || '[]');
+      var item = exports[index];
+      if (!item) return;
+
+      var btn = document.getElementById('delete-export-btn-' + index);
+      if (btn) btn.textContent = 'Deleting...';
+
+      // Always remove locally immediately for UI responsiveness
+      exports.splice(index, 1);
+      localStorage.setItem('recentPhotoExports', JSON.stringify(exports));
+
+      // Attempt to delete from Drive if we have the fileId
+      if (item.fileId) {
+        google.script.run
+          .withSuccessHandler(renderRecentExports)
+          .withFailureHandler(renderRecentExports)
+          .deletePhotoExportFolder(item.fileId);
+      } else {
+        renderRecentExports();
+      }
+    } catch(e) {}
+  }
+
+  function renderRecentExports() {
+    var container = document.getElementById('recent-exports-list');
+    if (!container) return;
+    try {
+      var exports = JSON.parse(localStorage.getItem('recentPhotoExports') || '[]');
+      if (exports.length === 0) {
+        container.innerHTML = '<div style="font-size:11px;color:#94a3b8;padding:8px">No recent exports.</div>';
+        return;
+      }
+      var html = '<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#475569">Recent Exports:</div>';
+      exports.forEach(function(exp, index) {
+        var escapedName = escHtml(exp.name || '');
+        var escapedDate = escHtml(exp.date || '');
+        var escapedUrl = escHtml(exp.url || '');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;padding:6px 10px;border-radius:6px;margin-bottom:6px;">' +
+                  '<div style="font-size:11.5px;color:#334155;font-weight:500;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escapedName+'">' + escapedName + '<div style="font-size:9.5px;color:#94a3b8">' + escapedDate + '</div></div>' +
+                  '<div style="display:flex;gap:6px">' +
+                    '<a href="' + escapedUrl + '" target="_blank" style="font-size:11px;color:#0ea5e9;text-decoration:none;font-weight:bold;background:#e0f2fe;padding:4px 8px;border-radius:4px;">Open Folder</a>' +
+                    '<button id="delete-export-btn-' + index + '" onclick="deleteExportFolder(' + index + ')" style="font-size:11px;color:#ef4444;border:none;background:#fee2e2;padding:4px 8px;border-radius:4px;cursor:pointer;font-weight:bold;">Delete</button>' +
+                  '</div>' +
+                '</div>';
+      });
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '';
+    }
+  }
+
+  // ============================================
+  // ======= BULK IMPORT TOOL (NEW) ============
+  // ============================================
+  var IMPORT_STATE = {
+    selectedColumns: [],   // array of column keys
+    parsedRows: [],        // parsed data rows
+    importMode: 'paste'    // 'paste' or 'file'
+  };
+
+  function initImportColumnSelector() {
+    var container = document.getElementById('import-column-selector');
+    if (!container) return;
+
+    // Use the physical column order from the sheet
+    var sortedCols = (STATE.orderedColumns && STATE.orderedColumns.length > 0) ? STATE.orderedColumns : [];
+    if (sortedCols.length === 0) {
+      for (var k in STATE.allColumns) sortedCols.push({ key: k, label: STATE.allColumns[k] });
+    }
+
+    // Exclude internal/auto columns
+    var excluded = ['s_no', 'student_photo', 'student_photo_filename', 'photo_id', 'PDF_URL', 'stream'];
+    var html = '';
+    sortedCols.forEach(function(col) {
+      if (excluded.indexOf(col.key) !== -1 || !STATE.allColumns[col.key]) return;
+      // Pre-select common columns
+      var preselect = ['student_name', 'father_name', 'dob_figures', 'village_town', 'class_r_no'].indexOf(col.key) !== -1;
+      var isSelected = IMPORT_STATE.selectedColumns.indexOf(col.key) !== -1 || 
+                       (IMPORT_STATE.selectedColumns.length === 0 && preselect);
+      html += '<span class="import-col-chip' + (isSelected ? ' selected' : '') + '" data-key="' + col.key + '" onclick="toggleImportColumn(this)">' +
+              (STATE.allColumns[col.key] || col.key) + '</span>';
+    });
+    container.innerHTML = html;
+
+    // Initialize selectedColumns from pre-selected chips
+    if (IMPORT_STATE.selectedColumns.length === 0) {
+      IMPORT_STATE.selectedColumns = [];
+      container.querySelectorAll('.import-col-chip.selected').forEach(function(chip) {
+        IMPORT_STATE.selectedColumns.push(chip.getAttribute('data-key'));
+      });
+    }
+    updateImportColOrderHint();
+  }
+
+  function toggleImportColumn(chip) {
+    var key = chip.getAttribute('data-key');
+    chip.classList.toggle('selected');
+
+    var idx = IMPORT_STATE.selectedColumns.indexOf(key);
+    if (idx !== -1) {
+      IMPORT_STATE.selectedColumns.splice(idx, 1);
+    } else {
+      IMPORT_STATE.selectedColumns.push(key);
+    }
+    updateImportColOrderHint();
+  }
+
+  function updateImportColOrderHint() {
+    var hint = document.getElementById('import-col-order-hint');
+    if (hint) {
+      var count = IMPORT_STATE.selectedColumns.length;
+      hint.textContent = count ? count + ' column' + (count > 1 ? 's' : '') + ' selected' : 'No columns selected';
+    }
+  }
+
+  function switchImportMode(mode) {
+    IMPORT_STATE.importMode = mode;
+    document.getElementById('import-mode-paste').classList.toggle('active', mode === 'paste');
+    document.getElementById('import-mode-file').classList.toggle('active', mode === 'file');
+    document.getElementById('import-paste-panel').style.display = mode === 'paste' ? 'block' : 'none';
+    document.getElementById('import-file-panel').style.display = mode === 'file' ? 'block' : 'none';
+  }
+
+  // File upload handler
+  function handleImportFile(input) {
+    var file = input.files[0];
+    if (!file) return;
+
+    var nameEl = document.getElementById('import-file-name');
+    nameEl.textContent = '\u2705 ' + file.name;
+    nameEl.style.display = 'block';
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var text = e.target.result;
+      document.getElementById('import-paste-area').value = text;
+      showNotification('File loaded: ' + file.name, false);
+    };
+    reader.readAsText(file);
+  }
+
+  // Drag-and-drop setup
+  (function() {
+    var drop = document.getElementById('import-file-drop');
+    if (!drop) return;
+    ['dragenter', 'dragover'].forEach(function(ev) {
+      drop.addEventListener(ev, function(e) { e.preventDefault(); drop.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function(ev) {
+      drop.addEventListener(ev, function(e) { e.preventDefault(); drop.classList.remove('dragover'); });
+    });
+    drop.addEventListener('drop', function(e) {
+      var file = e.dataTransfer.files[0];
+      if (file) {
+        document.getElementById('import-file-input').files = e.dataTransfer.files;
+        handleImportFile(document.getElementById('import-file-input'));
+      }
+    });
+  })();
+
+  function parseBulkImportData() {
+    // ALWAYS read column order from DOM (visual chip order), not click order
+    var cols = [];
+    document.querySelectorAll('#import-column-selector .import-col-chip.selected').forEach(function(chip) {
+      cols.push(chip.getAttribute('data-key'));
+    });
+    if (!cols.length) {
+      showNotification('Please select at least one column to import.', false);
+      return;
+    }
+
+    var raw = document.getElementById('import-paste-area').value.trim();
+    if (!raw) {
+      showNotification('Please paste or upload data first.', false);
+      return;
+    }
+
+    // Detect delimiter: tab or comma
+    var firstLine = raw.split(/\r?\n/)[0];
+    var delimiter = firstLine.indexOf('\t') !== -1 ? '\t' : ',';
+
+    var lines = raw.split(/\r?\n/).filter(function(l) { return l.trim().length > 0; });
+    
+    // Check if first row looks like headers (match column labels/keys)
+    // Require >50% of cells to match to avoid false positives
+    var firstCells = lines[0].split(delimiter).map(function(c) { return c.trim(); });
+    var isHeader = false;
+    var headerMatchCount = 0;
+    firstCells.forEach(function(cell) {
+      if (!cell) return;
+      for (var k in STATE.allColumns) {
+        if (STATE.allColumns[k].toLowerCase() === cell.toLowerCase() || k.toLowerCase() === cell.toLowerCase()) {
+          headerMatchCount++;
+          break;
+        }
+      }
+      // Also check HEADER_MAP keys (exact sheet header labels)
+      // Already covered by ALL_COLUMNS values above
+    });
+    var matchThreshold = Math.max(3, Math.ceil(firstCells.length * 0.5));
+    if (headerMatchCount >= matchThreshold) {
+      isHeader = true;
+      // Re-map columns from header row
+      cols = [];
+      firstCells.forEach(function(cell) {
+        var matched = '';
+        for (var k in STATE.allColumns) {
+          if (STATE.allColumns[k].toLowerCase() === cell.toLowerCase() || k.toLowerCase() === cell.toLowerCase()) {
+            matched = k;
+            break;
+          }
+        }
+        cols.push(matched || '__unmapped__');
+      });
+      lines.shift(); // Remove header row
+      
+      // Update selected columns to reflect the file headers
+      IMPORT_STATE.selectedColumns = cols.filter(function(c) { return c !== '__unmapped__'; });
+      showNotification('Header row detected and mapped automatically.', true);
+    }
+
+    var parsed = [];
+    var errorCount = 0;
+    lines.forEach(function(line, lineIdx) {
+      var cells = line.split(delimiter);
+      var row = {};
+      var hasData = false;
+      cols.forEach(function(colKey, ci) {
+        if (colKey === '__unmapped__') return;
+        var val = (cells[ci] || '').trim();
+        row[colKey] = val;
+        if (val) hasData = true;
+      });
+      if (hasData) {
+        // Flag if column count mismatch
+        row._colMismatch = cells.length !== cols.length;
+        if (row._colMismatch) errorCount++;
+        parsed.push(row);
+      }
+    });
+
+    if (!parsed.length) {
+      showNotification('No valid data rows found.', false);
+      return;
+    }
+
+    IMPORT_STATE.parsedRows = parsed;
+    renderImportPreview(cols, parsed);
+
+    // Show import button
+    var execBtn = document.getElementById('import-btn-execute');
+    execBtn.style.display = 'flex';
+    execBtn.textContent = '\ud83d\ude80 Import ' + parsed.length + ' Record' + (parsed.length > 1 ? 's' : '');
+
+    if (errorCount) {
+      showNotification(errorCount + ' row(s) have column count mismatches (highlighted in red).', false);
+    } else {
+      showNotification('Parsed ' + parsed.length + ' record(s) successfully. Review and click Import.', true);
+    }
+  }
+
+  function renderImportPreview(cols, rows) {
+    var container = document.getElementById('import-preview-container');
+    var thead = document.getElementById('import-preview-head');
+    var tbody = document.getElementById('import-preview-body');
+    var countEl = document.getElementById('import-preview-count');
+
+    container.style.display = 'block';
+    countEl.innerHTML = '<strong>' + rows.length + '</strong> record' + (rows.length > 1 ? 's' : '') + ' parsed';
+
+    // Build header
+    var hHtml = '<tr><th style="width:30px">#</th>';
+    var displayCols = cols.filter(function(c) { return c !== '__unmapped__'; });
+    displayCols.forEach(function(colKey) {
+      hHtml += '<th>' + escHtml(STATE.allColumns[colKey] || colKey) + '</th>';
+    });
+    hHtml += '</tr>';
+    thead.innerHTML = hHtml;
+
+    // Build rows
+    var bHtml = '';
+    rows.forEach(function(row, i) {
+      bHtml += '<tr' + (row._colMismatch ? ' class="import-error-row"' : '') + '>';
+      bHtml += '<td style="color:#94a3b8;text-align:center">' + (i + 1) + '</td>';
+      displayCols.forEach(function(colKey) {
+        bHtml += '<td>' + escHtml(row[colKey] || '') + '</td>';
+      });
+      bHtml += '</tr>';
+    });
+    tbody.innerHTML = bHtml;
+  }
+
+  function clearImportPreview() {
+    document.getElementById('import-preview-container').style.display = 'none';
+    document.getElementById('import-preview-head').innerHTML = '';
+    document.getElementById('import-preview-body').innerHTML = '';
+    document.getElementById('import-btn-execute').style.display = 'none';
+    IMPORT_STATE.parsedRows = [];
+  }
+
+  function executeBulkImport() {
+    var rows = IMPORT_STATE.parsedRows;
+    if (!rows.length) { showNotification('No data to import. Parse first.', false); return; }
+
+    // Get session
+    var sessSel = document.getElementById('import-session-select');
+    var session = sessSel.value === '__new__'
+      ? document.getElementById('import-session-custom').value.trim()
+      : sessSel.value;
+    if (!session) { showNotification('Please select or enter a session name.', false); return; }
+
+    var className = document.getElementById('import-class-select').value;
+    if (!className) { showNotification('Please select a class.', false); return; }
+
+    // Clean rows: remove internal flags
+    var cleanRows = rows.map(function(r) {
+      var obj = {};
+      for (var k in r) {
+        if (k.charAt(0) !== '_') obj[k] = r[k];
+      }
+      return obj;
+    });
+
+    showCustomConfirm(
+      'This will <strong>add ' + cleanRows.length + ' new record' + (cleanRows.length > 1 ? 's' : '') + '</strong> to the database ' +
+      'for <strong>' + escHtml(className) + '</strong> in session <strong>' + escHtml(session) + '</strong>.<br><br>' +
+      '<span style="color:#e67e22;font-size:11px">\u26a0 This action cannot be easily undone. Please verify the preview data is correct.</span><br><br>' +
+      'Proceed with import?',
+      function() {
+        var btn = document.getElementById('import-btn-execute');
+        btn.disabled = true;
+        btn.textContent = 'Importing...';
+        showGlobalProcessing(true, 'Importing Data', 'Adding ' + cleanRows.length + ' records to the database...');
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            showGlobalProcessing(false);
+            btn.disabled = false;
+            if (res.success) {
+              showNotification('Successfully imported ' + res.count + ' records!', true);
+              clearImportPreview();
+              document.getElementById('import-paste-area').value = '';
+              btn.style.display = 'none';
+              // Clear cache so new records appear in reports
+              STATE.editorScope = '';
+            } else {
+              showNotification('Import error: ' + (res.message || 'Unknown error'), false);
+              btn.textContent = '\ud83d\ude80 Retry Import';
+            }
+          })
+          .withFailureHandler(function(err) {
+            showGlobalProcessing(false);
+            btn.disabled = false;
+            btn.textContent = '\ud83d\ude80 Retry Import';
+            showNotification('Error: ' + err.message, false);
+          })
+          .bulkImportStudentData(cleanRows, session, className);
+      }
+    );
+  }
+  // --- Photo Upload Logic ---
+  var photouploadMode = 'bulk';
+
+  function switchPhotoUploadMode(mode) {
+    photouploadMode = mode;
+    document.getElementById('photoupload-mode-bulk').classList.toggle('active', mode === 'bulk');
+    document.getElementById('photoupload-mode-individual').classList.toggle('active', mode === 'individual');
+    
+    var studentContainer = document.getElementById('photoupload-student-container');
+    var fileInput = document.getElementById('photoupload-files');
+    var filesLabel = document.getElementById('photoupload-files-label');
+    
+    if (mode === 'individual') {
+      studentContainer.style.display = 'block';
+      fileInput.removeAttribute('multiple');
+      filesLabel.textContent = 'Select Photo (Any name, will be auto-renamed):';
+      photouploadSessionClassChanged();
+    } else {
+      studentContainer.style.display = 'none';
+      fileInput.setAttribute('multiple', 'true');
+      filesLabel.textContent = 'Select Photos (must be named by Board Reg. No):';
+    }
+  }
+
+  function photouploadSessionClassChanged() {
+    if (photouploadMode !== 'individual') return;
+    
+    var session = document.getElementById('photoupload-tool-session-select').value;
+    var cls = document.getElementById('photoupload-tool-class-select').value;
+    var studentSelect = document.getElementById('photoupload-tool-student-select');
+    studentSelect.innerHTML = '<option value="">Loading students...</option>';
+    
+    if (!session || !cls) {
+      studentSelect.innerHTML = '<option value="">Select Session and Class first</option>';
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(response) {
+        studentSelect.innerHTML = '<option value="">Select a student...</option>';
+        
+        var allStudents = [];
+        if (response && response.valid) {
+          response.valid.forEach(function(s) { allStudents.push(s); });
+        }
+        if (response && response.missing) {
+          response.missing.forEach(function(s) { allStudents.push(s); });
+        }
+        
+        if (allStudents.length === 0) {
+           studentSelect.innerHTML = '<option value="">No students found in this class.</option>';
+           return;
+        }
+        
+        allStudents.forEach(function(s) {
+           var opt = document.createElement('option');
+           var reg = s.boardReg || s.board_reg_no || s.roll || s.class_r_no || '';
+           opt.value = reg;
+           opt.textContent = s.name + ' (Reg/Roll: ' + reg + ')';
+           if (reg) studentSelect.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function(err) {
+        studentSelect.innerHTML = '<option value="">Error loading students.</option>';
+      })
+      .getStudentsForPhotoExport(session, cls);
+  }
+
+  async function startPhotoUpload() {
+    var session = document.getElementById('photoupload-tool-session-select').value;
+    var cls = document.getElementById('photoupload-tool-class-select').value;
+    var fileInput = document.getElementById('photoupload-files');
+    var files = fileInput.files;
+
+    if (!session || !cls) {
+      showNotification('Please select Session and Class first.', false);
+      return;
+    }
+    
+    var individualRegNo = '';
+    if (photouploadMode === 'individual') {
+      individualRegNo = document.getElementById('photoupload-tool-student-select').value;
+      if (!individualRegNo) {
+        showNotification('Please select a student from the dropdown.', false);
+        return;
+      }
+    }
+
+    if (files.length === 0) {
+      showNotification('Please select at least one photo.', false);
+      return;
+    }
+
+    var validFiles = [];
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i];
+      if (!file.type.startsWith('image/')) {
+        showNotification('File ' + file.name + ' is not an image.', false);
+        return;
+      }
+      var sizeKb = file.size / 1024;
+      if (sizeKb > 50) {
+        showNotification('File ' + file.name + ' exceeds 50KB limit (' + Math.round(sizeKb) + 'KB).', false);
+        return;
+      }
+      validFiles.push(file);
+    }
+
+    var btn = document.getElementById('photoupload-btn');
+    var progressContainer = document.getElementById('photoupload-progress-container');
+    var statusText = document.getElementById('photoupload-status');
+    var percentText = document.getElementById('photoupload-percent');
+    var progressBar = document.getElementById('photoupload-progress-bar');
+
+    btn.disabled = true;
+    progressContainer.classList.remove('hidden');
+
+    var successCount = 0;
+    var failCount = 0;
+
+    for (var i = 0; i < validFiles.length; i++) {
+      var file = validFiles[i];
+      statusText.textContent = 'Uploading ' + file.name + '...';
+      var percent = Math.round((i / validFiles.length) * 100);
+      percentText.textContent = i + '/' + validFiles.length;
+      progressBar.style.width = percent + '%';
+
+      try {
+        var base64Data = await readFileAsBase64(file);
+        
+        var targetFilename = file.name;
+        var boardRegNo = '';
+        
+        if (photouploadMode === 'individual') {
+          // If individual mode, override the filename with the full format
+          var selectEl = document.getElementById('photoupload-tool-student-select');
+          var rawStudentText = selectEl.options[selectEl.selectedIndex].text;
+          var safeName = rawStudentText.split(' (')[0].replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+          var safeClass = cls.replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+          var safeSession = session.replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+          
+          boardRegNo = individualRegNo;
+          targetFilename = safeClass + '_' + safeSession + '_' + boardRegNo + '_' + safeName + '.' + file.name.split('.').pop();
+        } else {
+          // Bulk mode: extract boardRegNo from the filename if it follows the new format
+          var parts = file.name.split('.')[0].split('_');
+          boardRegNo = parts.length >= 3 ? parts[2] : parts[0];
+        }
+        
+        var res = await new Promise(function(resolve, reject) {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .uploadStudentPhoto(base64Data, file.type, targetFilename, cls, session, boardRegNo);
+        });
+
+        if (res.success) {
+          successCount++;
+        } else {
+          failCount++;
+          console.error('Failed to upload ' + file.name + ': ' + res.message);
+        }
+      } catch (err) {
+        failCount++;
+        console.error('Error uploading ' + file.name + ': ' + err.message);
+      }
+    }
+
+    percentText.textContent = validFiles.length + '/' + validFiles.length;
+    progressBar.style.width = '100%';
+    statusText.textContent = 'Complete! Success: ' + successCount + ', Failed: ' + failCount;
+    btn.disabled = false;
+    fileInput.value = '';
+    
+    if (failCount > 0) {
+       showNotification('Uploaded ' + successCount + ' photos. Failed: ' + failCount + '. Check console for details.', false);
+    } else {
+       showNotification('Successfully uploaded ' + successCount + ' photos!', true);
+    }
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function() {
+        var result = reader.result.split(',')[1];
+        resolve(result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
 </script>

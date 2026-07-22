@@ -11,6 +11,10 @@ import AdminMessages from './pages/AdminMessages';
 import AdminPortal from './pages/AdminPortal';
 import NoticeBoard from './pages/NoticeBoard';
 import DynamicPage from './pages/DynamicPage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsAndConditions from './pages/TermsAndConditions';
+import RefundPolicy from './pages/RefundPolicy';
+import ContactUs from './pages/ContactUs';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -38,6 +42,13 @@ function App() {
             <Route path="/academics" element={<Academics />} />
             <Route path="/admissions" element={<Admissions />} />
             <Route path="/notices" element={<NoticeBoard />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="/terms" element={<TermsAndConditions />} />
+            <Route path="/refund-policy" element={<RefundPolicy />} />
+            <Route path="/refund-and-cancellation-policy" element={<RefundPolicy />} />
+            <Route path="/contact-us" element={<ContactUs />} />
+            <Route path="/contact" element={<ContactUs />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
             <Route path="/admin/portal" element={<AdminPortal />} />
             <Route path="/:pageId" element={<DynamicPage />} />

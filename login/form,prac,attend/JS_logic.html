@@ -1583,8 +1583,9 @@
         // [NEW] Fetch public settings (logo) for login page
         runServerFunction('getPublicSettings')
             .then(settings => {
-                const defaultDriveLogo = 'https://raw.githubusercontent.com/admexamhssshangus-dot/hss.shangus_website/refs/heads/main/public/logo.png';
-                const url = settings.logo_url_resolved || settings.logo_url || settings.logoUrl || defaultDriveLogo;
+                const defaultDriveLogo = 'https://cdn.jsdelivr.net/gh/admexamhssshangus-dot/OnlineTestPortal@main/hss%20shangus_%20background%20logo_2024.png';
+                let url = settings.logo_url_resolved || settings.logo_url || settings.logoUrl || defaultDriveLogo;
+                if (url && url.includes('raw.githubusercontent.com')) { url = defaultDriveLogo; }
                 const authLogo = document.getElementById('authLogo');
                 if (authLogo && url) {
                     authLogo.src = url;
@@ -2175,7 +2176,13 @@
 
             // [NEW] Determine registration role based on active tab
             const activeTab = document.querySelector('.login-tab.active');
-            registrationRole = activeTab ? activeTab.dataset.role : 'student';
+            let role = activeTab ? activeTab.dataset.role : 'student';
+            
+            // Prevent admin/superadmin registration completely
+            if (role === 'admin' || role === 'superadmin') {
+                role = 'student';
+            }
+            registrationRole = role;
 
             const teacherSection = document.getElementById('teacherDetailsSection');
             if (teacherSection) {
@@ -2185,6 +2192,9 @@
                     teacherSection.classList.add('hidden');
                 }
             }
+
+            const tabsContainer = document.querySelector('.login-tabs');
+            if (tabsContainer) tabsContainer.style.display = 'none';
 
             dom.loginForm.classList.add('hidden');
             dom.forgotPasswordForm.classList.add('hidden');
@@ -2196,6 +2206,10 @@
             e.preventDefault();
             // Ensure any previous session is cleared when returning to login
             if (state.currentUser) { handleLogout(); }
+            
+            const tabsContainer = document.querySelector('.login-tabs');
+            if (tabsContainer) tabsContainer.style.display = 'flex';
+
             dom.registerForm.classList.add('hidden');
             dom.forgotPasswordForm.classList.add('hidden');
             dom.loginForm.classList.remove('hidden');
@@ -2206,6 +2220,10 @@
         });
         document.getElementById('showForgotPassword')?.addEventListener('click', (e) => {
             e.preventDefault();
+            
+            const tabsContainer = document.querySelector('.login-tabs');
+            if (tabsContainer) tabsContainer.style.display = 'none';
+
             dom.loginForm.classList.add('hidden');
             dom.registerForm.classList.add('hidden');
             dom.forgotPasswordForm.classList.remove('hidden');
@@ -2215,11 +2233,16 @@
         });
         document.getElementById('showLoginFromForgot')?.addEventListener('click', (e) => {
             e.preventDefault();
+            
+            const tabsContainer = document.querySelector('.login-tabs');
+            if (tabsContainer) tabsContainer.style.display = 'flex';
+
             dom.registerForm.classList.add('hidden');
             dom.forgotPasswordForm.classList.add('hidden');
             dom.loginForm.classList.remove('hidden');
             dom.authAlert.classList.add('hidden');
             dom.container.classList.remove('wide');
+            state.loginTarget = null;
         });
         // Auth forms
         dom.loginForm.addEventListener('submit', handleLogin);
@@ -4444,8 +4467,9 @@
             }
 
             try {
-                const defaultDriveLogo = 'https://raw.githubusercontent.com/admexamhssshangus-dot/hss.shangus_website/refs/heads/main/public/logo.png';
-                const url = state.adminData?.settings?.logo_url_resolved || state.adminData?.settings?.logo_url || state.adminData?.settings?.logoUrl || defaultDriveLogo;
+                const defaultDriveLogo = 'https://cdn.jsdelivr.net/gh/admexamhssshangus-dot/OnlineTestPortal@main/hss%20shangus_%20background%20logo_2024.png';
+                let url = state.adminData?.settings?.logo_url_resolved || state.adminData?.settings?.logo_url || state.adminData?.settings?.logoUrl || defaultDriveLogo;
+                if (url && url.includes('raw.githubusercontent.com')) { url = defaultDriveLogo; }
                 if (dom.studentLogo) {
                     if (url) { dom.studentLogo.src = url; dom.studentLogo.style.display = 'inline-block'; }
                     else { dom.studentLogo.style.display = 'none'; }
@@ -6186,8 +6210,9 @@
         // Set header logo if provided via settings
         try {
             // Default logo from drive id if admin hasn't set one
-            const defaultDriveLogo = 'https://raw.githubusercontent.com/admexamhssshangus-dot/hss.shangus_website/refs/heads/main/public/logo.png';
-            const url = state.adminData?.settings?.logo_url_resolved || state.adminData?.settings?.logo_url || state.adminData?.settings?.logoUrl || defaultDriveLogo;
+            const defaultDriveLogo = 'https://cdn.jsdelivr.net/gh/admexamhssshangus-dot/OnlineTestPortal@main/hss%20shangus_%20background%20logo_2024.png';
+            let url = state.adminData?.settings?.logo_url_resolved || state.adminData?.settings?.logo_url || state.adminData?.settings?.logoUrl || defaultDriveLogo;
+            if (url && url.includes('raw.githubusercontent.com')) { url = defaultDriveLogo; }
             if (dom.schoolLogo) {
                 if (url) {
                     dom.schoolLogo.src = url;

@@ -1,259 +1,1048 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <base target="_top">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Outfit', sans-serif;
             margin: 0;
             padding: 0;
-            background: #f0f2f5;
-            color: #1a202c;
+            background: #e2e8f0;
+            color: #2d3748;
         }
 
         .page-container {
-            width: 297mm; /* A4 Landscape width */
-            margin: 20px auto;
-            background: white;
+            width: 355.6mm;
+            /* Default preview width (Legal) */
+            margin: 10mm auto;
+            background: #fdfbf7;
             padding: 10mm;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
             position: relative;
-            overflow: hidden;
+            box-sizing: border-box;
+            page-break-after: always;
+            min-height: 215.9mm;
+        }
+
+        @page {
+            size: auto;
+            /* Allow native browser control */
+            margin: 0;
         }
 
         @media print {
-            body { background: white; }
+            body {
+                background: white;
+            }
+
             .page-container {
                 margin: 0;
                 box-shadow: none;
                 width: 100%;
-                height: 100%;
-                page-break-after: always;
-                padding: 5mm;
+                height: auto;
+                padding: 10mm;
+                border: none;
             }
-            .no-print { display: none; }
+
+            .no-print {
+                display: none !important;
+            }
         }
 
         .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 5px 0;
+        }
+
+        .header-center {
+            flex: 1;
             text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #2d3748;
-            padding-bottom: 10px;
         }
 
         .header h1 {
             margin: 0;
-            font-size: 1.5rem;
-            color: #2d3748;
+            font-size: 1.8rem;
+            color: #b91c1c;
             text-transform: uppercase;
+            font-weight: 900;
+            line-height: 1;
         }
 
-        .header p {
-            margin: 5px 0;
+        .header .sub-title {
             font-size: 0.9rem;
-            color: #4a5568;
+            font-weight: 700;
+            color: #166534;
+            margin-top: 2px;
+        }
+
+        .page-title {
+            width: 80px;
+            font-weight: 800;
+            color: #4b5563;
+            font-size: 0.75rem;
+            text-align: left;
+        }
+
+        .manual-page-circle {
+            width: 8mm;
+            height: 8mm;
+            border: 1.5px solid #000;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 8px; /* Small font for many columns */
+            font-size: 8px;
+            background: transparent;
+            table-layout: auto;
+            /* Changed to auto to support subcolumn resizing accurately */
+            border: 1.5px solid #000;
         }
 
-        th, td {
-            border: 1px solid #cbd5e0;
-            padding: 4px;
+        /* Enforce synchronized header and row heights for side-by-side alignment */
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 0 !important;
+            /* Remove cell padding to allow wrapper to control height */
             text-align: left;
             word-wrap: break-word;
+            overflow: hidden;
+            vertical-align: middle;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --row-height-reg: 54px;
+            --photo-height-reg: 48px;
+        }
+
+        /* Content wrappers to force exact dimensions */
+        .td-box {
+            height: var(--row-height-reg);
+            padding: 2px 4px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            box-sizing: border-box;
+            font-size: 10px;
+            line-height: 1.15;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .th-box {
+            height: 30px;
+            padding: 1px 2px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-sizing: border-box;
+            font-size: 7.2px;
+            line-height: 1.1;
+        }
+
+        .th-box-large {
+            height: 60px;
+        }
+
+        tbody tr {
+            height: var(--row-height-reg) !important;
+        }
+
+        thead tr {
+            height: 30px !important;
+        }
+
+        /* Color-coded Headers */
+        .h-yellow {
+            background: #fef08a !important;
+            color: #000 !important;
+        }
+
+        .h-grey {
+            background: #d1d5db !important;
+            color: #000 !important;
+        }
+
+        .h-green {
+            background: #dcfce7 !important;
+            color: #15803d !important;
+        }
+
+        .h-red {
+            background: #fee2e2 !important;
+            color: #b91c1c !important;
+        }
+
+        .h-teal {
+            background: #d1d5db !important;
+            color: #000 !important;
+        }
+
+        .h-pink {
+            background: #d1d5db !important;
+            color: #000 !important;
+        }
+
+        .h-peach {
+            background: #d1d5db !important;
+            color: #000 !important;
+        }
+
+        .h-orange {
+            background: #d1d5db !important;
+            color: #000 !important;
         }
 
         th {
-            background: #edf2f7;
-            font-weight: 700;
+            font-weight: 800;
             text-transform: uppercase;
+            font-size: 7.5px;
+            text-align: center;
+        }
+
+
+        .photo-cell {
+            width: 45px;
+            text-align: center;
+            padding: 0 !important;
         }
 
         .photo-cell img {
-            width: 40px;
-            height: 50px;
-            object-fit: cover;
-            border: 1px solid #e2e8f0;
+            width: 100%;
+            height: 100%;
+            min-height: var(--photo-height-reg);
+            object-fit: fill;
+            border: none;
+            background: white;
+            display: block;
         }
 
         .sub-header-row th {
             font-size: 7px;
+            opacity: 0.9;
         }
 
-        .page-title {
+        /* Resizer styles */
+        th {
+            position: relative;
+        }
+
+        .resizer {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            font-weight: bold;
-            color: #718096;
+            top: 0;
+            right: 0;
+            width: 5px;
+            cursor: col-resize;
+            user-select: none;
+            height: 100%;
+            z-index: 10;
         }
 
-        .register-title {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 10px;
+        .resizer:hover {
+            background: rgba(72, 187, 120, 0.5);
+        }
+
+        .resizing {
+            border-right: 2px solid #48bb78 !important;
+        }
+
+        @media print {
+
+            .resizer,
+            .row-resizer {
+                display: none;
+            }
+        }
+
+        /* Row Resizer */
+        .row-resizer {
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            cursor: row-resize;
+            z-index: 100;
+        }
+
+        .row-resizer:hover {
+            background: rgba(72, 187, 120, 0.4);
+        }
+
+        .row-resizing td {
+            border-bottom: 2px solid #48bb78 !important;
+        }
+
+        tr:nth-child(even) {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+
+        input[type="range"] {
+            cursor: pointer;
+        }
+
+        .footer-sigs {
+            position: absolute;
+            bottom: 10mm;
+            left: 10mm;
+            right: 10mm;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 100px;
+        }
+
+        .sig-box {
             text-align: center;
-            background: #2d3748;
-            color: white;
-            padding: 5px;
+            width: 150px;
+            font-weight: 800;
+            color: #b91c1c;
+            text-transform: capitalize;
+            border-top: 1.5px solid #b91c1c;
+            padding-top: 5px;
+            font-size: 0.7rem;
+        }
+
+        .cover-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            height: 215.9mm;
+            width: 355.6mm;
+            background: #fff;
+            page-break-after: always;
+        }
+
+        .cover-page h1 {
+            font-size: 4rem;
+            margin: 0;
+            color: #b91c1c;
+        }
+
+        .cover-page h2 {
+            font-size: 2.5rem;
+            margin: 20px 0;
+            color: #166534;
+        }
+
+        .cover-page h3 {
+            font-size: 3rem;
+            margin-top: 40px;
+            border-top: 3px solid #000;
+            padding-top: 20px;
+            width: 80%;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+            font-family: 'Outfit', sans-serif;
+            border: 2px solid #b91c1c;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            border: 1.5px solid #b91c1c;
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .summary-table th {
+            background: #fee2e2;
+            font-weight: 800;
+            color: #000;
+        }
+
+        .summary-table .grand-total-col {
+            font-style: italic;
+            font-weight: 700;
+            color: #b91c1c;
+            font-size: 16px;
+        }
+
+        .summary-table .vertical-label {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            padding: 10px;
+            font-weight: 800;
+            color: #b91c1c;
+        }
+
+        .comments-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .comments-table td {
+            border: 1px solid #666;
+            padding: 12px;
+            font-size: 11px;
+            vertical-align: top;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .comments-table .sno {
+            width: 40px;
+            text-align: center;
+            font-weight: 700;
+            background: #f8f9fa;
+        }
+
+        .notes-header {
+            color: #b91c1c;
+            font-weight: 800;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        /* Preview Layout - Side by Side */
+        #print-root {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            /* Changed from center to prevent left-side cropping */
+            gap: 40px;
+            padding: 40px;
+            background: #e2e8f0;
+            min-width: fit-content;
+            margin: 0 auto;
+            /* Still try to center if space permits */
+        }
+
+        .spread-container {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+            margin: 0 auto;
+        }
+
+        @media print {
+            #print-root {
+                display: block;
+                padding: 0;
+                background: none;
+            }
+
+            .spread-container {
+                display: block;
+            }
+
+            .page-container {
+                margin: 0;
+                border: none;
+                box-shadow: none;
+            }
+        }
+
+        /* Loading Overlay Fix */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 450px;
+            border-top: 5px solid #48bb78;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            margin: 25px 0 15px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #48bb78;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .loading-card h2 {
+            margin: 0;
+            color: #1a365d;
+            font-size: 1.5rem;
+            white-space: nowrap;
+        }
+
+        .loading-card p {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin: 10px 0 0;
         }
     </style>
 </head>
+
 <body>
-    <div class="no-print" style="padding: 10px; background: #2d3748; color: white; display: flex; justify-content: space-between; align-items: center;">
-        <div>
+    <div class="no-print"
+        style="padding: 10px 20px; background: #1a202c; color: white; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; height: 50px; z-index: 2000; box-sizing: border-box;">
+        <div style="display: flex; align-items: center; gap: 20px;">
             <strong>Admission Register Generator</strong>
-            <span style="margin-left: 20px; font-size: 0.8rem; opacity: 0.8;">Session: <span id="displaySession"></span></span>
+            <div class="zoom-controls">
+                <span>Preview Zoom:</span>
+                <input type="range" min="0.5" max="1.5" step="0.05" value="1" oninput="updateZoom(this.value)">
+                <span id="zoomVal">100%</span>
+            </div>
         </div>
-        <button onclick="window.print()" style="padding: 8px 16px; background: #48bb78; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">Print Register</button>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="resetLayout()"
+                style="padding: 8px 20px; background: #e53e3e; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s;">Reset
+                Layout</button>
+            <button onclick="window.print()"
+                style="padding: 8px 20px; background: #48bb78; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s;">Print
+                Register</button>
+        </div>
     </div>
 
-    <div id="content">
-        <!-- Page 1 -->
-        <div class="page-container" id="page1Container">
-            <div class="page-title">PAGE 1</div>
-            <div class="register-title">ADMISSION REGISTER - SESSION <span class="session-label"></span></div>
-            <table id="tablePage1">
-                <thead>
-                    <tr>
-                        <th rowspan="2">S.No.</th>
-                        <th rowspan="2">Photo</th>
-                        <th rowspan="2">Class R.No.</th>
-                        <th rowspan="2">Form No.</th>
-                        <th rowspan="2">Online Status</th>
-                        <th rowspan="2">Adm. Date</th>
-                        <th rowspan="2">Adm. No.</th>
-                        <th rowspan="2">Class adm. to</th>
-                        <th rowspan="2">Board Reg. No.</th>
-                        <th rowspan="2">Student's Name</th>
-                        <th colspan="2">Parentage</th>
-                        <th colspan="2">Date of Birth</th>
-                        <th rowspan="2">Gender</th>
-                        <th colspan="3">Residence</th>
-                        <th colspan="2">Contact</th>
-                    </tr>
-                    <tr class="sub-header-row">
-                        <th>Father's Name</th>
-                        <th>Mother's Name</th>
-                        <th>Figures</th>
-                        <th>Words</th>
-                        <th>Village/Town</th>
-                        <th>Tehsil</th>
-                        <th>District</th>
-                        <th>Student's Mob</th>
-                        <th>Parent's Mob</th>
-                    </tr>
-                </thead>
-                <tbody id="bodyPage1"></tbody>
-            </table>
-        </div>
+    <div style="height: 50px;" class="no-print"></div>
 
-        <!-- Page 2 -->
-        <div class="page-container" id="page2Container">
-            <div class="page-title">PAGE 2</div>
-            <div class="register-title">ADMISSION REGISTER - SESSION <span class="session-label"></span></div>
-            <table id="tablePage2">
-                <thead>
-                    <tr>
-                        <th rowspan="2">S.No.</th>
-                        <th rowspan="2">Stream</th>
-                        <th rowspan="2">Subs</th>
-                        <th rowspan="2">Aadhaar No.</th>
-                        <th rowspan="2">Rev. Cat.</th>
-                        <th rowspan="2">Blood Grp</th>
-                        <th rowspan="2">A/C No.</th>
-                        <th rowspan="2">IFSC Code</th>
-                        <th rowspan="2">Previous School</th>
-                        <th rowspan="2">Prev R.No.</th>
-                        <th rowspan="2">Prev result</th>
-                        <th rowspan="2">PEN, DOB (UDISE)</th>
-                        <th rowspan="2">admid. m/y/yr</th>
-                        <th rowspan="2">Date of joid</th>
-                        <th rowspan="2">Withdrawal (result) Date</th>
-                        <th rowspan="2">Issued DC/CC (No./Date)</th>
-                        <th colspan="3">Receipt</th>
-                        <th rowspan="2">Remarks</th>
-                    </tr>
-                    <tr class="sub-header-row">
-                        <th>E.No.</th>
-                        <th>Dt.</th>
-                        <th>Rs.</th>
-                    </tr>
-                </thead>
-                <tbody id="bodyPage2"></tbody>
-            </table>
+    <div id="print-root"></div>
+
+    <div id="loader" class="loading-overlay">
+        <div class="loading-card">
+            <h2 id="loaderTitle">Generating Admission Register...</h2>
+            <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <div
+                style="display:flex; justify-content:space-between; font-size:11px; color:#10b981; font-weight:700; margin-bottom:5px;">
+                <span id="loaderPercent">0%</span>
+                <span id="loaderStatusText">Processing...</span>
+            </div>
+            <p id="loaderStatus">Fetching student data and preparing the register. Please wait.</p>
         </div>
     </div>
 
     <script>
-        function init(students, session) {
-            document.getElementById('displaySession').textContent = session;
-            const labels = document.querySelectorAll('.session-label');
-            labels.forEach(l => l.textContent = session);
+        function formatBoardReg(val) {
+            if (!val) return '';
+            const s = val.toString().trim();
+            if (s.length > 12) {
+                return `<div style="line-height:0.85;"><b>${s.substring(0, 12)}</b><br><b>${s.substring(12)}</b></div>`;
+            }
+            return `<b>${s}</b>`;
+        }
 
-            const body1 = document.getElementById('bodyPage1');
-            const body2 = document.getElementById('bodyPage2');
+        window.onload = function () {
+            generate();
+        };
 
-            students.forEach(s => {
-                // Page 1 Row
-                const tr1 = document.createElement('tr');
-                tr1.innerHTML = `
-                    <td>${s.sno}</td>
-                    <td class="photo-cell">${s.photo ? `<img src="${s.photo}" />` : ''}</td>
-                    <td>${s.rollNo}</td>
-                    <td>${s.formNo}</td>
-                    <td>${s.onlineStatus}</td>
-                    <td>${s.admDate}</td>
-                    <td>${s.admNo}</td>
-                    <td>${s.class}</td>
-                    <td>${s.boardReg}</td>
-                    <td><strong>${s.name}</strong></td>
-                    <td>${s.father}</td>
-                    <td>${s.mother}</td>
-                    <td>${s.dobFigures}</td>
-                    <td style="font-size: 7px;">${s.dobWords}</td>
-                    <td>${s.gender}</td>
-                    <td>${s.village}</td>
-                    <td>${s.tehsil}</td>
-                    <td>${s.district}</td>
-                    <td>${s.mobile}</td>
-                    <td>${s.parentMobile}</td>
+        function generate() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const session = urlParams.get('session');
+
+            if (!session) return;
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'flex';
+            updateProgress(10, "Connecting...");
+
+            let prog = 10;
+            const interval = setInterval(() => {
+                if (prog < 90) {
+                    prog += Math.random() * 8;
+                    if (prog > 90) prog = 90;
+                    updateProgress(prog, "Fetching register data...");
+                }
+            }, 400);
+
+            google.script.run
+                .withSuccessHandler(data => {
+                    clearInterval(interval);
+                    updateProgress(100, "Finalizing pages...");
+                    setTimeout(() => {
+                        init(data.students, data.session, data.schoolName);
+                        loader.style.display = 'none';
+                    }, 500);
+                })
+                .getAdmissionRegisterData(session);
+        }
+
+        function updateProgress(val, status) {
+            const p = Math.round(val);
+            document.getElementById('progressBar').style.width = p + '%';
+            document.getElementById('loaderPercent').textContent = p + '%';
+            if (status) document.getElementById('loaderStatusText').textContent = status;
+        }
+
+        function updateZoom(val) {
+            const root = document.getElementById('print-root');
+            root.style.transform = `scale(${val})`;
+            root.style.transformOrigin = 'top center';
+            document.getElementById('zoomVal').textContent = Math.round(val * 100) + '%';
+        }
+
+        function addCommentRow() {
+            const table = document.getElementById('comments-table');
+            const rowCount = table.rows.length;
+            const row = table.insertRow(-1);
+            row.innerHTML = `
+                <td class="sno">${rowCount + 1}</td>
+                <td contenteditable="true">New note...</td>
+                <td class="no-print" style="border:none; width:30px; vertical-align:middle;">
+                    <button onclick="this.closest('tr').remove(); renumberComments()" style="color:red; background:none; border:none; cursor:pointer; font-size:18px;">×</button>
+                </td>
+            `;
+        }
+
+        function renumberComments() {
+            const table = document.getElementById('comments-table');
+            for (let i = 0; i < table.rows.length; i++) {
+                table.rows[i].cells[0].innerText = i + 1;
+            }
+        }
+
+        function init(students, session, schoolName, stats) {
+            const root = document.getElementById('print-root');
+            root.innerHTML = '';
+
+            // ADD COVER PAGE
+            const cover = document.createElement('div');
+            cover.className = 'page-container cover-page';
+            cover.innerHTML = `
+                <h1 style="text-transform:uppercase; line-height:1.1;">Admission Register<br><span style="font-size:0.8em; opacity:0.9;">of classes 11<span style="text-transform:lowercase;">th</span> and 12<span style="text-transform:lowercase;">th</span></span></h1>
+                <h2>Session ${session}</h2>
+                <h3>${schoolName}</h3>
+            `;
+            root.appendChild(cover);
+
+            const STUDENTS_PER_PAGE = 10;
+            const chunks = [];
+            for (let i = 0; i < students.length; i += STUDENTS_PER_PAGE) {
+                chunks.push(students.slice(i, i + STUDENTS_PER_PAGE));
+            }
+
+            chunks.forEach((chunk, chunkIdx) => {
+                const pageNum = chunkIdx + 1;
+                const spread = document.createElement('div');
+                spread.className = 'spread-container';
+
+                // PAGE 1 (Left Side)
+                const p1 = document.createElement('div');
+                p1.className = 'page-container';
+                p1.innerHTML = `
+                    <div class="header">
+                        <div class="page-title">${pageNum} (part1)</div>
+                        <div class="header-center">
+                            <h1>${schoolName}</h1>
+                            <div class="sub-title">Admission Register of classes 11<span style="text-transform:none;">th</span> and 12<span style="text-transform:none;">th</span>, session ${session}</div>
+                        </div>
+                        <div class="manual-page-circle"></div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th rowspan="2" style="width:17px" data-default-width="17px" class="h-grey"><div class="th-box th-box-large">S.No.</div></th>
+                                <th rowspan="2" style="width:45px" data-default-width="45px" class="h-grey"><div class="th-box th-box-large">Photo</div></th>
+                                <th rowspan="2" style="width:20px" data-default-width="20px" class="h-grey"><div class="th-box th-box-large">Class R.No.</div></th>
+                                <th rowspan="2" style="width:38px" data-default-width="38px" class="h-grey"><div class="th-box th-box-large">Form No.</div></th>
+                                <th rowspan="2" style="width:42px" data-default-width="42px" class="h-grey"><div class="th-box th-box-large">Online Subm.</div></th>
+                                <th rowspan="2" style="width:50px" data-default-width="50px" class="h-grey"><div class="th-box th-box-large">Adm. Date</div></th>
+                                <th rowspan="2" style="width:40px" data-default-width="40px" class="h-grey"><div class="th-box th-box-large">Adm. No.</div></th>
+                                <th rowspan="2" style="width:21px" data-default-width="21px" class="h-grey"><div class="th-box th-box-large">Class adm. to</div></th>
+                                <th rowspan="2" style="width:95px" data-default-width="95px" class="h-grey"><div class="th-box th-box-large">Board Reg. No.</div></th>
+                                <th rowspan="2" style="width:105px" data-default-width="105px" class="h-grey"><div class="th-box th-box-large">Student's Name</div></th>
+                                <th colspan="2" class="h-grey"><div class="th-box">Parentage</div></th>
+                                <th colspan="2" class="h-grey"><div class="th-box">Date of birth</div></th>
+                                <th rowspan="2" style="width:40px" data-default-width="40px" class="h-grey"><div class="th-box th-box-large">Gender</div></th>
+                                <th colspan="4" class="h-yellow"><div class="th-box">Residence</div></th>
+                                <th colspan="2" class="h-yellow"><div class="th-box">Contact</div></th>
+                            </tr>
+                            <tr class="sub-header-row">
+                                <th style="width:105px" data-default-width="105px" class="h-grey"><div class="th-box">Father's Name</div></th>
+                                <th style="width:105px" data-default-width="105px" class="h-grey"><div class="th-box">Mother's Name</div></th>
+                                <th style="width:55px" data-default-width="55px" class="h-grey"><div class="th-box">Figures</div></th>
+                                <th style="width:85px" data-default-width="85px" class="h-grey"><div class="th-box">Words</div></th>
+                                <th style="width:60px" data-default-width="60px" class="h-yellow"><div class="th-box">Village/ Town</div></th>
+                                <th style="width:45px" data-default-width="45px" class="h-yellow"><div class="th-box">Block</div></th>
+                                <th style="width:60px" data-default-width="60px" class="h-yellow"><div class="th-box">Tehsil</div></th>
+                                <th style="width:60px" data-default-width="60px" class="h-yellow"><div class="th-box">District</div></th>
+                                <th style="width:65px" data-default-width="65px" class="h-yellow"><div class="th-box">Student's Mobile</div></th>
+                                <th style="width:65px" data-default-width="65px" class="h-yellow"><div class="th-box">Parent's Mobile</div></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${chunk.map(s => `
+                                <tr class="student-row">
+                                    <td style="position:relative;"><div class="td-box">${s.sno}</div><div class="row-resizer no-print"></div></td>
+                                    <td class="photo-cell" style="vertical-align:middle; padding:0 !important; height:1px;">${s.photo ? `<img src="${s.photo}" />` : ''}</td>
+                                    <td><div class="td-box">${s.rollNo}</div></td>
+                                    <td><div class="td-box">${s.formNo}</div></td>
+                                    <td style="font-size:8px;"><div class="td-box">${s.onlineStatus}</div></td>
+                                    <td><div class="td-box">${s.admDate}</div></td>
+                                    <td><div class="td-box">${s.admNo}</div></td>
+                                    <td><div class="td-box">${s.class}</div></td>
+                                    <td style="font-size:7.5px"><div class="td-box">${formatBoardReg(s.boardReg)}</div></td>
+                                    <td style="text-align:left; font-weight:700; text-transform:uppercase;"><div class="td-box">${s.name}</div></td>
+                                    <td style="text-align:left; text-transform:uppercase;"><div class="td-box">${s.father}</div></td>
+                                    <td style="text-align:left; text-transform:uppercase;"><div class="td-box">${s.mother}</div></td>
+                                    <td><div class="td-box">${s.dobFigures}</div></td>
+                                    <td style="font-size:8px"><div class="td-box">${s.dobWords}</div></td>
+                                    <td><div class="td-box">${s.gender}</div></td>
+                                    <td><div class="td-box">${s.village}</div></td>
+                                    <td><div class="td-box">${s.block}</div></td>
+                                    <td><div class="td-box">${s.tehsil}</div></td>
+                                    <td><div class="td-box">${s.district}</div></td>
+                                    <td><div class="td-box">${s.mobile}</div></td>
+                                    <td><div class="td-box">${s.parentMobile}</div></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer-sigs">
+                        <div class="sig-box">Incharge Admissions</div>
+                        <div class="sig-box">Checked By</div>
+                        <div class="sig-box">Principal</div>
+                    </div>
                 `;
-                body1.appendChild(tr1);
 
-                // Page 2 Row
-                const tr2 = document.createElement('tr');
-                tr2.innerHTML = `
-                    <td>${s.sno}</td>
-                    <td>${s.stream}</td>
-                    <td style="max-width: 100px;">${s.subs}</td>
-                    <td>${s.aadhar}</td>
-                    <td>${s.category}</td>
-                    <td>${s.blood}</td>
-                    <td>${s.account}</td>
-                    <td>${s.ifsc}</td>
-                    <td>${s.prevSchool}</td>
-                    <td>${s.prevRoll}</td>
-                    <td>${s.prevResult}</td>
-                    <td>${s.pen}</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>${s.remarks}</td>
+                // PAGE 2 (Right Side)
+                const p2 = document.createElement('div');
+                p2.className = 'page-container';
+                p2.innerHTML = `
+                    <div class="header">
+                        <div class="page-title">${pageNum} (part2)</div>
+                        <div class="header-center">
+                            <h1>${schoolName}</h1>
+                            <div class="sub-title">Admission Register of classes 11<span style="text-transform:none;">th</span> and 12<span style="text-transform:none;">th</span>, session ${session}</div>
+                        </div>
+                        <div class="manual-page-circle"></div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th rowspan="2" style="width:40px" data-default-width="40px" class="h-grey"><div class="th-box th-box-large">Stream</div></th>
+                                <th rowspan="2" style="width:100px" data-default-width="100px" class="h-grey"><div class="th-box th-box-large">Subs</div></th>
+                                <th rowspan="2" style="width:85px" data-default-width="85px" class="h-yellow"><div class="th-box th-box-large">Aadhar No.</div></th>
+                                <th rowspan="2" style="width:14px" data-default-width="14px" class="h-yellow"><div class="th-box th-box-large">Soc. Cat.</div></th>
+                                <th rowspan="2" style="width:14px" data-default-width="14px" class="h-yellow"><div class="th-box th-box-large">Socio-Econ Cat.</div></th>
+                                <th rowspan="2" style="width:12px" data-default-width="12px" class="h-yellow"><div class="th-box th-box-large">Blood Grp</div></th>
+                                <th rowspan="2" style="width:105px" data-default-width="105px" class="h-yellow"><div class="th-box th-box-large">A/C No.</div></th>
+                                <th rowspan="2" style="width:80px" data-default-width="80px" class="h-yellow"><div class="th-box th-box-large">IFSC Code</div></th>
+                                <th colspan="3" class="h-grey"><div class="th-box">Previous Academic Details</div></th>
+                                <th rowspan="2" style="width:65px" data-default-width="65px" class="h-grey"><div class="th-box th-box-large">PEN (UDISE)</div></th>
+                                <th rowspan="2" style="width:70px; color:#15803d;" data-default-width="70px" class="h-green"><div class="th-box th-box-large">Admtd. Vide DC/CC</div></th>
+                                <th rowspan="2" style="width:60px; color:#b91c1c !important;" data-default-width="60px" class="h-red"><div class="th-box th-box-large">Withdrawal Date</div></th>
+                                <th rowspan="2" style="width:70px; color:#b91c1c !important;" data-default-width="70px" class="h-red"><div class="th-box th-box-large">Issued DC/CC</div></th>
+                                <th rowspan="2" style="width:170px; color:#b91c1c !important;" data-default-width="170px" class="h-red"><div class="th-box th-box-large">Receipt</div></th>
+                                <th rowspan="2" style="width:90px" data-default-width="90px" class="h-grey"><div class="th-box th-box-large">Remarks</div></th>
+                            </tr>
+                            <tr class="sub-header-row">
+                                <th style="width:110px" data-default-width="110px" class="h-grey"><div class="th-box">Previous School</div></th>
+                                <th style="width:45px" data-default-width="45px" class="h-grey"><div class="th-box">Prev R.No.</div></th>
+                                <th style="width:45px" data-default-width="45px" class="h-grey"><div class="th-box">Prev result</div></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${chunk.map(s => `
+                                <tr class="student-row">
+                                    <td style="position:relative;"><div class="td-box">${s.stream}</div><div class="row-resizer no-print"></div></td>
+                                    <td style="text-align:left; font-size:7.5px"><div class="td-box">${s.subs}</div></td>
+                                    <td><div class="td-box">${s.aadhar}</div></td>
+                                    <td><div class="td-box">${s.category}</div></td>
+                                    <td><div class="td-box">${s.socioEcon}</div></td>
+                                    <td><div class="td-box">${s.blood === 'Unknown' ? '-' : s.blood}</div></td>
+                                    <td><div class="td-box">${s.account}</div></td>
+                                    <td><div class="td-box">${s.ifsc}</div></td>
+                                    <td style="text-align:left; font-size:9px"><div class="td-box">${s.prevSchool}</div></td>
+                                    <td><div class="td-box">${s.prevRoll}</div></td>
+                                    <td><div class="td-box">${s.prevResult}</div></td>
+                                    <td style="font-size:9.5px"><div class="td-box">${(s.pen || '').includes('Not Found') ? 'NA' : s.pen}</div></td>
+                                    <td style="font-size:8px; color:#15803d;"><div class="td-box">${s.prevCC}</div></td>
+                                    <td style="font-size:8.5px; color:#b91c1c;"><div class="td-box">${s.withdrawal}</div></td>
+                                    <td style="text-align:left; font-size:7px; padding: 0 !important; vertical-align:middle; color:#000;">
+                                        <div style="display:flex; flex-direction:column; justify-content:space-between; height: var(--row-height-reg); padding: 2px 3px; box-sizing: border-box;">
+                                            <span style="margin-top: 5px;">C.No. _______</span>
+                                            <span style="margin-bottom: 5px;">Dt. _______</span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align:left; font-size:7px; padding: 0 !important; vertical-align:middle;">
+                                        <div style="display:flex; flex-direction:column; justify-content:space-between; height: var(--row-height-reg); padding: 2px 3px; box-sizing: border-box;">
+                                            <span style="margin-top: 5px;">received DC/CC vide C. No. _______</span>
+                                            <span style="margin-bottom: 5px;">on ___________ Sig. ___________</span>
+                                        </div>
+                                    </td>
+                                    <td style="vertical-align:middle;"><div class="td-box">${s.remarks}</div></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer-sigs">
+                        <div class="sig-box">Incharge Admissions</div>
+                        <div class="sig-box">Checked By</div>
+                        <div class="sig-box">Principal</div>
+                    </div>
                 `;
-                body2.appendChild(tr2);
+
+                spread.appendChild(p1);
+                spread.appendChild(p2);
+                root.appendChild(spread);
+            });
+
+            // ADD COMMENTS/NOTES PAGE
+            const commentsPage = document.createElement('div');
+            commentsPage.className = 'page-container';
+            commentsPage.style.padding = '20mm';
+            commentsPage.innerHTML = `
+                <div class="notes-header">Please, Note:</div>
+                <div class="no-print" style="margin-bottom: 10px;">
+                    <button onclick="addCommentRow()" style="background:#16a34a; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:12px;">+ Add Note</button>
+                </div>
+                <table class="comments-table" id="comments-table">
+                    <tr>
+                        <td class="sno">1</td>
+                        <td contenteditable="true">Details of columns with <b>Yellow background</b> in their header have been copied/adapted from students' response (<b>Online Admission Form</b>); remaining details have been verified.</td>
+                        <td class="no-print" style="border:none; width:30px; vertical-align:middle;"><button onclick="this.closest('tr').remove(); renumberComments()" style="color:red; background:none; border:none; cursor:pointer; font-size:18px;">×</button></td>
+                    </tr>
+                    <tr>
+                        <td class="sno">2</td>
+                        <td contenteditable="true">The students with the comment '<b>internal student of HSS Shangus</b>' under the '<b style="color:#16a34a">Admtd. Vide DC/CC</b>' column are those who studied their Class 10th at <b>Govt Hr Sec School Shangus (010061)</b>. They appeared in the <b>Class 10th annual regular examination 2025 (march session)</b>, conducted by JKBOSE, through this same school. Their admission to Class 11th was granted based on the mark sheets provided by the school. <b>For further verification, please refer to the Class 9th/10th admission records.</b></td>
+                        <td class="no-print" style="border:none; width:30px; vertical-align:middle;"><button onclick="this.closest('tr').remove(); renumberComments()" style="color:red; background:none; border:none; cursor:pointer; font-size:18px;">×</button></td>
+                    </tr>
+                    <tr>
+                        <td class="sno">3</td>
+                        <td contenteditable="true"><b>Abbreviations of Subjects used:</b> BI (Biology), CH (Chemistry), EC (Economics), ED (Education), EN (General English), ES (Environmental Science), HT (History), HTC (Healthcare), ITE (IT and ITES), MA (Mathematics), PD (Physical Education), PH (Physics), PS (Political Science), and UR (Urdu).</td>
+                        <td class="no-print" style="border:none; width:30px; vertical-align:middle;"><button onclick="this.closest('tr').remove(); renumberComments()" style="color:red; background:none; border:none; cursor:pointer; font-size:18px;">×</button></td>
+                    </tr>
+                    <tr>
+                        <td class="sno">4</td>
+                        <td contenteditable="true">Fresh admission numbers have been assigned to <b>students re-joining after an academic gap</b> or <b>those readmitted due to non-appearance in prior exams</b>. To facilitate historical tracking, the student's previous admission number is recorded in brackets immediately below the new number in the 'Adm. No.' column [e.g., 5265 (5071)].</td>
+                        <td class="no-print" style="border:none; width:30px; vertical-align:middle;"><button onclick="this.closest('tr').remove(); renumberComments()" style="color:red; background:none; border:none; cursor:pointer; font-size:18px;">×</button></td>
+                    </tr>
+                </table>
+                <div class="footer-sigs" style="margin-top: 100px;">
+                    <div class="sig-box">Incharge Admissions</div>
+                    <div class="sig-box">Checked By</div>
+                    <div class="sig-box">Principal</div>
+                </div>
+            `;
+            root.appendChild(commentsPage);
+
+            // ADD CONSOLIDATED SUMMARY PAGE
+            const summary = document.createElement('div');
+            summary.className = 'page-container';
+            summary.style.padding = '20mm';
+
+            let summaryHtml = `
+                <div class="header" style="flex-direction:column; gap:5px;">
+                    <h1 style="font-size:2.5rem; color:#b91c1c; margin:0;">CONSOLIDATED ADMISSION STATEMENT</h1>
+                    <div class="sub-title" style="width:auto; font-size:1.1rem;">Roll statement for Session ${session}</div>
+                </div>
+                
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th>Class</th>
+                            <th>Stream</th>
+                            <th>Male</th>
+                            <th>Female</th>
+                            <th>Total</th>
+                            <th>Grand Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+            let grandTotalOverall = 0;
+            let totalMaleOverall = 0;
+            let totalFemaleOverall = 0;
+
+            const sortedClasses = Object.keys(stats).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+
+            sortedClasses.forEach(cls => {
+                const streams = Object.keys(stats[cls]).sort();
+                let classTotal = 0;
+
+                streams.forEach((stream, idx) => {
+                    const s = stats[cls][stream];
+                    classTotal += s.total;
+                    grandTotalOverall += s.total;
+                    totalMaleOverall += s.male;
+                    totalFemaleOverall += s.female;
+
+                    summaryHtml += `
+                        <tr>
+                            ${idx === 0 ? `<td rowspan="${streams.length}" style="font-weight:700; font-size:18px">${cls}</td>` : ''}
+                            <td style="text-align:left; padding-left:15px;">${stream}</td>
+                            <td>${s.male}</td>
+                            <td>${s.female}</td>
+                            <td>${s.total}</td>
+                            ${idx === 0 ? `<td rowspan="${streams.length}" class="grand-total-col">${Object.values(stats[cls]).reduce((acc, curr) => acc + curr.total, 0)}</td>` : ''}
+                        </tr>
+                    `;
+                });
+            });
+
+            summaryHtml += `
+                        <tr style="background:#fff1f2">
+                            <td colspan="2" style="text-align:right; font-weight:800; padding-right:20px;">Overall Grand Total</td>
+                            <td style="font-weight:800">${totalMaleOverall}</td>
+                            <td style="font-weight:800">${totalFemaleOverall}</td>
+                            <td colspan="2" style="font-weight:800; font-size:20px">${grandTotalOverall}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="margin-top:40px; font-size:14px; line-height:1.6; font-family:serif;">
+                    <p><strong>Certification:</strong></p>
+                    <p>Certified that the above mentioned <b>${grandTotalOverall}</b> students have been admitted to <b>Govt. Higher Secondary School Shangus</b> for the academic session <b>${session}</b>. Their particulars as entered in this register have been verified from the original documents and found correct.</p>
+                </div>
+
+                <div class="footer-sigs" style="margin-top: 60px; page-break-inside: avoid;">
+                    <div class="sig-box">Incharge Admissions</div>
+                    <div class="sig-box">Checked By</div>
+                    <div class="sig-box">Principal</div>
+                </div>
+            `;
+
+            summary.innerHTML = summaryHtml;
+            root.appendChild(summary);
+
+            // INITIALIZE RESIZERS
+            setTimeout(() => {
+                initResizers();
+                initRowResizers();
+            }, 500);
+        }
+
+        // COLUMN RESIZING LOGIC
+        function initResizers() {
+            const ths = document.querySelectorAll('thead th');
+            ths.forEach(th => {
+                // Skip headers that have children (colspan) if they are not leaf nodes
+                // Actually it's easier to allow all to be resizable
+                const resizer = document.createElement('div');
+                resizer.className = 'resizer';
+                th.appendChild(resizer);
+
+                resizer.addEventListener('mousedown', function (e) {
+                    const startX = e.pageX;
+                    const startWidth = th.offsetWidth;
+                    th.classList.add('resizing');
+
+                    // Identify column index or unique identifier
+                    // For complex headers, we'll use the text content as a rough ID
+                    const colId = th.textContent.trim().split('\n')[0];
+                    const isSubHeader = th.parentElement.classList.contains('sub-header-row');
+
+                    const onMouseMove = (e) => {
+                        const width = startWidth + (e.pageX - startX);
+                        th.style.width = width + 'px';
+
+                        // Sync with other pages
+                        syncColumnWidth(colId, width, isSubHeader);
+                    };
+
+                    const onMouseUp = () => {
+                        th.classList.remove('resizing');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            });
+        }
+
+        function syncColumnWidth(id, width, isSub) {
+            const allThs = document.querySelectorAll('thead th');
+            allThs.forEach(th => {
+                const thisId = th.textContent.trim().split('\n')[0];
+                const thisIsSub = th.parentElement.classList.contains('sub-header-row');
+                if (thisId === id && thisIsSub === isSub) {
+                    th.style.width = width + 'px';
+                }
+            });
+        }
+
+        function resetLayout() {
+            if (!confirm("Reset all column widths and row heights to default?")) return;
+            // Reset heights
+            document.documentElement.style.setProperty('--row-height-reg', '54px');
+            document.documentElement.style.setProperty('--photo-height-reg', '48px');
+
+            // Reset columns using data-default-width
+            const ths = document.querySelectorAll('thead th');
+            ths.forEach(th => {
+                const dw = th.getAttribute('data-default-width');
+                if (dw) th.style.width = dw;
+                else th.style.width = '';
+            });
+        }
+
+        // ROW RESIZING LOGIC
+        function initRowResizers() {
+            const resizers = document.querySelectorAll('.row-resizer');
+            resizers.forEach(resizer => {
+                resizer.addEventListener('mousedown', function (e) {
+                    const tr = resizer.closest('tr');
+                    const startY = e.pageY;
+                    const startHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-height-reg')) || 54;
+                    const startPhotoHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--photo-height-reg')) || 48;
+
+                    tr.classList.add('row-resizing');
+
+                    const onMouseMove = (e) => {
+                        const diff = e.pageY - startY;
+                        const newRowHeight = Math.max(30, startHeight + diff);
+                        const newPhotoHeight = Math.max(25, startPhotoHeight + diff);
+
+                        document.documentElement.style.setProperty('--row-height-reg', newRowHeight + 'px');
+                        document.documentElement.style.setProperty('--photo-height-reg', newPhotoHeight + 'px');
+                    };
+
+                    const onMouseUp = () => {
+                        tr.classList.remove('row-resizing');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
             });
         }
     </script>
 </body>
+
 </html>
