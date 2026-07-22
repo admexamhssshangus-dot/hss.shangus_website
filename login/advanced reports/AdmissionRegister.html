@@ -223,8 +223,9 @@
 
         .photo-cell img {
             width: 100%;
-            height: var(--photo-height-reg);
-            object-fit: cover;
+            height: 100%;
+            min-height: var(--photo-height-reg);
+            object-fit: fill;
             border: none;
             background: white;
             display: block;
@@ -704,7 +705,7 @@
                             ${chunk.map(s => `
                                 <tr class="student-row">
                                     <td style="position:relative;"><div class="td-box">${s.sno}</div><div class="row-resizer no-print"></div></td>
-                                    <td class="photo-cell" style="vertical-align:middle;"><div class="td-box" style="justify-content:center; padding:0; height:100%;">${s.photo ? `<img src="${s.photo}" />` : ''}</div></td>
+                                    <td class="photo-cell" style="vertical-align:middle; padding:0 !important; height:1px;">${s.photo ? `<img src="${s.photo}" />` : ''}</td>
                                     <td><div class="td-box">${s.rollNo}</div></td>
                                     <td><div class="td-box">${s.formNo}</div></td>
                                     <td style="font-size:8px;"><div class="td-box">${s.onlineStatus}</div></td>

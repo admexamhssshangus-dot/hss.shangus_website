@@ -5,19 +5,20 @@
     <base target="_top">
     <style>
         :root {
-            --row-height: 98px;
-            --sig-height: 78px;
+            --row-height: 52px;
+            --sig-height: 40px;
         }
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=Figtree:wght@400;500;600;700;800&display=swap');
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
 
         body {
-            font-family: 'Avenir Next LT Pro', 'Avenir Next', 'Avenir', 'Biome', 'Outfit', 'Figtree', 'Montserrat', 'Nunito', sans-serif;
-            letter-spacing: 0.3px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            letter-spacing: 0.1px;
             margin: 0;
             padding: 0;
             background: #f4f7f6;
-            color: #2d3436;
-            font-weight: 400;
+            color: #1a202c;
+            font-weight: 500;
         }
 
         .page-container {
@@ -25,8 +26,8 @@
             /* Legal Landscape */
             margin: 10mm auto;
             background: white;
-            padding: 2mm 10mm 10mm;
-            /* Reduced top padding to 0.2cm */
+            padding: 2mm 10mm 5mm;
+            /* Reduced padding */
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             position: relative;
             box-sizing: border-box;
@@ -50,8 +51,8 @@
                 box-shadow: none;
                 width: 355.6mm;
                 height: auto;
-                padding: 2mm 10mm 10mm;
-                /* 0.2cm top margin as requested */
+                padding: 2mm 10mm 5mm;
+                /* 0.2cm top margin, reduced bottom margin */
                 border: none;
                 page-break-after: always;
             }
@@ -97,16 +98,17 @@
 
         .header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         .header h1 {
             margin: 0;
-            font-size: 2rem;
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
             color: #d63031;
             text-transform: uppercase;
             letter-spacing: 1px;
-            font-weight: 900;
+            font-weight: 800;
         }
 
         .header .sub-title {
@@ -121,6 +123,7 @@
             border-collapse: collapse;
             font-size: 11px;
             table-layout: fixed;
+            margin-bottom: 10px;
         }
 
         th {
@@ -139,7 +142,7 @@
         }
 
         td {
-            padding: 6px 4px;
+            padding: 2px 4px;
             border: 1.5px solid #2d3436;
             vertical-align: middle;
             word-wrap: break-word;
@@ -171,7 +174,7 @@
         }
 
         .photo-cell {
-            width: 82px;
+            width: 42px;
             text-align: center;
             padding: 0 !important;
             overflow: hidden;
@@ -181,13 +184,14 @@
         }
 
         .photo-cell img {
-            width: 82px;
+            width: 100%;
             height: 100%;
-            min-height: var(--row-height);
-            object-fit: cover;
+            object-fit: fill;
             border: none;
             background: white;
             display: block;
+            margin: 0;
+            padding: 0;
         }
 
         .sig-box-cell {
@@ -224,7 +228,7 @@
             color: #d63031;
             border-top: 1.5px solid #d63031;
             padding-top: 4px;
-            margin-top: 55px;
+            margin-top: 40px;
             /* Signature Space */
             display: block;
         }
@@ -319,6 +323,7 @@
         }
 
         @media print {
+
             .resizer,
             .row-resizer {
                 display: none;
@@ -489,7 +494,7 @@
             else if (cls.indexOf('12') !== -1) body.className = 'theme-12';
             else body.className = 'theme-green';
 
-            const STUDENTS_PER_PAGE = 5; // 5 per page for better handwriting space
+            const STUDENTS_PER_PAGE = 10; // 10 per page for high density matching Admission Register
             const chunks = [];
             for (let i = 0; i < students.length; i += STUDENTS_PER_PAGE) {
                 chunks.push(students.slice(i, i + STUDENTS_PER_PAGE));
@@ -517,15 +522,15 @@
                             <tr style="background:var(--primary); color:var(--accent);">
                                 <th style="width:45px" data-default-width="45px">S.No.<br><span style="font-size:8px">[Adm No.]</span></th>
                                 <th style="width:45px" data-default-width="45px">Class<br>Roll No.</th>
-                                <th style="width:82px" data-default-width="82px">Photo</th>
+                                <th style="width:42px" data-default-width="42px">Photo</th>
                                 <th style="width:99px" data-default-width="99px">Board<br>RR No.</th>
-                                <th style="width:160px" data-default-width="160px">Student's Name</th>
-                                <th style="width:${className.includes('12') ? '175px' : '250px'}" data-default-width="${className.includes('12') ? '175px' : '250px'}">Parentage<br><span style="font-size:7px">(Father's Name / Mother's Name)</span></th>
+                                <th style="width:183px" data-default-width="183px">Student's Name</th>
+                                <th style="width:${className.includes('12') ? '140px' : '200px'}" data-default-width="${className.includes('12') ? '140px' : '200px'}">Parentage<br><span style="font-size:7px">(Father's Name / Mother's Name)</span></th>
                                 <th style="width:75px" data-default-width="75px">Date of Birth</th>
                                 <th style="width:42px" data-default-width="42px">Subs.</th>
                                 <th style="width:85px" data-default-width="85px">${className.includes('12') ? 'Present' : 'Board'}<br>Roll No.</th>
                                 <th style="width:90px" data-default-width="90px">Result</th>
-                                <th style="width:35px; font-size:8px;" data-default-width="35px">Admit Card<br>Receipt</th>
+                                <th style="width:40px; font-size:8px;" data-default-width="40px">Admit Card<br>Receipt</th>
                                 <th style="font-size:8px;">${className.includes('12') ? 'Receipts (Marks Card / 12th Cert.)' : 'Marks Card Receipt'}</th>
                             </tr>
                         </thead>
@@ -534,6 +539,10 @@
                     // Split RR No logic: 12 chars then remaining
                     const rr = String(s.boardReg || '');
                     const formattedRR = rr.length > 12 ? (`<div style="line-height:0.85;">` + rr.substring(0, 12) + '<br>' + rr.substring(12) + `</div>`) : rr;
+                    
+                    const getImgUrl = (url) => url ? (url.startsWith('http') ? url + (url.includes('?') ? '&' : '?') + 'cb=' + Date.now() : url) : '';
+                    const photoUrl = getImgUrl(s.photo);
+                    const sigUrl = getImgUrl(s.signature);
 
                     return `
                                 <tr class="student-row">
@@ -543,7 +552,7 @@
                                         <div class="row-resizer no-print"></div>
                                     </td>
                                     <td style="font-size:14px; font-weight:800; color:var(--primary); text-align:center;">${s.classRoll}</td>
-                                     <td class="photo-cell">${s.photo ? `<img src="${s.photo}" />` : ''}</td>
+                                     <td class="photo-cell" style="padding:0 !important; height:1px;">${photoUrl ? `<img src="${photoUrl}" />` : ''}</td>
                                      <td style="font-size:13px; font-weight:700; line-height:1.1">${formattedRR}</td>
                                      <td style="text-align:left; padding-left:10px; font-size:14px; font-weight:700; text-transform:uppercase;">${s.name}</td>
                                      <td style="text-align:left; font-size:13px; padding-left:8px; line-height:1.2; text-transform:uppercase;">
@@ -551,11 +560,11 @@
                                          <div style="color:#666">${s.mother.toUpperCase()}</div>
                                      </td>
                                      <td style="font-size:13px">${s.dob}</td>
-                                     <td style="font-size:12px; line-height:1.1">${s.subs.split(',').join('<br>')}</td>
+                                     <td style="font-size:10px; line-height:1">${s.subs.split(',').join('<br>')}</td>
                                      <td style="font-size:15px; font-weight:700">${s.boardRoll}</td>
                                      <td style="font-size:14px">${s.result}</td>
-                                     <td class="sig-box-cell" style="width:35px; text-align:center; vertical-align:middle; padding: 0;">
-                                         ${s.signature ? `<img src="${s.signature}" style="transform: rotate(180deg); width:100%; height:100%; min-height:78px; object-fit:fill; display:block;">` : ''}
+                                     <td class="sig-box-cell" style="width:40px; text-align:center; vertical-align:middle; padding: 0;">
+                                         ${sigUrl ? `<img src="${sigUrl}" style="transform: rotate(180deg); width:100%; height:100%; min-height:calc(var(--sig-height) - 4px); object-fit:fill; display:block;">` : ''}
                                      </td>
                                     <td class="receipt-cell">
                                         ${className.includes('12') ? `
@@ -574,9 +583,9 @@
                                                 </div>
                                             </div>
                                         ` : `
-                                            <div class="receipt-item" style="height:100%; display:flex; flex-direction:column; justify-content:space-around; min-height:80px;">
-                                                <div style="margin-top:25px; font-size:10px;">Sig. __________________</div>
-                                                <div style="margin-top:15px; font-size:10px;">Date: _________________</div>
+                                            <div class="receipt-item" style="height:100%; display:flex; flex-direction:row; align-items:flex-end; justify-content:space-around; padding: 0 10px 4px; min-height:calc(var(--row-height) - 5px);">
+                                                <div style="font-size:9px;">Sig. _______________</div>
+                                                <div style="font-size:9px;">Date: ______________</div>
                                             </div>
                                         `}
                                     </td>

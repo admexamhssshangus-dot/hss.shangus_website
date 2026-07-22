@@ -201,15 +201,21 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Legal Menu (Clicking these buttons opens the Modal) */}
+          {/* Legal & Compliance Menu */}
           <div className="text-center">
-            <h4 className="text-white font-bold mb-4">Legal Menu</h4>
+            <h4 className="text-white font-bold mb-4">Legal & Compliance</h4>
             <ul className="space-y-2 text-sm flex flex-col items-center">
               <button onClick={() => setActiveModal('privacy')} className="hover:text-teal-400 transition-colors focus:outline-none">
                 Privacy Policy
               </button>
               <button onClick={() => setActiveModal('terms')} className="hover:text-teal-400 transition-colors focus:outline-none">
                 Terms & Conditions
+              </button>
+              <button onClick={() => setActiveModal('refund')} className="hover:text-teal-400 transition-colors focus:outline-none">
+                Refund Policy
+              </button>
+              <button onClick={() => setActiveModal('contact')} className="hover:text-teal-400 transition-colors focus:outline-none">
+                Contact Us
               </button>
             </ul>
           </div>
@@ -282,17 +288,25 @@ export default function Footer() {
                 <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
                   Privacy Policy
                 </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-5">Last Updated: June 28, 2026</p>
-                <div className="space-y-4 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Information Collection & Scope:</strong> We collect personal details (student name, parentage, academic records, contact info) and sensitive registration records (scholarship profiles, income certificates for fee configurations) solely for admission, verification, and administrative purposes.</p>
-                  <p><strong className="text-slate-800">2. Usage & Processing Purpose:</strong> All student data is processed solely for Admission, examination, and other administrative purposes. We do not share, sell, rent, or trade student data with third-party commercial marketing platforms.</p>
-                  <p><strong className="text-slate-800">3. Cookies & Sessions:</strong> This website uses local storage and cookies to improve user experience, manage administrative login sessions, and prevent session validation errors.</p>
-                  <p><strong className="text-slate-800">4. Data Security & Storage:</strong> Records are saved in encrypted cloud databases with secure access guidelines. Data is retained only for active academic academic cycles or as specified by regional school policies.</p>
-                  <p><strong className="text-slate-800">5. Support & Corrections:</strong> For any kind of help contact Adms & Exams Office at <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] hover:underline underline-offset-2">adm.exam.hss.shangus@gmail.com</a>.</p>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: July 22, 2026</p>
+                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
+                  <p><strong className="text-slate-800">1. Information Collection & Scope:</strong> We collect student details (name, parentage, academic records) solely for admission, verification, fee transaction receipts, and administrative record-keeping.</p>
+                  <p><strong className="text-slate-800">2. Payment Gateway Processing:</strong> Online transactions are securely processed by PCI-DSS compliant third-party payment gateways (Razorpay / Cashfree). Sensitive financial credentials (card numbers, PINs, bank passwords) are never stored or accessed by our servers.</p>
+                  <p><strong className="text-slate-800">3. Usage & Zero Commercial Selling:</strong> All student data is processed strictly for educational and administrative purposes. We do not sell, rent, or trade student data to third-party commercial marketing platforms.</p>
                 </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
-                  <button onClick={() => setActiveModal(null)} className="px-5 py-2 text-xs font-bold btn-primary-custom rounded-xl shadow-md active:scale-95 transition-all">
-                    Acknowledge
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <Link
+                    to="/privacy-policy"
+                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                  >
+                    Read Full Privacy Policy →
+                  </Link>
+                  <button
+                    onClick={() => setActiveModal(null)}
+                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
+                  >
+                    Close
                   </button>
                 </div>
               </div>
@@ -301,20 +315,90 @@ export default function Footer() {
             {/* Terms and Conditions Content */}
             {activeModal === 'terms' && (
               <div>
-                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-4 uppercase">
+                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
                   Terms and Conditions
                 </h2>
-                <div className="space-y-4 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Acceptance & Accuracy:</strong> By using this portal, you agree to provide complete and accurate information during registration. Presenting falsified credentials will result in immediate cancellation of registration.</p>
-                  <p><strong className="text-slate-800">2. Code of Conduct:</strong> Students and users must maintain discipline and act responsibly while utilizing digital resources and online services.</p>
-                  <p><strong className="text-slate-800">3. Credentials Security:</strong> Authorized operators (staff/faculty) must safeguard console credentials. Sharing login access or bypassing session verifications is strictly prohibited.</p>
-                  <p><strong className="text-slate-800">4. System Use & Access:</strong> The ERP, including all frontend and backend functionalities, must be accessed strictly for authorized school operations. Web-scraping or brute-force operations are forbidden.</p>
-                  <p><strong className="text-slate-800">5. Proprietary Content & IP:</strong> All content, designs, printable PDF structures, and logos on this website are the property of Govt. HSS Shangus and Next Life Technologies.</p>
-                  <p><strong className="text-slate-800">6. Policy Amendments:</strong> The school administration reserves the right to update these terms, admission guidelines, and digital policies at any time.</p>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: July 22, 2026</p>
+                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
+                  <p><strong className="text-slate-800">1. Acceptance & Information Accuracy:</strong> By using this portal, you agree to provide complete and genuine information during registration. Presenting falsified credentials will result in immediate cancellation of registration.</p>
+                  <p><strong className="text-slate-800">2. Fee Payments in INR:</strong> All fees are specified in Indian Rupees (INR ₹). Payment completion is subject to successful transaction authorization by payment gateways.</p>
+                  <p><strong className="text-slate-800">3. System Security & Code of Conduct:</strong> Scraping, brute-forcing, or unauthorized access attempts to server consoles are strictly prohibited.</p>
+                  <p><strong className="text-slate-800">4. Governing Law:</strong> Governed by the laws of India and UT of Jammu & Kashmir. Jurisdiction: District Anantnag, J&K.</p>
                 </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
-                  <button onClick={() => setActiveModal(null)} className="px-5 py-2 text-xs font-bold btn-primary-custom rounded-xl shadow-md active:scale-95 transition-all">
-                    Accept & Close
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <Link
+                    to="/terms-and-conditions"
+                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                  >
+                    Read Full Terms & Conditions →
+                  </Link>
+                  <button
+                    onClick={() => setActiveModal(null)}
+                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Refund Policy Content */}
+            {activeModal === 'refund' && (
+              <div>
+                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
+                  Refund & Cancellation Policy
+                </h2>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: July 22, 2026</p>
+                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
+                  <p><strong className="text-slate-800">1. Refund Timeline (5-7 Working Days):</strong> Approved refunds for duplicate or failed technical drop transactions are credited back to the original payment source within <strong>5 to 7 working days</strong>.</p>
+                  <p><strong className="text-slate-800">2. Duplicate Payments:</strong> If debited twice for the same application, the duplicate transaction will be refunded upon verification.</p>
+                  <p><strong className="text-slate-800">3. Cancellation Policy:</strong> Session admission fees once confirmed in school records are non-refundable for that academic session.</p>
+                </div>
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <Link
+                    to="/refund-policy"
+                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                  >
+                    Read Full Refund Policy →
+                  </Link>
+                  <button
+                    onClick={() => setActiveModal(null)}
+                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Contact Us Content */}
+            {activeModal === 'contact' && (
+              <div>
+                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
+                  Contact Us & Helpdesk
+                </h2>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Admissions & Exams Desk</p>
+                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
+                  <p><strong className="text-slate-800">Operational Address:</strong> Main Road, Shangus, Anantnag, Jammu & Kashmir - 192201</p>
+                  <p><strong className="text-slate-800">Official Email:</strong> <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a></p>
+                  <p><strong className="text-slate-800">Helpline Numbers:</strong> +91 7006034501 / +91 9682547458</p>
+                  <p><strong className="text-slate-800">Support Response SLA:</strong> All inquiries are addressed within 24 to 48 business hours.</p>
+                </div>
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <Link
+                    to="/contact-us"
+                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                  >
+                    Go to Full Contact Page →
+                  </Link>
+                  <button
+                    onClick={() => setActiveModal('contactForm')}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 text-xs font-bold rounded-xl text-center transition-colors font-semibold"
+                  >
+                    Send Quick Message
                   </button>
                 </div>
               </div>
@@ -343,7 +427,6 @@ function ContactForm({ onClose }) {
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [backendAvailable, setBackendAvailable] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState(false);
@@ -357,10 +440,6 @@ function ContactForm({ onClose }) {
     'Feedback',
   ];
 
-  // We rely purely on Firebase now; backend fallback removed to prevent 404 console errors.
-  useEffect(() => {
-    setBackendAvailable(false);
-  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();

@@ -89,7 +89,8 @@ function logActivity(action, email, details) {
 const SCHOOL_NAME    = 'Govt Higher Secondary School Shangus';
 const SHEET_NAME     = 'source_data';      // Tab name in your Google Sheet
 const PHOTOS_FOLDER_ID = '1Ms9E9qUT7XaBF1qmZn9ies1k-izMDg0V'; // student_photos parent folder
-const SOURCE_PHOTOS_FOLDER_ID = '1wcwjU5xB7MqtbNBO8Jv_1LHPxVoHgcvr'; // Formal Photos folder
+const SOURCE_PHOTOS_FOLDER_ID = '1wcwjU5xB7MqtbNBO8Jv_1LHPxVoHgcvr'; // Formal Photos folder (contains optimized_photos)
+const NEW_UPLOADS_FOLDER_ID = '13GKwEzQgJ78raVpqojEz3lhx2GGI3_73'; // New uploads from the tools window go here
 const TEMP_REPORTS_FOLDER_ID = '1cSPNMS3azhO7jPH2ZrmfiAbCpxDnuXQ6'; // Explicit folder for downloading Excel files
 // =========================================================
 
@@ -693,6 +694,7 @@ function _filterRows(allRows, filters, skipFallbacks, rowLimit) {
   if (!skipFallbacks) {
     filtered = _fillMissingAdmNos(filtered, allRows);
     filtered = _fillMissingAdmDates(filtered, allRows);
+    filtered = _fillSentupDetails(filtered, allRows);
   }
 
   // ---- 5. Summary reports ----
@@ -820,6 +822,93 @@ function _fillMissingAdmNos(filtered, allRows) {
       if (r < curRank && r > bestRank) { bestRank = r; best = p.adm_no; }
     });
     if (best) return { ...row, adm_no: best };
+    return row;
+  });
+}
+
+// =========================================================
+// == SENTUP DETAILS FALLBACK (APR/BIAN) ==
+// =========================================================
+function _fillSentupDetails(filtered, allRows) {
+  // Only process rows that belong to an APR/BIAN session
+  const aprBianRows = filtered.filter(r => (r.session || '').indexOf('APR/BIAN') !== -1);
+  if (aprBianRows.length === 0) return filtered;
+
+  // We need to look up class_r_no, dob_figures, and subs from previous regular sessions
+  const regNos = new Set(aprBianRows.map(r => r['board_reg_no']).filter(Boolean));
+  const admNos = new Set(aprBianRows.map(r => r['adm_no']).filter(Boolean));
+  
+  if (regNos.size === 0 && admNos.size === 0) {
+    return filtered.map(row => {
+      if ((row.session || '').indexOf('APR/BIAN') !== -1 && !row['class_r_no']) {
+        row['class_r_no'] = 'N/A';
+      }
+      return row;
+    });
+  }
+
+  // Group historical records by board_reg_no or adm_no
+  const historyByReg = {};
+  const historyByAdm = {};
+  
+  allRows.forEach(r => {
+    // Only consider regular sessions (not APR/BIAN) to pull original data
+    if (r['session'] && r['session'].indexOf('APR/BIAN') === -1) {
+      if (r['board_reg_no']) {
+        if (!historyByReg[r['board_reg_no']]) historyByReg[r['board_reg_no']] = [];
+        historyByReg[r['board_reg_no']].push(r);
+      }
+      if (r['adm_no']) {
+        if (!historyByAdm[r['adm_no']]) historyByAdm[r['adm_no']] = [];
+        historyByAdm[r['adm_no']].push(r);
+      }
+    }
+  });
+
+  return filtered.map(row => {
+    if ((row.session || '').indexOf('APR/BIAN') === -1) return row; // only modify APR/BIAN rows
+    
+    let possible = [];
+    if (row['board_reg_no'] && historyByReg[row['board_reg_no']]) {
+      possible = historyByReg[row['board_reg_no']];
+    } else if (row['adm_no'] && historyByAdm[row['adm_no']]) {
+      possible = historyByAdm[row['adm_no']];
+    }
+    
+    if (possible.length === 0) {
+      // If no history found, enforce N/A for class roll no if missing
+      if (!row['class_r_no']) row['class_r_no'] = 'N/A';
+      return row;
+    }
+    
+    // Find the most recent session relative to this row's session
+    const curRank = _sessionRank(row.session);
+    let bestRecord = null, bestRank = -1;
+    
+    possible.forEach(p => {
+      const r = _sessionRank(p.session);
+      // We want the most recent previous session
+      if (r < curRank && r > bestRank) { 
+        bestRank = r; 
+        bestRecord = p; 
+      }
+    });
+    
+    if (bestRecord) {
+      // Create a copy to avoid mutating original
+      const updatedRow = { ...row };
+      // Override details if they are missing or if we just want to pull them from history
+      // Usually APR/BIAN students don't have roll no, so we explicitly pull it
+      updatedRow['class_r_no'] = bestRecord['class_r_no'] || 'N/A';
+      
+      // Pull DOB and subjects if missing
+      if (!updatedRow['dob_figures']) updatedRow['dob_figures'] = bestRecord['dob_figures'];
+      if (!updatedRow['subs']) updatedRow['subs'] = bestRecord['subs'];
+      
+      return updatedRow;
+    }
+    
+    if (!row['class_r_no']) row['class_r_no'] = 'N/A';
     return row;
   });
 }
@@ -980,7 +1069,7 @@ function _attachPhotoUrls(records) {
               if (!photoMap[mapKey]) {
                 try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(err){}
                 photoMap[mapKey] = { 
-                  url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100',
+                  url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100&t=' + new Date().getTime(),
                   id: file.getId()
                 };
               }
@@ -1005,7 +1094,7 @@ function _attachPhotoUrls(records) {
     }
     
     if (photoId && photoId.length > 20) {
-      row['photo_url'] = 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100';
+      row['photo_url'] = 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100&t=' + new Date().getTime();
       return row;
     }
 
@@ -1112,18 +1201,29 @@ function loadPhotosAsync(records) {
 function getPhotoUrl(studentRow) {
   if (!studentRow) return null;
 
-  // Strategy 0: Formal Photo Priority (RollNo_FormNo pattern)
+  // Strategy 0: High Priority Standard Naming (Class_Session_BoardRegNo)
+  var boardReg = (studentRow['board_reg_no'] || '').trim();
+  var cls = (studentRow['class'] || '').trim();
+  var session = (studentRow['session'] || '').trim();
+  
+  if (cls && session && boardReg && SOURCE_PHOTOS_FOLDER_ID) {
+    var stdName = cls + "_" + session + "_" + boardReg;
+    var stdId = _findFileInFolderCached(SOURCE_PHOTOS_FOLDER_ID, stdName, true);
+    if (stdId) return 'https://drive.google.com/thumbnail?id=' + stdId + '&sz=w100&t=' + new Date().getTime();
+  }
+
+  // Strategy 0.1: Formal Photo Priority (RollNo_FormNo pattern)
   var rollNo  = (studentRow['class_r_no'] || '').trim();
   var formNum = (studentRow['form_no'] || '').trim();
   
   if (rollNo && formNum && SOURCE_PHOTOS_FOLDER_ID) {
     var formalPrefix = rollNo + "_" + formNum;
     var formalId = _findFileInFolderCached(SOURCE_PHOTOS_FOLDER_ID, formalPrefix, true);
-    if (formalId) return 'https://drive.google.com/thumbnail?id=' + formalId + '&sz=w100';
+    if (formalId) return 'https://drive.google.com/thumbnail?id=' + formalId + '&sz=w100&t=' + new Date().getTime();
     
     // Try just form number as fallback in formal folder
     var fallbackId = _findFileInFolderCached(SOURCE_PHOTOS_FOLDER_ID, formNum, true);
-    if (fallbackId) return 'https://drive.google.com/thumbnail?id=' + fallbackId + '&sz=w100';
+    if (fallbackId) return 'https://drive.google.com/thumbnail?id=' + fallbackId + '&sz=w100&t=' + new Date().getTime();
   }
 
   // Strategy 1: explicit photo filename/Drive ID in sheet
@@ -1132,7 +1232,7 @@ function getPhotoUrl(studentRow) {
     var m = rawId.match(/[-\w]{25,}/);
     var photoId = m ? m[0] : rawId;
     if (photoId && photoId.length > 20) {
-      return 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100';
+      return 'https://drive.google.com/thumbnail?id=' + photoId + '&sz=w100&t=' + new Date().getTime();
     }
   }
   
@@ -1148,7 +1248,7 @@ function getPhotoUrl(studentRow) {
   var sessionFolderId = _findSessionFolderCached(cls, sessionFolder);
   if (sessionFolderId) {
     var fileId = _findFileInFolderCached(sessionFolderId, rollNo, false);
-    if (fileId) return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w100';
+    if (fileId) return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w100&t=' + new Date().getTime();
   }
 
   return null;
@@ -1237,7 +1337,7 @@ function _findPhotoInFolder(folderId, prefix) {
       var name = file.getName();
       // Ensure it starts with the prefix and is an image
       if (name.indexOf(prefix) === 0 && (name.toLowerCase().endsWith('.jpg') || name.toLowerCase().endsWith('.jpeg') || name.toLowerCase().endsWith('.png'))) {
-        var url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100';
+        var url = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100&t=' + new Date().getTime();
         return url;
       }
     }
@@ -1261,7 +1361,7 @@ function _findPhotoInDriveCached(folderId, fileName) {
         var name = file.getName().toLowerCase();
         // Store the thumbnail URL by filename (without extension)
         var baseName = name.split('.')[0];
-        _folderFileCache[folderId][baseName] = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100';
+        _folderFileCache[folderId][baseName] = 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w100&t=' + new Date().getTime();
       }
     } catch(e) {}
   }
@@ -1527,6 +1627,114 @@ function saveBulkStudentData(updates) {
   
   _clearCache();
   return { success:true, count:saved };
+}
+
+// =========================================================
+// == BULK IMPORT: Append new rows from digitized data ==
+// =========================================================
+function bulkImportStudentData(rows, session, className) {
+  if (!rows || !rows.length) return { success: false, message: 'No data provided.' };
+  
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if (!sheet) return { success: false, message: 'Sheet "' + SHEET_NAME + '" not found.' };
+  
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const lastRow = sheet.getLastRow();
+  
+  // Build a map: column key → sheet column index (1-based)
+  const colMap = {};
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i] || '').trim();
+    if (!h) continue;
+    // Match by HEADER_MAP
+    if (HEADER_MAP[h]) {
+      colMap[HEADER_MAP[h]] = i + 1;
+    } else {
+      // Try lowercase match
+      const hL = h.toLowerCase();
+      for (const k in HEADER_MAP) {
+        if (k.toLowerCase() === hL) {
+          colMap[HEADER_MAP[k]] = i + 1;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Also map session and class columns
+  if (!colMap['session']) {
+    const sIdx = _findSheetColIdx(sheet, 'session');
+    if (sIdx > 0) colMap['session'] = sIdx;
+  }
+  if (!colMap['class']) {
+    const cIdx = _findSheetColIdx(sheet, 'class');
+    if (cIdx > 0) colMap['class'] = cIdx;
+  }
+  if (!colMap['s_no']) {
+    const snIdx = _findSheetColIdx(sheet, 's_no');
+    if (snIdx > 0) colMap['s_no'] = snIdx;
+  }
+  
+  // Find the maximum number of columns we may need
+  let maxCol = headers.length;
+  
+  // Check if any import columns don't exist yet → add new headers
+  const sampleRow = rows[0];
+  const newColKeys = [];
+  for (const key in sampleRow) {
+    if (!colMap[key]) {
+      // Column doesn't exist in sheet yet → add it
+      maxCol++;
+      const label = ALL_COLUMNS[key] || key; // Use known label or raw key
+      sheet.getRange(1, maxCol).setValue(label);
+      colMap[key] = maxCol;
+      newColKeys.push(label);
+    }
+  }
+  
+  // Calculate next S.No.
+  let nextSNo = lastRow; // S.No. is typically the row count minus header
+  if (colMap['s_no'] && lastRow > 1) {
+    const lastSNo = sheet.getRange(lastRow, colMap['s_no']).getValue();
+    const parsed = parseInt(lastSNo);
+    if (!isNaN(parsed)) nextSNo = parsed;
+  }
+  
+  // Build the rows to append
+  const appendData = [];
+  for (let r = 0; r < rows.length; r++) {
+    const rowData = new Array(maxCol).fill('');
+    nextSNo++;
+    
+    // Set S.No.
+    if (colMap['s_no']) rowData[colMap['s_no'] - 1] = nextSNo;
+    
+    // Set session and class
+    if (colMap['session']) rowData[colMap['session'] - 1] = session;
+    if (colMap['class']) rowData[colMap['class'] - 1] = className;
+    
+    // Fill in the data from the import row
+    for (const key in rows[r]) {
+      if (colMap[key] && key !== 'session' && key !== 'class' && key !== 's_no') {
+        rowData[colMap[key] - 1] = rows[r][key];
+      }
+    }
+    
+    appendData.push(rowData);
+  }
+  
+  // Write all rows at once (batch operation for speed)
+  if (appendData.length > 0) {
+    sheet.getRange(lastRow + 1, 1, appendData.length, maxCol).setValues(appendData);
+  }
+  
+  const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+  const details = `Imported ${appendData.length} records for ${className} (${session}).` +
+                  (newColKeys.length ? ` New columns added: ${newColKeys.join(', ')}` : '');
+  logActivity('Reports: Bulk Data Import', emailToLog, details);
+  
+  _clearCache();
+  return { success: true, count: appendData.length, newColumns: newColKeys };
 }
 
 // =========================================================
@@ -1901,6 +2109,7 @@ function getSentupData(session, className, limit) {
     
     // [FIX] Fill missing Admission Nos using fallback logic from other sessions
     filtered = _fillMissingAdmNos(filtered, records);
+    filtered = _fillSentupDetails(filtered, records);
     
     // Sort by Class Roll No
     filtered.sort((a, b) => {
@@ -1956,7 +2165,7 @@ function getSignatureUrl(rollNo, className, session, rootId) {
   const sigSessionFolderId = _findSessionFolderCached(cls, session, rootId);
   if (sigSessionFolderId) {
      const fileId = _findFileInFolderCached(sigSessionFolderId, rollNo, false);
-     if (fileId) return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+     if (fileId) return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300&t=' + new Date().getTime();
   }
   return '';
 }
@@ -1979,7 +2188,8 @@ function getSentupHtml(session, className, isSample) {
   const signatureFolderId = '1NVy4n4dx-Gm0dGoI_Gj5ngOlgfDZT7Zh';
   
   // [FIX] Fill missing Admission Nos using fallback logic from other sessions
-  const hydratedRecords = _fillMissingAdmNos(finalRecords, records);
+  let hydratedRecords = _fillMissingAdmNos(finalRecords, records);
+  hydratedRecords = _fillSentupDetails(hydratedRecords, records);
 
   // Process only final records (Hydration)
   const students = hydratedRecords.map((r, idx) => {
@@ -2025,6 +2235,8 @@ function getStudentsForPhotoExport(session, className, rollFrom, rollTo) {
   const rollT = parseInt(rollTo) || 999999;
 
   const result = [];
+  const missingPhotos = [];
+  
   records.forEach(r => {
     if (session && r.session !== session) return;
     if (className && r.class !== className) return;
@@ -2036,6 +2248,13 @@ function getStudentsForPhotoExport(session, className, rollFrom, rollTo) {
       if (rollTo && rno > rollT) return;
     }
     
+    // safe name creation for both cases:
+    const safeClass = String(r.class || 'NA').replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+    const safeSession = String(r.session || 'NA').replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+    const safeBoardReg = String(r.board_reg_no || r.class_r_no || 'NA').replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+    const safeName = String(r.student_name || 'Student').replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
+    const targetName = safeClass + '_' + safeSession + '_' + safeBoardReg + '_' + safeName + '.jpg';
+    
     // Resolve actual File ID
     const photoId = resolveStudentPhotoId(r);
     if (photoId) {
@@ -2045,11 +2264,32 @@ function getStudentsForPhotoExport(session, className, rollFrom, rollTo) {
         roll: r.class_r_no,
         class: r.class,
         session: r.session,
-        targetName: (r.class_r_no || 'NA') + '_' + (r.student_name || 'Student').replace(/[\/\\?%*:|"<>]/g, '') + '_' + (r.class || '').replace(/[\/\\?%*:|"<>]/g, '') + '.jpg'
+        targetName: targetName
+      });
+    } else {
+      missingPhotos.push({
+        name: r.student_name,
+        roll: r.class_r_no,
+        boardReg: r.board_reg_no || "No Reg"
       });
     }
   });
-  return result;
+  return { valid: result, missing: missingPhotos };
+}
+
+var _cachedOptimizedFolderId = null;
+function _getOptimizedFolderId() {
+  if (_cachedOptimizedFolderId) return _cachedOptimizedFolderId;
+  try {
+    var parent = DriveApp.getFolderById(SOURCE_PHOTOS_FOLDER_ID);
+    var folders = parent.getFoldersByName('optimized_photos');
+    if (folders.hasNext()) {
+      _cachedOptimizedFolderId = folders.next().getId();
+      return _cachedOptimizedFolderId;
+    }
+  } catch(e) {}
+  _cachedOptimizedFolderId = SOURCE_PHOTOS_FOLDER_ID; // Fallback to parent
+  return _cachedOptimizedFolderId;
 }
 
 /**
@@ -2057,16 +2297,29 @@ function getStudentsForPhotoExport(session, className, rollFrom, rollTo) {
  */
 function resolveStudentPhotoId(studentRow) {
   if (!studentRow) return null;
+  
+  var targetFolderId = _getOptimizedFolderId();
 
-  // Strategy 0: Formal Photo Priority (RollNo_FormNo pattern)
+  // Strategy 0: High Priority Standard Naming (Class_Session_BoardRegNo)
+  var boardReg = (studentRow['board_reg_no'] || '').trim();
+  var cls = (studentRow['class'] || '').trim();
+  var session = (studentRow['session'] || '').trim();
+  
+  if (cls && session && boardReg && targetFolderId) {
+    var stdName = cls + "_" + session + "_" + boardReg;
+    var stdId = _findPhotoIdInFolder(targetFolderId, stdName);
+    if (stdId) return stdId;
+  }
+
+  // Strategy 0.1: Formal Photo Priority (RollNo_FormNo pattern)
   var rollNo  = (studentRow['class_r_no'] || '').trim();
   var formNum = (studentRow['form_no'] || '').trim();
-  if (rollNo && formNum && SOURCE_PHOTOS_FOLDER_ID) {
+  if (rollNo && formNum && targetFolderId) {
     var formalPrefix = rollNo + "_" + formNum;
-    var formalId = _findPhotoIdInFolder(SOURCE_PHOTOS_FOLDER_ID, formalPrefix);
+    var formalId = _findPhotoIdInFolder(targetFolderId, formalPrefix);
     if (formalId) return formalId;
     
-    var formalFallbackId = _findPhotoIdInFolder(SOURCE_PHOTOS_FOLDER_ID, formNum);
+    var formalFallbackId = _findPhotoIdInFolder(targetFolderId, formNum);
     if (formalFallbackId) return formalFallbackId;
   }
 
@@ -2113,7 +2366,11 @@ function _findPhotoIdInFolder(folderId, prefix) {
       var file = files.next();
       var name = file.getName();
       if (name.indexOf(prefix) === 0 && (name.toLowerCase().endsWith('.jpg') || name.toLowerCase().endsWith('.jpeg') || name.toLowerCase().endsWith('.png'))) {
-        return file.getId();
+        // Enforce strict boundary after prefix to prevent "11" from matching "11th"
+        var nextChar = name.charAt(prefix.length);
+        if (!nextChar || nextChar === '.' || nextChar === '_' || nextChar === '-' || nextChar === ' ') {
+          return file.getId();
+        }
       }
     }
   } catch (e) {}
@@ -2157,7 +2414,7 @@ function processPhotoExportBatch(students, sessionName, className) {
   }
   
   // Get or create class-wise folder
-  const classFolderName = (className || 'AllClasses').replace(/[\/\\?%*:|"<>]/g, '_');
+  const classFolderName = (className || 'AllClasses').replace(/\//g, ',').replace(/[\\?%*:|"<>]/g, '');
   let classFolder;
   const classFolders = exportMain.getFoldersByName(classFolderName);
   if (classFolders.hasNext()) {
@@ -2206,35 +2463,118 @@ function processPhotoExportBatch(students, sessionName, className) {
   };
 }
 
-function finalizePhotoExport(classFolderId, zipName) {
+function finalizePhotoExport(classFolderId, zipName, missingPhotos) {
   try {
     const folder = DriveApp.getFolderById(classFolderId);
-    const files = folder.getFiles();
-    const blobs = [];
     
-    while (files.hasNext()) {
-      const file = files.next();
-      if (file.getName().toLowerCase().endsWith('.jpg') || file.getName().toLowerCase().endsWith('.png')) {
-        blobs.push(file.getBlob());
+    if (missingPhotos && missingPhotos.length > 0) {
+      let txtContent = "The following students do not have photos uploaded:\r\n\r\n";
+      missingPhotos.forEach(s => {
+         txtContent += s.roll + " - " + s.name + " (Board Reg: " + s.boardReg + ")\r\n";
+      });
+      
+      const missingFileName = "Missing_Photos_" + zipName + ".txt";
+      
+      // Delete old missing_photos file if exists to prevent duplicates
+      const existingFiles = folder.getFilesByName(missingFileName);
+      while (existingFiles.hasNext()) {
+        existingFiles.next().setTrashed(true);
       }
+      
+      folder.createFile(missingFileName, txtContent);
     }
     
-    if (blobs.length === 0) return { success: false, message: "No photos found to zip." };
-    
-    const zip = Utilities.zip(blobs, (zipName || "StudentPhotos") + ".zip");
-    const zipFile = folder.createFile(zip);
+    // Set folder to be viewable by anyone with the link
+    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     
     const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
-    logActivity('Reports: Finalize Photo ZIP', emailToLog, `Generated ZIP file: ${zipName}.zip with ${blobs.length} photos.`);
-    
-    // Set viewable for download
-    zipFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    logActivity('Reports: Finalize Photo Export', emailToLog, `Generated export folder for: ${zipName}`);
     
     return { 
       success: true, 
-      downloadUrl: zipFile.getDownloadUrl().replace('/edit?usp=drivesdk', '') + '&export=download',
-      fileId: zipFile.getId()
+      downloadUrl: folder.getUrl(),
+      fileId: classFolderId
     };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+function deletePhotoExportFolder(folderId) {
+  try {
+    if (!folderId) return { success: true }; // Nothing to delete
+    DriveApp.getFolderById(folderId).setTrashed(true);
+    return { success: true };
+  } catch (e) {
+    // If folder doesn't exist, it was already deleted manually
+    return { success: true, message: e.message };
+  }
+}
+
+/**
+ * [NEW] Bulk Photo Uploader logic
+ */
+function uploadStudentPhoto(base64Data, mimeType, filename, classStr, sessionStr, boardRegNo) {
+  try {
+    if (!NEW_UPLOADS_FOLDER_ID) {
+      return { success: false, message: "New uploads folder ID not configured." };
+    }
+    
+    // boardRegNo is now passed explicitly from the client, eliminating parsing issues
+    if (!boardRegNo) {
+      return { success: false, message: "Board Reg No was not provided for this upload." };
+    }
+    
+    // We now use the exact filename provided by the client, which includes the student name!
+    var folder = DriveApp.getFolderById(NEW_UPLOADS_FOLDER_ID);
+    
+    // Check if file with same name exists and trash it to avoid duplicates
+    var existingFiles = folder.getFilesByName(filename);
+    while (existingFiles.hasNext()) {
+      existingFiles.next().setTrashed(true);
+    }
+
+    var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, filename);
+    var newFile = folder.createFile(blob);
+    newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var fileId = newFile.getId();
+    
+    // Update the database
+    var sheet = SpreadsheetApp.openById(ADMISSIONS_SHEET_ID).getSheetByName('Database');
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0].map(h => String(h).trim().toLowerCase());
+    
+    // Use actual sheet header labels (HEADER_MAP keys) to find column indices
+    var photoIdColIndex = headers.indexOf('photo_id');
+    var classColIndex = headers.indexOf('class');
+    var sessionColIndex = headers.indexOf('session');
+    var boardRegColIndex = headers.indexOf('board reg. no.');
+    
+    if (photoIdColIndex === -1 || classColIndex === -1 || sessionColIndex === -1 || boardRegColIndex === -1) {
+      return { success: false, message: "Could not find required columns in Database. Found: photoId=" + photoIdColIndex + " class=" + classColIndex + " session=" + sessionColIndex + " boardReg=" + boardRegColIndex };
+    }
+    
+    var updated = false;
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (String(row[classColIndex]).trim() === classStr && 
+          String(row[sessionColIndex]).trim() === sessionStr && 
+          String(row[boardRegColIndex]).trim() === boardRegNo) {
+        
+        sheet.getRange(i + 1, photoIdColIndex + 1).setValue(fileId);
+        updated = true;
+        break; // BoardRegNo is unique within a session/class
+      }
+    }
+    
+    if (!updated) {
+       return { success: false, message: "Photo uploaded to Drive, but no matching student found in database for Reg No: " + boardRegNo };
+    }
+
+    const emailToLog = Session.getActiveUser().getEmail() || 'Admin';
+    logActivity('Reports: Photo Upload', emailToLog, `Uploaded photo for ${boardRegNo} (${classStr}, ${sessionStr}). File ID: ${fileId}`);
+    
+    return { success: true, fileId: fileId };
   } catch (e) {
     return { success: false, message: e.message };
   }

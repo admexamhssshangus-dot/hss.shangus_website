@@ -4708,6 +4708,12 @@ function generatePdf(appData, isEdit = false) {
           continue;
         }
         let value = appData[fieldName];
+        
+        // [FIX] Fallback for Email if Form_Structure and Sheet columns have different names
+        if ((fieldName === 'E-mail ID' || fieldName === 'Email Address') && !value) {
+          value = appData['Email Address'] || appData['E-mail ID'] || appData['Email'] || '';
+        }
+
         if (fieldName === "DoB (as per school records)" && value) {
             const v = String(value).trim();
             const ddmmyyyy = v.match(/^([0-9]{2})-([0-9]{2})-([0-9]{4})$/);
@@ -4765,7 +4771,10 @@ function generatePdf(appData, isEdit = false) {
         if (body && !usedFallbackTemplate) {
           let start = null;
           while (true) {
-            const found = body.findText('{{PHOTO}}', start);
+            let found = body.findText('{{PHOTO}}', start);
+            if (!found) {
+              found = body.findText('{{PHOTO_IC}}', start); // Fallback to {{PHOTO_IC}}
+            }
             if (!found) break;
             const element = found.getElement().asText();
             const parent = element.getParent();
@@ -4781,11 +4790,13 @@ function generatePdf(appData, isEdit = false) {
       logError(e, 'photoReplacement');
       if (body) {
         body.replaceText('{{PHOTO}}', '[PHOTO UPLOAD FAILED]');
+        body.replaceText('{{PHOTO_IC}}', '[PHOTO UPLOAD FAILED]');
       }
     }
   } else {
     if (body) {
       body.replaceText('{{PHOTO}}', '[NO PHOTO UPLOADED]');
+      body.replaceText('{{PHOTO_IC}}', '[NO PHOTO UPLOADED]');
     }
   }
   // --- Compute percentages and divisions for classes 8-12 and replace placeholders like {{per8}} / {{div8}} ---
@@ -4844,7 +4855,7 @@ function generatePdf(appData, isEdit = false) {
   }
   // Clean up any remaining placeholders
   if (body) {
-    body.replaceText(/\{\{.*\}\}/g, ''); // Replaces any unfulfilled placeholders with empty string
+    body.replaceText('\\{\\{[^}]+\\}\\}', ''); // [FIX] Replaces any unfulfilled placeholders with empty string (requires string literal for RE2)
   }
   
   // Save and close the temp doc

@@ -373,10 +373,10 @@
 
   <!-- ============ TOOLS MODAL ============ -->
   <div id="tools-modal" class="modal-overlay no-print"
-    onclick="if(event.target==this){this.classList.remove('active');document.body.classList.remove('modal-open');}">
-    <div class="modal-content tools-modal-content" style="max-width:600px; height:80vh">
-      <button class="modal-close-button"
-        onclick="document.getElementById('tools-modal').classList.remove('active');document.body.classList.remove('modal-open');">×</button>
+    onclick="if(event.target==this) requestCloseToolsModal()">
+    <div id="tools-modal-box" class="modal-content tools-modal-content">
+      <button class="modal-minimize-button" onclick="toggleMinimizeToolsModal()" title="Minimize">_</button>
+      <button class="modal-close-button" onclick="requestCloseToolsModal()" title="Close">×</button>
 
       <div class="tool-tabs">
         <button class="tool-tab active" id="tab-btn-assign" onclick="switchToolTab('assign')">Assign IDs</button>
@@ -385,6 +385,8 @@
         <button class="tool-tab" id="tab-btn-register" onclick="switchToolTab('register')">Adm. Register</button>
         <button class="tool-tab" id="tab-btn-sentup" onclick="switchToolTab('sentup')">Sentup Export</button>
         <button class="tool-tab" id="tab-btn-photos" onclick="switchToolTab('photos')">Photo Export</button>
+        <button class="tool-tab" id="tab-btn-photoupload" onclick="switchToolTab('photoupload')">Photo Upload</button>
+        <button class="tool-tab" id="tab-btn-import" onclick="switchToolTab('import')">Bulk Import</button>
       </div>
 
       <div class="tools-body" style="padding:15px; flex:1; display:flex; flex-direction:column; overflow:hidden">
@@ -401,25 +403,17 @@
           <p style="font-size:11px;color:#666;margin-bottom:12px">Group assign IDs to currently filtered students
             missing them.</p>
 
-          <div style="display:flex; gap:8px; margin-bottom:12px">
-            <select id="tool-session-select"
-              style="width:48%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc"
-              onchange="refreshToolData()"></select>
-            <select id="tool-class-select"
-              style="width:48%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc"
-              onchange="refreshToolData()"></select>
+          <div style="display:flex; gap:12px; margin-bottom:16px">
+            <select id="tool-session-select" class="tool-input" style="flex:1" onchange="refreshToolData()"></select>
+            <select id="tool-class-select" class="tool-input" style="flex:1" onchange="refreshToolData()"></select>
           </div>
 
-          <div class="tool-row" style="margin-bottom:12px">
-            <label style="font-size:11px;color:#555">Roll No Range:</label>
-            <div style="display:flex; gap:4px; align-items:center">
-              <input type="number" id="tool-roll-start"
-                style="width:60px;padding:3px;font-size:11px;border-radius:3px;border:1px solid #ccc" placeholder="From"
-                onblur="refreshToolData()">
-              <span style="font-size:10px;color:#999">-</span>
-              <input type="number" id="tool-roll-end"
-                style="width:60px;padding:3px;font-size:11px;border-radius:3px;border:1px solid #ccc" placeholder="To"
-                onblur="refreshToolData()">
+          <div class="tool-row" style="margin-bottom:16px; align-items:center; display:flex;">
+            <label style="font-size:12px;color:#475569;font-weight:600">Roll No Range:</label>
+            <div style="display:flex; gap:6px; align-items:center">
+              <input type="number" id="tool-roll-start" class="tool-input" style="width:80px" placeholder="From" onblur="refreshToolData()">
+              <span style="color:#94a3b8; font-weight:600">-</span>
+              <input type="number" id="tool-roll-end" class="tool-input" style="width:80px" placeholder="To" onblur="refreshToolData()">
             </div>
           </div>
 
@@ -427,31 +421,28 @@
             style="font-size:10.5px; color:#1a3a5c; margin-bottom:12px; background:#f0f7ff; padding:8px; border-radius:4px; border-left:3px solid #3498db; min-height:30px">
           </div>
 
-          <div class="tool-row">
-            <span>Current Global Max ID:</span>
+          <div class="tool-row" style="margin-bottom:8px">
+            <span style="font-size:12px;color:#475569;font-weight:500">Current Global Max ID:</span>
             <span id="tool-max-adm-no" class="tool-status-pill">...</span>
           </div>
-          <div class="tool-row">
-            <span>Pending in this Range:</span>
+          <div class="tool-row" style="margin-bottom:12px">
+            <span style="font-size:12px;color:#475569;font-weight:500">Pending in this Range:</span>
             <span id="tool-pending-count" class="tool-status-pill pending">...</span>
           </div>
-          <div class="tool-row" style="margin-top:10px; border-top:1px dashed #ced4da; padding-top:10px">
-            <label style="font-weight:600; color:#444">Start Assigning From:</label>
-            <input type="number" id="assign-start-no"
-              style="width:85px;padding:4px;border:1.5px solid #2c5aa0;border-radius:4px;font-weight:bold;text-align:center">
+          <div class="tool-row" style="margin-top:16px; border-top:1px dashed #cbd5e1; padding-top:16px; align-items:center">
+            <label style="font-size:13px; font-weight:700; color:#1e293b">Start Assigning From:</label>
+            <input type="number" id="assign-start-no" class="tool-input" style="width:100px; font-weight:bold; font-size:14px; text-align:center; border-color:#2563eb; color:#1d4ed8; background:#eff6ff">
           </div>
 
-          <div style="margin-top:15px; display:flex; flex-direction:column; gap:8px">
-            <button class="action-button" style="width:100%; justify-content:center; height:38px; font-size:12px"
+          <div style="margin-top:20px; display:flex; flex-direction:column; gap:12px">
+            <button class="action-button" style="width:100%; justify-content:center; height:44px; font-size:14px"
               onclick="startAdmissionAssignment()" id="tool-btn-assign">🚀 Run New ID Assignment</button>
 
-            <div
-              style="background:#f0f7ff; border:1px solid #c2d7ff; border-radius:6px; padding:10px; margin-top:5px; text-align:center">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; text-align:center">
               <button class="action-button"
-                style="width:100%; justify-content:center; height:36px; background:#28a745; border-color:#28a745; font-size:11px"
+                style="background:linear-gradient(135deg, #10b981, #059669);box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); width:100%; justify-content:center; height:40px"
                 onclick="syncReadmissionIDs()" id="tool-btn-sync-ids">🔗 Link Old IDs (Readm. Check)</button>
-              <p style="font-size:9.5px; color:#1a3a5c; margin-top:5px; opacity:0.8; line-height:1.2">Links previous IDs
-                for students marked as 'readmission'.</p>
+              <div style="font-size:11px;color:#64748b;margin-top:8px">Links previous IDs for students marked as 'readmission'.</div>
             </div>
           </div>
         </div>
@@ -637,7 +628,7 @@
         <!-- Section 5: Photo Export (NEW) -->
         <div id="tool-section-photos" class="tool-section">
           <h3 style="margin-top:0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Photo Export & Rename</h3>
-          <p style="font-size:11px;color:#666;margin-bottom:12px">Export student photos with custom naming (RollNo_Name_Class.jpg) into a ZIP file.</p>
+          <p style="font-size:11px;color:#666;margin-bottom:12px">Copy student photos with custom naming (Class_Session_RollNo_Name.jpg) into a new Google Drive folder.</p>
           
           <div style="display:flex; gap:8px; margin-bottom:12px">
             <select id="photo-tool-session-select" style="width:48%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc"></select>
@@ -666,11 +657,133 @@
 
           <div id="photo-export-actions" style="margin-top:auto; padding-top:15px">
             <button class="action-button" style="width:100%; justify-content:center; height:42px; font-size:13px; background:linear-gradient(135deg, #6366f1, #4f46e5)"
-              onclick="startPhotoExport()" id="tool-btn-photo-export">🚀 Export & Download ZIP</button>
+              onclick="startPhotoExport()" id="tool-btn-photo-export">🚀 Export to Drive Folder</button>
+            <p id="photo-export-resume-note" class="hidden" style="font-size:10px; color:#ef4444; margin-top:6px; text-align:center">
+              Export taking too long? Wait a few minutes and click Export again to resume from where it left off.
+            </p>
           </div>
           
-          <div id="photo-export-resume-note" class="hidden" style="margin-top:10px; font-size:10px; color:#e67e22; background:#fff5e6; padding:8px; border-radius:4px; border-left:3px solid #e67e22">
-            <strong>Partial Export Detected:</strong> The process will skip existing photos and resume from where it left off.
+          <div id="recent-exports-list" style="margin-top:15px; border-top:1px dashed #cbd5e1; padding-top:10px"></div>
+        </div>
+
+        <!-- Section 6: Photo Upload (NEW) -->
+        <div id="tool-section-photoupload" class="tool-section">
+          <h3 style="margin-top:0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg> Photo Manager</h3>
+          <p style="font-size:11px;color:#666;margin-bottom:15px">Upload photos directly into the database. Priority search directory will be the formal photos Drive folder.</p>
+
+          <!-- Data Input Mode Toggle -->
+          <div style="display:flex; gap:6px; margin-bottom:12px; align-items:center">
+            <button class="import-mode-btn active" id="photoupload-mode-bulk" onclick="switchPhotoUploadMode('bulk')">📁 Bulk Upload</button>
+            <button class="import-mode-btn" id="photoupload-mode-individual" onclick="switchPhotoUploadMode('individual')">👤 Individual Change</button>
+          </div>
+
+          <div style="display:flex; gap:8px; margin-bottom:12px">
+            <select id="photoupload-tool-session-select" style="width:48%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc" onchange="photouploadSessionClassChanged()"></select>
+            <select id="photoupload-tool-class-select" style="width:48%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc" onchange="photouploadSessionClassChanged()"></select>
+          </div>
+
+          <div id="photoupload-student-container" style="display:none; margin-bottom:12px;">
+             <label style="font-size:11px;font-weight:600;display:block;margin-bottom:6px">Select Student:</label>
+             <select id="photoupload-tool-student-select" style="width:100%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc">
+                <option value="">Select a student...</option>
+             </select>
+          </div>
+
+          <div style="margin-bottom:12px">
+             <label id="photoupload-files-label" style="font-size:11px;font-weight:600;display:block;margin-bottom:6px">Select Photos (must be named by Board Reg. No):</label>
+             <input type="file" id="photoupload-files" multiple accept="image/*" style="width:100%; font-size:11px; padding:6px; border:1px dashed #ccc; border-radius:4px;">
+          </div>
+          
+          <div id="photoupload-progress-container" class="hidden" style="margin-top:10px; background:#f0f7ff; padding:12px; border-radius:8px; border:1px solid #c2d7ff">
+             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+               <span id="photoupload-status" style="font-size:11px; font-weight:600; color:#1a3a5c">Waiting...</span>
+               <span id="photoupload-percent" style="font-size:11px; font-weight:700; color:#3498db">0/0</span>
+             </div>
+             <div style="width:100%; background:#e2e8f0; height:6px; border-radius:3px; overflow:hidden">
+                <div id="photoupload-progress-bar" style="height:100%; width:0%; background:#3498db; transition:width 0.3s ease"></div>
+             </div>
+          </div>
+
+          <button id="photoupload-btn" class="action-button" style="width:100%;margin-top:20px;justify-content:center;height:40px;font-size:13px;background:linear-gradient(135deg, #10b981, #059669);"
+            onclick="startPhotoUpload()">Start Upload & Sync</button>
+        </div>
+
+        <!-- Section 7: Bulk Import (NEW) -->
+        <div id="tool-section-import" class="tool-section">
+          <h3 style="margin-top:0"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg> Bulk Data Import</h3>
+          <p style="font-size:10px;color:#666;margin-bottom:10px">Paste or upload column data from Excel to add new student records to the database.</p>
+
+          <div style="display:flex; gap:8px; margin-bottom:8px">
+            <div style="flex:1">
+              <label style="font-size:10px;color:#555;display:block;margin-bottom:2px">Session:</label>
+              <div style="display:flex; gap:4px">
+                <select id="import-session-select" style="flex:1;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc"
+                  onchange="var c=document.getElementById('import-session-custom'); c.style.display=this.value==='__new__'?'block':'none'; if(this.value!=='__new__') c.value='';">
+                </select>
+              </div>
+              <input type="text" id="import-session-custom" placeholder="e.g. 2026-27" style="display:none;width:100%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #f39c12;margin-top:4px;background:#fffbe6">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;color:#555;display:block;margin-bottom:2px">Class:</label>
+              <select id="import-class-select" style="width:100%;padding:4px;font-size:11px;border-radius:3px;border:1px solid #ccc"></select>
+            </div>
+          </div>
+
+          <!-- Column Selector -->
+          <div style="margin-bottom:8px">
+            <label style="font-size:10px;color:#555;display:block;margin-bottom:3px">Select Columns to Import:</label>
+            <div id="import-column-selector" class="import-column-selector"></div>
+          </div>
+
+          <!-- Data Input Mode Toggle -->
+          <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center">
+            <button class="import-mode-btn active" id="import-mode-paste" onclick="switchImportMode('paste')">📋 Paste Data</button>
+            <button class="import-mode-btn" id="import-mode-file" onclick="switchImportMode('file')">📁 Upload File</button>
+            <span id="import-col-order-hint" style="font-size:9px;color:#999;margin-left:auto"></span>
+          </div>
+
+          <!-- Paste Area -->
+          <div id="import-paste-panel">
+            <textarea id="import-paste-area" class="import-paste-area" placeholder="Paste tab-separated data from Excel here...&#10;Each row = one student. Columns must match the order selected above.&#10;&#10;Example (if Name, Father Name, DoB selected):&#10;Ahmad Dar&#9;Mohammad Dar&#9;01-05-2008"></textarea>
+          </div>
+
+          <!-- File Upload -->
+          <div id="import-file-panel" style="display:none">
+            <div class="import-file-drop" id="import-file-drop">
+              <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none" onchange="handleImportFile(this)">
+              <div style="text-align:center;padding:15px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p style="font-size:11px;color:#64748b;margin:6px 0 0">Drop CSV/TSV file here or <a href="javascript:void(0)" onclick="document.getElementById('import-file-input').click()" style="color:#3498db;font-weight:600">browse</a></p>
+                <p id="import-file-name" style="font-size:10px;color:#27ae60;margin-top:4px;display:none"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div id="import-preview-container" style="display:none; margin-top:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span id="import-preview-count" style="font-size:10.5px;color:#1a3a5c;font-weight:600"></span>
+              <a href="javascript:void(0)" onclick="clearImportPreview()" style="font-size:10px;color:#e74c3c;text-decoration:none">✕ Clear</a>
+            </div>
+            <div class="import-preview-scroll">
+              <table class="import-preview-table">
+                <thead id="import-preview-head"></thead>
+                <tbody id="import-preview-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div style="margin-top:auto; padding-top:8px; display:flex; flex-direction:column; gap:6px">
+            <button class="action-button" style="width:100%;justify-content:center;height:34px;font-size:11px;background:#3498db"
+              onclick="parseBulkImportData()" id="import-btn-parse">📊 Parse & Preview</button>
+            <button class="action-button" style="width:100%;justify-content:center;height:40px;font-size:13px;background:linear-gradient(135deg, #27ae60, #2ecc71); display:none"
+              onclick="executeBulkImport()" id="import-btn-execute">🚀 Import Records</button>
           </div>
         </div>
 
