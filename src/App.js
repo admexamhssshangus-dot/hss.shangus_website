@@ -15,6 +15,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsAndConditions from './pages/TermsAndConditions';
 import RefundPolicy from './pages/RefundPolicy';
 import ContactUs from './pages/ContactUs';
+import LoginPortal from './pages/LoginPortal';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 
 function ScrollToTop() {
@@ -50,6 +51,8 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/academics" element={<Academics />} />
             <Route path="/admissions" element={<Admissions />} />
+            <Route path="/login" element={<LoginPortal />} />
+            <Route path="/portal" element={<LoginPortal />} />
             <Route path="/notices" element={<NoticeBoard />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditions />} />

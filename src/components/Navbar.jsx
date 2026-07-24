@@ -37,9 +37,6 @@ export default function Navbar() {
   const [isVisible, setIsVisible] = useState(true);
   // Mobile menu open
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Login URL for external portal
-  const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
-
   const [dynamicLinks, setDynamicLinks] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -85,18 +82,7 @@ export default function Navbar() {
 
 
 
-  const openLoginWindow = () => {
-    try {
-      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
-      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
-      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
-      const newWin = window.open(LOGIN_URL, '_blank', features);
-      if (newWin) newWin.focus();
-      else window.open(LOGIN_URL, '_blank');
-    } catch (e) {
-      window.open(LOGIN_URL, '_blank');
-    }
-  };
+
 
   const location = useLocation();
   function isActive(path) {
@@ -231,14 +217,15 @@ export default function Navbar() {
                 ))}
               </div>
 
-              {/* Login Button Area (Desktop) */}
+              {/* Login Link Area (Desktop) - Standard <a> tag for Googlebot Sitelink extraction */}
               <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600 flex items-center h-full py-0.5">
-                <button
-                  onClick={openLoginWindow}
-                  className="px-3 py-1 text-xs font-bold btn-primary-custom rounded-md transition-all duration-200"
+                <Link
+                  to="/login"
+                  className="px-3 py-1 text-xs font-bold btn-primary-custom rounded-md transition-all duration-200 inline-flex items-center justify-center"
+                  title="Student & Staff Login Portal"
                 >
                   Login
-                </button>
+                </Link>
               </div>
 
               {/* Admin Lock Portal Button at Far Right Extreme (Desktop Only) */}
@@ -335,7 +322,14 @@ export default function Navbar() {
                   </div>
                 </div>
                 <div className="pt-3">
-                  <button onClick={() => { openLoginWindow(); setMobileOpen(false); }} className="w-full px-3 py-1 btn-primary-custom rounded font-bold text-sm transition-all duration-200">Login</button>
+                  <Link 
+                    to="/login" 
+                    onClick={() => setMobileOpen(false)} 
+                    className="w-full px-3 py-1 btn-primary-custom rounded font-bold text-sm transition-all duration-200 block text-center"
+                    title="Student & Staff Login Portal"
+                  >
+                    Login
+                  </Link>
                 </div>
               </div>
             </div>

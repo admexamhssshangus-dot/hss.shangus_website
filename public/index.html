@@ -60,63 +60,119 @@
     <meta name="twitter:description" content="Govt HSS Shangus — Science, Humanities & Secondary education in Anantnag." />
     <meta name="twitter:image" content="https://hssshangus.netlify.app/slides/searchtn.jpg" />
 
-    <!-- Structured data: School and WebSite (using absolute URLs) -->
+    <!-- Structured data: School, WebSite, and SiteNavigationElement (for Google Search Sitelinks & Rich Snippets) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "School",
-      "name": "HSS Shangus",
-      "alternateName": ["Govt. Higher Secondary School Shangus", "Govt HSS Shangus"],
-      "url": "https://hssshangus.netlify.app/",
-      "logo": "https://hssshangus.netlify.app/logo.png",
-      "image": "https://hssshangus.netlify.app/slides/searchtn.jpg",
-      "priceRange": "INR",
-      "telephone": "+91-7006034501",
-      "contactPoint": [{
-        "@type": "ContactPoint",
-        "telephone": "+91-7006537425",
-        "contactType": "administration"
-      }],
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "Main Road, Shangus",
-        "addressLocality": "Anantnag",
-        "addressRegion": "J&K",
-        "postalCode": "192201",
-        "addressCountry": "IN"
-      },
-      "sameAs": [
-        "https://www.facebook.com/ghssshangus",
-        "https://twitter.com/ghssshangus"
-      ]
-    }
-    </script>
-
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "HSS Shangus",
-      "alternateName": ["Govt. Higher Secondary School Shangus", "Govt HSS Shangus"],
-      "url": "https://hssshangus.netlify.app/",
-      "hasPart": [
+      "@graph": [
         {
-          "@type": "WebPage",
-          "name": "Academics",
-          "url": "https://hssshangus.netlify.app/academics",
-          "description": "Explore the school departments, subjects, and curriculum choices for secondary and higher secondary levels at Govt. Higher Secondary School Shangus."
+          "@type": "School",
+          "@id": "https://hssshangus.netlify.app/#school",
+          "name": "HSS Shangus",
+          "alternateName": ["Govt. Higher Secondary School Shangus", "Govt HSS Shangus"],
+          "url": "https://hssshangus.netlify.app/",
+          "logo": "https://hssshangus.netlify.app/logo.png",
+          "image": "https://hssshangus.netlify.app/slides/searchtn.jpg",
+          "priceRange": "INR",
+          "telephone": "+91-7006034501",
+          "contactPoint": [{
+            "@type": "ContactPoint",
+            "telephone": "+91-7006537425",
+            "contactType": "administration"
+          }],
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Main Road, Shangus",
+            "addressLocality": "Anantnag",
+            "addressRegion": "J&K",
+            "postalCode": "192201",
+            "addressCountry": "IN"
+          },
+          "sameAs": [
+            "https://www.facebook.com/ghssshangus",
+            "https://twitter.com/ghssshangus"
+          ]
         },
         {
-          "@type": "WebPage",
-          "name": "Admissions",
-          "url": "https://hssshangus.netlify.app/admissions",
-          "description": "Learn about the step-by-step admissions process at Govt. Higher Secondary School Shangus. Register online, check required documents, and explore our session fee structure."
+          "@type": "WebSite",
+          "@id": "https://hssshangus.netlify.app/#website",
+          "name": "HSS Shangus",
+          "alternateName": ["Govt. Higher Secondary School Shangus", "Govt HSS Shangus"],
+          "url": "https://hssshangus.netlify.app/",
+          "hasPart": [
+            {
+              "@type": "WebPage",
+              "name": "Login - Student & Teacher Portal",
+              "url": "https://hssshangus.netlify.app/login",
+              "description": "Access the official Govt HSS Shangus Student & Staff Portal for online services, examination details, fee receipts, and attendance tracking."
+            },
+            {
+              "@type": "WebPage",
+              "name": "Admissions",
+              "url": "https://hssshangus.netlify.app/admissions",
+              "description": "Learn about the step-by-step admissions process at Govt. Higher Secondary School Shangus. Register online, check required documents, and explore session fee structures."
+            },
+            {
+              "@type": "WebPage",
+              "name": "About Us",
+              "url": "https://hssshangus.netlify.app/about",
+              "description": "Learn about the rich history, institutional leadership, faculty, infrastructure, vision, and mission of Govt. Higher Secondary School Shangus."
+            },
+            {
+              "@type": "WebPage",
+              "name": "Academics",
+              "url": "https://hssshangus.netlify.app/academics",
+              "description": "Explore the school departments, subjects, and curriculum choices for secondary and higher secondary levels at Govt. Higher Secondary School Shangus."
+            },
+            {
+              "@type": "WebPage",
+              "name": "Notice Board",
+              "url": "https://hssshangus.netlify.app/notices",
+              "description": "View official announcements, exam datesheets, circulars, and notices from Govt. HSS Shangus."
+            }
+          ]
         },
         {
-          "@type": "WebPage",
-          "name": "Notice Board",
-          "url": "https://hssshangus.netlify.app/notices",
-          "description": "View the latest announcements, notices, and updates from Govt. HSS Shangus."
+          "@type": "SiteNavigationElement",
+          "@id": "https://hssshangus.netlify.app/#navigation",
+          "name": "Main Navigation Sitelinks",
+          "itemListElement": [
+            {
+              "@type": "SiteNavigationElement",
+              "position": 1,
+              "name": "Login - Student & Staff Portal",
+              "description": "Access Govt HSS Shangus online portal, exam results, student roll slips, and faculty utilities.",
+              "url": "https://hssshangus.netlify.app/login"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 2,
+              "name": "Admissions",
+              "description": "Step-by-step admission process, online registration forms, fee details, and document checklists.",
+              "url": "https://hssshangus.netlify.app/admissions"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 3,
+              "name": "About Us",
+              "description": "History, vision, leadership, and facilities of Govt Higher Secondary School Shangus since 1971.",
+              "url": "https://hssshangus.netlify.app/about"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 4,
+              "name": "Academics",
+              "description": "Explore Science, Humanities, and Secondary education programs at HSS Shangus.",
+              "url": "https://hssshangus.netlify.app/academics"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 5,
+              "name": "Notice Board",
+              "description": "Official datesheets, announcements, circulars, and notifications.",
+              "url": "https://hssshangus.netlify.app/notices"
+            }
+          ]
         }
       ]
     }
