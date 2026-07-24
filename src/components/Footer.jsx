@@ -161,8 +161,9 @@ export default function Footer() {
             <ul className="space-y-2 text-sm flex flex-col">
               <Link to="/" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Home</Link>
               <Link to="/about" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">About Us</Link>
-              <Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Academics</Link>
               <Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Admissions</Link>
+              <Link to="/login" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Login / Portal</Link>
+              <Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Academics</Link>
             </ul>
           </div>
 

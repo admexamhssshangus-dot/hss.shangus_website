@@ -70,6 +70,7 @@ export default function SEO({ title, description, image, path }) {
       if (pathname === '/about') pageName = "About Us";
       else if (pathname === '/academics') pageName = "Academics";
       else if (pathname === '/admissions') pageName = "Admissions";
+      else if (pathname === '/login' || pathname === '/portal') pageName = "Login - Student & Staff Portal";
       else if (pathname === '/notices') pageName = "Notice Board";
       else {
         // Clean path formatting: /my-page-name -> My Page Name
