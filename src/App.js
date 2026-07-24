@@ -15,6 +15,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsAndConditions from './pages/TermsAndConditions';
 import RefundPolicy from './pages/RefundPolicy';
 import ContactUs from './pages/ContactUs';
+import { initSecurityGuardrails } from './utils/securityGuardrails';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -27,7 +28,15 @@ function ScrollToTop() {
 }
 
 function App() {
+  useEffect(() => {
+    const cleanup = initSecurityGuardrails();
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, []);
+
   return (
+
     <BrowserRouter>
       <ScrollToTop />
       <div className="flex flex-col min-h-screen">

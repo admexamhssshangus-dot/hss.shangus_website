@@ -50,6 +50,29 @@ const DEFAULT_TAX_CONFIG = {
   }
 };
 
+export const DEFAULT_PAYMENT_GATEWAY_CONFIG = {
+  gatewayMode: 'off', // 'off', 'manual', 'cashfree', 'razorpay'
+  bankDetails: {
+    accountName: 'Govt. Higher Secondary School Shangus',
+    bankName: 'J&K Bank Ltd.',
+    accountNumber: '',
+    ifscCode: '',
+    upiId: '',
+    qrCodeUrl: '',
+    instructions: 'Scan the UPI QR code or transfer directly to the bank account, then enter your Transaction Reference Number / UTR.'
+  },
+  cashfree: {
+    appId: '',
+    secretKey: '',
+    environment: 'sandbox'
+  },
+  razorpay: {
+    keyId: '',
+    keySecret: '',
+    environment: 'test'
+  }
+};
+
 export const DEFAULT_SETTINGS = {
   globalAdmissionsClosed: false,
   defaultNewNoticeDays: 7,
@@ -77,12 +100,13 @@ export const DEFAULT_SETTINGS = {
     twitter: '#',
     instagram: '#'
   },
-  taxConfig: DEFAULT_TAX_CONFIG
+  taxConfig: DEFAULT_TAX_CONFIG,
+  paymentGatewayConfig: DEFAULT_PAYMENT_GATEWAY_CONFIG
 };
 
 export function mergeSiteSettings(parsed = {}) {
   const parsedTax = parsed.taxConfig || {};
-  
+
   // Migration logic: convert old flat schema to nested multi-regime schema
   let newRegimeParsed = parsedTax.newRegime || {};
   let oldRegimeParsed = parsedTax.oldRegime || {};
@@ -115,15 +139,15 @@ export function mergeSiteSettings(parsed = {}) {
         ...newRegimeParsed,
         slabs: Array.isArray(newRegimeParsed.slabs) && newRegimeParsed.slabs.length > 0
           ? newRegimeParsed.slabs.map((slab, index) => ({
-              ...(DEFAULT_SETTINGS.taxConfig.newRegime.slabs[index] || {}),
-              ...slab
-            }))
+            ...(DEFAULT_SETTINGS.taxConfig.newRegime.slabs[index] || {}),
+            ...slab
+          }))
           : DEFAULT_SETTINGS.taxConfig.newRegime.slabs,
         surchargeBrackets: Array.isArray(newRegimeParsed.surchargeBrackets) && newRegimeParsed.surchargeBrackets.length > 0
           ? newRegimeParsed.surchargeBrackets.map((bracket, index) => ({
-              ...(DEFAULT_SETTINGS.taxConfig.newRegime.surchargeBrackets[index] || {}),
-              ...bracket
-            }))
+            ...(DEFAULT_SETTINGS.taxConfig.newRegime.surchargeBrackets[index] || {}),
+            ...bracket
+          }))
           : DEFAULT_SETTINGS.taxConfig.newRegime.surchargeBrackets
       },
       oldRegime: {
@@ -131,16 +155,31 @@ export function mergeSiteSettings(parsed = {}) {
         ...oldRegimeParsed,
         slabs: Array.isArray(oldRegimeParsed.slabs) && oldRegimeParsed.slabs.length > 0
           ? oldRegimeParsed.slabs.map((slab, index) => ({
-              ...(DEFAULT_SETTINGS.taxConfig.oldRegime.slabs[index] || {}),
-              ...slab
-            }))
+            ...(DEFAULT_SETTINGS.taxConfig.oldRegime.slabs[index] || {}),
+            ...slab
+          }))
           : DEFAULT_SETTINGS.taxConfig.oldRegime.slabs,
         surchargeBrackets: Array.isArray(oldRegimeParsed.surchargeBrackets) && oldRegimeParsed.surchargeBrackets.length > 0
           ? oldRegimeParsed.surchargeBrackets.map((bracket, index) => ({
-              ...(DEFAULT_SETTINGS.taxConfig.oldRegime.surchargeBrackets[index] || {}),
-              ...bracket
-            }))
+            ...(DEFAULT_SETTINGS.taxConfig.oldRegime.surchargeBrackets[index] || {}),
+            ...bracket
+          }))
           : DEFAULT_SETTINGS.taxConfig.oldRegime.surchargeBrackets
+      }
+    },
+    paymentGatewayConfig: {
+      gatewayMode: parsed.paymentGatewayConfig?.gatewayMode || DEFAULT_SETTINGS.paymentGatewayConfig.gatewayMode,
+      bankDetails: {
+        ...DEFAULT_SETTINGS.paymentGatewayConfig.bankDetails,
+        ...(parsed.paymentGatewayConfig?.bankDetails || {})
+      },
+      cashfree: {
+        ...DEFAULT_SETTINGS.paymentGatewayConfig.cashfree,
+        ...(parsed.paymentGatewayConfig?.cashfree || {})
+      },
+      razorpay: {
+        ...DEFAULT_SETTINGS.paymentGatewayConfig.razorpay,
+        ...(parsed.paymentGatewayConfig?.razorpay || {})
       }
     }
   };

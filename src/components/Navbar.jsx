@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Phone, Mail, X, Menu, Lock, Unlock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
 import schoolLogo from '../images/logo.png';
@@ -40,8 +40,18 @@ export default function Navbar() {
   // Login URL for external portal
   const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
 
-  const [isAdmin, setIsAdmin] = useState(false);
   const [dynamicLinks, setDynamicLinks] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = () => {
+      const isAuth = sessionStorage.getItem('isAdminAuthenticated') === 'true' || !!auth?.currentUser;
+      setIsAdmin(isAuth);
+    };
+    checkAdmin();
+    const unsub = auth?.onAuthStateChanged(() => checkAdmin());
+    return () => { if (unsub) unsub(); };
+  }, []);
 
   const loadDynamicPages = async () => {
     try {
@@ -73,20 +83,7 @@ export default function Navbar() {
     }
   }, []);
 
-  useEffect(() => {
-    setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
-    const handleStorage = () => {
-      setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
-    };
-    window.addEventListener('storage', handleStorage);
-    const interval = setInterval(() => {
-      setIsAdmin(sessionStorage.getItem('isAdminAuthenticated') === 'true');
-    }, 1000);
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      clearInterval(interval);
-    };
-  }, []);
+
 
   const openLoginWindow = () => {
     try {
@@ -198,16 +195,17 @@ export default function Navbar() {
               </div>
             </Link>
 
-            {/* Mobile hamburger */}
+            {/* Mobile top right actions: Hamburger Menu */}
             <div className="md:hidden flex items-center gap-2">
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}
-                className="p-1 rounded text-slate-800 bg-slate-100 border border-slate-200"
+                className="p-1.5 rounded-lg text-slate-800 bg-slate-100 border border-slate-200 shadow-sm"
               >
                 {mobileOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
+
           </div>
         </div>
 
@@ -243,19 +241,19 @@ export default function Navbar() {
                 </button>
               </div>
 
-              {/* Admin Lock Icon (Far Right Extreme of Row) */}
-              <div className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 items-center">
+              {/* Admin Lock Portal Button at Far Right Extreme (Desktop Only) */}
+              <div className="hidden md:flex absolute right-0 items-center h-full py-0.5">
                 <Link
                   to="/admin/portal"
+                  onClick={() => window.scrollTo(0, 0)}
                   title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
-                  className="transition-colors duration-200 p-1.5 rounded-md flex items-center justify-center"
-                  style={{ color: isAdmin ? '#34d399' : '#94a3b8' }}
+                  className="p-1.5 rounded-md flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-105 cursor-pointer text-slate-300 hover:text-teal-400 bg-slate-900/60 border border-slate-700 hover:border-teal-400"
                   aria-label="Admin Portal"
                 >
                   {isAdmin ? (
-                    <Unlock size={14} className="stroke-[2.5] animate-pulse" />
+                    <Unlock size={16} className="stroke-[2.5] text-emerald-400 animate-pulse" />
                   ) : (
-                    <Lock size={14} className="stroke-[2.5]" />
+                    <Lock size={16} className="stroke-[2.5] text-teal-400" />
                   )}
                 </Link>
               </div>

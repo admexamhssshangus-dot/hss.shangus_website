@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -57,7 +57,7 @@ async function hashPassword(plainText, saltHex = null) {
       const encoder = new TextEncoder();
       const passwordBuffer = encoder.encode(plainText);
       const saltBuffer = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-      
+
       const baseKey = await window.crypto.subtle.importKey(
         'raw',
         passwordBuffer,
@@ -65,7 +65,7 @@ async function hashPassword(plainText, saltHex = null) {
         false,
         ['deriveBits', 'deriveKey']
       );
-      
+
       const derivedBits = await window.crypto.subtle.deriveBits(
         {
           name: 'PBKDF2',
@@ -76,7 +76,7 @@ async function hashPassword(plainText, saltHex = null) {
         baseKey,
         256
       );
-      
+
       const hashArray = Array.from(new Uint8Array(derivedBits));
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     } catch (e) {
@@ -100,7 +100,7 @@ const uploadToFirebaseStorage = async (file, filename) => {
   return await getDownloadURL(storageRef);
 };
 
-const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides }) => {
+const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides, recycleBin }) => {
   if (!db) throw new Error('Firestore not configured');
 
   // Authorization: require authenticated admin
@@ -137,6 +137,9 @@ const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides }
   });
   if (slides) {
     await setDoc(doc(db, 'site', 'slideshow'), { items: slides });
+  }
+  if (recycleBin !== undefined) {
+    await setDoc(doc(db, 'site', 'recycle_bin'), { items: recycleBin || [] });
   }
 };
 
@@ -345,18 +348,26 @@ const STANDARD_SUBJECTS = ['Biology', 'Chemistry', 'Economics', 'Education', 'En
 // Default field layout groups for organizing custom fields in the faculty edit form and PDF export
 const DEFAULT_FIELD_LAYOUT = {
   groups: [
-    { id: 'personal', name: 'Personal Details', builtIn: true, customFields: [
-      'Name', "Father's Name", 'Date of Birth', 'Gender', 'Mobile No.', 'Email Address', 'Permanent Address', 'Present Address'
-    ] },
-    { id: 'service', name: 'Service & Appointment Details', builtIn: true, customFields: [
-      'CPIS No.', 'Designation', 'Department', 'Subject', 'Date of 1st Appointment', 'Stay Period', 'Govt. Mail ID', 'Service Cadre'
-    ] },
-    { id: 'qualifications', name: 'Qualifications & Health', builtIn: true, customFields: [
-      'Qualifications', 'Health/Security Grounds'
-    ] },
-    { id: 'tax', name: 'Tax & Financial Details', builtIn: true, customFields: [
-      'PAN', 'TDS'
-    ] },
+    {
+      id: 'personal', name: 'Personal Details', builtIn: true, customFields: [
+        'Name', "Father's Name", 'Date of Birth', 'Gender', 'Mobile No.', 'Email Address', 'Permanent Address', 'Present Address'
+      ]
+    },
+    {
+      id: 'service', name: 'Service & Appointment Details', builtIn: true, customFields: [
+        'CPIS No.', 'Designation', 'Department', 'Subject', 'Date of 1st Appointment', 'Stay Period', 'Govt. Mail ID', 'Service Cadre'
+      ]
+    },
+    {
+      id: 'qualifications', name: 'Qualifications & Health', builtIn: true, customFields: [
+        'Qualifications', 'Health/Security Grounds'
+      ]
+    },
+    {
+      id: 'tax', name: 'Tax & Financial Details', builtIn: true, customFields: [
+        'PAN', 'TDS'
+      ]
+    },
   ]
 };
 
@@ -905,7 +916,7 @@ const getEmployeeTaxOptions = (emp) => {
 };
 
 export default function AdminPortal() {
-  const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms'];
+  const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms', 'trash'];
 
   const normalizeAdmin = (a) => {
     if (!a) return null;
@@ -974,7 +985,7 @@ export default function AdminPortal() {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminPhone, setNewAdminPhone] = useState('');
   const [newAdminRole, setNewAdminRole] = useState('Admin');
-  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'pages_cms']);
+  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'pages_cms', 'trash']);
 
   // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
   const [activeTab, setActiveTab] = useState('admissions');
@@ -986,6 +997,9 @@ export default function AdminPortal() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [notices, setNotices] = useState([]);
   const [faculty, setFaculty] = useState([]);
+  const [recycleBin, setRecycleBin] = useState([]);
+  const [trashFilterCategory, setTrashFilterCategory] = useState('All');
+  const [trashSearchQuery, setTrashSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState('');
 
@@ -1182,9 +1196,9 @@ export default function AdminPortal() {
     const isDeployedOut = emp.if_deployed === 'out' || emp.inactiveReason === 'Deployed Out';
     const isRetired = emp.hidden && emp.inactiveReason === 'Retired';
     const isTransferred = emp.hidden && emp.inactiveReason === 'Transferred';
-    const isOtherInactive = emp.hidden && emp.inactiveReason && 
-      emp.inactiveReason !== 'Retired' && 
-      emp.inactiveReason !== 'Transferred' && 
+    const isOtherInactive = emp.hidden && emp.inactiveReason &&
+      emp.inactiveReason !== 'Retired' &&
+      emp.inactiveReason !== 'Transferred' &&
       emp.inactiveReason !== 'Deployed Out';
 
     if (isDeployedIn) return 'deployed_in';
@@ -1336,7 +1350,7 @@ export default function AdminPortal() {
               }
               return normalizeAdmin(matchedAdmin);
             });
-            
+
             // Establish full session in case it was a Magic Link or Google Sign In
             if (!sessionStorage.getItem('admin_session_id')) {
               // Prevent race conditions where two tabs generate different session IDs and kick each other out
@@ -1348,7 +1362,7 @@ export default function AdminPortal() {
               sessionStorage.setItem('admin_session_id', sessionId);
               sessionStorage.setItem('isAdminAuthenticated', 'true');
               sessionStorage.setItem('adminUser', JSON.stringify(matchedAdmin));
-              
+
               const allowed = Array.isArray(matchedAdmin.allowedTabs) ? matchedAdmin.allowedTabs : [];
               const firstTab = allowed.length ? allowed[0] : 'admissions';
               sessionStorage.setItem('activeAdminTab', firstTab);
@@ -1614,7 +1628,7 @@ export default function AdminPortal() {
       setLoginStep('credentials');
       return;
     }
-    
+
     setAuthError('');
     const actionCodeSettings = {
       url: window.location.origin + window.location.pathname,
@@ -2218,6 +2232,32 @@ export default function AdminPortal() {
       })();
     }
 
+    // 4. Load Recycle Bin (Trash) items
+    (async () => {
+      const localTrash = localStorage.getItem('site_recycle_bin');
+      if (localTrash) {
+        try {
+          const parsed = JSON.parse(localTrash);
+          if (Array.isArray(parsed)) {
+            setRecycleBin(parsed);
+            return;
+          }
+        } catch (e) { }
+      }
+      try {
+        const snap = await getDoc(doc(db, 'site', 'recycle_bin'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            setRecycleBin(data.items);
+            localStorage.setItem('site_recycle_bin', JSON.stringify(data.items));
+          }
+        }
+      } catch (e) {
+        console.warn('Firestore recycle_bin read failed:', e);
+      }
+    })();
+
   }, [isAuthenticated]);
 
   // Request directory access picker
@@ -2285,6 +2325,34 @@ export default function AdminPortal() {
         [key]: num
       }
     }));
+  };
+
+  const handlePaymentGatewayChange = (fieldPath, value) => {
+    setSettings((prev) => {
+      const currentConfig = prev.paymentGatewayConfig || DEFAULT_SETTINGS.paymentGatewayConfig;
+      const parts = fieldPath.split('.');
+      if (parts.length === 1) {
+        return {
+          ...prev,
+          paymentGatewayConfig: {
+            ...currentConfig,
+            [fieldPath]: value
+          }
+        };
+      } else {
+        const [section, field] = parts;
+        return {
+          ...prev,
+          paymentGatewayConfig: {
+            ...currentConfig,
+            [section]: {
+              ...(currentConfig[section] || {}),
+              [field]: value
+            }
+          }
+        };
+      }
+    });
   };
 
   const handleTaxConfigFieldChange = (field, value, numeric = false) => {
@@ -2370,16 +2438,28 @@ export default function AdminPortal() {
   const handleDeleteNotice = (idx) => {
     const notice = notices[idx];
     setCustomPrompt({
-      title: 'Delete Announcement',
-      message: `Are you sure you want to delete the notice: "${notice?.title || 'Untitled Notice'}"?`,
+      title: 'Move Notice to Recycle Bin',
+      message: `Are you sure you want to move the notice: "${notice?.title || 'Untitled Notice'}" to the Recycle Bin? You can restore it anytime.`,
       type: 'confirm',
-      confirmText: 'Delete',
+      confirmText: 'Move to Trash',
       cancelText: 'Cancel',
-      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      confirmClass: 'bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 shadow-md',
       onConfirm: () => {
+        const trashItem = {
+          id: 'notice_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          category: 'Latest Notice',
+          type: 'notice',
+          title: notice?.title || 'Untitled Notice',
+          subtitle: `Date: ${notice?.date || 'N/A'} | Link: ${notice?.link || '#'}`,
+          itemData: notice,
+          deletedAt: new Date().toLocaleString()
+        };
+        setRecycleBin(prev => [trashItem, ...prev]);
         setNotices((prev) => prev.filter((_, i) => i !== idx));
         if (editingNoticeIdx === idx) setEditingNoticeIdx(null);
         setCustomPrompt(null);
+        setSaveSuccess('Notice moved to Recycle Bin (Trash). Click "Apply & Save" to update Firestore.');
+        setTimeout(() => setSaveSuccess(''), 5000);
       },
       onCancel: () => setCustomPrompt(null)
     });
@@ -2488,8 +2568,8 @@ export default function AdminPortal() {
       return;
     }
 
-    const conflict = pagesList.some(p => p.id === slug) || 
-                     ['admin', 'notices', 'messages', 'about', 'academics', 'admissions'].includes(slug);
+    const conflict = pagesList.some(p => p.id === slug) ||
+      ['admin', 'notices', 'messages', 'about', 'academics', 'admissions'].includes(slug);
     if (conflict) {
       showAlert("This page slug is already reserved or in use.", "Conflict");
       return;
@@ -2542,7 +2622,7 @@ export default function AdminPortal() {
       setPageBlocks(defaultBlocks);
       setSeoTitle(`${title} | Govt. HSS Shangus`);
       setSeoDescription(`Read about ${title} at Govt. Higher Secondary School Shangus.`);
-      
+
       setNewPageTitle('');
       setNewPageSlug('');
       setShowAddPageModal(false);
@@ -2555,36 +2635,58 @@ export default function AdminPortal() {
   };
 
   const handleDeletePage = async (pageId) => {
-    if (!window.confirm("Are you sure you want to delete this entire page and all its contents? This action cannot be undone.")) return;
+    const targetPage = pagesList.find(p => p.id === pageId);
+    if (!targetPage) return;
 
-    setCmsSaving(true);
-    try {
-      const updatedList = pagesList.filter(p => p.id !== pageId);
-      setPagesList(updatedList);
-      await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+    setCustomPrompt({
+      title: 'Move Page to Recycle Bin',
+      message: `Are you sure you want to move the page "${targetPage.title || pageId}" to the Recycle Bin? You can restore it anytime.`,
+      type: 'confirm',
+      confirmText: 'Move to Trash',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 shadow-md',
+      onConfirm: async () => {
+        setCmsSaving(true);
+        try {
+          const trashItem = {
+            id: 'page_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            category: 'Custom Page',
+            type: 'page',
+            title: targetPage.title || pageId,
+            subtitle: `Slug: /page/${pageId}`,
+            itemData: { page: targetPage, pageId },
+            deletedAt: new Date().toLocaleString()
+          };
+          setRecycleBin(prev => [trashItem, ...prev]);
 
-      // Delete the actual page document from site collection
-      await deleteDoc(doc(db, 'site', `page_${pageId}`));
+          const updatedList = pagesList.filter(p => p.id !== pageId);
+          setPagesList(updatedList);
+          await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
 
-      if (selectedPage && selectedPage.id === pageId) {
-        setSelectedPage(null);
-        setPageBlocks([]);
-      }
+          if (selectedPage && selectedPage.id === pageId) {
+            setSelectedPage(null);
+            setPageBlocks([]);
+          }
 
-      // Broadcast sync
-      try {
-        const channel = new BroadcastChannel('hss_data_sync');
-        channel.postMessage({ type: 'UPDATE_DATA' });
-        channel.close();
-      } catch (e) {
-        // ignore
-      }
-    } catch (err) {
-      console.error("Failed to delete page:", err);
-      showAlert("Failed to delete page from database.", "Database Error");
-    } finally {
-      setCmsSaving(false);
-    }
+          // Broadcast sync
+          try {
+            const channel = new BroadcastChannel('hss_data_sync');
+            channel.postMessage({ type: 'UPDATE_DATA' });
+            channel.close();
+          } catch (e) { }
+
+          setSaveSuccess(`Page "${targetPage.title}" moved to Recycle Bin.`);
+          setTimeout(() => setSaveSuccess(''), 5000);
+        } catch (err) {
+          console.error("Failed to move page to recycle bin:", err);
+          showAlert("Failed to update page status in database.", "Database Error");
+        } finally {
+          setCmsSaving(false);
+          setCustomPrompt(null);
+        }
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
   };
 
   const handleTogglePageActive = async (pageId) => {
@@ -2595,10 +2697,10 @@ export default function AdminPortal() {
       return p;
     });
     setPagesList(updatedList);
-    
+
     try {
       await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
-      
+
       if (selectedPage && selectedPage.id === pageId) {
         setSelectedPage({ ...selectedPage, isActive: !selectedPage.isActive });
       }
@@ -2620,11 +2722,11 @@ export default function AdminPortal() {
   const handleMoveBlock = (idx, direction) => {
     const updatedBlocks = [...pageBlocks];
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-    
+
     const temp = updatedBlocks[idx];
     updatedBlocks[idx] = updatedBlocks[targetIdx];
     updatedBlocks[targetIdx] = temp;
-    
+
     setPageBlocks(updatedBlocks);
   };
 
@@ -2775,17 +2877,28 @@ export default function AdminPortal() {
   const handleDeleteSlide = (idx) => {
     const slide = slides[idx];
     setCustomPrompt({
-      title: 'Delete Slideshow Slide',
-      message: `Are you sure you want to delete slide #${idx + 1}: "${slide?.title || 'Untitled Slide'}"?`,
+      title: 'Move Slide to Recycle Bin',
+      message: `Are you sure you want to move slide #${idx + 1}: "${slide?.title || slide?.caption || 'Untitled Slide'}" to the Recycle Bin? You can restore it anytime.`,
       type: 'confirm',
-      confirmText: 'Delete',
+      confirmText: 'Move to Trash',
       cancelText: 'Cancel',
-      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      confirmClass: 'bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 shadow-md',
       onConfirm: () => {
+        const trashItem = {
+          id: 'slide_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          category: 'Home Slideshow',
+          type: 'slide',
+          title: slide?.title || slide?.caption || `Slide #${idx + 1}`,
+          subtitle: slide?.caption || 'No Caption',
+          image: slide?.image,
+          itemData: slide,
+          deletedAt: new Date().toLocaleString()
+        };
+        setRecycleBin(prev => [trashItem, ...prev]);
         setSlides((prev) => prev.filter((_, i) => i !== idx));
         if (editingSlideIdx === idx) setEditingSlideIdx(null);
         setCustomPrompt(null);
-        setSaveSuccess('Slide deleted. Click "Apply & Save" to make changes permanent.');
+        setSaveSuccess('Slide moved to Recycle Bin (Trash). Click "Apply & Save" to update Firestore.');
         setTimeout(() => setSaveSuccess(''), 5000);
       },
       onCancel: () => setCustomPrompt(null)
@@ -3023,18 +3136,105 @@ export default function AdminPortal() {
   const handleDeleteTeacher = (idx) => {
     const teacher = faculty[idx];
     setCustomPrompt({
-      title: 'Delete Employee Record',
-      message: `Are you sure you want to delete the employee record for: "${teacher?.name || 'this employee'}"?`,
+      title: 'Move Employee Record to Recycle Bin',
+      message: `Are you sure you want to move the employee record for: "${teacher?.name || 'this employee'}" to the Recycle Bin? You can restore it anytime.`,
       type: 'confirm',
-      confirmText: 'Delete',
+      confirmText: 'Move to Trash',
       cancelText: 'Cancel',
-      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      confirmClass: 'bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 shadow-md',
       onConfirm: () => {
+        const trashItem = {
+          id: 'faculty_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          category: 'Faculty Directory',
+          type: 'faculty',
+          title: teacher?.name || 'Faculty Member',
+          subtitle: `${teacher?.designation || ''} • ${teacher?.department || ''}`,
+          photo: teacher?.photo,
+          itemData: teacher,
+          deletedAt: new Date().toLocaleString()
+        };
+        setRecycleBin(prev => [trashItem, ...prev]);
         setFaculty((prev) => prev.filter((_, i) => i !== idx));
         if (editingFacultyIdx === idx) setEditingFacultyIdx(null);
         setSelectedFaculty(prev => prev.filter(i => i !== idx).map(i => i > idx ? i - 1 : i));
         setCustomPrompt(null);
-        setSaveSuccess('Employee record deleted. Click "Apply & Save" to make changes permanent.');
+        setSaveSuccess('Employee record moved to Recycle Bin (Trash). Click "Apply & Save" to make changes permanent.');
+        setTimeout(() => setSaveSuccess(''), 5000);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
+  };
+
+  // ---- Recycle Bin (Trash) Handlers ----
+  const handleRestoreTrashItem = (trashItemId) => {
+    const item = recycleBin.find(t => t.id === trashItemId);
+    if (!item) return;
+
+    if (item.type === 'notice') {
+      setNotices(prev => [...prev, item.itemData]);
+    } else if (item.type === 'slide') {
+      setSlides(prev => [...prev, item.itemData]);
+    } else if (item.type === 'faculty') {
+      setFaculty(prev => [...prev, item.itemData]);
+    } else if (item.type === 'page') {
+      if (item.itemData && item.itemData.page) {
+        setPagesList(prev => [...prev, item.itemData.page]);
+      }
+    }
+
+    setRecycleBin(prev => prev.filter(t => t.id !== trashItemId));
+    setSaveSuccess(`Restored "${item.title}" successfully. Click "Apply & Save" to update Firestore.`);
+    setTimeout(() => setSaveSuccess(''), 5000);
+  };
+
+  const handlePermanentDeleteTrashItem = (trashItemId) => {
+    const item = recycleBin.find(t => t.id === trashItemId);
+    if (!item) return;
+
+    setCustomPrompt({
+      title: 'Permanently Delete Item',
+      message: `Are you sure you want to PERMANENTLY delete "${item.title}"? This item will be completely purged from Firebase and CANNOT be recovered.`,
+      type: 'confirm',
+      confirmText: 'Permanently Delete',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: async () => {
+        if (item.type === 'page' && item.itemData?.pageId) {
+          try {
+            await deleteDoc(doc(db, 'site', `page_${item.itemData.pageId}`));
+          } catch (err) {
+            console.warn('Failed to delete page doc from Firestore:', err);
+          }
+        }
+        setRecycleBin(prev => prev.filter(t => t.id !== trashItemId));
+        setCustomPrompt(null);
+        setSaveSuccess(`Permanently deleted "${item.title}". No data redundancy remains.`);
+        setTimeout(() => setSaveSuccess(''), 5000);
+      },
+      onCancel: () => setCustomPrompt(null)
+    });
+  };
+
+  const handleEmptyRecycleBin = () => {
+    if (recycleBin.length === 0) return;
+
+    setCustomPrompt({
+      title: 'Empty Recycle Bin',
+      message: `Are you sure you want to PERMANENTLY delete ALL ${recycleBin.length} item(s) in the Recycle Bin? This action cannot be undone.`,
+      type: 'confirm',
+      confirmText: 'Empty Bin Now',
+      cancelText: 'Cancel',
+      confirmClass: 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-md',
+      onConfirm: async () => {
+        setRecycleBin([]);
+        try {
+          await setDoc(doc(db, 'site', 'recycle_bin'), { items: [], updatedAt: new Date().toISOString() });
+          localStorage.setItem('site_recycle_bin', JSON.stringify([]));
+        } catch (e) {
+          console.warn('Error clearing recycle_bin in Firestore:', e);
+        }
+        setCustomPrompt(null);
+        setSaveSuccess('Recycle Bin emptied completely.');
         setTimeout(() => setSaveSuccess(''), 5000);
       },
       onCancel: () => setCustomPrompt(null)
@@ -4055,9 +4255,9 @@ export default function AdminPortal() {
       await new Promise(resolve => setTimeout(resolve, 400));
 
       // 2. Firebase upload stage
-      await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins, slides });
+      await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins, slides, recycleBin });
       fileSyncStatus = 'Saved to Firebase (live)';
-      
+
       updateStage('firebase', 'success', 'All configuration collections pushed to Cloud Firestore.', 55);
       updateStage('local_storage', 'loading', 'Updating localStorage data preview...', 60);
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -4068,6 +4268,7 @@ export default function AdminPortal() {
       localStorage.setItem('site_faculty', JSON.stringify(faculty));
       localStorage.setItem('site_admins', JSON.stringify(activeAdmins));
       localStorage.setItem('site_slides', JSON.stringify(slides));
+      localStorage.setItem('site_recycle_bin', JSON.stringify(recycleBin));
 
       try {
         const channel = new BroadcastChannel('hss_data_sync');
@@ -4185,7 +4386,7 @@ export default function AdminPortal() {
     } catch (err) {
       console.error('Save sync failed:', err);
       const errMsg = err && (err.message || err.error || String(err));
-      
+
       // We need to find which stage is loading and mark it as error
       setSaveStages(prev => {
         const next = [...prev];
@@ -4263,7 +4464,7 @@ export default function AdminPortal() {
     reader.onload = async (event) => {
       try {
         const backupData = JSON.parse(event.target.result);
-        
+
         if (!backupData || typeof backupData !== 'object') {
           throw new Error('Invalid file format. Backup must be a JSON object.');
         }
@@ -4843,7 +5044,7 @@ export default function AdminPortal() {
   const formatTwoColumnTable = (fields) => {
     const filtered = fields.filter(f => f && f.label);
     const rowsHtml = [];
-    
+
     const getValText = (val) => {
       if (val === undefined || val === null || String(val).trim() === '' || val === '-') {
         return 'N/A';
@@ -4885,7 +5086,7 @@ export default function AdminPortal() {
   const generatePdfUnassignedFields = (t) => {
     const assignedKeys = new Set((fieldLayout.groups || []).flatMap(g => g.customFields || []));
     const unassignedKeys = allMovableFields.filter(key => !assignedKeys.has(key));
-    
+
     const fields = unassignedKeys.map(key => {
       const isStandard = ALL_STANDARD_FIELDS.includes(key);
       let val = '';
@@ -4904,7 +5105,7 @@ export default function AdminPortal() {
     }).filter(f => f.value !== undefined && f.value !== null && f.value !== '');
 
     if (fields.length === 0) return '';
-    
+
     return `
       <div class="section-title">Additional Info (Unassigned)</div>
       <table class="profile-grid">
@@ -5012,13 +5213,13 @@ export default function AdminPortal() {
           </div>
  
           ${(fieldLayout.groups || []).filter(g => g.id !== 'personal').map(group => {
-            const fields = getFieldsForGroup(t, group.id);
-            if (fields.length === 0 && !group.builtIn) return '';
-            
-            const rowsHtml = formatTwoColumnTable(fields);
-            if (!rowsHtml) return '';
-            
-            return `
+      const fields = getFieldsForGroup(t, group.id);
+      if (fields.length === 0 && !group.builtIn) return '';
+
+      const rowsHtml = formatTwoColumnTable(fields);
+      if (!rowsHtml) return '';
+
+      return `
               <div class="pdf-group-block">
                 <div class="section-title">${group.name}</div>
                 <table class="profile-grid">
@@ -5026,12 +5227,12 @@ export default function AdminPortal() {
                 </table>
               </div>
             `;
-          }).join('')}
+    }).join('')}
           
           ${(() => {
-            const unassignedHtml = generatePdfUnassignedFields(t);
-            return unassignedHtml ? `<div class="pdf-group-block">${unassignedHtml}</div>` : '';
-          })()}
+        const unassignedHtml = generatePdfUnassignedFields(t);
+        return unassignedHtml ? `<div class="pdf-group-block">${unassignedHtml}</div>` : '';
+      })()}
  
           <div class="pdf-group-block">
             <div class="section-title">Historical Posting Profile</div>
@@ -5118,13 +5319,13 @@ export default function AdminPortal() {
           </div>
 
           ${(fieldLayout.groups || []).filter(g => g.id !== 'personal').map(group => {
-            const fields = getFieldsForGroup(t, group.id);
-            if (fields.length === 0 && !group.builtIn) return '';
-            
-            const rowsHtml = formatTwoColumnTable(fields);
-            if (!rowsHtml) return '';
-            
-            return `
+        const fields = getFieldsForGroup(t, group.id);
+        if (fields.length === 0 && !group.builtIn) return '';
+
+        const rowsHtml = formatTwoColumnTable(fields);
+        if (!rowsHtml) return '';
+
+        return `
               <div class="pdf-group-block">
                 <div class="section-title">${group.name}</div>
                 <table class="profile-grid">
@@ -5132,12 +5333,12 @@ export default function AdminPortal() {
                 </table>
               </div>
             `;
-          }).join('')}
+      }).join('')}
           
           ${(() => {
-            const unassignedHtml = generatePdfUnassignedFields(t);
-            return unassignedHtml ? `<div class="pdf-group-block">${unassignedHtml}</div>` : '';
-          })()}
+          const unassignedHtml = generatePdfUnassignedFields(t);
+          return unassignedHtml ? `<div class="pdf-group-block">${unassignedHtml}</div>` : '';
+        })()}
 
           <div class="pdf-group-block">
             <div class="section-title">Historical Posting Profile</div>
@@ -5249,7 +5450,7 @@ export default function AdminPortal() {
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[var(--teal-accent)]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[10s]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#961c14]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[8s]" />
-        
+
         <div className="max-w-md w-full bg-slate-900 rounded-3xl border border-[var(--teal-accent)]/30 p-8 text-center space-y-5 shadow-2xl relative z-10">
           <div className="w-20 h-20 rounded-full bg-[var(--teal-accent)]/10 flex items-center justify-center mx-auto mb-2 shadow-[0_0_30px_rgba(20,184,166,0.2)]">
             <CheckCircle2 size={40} className="text-[var(--teal-accent)]" />
@@ -5337,7 +5538,7 @@ export default function AdminPortal() {
               </div>
               <h3 className="font-bold text-lg text-slate-200">Check Your Email</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                We've sent a magic link to <strong className="text-slate-300">{pendingUser?.email}</strong>. 
+                We've sent a magic link to <strong className="text-slate-300">{pendingUser?.email}</strong>.
                 Click the link in the email to instantly sign in.
               </p>
               <button
@@ -5417,11 +5618,10 @@ export default function AdminPortal() {
                     type="button"
                     disabled={otpCooldown > 0}
                     onClick={handleResendOtp}
-                    className={`font-bold transition-colors ${
-                      otpCooldown > 0 
-                        ? 'text-slate-650 cursor-not-allowed' 
+                    className={`font-bold transition-colors ${otpCooldown > 0
+                        ? 'text-slate-650 cursor-not-allowed'
                         : 'text-[var(--teal-accent)] hover:text-teal-300'
-                    }`}
+                      }`}
                   >
                     {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend Code'}
                   </button>
@@ -5618,7 +5818,8 @@ export default function AdminPortal() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 py-4 admin-portal-container">
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         /* Theme-Aware Contrast Enhancements for Inputs */
         /* Light Theme overrides */
         .theme-light .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
@@ -5826,7 +6027,7 @@ export default function AdminPortal() {
           <div className="bg-slate-900 border-2 border-slate-600 rounded-xl p-3 mb-4 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
             {/* Glowing top line indicating active process */}
             <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500 animate-pulse" />
-            
+
             <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
               {/* Left Side: status info & compact checklist dots */}
               <div className="flex flex-wrap items-center gap-3 min-w-0">
@@ -5842,9 +6043,9 @@ export default function AdminPortal() {
                     {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
                   </span>
                 </div>
-                
+
                 <span className="text-[10px] text-slate-500 hidden sm:inline">|</span>
-                
+
                 {/* Slim Checklist inline */}
                 <div className="flex flex-wrap items-center gap-2">
                   {saveStages.map((stage) => {
@@ -5860,10 +6061,10 @@ export default function AdminPortal() {
                       color = "text-red-400 border-red-500/30 bg-red-950/20 font-bold";
                       dotColor = "bg-red-400";
                     }
-                    
+
                     return (
-                      <span 
-                        key={stage.id} 
+                      <span
+                        key={stage.id}
                         className={`text-[9px] font-bold px-2 py-0.5 rounded border flex items-center gap-1.5 transition-all ${color}`}
                         title={stage.label + (stage.details ? `: ${stage.details}` : '')}
                       >
@@ -5879,14 +6080,14 @@ export default function AdminPortal() {
               <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
                 <div className="flex-grow md:w-48">
                   <div className="w-full h-2 bg-slate-950 border border-slate-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full rounded-full bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500 transition-all duration-300 ease-out"
                       style={{ width: `${saveProgress}%` }}
                     />
                   </div>
                 </div>
                 <span className="text-xs font-black text-slate-100 font-mono w-8 text-right">{saveProgress}%</span>
-                
+
                 {savePopupResult && (
                   <div className="flex items-center gap-1.5 ml-2">
                     {!savePopupResult.success && (
@@ -5917,7 +6118,7 @@ export default function AdminPortal() {
                 )}
               </div>
             </div>
-            
+
             {/* Detailed message/error if present */}
             {savePopupResult && savePopupResult.message && (
               <div className="mt-2 text-[10px] text-slate-300 bg-slate-950/60 border border-slate-800 rounded p-2 font-medium leading-relaxed">
@@ -5983,7 +6184,8 @@ export default function AdminPortal() {
             { id: 'tax', label: 'Tax Calculator', icon: Calculator },
             { id: 'export', label: 'Export files', icon: Download },
             { id: 'pages_cms', label: 'Page CMS', icon: FolderOpen },
-            { id: 'admins', label: 'Admin Management', icon: Settings }
+            { id: 'admins', label: 'Admin Management', icon: Settings },
+            { id: 'trash', label: `Recycle Bin${recycleBin.length ? ` (${recycleBin.length})` : ''}`, icon: Trash2 }
           ].filter(tab => allowedTabs.includes(tab.id)).map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -6152,6 +6354,229 @@ export default function AdminPortal() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Payment Gateway & Online Fee Collection Configuration */}
+                <div className="bg-slate-900/30 p-4 rounded-xl border border-teal-500/20 shadow-sm space-y-4 text-left">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-md bg-teal-500/10 text-teal-400">
+                        <CreditCard size={18} />
+                      </span>
+                      <div>
+                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Payment Gateway & Fee Collection Mode</h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Select the active payment mode. Enabling Cashfree or Razorpay takes over the payment UI fully and hides manual QR/Ref inputs.
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                      (settings.paymentGatewayConfig?.gatewayMode === 'cashfree' || settings.paymentGatewayConfig?.gatewayMode === 'razorpay')
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                        : settings.paymentGatewayConfig?.gatewayMode === 'manual'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}>
+                      Active Mode: {(settings.paymentGatewayConfig?.gatewayMode || 'off').toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Mode Selector Options */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    {[
+                      { id: 'off', label: '🚫 Disabled / Free', desc: 'No fee payment required during submission' },
+                      { id: 'manual', label: '🏦 Manual Bank & UPI', desc: 'Student scans QR code & enters Ref / UTR No' },
+                      { id: 'cashfree', label: '⚡ Cashfree Gateway', desc: 'Full Checkout Takeover via Cashfree API' },
+                      { id: 'razorpay', label: '💳 Razorpay Gateway', desc: 'Full Checkout Takeover via Razorpay API' }
+                    ].map((mode) => (
+                      <label
+                        key={mode.id}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                          (settings.paymentGatewayConfig?.gatewayMode || 'off') === mode.id
+                            ? 'bg-teal-950/60 border-teal-500 text-slate-100 shadow-md ring-1 ring-teal-500/50'
+                            : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-xs">{mode.label}</span>
+                          <input
+                            type="radio"
+                            name="gatewayMode"
+                            value={mode.id}
+                            checked={(settings.paymentGatewayConfig?.gatewayMode || 'off') === mode.id}
+                            onChange={(e) => handlePaymentGatewayChange('gatewayMode', e.target.value)}
+                            className="accent-teal-500"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 leading-tight">{mode.desc}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* 1. Manual Bank & UPI Details */}
+                  {settings.paymentGatewayConfig?.gatewayMode === 'manual' && (
+                    <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 text-left animate-in fade-in duration-200">
+                      <h5 className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                        <QrCode size={14} /> Manual Bank & UPI QR Code Configuration
+                      </h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Bank Name</label>
+                          <input
+                            type="text"
+                            placeholder="J&K Bank Ltd."
+                            value={settings.paymentGatewayConfig?.bankDetails?.bankName || ''}
+                            onChange={(e) => handlePaymentGatewayChange('bankDetails.bankName', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Account Holder Name</label>
+                          <input
+                            type="text"
+                            placeholder="Govt. HSS Shangus"
+                            value={settings.paymentGatewayConfig?.bankDetails?.accountName || ''}
+                            onChange={(e) => handlePaymentGatewayChange('bankDetails.accountName', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Account Number</label>
+                          <input
+                            type="text"
+                            placeholder="0123010100000000"
+                            value={settings.paymentGatewayConfig?.bankDetails?.accountNumber || ''}
+                            onChange={(e) => handlePaymentGatewayChange('bankDetails.accountNumber', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">IFSC Code</label>
+                          <input
+                            type="text"
+                            placeholder="JAKA0SHANGU"
+                            value={settings.paymentGatewayConfig?.bankDetails?.ifscCode || ''}
+                            onChange={(e) => handlePaymentGatewayChange('bankDetails.ifscCode', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">UPI ID</label>
+                          <input
+                            type="text"
+                            placeholder="hssshangus@jkb"
+                            value={settings.paymentGatewayConfig?.bankDetails?.upiId || ''}
+                            onChange={(e) => handlePaymentGatewayChange('bankDetails.upiId', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">UPI QR Code Image URL</label>
+                          <input
+                            type="text"
+                            placeholder="https://example.com/qr.png"
+                            value={settings.paymentGatewayConfig?.bankDetails?.qrCodeUrl || ''}
+                            onChange={(e) => handlePaymentGatewayChange('bankDetails.qrCodeUrl', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Cashfree Configuration */}
+                  {settings.paymentGatewayConfig?.gatewayMode === 'cashfree' && (
+                    <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 text-left animate-in fade-in duration-200">
+                      <div className="flex justify-between items-center">
+                        <h5 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+                          ⚡ Cashfree Gateway API Credentials
+                        </h5>
+                        <span className="text-[10px] text-emerald-400/80 italic font-semibold">
+                          Exclusive Gateway Takeover Mode Active
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cashfree App ID (Client ID)</label>
+                          <input
+                            type="text"
+                            placeholder="CF_APP_ID_..."
+                            value={settings.paymentGatewayConfig?.cashfree?.appId || ''}
+                            onChange={(e) => handlePaymentGatewayChange('cashfree.appId', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cashfree Secret Key</label>
+                          <input
+                            type="password"
+                            placeholder="••••••••••••••••"
+                            value={settings.paymentGatewayConfig?.cashfree?.secretKey || ''}
+                            onChange={(e) => handlePaymentGatewayChange('cashfree.secretKey', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Environment</label>
+                          <select
+                            value={settings.paymentGatewayConfig?.cashfree?.environment || 'sandbox'}
+                            onChange={(e) => handlePaymentGatewayChange('cashfree.environment', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                          >
+                            <option value="sandbox">Sandbox (Testing / Test Mode)</option>
+                            <option value="production">Production (Live Payments)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Razorpay Configuration */}
+                  {settings.paymentGatewayConfig?.gatewayMode === 'razorpay' && (
+                    <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 text-left animate-in fade-in duration-200">
+                      <div className="flex justify-between items-center">
+                        <h5 className="text-xs font-bold text-sky-400 flex items-center gap-1.5 uppercase tracking-wider">
+                          💳 Razorpay Gateway API Credentials
+                        </h5>
+                        <span className="text-[10px] text-sky-400/80 italic font-semibold">
+                          Exclusive Gateway Takeover Mode Active
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Razorpay Key ID</label>
+                          <input
+                            type="text"
+                            placeholder="rzp_test_... or rzp_live_..."
+                            value={settings.paymentGatewayConfig?.razorpay?.keyId || ''}
+                            onChange={(e) => handlePaymentGatewayChange('razorpay.keyId', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Razorpay Key Secret</label>
+                          <input
+                            type="password"
+                            placeholder="••••••••••••••••"
+                            value={settings.paymentGatewayConfig?.razorpay?.keySecret || ''}
+                            onChange={(e) => handlePaymentGatewayChange('razorpay.keySecret', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Environment</label>
+                          <select
+                            value={settings.paymentGatewayConfig?.razorpay?.environment || 'test'}
+                            onChange={(e) => handlePaymentGatewayChange('razorpay.environment', e.target.value)}
+                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="test">Test Mode (Sandbox)</option>
+                            <option value="live">Live Mode (Production)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Social Media Links Configuration */}
@@ -7377,11 +7802,10 @@ export default function AdminPortal() {
                     <button
                       onClick={() => printTaxSheets(getSelectedVisibleTaxFaculty())}
                       disabled={getSelectedVisibleTaxFaculty().length === 0}
-                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        getSelectedVisibleTaxFaculty().length > 0
+                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed ${getSelectedVisibleTaxFaculty().length > 0
                           ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                           : 'bg-slate-800 text-slate-500 border-slate-700'
-                      }`}
+                        }`}
                     >
                       <Printer size={12} />
                       Print Selected ({getSelectedVisibleTaxFaculty().length})
@@ -7424,7 +7848,7 @@ export default function AdminPortal() {
                       <>
                         {/* Overlay to close on click outside */}
                         <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsTaxFilterDropdownOpen(false)} />
-                        
+
                         {/* Dropdown panel */}
                         <div className="absolute right-0 mt-1.5 z-50 w-64 bg-slate-900 border border-slate-700 text-slate-200 rounded-xl shadow-2xl p-3 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
                           <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 mb-2">
@@ -7437,7 +7861,7 @@ export default function AdminPortal() {
                               Reset Default
                             </button>
                           </div>
-                          
+
                           <div className="space-y-1.5 max-h-[220px] overflow-y-auto custom-scrollbar">
                             {TAX_CATEGORIES.map((cat) => {
                               const isChecked = selectedTaxCategories.includes(cat.key);
@@ -8335,11 +8759,10 @@ export default function AdminPortal() {
                         return (
                           <div
                             key={page.id}
-                            className={`p-3 rounded-lg border transition-all text-left ${
-                              isSelected 
-                                ? 'border-orange-500 bg-slate-950/80 shadow-md' 
+                            className={`p-3 rounded-lg border transition-all text-left ${isSelected
+                                ? 'border-orange-500 bg-slate-950/80 shadow-md'
                                 : 'border-slate-850 hover:border-slate-750 bg-slate-900/30'
-                            }`}
+                              }`}
                           >
                             <div className="flex justify-between items-start gap-1">
                               <div className="min-w-0 flex-grow">
@@ -8351,9 +8774,8 @@ export default function AdminPortal() {
                                   type="button"
                                   onClick={() => handleTogglePageActive(page.id)}
                                   title={page.isActive ? "Deactivate Page" : "Activate Page"}
-                                  className={`p-1 rounded hover:bg-slate-800 transition-colors ${
-                                    page.isActive ? 'text-teal-400' : 'text-slate-500 hover:text-slate-400'
-                                  }`}
+                                  className={`p-1 rounded hover:bg-slate-800 transition-colors ${page.isActive ? 'text-teal-400' : 'text-slate-500 hover:text-slate-400'
+                                    }`}
                                 >
                                   {page.isActive ? <Eye size={12} /> : <EyeOff size={12} />}
                                 </button>
@@ -8362,23 +8784,21 @@ export default function AdminPortal() {
                                   disabled={page.isSystem}
                                   onClick={() => handleDeletePage(page.id)}
                                   title={page.isSystem ? "System pages cannot be deleted" : "Delete Page"}
-                                  className={`p-1 rounded transition-colors ${
-                                    page.isSystem 
-                                      ? 'text-slate-850 cursor-not-allowed opacity-20' 
+                                  className={`p-1 rounded transition-colors ${page.isSystem
+                                      ? 'text-slate-850 cursor-not-allowed opacity-20'
                                       : 'text-slate-500 hover:text-red-400 hover:bg-slate-800'
-                                  }`}
+                                    }`}
                                 >
                                   <Trash2 size={12} />
                                 </button>
                               </div>
                             </div>
-                            
+
                             <div className="mt-2.5 flex justify-between items-center gap-1.5 flex-wrap">
-                              <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
-                                page.isSystem 
-                                  ? 'bg-blue-950/40 text-blue-400 border-blue-500/20' 
+                              <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded border ${page.isSystem
+                                  ? 'bg-blue-950/40 text-blue-400 border-blue-500/20'
                                   : 'bg-teal-950/40 text-teal-400 border-teal-500/20'
-                              }`}>
+                                }`}>
                                 {page.isSystem ? 'System' : 'Custom'}
                               </span>
                               <button
@@ -8387,11 +8807,10 @@ export default function AdminPortal() {
                                   setSelectedPage(page);
                                   handleLoadPageBlocks(page.id);
                                 }}
-                                className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${
-                                  isSelected 
-                                    ? 'bg-orange-600 text-white shadow-sm' 
+                                className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${isSelected
+                                    ? 'bg-orange-600 text-white shadow-sm'
                                     : 'bg-slate-850 hover:bg-slate-750 text-slate-350'
-                                }`}
+                                  }`}
                               >
                                 Edit Content
                               </button>
@@ -8432,7 +8851,7 @@ export default function AdminPortal() {
                               Firestore Document ID: site/page_{selectedPage.id}
                             </p>
                           </div>
-                          
+
                           <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
                             <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-300 select-none">
                               <input
@@ -8443,7 +8862,7 @@ export default function AdminPortal() {
                               />
                               Visible in Navigation
                             </label>
-                            
+
                             <button
                               type="button"
                               onClick={handleSavePageContent}
@@ -8517,7 +8936,7 @@ export default function AdminPortal() {
                           ) : (
                             <div className="space-y-4">
                               {pageBlocks.map((block, idx) => (
-                                <div 
+                                <div
                                   key={idx}
                                   className="border border-slate-800 bg-slate-955/40 rounded-xl p-4 space-y-4 relative bg-slate-900/60"
                                 >
@@ -8531,7 +8950,7 @@ export default function AdminPortal() {
                                         {block.type} Block
                                       </span>
                                     </div>
-                                    
+
                                     <div className="flex items-center gap-1">
                                       <button
                                         type="button"
@@ -8586,7 +9005,7 @@ export default function AdminPortal() {
                                             />
                                           </div>
                                         </div>
-                                        
+
                                         <div className="space-y-3">
                                           <div>
                                             <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Background Image URL</label>
@@ -8701,7 +9120,7 @@ export default function AdminPortal() {
                                               />
                                             </label>
                                           </div>
-                                          
+
                                           {(!block.images || block.images.length === 0) ? (
                                             <p className="text-[10px] text-slate-500 text-center py-4">No images in this gallery yet. Click above to upload!</p>
                                           ) : (
@@ -8787,7 +9206,7 @@ export default function AdminPortal() {
                                               Add Card
                                             </button>
                                           </div>
-                                          
+
                                           {(!block.cards || block.cards.length === 0) ? (
                                             <p className="text-[10px] text-slate-500 text-center py-4">No cards defined. Add one above.</p>
                                           ) : (
@@ -8825,7 +9244,7 @@ export default function AdminPortal() {
                                                       </select>
                                                     </div>
                                                   </div>
-                                                  
+
                                                   <div>
                                                     <label className="block text-[8.5px] text-slate-400 mb-0.5">Description Text</label>
                                                     <textarea
@@ -8916,7 +9335,7 @@ export default function AdminPortal() {
                                               Add Row
                                             </button>
                                           </div>
-                                          
+
                                           {(!block.items || block.items.length === 0) ? (
                                             <p className="text-[10px] text-slate-500 text-center py-4">No accordion items defined.</p>
                                           ) : (
@@ -8936,7 +9355,7 @@ export default function AdminPortal() {
                                                       className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none"
                                                     />
                                                   </div>
-                                                  
+
                                                   <div>
                                                     <label className="block text-[8.5px] text-slate-400 mb-0.5">Item Detailed Content / Answer</label>
                                                     <textarea
@@ -9035,7 +9454,7 @@ export default function AdminPortal() {
                 {/* Modal to add custom page */}
                 {showAddPageModal && (
                   <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
-                    <form 
+                    <form
                       onSubmit={handleCreatePage}
                       className="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-slate-200 text-left font-sans"
                     >
@@ -9111,6 +9530,171 @@ export default function AdminPortal() {
                     </form>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* TAB 9: RECYCLE BIN (TRASH) */}
+            {activeTab === 'trash' && allowedTabs.includes('trash') && (
+              <div className="space-y-5 animate-in fade-in duration-200 text-slate-200">
+                {/* Header Bar */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <Trash2 className="text-amber-400" size={18} />
+                      Recycle Bin & Data Cleanup
+                      <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-950/80 text-amber-400 border border-amber-500/30">
+                        {recycleBin.length} {recycleBin.length === 1 ? 'item' : 'items'}
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Deleted notices, slideshow slides, faculty, and custom pages are safely held here. Restore them anytime or permanently purge them to eliminate zero-redundancy live storage.
+                    </p>
+                  </div>
+                  {recycleBin.length > 0 && (
+                    <button
+                      onClick={handleEmptyRecycleBin}
+                      className="py-1.5 px-3 rounded-lg bg-red-950/80 hover:bg-red-900 text-red-300 font-bold text-xs transition-all flex items-center gap-1.5 border border-red-500/30 shadow-md flex-shrink-0"
+                    >
+                      <Trash2 size={14} />
+                      Empty Recycle Bin
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                  {/* Category Filter Pills */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {['All', 'Latest Notice', 'Home Slideshow', 'Faculty Directory', 'Custom Page'].map(cat => {
+                      const active = trashFilterCategory === cat;
+                      const count = cat === 'All'
+                        ? recycleBin.length
+                        : recycleBin.filter(t => t.category === cat).length;
+
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setTrashFilterCategory(cat)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+                            active
+                              ? 'bg-amber-500 text-slate-950 shadow-sm'
+                              : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                          }`}
+                        >
+                          {cat}
+                          <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${active ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Search input */}
+                  <div className="relative min-w-[200px]">
+                    <input
+                      type="text"
+                      placeholder="Search trash..."
+                      value={trashSearchQuery}
+                      onChange={(e) => setTrashSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <Trash2 size={13} className="absolute left-2.5 top-2.5 text-slate-500 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Trash Items Grid */}
+                {(() => {
+                  const filteredTrash = recycleBin.filter(item => {
+                    const matchesCategory = trashFilterCategory === 'All' || item.category === trashFilterCategory;
+                    const matchesQuery = !trashSearchQuery ||
+                      (item.title || '').toLowerCase().includes(trashSearchQuery.toLowerCase()) ||
+                      (item.subtitle || '').toLowerCase().includes(trashSearchQuery.toLowerCase());
+                    return matchesCategory && matchesQuery;
+                  });
+
+                  if (filteredTrash.length === 0) {
+                    return (
+                      <div className="py-16 text-center bg-slate-900/30 rounded-xl border border-slate-800/80 p-8 space-y-3">
+                        <div className="w-14 h-14 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-slate-500">
+                          <Trash2 size={26} />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-300">Recycle Bin is Empty</h4>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto">
+                          No deleted items found in this view. When you delete announcements, faculty records, slides, or pages, they will be safely kept here for easy 1-click recovery.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredTrash.map(item => (
+                        <div
+                          key={item.id}
+                          className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 p-4 rounded-xl space-y-3 flex flex-col justify-between transition-all shadow-md group"
+                        >
+                          <div className="space-y-2">
+                            {/* Header row: category badge + deleted timestamp */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-950/60 text-amber-400 border border-amber-500/30">
+                                {item.category}
+                              </span>
+                              <span className="text-[9.5px] font-semibold text-slate-500 flex items-center gap-1">
+                                <Clock size={11} />
+                                {item.deletedAt || 'Recently'}
+                              </span>
+                            </div>
+
+                            {/* Item Content with Photo preview if present */}
+                            <div className="flex gap-3 items-start pt-1">
+                              {(item.photo || item.image) && (
+                                <img
+                                  src={item.photo || item.image}
+                                  alt=""
+                                  className="w-12 h-12 rounded-lg object-cover bg-slate-950 border border-slate-800 shrink-0"
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
+                              )}
+                              <div className="min-w-0 flex-grow">
+                                <h4 className="text-xs font-bold text-slate-200 line-clamp-2" title={item.title}>
+                                  {item.title}
+                                </h4>
+                                <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5" title={item.subtitle}>
+                                  {item.subtitle}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons: Restore vs Purge */}
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreTrashItem(item.id)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 border border-emerald-500/30 shadow-sm"
+                              title="Restore back to live site lists"
+                            >
+                              <RotateCcw size={13} />
+                              Restore
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handlePermanentDeleteTrashItem(item.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 hover:text-red-200 font-bold text-xs transition-all flex items-center gap-1 border border-red-500/20"
+                              title="Permanently purge from Firebase database"
+                            >
+                              <Trash2 size={13} />
+                              Purge
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -9212,7 +9796,7 @@ export default function AdminPortal() {
                           </button>
                         )}
                       </div>
-                      
+
                       <div className="p-2 flex flex-wrap gap-1.5 min-h-[40px] items-center">
                         {group.customFields.length === 0 && (
                           <span className="text-[10px] text-slate-500 italic px-2" style={{ color: '#64748b' }}>No fields assigned to this group.</span>
@@ -9240,7 +9824,7 @@ export default function AdminPortal() {
                                 )}
                                 <ChevronDown size={10} className="inline ml-0.5 opacity-70" style={{ color: '#94a3b8' }} />
                               </span>
-                              
+
                               {/* Dropdown to move to another group */}
                               <div
                                 className="absolute left-0 top-full mt-1 w-48 border rounded-lg shadow-xl z-50 hidden group-hover/btn:block p-1 text-left before:content-[''] before:absolute before:-top-1.5 before:left-0 before:right-0 before:h-1.5"
@@ -9344,11 +9928,11 @@ export default function AdminPortal() {
                           g.customFields.forEach(f => draftAssigned.add(f));
                         });
                         const draftUnassigned = allMovableFields.filter(k => !draftAssigned.has(k));
-                        
+
                         if (draftUnassigned.length === 0) {
                           return <p className="text-[10px] text-orange-300/60 italic" style={{ color: '#fdba74' }}>All fields are currently assigned to groups.</p>;
                         }
-                        
+
                         return (
                           <div className="space-y-2">
                             <p className="text-[10px] text-orange-300/80 mb-2" style={{ color: '#fdba74' }}>Click a field to assign it to a group:</p>
@@ -10002,108 +10586,108 @@ export default function AdminPortal() {
               {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto p-5 space-y-6" style={{ scrollbarColor: 'var(--text-muted) transparent' }}>
 
-                 {/* Dynamically Render Layout Groups (Movable Standard & Custom Fields) */}
-                 {(fieldLayout.groups || []).map(group => {
-                   const fields = renderFieldsForGroup(group.id);
-                   if (!fields && group.builtIn) return null;
-                   return (
-                     <section key={group.id} className="mt-8 border-t border-slate-700/50 pt-6">
-                       <h4 className={sectionHeader}>
-                         <span style={divider} />
-                         <span style={sectionTitleStyle}>{group.name}</span>
-                         <span style={divider} />
-                       </h4>
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                         {fields}
-                         
-                         {/* Placeholder for empty custom groups */}
-                         {!group.builtIn && (!group.customFields || group.customFields.length === 0) && (
-                           <p className="text-[10px] text-slate-500 italic col-span-full">No fields have been assigned to this group yet.</p>
-                         )}
-                         
-                         {/* Personal Details administrative additions */}
-                         {group.id === 'personal' && (
-                           <>
-                             <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
-                             <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
-                             <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
-                             <div>
-                               <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
-                               <select value={fullEditData.hidden ? 'hidden' : 'visible'}
-                                 onChange={e => {
-                                   const isHidden = e.target.value === 'hidden';
-                                   fullEditField('hidden', isHidden);
-                                   if (isHidden && !fullEditData.inactiveReason) {
-                                     fullEditField('inactiveReason', 'Transferred');
-                                   }
-                                 }}
-                                 className={panelInput} style={panelInputStyle}
-                                 onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                 onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
-                                 <option value="visible">Visible (Active on Website)</option>
-                                 <option value="hidden">Hidden (Inactive)</option>
-                               </select>
-                             </div>
-                             {fullEditData.hidden && (
-                               <div className="animate-in fade-in duration-200">
-                                 <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
-                                 <select
-                                   value={['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')}
-                                   onChange={e => {
-                                     const val = e.target.value;
-                                     if (val === 'Other') {
-                                       const custom = window.prompt("Enter custom reason for inactive status:");
-                                       fullEditField('inactiveReason', custom || 'Other');
-                                     } else {
-                                       fullEditField('inactiveReason', val);
-                                     }
-                                   }}
-                                   className={panelInput} style={panelInputStyle}
-                                   onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                   onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                                 >
-                                   <option value="Transferred">Transferred</option>
-                                   <option value="Retired">Retired</option>
-                                   <option value="Deployed Out">Deployed Out</option>
-                                   <option value="Other">Other...</option>
-                                 </select>
-                                 {fullEditData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) && (
-                                   <input
-                                     type="text"
-                                     placeholder="Enter custom reason..."
-                                     value={fullEditData.inactiveReason || ''}
-                                     onChange={e => fullEditField('inactiveReason', e.target.value)}
-                                     className={panelInput + " mt-1.5 font-semibold"}
-                                     style={panelInputStyle}
-                                     onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                     onBlur={e => Object.assign(e.target.style, panelInputStyle)}
-                                   />
-                                 )}
-                               </div>
-                             )}
-                             <div className="sm:col-span-2">
-                               <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
-                               <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
-                                 className={panelInput + ' resize-none'} style={panelInputStyle}
-                                 onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
-                                 onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
-                             </div>
-                           </>
-                         )}
-                         
-                         {/* Service Details administrative additions */}
-                         {group.id === 'service' && (
-                           <>
-                             <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
-                             <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
-                             <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
-                             <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
-                           </>
-                         )}
-                       </div>
-                     </section>
-                   );
-                 })}
+                {/* Dynamically Render Layout Groups (Movable Standard & Custom Fields) */}
+                {(fieldLayout.groups || []).map(group => {
+                  const fields = renderFieldsForGroup(group.id);
+                  if (!fields && group.builtIn) return null;
+                  return (
+                    <section key={group.id} className="mt-8 border-t border-slate-700/50 pt-6">
+                      <h4 className={sectionHeader}>
+                        <span style={divider} />
+                        <span style={sectionTitleStyle}>{group.name}</span>
+                        <span style={divider} />
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {fields}
+
+                        {/* Placeholder for empty custom groups */}
+                        {!group.builtIn && (!group.customFields || group.customFields.length === 0) && (
+                          <p className="text-[10px] text-slate-500 italic col-span-full">No fields have been assigned to this group yet.</p>
+                        )}
+
+                        {/* Personal Details administrative additions */}
+                        {group.id === 'personal' && (
+                          <>
+                            <FInput field="category" label="Category (OM / OBC / SC / ST)" data={fullEditData} onChange={fullEditField} />
+                            <FInput field="bed" label="B.Ed Completed? (Yes / No)" data={fullEditData} onChange={fullEditField} />
+                            <FInput field="subject_pg" label="Subject in PG (academic qualification)" data={fullEditData} onChange={fullEditField} />
+                            <div>
+                              <label className={panelLabel} style={panelLabelStyle}>Visibility Status</label>
+                              <select value={fullEditData.hidden ? 'hidden' : 'visible'}
+                                onChange={e => {
+                                  const isHidden = e.target.value === 'hidden';
+                                  fullEditField('hidden', isHidden);
+                                  if (isHidden && !fullEditData.inactiveReason) {
+                                    fullEditField('inactiveReason', 'Transferred');
+                                  }
+                                }}
+                                className={panelInput} style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}>
+                                <option value="visible">Visible (Active on Website)</option>
+                                <option value="hidden">Hidden (Inactive)</option>
+                              </select>
+                            </div>
+                            {fullEditData.hidden && (
+                              <div className="animate-in fade-in duration-200">
+                                <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
+                                <select
+                                  value={['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) ? fullEditData.inactiveReason : (fullEditData.inactiveReason ? 'Other' : 'Transferred')}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === 'Other') {
+                                      const custom = window.prompt("Enter custom reason for inactive status:");
+                                      fullEditField('inactiveReason', custom || 'Other');
+                                    } else {
+                                      fullEditField('inactiveReason', val);
+                                    }
+                                  }}
+                                  className={panelInput} style={panelInputStyle}
+                                  onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                  onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                >
+                                  <option value="Transferred">Transferred</option>
+                                  <option value="Retired">Retired</option>
+                                  <option value="Deployed Out">Deployed Out</option>
+                                  <option value="Other">Other...</option>
+                                </select>
+                                {fullEditData.inactiveReason && !['Transferred', 'Retired', 'Deployed Out'].includes(fullEditData.inactiveReason) && (
+                                  <input
+                                    type="text"
+                                    placeholder="Enter custom reason..."
+                                    value={fullEditData.inactiveReason || ''}
+                                    onChange={e => fullEditField('inactiveReason', e.target.value)}
+                                    className={panelInput + " mt-1.5 font-semibold"}
+                                    style={panelInputStyle}
+                                    onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                    onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                                  />
+                                )}
+                              </div>
+                            )}
+                            <div className="sm:col-span-2">
+                              <label className={panelLabel} style={panelLabelStyle}>Profile / Bio (Optional)</label>
+                              <textarea value={fullEditData.profile || ''} onChange={e => fullEditField('profile', e.target.value)} rows={3}
+                                className={panelInput + ' resize-none'} style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)} />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Service Details administrative additions */}
+                        {group.id === 'service' && (
+                          <>
+                            <FInput field="designation_at_first_appointment" label="Designation at 1st Appt" data={fullEditData} onChange={fullEditField} />
+                            <FInput field="zone_name" label="Zone Name" data={fullEditData} onChange={fullEditField} />
+                            <FInput field="ddo_code" label="UDISE Code" data={fullEditData} onChange={fullEditField} mono />
+                            <FInput field="ddo_code_hrms" label="DDO Code HRMS" data={fullEditData} onChange={fullEditField} mono />
+                          </>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
 
                 {/* Section: Photo */}
                 <section>
