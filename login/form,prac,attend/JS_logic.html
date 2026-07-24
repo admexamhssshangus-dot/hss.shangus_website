@@ -6123,6 +6123,82 @@
         }
     }
 
+    // Helper to calculate admission fee for a student
+    function calculateStudentFeeAmount(currentClass, currentStream, gender, settingsFees = {}) {
+        const isFemale = String(gender || '').toLowerCase() === 'female';
+        if (currentClass === '11th') {
+            if (currentStream === 'Science') return isFemale ? (settingsFees['11th_science_girls'] || 1700) : (settingsFees['11th_science_boys'] || 1900);
+            return isFemale ? (settingsFees['11th_humanities_girls'] || 1600) : (settingsFees['11th_humanities_boys'] || 1800);
+        }
+        if (currentClass === '12th') {
+            if (currentStream === 'Science') return isFemale ? (settingsFees['12th_science_girls'] || 1650) : (settingsFees['12th_science_boys'] || 1650);
+            return isFemale ? (settingsFees['12th_humanities_girls'] || 1550) : (settingsFees['12th_humanities_boys'] || 1550);
+        }
+        if (currentClass === '9th') return settingsFees['9th'] || 1700;
+        if (currentClass === '10th') return settingsFees['10th'] || 1700;
+        return 1700;
+    }
+
+    // Helper to dynamically load Razorpay SDK and launch payment checkout modal
+    function initiateRazorpayPayment(amountInINR, studentName, studentEmail, studentPhone, razorpayKeyId) {
+        return new Promise((resolve, reject) => {
+            if (!razorpayKeyId) {
+                alert('Razorpay Key ID is not configured by the school administrator.');
+                reject(new Error('Razorpay Key ID missing'));
+                return;
+            }
+            const loadScript = () => {
+                if (window.Razorpay) return Promise.resolve();
+                return new Promise((res, rej) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                    script.onload = res;
+                    script.onerror = rej;
+                    document.body.appendChild(script);
+                });
+            };
+
+            loadScript().then(() => {
+                const options = {
+                    key: razorpayKeyId,
+                    amount: Math.round(amountInINR * 100),
+                    currency: 'INR',
+                    name: 'Govt. Higher Secondary School Shangus',
+                    description: 'Session Admission Fee Payment',
+                    image: 'https://cdn.jsdelivr.net/gh/admexamhssshangus-dot/OnlineTestPortal@main/hss%20shangus_%20background%20logo_2024.png',
+                    prefill: {
+                        name: studentName || '',
+                        email: studentEmail || '',
+                        contact: studentPhone || ''
+                    },
+                    theme: {
+                        color: '#0284c7'
+                    },
+                    handler: function (response) {
+                        if (response && response.razorpay_payment_id) {
+                            resolve(response.razorpay_payment_id);
+                        } else {
+                            reject(new Error('Payment finished but no payment ID returned.'));
+                        }
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            reject(new Error('Payment window closed by user.'));
+                        }
+                    }
+                };
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (resp) {
+                    reject(new Error(resp.error?.description || 'Razorpay Payment Failed'));
+                });
+                rzp.open();
+            }).catch(err => {
+                alert('Could not load Razorpay Payment Gateway script.');
+                reject(err);
+            });
+        });
+    }
+
     // [MODIFIED] Form Editor - Enhanced populate and validation
     function renderFormEditor(instructionsAgreed = false) {
         try {
@@ -6241,7 +6317,8 @@
             'vocational': { title: '6. Vocational Details', fields: ['Vocational subject in previous class', 'Percentage Obtained in Vocational Subject'], gridClass: 'grid-2', visible: true },
             'additional': { title: '7. Additional Information', fields: ['Passport No. (if available)', 'Identification Mark (if any)', 'Previous participation in sports (if any)', 'Games to participate', 'PEN Number (given by UDISE portal)', 'APAAR ID'], gridClass: 'grid-3', visible: true },
             'uploads': { title: '8. Uploads & Remarks', fields: ['Student Photo', 'Remarks/Feedback (if any)'], gridClass: 'grid-end', visible: true },
-            'declaration': { title: '9. Declaration', fields: ['Declaration'], gridClass: 'grid-1', visible: true }
+            'payment_gateway_fee': { title: '9. Fee Payment & Gateway Checkout', fields: [], gridClass: 'grid-1', visible: true },
+            'declaration': { title: '10. Declaration', fields: ['Declaration'], gridClass: 'grid-1', visible: true }
         };
         // Render sections
         Object.entries(sections).forEach(([key, section]) => {
@@ -6274,6 +6351,157 @@
                 const remarksDisabled = viewOnly || (upgradeAllowed && state.currentUser?.role !== 'Admin' && !upgradeAllowed.has('Remarks/Feedback (if any)'));
                 const remarksHtml = remarksConfig ? createFormField('Remarks/Feedback (if any)', remarksConfig, remarksVal, remarksDisabled, currentClass, currentStream) : '<div class="form-group error">Missing Remarks config</div>';
                 container.innerHTML += photoUploadHtml + photoPreviewHtml + remarksHtml;
+            } else if (key === 'payment_gateway_fee') {
+                const currentGatewayConfig = state.adminData?.settings?.paymentGatewayConfig || (typeof DEFAULT_SETTINGS !== 'undefined' ? DEFAULT_SETTINGS.paymentGatewayConfig : { gatewayMode: 'off' });
+                const activeGatewayMode = currentGatewayConfig?.gatewayMode || 'off';
+                const studentGender = currentData["Gender"] || '';
+                const settingsFees = state.adminData?.settings?.fees || {};
+                const feeAmount = calculateStudentFeeAmount(currentClass, currentStream, studentGender, settingsFees);
+
+                if (activeGatewayMode === 'off') {
+                    fieldset.style.display = 'none';
+                } else if (activeGatewayMode === 'cashfree') {
+                    const existingTxnRef = currentData['Transaction Reference Number'] || currentData['Payment Reference'] || '';
+                    container.innerHTML = `
+                        <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(5, 150, 105, 0.03)); border: 1.5px solid #10b981; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; text-align:left;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem; border-bottom:1px solid rgba(16,185,129,0.2); padding-bottom:0.5rem;">
+                                <h4 style="margin:0; font-size:1rem; font-weight:700; color:#065f46; display:flex; align-items:center; gap:0.5rem;">
+                                    <span class="material-icons" style="color:#10b981;">flash_on</span> Cashfree Payment Gateway Active
+                                </h4>
+                                <span style="background:#10b981; color:white; font-size:0.75rem; font-weight:800; padding:0.2rem 0.6rem; border-radius:20px;">
+                                    EXCLUSIVE GATEWAY MODE
+                                </span>
+                            </div>
+                            <div style="font-size:0.9rem; color:#1f2937; margin-bottom:0.75rem;">
+                                Official Admission Fee for <strong>${currentClass || 'Selected Class'} (${currentStream || 'General'})</strong>: <strong style="font-size:1.1rem; color:#059669;">Rs. ${feeAmount}</strong>
+                            </div>
+
+                            <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:0.75rem; border-radius:8px; margin-bottom:1rem; font-size:0.8rem; color:#064e3b;">
+                                ⚡ <strong>Note:</strong> Cashfree Gateway is taking over payment processing fully. Manual QR code scanning and manual Reference Number fields are hidden in this mode.
+                            </div>
+
+                            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <label style="font-weight:700; font-size:0.85rem; color:#065f46;">Payment Reference / Order ID:</label>
+                                <input type="text" id="cashfreeTxnRefInput" name="Transaction Reference Number" value="${existingTxnRef}" ${viewOnly ? 'disabled' : ''} placeholder="Will be populated automatically upon Cashfree checkout" style="width:100%; padding:0.6rem; border:1px solid #10b981; border-radius:6px; font-family:monospace; font-weight:700; font-size:0.9rem; background:#ffffff; color:#065f46;" readonly>
+                            </div>
+
+                            ${viewOnly ? '' : `
+                                <div style="margin-top:1rem;">
+                                    <button type="button" id="payCashfreeBtn" class="btn" style="width:100%; padding:0.8rem; background:linear-gradient(135deg, #10b981, #059669); color:white; font-weight:800; font-size:1rem; border-radius:8px; border:none; box-shadow:0 4px 12px rgba(16,185,129,0.3); cursor:pointer;">
+                                        ⚡ Pay Rs. ${feeAmount} via Cashfree Gateway
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+                    `;
+                } else if (activeGatewayMode === 'razorpay') {
+                    const existingTxnRef = currentData['Transaction Reference Number'] || currentData['Payment Reference'] || '';
+                    const razorpayKeyId = currentGatewayConfig.razorpay?.keyId || '';
+                    container.innerHTML = `
+                        <div style="background: linear-gradient(135deg, rgba(2, 132, 199, 0.08), rgba(3, 105, 161, 0.03)); border: 1.5px solid #0284c7; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; text-align:left;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem; border-bottom:1px solid rgba(2,132,199,0.2); padding-bottom:0.5rem;">
+                                <h4 style="margin:0; font-size:1rem; font-weight:700; color:#0369a1; display:flex; align-items:center; gap:0.5rem;">
+                                    <span class="material-icons" style="color:#0284c7;">credit_card</span> Razorpay Payment Gateway Active
+                                </h4>
+                                <span style="background:#0284c7; color:white; font-size:0.75rem; font-weight:800; padding:0.2rem 0.6rem; border-radius:20px;">
+                                    EXCLUSIVE GATEWAY MODE
+                                </span>
+                            </div>
+                            <div style="font-size:0.9rem; color:#1f2937; margin-bottom:0.75rem;">
+                                Official Admission Fee for <strong>${currentClass || 'Selected Class'} (${currentStream || 'General'})</strong>: <strong style="font-size:1.1rem; color:#0284c7;">Rs. ${feeAmount}</strong>
+                            </div>
+
+                            <div style="background:#f0f9ff; border:1px solid #bae6fd; padding:0.75rem; border-radius:8px; margin-bottom:1rem; font-size:0.8rem; color:#0c4a6e;">
+                                💳 <strong>Note:</strong> Razorpay Gateway is taking over payment processing fully. Manual QR code scanning and manual Reference Number fields are hidden in this mode.
+                            </div>
+
+                            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <label style="font-weight:700; font-size:0.85rem; color:#0369a1;">Razorpay Transaction Payment ID:</label>
+                                <input type="text" id="razorpayTxnRefInput" name="Transaction Reference Number" value="${existingTxnRef}" ${viewOnly ? 'disabled' : ''} placeholder="Razorpay Payment ID will populate automatically after checkout" style="width:100%; padding:0.6rem; border:1px solid #0284c7; border-radius:6px; font-family:monospace; font-weight:700; font-size:0.9rem; background:#ffffff; color:#0369a1;" readonly>
+                            </div>
+
+                            ${viewOnly ? '' : `
+                                <div style="margin-top:1rem;">
+                                    <button type="button" id="payRazorpayBtn" class="btn" style="width:100%; padding:0.8rem; background:linear-gradient(135deg, #0284c7, #0369a1); color:white; font-weight:800; font-size:1rem; border-radius:8px; border:none; box-shadow:0 4px 12px rgba(2,132,199,0.3); cursor:pointer;">
+                                        💳 Pay Rs. ${feeAmount} via Razorpay Gateway
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+                    `;
+
+                    setTimeout(() => {
+                        const payBtn = document.getElementById('payRazorpayBtn');
+                        if (payBtn) {
+                            payBtn.onclick = function() {
+                                const studentName = (document.querySelector('[name="Student\'s Name (as per school records)"]')?.value || currentData["Student's Name (as per school records)"] || '').trim();
+                                const studentEmail = (document.querySelector('[name="Email Address"]')?.value || currentData["Email Address"] || '').trim();
+                                const studentPhone = (document.querySelector('[name="Mobile No. (with working WhatsApp)"]')?.value || currentData["Mobile No. (with working WhatsApp)"] || '').trim();
+
+                                payBtn.disabled = true;
+                                payBtn.textContent = 'Launching Razorpay Secure Window...';
+
+                                initiateRazorpayPayment(feeAmount, studentName, studentEmail, studentPhone, razorpayKeyId)
+                                    .then((paymentId) => {
+                                        const refInput = document.getElementById('razorpayTxnRefInput');
+                                        if (refInput) refInput.value = paymentId;
+                                        payBtn.style.background = '#059669';
+                                        payBtn.textContent = `✓ Payment Successful! (ID: ${paymentId})`;
+                                        showAlert('form-alert', `Payment of Rs. ${feeAmount} successful! Razorpay Txn ID: ${paymentId}`, 'success');
+                                    })
+                                    .catch((err) => {
+                                        payBtn.disabled = false;
+                                        payBtn.textContent = `💳 Pay Rs. ${feeAmount} via Razorpay Gateway`;
+                                        if (err && err.message && !err.message.includes('closed by user')) {
+                                            showAlert('form-alert', `Razorpay Payment Failed: ${err.message}`, 'danger');
+                                        }
+                                    });
+                            };
+                        }
+                    }, 100);
+                } else if (activeGatewayMode === 'manual') {
+                    const bankDetails = currentGatewayConfig.bankDetails || {};
+                    const existingTxnRef = currentData['Transaction Reference Number'] || currentData['Payment Reference'] || '';
+                    container.innerHTML = `
+                        <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; text-align:left;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
+                                <h4 style="margin:0; font-size:1rem; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:0.5rem;">
+                                    <span class="material-icons" style="color:#f59e0b;">qr_code_scanner</span> Manual Bank Transfer / UPI QR Code
+                                </h4>
+                                <span style="background:#f59e0b; color:white; font-size:0.75rem; font-weight:800; padding:0.2rem 0.6rem; border-radius:20px;">
+                                    MANUAL UPI / BANK MODE
+                                </span>
+                            </div>
+                            
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1rem;">
+                                <div style="background:var(--bg-secondary); padding:0.8rem; border-radius:8px; font-size:0.8rem; line-height:1.6;">
+                                    <div><strong>Bank Name:</strong> ${bankDetails.bankName || 'J&K Bank Ltd.'}</div>
+                                    <div><strong>Account Name:</strong> ${bankDetails.accountName || 'Govt. HSS Shangus'}</div>
+                                    ${bankDetails.accountNumber ? `<div><strong>Account No:</strong> <span style="font-family:monospace; font-weight:700;">${bankDetails.accountNumber}</span></div>` : ''}
+                                    ${bankDetails.ifscCode ? `<div><strong>IFSC Code:</strong> <span style="font-family:monospace; font-weight:700;">${bankDetails.ifscCode}</span></div>` : ''}
+                                    ${bankDetails.upiId ? `<div><strong>UPI ID:</strong> <span style="font-family:monospace; font-weight:700; color:#d97706;">${bankDetails.upiId}</span></div>` : ''}
+                                    <div style="margin-top:0.4rem; color:var(--text-secondary); font-size:0.75rem;">
+                                        ${bankDetails.instructions || 'Transfer fee via UPI/NetBanking and enter the UTR/Txn Ref No below.'}
+                                    </div>
+                                </div>
+                                ${bankDetails.qrCodeUrl ? `
+                                    <div style="text-align:center; background:#ffffff; padding:0.5rem; border:1px solid #e2e8f0; border-radius:8px;">
+                                        <img src="${bankDetails.qrCodeUrl}" alt="UPI QR Code" style="max-height:140px; margin:0 auto; object-fit:contain;">
+                                        <div style="font-size:0.7rem; color:#475569; margin-top:0.2rem; font-weight:700;">Scan with PhonePe / GPay / Paytm</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                                <label style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">
+                                    Transaction Reference Number / UTR No <span style="color:red;">*</span>
+                                </label>
+                                <input type="text" name="Transaction Reference Number" value="${existingTxnRef}" ${viewOnly ? 'disabled' : ''} placeholder="e.g. 329182749102 or UTR1928374" style="width:100%; padding:0.6rem; border:1px solid var(--border); border-radius:6px; font-family:monospace; font-weight:700; font-size:0.9rem;" required>
+                                <div style="font-size:0.75rem; color:var(--text-secondary);">Enter the 12-digit UTR or Txn Reference Number generated by your bank/UPI app.</div>
+                            </div>
+                        </div>
+                    `;
+                }
             } else {
                 // Default rendering for all other sections
                 let inlineReason11Rendered = false;

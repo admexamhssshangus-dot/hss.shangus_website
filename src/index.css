@@ -588,26 +588,67 @@
   }
 }
 
-/* Premium Slim Scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+/* ==========================================================================
+   Global Premium Custom Scrollbars
+   ========================================================================== */
+/* WebKit browsers (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #0d9488;
+}
+
+/* Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+/* Custom Scrollbar Utility */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: rgba(13, 148, 136, 0.45);
   border-radius: 9999px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #0d9488;
 }
 
-/* For Firefox compatibility */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: rgba(13, 148, 136, 0.45) transparent;
 }
 
 /* ==========================================================================
@@ -1348,4 +1389,84 @@
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
 }
+
+/* ==========================================================================
+   Balanced Security Guardrails CSS (Student & Visitor UX Friendly)
+   ========================================================================== */
+
+/* Disable text selection on UI controls, buttons, and nav bars for native app feel */
+header nav, button, .no-select, .theme-selector {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Ensure readable page content, articles, notices, inputs, tables & text remain smoothly selectable for students */
+main p,
+main span,
+main h1, main h2, main h3, main h4, main h5, main h6,
+main li,
+main td, main th,
+input,
+textarea,
+[contenteditable="true"],
+.selectable-text,
+.selectable-text * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Prevent accidental image dragging while keeping images visible and crisp */
+img {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+}
+
+/* Print Styling Guardrail: Enables clean printing for students while adding official school watermark */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  header nav, footer, .theme-selector {
+    display: none !important;
+  }
+  body::before {
+    content: "Govt. Higher Secondary School Shangus — Official Portal Document";
+    display: block;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 10px;
+    border-bottom: 2px solid #00674F;
+    margin-bottom: 20px;
+    color: #00674F;
+  }
+  body::after {
+    content: "Verified Official Record • hssshangus.netlify.app";
+    display: block;
+    text-align: center;
+    font-size: 10px;
+    margin-top: 30px;
+    color: #64748b;
+  }
+}
+
+/* Accessibility: Support prefers-reduced-motion for user system settings */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
 

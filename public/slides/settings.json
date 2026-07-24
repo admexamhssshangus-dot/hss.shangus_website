@@ -144,12 +144,34 @@
       ]
     }
   },
+  "paymentGatewayConfig": {
+    "gatewayMode": "off",
+    "bankDetails": {
+      "accountName": "Govt. Higher Secondary School Shangus",
+      "bankName": "J&K Bank Ltd.",
+      "accountNumber": "",
+      "ifscCode": "",
+      "upiId": "",
+      "qrCodeUrl": "",
+      "instructions": "Scan the UPI QR code or transfer directly to the bank account, then enter your Transaction Reference Number / UTR."
+    },
+    "cashfree": {
+      "appId": "adm.exam.hss.shangus@gmail.com",
+      "secretKey": "admin@4737",
+      "environment": "sandbox"
+    },
+    "razorpay": {
+      "keyId": "adm.exam.hss.shangus@gmail.com",
+      "keySecret": "admin@4737",
+      "environment": "test"
+    }
+  },
   "fieldLayout": {
     "groups": [
       {
-        "id": "personal",
         "name": "Personal Details",
         "builtIn": true,
+        "id": "personal",
         "customFields": [
           "Name",
           "Father's Name",
@@ -163,9 +185,9 @@
         ]
       },
       {
-        "id": "service",
         "name": "Service & Appointment Details",
         "builtIn": true,
+        "id": "service",
         "customFields": [
           "CPIS No.",
           "Designation",
@@ -179,18 +201,16 @@
         ]
       },
       {
-        "id": "qualifications",
-        "name": "Qualifications & Health",
-        "builtIn": true,
         "customFields": [
           "Qualifications",
           "Health/Security Grounds"
-        ]
+        ],
+        "id": "qualifications",
+        "builtIn": true,
+        "name": "Qualifications & Health"
       },
       {
         "id": "tax",
-        "name": "Tax & Financial Details",
-        "builtIn": true,
         "customFields": [
           "PAN",
           "TDS",
@@ -200,18 +220,20 @@
           "HRA Exemption",
           "80D Deductions",
           "80C Deductions"
-        ]
+        ],
+        "builtIn": true,
+        "name": "Tax & Financial Details"
       },
       {
-        "id": "sli_subscription_details",
-        "name": "SLI Subscription Details",
-        "builtIn": false,
         "customFields": [
           "SLI Application No.",
           "SLI Policy Number",
           "SLI Sum Assured (Amount in INR)",
           "Monthly SLI Premium (Amount in INR)"
-        ]
+        ],
+        "id": "sli_subscription_details",
+        "builtIn": false,
+        "name": "SLI Subscription Details"
       }
     ]
   }
