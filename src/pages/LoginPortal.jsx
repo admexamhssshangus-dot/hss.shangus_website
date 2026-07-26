@@ -1,12 +1,9 @@
-import React, { useState } from 'react';
-import { ExternalLink, Lock, UserCheck, ShieldCheck, FileText, ArrowRight, RefreshCw, GraduationCap, CheckCircle } from 'lucide-react';
+import React from 'react';
+import { ExternalLink, UserCheck, ShieldCheck, FileText, ArrowRight, GraduationCap, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 
 export default function LoginPortal() {
-  const [showEmbed, setShowEmbed] = useState(false);
-  const [iframeLoading, setIframeLoading] = useState(true);
-
   const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
 
   const openPortalWindow = () => {
@@ -22,8 +19,18 @@ export default function LoginPortal() {
     }
   };
 
+  // Theme-aware styles using CSS custom properties from index.css theme system
+  const cardStyle = {
+    backgroundColor: 'var(--bg-card)',
+    borderColor: 'var(--border-ui)',
+    color: 'var(--text-main)',
+  };
+
+  const textMain = { color: 'var(--text-main)' };
+  const textMuted = { color: 'var(--text-muted)' };
+
   return (
-    <div className="w-full bg-slate-900 text-white min-h-[85vh] py-8 sm:py-12 px-4 sm:px-6">
+    <div className="w-full min-h-[85vh] py-8 sm:py-12 px-4 sm:px-6" style={{ backgroundColor: 'var(--bg-page)', color: 'var(--text-main)' }}>
       <SEO 
         title="Student & Staff Login Portal" 
         description="Official Govt HSS Shangus Student & Staff Login Portal. Access online services, examination details, fee receipts, roll numbers, and attendance tracking." 
@@ -31,17 +38,17 @@ export default function LoginPortal() {
       />
 
       <div className="max-w-5xl mx-auto space-y-8">
-        {/* Top Header Card */}
-        <div className="bg-gradient-to-r from-slate-800 via-teal-950 to-slate-800 rounded-3xl p-6 sm:p-10 border border-teal-500/30 shadow-2xl relative overflow-hidden text-center sm:text-left flex flex-col md:flex-row items-center justify-between gap-6">
+        {/* Top Header Hero Card — always dark gradient, always white text */}
+        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 rounded-3xl p-6 sm:p-10 border border-teal-500/30 shadow-2xl relative overflow-hidden text-center sm:text-left flex flex-col md:flex-row items-center justify-between gap-6" style={{ backgroundColor: '#042f2e' }}>
           <div className="space-y-3 max-w-2xl z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-semibold">
-              <ShieldCheck size={14} className="text-teal-400" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: 'rgba(20, 184, 166, 0.2)', borderColor: 'rgba(94, 234, 212, 0.4)', border: '1px solid rgba(94, 234, 212, 0.4)', color: '#5eead4' }}>
+              <ShieldCheck size={14} style={{ color: '#5eead4' }} />
               Official Govt HSS Shangus Portal
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-white font-title tracking-tight leading-tight">
+            <h1 className="text-2xl sm:text-4xl font-extrabold font-title tracking-tight leading-tight" style={{ color: '#ffffff' }}>
               Student & Staff Login Portal
             </h1>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+            <p className="text-sm sm:text-base leading-relaxed font-normal" style={{ color: '#f1f5f9' }}>
               Access online admissions status, examination results, student registration records, roll number generation, and faculty utilities.
             </p>
           </div>
@@ -49,109 +56,99 @@ export default function LoginPortal() {
           <div className="flex flex-col sm:flex-row md:flex-col gap-3 w-full md:w-auto z-10 flex-shrink-0">
             <button
               onClick={openPortalWindow}
-              className="px-6 py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl shadow-lg transition-all duration-200 flex items-center justify-center gap-2 transform hover:-translate-y-0.5"
+              className="login-cta-btn px-7 py-4 bg-teal-500 hover:bg-teal-400 font-extrabold rounded-2xl shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 text-base cursor-pointer"
+              style={{ color: '#020617' }}
             >
               <span>Launch Full Login Window</span>
-              <ExternalLink size={18} />
-            </button>
-
-            <button
-              onClick={() => setShowEmbed(!showEmbed)}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-2"
-            >
-              <RefreshCw size={14} className={showEmbed ? "animate-spin" : ""} />
-              <span>{showEmbed ? "Hide Embedded Portal" : "View Portal Inside Page"}</span>
+              <ExternalLink size={20} className="login-arrow-icon" />
             </button>
           </div>
         </div>
 
-        {/* Embedded Iframe Container (Toggleable) */}
-        {showEmbed && (
-          <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl relative">
-            <div className="bg-slate-900 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-2 font-mono">
-                <Lock size={12} className="text-teal-400" /> Secure AppScript Instance
-              </span>
-              <a 
-                href={APPSCRIPT_URL} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-teal-400 hover:underline flex items-center gap-1"
-              >
-                Open in new tab <ExternalLink size={12} />
-              </a>
-            </div>
-
-            {iframeLoading && (
-              <div className="h-96 flex flex-col items-center justify-center space-y-3 bg-slate-950 text-slate-400">
-                <RefreshCw size={28} className="animate-spin text-teal-400" />
-                <p className="text-xs font-medium">Connecting to Google Apps Script Portal...</p>
-              </div>
-            )}
-
-            <iframe
-              src={APPSCRIPT_URL}
-              title="Govt HSS Shangus Login Portal"
-              className="w-full h-[650px] border-0"
-              onLoad={() => setIframeLoading(false)}
-            />
-          </div>
-        )}
-
         {/* Portal Features & Quick Services Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 space-y-3 hover:border-teal-500/50 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-bold">
-              <GraduationCap size={20} />
+          {/* Student Services Card */}
+          <div className="rounded-2xl p-6 space-y-4 border transition-all hover:shadow-md" style={cardStyle}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold" style={{ backgroundColor: 'rgba(20, 184, 166, 0.1)', color: 'var(--teal-accent)' }}>
+              <GraduationCap size={24} />
             </div>
-            <h3 className="text-lg font-bold text-white">Student Services</h3>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-teal-400 flex-shrink-0" /> Check Admission Application Status</li>
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-teal-400 flex-shrink-0" /> Download Examination Roll Slip</li>
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-teal-400 flex-shrink-0" /> View Session Fee Receipts</li>
+            <h3 className="text-lg font-bold font-heading" style={textMain}>Student Services</h3>
+            <ul className="space-y-2.5 text-xs sm:text-sm">
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: 'var(--teal-accent)' }} /> 
+                <span className="font-medium" style={textMain}>Check Admission Application Status</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: 'var(--teal-accent)' }} /> 
+                <span className="font-medium" style={textMain}>Download Examination Roll Slip</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: 'var(--teal-accent)' }} /> 
+                <span className="font-medium" style={textMain}>View Session Fee Receipts</span>
+              </li>
             </ul>
           </div>
 
-          <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 space-y-3 hover:border-teal-500/50 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-              <UserCheck size={20} />
+          {/* Teacher & Staff Panel Card */}
+          <div className="rounded-2xl p-6 space-y-4 border transition-all hover:shadow-md" style={cardStyle}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+              <UserCheck size={24} />
             </div>
-            <h3 className="text-lg font-bold text-white">Teacher & Staff Panel</h3>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400 flex-shrink-0" /> Manage Student Attendance & Lists</li>
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400 flex-shrink-0" /> Upload Marks & Evaluation Sheets</li>
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400 flex-shrink-0" /> Academic Reports & Circulars</li>
+            <h3 className="text-lg font-bold font-heading" style={textMain}>Teacher & Staff Panel</h3>
+            <ul className="space-y-2.5 text-xs sm:text-sm">
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: '#10b981' }} /> 
+                <span className="font-medium" style={textMain}>Manage Student Attendance & Lists</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: '#10b981' }} /> 
+                <span className="font-medium" style={textMain}>Upload Marks & Evaluation Sheets</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: '#10b981' }} /> 
+                <span className="font-medium" style={textMain}>Academic Reports & Circulars</span>
+              </li>
             </ul>
           </div>
 
-          <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 space-y-3 hover:border-teal-500/50 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center font-bold">
-              <FileText size={20} />
+          {/* Admissions & Verification Card */}
+          <div className="rounded-2xl p-6 space-y-4 border transition-all hover:shadow-md" style={cardStyle}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold" style={{ backgroundColor: 'rgba(14, 165, 233, 0.1)', color: '#0ea5e9' }}>
+              <FileText size={24} />
             </div>
-            <h3 className="text-lg font-bold text-white">Admissions & Verification</h3>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-sky-400 flex-shrink-0" /> Online Registration Desk</li>
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-sky-400 flex-shrink-0" /> Document Verification Desk</li>
-              <li className="flex items-center gap-2"><CheckCircle size={14} className="text-sky-400 flex-shrink-0" /> Stream Selection & Subjects</li>
+            <h3 className="text-lg font-bold font-heading" style={textMain}>Admissions & Verification</h3>
+            <ul className="space-y-2.5 text-xs sm:text-sm">
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: '#0ea5e9' }} /> 
+                <span className="font-medium" style={textMain}>Online Registration Desk</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: '#0ea5e9' }} /> 
+                <span className="font-medium" style={textMain}>Document Verification Desk</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle size={16} className="flex-shrink-0" style={{ color: '#0ea5e9' }} /> 
+                <span className="font-medium" style={textMain}>Stream Selection & Subjects</span>
+              </li>
             </ul>
           </div>
         </div>
 
         {/* Navigation Quick Links Bar */}
-        <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+        <div className="p-6 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 text-xs" style={cardStyle}>
           <div>
-            <strong className="text-white block font-semibold text-sm">Explore Govt HSS Shangus Official Website</strong>
-            <span>Quick navigation links for search engines and visitors</span>
+            <strong className="block font-bold text-sm sm:text-base" style={textMain}>Explore Govt HSS Shangus Official Website</strong>
+            <span className="block mt-0.5" style={textMuted}>Quick navigation links for search engines and visitors</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link to="/admissions" className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 font-semibold transition-colors flex items-center gap-1">
-              Admissions 2026 <ArrowRight size={12} />
+            <Link to="/admissions" className="px-4 py-2 rounded-xl font-semibold transition-colors flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: 'var(--teal-accent)', color: '#ffffff' }}>
+              Admissions 2026 <ArrowRight size={14} />
             </Link>
-            <Link to="/about" className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition-colors flex items-center gap-1">
-              About Us <ArrowRight size={12} />
+            <Link to="/about" className="px-4 py-2 rounded-xl font-semibold transition-colors flex items-center gap-1.5 border" style={{ backgroundColor: 'var(--bg-page)', color: 'var(--text-main)', borderColor: 'var(--border-ui)' }}>
+              About Us <ArrowRight size={14} />
             </Link>
-            <Link to="/academics" className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition-colors flex items-center gap-1">
-              Academics <ArrowRight size={12} />
+            <Link to="/academics" className="px-4 py-2 rounded-xl font-semibold transition-colors flex items-center gap-1.5 border" style={{ backgroundColor: 'var(--bg-page)', color: 'var(--text-main)', borderColor: 'var(--border-ui)' }}>
+              Academics <ArrowRight size={14} />
             </Link>
           </div>
         </div>

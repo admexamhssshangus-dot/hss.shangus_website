@@ -84,6 +84,21 @@ export default function Navbar() {
 
 
 
+  const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
+
+  const handleLoginClick = () => {
+    try {
+      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : 1024;
+      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : 768;
+      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
+      const newWin = window.open(APPSCRIPT_URL, '_blank', features);
+      if (newWin) newWin.focus();
+      else window.open(APPSCRIPT_URL, '_blank');
+    } catch (e) {
+      window.open(APPSCRIPT_URL, '_blank');
+    }
+  };
+
   const location = useLocation();
   function isActive(path) {
     if (path === '/') return location.pathname === '/';
@@ -221,6 +236,7 @@ export default function Navbar() {
               <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600 flex items-center h-full py-0.5">
                 <Link
                   to="/login"
+                  onClick={handleLoginClick}
                   className="px-3 py-1 text-xs font-bold btn-primary-custom rounded-md transition-all duration-200 inline-flex items-center justify-center"
                   title="Student & Staff Login Portal"
                 >
@@ -324,7 +340,10 @@ export default function Navbar() {
                 <div className="pt-3">
                   <Link 
                     to="/login" 
-                    onClick={() => setMobileOpen(false)} 
+                    onClick={() => {
+                      setMobileOpen(false);
+                      handleLoginClick();
+                    }} 
                     className="w-full px-3 py-1 btn-primary-custom rounded font-bold text-sm transition-all duration-200 block text-center"
                     title="Student & Staff Login Portal"
                   >
