@@ -2431,7 +2431,7 @@ export default function AdminPortal() {
       ...newNotice,
       days: newNotice.days ? parseInt(newNotice.days, 10) : undefined
     };
-    setNotices((prev) => [...prev, formattedNotice]);
+    setNotices((prev) => [formattedNotice, ...prev]);
     setNewNotice({ date: '', title: '', link: '', days: '' });
   };
 
