@@ -3,14 +3,17 @@ import { createPortal } from 'react-dom';
 import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { invalidateCache, updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
+import DirectIngestionModal from './DirectIngestionModal';
+import ConfirmDialogModal from '../components/ConfirmDialogModal';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component ───
-function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange }) {
+function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange, align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -64,44 +67,43 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     : `${label} (${selected.length})`;
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="relative w-full text-left" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`px-2.5 py-1 rounded-xl text-xs font-black flex items-center justify-between gap-1.5 transition-all cursor-pointer shadow-sm ${
+        className={`w-full px-2 py-1 rounded-xl text-[11px] sm:text-xs font-black flex items-center justify-between gap-1 transition-all cursor-pointer shadow-sm ${
           !isAllSelected
             ? 'bg-amber-700 text-white border border-amber-800'
             : 'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:bg-slate-50'
         }`}
       >
-        <span className="truncate max-w-[120px]">{displayText}</span>
-        <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="truncate flex-1 min-w-0 text-left">{displayText}</span>
+        <ChevronDown size={12} className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1 w-56 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-2 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-          <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black text-slate-800 dark:text-slate-200">
-            <span>Select {label}</span>
-            <div className="flex items-center gap-1.5">
+        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-48 sm:w-52 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
+          <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black gap-1">
+            <span className="text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-wider font-extrabold truncate flex-1 min-w-0">{label}</span>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="text-emerald-700 dark:text-emerald-400 font-extrabold hover:underline cursor-pointer"
+                className="px-1.5 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
               >
                 All
               </button>
-              <span className="text-slate-300 dark:text-slate-700">|</span>
               <button
                 type="button"
                 onClick={handleDeselectAll}
-                className="text-rose-700 dark:text-rose-400 font-extrabold hover:underline cursor-pointer"
+                className="px-1.5 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
               >
                 None
               </button>
             </div>
           </div>
 
-          <div className="max-h-48 overflow-y-auto space-y-0.5 py-1">
+          <div className="max-h-44 overflow-y-auto space-y-0.5 py-0.5">
             {options.map((opt, idx) => {
               const checked = isAllSelected || (selected.includes(opt) && !isNoneSelected);
               return (
@@ -109,14 +111,14 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
                   key={`${opt}_${idx}`}
                   type="button"
                   onClick={() => toggleOption(opt)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-extrabold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left text-slate-900 dark:text-slate-100 cursor-pointer"
+                  className="w-full flex items-center gap-2 px-1.5 py-1 rounded-lg text-xs font-extrabold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left text-slate-900 dark:text-slate-100 cursor-pointer"
                 >
                   {checked ? (
                     <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
                   ) : (
                     <Square size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
                   )}
-                  <span className="truncate">{opt}</span>
+                  <span className="truncate flex-1 min-w-0">{opt}</span>
                 </button>
               );
             })}
@@ -193,7 +195,10 @@ function UnifiedFiltersGroupDropdown({
             : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
         }`}
       >
-        <span>🔍 Filters</span>
+        <span className="flex items-center gap-1">
+          <span>🔍</span>
+          <span className="hidden sm:inline">Filters</span>
+        </span>
         {totalActiveFilters > 0 && (
           <span className="bg-white text-amber-900 px-1.5 py-0.2 rounded-full text-[10px] font-black shadow-2xs">
             {totalActiveFilters}
@@ -203,7 +208,7 @@ function UnifiedFiltersGroupDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 sm:right-auto sm:left-0 mt-1.5 w-max max-w-[calc(100vw-24px)] sm:max-w-[320px] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-3 space-y-2.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+        <div className="absolute -left-24 sm:left-0 mt-1.5 w-[280px] sm:w-[310px] max-w-[calc(100vw-16px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2.5 sm:p-3 space-y-2 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800 text-xs font-black gap-2">
             <span className="text-amber-700 dark:text-amber-400 uppercase tracking-wider text-[10px] whitespace-nowrap">Filter Student Records</span>
             {totalActiveFilters > 0 && (
@@ -217,13 +222,14 @@ function UnifiedFiltersGroupDropdown({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 w-max">
+          <div className="grid grid-cols-2 gap-1.5 w-full">
             {viewScope === 'all' && (
               <MultiSelectCheckboxDropdown
                 label="Sessions"
                 options={availableSessions}
                 selected={selectedSessions}
                 onChange={(val) => { setSelectedSessions(val); setCurrentPage(1); }}
+                align="left"
               />
             )}
 
@@ -232,6 +238,7 @@ function UnifiedFiltersGroupDropdown({
               options={availableClasses}
               selected={selectedClasses}
               onChange={(val) => { setSelectedClasses(val); setCurrentPage(1); }}
+              align="left"
             />
 
             <MultiSelectCheckboxDropdown
@@ -239,6 +246,7 @@ function UnifiedFiltersGroupDropdown({
               options={availableGenders}
               selected={selectedGenders}
               onChange={(val) => { setSelectedGenders(val); setCurrentPage(1); }}
+              align="right"
             />
 
             <MultiSelectCheckboxDropdown
@@ -246,6 +254,7 @@ function UnifiedFiltersGroupDropdown({
               options={availableStreams}
               selected={selectedStreams}
               onChange={(val) => { setSelectedStreams(val); setCurrentPage(1); }}
+              align="left"
             />
 
             <MultiSelectCheckboxDropdown
@@ -253,6 +262,7 @@ function UnifiedFiltersGroupDropdown({
               options={availableStatuses}
               selected={selectedStatuses}
               onChange={(val) => { setSelectedStatuses(val); setCurrentPage(1); }}
+              align="right"
             />
           </div>
 
@@ -267,7 +277,7 @@ function UnifiedFiltersGroupDropdown({
                   className="text-amber-700 dark:text-amber-400 font-extrabold hover:underline cursor-pointer flex items-center gap-1"
                   title="Toggle Sort Order"
                 >
-                  <span>{sortOrder === 'asc' ? 'Ascending ⬆️' : 'Descending ⬇️'}</span>
+                  <span>{sortOrder === 'asc' ? 'Asc ⬆️' : 'Desc ⬇️'}</span>
                 </button>
               </div>
               <select
@@ -1156,7 +1166,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
 
 const COLUMN_DEFS = [
   { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
-  { key: 'formNo', label: 'Form No.', className: 'font-mono' },
+  { key: 'formNo', label: 'F.No.', className: 'font-mono' },
   { key: 'status', label: 'Status', className: 'text-center min-w-[70px]', render: (val, student) => {
     return (
       <StatusActionDropdown
@@ -1206,7 +1216,7 @@ const COLUMN_DEFS = [
   { key: 'class', label: 'Class', className: 'font-black' },
   { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400' },
   { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-slate-700 dark:text-slate-300 max-w-[110px] whitespace-normal break-words leading-tight' },
-  { key: 'photoId', label: 'Photo', render: (val, student) => (
+  { key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => (
     val && typeof val === 'string' && val.startsWith('data:') ? (
       <img
         src={val}
@@ -1225,7 +1235,7 @@ const COLUMN_DEFS = [
             });
           }
         }}
-        className="w-8 h-10 rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
+        className="w-8 h-10 mx-auto rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
         title="Click for full photo preview"
       />
     ) : (
@@ -1248,6 +1258,12 @@ const COLUMN_DEFS = [
       gCode = 'O';
       gColor = 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
     }
+
+    const isDirect = Boolean(
+      student?._isDirectIngested ||
+      String(student?.remarks || '').toLowerCase().includes('direct ingestion') ||
+      String(student?.lastEditedBy || '').toLowerCase().includes('direct')
+    );
 
     const isGenderColumnSelected = student?._visibleCols?.gender;
 
@@ -1383,7 +1399,7 @@ const DEFAULT_1_WIDTHS = {
   class: 55,
   session: 70,
   boardRegNo: 110,
-  photoId: 55,
+  photoId: 44,
   studentName: 145,
   fatherName: 135,
   motherName: 135,
@@ -2183,8 +2199,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]);
-  const [sortBy, setSortBy] = useState('classRollNo');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortBy, setSortBy] = useState('onlineSubmDate');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Layout & Density States (with LocalStorage Persistence)
   const [density, setDensity] = useState(() => {
@@ -2341,6 +2357,144 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [colSearchQuery, setColSearchQuery] = useState('');
   const [showToolsModal, setShowToolsModal] = useState(false);
   const [activeToolsTab, setActiveToolsTab] = useState('assign_ids');
+  const [showDirectIngestionModal, setShowDirectIngestionModal] = useState(false);
+
+  // Global Custom Confirmation Modal State
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+
+  const handleDirectRecordAdded = (newRecord) => {
+    setCurrentAdmissions(prev => [newRecord, ...prev]);
+    setMasterRecords(prev => [newRecord, ...prev]);
+    setToast({ message: `⚡ Direct Record Ingested for "${newRecord.studentName}"!`, type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDeleteStudent = (student) => {
+    if (!student) return;
+    const docId = String(student.id || student.formNo || student['Form Number']).replace(/^(active_|hist_)/, '');
+    const nameDisplay = student.studentName || student["Student's Name (as per school records)"] || 'Student Record';
+
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'danger',
+      title: 'Permanent Application Deletion',
+      message: `Are you sure you want to permanently delete the application record for "${nameDisplay}"?`,
+      consequence: 'This action will permanently remove the student entry from all master database registers and local tables. This operation cannot be undone.',
+      confirmText: '🔥 Confirm & Delete Application',
+      cancelText: 'Cancel',
+      onConfirm: async ({ reasonCategory, customReason } = {}) => {
+        try {
+          await deleteDoc(doc(db, 'admissions', docId));
+          try { await deleteDoc(doc(db, 'masterRegisters', docId)); } catch (e) {}
+
+          await logAdminActivity({
+            actionType: 'delete',
+            actionTitle: 'Deleted Student Application',
+            details: `Permanently deleted application record for "${nameDisplay}" (ID: ${docId})`,
+            reasonCategory,
+            customReason,
+            metadata: { docId, studentName: nameDisplay }
+          });
+
+          setCurrentAdmissions(prev => prev.filter(s => String(s.id || s.formNo).replace(/^(active_|hist_)/, '') !== docId));
+          setMasterRecords(prev => prev.filter(s => String(s.id || s.formNo).replace(/^(active_|hist_)/, '') !== docId));
+          setToast({ message: `🗑️ Deleted application record for "${nameDisplay}"`, type: 'error' });
+          setTimeout(() => setToast(null), 3000);
+        } catch (err) {
+          console.error('Delete student error:', err);
+          setToast({ message: `❌ Delete failed: ${err.message}`, type: 'error' });
+        } finally {
+          setConfirmModalConfig(null);
+        }
+      }
+    });
+  };
+
+  const handleClearCellField = (student, col) => {
+    if (!student || !col) return;
+    const colKey = col.key;
+    const colLabel = col.label || colKey;
+    const cleanFNo = String(student['Form Number'] || student['Form No.'] || student.formNo || '').replace(/^'/, '').trim();
+    const docId = cleanFNo ? cleanFNo : (student.id ? student.id.replace(/^(active_|hist_)/, '') : `doc_${Date.now()}`);
+    const sanitizedDocId = docId.replace(/\//g, '_').toLowerCase();
+    const nameDisplay = student.studentName || student["Student's Name (as per school records)"] || 'Student';
+
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'warning',
+      title: `Clear ${colLabel}`,
+      message: `Are you sure you want to clear/reset the value for "${colLabel}" for ${nameDisplay}?`,
+      consequence: `This will clear only the "${colLabel}" field value without deleting the student's main admission record.`,
+      confirmText: `Clear ${colLabel}`,
+      cancelText: 'Cancel',
+      onConfirm: async ({ reasonCategory, customReason } = {}) => {
+        try {
+          const keyMap = {
+            formNo: 'Form Number',
+            classRollNo: 'Class Roll No',
+            admNo: 'Adm. No.',
+            boardRegNo: 'Board Registration Number',
+            studentName: "Student's Name (as per school records)",
+            fatherName: "Father's/Guardian's Name (as per school records)",
+            motherName: "Mother's Name (as per school records)",
+            dob: 'DoB (as per school records)',
+            gender: 'Gender',
+            category: 'Cat._JKBOSE',
+            village: 'Name of your village',
+            mobile: 'Mobile No. (with working WhatsApp)',
+            aadhar: 'Aadhar No.',
+            bankAccount: 'Bank Account No.',
+            bankName: 'Name of Bank',
+            ifsc: 'IFSC code',
+            onlineSubmDate: 'Online Subm. Date',
+            admDate: 'Adm. Date',
+            boardName: 'Board Name',
+            penNo: 'PEN No.',
+            apaarId: 'APAAR ID',
+            prevSchool: 'Previous School',
+            remarks: 'Remarks'
+          };
+          const targetFieldName = keyMap[colKey] || colKey;
+          const payload = {
+            [targetFieldName]: '',
+            [colKey]: '',
+            updatedAt: new Date().toISOString(),
+            lastEditedBy: 'Admin (Field Reset)'
+          };
+
+          if (student._isCurrentScope || cleanFNo) {
+            try { await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true }); } catch (e) {}
+          }
+          try { await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true }); } catch (e) {}
+
+          await logAdminActivity({
+            actionType: 'cell_clear',
+            actionTitle: `Cleared Field "${colLabel}"`,
+            details: `Cleared field "${colLabel}" for "${nameDisplay}" (ID: ${docId})`,
+            reasonCategory,
+            customReason,
+            metadata: { docId, colKey, colLabel, studentName: nameDisplay }
+          });
+
+          updateCachedItem('admissions', docId, payload);
+
+          if (student._isCurrentScope) {
+            setCurrentAdmissions(prev => prev.map(st => st.id === student.id ? { ...st, [colKey]: '', [targetFieldName]: '' } : st));
+          } else {
+            setMasterRecords(prev => prev.map(st => st.id === student.id ? { ...st, [colKey]: '', [targetFieldName]: '' } : st));
+          }
+
+          setToast({ message: `🧹 Cleared ${colLabel} field for ${nameDisplay}`, type: 'success' });
+          setTimeout(() => setToast(null), 3000);
+        } catch (err) {
+          console.error('Clear cell field error:', err);
+          setToast({ message: `❌ Clear field failed: ${err.message}`, type: 'error' });
+        } finally {
+          setConfirmModalConfig(null);
+        }
+      }
+    });
+  };
   
   // ID Assigner & Tools Suite States
   const [assignStartId, setAssignStartId] = useState('5476');
@@ -3173,9 +3327,16 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
 
       if (sortBy === 'onlineSubmDate') {
-        const dateA = new Date(a.onlineSubmDate || 0).getTime();
-        const dateB = new Date(b.onlineSubmDate || 0).getTime();
-        return (dateA - dateB) * factor;
+        const parseDateVal = (st) => {
+          const raw = st.onlineSubmDate || st['Online Subm. Date'] || st.createdAt || st.timestamp || st.admDate || st['Adm. Date'] || '';
+          if (!raw || raw === '—') return 0;
+          const parsed = new Date(raw).getTime();
+          return isNaN(parsed) ? 0 : parsed;
+        };
+        const dateA = parseDateVal(a);
+        const dateB = parseDateVal(b);
+        if (dateA !== dateB) return (dateA - dateB) * factor;
+        return (parseNum(b.formNo) - parseNum(a.formNo));
       }
 
       return 0;
@@ -3512,115 +3673,178 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
   return (
     <div className="space-y-1.5 text-xs sm:text-sm animate-fadeIn">
-      {/* Sleek Control Bar */}
-      <div className="p-1.5 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs sm:text-sm font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+      {/* Sleek Ultra-Compact Control Bar */}
+      {/* Ultra-Responsive Control Bar: Single Row on Desktop / Minimal 2-Rows on Mobile */}
+      <div className="p-1 sm:p-1.5 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
         
-        {/* Mobile Top Row / Desktop Left Section: Scope Swapper & Tools Icon */}
-        <div className="flex items-center justify-between sm:justify-start gap-1 flex-wrap sm:flex-nowrap">
+        {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Filters (LEFT) + Scope Toggle (RIGHT) */}
+        <div className="flex items-center justify-between gap-1 sm:gap-1.5 flex-1 min-w-0">
           
-          {/* Quick Scope Swapper Toggle Button (Increased Height by 30%+) */}
-          <div className="flex items-center p-0.5 rounded-xl border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
+          {/* Left Sub-Group: Search Bar & Filters Dropdown */}
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            {/* Search Input Bar (LEFT - Expands aggressively on Mobile & Desktop) */}
+            <div className="relative flex-1 min-w-[90px] sm:min-w-[150px] sm:max-w-xs">
+              <Search size={12} className="absolute left-2 top-2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search Reg, Name, Roll..."
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-6 pr-5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')} className="absolute right-1.5 top-1 text-slate-500 hover:text-slate-700 p-0.5">
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+
+            {/* Unified Grouped Filter Button & Popover (Placed directly to the RIGHT of Search Bar!) */}
+            <UnifiedFiltersGroupDropdown
+              viewScope={viewScope}
+              availableSessions={availableSessions}
+              selectedSessions={selectedSessions}
+              setSelectedSessions={setSelectedSessions}
+              availableClasses={availableClasses}
+              selectedClasses={selectedClasses}
+              setSelectedClasses={setSelectedClasses}
+              availableGenders={availableGenders}
+              selectedGenders={selectedGenders}
+              setSelectedGenders={setSelectedGenders}
+              availableStreams={availableStreams}
+              selectedStreams={selectedStreams}
+              setSelectedStreams={setSelectedStreams}
+              availableStatuses={availableStatuses}
+              selectedStatuses={selectedStatuses}
+              setSelectedStatuses={setSelectedStatuses}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+              sortOrder={sortOrder}
+              setSortOrder={setSortOrder}
+              setCurrentPage={setCurrentPage}
+            />
+          </div>
+
+          {/* Quick Scope Swapper Toggle Button (RIGHT - Ultra-Compact on Mobile) */}
+          <div className="flex items-center p-0.5 rounded-lg border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
             <button
               type="button"
               onClick={() => { setViewScope('active'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 sm:py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${
                 viewScope === 'active'
                   ? 'bg-emerald-700 text-white shadow-2xs font-black'
                   : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
               }`}
             >
-              <span className="text-xs sm:text-sm font-black">📌 Active</span>
-              <span className="text-[10px] sm:text-xs font-mono opacity-90 font-bold ml-0.5">({currentAdmissions.length})</span>
+              <span className="text-[10px] sm:text-xs font-black">Active</span>
+              <span className="text-[9px] sm:text-[10px] font-mono opacity-90 font-bold">({currentAdmissions.length})</span>
             </button>
             <button
               type="button"
               onClick={() => { setViewScope('all'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 sm:py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${
                 viewScope === 'all'
                   ? 'bg-amber-700 text-white shadow-2xs font-black'
                   : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
               }`}
             >
-              <span className="text-xs sm:text-sm font-black">📚 All</span>
-              <span className="text-[10px] sm:text-xs font-mono opacity-90 font-bold ml-0.5">({allStudents.length})</span>
+              <span className="text-[10px] sm:text-xs font-black">All</span>
+              <span className="text-[9px] sm:text-[10px] font-mono opacity-90 font-bold">({allStudents.length})</span>
             </button>
           </div>
+        </div>
 
-          {/* More Tools Icon Button (Icon-only Wrench Tool) */}
-          <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsToolsOpen(!isToolsOpen)}
-              title="Administrative Tools Suite"
-              className="p-1.5 rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
-            >
-              <Wrench size={14} />
-            </button>
+        {/* ROW 2 (Mobile) / RIGHT SECTION (Desktop): Administrative Tools + Pagination + Settings */}
+        <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
+          
+          {/* Left Sub-Group on Mobile: Administrative Tools Suite */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Wrench Tools Suite Dropdown Button */}
+            <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsToolsOpen(!isToolsOpen)}
+                title="Administrative Tools Suite"
+                className="p-1.5 rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
+              >
+                <Wrench size={14} />
+              </button>
 
-            {isToolsOpen && (
-              <div className="absolute right-0 mt-1.5 w-52 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-black">
-                {[
-                  { id: 'controls', label: 'Controls & Subjects', icon: Settings },
-                  { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
-                  { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
-                  { id: 'rollNo', label: 'Roll Numbers', icon: Hash },
-                  { id: 'bulk', label: 'Bulk Export', icon: Layers },
-                  { id: 'automations', label: 'Email & Automations', icon: Mail },
-                  { id: 'funds', label: 'Fund Accounts', icon: CreditCard },
-                ].map((t) => {
-                  const Icon = t.icon;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(t.id);
-                        setIsToolsOpen(false);
-                      }}
-                      className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-900 dark:text-slate-100 cursor-pointer font-extrabold"
-                    >
-                      <Icon size={13} className="text-slate-500" />
-                      <span>{t.label}</span>
-                    </button>
-                  );
-                })}
+              {isToolsOpen && (
+                <div className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-52 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-black">
+                  {[
+                    { id: 'controls', label: 'Controls & Subjects', icon: Settings },
+                    { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
+                    { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
+                    { id: 'rollNo', label: 'Roll Numbers', icon: Hash },
+                    { id: 'bulk', label: 'Bulk Export', icon: Layers },
+                    { id: 'automations', label: 'Email & Automations', icon: Mail },
+                    { id: 'funds', label: 'Fund Accounts', icon: CreditCard },
+                  ].map((t) => {
+                    const Icon = t.icon;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(t.id);
+                          setIsToolsOpen(false);
+                        }}
+                        className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-900 dark:text-slate-100 cursor-pointer font-extrabold"
+                      >
+                        <Icon size={13} className="text-slate-500" />
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
 
-                <div className="my-1 border-t border-slate-200 dark:border-slate-800"></div>
+                  <div className="my-1 border-t border-slate-200 dark:border-slate-800"></div>
 
-                <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold text-[11px]">
-                  <span className="flex items-center gap-2">
-                    <Edit3 size={13} className="text-amber-600 dark:text-amber-400" />
-                    <span>Quick Cell Edit Hover</span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={enableQuickCellEdit}
-                    onChange={(e) => setEnableQuickCellEdit(e.target.checked)}
-                    className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
-                  />
-                </label>
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold text-[11px]">
+                    <span className="flex items-center gap-2">
+                      <Edit3 size={13} className="text-amber-600 dark:text-amber-400" />
+                      <span>Quick Cell Edit Hover</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={enableQuickCellEdit}
+                      onChange={(e) => setEnableQuickCellEdit(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
+                    />
+                  </label>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowToolsModal(true);
-                    setIsToolsOpen(false);
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer font-black"
-                >
-                  <Wrench size={13} className="text-amber-600 dark:text-amber-400" />
-                  <span>Bulk Tools & Photo Suite</span>
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDirectIngestionModal(true);
+                      setIsToolsOpen(false);
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer font-black border-b border-slate-200 dark:border-slate-800"
+                  >
+                    <PlusCircle size={13} className="text-amber-600 dark:text-amber-400" />
+                    <span>⚡ Express Direct Record Entry</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowToolsModal(true);
+                      setIsToolsOpen(false);
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer font-black"
+                  >
+                    <Wrench size={13} className="text-amber-600 dark:text-amber-400" />
+                    <span>Bulk Tools & Photo Suite</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Mobile Right Controls: Records count, pagination, Settings & Logout */}
-          <div className="flex sm:hidden items-center gap-1 flex-shrink-0">
-            <span className="px-1.5 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-black text-[10px] border border-teal-300 dark:border-teal-800 whitespace-nowrap">
-              {filteredStudents.length} Recs
-            </span>
+          {/* Right Sub-Group: Pagination + Table Settings */}
+          <div className="flex items-center gap-1 flex-shrink-0">
 
+            {/* Compact Pagination */}
             {pageSize !== 'All' && totalPages > 1 && (
               <div className="flex items-center gap-0.5 font-black text-[10px]">
                 <button
@@ -3643,6 +3867,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </div>
             )}
             
+            {/* Table Settings Dropdown */}
             <MoreActionsDropdown
               density={density}
               setDensity={setDensity}
@@ -3654,105 +3879,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             />
           </div>
         </div>
-
-        {/* Mobile Row 2 / Desktop Center Section: Search Bar & Grouped Filters Dropdown */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
-          {/* Search Input Bar */}
-          <div className="relative flex-1 min-w-0">
-            <input
-              type="text"
-              placeholder="Search Reg, Name, Roll No..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs"
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="absolute right-2.5 top-2 text-slate-500 hover:text-slate-700">
-                <X size={11} />
-              </button>
-            )}
-          </div>
-
-          {/* Unified Grouped Filter Button & Popover */}
-          <UnifiedFiltersGroupDropdown
-            viewScope={viewScope}
-            availableSessions={availableSessions}
-            selectedSessions={selectedSessions}
-            setSelectedSessions={setSelectedSessions}
-            availableClasses={availableClasses}
-            selectedClasses={selectedClasses}
-            setSelectedClasses={setSelectedClasses}
-            availableGenders={availableGenders}
-            selectedGenders={selectedGenders}
-            setSelectedGenders={setSelectedGenders}
-            availableStreams={availableStreams}
-            selectedStreams={selectedStreams}
-            setSelectedStreams={setSelectedStreams}
-            availableStatuses={availableStatuses}
-            selectedStatuses={selectedStatuses}
-            setSelectedStatuses={setSelectedStatuses}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            sortOrder={sortOrder}
-            setSortOrder={setSortOrder}
-            setCurrentPage={setCurrentPage}
-          />
-        </div>
-
-        {/* Desktop Right Section: Matches Count, Pagination & Settings */}
-        <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 ml-auto">
-          <span className="px-2 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-black text-xs border border-teal-300 dark:border-teal-800 shadow-2xs whitespace-nowrap">
-            {filteredStudents.length} Records
-          </span>
-
-          <div className="flex items-center gap-1 font-black">
-            <span className="text-[11px] text-slate-500">Per page:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(e.target.value); setCurrentPage(1); }}
-              className="px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 font-black bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs"
-            >
-              <option value={30}>30</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-              <option value={250}>250</option>
-              <option value="All">All ({filteredStudents.length})</option>
-            </select>
-          </div>
-
-          {pageSize !== 'All' && totalPages > 1 && (
-            <div className="flex items-center gap-1 font-black text-xs">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
-              >
-                ‹
-              </button>
-              <span className="whitespace-nowrap text-[11px]">{currentPage}/{totalPages}</span>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
-              >
-                ›
-              </button>
-            </div>
-          )}
-
-          {/* Settings Gear Icon Button (More Actions) */}
-          <MoreActionsDropdown
-            density={density}
-            setDensity={setDensity}
-            setShowColumnManager={setShowColumnManager}
-            onPrint={handlePrintRegister}
-            onExportCSV={handleExportCSV}
-            onSync={onSync || (() => loadReportsData(true))}
-            loading={loading}
-          />
-        </div>
       </div>
 
       {/* Master Data Table (Clean Light Theme Adaptive Headers & Sticky S.No Column) */}
@@ -3763,9 +3889,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             <p className="font-extrabold text-xs text-slate-700 dark:text-slate-300">Loading Student Registers & Admission Database...</p>
           </div>
         ) : (
-          <table className={`w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 ${
-            density === 'normal' ? 'whitespace-nowrap' : 'whitespace-normal break-words'
-          }`}>
+          <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words">
             <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr>
                 {COLUMN_DEFS.filter(col => col.key !== 'gender' && visibleCols[col.key]).map(col => {
@@ -3778,12 +3902,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     <th
                       key={col.key}
                       style={{ width: `${widthPx}px`, minWidth: `${widthPx}px` }}
-                      className={`relative group/th select-none ${cellPaddingClass} ${
-                        density !== 'normal' ? 'whitespace-normal break-words' : 'whitespace-nowrap'
-                      } ${stickyClasses}`}
+                      className={`relative group/th select-none px-2 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-words ${stickyClasses}`}
                     >
                       <div className="flex items-center justify-between pr-2">
-                        <span className="truncate">{col.label}</span>
+                        <span className="break-words font-black text-[#800000] dark:text-rose-400">{col.label}</span>
                       </div>
 
                       {/* Interactive Drag Handle to Resize Column Width */}
@@ -3832,7 +3954,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                             className={`relative group/cell ${cellPaddingClass} ${col.className || ''} ${stickyBg}`}
                           >
                             <div className="flex items-center justify-between gap-1 min-w-0">
-                              <div className={`flex-1 min-w-0 ${density === 'normal' ? 'truncate' : 'whitespace-normal break-words'}`}>
+                              <div className="flex-1 min-w-0 whitespace-normal break-words">
                                 {col.key === 'sno' ? dynamicSNo : (col.render ? col.render(val, studentWithModal) : val)}
                               </div>
 
@@ -3856,11 +3978,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                               )}
                             </div>
 
-                            {/* Horizontal edit/copy action capsule placed at absolute bottom-right wall of td */}
-                            {(!restrictedCols[col.key] || (!val || val === '—')) && (
+                            {/* Horizontal edit/copy/clear action capsule placed at absolute bottom-right wall of td */}
+                            {((val && val !== '—') || (enableQuickCellEdit && !restrictedCols[col.key])) && (
                               <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0.5 bottom-0.5 z-20 flex flex-row items-center gap-0.5 p-0.5 rounded-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-2xs">
-                                {/* Edit/Add Icon */}
-                                {(enableQuickCellEdit || !val || val === '—') && (
+                                {/* Edit/Add Icon — Only active when Quick Cell Edit Hover is checked */}
+                                {enableQuickCellEdit && !restrictedCols[col.key] && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -3880,7 +4002,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                   </button>
                                 )}
 
-                                {/* Copy Icon */}
+                                {/* Copy Icon — Always allowed by default */}
                                 {val && val !== '—' && (
                                   <button
                                     type="button"
@@ -3892,6 +4014,21 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                     title={`Copy ${col.label}`}
                                   >
                                     {isCopied ? <Check size={9} className="text-emerald-500 font-black" /> : <Copy size={9} />}
+                                  </button>
+                                )}
+
+                                {/* Clear Field Value Icon — Only active when Quick Cell Edit Hover is checked */}
+                                {enableQuickCellEdit && !restrictedCols[col.key] && val && val !== '—' && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleClearCellField(s, col);
+                                    }}
+                                    className="p-0.5 hover:bg-rose-200 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 rounded cursor-pointer transition-colors"
+                                    title={`Clear field value for ${col.label}`}
+                                  >
+                                    <Trash2 size={9} />
                                   </button>
                                 )}
                               </div>
@@ -4090,7 +4227,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       category: "⚙️ System & Current Exam",
                       columns: [
                         { key: 'sno', label: 'S.No.' },
-                        { key: 'formNo', label: 'Form No.' },
+                        { key: 'formNo', label: 'F.No.' },
                         { key: 'status', label: 'Status' },
                         { key: 'currExamMode', label: 'Exam Mode (Current)' },
                         { key: 'currExamRollNo', label: 'Exam R.No. (Current)' },
@@ -4732,6 +4869,21 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             </div>
           </div>
         </div>
+      )}
+
+      {/* Direct Express Admin Student Record Ingestion Modal */}
+      <DirectIngestionModal
+        isOpen={showDirectIngestionModal}
+        onClose={() => setShowDirectIngestionModal(false)}
+        onRecordAdded={handleDirectRecordAdded}
+      />
+
+      {/* Reusable Custom Confirmation Modal */}
+      {confirmModalConfig && (
+        <ConfirmDialogModal
+          {...confirmModalConfig}
+          onClose={() => setConfirmModalConfig(null)}
+        />
       )}
 
       {/* Toast Notification */}
