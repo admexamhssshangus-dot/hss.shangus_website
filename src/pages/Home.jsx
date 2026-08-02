@@ -455,33 +455,30 @@ export default function Home() {
                         );
                       })()}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-1.5 flex-wrap sm:flex-nowrap justify-between">
+                        <div className="text-xs sm:text-sm font-semibold text-slate-800 line-clamp-2"
+                             style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {n.link && n.link !== '#' ? (
                             n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
                               <a href={n.link} target="_blank" rel="noopener noreferrer" 
-                                 className="text-xs sm:text-sm font-semibold text-slate-800 hover:text-teal-700 hover:underline line-clamp-2 flex-grow"
-                                 style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                 className="hover:text-teal-700 hover:underline"
                                  title={n.title}>
                                 {n.title}
                               </a>
                             ) : (
                               <Link to={n.link} 
-                                    className="text-xs sm:text-sm font-semibold text-slate-800 hover:text-teal-700 hover:underline line-clamp-2 flex-grow"
-                                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                    className="hover:text-teal-700 hover:underline"
                                     title={n.title}>
                                 {n.title}
                               </Link>
                             )
                           ) : (
-                            <span className="text-xs sm:text-sm font-semibold text-slate-700 line-clamp-2 flex-grow"
-                                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                                  title={n.title}>
+                            <span className="text-slate-700" title={n.title}>
                               {n.title}
                             </span>
                           )}
-                          
+
                           {isNew && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold badge-red-custom animate-pulse uppercase tracking-wider flex-shrink-0 mt-0.5">
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[8px] font-extrabold badge-red-custom animate-pulse uppercase tracking-wider align-middle ml-1.5">
                               New
                             </span>
                           )}

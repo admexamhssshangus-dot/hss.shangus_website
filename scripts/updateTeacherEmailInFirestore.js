@@ -1,49 +1,61 @@
-const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, getDocs, doc, setDoc, updateDoc } = require('firebase/firestore');
+const admin = require('firebase-admin');
+const path = require('path');
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDhVgqXBo93FGXAm9YrG8x40Oa9pApu0bo",
-  authDomain: "hsssdb.firebaseapp.com",
-  projectId: "hsssdb",
-  storageBucket: "hsssdb.firebasestorage.app",
-  messagingSenderId: "894258649787",
-  appId: "1:894258649787:web:8e1f77202b304f48f2279e"
-};
+const serviceAccount = require(path.join(__dirname, 'serviceAccount.json'));
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: 'hsssdb'
+  });
+}
+
+const db = admin.firestore();
 
 async function updateTeacherEmail() {
-  console.log('🔄 Mapping sheikhgulfam91@gmail.com -> socialshiftz@gmail.com in Firestore...');
-  
   const oldEmail = 'sheikhgulfam91@gmail.com';
   const newEmail = 'socialshiftz@gmail.com';
 
-  // 1. Update practicalsData collection
+  console.log(`🔄 Scanning practicalsData in Firestore for teacherEmail/Email: ${oldEmail} -> ${newEmail}...`);
+
   try {
-    const snap = await getDocs(collection(db, 'practicalsData'));
+    const snap = await db.collection('practicalsData').get();
+    console.log(`📋 Found ${snap.docs.length} total documents in practicalsData.`);
+
     let count = 0;
+    const batch = db.batch();
+
     for (const d of snap.docs) {
       const data = d.data();
-      const currentT = data.teacherEmail || data.Email || '';
-      if (currentT.toLowerCase() === oldEmail.toLowerCase() || currentT.toLowerCase() === newEmail.toLowerCase()) {
-        await updateDoc(doc(db, 'practicalsData', d.id), {
+      const currentEmail = (data.teacherEmail || data.Email || data.teacher || data.Teacher || data.email || '').toLowerCase().trim();
+      const teacherName = data.teacherName || data['Teacher Name'] || data.Name || data.name || '';
+
+      // Match old email OR if teacherName is Sheikh Gulfam
+      if (currentEmail === oldEmail.toLowerCase() || currentEmail === '' || currentEmail === newEmail.toLowerCase() || teacherName.toLowerCase().includes('gulfam')) {
+        const docRef = db.collection('practicalsData').doc(d.id);
+        const updates = {
           teacherEmail: newEmail,
           Email: newEmail,
-          teacherName: data.teacherName || data['Teacher Name'] || 'Sheikh Gulfam'
-        });
+          email: newEmail,
+          teacher: newEmail,
+          teacherName: 'Sheikh Gulfam',
+          updatedAt: new Date().toISOString()
+        };
+        batch.set(docRef, updates, { merge: true });
         count++;
       }
     }
-    console.log(`✅ Updated ${count} documents in practicalsData to teacherEmail: ${newEmail}`);
-  } catch (err) {
-    console.error('Error updating practicalsData:', err);
-  }
 
-  // 2. Ensure user document in 'users' collection exists for socialshiftz@gmail.com
-  try {
-    const userDocRef = doc(db, 'users', newEmail);
-    await setDoc(userDocRef, {
+    if (count > 0) {
+      await batch.commit();
+      console.log(`✅ Successfully updated ${count} practicalsData documents to teacherEmail: ${newEmail}`);
+    } else {
+      console.log(`ℹ️ No matching practicalsData documents found needing update.`);
+    }
+
+    // Also ensure user document in 'users' collection exists and is mapped to socialshiftz@gmail.com
+    const userDocRef = db.collection('users').doc(newEmail);
+    await userDocRef.set({
       email: newEmail,
       Email: newEmail,
       name: 'Sheikh Gulfam',
@@ -53,12 +65,13 @@ async function updateTeacherEmail() {
       PasswordPlain: '123456',
       updatedAt: new Date().toISOString()
     }, { merge: true });
-    console.log(`✅ Updated user profile for ${newEmail} in Firestore 'users' collection.`);
-  } catch (userErr) {
-    console.error('Error updating user profile:', userErr);
+    console.log(`✅ User profile for ${newEmail} updated in 'users' collection.`);
+
+  } catch (err) {
+    console.error('❌ Error updating practicalsData:', err);
   }
 
-  console.log('🎉 Teacher email migration complete!');
+  process.exit(0);
 }
 
 updateTeacherEmail();

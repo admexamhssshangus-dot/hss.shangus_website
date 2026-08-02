@@ -4,10 +4,10 @@ import { FileText, Download, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
 
 export default function StudentDashboard() {
   const { user, onLogout, refreshSession } = useOutletContext();
@@ -31,18 +31,45 @@ export default function StudentDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
 
-  // Fetch student application & initial data (Pure Fast Firestore Workflow)
+  // Fetch student application & initial data (Fast SWR Firestore Workflow)
   const loadDashboardData = useCallback(async () => {
-    setLoading(true);
     setAlert(null);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    try {
-      if (!user) {
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    const userMobile = String(user?.mobile || '').trim();
+    const userName = (user?.name || '').toLowerCase().trim();
+
+    const findMatch = (allApps) => {
+      if (!allApps || allApps.length === 0) return null;
+      return [...allApps].reverse().find(a => {
+        const appEmail = String(a['Email Address'] || a['Email'] || a.email || a.Email || a.userEmail || '').toLowerCase().trim();
+        const appMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || a.StudentMobile || '').trim();
+        const appName = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.Name || a.studentName || '').toLowerCase().trim();
+
+        const matchesEmail = userEmail && appEmail && (appEmail === userEmail);
+        const matchesMobile = userMobile && appMobile && (appMobile === userMobile || appMobile.includes(userMobile) || userMobile.includes(appMobile));
+        const matchesName = userName && appName && (appName === userName);
+
+        return matchesEmail || matchesMobile || matchesName;
+      });
+    };
+
+    // 1. Instant Sync Cache Check
+    const cachedApps = getCachedCollectionSync('admissions');
+    if (cachedApps) {
+      const match = findMatch(cachedApps);
+      if (match) {
+        setAppData(match);
         setLoading(false);
-        return;
       }
+    }
 
-      // 1. Fetch active session setting from Firestore
+    // 2. Background Revalidation / Cold Load
+    try {
       let activeSession = '2025-26';
       try {
         const settingsSnap = await getDoc(doc(db, 'site', 'settings'));
@@ -50,36 +77,16 @@ export default function StudentDashboard() {
           const settingsData = settingsSnap.data();
           activeSession = settingsData.session || settingsData.currentSession || activeSession;
         }
-      } catch (e) {
-        console.warn('Firestore session setting read note:', e);
-      }
+      } catch (e) {}
       setSessionInfo(activeSession);
 
-      // 2. Direct Firestore search across admissions collection
-      const userEmail = (user?.email || '').toLowerCase().trim();
-      const userMobile = String(user?.mobile || '').trim();
-      const userName = (user?.name || '').toLowerCase().trim();
+      const allApps = await getCachedCollection('admissions', false, 30 * 60 * 1000, (freshApps) => {
+        // Silent background update callback
+        const freshMatch = findMatch(freshApps);
+        if (freshMatch) setAppData(freshMatch);
+      });
 
-      const admissionsSnap = await getDocs(collection(db, 'admissions'));
-      let matchedApp = null;
-
-      if (!admissionsSnap.empty) {
-        const allApps = admissionsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        // Match by Email, Mobile, or Name
-        matchedApp = allApps.reverse().find(a => {
-          const appEmail = String(a['Email Address'] || a['Email'] || a.email || a.Email || a.userEmail || '').toLowerCase().trim();
-          const appMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || a.StudentMobile || '').trim();
-          const appName = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.Name || a.studentName || '').toLowerCase().trim();
-
-          const matchesEmail = userEmail && appEmail && (appEmail === userEmail);
-          const matchesMobile = userMobile && appMobile && (appMobile === userMobile || appMobile.includes(userMobile) || userMobile.includes(appMobile));
-          const matchesName = userName && appName && (appName === userName);
-
-          return matchesEmail || matchesMobile || matchesName;
-        });
-      }
-
+      const matchedApp = findMatch(allApps);
       setAppData(matchedApp || null);
     } catch (fsErr) {
       console.error('Firestore student dashboard read error:', fsErr);

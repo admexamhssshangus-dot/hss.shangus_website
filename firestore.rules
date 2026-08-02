@@ -2,103 +2,135 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: Is Super Admin or Authorized Admin
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     function isSuperAdmin() {
-      return request.auth != null && (
+      return isAuthenticated() && (
         request.auth.token.email.lower() == 'adm.exam.hss.shangus@gmail.com' ||
-        request.auth.token.role == 'SuperAdmin'
+        request.auth.token.role == 'SuperAdmin' ||
+        request.auth.token.role == 'superadmin'
       );
     }
 
     function isAdmin() {
-      return request.auth != null && (
+      return isAuthenticated() && (
         isSuperAdmin() ||
         request.auth.token.role == 'Admin' ||
         request.auth.token.admin == true
       );
     }
 
-    function isOwner(email) {
-      return request.auth != null && request.auth.token.email.lower() == email.lower();
+    function isTeacherOrAdmin() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        request.auth.token.role == 'Teacher' ||
+        request.auth.token.role == 'Faculty' ||
+        request.auth.token.role == 'teacher' ||
+        request.auth.token.role == 'faculty'
+      );
     }
 
-    // 1. Users collection (allow read/write for portal users)
+    function isSelf(userEmail) {
+      return isAuthenticated() && request.auth.token.email.lower() == userEmail.lower();
+    }
+
+    // 1. Users collection (Self or Admin)
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isSelf(userId) || isAdmin();
     }
 
     // 2. Active Admissions & Applications
     match /admissions/{formNo} {
-      allow read, write: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
     match /admissionApplications/{docId} {
-      allow read, write: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     // 3. Historical Master Registers
     match /masterRegisters/{chunkId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // 4. Form Structure & Subject Config
     match /formStructure/{fieldId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /subjectsConfig/{configId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // 5. Exam & Practicals Settings and Data
     match /examConfig/{docId} {
-      allow read, write: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /adminPracticalsSettings/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow write: if isTeacherOrAdmin();
     }
     match /practicalsData/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isAuthenticated();
+      allow write: if isTeacherOrAdmin();
     }
 
     // 6. Attendance & Attendance Config
     match /systemSettings/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /attendance/{docId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isTeacherOrAdmin();
     }
     match /attendanceConfig/{docId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isTeacherOrAdmin();
     }
     match /holidays/{docId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isTeacherOrAdmin();
     }
 
     // 7. System Activity & Email Logs
     match /activityLogs/{logId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
     match /emailLogs/{logId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
 
     // 8. Rates & Fund Distributions
     match /feeRates/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /fundDistributions/{docId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // Site settings
+    // 9. Site settings & Pages CMS
     match /site/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
-    // Global Fallback Match Rule for all subcollections & documents
+    // Fallback: Require authentication for all unlisted document paths
     match /{document=**} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }
