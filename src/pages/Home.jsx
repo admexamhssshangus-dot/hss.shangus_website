@@ -77,7 +77,16 @@ export default function Home() {
   const [notices, setNotices] = useState([]);
   const [settings, setSettings] = useState(null);
   const [principalName, setPrincipalName] = useState("Mr. Aijaz Ahmad Wagay");
-  const [slides, setSlides] = useState([]);
+  const [slides, setSlides] = useState(() => {
+    try {
+      const local = localStorage.getItem('site_slides');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [{ image: '/slides/1.jpg', title: 'Govt. HSS Shangus', caption: 'Nurturing Minds, Shaping Futures' }];
+  });
 
   useEffect(() => {
     import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
@@ -88,21 +97,7 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     async function loadSlides() {
-      // 1. Check local storage override first
-      const local = localStorage.getItem('site_slides');
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0 && active) {
-            setSlides(parsed);
-            return;
-          }
-        } catch (e) {
-          console.warn('Error reading site_slides from localStorage:', e);
-        }
-      }
-
-      // 2. Fetch from Firestore
+      // 1. Fetch from Firestore for dynamic updates
       try {
         const snap = await getDoc(doc(db, 'site', 'slideshow'));
         if (snap.exists() && active) {
