@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
-import { invalidateCache } from '../../services/dbCache';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
@@ -670,14 +671,19 @@ const formatStudentAdmNo = (rec) => {
 // ─── Status Smart Action Dropdown Component ───
 function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, openUp: false });
   const [actionLoading, setActionLoading] = useState(false);
   const [dialogConfig, setDialogConfig] = useState(null);
   const [promptInput, setPromptInput] = useState('');
   const dropdownRef = useRef(null);
+  const btnRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      // Portal-based dropdown: check both the portal element and the trigger button
+      const inDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
+      const inButton = btnRef.current && btnRef.current.contains(event.target);
+      if (!inDropdown && !inButton) {
         setIsOpen(false);
       }
     }
@@ -933,9 +939,21 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
+        ref={btnRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation();
+          if (!isOpen && btnRef.current) {
+            const rect = btnRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const openUp = spaceBelow < 320;
+            setDropdownPos({
+              top: openUp ? undefined : rect.bottom + 4,
+              bottom: openUp ? (window.innerHeight - rect.top + 4) : undefined,
+              left: Math.min(rect.left, window.innerWidth - 230),
+              openUp,
+            });
+          }
           setIsOpen(!isOpen);
         }}
         title="Click to view & execute form actions"
@@ -945,10 +963,19 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
         <ChevronDown size={10} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
+          ref={dropdownRef}
           onClick={(e) => e.stopPropagation()}
-          className="absolute left-0 mt-1 w-56 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[9999] p-1.5 space-y-0.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold"
+          style={{
+            position: 'fixed',
+            ...(dropdownPos.openUp
+              ? { bottom: dropdownPos.bottom + 'px' }
+              : { top: dropdownPos.top + 'px' }),
+            left: dropdownPos.left + 'px',
+            zIndex: 99999,
+          }}
+          className="w-56 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 space-y-0.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold"
         >
           <div className="px-2 py-1 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
             <span>Form Controls</span>
@@ -1041,7 +1068,8 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
               <span>Delete Record</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Sleek Custom Action Dialog Modal (Replaces browser window.prompt / alert) */}
@@ -1420,7 +1448,10 @@ const DEFAULT_1_WIDTHS = {
 };
 
 // ─── ADMIN STUDENT PROFILE FIELD EDITOR MODAL ───
-function AdminStudentEditModal({ student, onClose, onSave, isSaving }) {
+function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedCols = {} }) {
+  const isNewStudent = !student || !student.id;
+  const isFieldLocked = (fieldKey) => !isNewStudent && !!restrictedCols[fieldKey];
+
   const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState(() => ({
     'Form Number': student?.formNo || student?.['Form Number'] || student?.['Form No.'] || '',
@@ -1647,11 +1678,15 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving }) {
                 />
               </div>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Class</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black flex items-center justify-between">
+                  <span>Class</span>
+                  {isFieldLocked('class') && <span className="text-[10px] text-rose-500 font-black">🔒 Field Locked</span>}
+                </label>
                 <select
                   value={formData['Class']}
+                  disabled={isFieldLocked('class')}
                   onChange={(e) => handleChange('Class', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="9th">9th</option>
                   <option value="10th">10th</option>
@@ -1886,8 +1921,15 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving }) {
 }
 
 export default function AdvancedReports({ setActiveTab, viewScope = 'active', setViewScope, setCounts, user, onLogout, onSync, stats, initialData = [] }) {
-  // Data States
-  const [loading, setLoading] = useState(initialData.length === 0); // skip loading spinner if parent passed data
+  // Data States — Instant initialization from props or session cache
+  const [loading, setLoading] = useState(() => {
+    if (initialData.length > 0) return false;
+    try {
+      const cached = sessionStorage.getItem('hss_reports_cache_v2');
+      if (cached) return false;
+    } catch (_) {}
+    return true;
+  });
   const [masterRecords, setMasterRecords] = useState([]);
   const [currentAdmissions, setCurrentAdmissions] = useState(initialData); // seed from parent immediately
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -1939,10 +1981,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         } catch (e) {}
       }
 
-      invalidateCache();
+      updateCachedItem('admissions', docId, payload);
       try {
-        sessionStorage.removeItem('hss_reports_cache_v2');
-        sessionStorage.removeItem('hss_reports_cache_time_v2');
+        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          const updatedActive = (parsed.activeList || []).map(st => {
+            const stFNo = String(st['Form Number'] || st['FormNo'] || st.formNo || '').replace(/^'/, '').trim();
+            if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
+              return { ...st, ...payload };
+            }
+            return st;
+          });
+          sessionStorage.setItem('hss_reports_cache_v2', JSON.stringify({ ...parsed, activeList: updatedActive }));
+        }
       } catch (e) {}
 
       if (editingStudent._isCurrentScope) {
@@ -1982,7 +2034,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   };
 
   // ─── Quick Cell Edit Controls & Handlers ───
-  const [enableQuickCellEdit, setEnableQuickCellEdit] = useState(true);
+  const [enableQuickCellEdit, setEnableQuickCellEdit] = useState(false);
   const [quickEditCell, setQuickEditCell] = useState(null);
   const [isSavingQuickEdit, setIsSavingQuickEdit] = useState(false);
 
@@ -2039,10 +2091,19 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
       } catch (e) {}
 
-      invalidateCache();
+      updateCachedItem('admissions', docId, payload);
       try {
-        sessionStorage.removeItem('hss_reports_cache_v2');
-        sessionStorage.removeItem('hss_reports_cache_time_v2');
+        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          const updatedActive = (parsed.activeList || []).map(st => {
+            if ((cleanFNo && String(st['Form Number'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
+              return { ...st, [colKey]: newValue, [targetFieldName]: newValue };
+            }
+            return st;
+          });
+          sessionStorage.setItem('hss_reports_cache_v2', JSON.stringify({ ...parsed, activeList: updatedActive }));
+        }
       } catch (e) {}
 
       if (student._isCurrentScope) {
@@ -2132,6 +2193,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
   });
 
+
   const DEFAULT_VISIBLE_COLS = {
     sno: true,
     formNo: true,
@@ -2168,7 +2230,36 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     return DEFAULT_VISIBLE_COLS;
   });
 
-  // Dynamic Drag Column Widths State (Persistent Default 2 support)
+  const DEFAULT_RESTRICTED_COLS = {
+    sno: true,
+    status: true,
+    formNo: true,
+    admNo: true,
+    session: true,
+    photoId: true,
+    subs: true,
+    class: true, // Specifically locked per user request!
+  };
+
+  const [restrictedCols, setRestrictedCols] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_admin_restricted_cols_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Could not load saved restricted cols', e);
+    }
+    return DEFAULT_RESTRICTED_COLS;
+  });
+
+  const toggleRestrictedCol = (colKey) => {
+    setRestrictedCols(prev => {
+      const updated = { ...prev, [colKey]: !prev[colKey] };
+      try {
+        localStorage.setItem('hss_admin_restricted_cols_v1', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
   const [colWidths, setColWidths] = useState(() => {
     try {
       const savedWidths = localStorage.getItem('hss_admin_table_widths_v2');
@@ -2244,6 +2335,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   // Modal States
   const [previewPhotoModal, setPreviewPhotoModal] = useState(null);
   const [showColumnManager, setShowColumnManager] = useState(false);
+  const [colManagerTab, setColManagerTab] = useState('visibility'); // 'visibility' | 'restrictions'
   const [colSearchQuery, setColSearchQuery] = useState('');
   const [showToolsModal, setShowToolsModal] = useState(false);
   const [activeToolsTab, setActiveToolsTab] = useState('assign_ids');
@@ -2262,51 +2354,47 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [photoMatchResults, setPhotoMatchResults] = useState([]);
   const [batchSyncingPhotos, setBatchSyncingPhotos] = useState(false);
 
-  // Fetch Master Registers & Current Admissions from Firestore with fast secure caching
+  // Fetch Master Registers & Current Admissions with instant cache + silent background sync
   const loadReportsData = async (forceRefresh = false) => {
-    // If parent already injected fresh data and masterRecords loaded, skip re-fetch
-    if (!forceRefresh && initialData.length > 0 && masterRecords.length > 0) {
-      return;
-    }
+    let hasCache = false;
 
-    // 1. Try Loading from Session Cache if available and fresh (< 30 mins)
-    if (!forceRefresh) {
-      try {
-        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
-        const timeRaw = sessionStorage.getItem('hss_reports_cache_time_v2');
-        if (cachedRaw && timeRaw) {
-          const age = Date.now() - parseInt(timeRaw, 10);
-          if (age < 30 * 60 * 1000) { // 30-minute TTL
-            const parsed = JSON.parse(cachedRaw);
-            setCurrentAdmissions(parsed.activeList || []);
-            setMasterRecords(parsed.historicalList || []);
-            if (setCounts) {
-              setCounts({
-                active: (parsed.activeList || []).length,
-                total: (parsed.activeList || []).length + (parsed.historicalList || []).length
-              });
-            }
-            setLoading(false);
-            return;
+    // 1. Instant Cache Load
+    try {
+      const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
+      if (cachedRaw) {
+        const parsed = JSON.parse(cachedRaw);
+        if (parsed.activeList && parsed.activeList.length > 0) {
+          setCurrentAdmissions(parsed.activeList);
+          setMasterRecords(parsed.historicalList || []);
+          if (setCounts) {
+            setCounts({
+              active: (parsed.activeList || []).length,
+              total: (parsed.activeList || []).length + (parsed.historicalList || []).length
+            });
           }
+          setLoading(false);
+          hasCache = true;
         }
-      } catch (e) {
-        console.warn('Cache read error:', e);
       }
+    } catch (e) {
+      console.warn('Cache read error:', e);
     }
 
-    setLoading(true);
+    // If no cache or force refresh, show loader only if we have zero data
+    if (!hasCache && currentAdmissions.length === 0) {
+      setLoading(true);
+    }
+
+    // 2. Silent Background Synchronization
     let activeList = [];
     let historicalList = [];
 
     try {
-      // Fetch Active Admissions from Firestore
       const admSnap = await getDocs(collection(db, 'admissions'));
       if (!admSnap.empty) {
         activeList = admSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), isCurrentSession: true }));
       }
 
-      // Fetch Master Registers (Historical Session Records) from Firestore
       try {
         const masterSnap = await getDocs(collection(db, 'masterRegisters'));
         if (!masterSnap.empty) {
@@ -3407,23 +3495,23 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     URL.revokeObjectURL(url);
   };
 
-  // Cell padding class based on density state (ultra-compact vertical spacing)
+  // Cell padding class based on density state (comfortable legible font sizes to prevent eye strain)
   const cellPaddingClass = density === 'fit'
-    ? 'px-1 py-0.2 text-[8.5px] leading-tight'
+    ? 'px-2 py-1.5 text-xs font-bold leading-normal'
     : density === 'compact'
-    ? 'px-1 py-0.5 text-[9.5px] leading-tight'
-    : 'px-1.5 py-0.5 text-[10px] leading-tight';
+    ? 'px-2.5 py-2 text-xs sm:text-[13px] font-extrabold leading-normal'
+    : 'px-3.5 py-2.5 text-xs sm:text-sm font-black leading-normal';
 
   return (
-    <div className="space-y-1 text-[10px] animate-fadeIn">
-      {/* Sleek Ultra-Compact Vertical Control Bar */}
-      <div className="p-1 rounded-lg border shadow-2xs space-y-0.5 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1 text-[10px]" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+    <div className="space-y-1.5 text-xs sm:text-sm animate-fadeIn">
+      {/* Sleek Control Bar */}
+      <div className="p-1.5 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs sm:text-sm font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
         
         {/* Mobile Top Row / Desktop Left Section: Scope Swapper & Tools Icon */}
         <div className="flex items-center justify-between sm:justify-start gap-1 flex-wrap sm:flex-nowrap">
           
           {/* Quick Scope Swapper Toggle Button */}
-          <div className="flex items-center p-0.5 rounded border text-[9.5px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
+          <div className="flex items-center p-0.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
             <button
               type="button"
               onClick={() => { setViewScope('active'); setCurrentPage(1); }}
@@ -3670,7 +3758,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           <table className={`w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 ${
             density === 'normal' ? 'whitespace-nowrap' : 'whitespace-normal break-words'
           }`}>
-            <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-[9px] shadow-2xs">
+            <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr>
                 {COLUMN_DEFS.filter(col => visibleCols[col.key]).map(col => {
                   const widthPx = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
@@ -3759,10 +3847,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                             )}
 
                             {/* Vertical hover action capsule (Edit on top, Copy on bottom) for editable text fields */}
-                            {!['sno', 'status', 'formNo', 'admNo', 'session', 'photoId', 'subs', 'stream'].includes(col.key) && (
+                            {(!restrictedCols[col.key] || (!val || val === '—')) && (
                               <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 ml-1 flex-shrink-0 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-2xs p-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs">
-                                {/* Top: Edit Icon */}
-                                {enableQuickCellEdit && (
+                                {/* Top: Edit/Add Icon — always shown for empty cells (add), only shown when Quick Edit enabled for filled cells (edit) */}
+                                {(enableQuickCellEdit || !val || val === '—') && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -3774,9 +3862,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                       });
                                     }}
                                     className="p-0.5 hover:bg-amber-200 dark:hover:bg-amber-900/80 text-amber-700 dark:text-amber-300 rounded cursor-pointer transition-colors"
-                                    title={`Quick Edit ${col.label}`}
+                                    title={(!val || val === '—') ? `Add ${col.label}` : `Quick Edit ${col.label}`}
                                   >
-                                    <Edit3 size={10} />
+                                    {(!val || val === '—')
+                                      ? <PlusCircle size={10} />
+                                      : <Edit3 size={10} />}
                                   </button>
                                 )}
 
@@ -3828,184 +3918,258 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </button>
             </div>
 
-            {/* Quick Layout Presets */}
-            <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
-              <span className="text-slate-700 dark:text-slate-300">Quick Presets:</span>
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
               <button
                 type="button"
-                onClick={() => applyPreset('fit')}
-                className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white shadow-sm cursor-pointer"
+                onClick={() => setColManagerTab('visibility')}
+                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  colManagerTab === 'visibility'
+                    ? 'bg-amber-700 text-white shadow-md'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
               >
-                ⚡ Fit All Screen Width
+                <Eye size={14} /> <span>Column Display Visibility</span>
               </button>
               <button
                 type="button"
-                onClick={() => applyPreset('essential')}
-                className="px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white shadow-sm cursor-pointer"
+                onClick={() => setColManagerTab('restrictions')}
+                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  colManagerTab === 'restrictions'
+                    ? 'bg-amber-700 text-white shadow-md'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
               >
-                📋 Essential Columns
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('all')}
-                className="px-3 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm cursor-pointer"
-              >
-                🌐 Show All (Scroll)
+                <ShieldCheck size={14} /> <span>🔒 Lock Fields from Editing</span>
               </button>
             </div>
 
-            {/* Search Input for Columns */}
-            <div className="relative flex-shrink-0">
-              <input
-                type="text"
-                placeholder="Search columns by name..."
-                value={colSearchQuery}
-                onChange={(e) => setColSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 pl-9 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs bg-slate-50 dark:bg-slate-950"
-              />
-              <Search size={13} className="absolute left-3 top-3 text-slate-500 dark:text-slate-400" />
-              {colSearchQuery && (
-                <button onClick={() => setColSearchQuery('')} className="absolute right-3 top-2 text-slate-500 hover:text-slate-700">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+            {colManagerTab === 'visibility' ? (
+              <>
+                {/* Quick Layout Presets */}
+                <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
+                  <span className="text-slate-700 dark:text-slate-300">Quick Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('fit')}
+                    className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white shadow-sm cursor-pointer"
+                  >
+                    ⚡ Fit All Screen Width
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('essential')}
+                    className="px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white shadow-sm cursor-pointer"
+                  >
+                    📋 Essential Columns
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('all')}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm cursor-pointer"
+                  >
+                    🌐 Show All (Scroll)
+                  </button>
+                </div>
 
-            {/* Classified Columns List */}
-            <div className="space-y-4 overflow-y-auto p-2.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex-1 max-h-[50vh]">
-              {[
-                {
-                  category: "👤 Personal Details",
-                  columns: [
-                    { key: 'studentName', label: "Student's Name" },
-                    { key: 'fatherName', label: "Father's Name" },
-                    { key: 'motherName', label: "Mother's Name" },
-                    { key: 'dob', label: 'DoB' },
-                    { key: 'dobWords', label: 'DoB (words)' },
-                    { key: 'gender', label: 'Gender' },
-                    { key: 'category', label: 'Category' },
-                    { key: 'religion', label: 'Religion' },
-                    { key: 'disabilityStatus', label: 'Disability Status' },
-                    { key: 'disabilityType', label: 'Disability Type' },
-                    { key: 'bloodType', label: 'Blood Type' },
-                    { key: 'height', label: 'Height (cm)' },
-                    { key: 'weight', label: 'Weight (kg)' },
-                    { key: 'aadhar', label: 'Aadhaar No.' },
-                    { key: 'apaarId', label: 'APAAR ID' },
-                    { key: 'socialCategory', label: 'Social Category' },
-                    { key: 'socioEconomicCategory', label: 'Socio-economic Category' },
-                  ]
-                },
-                {
-                  category: "📍 Address & Contact",
-                  columns: [
-                    { key: 'village', label: 'Village/Town' },
-                    { key: 'residence', label: 'Residence (Village, District)' },
-                    { key: 'block', label: 'Block' },
-                    { key: 'tehsil', label: 'Tehsil' },
-                    { key: 'district', label: 'District' },
-                    { key: 'pinCode', label: 'PIN Code' },
-                    { key: 'state', label: 'State/UT' },
-                    { key: 'houseNo', label: 'House No.' },
-                    { key: 'mobile', label: "Student's Contact" },
-                    { key: 'parentContact', label: "Parent's Contact" },
-                    { key: 'email1', label: 'Email 1' },
-                    { key: 'email2', label: 'Email 2' },
-                  ]
-                },
-                {
-                  category: "🎓 Academic & Enrollment",
-                  columns: [
-                    { key: 'classRollNo', label: 'Class R.No.' },
-                    { key: 'admNo', label: 'Adm. No.' },
-                    { key: 'class', label: 'Class' },
-                    { key: 'session', label: 'Session' },
-                    { key: 'stream', label: 'Stream' },
-                    { key: 'subs', label: 'Subs' },
-                    { key: 'subjects1', label: 'Subjects 1' },
-                    { key: 'subjects2', label: 'Subjects 2' },
-                    { key: 'subjects3', label: 'Subjects 3' },
-                    { key: 'subjects4', label: 'Subjects 4' },
-                    { key: 'subjects5', label: 'Subjects 5' },
-                    { key: 'subjects6', label: 'Subject 6' },
-                    { key: 'boardRegNo', label: 'Board Reg. No.' },
-                    { key: 'photoId', label: 'Photo' },
-                    { key: 'boardName', label: 'Board Name' },
-                    { key: 'penNo', label: 'PEN No.' },
-                    { key: 'onlineSubmDate', label: 'Online Subm. Date' },
-                    { key: 'admDate', label: 'Adm. Date' },
-                  ]
-                },
-                {
-                  category: "🏫 Previous School Details",
-                  columns: [
-                    { key: 'prevSchool', label: 'Previous School' },
-                    { key: 'prevComplexHead', label: 'Previous Complex Head' },
-                    { key: 'prevCcDc', label: 'CC/DC No. & Date (Prev. institution)' },
-                    { key: 'prevExamMode', label: 'Exam Mode (Prev.)' },
-                    { key: 'prevExamRollNo', label: 'Exam R.No. (Prev.)' },
-                    { key: 'prevMarksObt', label: 'Marks Obt. (Prev.)' },
-                    { key: 'prevMaxMarks', label: 'Max. Marks (Prev.)' },
-                    { key: 'prevPercentage', label: '%age (Prev.)' },
-                    { key: 'prevDivision', label: 'Div/Distinc (Prev.)' },
-                    { key: 'vocationalPercentage', label: 'Vocational %age' },
-                  ]
-                },
-                {
-                  category: "🏦 Bank Details",
-                  columns: [
-                    { key: 'bankAccount', label: 'Bank Account Number' },
-                    { key: 'bankName', label: 'Bank Name' },
-                    { key: 'ifsc', label: 'IFSC Code' },
-                  ]
-                },
-                {
-                  category: "⚙️ System & Current Exam",
-                  columns: [
-                    { key: 'sno', label: 'S.No.' },
-                    { key: 'formNo', label: 'Form No.' },
-                    { key: 'status', label: 'Status' },
-                    { key: 'currExamMode', label: 'Exam Mode (Current)' },
-                    { key: 'currExamRollNo', label: 'Exam R.No. (Current)' },
-                    { key: 'currResult', label: 'Result (Current)' },
-                    { key: 'currMarksReapp', label: 'Marks/Reapp (Current)' },
-                    { key: 'withdrawalDate', label: 'Date of Withdrawal' },
-                    { key: 'currCcDc', label: 'No. & Date of CC/DC Issued' },
-                    { key: 'remarks', label: 'Remarks' },
-                    { key: 'pdfUrl', label: 'PDF URL' },
-                    { key: 'readmission', label: 'Re-admission' },
-                  ]
-                }
-              ].map((group) => {
-                const filteredCols = group.columns.filter(c => 
-                  c.label.toLowerCase().includes(colSearchQuery.toLowerCase()) || 
-                  c.key.toLowerCase().includes(colSearchQuery.toLowerCase())
-                );
-                
-                if (filteredCols.length === 0) return null;
+                {/* Search Input for Columns */}
+                <div className="relative flex-shrink-0">
+                  <input
+                    type="text"
+                    placeholder="Search columns by name..."
+                    value={colSearchQuery}
+                    onChange={(e) => setColSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 pl-9 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs bg-slate-50 dark:bg-slate-950"
+                  />
+                  <Search size={13} className="absolute left-3 top-3 text-slate-500 dark:text-slate-400" />
+                  {colSearchQuery && (
+                    <button onClick={() => setColSearchQuery('')} className="absolute right-3 top-2 text-slate-500 hover:text-slate-700">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
-                return (
-                  <div key={group.category} className="space-y-2">
-                    <h4 className="text-[10px] font-black text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-1 uppercase tracking-wide">
-                      {group.category}
-                    </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2">
-                      {filteredCols.map((c) => (
-                        <label key={`${group.category}_${c.key}`} className="flex items-center gap-1.5 p-1.5 sm:p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 hover:border-amber-500 cursor-pointer font-black text-[11px] sm:text-xs text-slate-900 dark:text-slate-100 transition-colors shadow-2xs">
+                {/* Classified Columns List */}
+                <div className="space-y-4 overflow-y-auto p-2.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex-1 max-h-[50vh]">
+                  {[
+                    {
+                      category: "👤 Personal Details",
+                      columns: [
+                        { key: 'studentName', label: "Student's Name" },
+                        { key: 'fatherName', label: "Father's Name" },
+                        { key: 'motherName', label: "Mother's Name" },
+                        { key: 'dob', label: 'DoB' },
+                        { key: 'dobWords', label: 'DoB (words)' },
+                        { key: 'gender', label: 'Gender' },
+                        { key: 'category', label: 'Category' },
+                        { key: 'religion', label: 'Religion' },
+                        { key: 'disabilityStatus', label: 'Disability Status' },
+                        { key: 'disabilityType', label: 'Disability Type' },
+                        { key: 'bloodType', label: 'Blood Type' },
+                        { key: 'height', label: 'Height (cm)' },
+                        { key: 'weight', label: 'Weight (kg)' },
+                        { key: 'aadhar', label: 'Aadhaar No.' },
+                        { key: 'apaarId', label: 'APAAR ID' },
+                        { key: 'socialCategory', label: 'Social Category' },
+                        { key: 'socioEconomicCategory', label: 'Socio-economic Category' },
+                      ]
+                    },
+                    {
+                      category: "📍 Address & Contact",
+                      columns: [
+                        { key: 'village', label: 'Village/Town' },
+                        { key: 'residence', label: 'Residence (Village, District)' },
+                        { key: 'block', label: 'Block' },
+                        { key: 'tehsil', label: 'Tehsil' },
+                        { key: 'district', label: 'District' },
+                        { key: 'pinCode', label: 'PIN Code' },
+                        { key: 'state', label: 'State/UT' },
+                        { key: 'houseNo', label: 'House No.' },
+                        { key: 'mobile', label: "Student's Contact" },
+                        { key: 'parentContact', label: "Parent's Contact" },
+                        { key: 'email1', label: 'Email 1' },
+                        { key: 'email2', label: 'Email 2' },
+                      ]
+                    },
+                    {
+                      category: "🎓 Academic & Enrollment",
+                      columns: [
+                        { key: 'classRollNo', label: 'Class R.No.' },
+                        { key: 'admNo', label: 'Adm. No.' },
+                        { key: 'class', label: 'Class' },
+                        { key: 'session', label: 'Session' },
+                        { key: 'stream', label: 'Stream' },
+                        { key: 'subs', label: 'Subs' },
+                        { key: 'subjects1', label: 'Subjects 1' },
+                        { key: 'subjects2', label: 'Subjects 2' },
+                        { key: 'subjects3', label: 'Subjects 3' },
+                        { key: 'subjects4', label: 'Subjects 4' },
+                        { key: 'subjects5', label: 'Subjects 5' },
+                        { key: 'subjects6', label: 'Subject 6' },
+                        { key: 'boardRegNo', label: 'Board Reg. No.' },
+                        { key: 'photoId', label: 'Photo' },
+                        { key: 'boardName', label: 'Board Name' },
+                        { key: 'penNo', label: 'PEN No.' },
+                        { key: 'onlineSubmDate', label: 'Online Subm. Date' },
+                        { key: 'admDate', label: 'Adm. Date' },
+                      ]
+                    },
+                    {
+                      category: "🏫 Previous School Details",
+                      columns: [
+                        { key: 'prevSchool', label: 'Previous School' },
+                        { key: 'prevComplexHead', label: 'Previous Complex Head' },
+                        { key: 'prevCcDc', label: 'CC/DC No. & Date (Prev. institution)' },
+                        { key: 'prevExamMode', label: 'Exam Mode (Prev.)' },
+                        { key: 'prevExamRollNo', label: 'Exam R.No. (Prev.)' },
+                        { key: 'prevMarksObt', label: 'Marks Obt. (Prev.)' },
+                        { key: 'prevMaxMarks', label: 'Max. Marks (Prev.)' },
+                        { key: 'prevPercentage', label: '%age (Prev.)' },
+                        { key: 'prevDivision', label: 'Div/Distinc (Prev.)' },
+                        { key: 'vocationalPercentage', label: 'Vocational %age' },
+                      ]
+                    },
+                    {
+                      category: "🏦 Bank Details",
+                      columns: [
+                        { key: 'bankAccount', label: 'Bank Account Number' },
+                        { key: 'bankName', label: 'Bank Name' },
+                        { key: 'ifsc', label: 'IFSC Code' },
+                      ]
+                    },
+                    {
+                      category: "⚙️ System & Current Exam",
+                      columns: [
+                        { key: 'sno', label: 'S.No.' },
+                        { key: 'formNo', label: 'Form No.' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'currExamMode', label: 'Exam Mode (Current)' },
+                        { key: 'currExamRollNo', label: 'Exam R.No. (Current)' },
+                        { key: 'currResult', label: 'Result (Current)' },
+                        { key: 'currMarksReapp', label: 'Marks/Reapp (Current)' },
+                        { key: 'withdrawalDate', label: 'Date of Withdrawal' },
+                        { key: 'currCcDc', label: 'No. & Date of CC/DC Issued' },
+                        { key: 'remarks', label: 'Remarks' },
+                        { key: 'pdfUrl', label: 'PDF URL' },
+                        { key: 'readmission', label: 'Re-admission' },
+                      ]
+                    }
+                  ].map((group) => {
+                    const filteredCols = group.columns.filter(c => 
+                      c.label.toLowerCase().includes(colSearchQuery.toLowerCase()) || 
+                      c.key.toLowerCase().includes(colSearchQuery.toLowerCase())
+                    );
+                    
+                    if (filteredCols.length === 0) return null;
+
+                    return (
+                      <div key={group.category} className="space-y-2">
+                        <h4 className="text-[10px] font-black text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-1 uppercase tracking-wide">
+                          {group.category}
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2">
+                          {filteredCols.map((c) => (
+                            <label key={`${group.category}_${c.key}`} className="flex items-center gap-1.5 p-1.5 sm:p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 hover:border-amber-500 cursor-pointer font-black text-[11px] sm:text-xs text-slate-900 dark:text-slate-100 transition-colors shadow-2xs">
+                              <input
+                                type="checkbox"
+                                checked={visibleCols[c.key]}
+                                onChange={() => toggleCol(c.key)}
+                                className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0"
+                              />
+                              <span className="truncate" title={c.label}>{c.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3 overflow-y-auto pr-1 flex-1 max-h-[60vh]">
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-bold space-y-1">
+                  <div className="font-black text-sm flex items-center gap-1.5">
+                    <ShieldCheck size={16} /> Restricted Fields Manager
+                  </div>
+                  <p>
+                    Check fields below to <strong>LOCK</strong> them from editing. Checked fields will not allow quick cell edit or modal editing. Unchecked fields are <strong>automatically editable</strong>.
+                  </p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-black pt-1">
+                    📌 Note: <strong>Class</strong> field is locked by default as requested.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {COLUMN_DEFS.map((c) => {
+                    const isRestricted = !!restrictedCols[c.key];
+                    return (
+                      <label
+                        key={`lock_${c.key}`}
+                        className={`flex items-center justify-between p-2 rounded-xl border font-black text-xs cursor-pointer transition-all ${
+                          isRestricted
+                            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-300'
+                            : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
                           <input
                             type="checkbox"
-                            checked={visibleCols[c.key]}
-                            onChange={() => toggleCol(c.key)}
-                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0"
+                            checked={isRestricted}
+                            onChange={() => toggleRestrictedCol(c.key)}
+                            className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer flex-shrink-0"
                           />
-                          <span className="truncate" title={c.label}>{c.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                          <span className="truncate">{c.label}</span>
+                        </div>
+                        <span className="text-[10px] font-black flex-shrink-0 ml-1">
+                          {isRestricted ? '🔒 Locked' : '✏️ Editable'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
 
             {layoutNotice && (
               <div className={`p-2 rounded-xl font-extrabold text-xs text-center border ${
@@ -4447,6 +4611,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           onClose={() => setEditingStudent(null)}
           onSave={handleSaveStudentEdit}
           isSaving={isSavingEdit}
+          restrictedCols={restrictedCols}
         />
       )}
 

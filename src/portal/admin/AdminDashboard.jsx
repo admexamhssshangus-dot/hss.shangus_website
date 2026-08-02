@@ -14,7 +14,7 @@ import AdminAttendance from './AdminAttendance';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
-import { getCachedCollection } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
 
 export default function AdminDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -40,27 +40,42 @@ export default function AdminDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Applications Data State
-  const [loading, setLoading] = useState(true);
-  const [applications, setApplications] = useState([]);
+  // Applications Data State with Instant Cache + Silent Background Sync
+  const initialCachedApps = getCachedCollectionSync('admissions');
+  const [loading, setLoading] = useState(!initialCachedApps || initialCachedApps.length === 0);
+  const [applications, setApplications] = useState(initialCachedApps || []);
   const [selectedApp, setSelectedApp] = useState(null); // For ApplicationReviewModal
 
-  // Fetch Admin Dashboard Data using shared cache (30-min TTL, reads from hss_cache_admissions)
+  // Fetch Admin Dashboard Data using shared cache with silent background revalidation
   const loadAdminData = useCallback(async (force = false) => {
-    setLoading(true);
+    // Only show full loader on initial cold start when NO data is available
+    if (force || applications.length === 0) {
+      if (applications.length === 0) setLoading(true);
+    }
+
+    const timeoutTimer = setTimeout(() => {
+      setLoading(false);
+    }, 4000);
+
     try {
-      const list = await getCachedCollection('admissions', force, 30 * 60 * 1000);
-      setApplications(list);
+      const list = await getCachedCollection('admissions', force, 30 * 60 * 1000, (freshList) => {
+        // Silent background update callback
+        setApplications(freshList || []);
+      });
+      if (list && Array.isArray(list)) {
+        setApplications(list);
+      }
     } catch (err) {
       console.error('Failed to load admin dashboard data:', err);
     } finally {
+      clearTimeout(timeoutTimer);
       setLoading(false);
     }
-  }, []);
+  }, [applications.length]);
 
   useEffect(() => {
     loadAdminData();
-  }, [loadAdminData]);
+  }, []);
 
   // Stats calculation
   const totalCount = applications.length;

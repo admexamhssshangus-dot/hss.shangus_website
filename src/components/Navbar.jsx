@@ -323,24 +323,22 @@ export default function Navbar() {
               {/* Login Link Area (Desktop) */}
               <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600/80 items-center h-full py-0.5">
                 {currentUser ? (
-                  <div className="inline-flex items-center gap-2 py-1 px-1.5 rounded-full border shadow-lg" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
+                  <div className="inline-flex items-center gap-1.5 py-0.5 px-1.5 rounded-full border shadow-md" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
                     {/* User avatar + name → dashboard link */}
                     <Link
                       to={getDashboardPath(currentUser.role)}
-                      className="flex items-center gap-2 group cursor-pointer"
+                      className="flex items-center gap-1.5 group cursor-pointer"
                       title={`Signed in as ${currentUser.name || currentUser.email}. Click to open dashboard.`}
                     >
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 shadow-md" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center font-black text-[9.5px] shrink-0 shadow-xs" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
                         {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
                       </div>
-                      <div className="flex flex-col leading-none">
-                        <span className="text-[11px] font-black text-white group-hover:text-teal-300 transition-colors max-w-[110px] truncate">
-                          {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
+                      <span className="text-[11px] font-black text-white group-hover:text-teal-300 transition-colors max-w-[150px] truncate leading-none">
+                        {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
+                        <span className="text-[8px] font-extrabold text-teal-400 ml-1">
+                          ({currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')})
                         </span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#14b8a6' }}>
-                          {currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')}
-                        </span>
-                      </div>
+                      </span>
                     </Link>
                     {/* Logout — small text & icon button */}
                     <button
@@ -469,19 +467,17 @@ export default function Navbar() {
                       <Link
                         to={getDashboardPath(currentUser.role)}
                         onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-2.5 overflow-hidden group"
+                        className="flex items-center gap-2 overflow-hidden group"
                       >
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-[12px] shrink-0 shadow-md" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 shadow-xs" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
                           {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
                         </div>
-                        <div className="truncate">
-                          <p className="text-xs font-black text-white group-hover:text-teal-300 transition-colors truncate">
-                            {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
-                          </p>
-                          <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#14b8a6' }}>
-                            {currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'Logged In')}
-                          </p>
-                        </div>
+                        <span className="text-xs font-black text-white group-hover:text-teal-300 transition-colors truncate">
+                          {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
+                          <span className="text-[8px] font-extrabold text-teal-400 ml-1">
+                            ({currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')})
+                          </span>
+                        </span>
                       </Link>
                       <button
                         onClick={handleGlobalLogout}

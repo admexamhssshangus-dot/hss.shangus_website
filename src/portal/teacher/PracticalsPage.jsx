@@ -799,10 +799,10 @@ export default function PracticalsPage() {
       // 1. Fetch saved practical marks (supporting both docId format & legacy doc_1, doc_12, etc.)
       let savedMarksMap = {};
       try {
-        const allPracDocs = await getDocs(collection(db, 'practicalsData'));
-        allPracDocs.docs.forEach(d => {
-          const data = d.data();
-          const dId = d.id;
+        const rawDocs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
+        const docItems = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        docItems.forEach(data => {
+          const dId = data.id || data.docId || '';
 
           // Class Match
           const docClass = String(data.className || data.Class || dId).toLowerCase();
@@ -831,8 +831,8 @@ export default function PracticalsPage() {
           const docSubj = String(data.subjectName || data.Subject || data.subjectCode || data.subject || '').toUpperCase();
           const matchSubj = docSubj.includes(targetSubjCode.toUpperCase()) || 
                             docSubj.includes(targetSubjName.toUpperCase()) ||
-                            (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj.includes('BI'))) ||
-                            (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj.includes('BI'))) ||
+                            (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj.includes('BO') || docSubj.includes('BI'))) ||
+                            (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj.includes('ZO') || docSubj.includes('BI'))) ||
                             (targetSubjCode === 'BI' && (docSubj.includes('BIOLOGY') || docSubj.includes('BOTANY') || docSubj.includes('ZOOLOGY'))) ||
                             dId === docId;
           
