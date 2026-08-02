@@ -281,36 +281,59 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     async function loadNotices() {
-      // 1. Check local storage override first (for admin instant testing)
+      // 1. Try Firestore first (Live Cloud Data across all devices)
+      try {
+        const snap = await getDoc(doc(db, 'site', 'notices'));
+        if (snap.exists() && active) {
+          const data = snap.data();
+          if (data && data.text) {
+            const parsed = parseNotices(data.text);
+            if (parsed.length > 0) {
+              setNotices(parsed);
+              localStorage.setItem('site_notices', data.text);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Firestore notices fetch failed, checking fallbacks:', err);
+      }
+
+      // 2. Try static server file (/slides/notices.txt)
+      try {
+        const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
+        if (res.ok) {
+          const text = await res.text();
+          if (!text.trim().startsWith('<')) {
+            const parsed = parseNotices(text);
+            if (parsed.length > 0 && active) {
+              setNotices(parsed);
+              localStorage.setItem('site_notices', text);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Server notices.txt fetch failed:', err);
+      }
+
+      // 3. Try cached localStorage as offline backup
       const local = localStorage.getItem('site_notices');
-      if (local) {
+      if (local && active) {
         const parsed = parseNotices(local);
-        if (parsed.length > 0 && active) {
+        if (parsed.length > 0) {
           setNotices(parsed);
           return;
         }
       }
 
-      // 2. Fetch from server
-      try {
-        const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
-        if (!res.ok) throw new Error('Notices config file not found');
-        const text = await res.text();
-        if (text.trim().startsWith('<')) throw new Error('Offline fallback HTML received');
-        const parsed = parseNotices(text);
-        
-        if (active) {
-          setNotices(parsed);
-        }
-      } catch (err) {
-        console.error('Failed to load notices configuration:', err);
-        if (active) {
-          setNotices([
-            { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
-            { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
-            { date: 'Nov 23', title: 'Admit Cards', link: '#' }
-          ]);
-        }
+      // 4. Default hardcoded fallback
+      if (active) {
+        setNotices([
+          { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
+          { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
+          { date: 'Nov 23', title: 'Admit Cards', link: '#' }
+        ]);
       }
     }
     loadNotices();
@@ -421,11 +444,11 @@ export default function Home() {
                         const day = parts[0] || n.date;
                         const month = (parts[1] || '').toUpperCase();
                         return (
-                          <div className="w-11 h-11 rounded-xl border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-sm transition-all group-hover:border-teal-500/40">
-                            <div className="bg-teal-700 text-[7px] font-extrabold text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
+                          <div className="w-10 h-8 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-xs transition-all group-hover:border-teal-500/40">
+                            <div className="bg-teal-700 text-[6.5px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
                               {month || 'DATE'}
                             </div>
-                            <div className="flex-grow flex items-center justify-center bg-white font-title text-xs font-bold text-slate-800 leading-none">
+                            <div className="flex-grow flex items-center justify-center bg-white font-title text-[11px] font-black text-slate-800 leading-none">
                               {day}
                             </div>
                           </div>

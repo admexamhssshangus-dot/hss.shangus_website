@@ -935,17 +935,23 @@ export default function AdminPortal() {
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [pendingUser, setPendingUser] = useState(null);
   const [magicLinkSuccess, setMagicLinkSuccess] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Dynamic admin accounts list
   const [admins, setAdmins] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [firebaseUser, setFirebaseUser] = useState(null);
 
-  // Maintain a ref to currentUser to avoid infinite dependency loops in useEffects
+  // Maintain refs to avoid infinite dependency loops & listener tear-downs in useEffects
   const currentUserRef = useRef(currentUser);
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  const adminsRef = useRef(admins);
+  useEffect(() => {
+    adminsRef.current = admins;
+  }, [admins]);
 
   useEffect(() => {
     if (otpCooldown <= 0) return;
@@ -1318,13 +1324,28 @@ export default function AdminPortal() {
     };
   }, []);
 
-  // Firebase auth state listener
+  // Firebase auth state listener (subscribes once on mount to prevent login flickering)
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
+
+      const hasLocalSession = sessionStorage.getItem('isAdminAuthenticated') === 'true';
+      const storedAdminRaw = sessionStorage.getItem('adminUser');
+      let storedAdmin = null;
+      if (storedAdminRaw) {
+        try { storedAdmin = JSON.parse(storedAdminRaw); } catch (e) {}
+      }
+
+      if (hasLocalSession || storedAdmin) {
+        setIsAuthenticated(true);
+        if (storedAdmin && !currentUserRef.current) {
+          setCurrentUser(normalizeAdmin(storedAdmin));
+        }
+        if (!user) return; // Retain active local admin session
+      }
+
       if (!user) {
-        // No firebase user — fall back to local admin session state
-        setIsAuthenticated(!!currentUserRef.current);
+        setIsAuthenticated(!!currentUserRef.current || hasLocalSession);
         return;
       }
 
@@ -1333,11 +1354,12 @@ export default function AdminPortal() {
         const idToken = await getIdTokenResult(user, false);
         const isAdminClaim = idToken?.claims?.admin === true;
         const userEmail = (user.email || '').toLowerCase();
-        const listedAdmin = Array.isArray(admins) && admins.find(a => a.email.toLowerCase() === userEmail);
+        const activeAdmins = adminsRef.current || [];
+        const listedAdmin = Array.isArray(activeAdmins) && activeAdmins.find(a => a.email.toLowerCase() === userEmail);
         // Also check hardcoded defaults as a fallback during initial load race
         const defaultAdmin = DEFAULT_ADMINS.find(a => a.email.toLowerCase() === userEmail);
 
-        if (!user.emailVerified && !isAdminClaim) {
+        if (!user.emailVerified && !isAdminClaim && !hasLocalSession) {
           setIsAuthenticated(false);
           setAuthError('Your email address has not been verified. Please verify your email before logging in as an administrator.');
         } else if (isAdminClaim || listedAdmin || defaultAdmin) {
@@ -1377,33 +1399,37 @@ export default function AdminPortal() {
           setEmail('');
           setPassword('');
           setCaptchaInput('');
-        } else {
+        } else if (!hasLocalSession) {
           // Signed in to Firebase but not authorized as admin locally
           setIsAuthenticated(false);
           setAuthError('This account is not registered as an administrator. Use local admin login or ask a Super Admin to add your email.');
         }
       } catch (err) {
         console.warn('Failed to verify Firebase ID token:', err);
-        // Conservatively do not authenticate UI until verification completes
-        setIsAuthenticated(false);
-        setAuthError('Failed to validate sign-in. Please try again.');
+        // Only set unauthenticated if no valid local admin session exists
+        if (!sessionStorage.getItem('isAdminAuthenticated')) {
+          setIsAuthenticated(false);
+          setAuthError('Failed to validate sign-in. Please try again.');
+        }
       }
     });
     return () => unsub();
-  }, [admins]);
+  }, []);
 
-  // Helper to log out (also sign out of Firebase if signed in)
+  // Helper to log out of Administrative Console
   const handleLogout = async (reason) => {
     // Clear session/local storage and UI state
     sessionStorage.removeItem('isAdminAuthenticated');
     sessionStorage.removeItem('admin_session_id');
     sessionStorage.removeItem('adminUser');
     sessionStorage.removeItem('activeAdminTab');
+    localStorage.removeItem('admin_active_session_id');
+    localStorage.removeItem('admin_last_active');
+
     setCurrentUser(null);
     setIsAuthenticated(false);
-    generateCaptcha(false); // Generate fresh CAPTCHA on logout without shaking
+    generateCaptcha(false); // Generate fresh CAPTCHA on logout
 
-    // Sign out of Firebase auth if present to avoid automatic re-login on refresh
     try {
       if (auth && auth.currentUser) {
         await firebaseSignOut(auth);
@@ -1412,31 +1438,19 @@ export default function AdminPortal() {
       console.warn('Firebase sign-out failed:', err);
     }
 
+    try {
+      const channel = new BroadcastChannel('hss_admin_session');
+      channel.postMessage({ type: 'LOGOUT', reason: reason || 'user_logout' });
+      channel.close();
+    } catch (err) {
+      // ignore
+    }
+
     if (reason === 'logged_out_elsewhere') {
       setAuthError('You have been logged out because a new session was started in another tab.');
     } else if (reason === 'inactivity') {
-      localStorage.removeItem('admin_active_session_id');
-      localStorage.removeItem('admin_last_active');
-      try {
-        const channel = new BroadcastChannel('hss_admin_session');
-        channel.postMessage({ type: 'LOGOUT', reason: 'inactivity' });
-        channel.close();
-      } catch (err) {
-        // ignore
-      }
       setAuthError('You have been logged out due to inactivity.');
-    } else if (reason === 'sync_logout') {
-      setAuthError('');
     } else {
-      localStorage.removeItem('admin_active_session_id');
-      localStorage.removeItem('admin_last_active');
-      try {
-        const channel = new BroadcastChannel('hss_admin_session');
-        channel.postMessage({ type: 'LOGOUT', reason: 'sync_logout' });
-        channel.close();
-      } catch (err) {
-        // ignore
-      }
       setAuthError('');
     }
   };
@@ -1470,41 +1484,47 @@ export default function AdminPortal() {
       return;
     }
 
-    // Look up admin by email
-    const foundAdmin = admins.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
+    setIsLoggingIn(true);
+    try {
+      // Look up admin by email
+      const foundAdmin = admins.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
 
-    // Hash password input using explicit algorithm when available.
-    // Prefer `hashAlgo === 'pbkdf2'` or presence of `salt` for PBKDF2; otherwise use plain SHA-256.
-    const usePBKDF2 = !!(foundAdmin && (foundAdmin.hashAlgo === 'pbkdf2' || foundAdmin.salt));
-    const inputHash = usePBKDF2 ? await hashPassword(password, foundAdmin.salt) : await hashPassword(password);
+      // Hash password input using explicit algorithm when available.
+      // Prefer `hashAlgo === 'pbkdf2'` or presence of `salt` for PBKDF2; otherwise use plain SHA-256.
+      const usePBKDF2 = !!(foundAdmin && (foundAdmin.hashAlgo === 'pbkdf2' || foundAdmin.salt));
+      const inputHash = usePBKDF2 ? await hashPassword(password, foundAdmin.salt) : await hashPassword(password);
 
-    if (foundAdmin && inputHash === foundAdmin.passwordHash) {
-      setPendingUser(foundAdmin);
-      await triggerOtpSend(foundAdmin);
-    } else {
-      const now = Date.now();
-      const lastFailedTime = parseInt(localStorage.getItem('admin_last_failed_time') || '0');
-      let currentAttempts = parseInt(localStorage.getItem('admin_failed_attempts') || '0');
-
-      // Reset count if last failed attempt was more than 15 minutes ago
-      if (now - lastFailedTime > 15 * 60 * 1000) {
-        currentAttempts = 0;
-      }
-
-      const attempts = currentAttempts + 1;
-      localStorage.setItem('admin_failed_attempts', attempts.toString());
-      localStorage.setItem('admin_last_failed_time', now.toString());
-
-      if (attempts >= 6) {
-        const lockoutUntilTime = now + 15 * 60 * 1000; // 15 mins
-        localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
-        setAuthError('Too many failed attempts. Console locked for 15 minutes.');
+      if (foundAdmin && inputHash === foundAdmin.passwordHash) {
+        setPendingUser(foundAdmin);
+        await triggerOtpSend(foundAdmin);
       } else {
-        setAuthError(`Incorrect credentials. Attempt ${attempts} of 5. Please try again.`);
+        const now = Date.now();
+        const lastFailedTime = parseInt(localStorage.getItem('admin_last_failed_time') || '0');
+        let currentAttempts = parseInt(localStorage.getItem('admin_failed_attempts') || '0');
+
+        // Reset count if last failed attempt was more than 15 minutes ago
+        if (now - lastFailedTime > 15 * 60 * 1000) {
+          currentAttempts = 0;
+        }
+
+        const attempts = currentAttempts + 1;
+        localStorage.setItem('admin_failed_attempts', attempts.toString());
+        localStorage.setItem('admin_last_failed_time', now.toString());
+
+        if (attempts >= 6) {
+          const lockoutUntilTime = now + 15 * 60 * 1000; // 15 mins
+          localStorage.setItem('admin_lockout_until', lockoutUntilTime.toString());
+          setAuthError('Too many failed attempts. Console locked for 15 minutes.');
+        } else {
+          setAuthError(`Incorrect credentials. Attempt ${attempts} of 5. Please try again.`);
+        }
+        generateCaptcha();
       }
-      generateCaptcha();
+    } finally {
+      setIsLoggingIn(false);
     }
   };
+
 
   const triggerOtpSend = async (userRecord) => {
     setAuthError('');
@@ -2731,8 +2751,16 @@ export default function AdminPortal() {
   };
 
   const handleDeleteBlock = (idx) => {
-    if (!window.confirm("Are you sure you want to delete this block section?")) return;
-    setPageBlocks(pageBlocks.filter((_, k) => k !== idx));
+    setCustomPrompt({
+      title: 'Delete Block Section',
+      message: 'Are you sure you want to delete this block section?',
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: () => {
+        setPageBlocks(prev => prev.filter((_, k) => k !== idx));
+      }
+    });
   };
 
   const handleUpdateBlockField = (blockIdx, field, value) => {
@@ -4479,29 +4507,31 @@ export default function AdminPortal() {
           throw new Error('Invalid backup file: Could not find settings, faculty, notices, slideshow, or admin records.');
         }
 
-        const confirmRestore = window.confirm(
-          "WARNING: Restoring this backup will replace all configurations in your admin console.\n\n" +
-          "This includes your site settings, notices, faculty members, admins, and slideshow configs.\n\n" +
-          "Click OK to restore to console preview. You MUST click 'Apply & Save' in the top header afterwards to commit the restored data live to Firebase."
-        );
+        setCustomPrompt({
+          title: 'Restore Backup Configurations',
+          message: 'WARNING: Restoring this backup will replace all configurations in your admin console (site settings, notices, faculty members, admins, and slideshow configs). Do you want to proceed?',
+          type: 'confirm',
+          confirmText: 'Restore to Preview',
+          cancelText: 'Cancel',
+          onConfirm: () => {
+            if (hasSettings) setSettings(backupData.settings);
+            if (hasNotices) setNotices(backupData.notices);
+            if (hasFaculty) setFaculty(backupData.faculty);
+            if (hasAdmins) setAdmins(backupData.admins);
+            if (hasSlides) setSlides(backupData.slides);
 
-        if (!confirmRestore) {
-          e.target.value = '';
-          return;
-        }
-
-        if (hasSettings) setSettings(backupData.settings);
-        if (hasNotices) setNotices(backupData.notices);
-        if (hasFaculty) setFaculty(backupData.faculty);
-        if (hasAdmins) setAdmins(backupData.admins);
-        if (hasSlides) setSlides(backupData.slides);
-
-        setSaveSuccess('Backup successfully loaded into console preview. Click "Apply & Save" in the top header to push these changes live to Firebase (live) and local files.');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-
+            setSaveSuccess('Backup successfully loaded into console preview. Click "Apply & Save" in the top header to push these changes live to Firebase (live) and local files.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        });
       } catch (err) {
         console.error('Failed to parse or restore backup:', err);
-        alert(`Restore failed: ${err.message || err}`);
+        setCustomPrompt({
+          title: 'Restore Failed',
+          message: `Restore failed: ${err.message || err}`,
+          type: 'alert',
+          confirmText: 'OK'
+        });
       }
     };
     reader.readAsText(file);
@@ -5465,11 +5495,34 @@ export default function AdminPortal() {
   }
 
   if (!isAuthenticated) {
+    // Cross-portal conflict: check if the /portal session is active
+    const portalSession = (() => {
+      try {
+        const token = sessionStorage.getItem('hss_session_token') || localStorage.getItem('hss_session_token');
+        const userStr = sessionStorage.getItem('hss_session_user') || localStorage.getItem('hss_session_user');
+        if (token && userStr) {
+          const u = JSON.parse(userStr);
+          return u?.name || u?.email || 'a user';
+        }
+      } catch (_) {}
+      return null;
+    })();
+
+    const clearPortalSession = () => {
+      ['hss_session_token','hss_session_user','hss_last_heartbeat','hss_persistent_login','hss_auth_state'].forEach(k => {
+        localStorage.removeItem(k);
+        sessionStorage.removeItem(k);
+      });
+      // Force a re-render by reloading the cross-portal detection (state-level)
+      window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: false } }));
+    };
+
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
         {/* Glow Effects in Background */}
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[var(--teal-accent)]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[10s]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#961c14]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[8s]" />
+
 
         <style dangerouslySetInnerHTML={{
           __html: `
@@ -5504,12 +5557,32 @@ export default function AdminPortal() {
           }
         `}} />
 
-        <div className="w-full max-w-md bg-slate-900 rounded-3xl border border-slate-800 p-6 sm:p-9 shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative z-10">
+        <div className="w-full max-w-md bg-slate-900 rounded-3xl border border-slate-800 p-6 sm:p-9 shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative z-10 overflow-hidden">
           <div className="flex flex-col items-center mb-6">
-            <div className="relative mb-4 flex justify-center">
-              <div className="w-16 h-16 rounded-full theme-accent-badge border flex items-center justify-center text-[var(--teal-accent)] transition-all duration-500 hover:scale-105 relative group">
-                <div className="absolute inset-[-4px] rounded-full border border-[var(--teal-accent)]/20 animate-ping opacity-75 group-hover:opacity-100" />
-                <Lock size={26} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
+            {/* Logo Badge — Clean logo like LoginPage.jsx when static; spinning rings active during login */}
+            <div className="relative mb-4 flex items-center justify-center">
+              {isLoggingIn && (
+                <>
+                  <div
+                    className="absolute w-20 h-20 rounded-full border-[3px] border-transparent animate-spin"
+                    style={{
+                      borderTopColor: 'var(--teal-accent, #0d9488)',
+                      borderRightColor: 'rgba(20, 184, 166, 0.25)',
+                      animationDuration: '0.9s'
+                    }}
+                  />
+                  <div
+                    className="absolute w-16 h-16 rounded-full border-2 border-dashed animate-spin opacity-60"
+                    style={{
+                      borderColor: 'var(--teal-accent, #0d9488)',
+                      animationDuration: '2s',
+                      animationDirection: 'reverse'
+                    }}
+                  />
+                </>
+              )}
+              <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center relative z-10 shadow-lg p-2 transition-transform duration-300 hover:scale-105">
+                <img src="/logo512.png" alt="Govt HSS Shangus" className="w-11 h-11 object-contain drop-shadow-md" />
               </div>
             </div>
             <h2 className="text-2xl font-black text-center font-title tracking-wider text-[var(--teal-accent)] uppercase">
@@ -6012,7 +6085,21 @@ export default function AdminPortal() {
               Apply & Save
             </button>
             <button
-              onClick={() => handleLogout()}
+              onClick={() => {
+                setCustomPrompt({
+                  title: 'Sign Out of Admin Console',
+                  message: 'Are you sure you want to sign out and lock the administrative console?',
+                  type: 'confirm',
+                  confirmText: 'Sign Out',
+                  cancelText: 'Cancel',
+                  confirmClass: 'bg-red-600 hover:bg-red-500 text-white font-bold',
+                  onCancel: () => setCustomPrompt(null),
+                  onConfirm: () => {
+                    setCustomPrompt(null);
+                    handleLogout();
+                  }
+                });
+              }}
               className="px-3.5 py-1.5 rounded-lg bg-red-950/30 hover:bg-red-950/50 border border-red-900/50 hover:border-red-800 text-red-400 text-xs font-bold w-full sm:w-auto flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
               title="Logout from Google Sync and Lock the Console"
             >

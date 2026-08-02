@@ -54,13 +54,19 @@ export default function LoginPortal() {
           </div>
 
           <div className="flex flex-col sm:flex-row md:flex-col gap-3 w-full md:w-auto z-10 flex-shrink-0">
-            <button
-              onClick={openPortalWindow}
-              className="login-cta-btn px-7 py-4 bg-teal-500 hover:bg-teal-400 font-extrabold rounded-2xl shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 text-base cursor-pointer"
+            <Link
+              to="/portal/login"
+              className="login-cta-btn px-7 py-4 bg-teal-500 hover:bg-teal-400 font-extrabold rounded-2xl shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 text-base cursor-pointer text-slate-950 no-underline"
               style={{ color: '#020617' }}
             >
-              <span>Launch Full Login Window</span>
-              <ExternalLink size={20} className="login-arrow-icon" />
+              <span>Open Online Portal →</span>
+            </Link>
+
+            <button
+              onClick={openPortalWindow}
+              className="px-4 py-2 text-xs font-semibold text-teal-300 hover:text-white transition-colors cursor-pointer bg-transparent border-none underline"
+            >
+              Open Legacy Apps Script Window ↗
             </button>
           </div>
         </div>

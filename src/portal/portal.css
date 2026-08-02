@@ -1,0 +1,31 @@
+/* =================================================================
+   HSS SHANGUS — Portal Styles
+   Base CSS for the portal layout, loading screen, and shared components.
+   ================================================================= */
+
+/* Portal Loading Screen */
+.portal-loading-screen {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page, #f8fafc);
+}
+
+.portal-loader-content {
+  text-align: center;
+}
+
+.portal-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-ui, #e2e8f0);
+  border-top-color: var(--teal-accent, #0d9488);
+  border-radius: 50%;
+  animation: portal-spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes portal-spin {
+  to { transform: rotate(360deg); }
+}

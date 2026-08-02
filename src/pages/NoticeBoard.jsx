@@ -90,55 +90,63 @@ export default function NoticeBoard() {
   useEffect(() => {
     let active = true;
     async function loadNotices() {
-      // 1. Check local storage override first (for instant admin updates preview)
-      const local = localStorage.getItem('site_notices');
-      if (local) {
-        const parsed = parseNotices(local);
-        if (parsed.length > 0 && active) {
-          setNotices(parsed);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // 1b. Try Firestore for live notices
+      // 1. Try Firestore first (Live Cloud Data across all devices)
       try {
         const snap = await getDoc(doc(db, 'site', 'notices'));
-        if (snap.exists()) {
+        if (snap.exists() && active) {
           const data = snap.data();
           if (data && data.text) {
             const parsed = parseNotices(data.text);
-            if (parsed.length > 0 && active) {
+            if (parsed.length > 0) {
               setNotices(parsed);
+              localStorage.setItem('site_notices', data.text);
               setLoading(false);
               return;
             }
           }
         }
       } catch (e) {
-        // ignore and fallback to static file
+        console.warn('Firestore notices read failed in NoticeBoard, falling back:', e);
       }
 
-      // 2. Fetch from server
+      // 2. Fetch from static server file
       try {
         const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
-        if (!res.ok) throw new Error('Notices file not found');
-        const text = await res.text();
-        const parsed = parseNotices(text);
-        if (active) {
-          setNotices(parsed);
+        if (res.ok) {
+          const text = await res.text();
+          if (!text.trim().startsWith('<')) {
+            const parsed = parseNotices(text);
+            if (parsed.length > 0 && active) {
+              setNotices(parsed);
+              localStorage.setItem('site_notices', text);
+              setLoading(false);
+              return;
+            }
+          }
         }
       } catch (err) {
-        console.error('Failed to load notices archives:', err);
-        if (active) {
-          setNotices([
-            { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
-            { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
-            { date: 'Nov 23', title: 'Admit Cards', link: '#' }
-          ]);
+        console.warn('Failed to load notices archives from server:', err);
+      }
+
+      // 3. Fallback to localStorage offline cache
+      const local = localStorage.getItem('site_notices');
+      if (local && active) {
+        const parsed = parseNotices(local);
+        if (parsed.length > 0) {
+          setNotices(parsed);
+          setLoading(false);
+          return;
         }
-      } finally {
-        if (active) setLoading(false);
+      }
+
+      // 4. Default fallback
+      if (active) {
+        setNotices([
+          { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
+          { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
+          { date: 'Nov 23', title: 'Admit Cards', link: '#' }
+        ]);
+        setLoading(false);
       }
     }
     loadNotices();
@@ -249,13 +257,13 @@ export default function NoticeBoard() {
                       const day = parts[0] || n.date;
                       const month = (parts[1] || '').toUpperCase();
                       return (
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-sm transition-all group-hover:border-teal-500/50 group-hover:shadow">
+                        <div className="w-10 h-8 sm:w-11 sm:h-9 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-xs transition-all group-hover:border-teal-500/50 group-hover:shadow">
                           {/* Calendar Month Header */}
-                          <div className="bg-teal-800 text-[7px] sm:text-[8px] font-bold text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
+                          <div className="bg-teal-800 text-[6.5px] sm:text-[7.5px] font-bold text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
                             {month || 'DATE'}
                           </div>
                           {/* Calendar Day Body */}
-                          <div className="flex-grow flex items-center justify-center bg-white font-title text-xs sm:text-sm font-bold text-slate-800 leading-none">
+                          <div className="flex-grow flex items-center justify-center bg-white font-title text-[11px] sm:text-xs font-bold text-slate-800 leading-none">
                             {day}
                           </div>
                         </div>
