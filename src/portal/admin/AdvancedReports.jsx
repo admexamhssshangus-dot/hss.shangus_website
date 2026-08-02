@@ -3829,35 +3829,36 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                           <td
                             key={col.key}
                             style={{ width: `${widthPx}px`, minWidth: `${widthPx}px` }}
-                            className={`${cellPaddingClass} ${col.className || ''} ${stickyBg}`}
+                            className={`relative group/cell ${cellPaddingClass} ${col.className || ''} ${stickyBg}`}
                           >
-                            <div className="group/cell relative flex items-center justify-between gap-1.5 min-w-0">
+                            <div className="flex items-center justify-between gap-1 min-w-0">
                               <div className={`flex-1 min-w-0 ${density === 'normal' ? 'truncate' : 'whitespace-normal break-words'}`}>
                                 {col.key === 'sno' ? dynamicSNo : (col.render ? col.render(val, studentWithModal) : val)}
                               </div>
 
-                            {/* Row copy button next to S.No. */}
-                            {col.key === 'sno' && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopyRow(s);
-                                }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-300 flex-shrink-0 cursor-pointer"
-                                title="Copy entire row for Excel/Sheets"
-                              >
-                                {isRowCopied ? (
-                                  <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">Copied Row!</span>
-                                ) : (
-                                  <Copy size={11} />
-                                )}
-                              </button>
-                            )}
+                              {/* Row copy button next to S.No. */}
+                              {col.key === 'sno' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyRow(s);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-300 flex-shrink-0 cursor-pointer"
+                                  title="Copy entire row for Excel/Sheets"
+                                >
+                                  {isRowCopied ? (
+                                    <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">Copied Row!</span>
+                                  ) : (
+                                    <Copy size={11} />
+                                  )}
+                                </button>
+                              )}
+                            </div>
 
-                            {/* Horizontal edit/copy action icons positioned at bottom-right corner of cell */}
+                            {/* Horizontal edit/copy action capsule placed at absolute bottom-right wall of td */}
                             {(!restrictedCols[col.key] || (!val || val === '—')) && (
-                              <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0.5 bottom-0.5 z-10 flex flex-row items-center gap-0.5 p-0.5 rounded-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                              <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0.5 bottom-0.5 z-20 flex flex-row items-center gap-0.5 p-0.5 rounded-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-2xs">
                                 {/* Edit/Add Icon */}
                                 {(enableQuickCellEdit || !val || val === '—') && (
                                   <button
@@ -3895,7 +3896,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                 )}
                               </div>
                             )}
-                          </div>
                         </td>
                       );
                     })}
