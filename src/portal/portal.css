@@ -1,7 +1,11 @@
-/* =================================================================
-   HSS SHANGUS — Portal Styles
-   Base CSS for the portal layout, loading screen, and shared components.
-   ================================================================= */
+/* Premium Admin Portal Typography */
+:root {
+  --font-admin-sans: 'Plus Jakarta Sans', 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body, .admin-portal-theme, input, select, textarea, button {
+  font-family: var(--font-admin-sans);
+}
 
 /* Portal Loading Screen */
 .portal-loading-screen {

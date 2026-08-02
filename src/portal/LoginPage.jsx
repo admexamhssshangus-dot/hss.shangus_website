@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useOutletContext, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useOutletContext, useLocation, Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck, AlertCircle, CheckCircle, ArrowRight, RefreshCw, Crown, Sparkles } from 'lucide-react';
 import SEO from '../components/SEO';
 import { auth, googleProvider, db } from '../services/firebase';
@@ -9,6 +9,19 @@ import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // If user is already authenticated, automatically redirect to their dashboard
+  useEffect(() => {
+    if (isAuthenticated && user?.role) {
+      const roleKey = String(user.role).toLowerCase().trim();
+      const dest =
+        roleKey === 'student' ? '/portal/student'
+        : (roleKey === 'teacher' || roleKey === 'faculty') ? '/portal/teacher'
+        : '/portal/admin';
+      navigate(dest, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // Tab role selection: 'student' | 'teacher' | 'admin' | 'superadmin'
   const [selectedRole, setSelectedRole] = useState('student');

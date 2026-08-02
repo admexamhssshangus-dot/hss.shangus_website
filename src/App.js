@@ -7,10 +7,20 @@ import Home from './pages/Home';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import './portal/portal.css';
 
+// Core Portal components — statically imported for 100% render reliability & instant navigation
+import PortalLayout from './portal/layout/PortalLayout';
+import LoginPage from './portal/LoginPage';
+import RegisterPage from './portal/RegisterPage';
+import ForgotPasswordPage from './portal/ForgotPasswordPage';
+import StudentDashboard from './portal/student/StudentDashboard';
+import AdmissionForm from './portal/student/AdmissionForm';
+import TeacherDashboard from './portal/teacher/TeacherDashboard';
+import AttendancePage from './portal/teacher/AttendancePage';
+import PracticalsPage from './portal/teacher/PracticalsPage';
+import AdminDashboard from './portal/admin/AdminDashboard';
+
 // ---------------------------------------------------------------------------
 // Lazy-loaded pages — code-split to reduce initial bundle size.
-// Homepage visitors download ONLY the homepage chunk (~400KB).
-// Portal routes load on-demand when navigated to.
 // ---------------------------------------------------------------------------
 const About = lazy(() => import('./pages/About'));
 const Academics = lazy(() => import('./pages/Academics'));
@@ -24,18 +34,6 @@ const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'));
 const RefundPolicy = lazy(() => import('./pages/RefundPolicy'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
 const LoginPortal = lazy(() => import('./pages/LoginPortal'));
-
-// Portal lazy-loaded components
-const PortalLayout = lazy(() => import('./portal/layout/PortalLayout'));
-const LoginPage = lazy(() => import('./portal/LoginPage'));
-const RegisterPage = lazy(() => import('./portal/RegisterPage'));
-const ForgotPasswordPage = lazy(() => import('./portal/ForgotPasswordPage'));
-const StudentDashboard = lazy(() => import('./portal/student/StudentDashboard'));
-const AdmissionForm = lazy(() => import('./portal/student/AdmissionForm'));
-const TeacherDashboard = lazy(() => import('./portal/teacher/TeacherDashboard'));
-const AttendancePage = lazy(() => import('./portal/teacher/AttendancePage'));
-const PracticalsPage = lazy(() => import('./portal/teacher/PracticalsPage'));
-const AdminDashboard = lazy(() => import('./portal/admin/AdminDashboard'));
 
 // Suspense fallback for lazy-loaded routes
 const LazyFallback = () => (
