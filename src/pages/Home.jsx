@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
 import SEO from '../components/SEO';
+import { formatTitleWithBrackets } from '../utils/textFormatting';
 
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
@@ -457,18 +458,18 @@ export default function Home() {
                               <a href={n.link} target="_blank" rel="noopener noreferrer" 
                                  className="hover:text-teal-700 hover:underline"
                                  title={n.title}>
-                                {n.title}
+                                {formatTitleWithBrackets(n.title)}
                               </a>
                             ) : (
                               <Link to={n.link} 
                                     className="hover:text-teal-700 hover:underline"
                                     title={n.title}>
-                                {n.title}
+                                {formatTitleWithBrackets(n.title)}
                               </Link>
                             )
                           ) : (
                             <span className="text-slate-700" title={n.title}>
-                              {n.title}
+                              {formatTitleWithBrackets(n.title)}
                             </span>
                           )}
 

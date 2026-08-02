@@ -3677,13 +3677,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       {/* Ultra-Responsive Control Bar: Single Row on Desktop / Minimal 2-Rows on Mobile */}
       <div className="p-1 sm:p-1.5 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
         
-        {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Filters (LEFT) + Scope Toggle (RIGHT) */}
+        {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Desktop Filters + Scope Toggle */}
         <div className="flex items-center justify-between gap-1 sm:gap-1.5 flex-1 min-w-0">
           
-          {/* Left Sub-Group: Search Bar & Filters Dropdown */}
+          {/* Left Sub-Group: Search Bar & Desktop Filters Dropdown */}
           <div className="flex items-center gap-1 flex-1 min-w-0">
-            {/* Search Input Bar (LEFT - Expands aggressively on Mobile & Desktop) */}
-            <div className="relative flex-1 min-w-[90px] sm:min-w-[150px] sm:max-w-xs">
+            {/* Search Input Bar (Expands aggressively on Mobile & Desktop) */}
+            <div className="relative flex-1 min-w-[100px] sm:min-w-[150px] sm:max-w-xs">
               <Search size={12} className="absolute left-2 top-2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
@@ -3699,30 +3699,32 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               )}
             </div>
 
-            {/* Unified Grouped Filter Button & Popover (Placed directly to the RIGHT of Search Bar!) */}
-            <UnifiedFiltersGroupDropdown
-              viewScope={viewScope}
-              availableSessions={availableSessions}
-              selectedSessions={selectedSessions}
-              setSelectedSessions={setSelectedSessions}
-              availableClasses={availableClasses}
-              selectedClasses={selectedClasses}
-              setSelectedClasses={setSelectedClasses}
-              availableGenders={availableGenders}
-              selectedGenders={selectedGenders}
-              setSelectedGenders={setSelectedGenders}
-              availableStreams={availableStreams}
-              selectedStreams={selectedStreams}
-              setSelectedStreams={setSelectedStreams}
-              availableStatuses={availableStatuses}
-              selectedStatuses={selectedStatuses}
-              setSelectedStatuses={setSelectedStatuses}
-              sortBy={sortBy}
-              setSortBy={setSortBy}
-              sortOrder={sortOrder}
-              setSortOrder={setSortOrder}
-              setCurrentPage={setCurrentPage}
-            />
+            {/* Desktop Filters Dropdown (Shown ONLY on Desktop >= sm right next to Search Bar) */}
+            <div className="hidden sm:block flex-shrink-0">
+              <UnifiedFiltersGroupDropdown
+                viewScope={viewScope}
+                availableSessions={availableSessions}
+                selectedSessions={selectedSessions}
+                setSelectedSessions={setSelectedSessions}
+                availableClasses={availableClasses}
+                selectedClasses={selectedClasses}
+                setSelectedClasses={setSelectedClasses}
+                availableGenders={availableGenders}
+                selectedGenders={selectedGenders}
+                setSelectedGenders={setSelectedGenders}
+                availableStreams={availableStreams}
+                selectedStreams={selectedStreams}
+                setSelectedStreams={setSelectedStreams}
+                availableStatuses={availableStatuses}
+                selectedStatuses={selectedStatuses}
+                setSelectedStatuses={setSelectedStatuses}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                setCurrentPage={setCurrentPage}
+              />
+            </div>
           </div>
 
           {/* Quick Scope Swapper Toggle Button (RIGHT - Ultra-Compact on Mobile) */}
@@ -3754,10 +3756,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           </div>
         </div>
 
-        {/* ROW 2 (Mobile) / RIGHT SECTION (Desktop): Administrative Tools + Pagination + Settings */}
+        {/* ROW 2 (Mobile) / RIGHT SECTION (Desktop): Administrative Tools + Mobile Filters + Pagination + Settings */}
         <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
           
-          {/* Left Sub-Group on Mobile: Administrative Tools Suite */}
+          {/* Left Sub-Group on Mobile: Administrative Tools Suite + Mobile Filters Dropdown */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* Wrench Tools Suite Dropdown Button */}
             <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
@@ -3773,6 +3775,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               {isToolsOpen && (
                 <div className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-52 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-black">
                   {[
+                    { id: 'gkTest', label: '🎯 GK Test Registrations', icon: ShieldCheck },
                     { id: 'controls', label: 'Controls & Subjects', icon: Settings },
                     { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
                     { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
@@ -3822,7 +3825,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer font-black border-b border-slate-200 dark:border-slate-800"
                   >
                     <PlusCircle size={13} className="text-amber-600 dark:text-amber-400" />
-                    <span>⚡ Express Direct Record Entry</span>
+                    <span>Express Direct Record Entry</span>
                   </button>
 
                   <button
@@ -3838,6 +3841,33 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* Mobile Filters Dropdown (Shown ONLY on Mobile < sm right next to Wrench Tools) */}
+            <div className="block sm:hidden flex-shrink-0">
+              <UnifiedFiltersGroupDropdown
+                viewScope={viewScope}
+                availableSessions={availableSessions}
+                selectedSessions={selectedSessions}
+                setSelectedSessions={setSelectedSessions}
+                availableClasses={availableClasses}
+                selectedClasses={selectedClasses}
+                setSelectedClasses={setSelectedClasses}
+                availableGenders={availableGenders}
+                selectedGenders={selectedGenders}
+                setSelectedGenders={setSelectedGenders}
+                availableStreams={availableStreams}
+                selectedStreams={selectedStreams}
+                setSelectedStreams={setSelectedStreams}
+                availableStatuses={availableStatuses}
+                selectedStatuses={selectedStatuses}
+                setSelectedStatuses={setSelectedStatuses}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                setCurrentPage={setCurrentPage}
+              />
             </div>
           </div>
 

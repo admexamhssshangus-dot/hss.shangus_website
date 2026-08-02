@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ThemeSelector from './components/ThemeSelector';
 import Home from './pages/Home';
+import GkTestRegistration from './pages/GkTestRegistration';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import './portal/portal.css';
 
@@ -149,6 +150,7 @@ function App() {
               <Route path="admin" element={<RoleGuard allowedRoles={['admin']}><AdminDashboard /></RoleGuard>} />
             </Route>
 
+            <Route path="/gk-test" element={<GkTestRegistration />} />
             <Route path="/:pageId" element={<DynamicPage />} />
           </Routes>
           </Suspense>
