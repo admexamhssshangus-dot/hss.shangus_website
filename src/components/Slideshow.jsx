@@ -135,7 +135,17 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
             aria-label={`slide-${i}`}
             className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-out ${i === index ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
             style={isLoaded ? { backgroundImage: `url(${s.image})` } : {}}
-          />
+          >
+            {i === 0 && isLoaded && (
+              <img
+                src={s.image}
+                alt={s.title || "Govt HSS Shangus"}
+                fetchpriority="high"
+                decoding="async"
+                className="w-full h-full object-cover opacity-0 pointer-events-none"
+              />
+            )}
+          </div>
         );
       })}
 

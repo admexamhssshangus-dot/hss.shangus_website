@@ -1170,7 +1170,7 @@ const COLUMN_DEFS = [
       />
     );
   }},
-  { key: 'classRollNo', label: 'Roll No.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
+  { key: 'classRollNo', label: 'RL. NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
   { key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black', render: (val, student) => {
     const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
     if (!formatted) return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
@@ -1249,15 +1249,17 @@ const COLUMN_DEFS = [
       gColor = 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
     }
 
+    const isGenderColumnSelected = student?._visibleCols?.gender;
+
     return (
-      <span className="inline-flex items-center gap-1.5 flex-wrap">
-        <span>{formatted}</span>
-        {gCode && (
+      <span className="inline-flex items-center gap-1 flex-wrap">
+        <span className="font-black text-slate-900 dark:text-white">{formatted}</span>
+        {isGenderColumnSelected && gCode && (
           <span
             title={`Gender: ${student?.gender || gCode}`}
             className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs leading-none whitespace-nowrap ${gColor}`}
           >
-            {gCode}
+            ({gCode})
           </span>
         )}
       </span>
@@ -1269,7 +1271,7 @@ const COLUMN_DEFS = [
   { key: 'village', label: 'Village/Town', className: 'min-w-[95px] whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap' },
   { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap' },
-  { key: 'subs', label: 'Subjects (Stream)', className: 'min-w-[210px]', render: (val, student) => {
+  { key: 'subs', label: 'SUBS (STREAM)', className: 'min-w-[105px] max-w-[130px] whitespace-normal break-words leading-tight', render: (val, student) => {
     const abbr = abbreviateSubjects(val);
     const getStreamCode = (streamStr) => {
       if (!streamStr || streamStr === '—') return '';
@@ -3217,9 +3219,15 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
   };
 
-  // Toggle Column Visibility
+  // Toggle Column Visibility & persist as default
   const toggleCol = (colKey) => {
-    setVisibleCols(prev => ({ ...prev, [colKey]: !prev[colKey] }));
+    setVisibleCols(prev => {
+      const updated = { ...prev, [colKey]: !prev[colKey] };
+      try {
+        localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
   };
 
   // Run Assign IDs
@@ -3510,31 +3518,31 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         {/* Mobile Top Row / Desktop Left Section: Scope Swapper & Tools Icon */}
         <div className="flex items-center justify-between sm:justify-start gap-1 flex-wrap sm:flex-nowrap">
           
-          {/* Quick Scope Swapper Toggle Button */}
-          <div className="flex items-center p-0.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
+          {/* Quick Scope Swapper Toggle Button (Increased Height by 30%+) */}
+          <div className="flex items-center p-0.5 rounded-xl border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
             <button
               type="button"
               onClick={() => { setViewScope('active'); setCurrentPage(1); }}
-              className={`px-1.5 py-0.2 rounded transition-all cursor-pointer flex items-center gap-0.5 ${
+              className={`px-2.5 py-1.5 sm:py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                 viewScope === 'active'
                   ? 'bg-emerald-700 text-white shadow-2xs font-black'
                   : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
               }`}
             >
-              <span>📌 Active</span>
-              <span className="text-[8.5px] font-mono opacity-85 font-normal ml-0.5">({currentAdmissions.length})</span>
+              <span className="text-xs sm:text-sm font-black">📌 Active</span>
+              <span className="text-[10px] sm:text-xs font-mono opacity-90 font-bold ml-0.5">({currentAdmissions.length})</span>
             </button>
             <button
               type="button"
               onClick={() => { setViewScope('all'); setCurrentPage(1); }}
-              className={`px-1.5 py-0.2 rounded transition-all cursor-pointer flex items-center gap-0.5 ${
+              className={`px-2.5 py-1.5 sm:py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                 viewScope === 'all'
                   ? 'bg-amber-700 text-white shadow-2xs font-black'
                   : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
               }`}
             >
-              <span>📚 All</span>
-              <span className="text-[8.5px] font-mono opacity-85 font-normal ml-0.5">({allStudents.length})</span>
+              <span className="text-xs sm:text-sm font-black">📚 All</span>
+              <span className="text-[10px] sm:text-xs font-mono opacity-90 font-bold ml-0.5">({allStudents.length})</span>
             </button>
           </div>
 
@@ -3760,7 +3768,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           }`}>
             <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr>
-                {COLUMN_DEFS.filter(col => visibleCols[col.key]).map(col => {
+                {COLUMN_DEFS.filter(col => col.key !== 'gender' && visibleCols[col.key]).map(col => {
                   const widthPx = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
                   const stickyClasses = col.isSticky
                     ? 'sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700'
@@ -3797,6 +3805,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 paginatedStudents.map((s, idx) => {
                   const studentWithModal = {
                     ...s,
+                    _visibleCols: visibleCols,
                     _setPreviewPhotoModal: setPreviewPhotoModal,
                     _setSelectedApp: setSelectedApp,
                     _onRefresh: () => loadReportsData(true)
@@ -3805,7 +3814,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
                   return (
                     <tr key={s.id || idx} className={`group transition-colors font-bold ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
-                      {COLUMN_DEFS.filter(col => visibleCols[col.key]).map(col => {
+                      {COLUMN_DEFS.filter(col => col.key !== 'gender' && visibleCols[col.key]).map(col => {
                         const val = col.key === 'sno' ? dynamicSNo : (s[col.key] ?? '—');
                         const cellId = `${s.id || s.sno || idx}_${col.key}`;
                         const isCopied = copiedCellId === cellId;
@@ -3846,10 +3855,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                               </button>
                             )}
 
-                            {/* Vertical hover action capsule (Edit on top, Copy on bottom) for editable text fields */}
+                            {/* Horizontal edit/copy action icons positioned at bottom-right corner of cell */}
                             {(!restrictedCols[col.key] || (!val || val === '—')) && (
-                              <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 ml-1 flex-shrink-0 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-2xs p-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs">
-                                {/* Top: Edit/Add Icon — always shown for empty cells (add), only shown when Quick Edit enabled for filled cells (edit) */}
+                              <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0.5 bottom-0.5 z-10 flex flex-row items-center gap-0.5 p-0.5 rounded-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                                {/* Edit/Add Icon */}
                                 {(enableQuickCellEdit || !val || val === '—') && (
                                   <button
                                     type="button"
@@ -3865,12 +3874,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                     title={(!val || val === '—') ? `Add ${col.label}` : `Quick Edit ${col.label}`}
                                   >
                                     {(!val || val === '—')
-                                      ? <PlusCircle size={10} />
-                                      : <Edit3 size={10} />}
+                                      ? <PlusCircle size={9} />
+                                      : <Edit3 size={9} />}
                                   </button>
                                 )}
 
-                                {/* Bottom: Copy Icon */}
+                                {/* Copy Icon */}
                                 {val && val !== '—' && (
                                   <button
                                     type="button"
@@ -3881,7 +3890,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                     className="p-0.5 hover:bg-teal-200 dark:hover:bg-teal-900/80 text-teal-700 dark:text-teal-300 rounded cursor-pointer transition-colors"
                                     title={`Copy ${col.label}`}
                                   >
-                                    {isCopied ? <Check size={10} className="text-emerald-500 font-black" /> : <Copy size={10} />}
+                                    {isCopied ? <Check size={9} className="text-emerald-500 font-black" /> : <Copy size={9} />}
                                   </button>
                                 )}
                               </div>
@@ -4203,7 +4212,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
               <button
                 type="button"
-                onClick={() => setShowColumnManager(false)}
+                onClick={() => {
+                  try {
+                    localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(visibleCols));
+                    localStorage.setItem('hss_admin_table_widths_v2', JSON.stringify(colWidths));
+                  } catch (e) {}
+                  setShowColumnManager(false);
+                }}
                 className="w-full sm:w-auto px-5 py-2 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md cursor-pointer text-xs"
               >
                 Apply Column Changes

@@ -225,7 +225,10 @@ export default function PortalLayout() {
   // Handle login success (called from LoginPage)
   // ---------------------------------------------------------------------------
   const handleLoginSuccess = useCallback((loginResult, keepLoggedIn) => {
-    sessionStorage.removeItem('hss_explicit_logout');
+    try {
+      sessionStorage.removeItem('hss_explicit_logout');
+      localStorage.removeItem('hss_explicit_logout');
+    } catch (_) {}
 
     const user = loginResult.user || {
       email: loginResult.email,
