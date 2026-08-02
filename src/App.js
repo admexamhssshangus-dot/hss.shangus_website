@@ -1,35 +1,49 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useOutletContext } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ThemeSelector from './components/ThemeSelector';
 import Home from './pages/Home';
-import About from './pages/About';
-import Academics from './pages/Academics';
-import Admissions from './pages/Admissions';
-import AdminMessages from './pages/AdminMessages';
-import AdminPortal from './pages/AdminPortal';
-import NoticeBoard from './pages/NoticeBoard';
-import DynamicPage from './pages/DynamicPage';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsAndConditions from './pages/TermsAndConditions';
-import RefundPolicy from './pages/RefundPolicy';
-import ContactUs from './pages/ContactUs';
-import LoginPortal from './pages/LoginPortal';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
-
-// Portal imports
 import './portal/portal.css';
-import PortalLayout from './portal/layout/PortalLayout';
-import LoginPage from './portal/LoginPage';
-import RegisterPage from './portal/RegisterPage';
-import ForgotPasswordPage from './portal/ForgotPasswordPage';
-import StudentDashboard from './portal/student/StudentDashboard';
-import AdmissionForm from './portal/student/AdmissionForm';
-import TeacherDashboard from './portal/teacher/TeacherDashboard';
-import AttendancePage from './portal/teacher/AttendancePage';
-import PracticalsPage from './portal/teacher/PracticalsPage';
-import AdminDashboard from './portal/admin/AdminDashboard';
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded pages — code-split to reduce initial bundle size.
+// Homepage visitors download ONLY the homepage chunk (~400KB).
+// Portal routes load on-demand when navigated to.
+// ---------------------------------------------------------------------------
+const About = lazy(() => import('./pages/About'));
+const Academics = lazy(() => import('./pages/Academics'));
+const Admissions = lazy(() => import('./pages/Admissions'));
+const AdminMessages = lazy(() => import('./pages/AdminMessages'));
+const AdminPortal = lazy(() => import('./pages/AdminPortal'));
+const NoticeBoard = lazy(() => import('./pages/NoticeBoard'));
+const DynamicPage = lazy(() => import('./pages/DynamicPage'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'));
+const RefundPolicy = lazy(() => import('./pages/RefundPolicy'));
+const ContactUs = lazy(() => import('./pages/ContactUs'));
+const LoginPortal = lazy(() => import('./pages/LoginPortal'));
+
+// Portal lazy-loaded components
+const PortalLayout = lazy(() => import('./portal/layout/PortalLayout'));
+const LoginPage = lazy(() => import('./portal/LoginPage'));
+const RegisterPage = lazy(() => import('./portal/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./portal/ForgotPasswordPage'));
+const StudentDashboard = lazy(() => import('./portal/student/StudentDashboard'));
+const AdmissionForm = lazy(() => import('./portal/student/AdmissionForm'));
+const TeacherDashboard = lazy(() => import('./portal/teacher/TeacherDashboard'));
+const AttendancePage = lazy(() => import('./portal/teacher/AttendancePage'));
+const PracticalsPage = lazy(() => import('./portal/teacher/PracticalsPage'));
+const AdminDashboard = lazy(() => import('./portal/admin/AdminDashboard'));
+
+// Suspense fallback for lazy-loaded routes
+const LazyFallback = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
+    <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#14b8a6', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -99,6 +113,7 @@ function App() {
         
         {/* Main Content Area */}
         <main className="flex-grow flex flex-col" style={{ paddingTop: 'var(--site-header-height, 64px)', backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
+          <Suspense fallback={<LazyFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
@@ -138,6 +153,7 @@ function App() {
 
             <Route path="/:pageId" element={<DynamicPage />} />
           </Routes>
+          </Suspense>
         </main>
 
         {/* The Footer will always show at the bottom */}
