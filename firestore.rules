@@ -7,6 +7,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // True authenticated user (not anonymous)
+    function isRealUser() {
+      return isAuthenticated() &&
+        request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     function isSuperAdmin() {
       return isAuthenticated() && (
         request.auth.token.email.lower() == 'adm.exam.hss.shangus@gmail.com' ||
@@ -53,8 +59,15 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
-    // 3. Historical Master Registers
+    // 3. Historical Master Registers — readable by any authenticated user (incl. anonymous)
+    // Rate limiting in the client + server protect against bulk scraping
     match /masterRegisters/{chunkId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Historical student register data
+    match /registerdata/{docId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
@@ -102,13 +115,14 @@ service cloud.firestore {
     }
 
     // 7. System Activity & Email Logs
+    // Require real (non-anonymous) authenticated user to write logs
     match /activityLogs/{logId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow write: if isRealUser();
     }
     match /emailLogs/{logId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow write: if isRealUser();
     }
 
     // 8. Rates & Fund Distributions
@@ -124,6 +138,30 @@ service cloud.firestore {
     // 9. Site settings & Pages CMS
     match /site/{docId} {
       allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 10. OMR Exam Registrations (GK Test 2026)
+    // - Any authenticated user (incl. anonymous) can CREATE their registration
+    // - Any authenticated user can READ (get/list) for duplicate checks & admit card retrieval
+    // - Invigilators (anonymous auth) can UPDATE only the OMR photo fields after the exam
+    // - Core registration fields are immutable after creation (no update for those)
+    // - Only admins can delete (revoke)
+    match /omr_registrations/{examNo} {
+      allow create: if isAuthenticated();
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated();
+      // Allow invigilator to write only OMR photo fields; block modification of core fields
+      allow update: if isAuthenticated() && (
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['omrPhotoUrl', 'omrUploadedAt', 'omrUploadedBy'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 11. GK Test System Settings (Deadline & Open/Closed controls)
+    match /gktest_settings/{docId} {
+      allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 

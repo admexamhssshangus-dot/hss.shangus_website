@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { formatTitleWithBrackets } from '../utils/textFormatting';
 
 export default function NoticeBoard() {
   const [notices, setNotices] = useState([]);
@@ -275,7 +276,7 @@ export default function NoticeBoard() {
                       <h4 className="font-bold text-slate-800 text-xs sm:text-sm leading-snug break-words line-clamp-2"
                         style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}
                         title={n.title}>
-                        {n.title}
+                        {formatTitleWithBrackets(n.title)}
                       </h4>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
                         {n.link && n.link !== '#' ? (

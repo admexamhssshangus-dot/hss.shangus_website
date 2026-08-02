@@ -11,6 +11,7 @@ import FundDistribution from './FundDistribution';
 import ControlsAndSubjects from './ControlsAndSubjects';
 import AdminPracticals from './AdminPracticals';
 import AdminAttendance from './AdminAttendance';
+import AdminGkTestManager from './AdminGkTestManager';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
@@ -110,6 +111,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center p-0.5 rounded-xl border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                   <span className="px-2.5 py-1 text-slate-800 dark:text-slate-200 font-black">
                     {activeTab === 'controls' && '⚙️ Controls & Subjects'}
+                    {activeTab === 'gkTest' && '🎯 GK Test Registrations'}
                     {activeTab === 'rollNo' && '# Roll Numbers'}
                     {activeTab === 'bulk' && '📁 Bulk Export'}
                     {activeTab === 'automations' && '✉️ Email & Automations'}
@@ -129,7 +131,7 @@ export default function AdminDashboard() {
                   </button>
 
                   {isToolsOpen && (
-                    <div className="absolute left-0 mt-1 w-52 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-bold">
+                    <div className="absolute left-0 mt-1 w-56 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-bold">
                       <button
                         type="button"
                         onClick={() => {
@@ -143,6 +145,7 @@ export default function AdminDashboard() {
                       </button>
 
                       {[
+                        { id: 'gkTest', label: '🎯 GK Test Registrations', icon: ShieldCheck },
                         { id: 'controls', label: 'Controls & Subjects', icon: Settings },
                         { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
                         { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
@@ -214,6 +217,9 @@ export default function AdminDashboard() {
 
               {/* TAB 2: Combined Controls & Subjects Config v2 */}
               {activeTab === 'controls' && <ControlsAndSubjects />}
+
+              {/* TAB: GK Test & OMR Registrations Manager */}
+              {activeTab === 'gkTest' && <AdminGkTestManager />}
 
               {/* TAB 3: Roll No Assignment */}
               {activeTab === 'rollNo' && (
