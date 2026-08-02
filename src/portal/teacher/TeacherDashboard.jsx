@@ -196,8 +196,19 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={handleLogoutRequest}
-                className="px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 font-black text-[11px] flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs"
+                style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
                 title="Sign out"
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = '#dc2626';
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.borderColor = '#dc2626';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = '#ffffff';
+                  e.currentTarget.style.color = '#000000';
+                  e.currentTarget.style.borderColor = '#cbd5e1';
+                }}
               >
                 <LogOut size={12} />
                 <span>Logout</span>

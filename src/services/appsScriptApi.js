@@ -83,10 +83,7 @@ async function call(action, params = {}, options = {}) {
 
       // Don't retry auth errors or client errors
       if (error.code === 'AUTH_REQUIRED' || error.code === 'SESSION_INVALID' || error.code === 'SESSION_CONFLICT') {
-        // Clear invalid session
-        if (error.code === 'SESSION_INVALID' || error.code === 'SESSION_CONFLICT') {
-          sessionManager.clearSession();
-        }
+        console.warn('[appsScriptApi] Auth exception:', error.code);
         throw error;
       }
 

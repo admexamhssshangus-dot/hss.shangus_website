@@ -215,10 +215,22 @@ export default function StudentDashboard() {
             </button>
             <button
               onClick={handleLogoutRequest}
-              className="p-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 text-rose-500 hover:bg-rose-100 cursor-pointer transition-colors"
+              className="px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs"
+              style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
               title="Sign out"
+              onMouseEnter={e => {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#dc2626';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.backgroundColor = '#ffffff';
+                e.currentTarget.style.color = '#000000';
+                e.currentTarget.style.borderColor = '#cbd5e1';
+              }}
             >
               <LogOut size={14} />
+              <span>Logout</span>
             </button>
           </div>
         </div>

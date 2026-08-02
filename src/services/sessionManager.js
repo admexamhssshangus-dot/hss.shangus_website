@@ -57,18 +57,25 @@ function _generateDeviceId() {
  * @param {object} data.user  - User data (email, name, role, etc.)
  * @param {boolean} keepLoggedIn - Whether to persist across browser restarts
  */
-function saveSession(data, keepLoggedIn = false) {
-  const storage = keepLoggedIn ? localStorage : sessionStorage;
-
-  // Remember which storage type was used
+function saveSession(data, keepLoggedIn = true) {
+  // Always save to both localStorage and sessionStorage to ensure session persistence
+  // across tabs, browser restarts, and page reloads.
   localStorage.setItem(STORAGE_KEYS.PERSISTENT, keepLoggedIn ? 'true' : 'false');
 
-  storage.setItem(STORAGE_KEYS.TOKEN, data.token || '');
-  storage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user || {}));
-  storage.setItem(STORAGE_KEYS.LAST_HEARTBEAT, Date.now().toString());
+  const userStr = JSON.stringify(data.user || {});
+  const tokenStr = data.token || '';
+  const nowStr = Date.now().toString();
+
+  [localStorage, sessionStorage].forEach(storage => {
+    try {
+      storage.setItem(STORAGE_KEYS.TOKEN, tokenStr);
+      storage.setItem(STORAGE_KEYS.USER, userStr);
+      storage.setItem(STORAGE_KEYS.LAST_HEARTBEAT, nowStr);
+      storage.removeItem('hss_explicit_logout');
+    } catch (_) {}
+  });
 
   // Auth signal in localStorage so Navbar's storage-event listener gets notified
-  // (sessionStorage changes don't fire window 'storage' events in the same tab)
   localStorage.setItem('hss_auth_state', JSON.stringify({ role: data.user?.role, name: data.user?.name, ts: Date.now() }));
 
   // Dispatch a custom event so same-tab listeners (Navbar) update immediately
@@ -79,28 +86,30 @@ function saveSession(data, keepLoggedIn = false) {
 }
 
 /**
- * Get the current session data.
+ * Get the current session data. Checks sessionStorage first, then falls back to localStorage.
  * @returns {{ token: string, user: object, deviceId: string } | null}
  */
 function getSession() {
-  const isPersistent = localStorage.getItem(STORAGE_KEYS.PERSISTENT) === 'true';
-  const storage = isPersistent ? localStorage : sessionStorage;
+  // Try sessionStorage first, then fallback to localStorage
+  let token = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
+  let userRaw = sessionStorage.getItem(STORAGE_KEYS.USER) || localStorage.getItem(STORAGE_KEYS.USER);
 
-  const token = storage.getItem(STORAGE_KEYS.TOKEN);
-  if (!token) return null;
+  if (!token || !userRaw) return null;
 
-  let user = {};
+  let user = null;
   try {
-    user = JSON.parse(storage.getItem(STORAGE_KEYS.USER) || '{}');
-  } catch {
-    user = {};
+    user = JSON.parse(userRaw);
+  } catch (_) {
+    user = null;
   }
+
+  if (!user || (!user.email && !user.role)) return null;
 
   return {
     token,
     user,
     deviceId: getDeviceId(),
-    isPersistent,
+    isPersistent: localStorage.getItem(STORAGE_KEYS.PERSISTENT) !== 'false',
   };
 }
 
@@ -138,29 +147,31 @@ function updateUser(updates) {
   const session = getSession();
   if (!session) return;
 
-  const isPersistent = localStorage.getItem(STORAGE_KEYS.PERSISTENT) === 'true';
-  const storage = isPersistent ? localStorage : sessionStorage;
-
   const updatedUser = { ...session.user, ...updates };
-  storage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+  const userStr = JSON.stringify(updatedUser);
+  [localStorage, sessionStorage].forEach(storage => {
+    try { storage.setItem(STORAGE_KEYS.USER, userStr); } catch (_) {}
+  });
 }
 
 /**
  * Clear all session data (logout).
  */
 function clearSession() {
-  // Clear from both storage types to be safe
+  // Clear from both storage types
   [localStorage, sessionStorage].forEach(storage => {
-    storage.removeItem(STORAGE_KEYS.TOKEN);
-    storage.removeItem(STORAGE_KEYS.USER);
-    storage.removeItem(STORAGE_KEYS.LAST_HEARTBEAT);
+    try {
+      storage.removeItem(STORAGE_KEYS.TOKEN);
+      storage.removeItem(STORAGE_KEYS.USER);
+      storage.removeItem(STORAGE_KEYS.LAST_HEARTBEAT);
+      storage.removeItem('hss_explicit_logout');
+    } catch (_) {}
   });
   localStorage.removeItem(STORAGE_KEYS.PERSISTENT);
   // Remove auth signal so Navbar knows the user logged out
   localStorage.removeItem('hss_auth_state');
   // Notify same-tab listeners immediately
   try { window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: false } })); } catch (_) {}
-  // Device ID is intentionally kept
 }
 
 // ---------------------------------------------------------------------------

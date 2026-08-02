@@ -340,14 +340,22 @@ export default function Navbar() {
                         </span>
                       </span>
                     </Link>
-                    {/* Logout — small text & icon button */}
+                    {/* Logout — white button with black text, hover to red background with white text */}
                     <button
                       onClick={handleGlobalLogout}
                       title="Sign Out"
-                      className="px-2 py-0.5 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1 hover:scale-105 active:scale-95"
-                      style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#b91c1c'; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#7f1d1d'; }}
+                      className="px-2.5 py-1 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
+                      style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = '#dc2626';
+                        e.currentTarget.style.color = '#ffffff';
+                        e.currentTarget.style.borderColor = '#dc2626';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        e.currentTarget.style.color = '#000000';
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                      }}
                     >
                       <LogOut size={10} className="stroke-[2.5]" />
                       <span>Logout</span>
@@ -481,9 +489,19 @@ export default function Navbar() {
                       </Link>
                       <button
                         onClick={handleGlobalLogout}
-                        className="px-2 py-1 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1"
-                        style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
+                        className="px-2.5 py-1 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
+                        style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
                         title="Sign Out"
+                        onMouseEnter={e => {
+                          e.currentTarget.style.backgroundColor = '#dc2626';
+                          e.currentTarget.style.color = '#ffffff';
+                          e.currentTarget.style.borderColor = '#dc2626';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.color = '#000000';
+                          e.currentTarget.style.borderColor = '#cbd5e1';
+                        }}
                       >
                         <LogOut size={11} className="stroke-[2.5]" />
                         <span>Logout</span>
