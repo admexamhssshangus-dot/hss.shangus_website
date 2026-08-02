@@ -1,0 +1,14 @@
+{
+  "name": "hss-shangus-functions",
+  "description": "Firebase Cloud Functions for HSS Shangus Assessment Portal",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1",
+    "nodemailer": "^6.9.13"
+  },
+  "private": true
+}

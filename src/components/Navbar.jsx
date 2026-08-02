@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Phone, Mail, X, Menu, Lock, Unlock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { Phone, Mail, X, Menu, Lock, Unlock, LogOut, User, ShieldCheck } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 import { db, auth } from '../firebase';
+import { sessionManager } from '../services/sessionManager';
+import ConfirmModal from '../portal/components/ConfirmModal';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
 import schoolLogo from '../images/logo.png';
@@ -33,22 +35,108 @@ function handleEmailClick(e, email) {
 }
 
 export default function Navbar() {
+  const navigate = useNavigate();
   // State for smart scrolling
   const [isVisible, setIsVisible] = useState(true);
   // Mobile menu open
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dynamicLinks, setDynamicLinks] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const checkAuthStatus = () => {
+    // 1. Check portal session via sessionManager (primary source of truth)
+    const session = sessionManager.getSession();
+    if (session && session.user && (session.user.role || session.user.email)) {
+      setCurrentUser(session.user);
+      setIsAdmin(session.user.role === 'Admin' || session.user.role === 'SuperAdmin');
+      return;
+    }
+
+    // 2. Check legacy Admin Session via sessionStorage
+    const isAdminAuth = sessionStorage.getItem('isAdminAuthenticated') === 'true';
+    if (isAdminAuth) {
+      const storedAdminRaw = sessionStorage.getItem('adminUser');
+      let storedAdmin = null;
+      if (storedAdminRaw) {
+        try { storedAdmin = JSON.parse(storedAdminRaw); } catch (e) {}
+      }
+      const adminEmail = storedAdmin?.email || sessionStorage.getItem('adminEmail') || 'adm.exam.hss.shangus@gmail.com';
+      const adminName = storedAdmin?.name || storedAdmin?.displayName || 'Admin';
+      setCurrentUser({ name: adminName, role: 'SuperAdmin', email: adminEmail });
+      setIsAdmin(true);
+      return;
+    }
+
+    // 3. No active session — show Login button
+    // NOTE: Firebase auth is intentionally NOT checked here. Firebase can remain
+    // signed in after our custom session is cleared (e.g. clearSession() + signOut
+    // are async). The Navbar must reflect the portal session, not Firebase state.
+    setCurrentUser(null);
+    setIsAdmin(false);
+  };
 
   useEffect(() => {
-    const checkAdmin = () => {
-      const isAuth = sessionStorage.getItem('isAdminAuthenticated') === 'true' || !!auth?.currentUser;
-      setIsAdmin(isAuth);
+    checkAuthStatus();
+    const unsub = auth?.onAuthStateChanged(() => checkAuthStatus());
+
+    const handleStorageChange = () => checkAuthStatus();
+    window.addEventListener('storage', handleStorageChange);
+    // Custom event: fires in the same tab when sessionManager saves/clears a session
+    window.addEventListener('hss-auth-changed', handleStorageChange);
+
+    return () => {
+      if (unsub) unsub();
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('hss-auth-changed', handleStorageChange);
     };
-    checkAdmin();
-    const unsub = auth?.onAuthStateChanged(() => checkAdmin());
-    return () => { if (unsub) unsub(); };
   }, []);
+
+  // Global Logout Execution
+  const executeGlobalLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      sessionManager.clearSession();
+      sessionStorage.removeItem('isAdminAuthenticated');
+      sessionStorage.removeItem('adminEmail');
+      sessionStorage.removeItem('adminToken');
+      sessionStorage.clear();
+
+      if (auth?.currentUser) {
+        await signOut(auth);
+      }
+    } catch (err) {
+      console.warn('Logout note:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+      setCurrentUser(null);
+      setIsAdmin(false);
+      setMobileOpen(false);
+      navigate('/portal/login');
+    }
+  };
+
+  const handleGlobalLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const getDashboardPath = (role) => {
+    const r = String(role || '').toLowerCase();
+    if (r.includes('admin')) {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/portal/admin')) {
+        return '/portal/admin';
+      }
+      return '/admin/portal';
+    }
+    if (r.includes('teacher') || r.includes('faculty')) return '/portal/teacher';
+    if (r.includes('student')) return '/portal/student';
+    return '/portal/login';
+  };
+
+
 
   const loadDynamicPages = async () => {
     try {
@@ -232,16 +320,54 @@ export default function Navbar() {
                 ))}
               </div>
 
-              {/* Login Link Area (Desktop) - Standard <a> tag for Googlebot Sitelink extraction */}
-              <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600 flex items-center h-full py-0.5">
-                <Link
-                  to="/login"
-                  onClick={handleLoginClick}
-                  className="px-3 py-1 text-xs font-bold btn-primary-custom rounded-md transition-all duration-200 inline-flex items-center justify-center"
-                  title="Student & Staff Login Portal"
-                >
-                  Login
-                </Link>
+              {/* Login Link Area (Desktop) */}
+              <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600/80 items-center h-full py-0.5">
+                {currentUser ? (
+                  <div className="inline-flex items-center gap-2 py-1 px-1.5 rounded-full border shadow-lg" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
+                    {/* User avatar + name → dashboard link */}
+                    <Link
+                      to={getDashboardPath(currentUser.role)}
+                      className="flex items-center gap-2 group cursor-pointer"
+                      title={`Signed in as ${currentUser.name || currentUser.email}. Click to open dashboard.`}
+                    >
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center font-black text-[11px] shrink-0 shadow-md" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
+                        {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
+                      </div>
+                      <div className="flex flex-col leading-none">
+                        <span className="text-[11px] font-black text-white group-hover:text-teal-300 transition-colors max-w-[110px] truncate">
+                          {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#14b8a6' }}>
+                          {currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')}
+                        </span>
+                      </div>
+                    </Link>
+                    {/* Logout — small text & icon button */}
+                    <button
+                      onClick={handleGlobalLogout}
+                      title="Sign Out"
+                      className="px-2 py-0.5 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1 hover:scale-105 active:scale-95"
+                      style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#7f1d1d'; }}
+                    >
+                      <LogOut size={10} className="stroke-[2.5]" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                ) : (
+                  <Link
+                    to="/portal/login"
+                    className="px-2.5 py-1 text-[11px] font-black rounded-full transition-all duration-200 inline-flex items-center gap-1 shadow-xs hover:shadow-md hover:scale-105 active:scale-95 group"
+                    style={{ backgroundColor: '#0f766e', color: '#fff', border: '1px solid #0d9488' }}
+                    title="Student & Staff Login Portal"
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#0d9488'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0f766e'; }}
+                  >
+                    <Lock size={10} className="stroke-[2.5] transition-transform duration-200 group-hover:-rotate-12" />
+                    Login
+                  </Link>
+                )}
               </div>
 
               {/* Admin Lock Portal Button at Far Right Extreme (Desktop Only) */}
@@ -250,13 +376,13 @@ export default function Navbar() {
                   to="/admin/portal"
                   onClick={() => window.scrollTo(0, 0)}
                   title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
-                  className="p-1.5 rounded-md flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-105 cursor-pointer text-slate-300 hover:text-teal-400 bg-slate-900/60 border border-slate-700 hover:border-teal-400"
+                  className="p-1.5 rounded-md flex items-center justify-center transition-all duration-200 hover:scale-105 cursor-pointer text-slate-700/30 hover:text-slate-600/40"
                   aria-label="Admin Portal"
                 >
                   {isAdmin ? (
-                    <Unlock size={16} className="stroke-[2.5] text-emerald-400 animate-pulse" />
+                    <Unlock size={16} className="stroke-[2.5] text-slate-600/40" />
                   ) : (
-                    <Lock size={16} className="stroke-[2.5] text-teal-400" />
+                    <Lock size={16} className="stroke-[2.5] text-slate-600/40" />
                   )}
                 </Link>
               </div>
@@ -338,17 +464,47 @@ export default function Navbar() {
                   </div>
                 </div>
                 <div className="pt-3">
-                  <Link 
-                    to="/login" 
-                    onClick={() => {
-                      setMobileOpen(false);
-                      handleLoginClick();
-                    }} 
-                    className="w-full px-3 py-1 btn-primary-custom rounded font-bold text-sm transition-all duration-200 block text-center"
-                    title="Student & Staff Login Portal"
-                  >
-                    Login
-                  </Link>
+                  {currentUser ? (
+                    <div className="rounded-xl border p-2.5 flex items-center justify-between gap-3 shadow-md" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
+                      <Link
+                        to={getDashboardPath(currentUser.role)}
+                        onClick={() => setMobileOpen(false)}
+                        className="flex items-center gap-2.5 overflow-hidden group"
+                      >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-[12px] shrink-0 shadow-md" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
+                          {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-black text-white group-hover:text-teal-300 transition-colors truncate">
+                            {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
+                          </p>
+                          <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#14b8a6' }}>
+                            {currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'Logged In')}
+                          </p>
+                        </div>
+                      </Link>
+                      <button
+                        onClick={handleGlobalLogout}
+                        className="px-2 py-1 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1"
+                        style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
+                        title="Sign Out"
+                      >
+                        <LogOut size={11} className="stroke-[2.5]" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <Link 
+                      to="/portal/login" 
+                      onClick={() => setMobileOpen(false)} 
+                      className="w-full px-4 py-2.5 rounded-xl font-black text-sm transition-all duration-200 flex items-center justify-center gap-2"
+                      style={{ backgroundColor: '#0f766e', color: '#fff', border: '1px solid #0d9488' }}
+                      title="Student & Staff Login Portal"
+                    >
+                      <Lock size={14} className="stroke-[2.5]" />
+                      Login
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
@@ -356,7 +512,18 @@ export default function Navbar() {
         </div>
       </header>
 
-      
+      {/* Sleek Custom Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={executeGlobalLogout}
+        title="Sign Out of Session"
+        message="Are you sure you want to log out of your active workspace session?"
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        type="logout"
+        loading={isLoggingOut}
+      />
     </>
   );
 }

@@ -169,9 +169,9 @@
   "fieldLayout": {
     "groups": [
       {
-        "name": "Personal Details",
         "builtIn": true,
         "id": "personal",
+        "name": "Personal Details",
         "customFields": [
           "Name",
           "Father's Name",
@@ -185,8 +185,8 @@
         ]
       },
       {
-        "name": "Service & Appointment Details",
         "builtIn": true,
+        "name": "Service & Appointment Details",
         "id": "service",
         "customFields": [
           "CPIS No.",
@@ -205,12 +205,13 @@
           "Qualifications",
           "Health/Security Grounds"
         ],
-        "id": "qualifications",
         "builtIn": true,
+        "id": "qualifications",
         "name": "Qualifications & Health"
       },
       {
-        "id": "tax",
+        "builtIn": true,
+        "name": "Tax & Financial Details",
         "customFields": [
           "PAN",
           "TDS",
@@ -221,10 +222,10 @@
           "80D Deductions",
           "80C Deductions"
         ],
-        "builtIn": true,
-        "name": "Tax & Financial Details"
+        "id": "tax"
       },
       {
+        "builtIn": false,
         "customFields": [
           "SLI Application No.",
           "SLI Policy Number",
@@ -232,7 +233,6 @@
           "Monthly SLI Premium (Amount in INR)"
         ],
         "id": "sli_subscription_details",
-        "builtIn": false,
         "name": "SLI Subscription Details"
       }
     ]
