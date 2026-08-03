@@ -144,9 +144,26 @@ export function updateCachedItem(collectionName, docId, updatedFields) {
   const list = getCachedCollectionSync(collectionName);
   if (!list || !Array.isArray(list)) return;
 
-  const cleanDocId = String(docId).toLowerCase().trim();
+  const cleanDocId = String(docId).replace(/^'/, '').toLowerCase().trim();
   const updatedList = list.map(item => {
-    const itemId = String(item.id || item['Form Number'] || item['Form No.'] || '').toLowerCase().trim();
+    // 1. If chunk document containing an items array (like masterRegisters chunks)
+    if (Array.isArray(item.items)) {
+      let matchedInChunk = false;
+      const updatedSubItems = item.items.map(subIt => {
+        const subFNo = String(subIt['Form Number'] || subIt['Form No.'] || subIt.formNo || subIt.id || '').replace(/^'/, '').toLowerCase().trim();
+        if (subFNo === cleanDocId || subFNo.replace(/^(active_|hist_)/, '') === cleanDocId) {
+          matchedInChunk = true;
+          return { ...subIt, ...updatedFields };
+        }
+        return subIt;
+      });
+      if (matchedInChunk) {
+        return { ...item, items: updatedSubItems };
+      }
+    }
+
+    // 2. Direct document match
+    const itemId = String(item.id || item['Form Number'] || item['Form No.'] || item.formNo || '').replace(/^'/, '').toLowerCase().trim();
     if (itemId === cleanDocId || itemId.replace(/^(active_|hist_)/, '') === cleanDocId) {
       return { ...item, ...updatedFields };
     }

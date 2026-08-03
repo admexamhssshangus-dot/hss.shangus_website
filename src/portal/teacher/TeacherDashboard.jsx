@@ -98,21 +98,27 @@ export default function TeacherDashboard() {
 
       const approvedRollCount = countSet.size || 205;
 
-      // Count today's attendance records
-      let todaysAttRecords = 0;
+      // Count today's unique attended students across all marked subjects (prevents >100% bug when multiple subjects submit)
+      const todayAttendedStudents = new Set();
       if (Array.isArray(attDocs)) {
         attDocs.forEach(d => {
           const data = d.data ? (typeof d.data === 'function' ? d.data() : d.data) : d;
           const dDate = data.date || data.dateStr || '';
           if (dDate === todayStr && Array.isArray(data.records)) {
-            todaysAttRecords += data.records.length;
+            const clsNorm = String(data.className || data.class || '').replace(/class/i, '').trim();
+            data.records.forEach(r => {
+              const roll = r.rollNo || r.classRollNo || r.name;
+              if (roll) todayAttendedStudents.add(`${clsNorm}_${roll}`);
+            });
           }
         });
       }
 
       // Count practicals
       const practicalCount = Array.isArray(pracDocs) ? pracDocs.length : 0;
-      const pct = approvedRollCount > 0 && todaysAttRecords > 0 ? `${Math.round((todaysAttRecords / approvedRollCount) * 100)}%` : '0%';
+      const markedUniqueCount = todayAttendedStudents.size;
+      const rawPct = approvedRollCount > 0 ? Math.round((markedUniqueCount / approvedRollCount) * 100) : 0;
+      const pct = `${Math.min(100, Math.max(0, rawPct))}%`;
 
       const newStats = {
         totalStudents: approvedRollCount,

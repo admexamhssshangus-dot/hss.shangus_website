@@ -584,6 +584,8 @@ export default function AttendancePage() {
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [alert, setAlert] = useState(null);
   const [statusModal, setStatusModal] = useState(null); // { type: 'success' | 'error', title: string, message: string }
+  const [studentCategoryModal, setStudentCategoryModal] = useState(null); // { type: 'P'|'L'|'A'|'T', title: string, list: Array }
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
 
   // Holiday State
   const [holidayDate, setHolidayDate] = useState('');
@@ -1401,12 +1403,55 @@ export default function AttendancePage() {
     setStudents((prev) => prev.map((s) => ({ ...s, status: targetStatus })));
   };
 
-  // Save Attendance Entry Point (Checks for overwrite confirmation)
+  // Save Attendance Entry Point (Checks for overwrite confirmation & teacher subject permissions)
   const handleSaveAttendance = () => {
     if (!students || students.length === 0) {
       setAlert({ type: 'error', text: 'No students available to mark attendance.' });
       return;
     }
+
+    const currentEmail = (user?.email || auth.currentUser?.email || '').toLowerCase();
+    const currentName = user?.name || user?.displayName || currentEmail || 'Teacher';
+    const isUserAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin' || currentEmail === 'adm.exam.hss.shangus@gmail.com' || currentEmail === 'shahnawaz@gmail.com';
+
+    // 1. Teacher Subject Assignment Check (e.g. Political Science teacher cannot mark Botany)
+    const teacherSubject = (user?.subject || user?.assignedSubject || user?.teachingSubject || '').trim();
+    if (teacherSubject && selectedSubject && !isUserAdmin) {
+      const isMatch = isDocSubjectMatch(teacherSubject, selectedSubject);
+      if (!isMatch) {
+        const errorMsg = `⛔ Subject Restricted: Your account (${currentName}) is registered for teaching [${teacherSubject}]. You cannot mark or overwrite attendance for [${selectedSubject}].`;
+        setAlert({ type: 'error', text: errorMsg });
+        setStatusModal({
+          type: 'error',
+          title: 'Subject Restricted!',
+          message: errorMsg
+        });
+        return;
+      }
+    }
+
+    // 2. Check local cache to see if another teacher submitted this attendance
+    const clsNorm = String(selectedClass).replace(/class/i, '').trim();
+    const cKey = `hss_att_cache_${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
+    let cachedPayload = null;
+    try {
+      const cData = localStorage.getItem(cKey);
+      if (cData) cachedPayload = JSON.parse(cData);
+    } catch (e) {}
+
+    const originalSubmitter = (cachedPayload?.submittedByEmail || '').toLowerCase();
+    if (originalSubmitter && originalSubmitter !== currentEmail && !isUserAdmin) {
+      const submitterName = cachedPayload?.submittedByName || originalSubmitter;
+      const errorMsg = `⛔ Overwrite Blocked: Attendance for ${selectedSubject || 'General'} on ${selectedDate} was marked by ${submitterName}. You cannot overwrite another teacher's attendance.`;
+      setAlert({ type: 'error', text: errorMsg });
+      setStatusModal({
+        type: 'error',
+        title: 'Overwrite Restricted!',
+        message: errorMsg
+      });
+      return;
+    }
+
     if (isEditingSaved) {
       setShowOverwriteConfirmModal(true);
     } else {
@@ -1422,6 +1467,36 @@ export default function AttendancePage() {
       if (!auth.currentUser) {
         await signInAnonymously(auth).catch(() => {});
       }
+
+      const currentEmail = (user?.email || auth.currentUser?.email || '').toLowerCase();
+      const currentName = user?.name || user?.displayName || currentEmail || 'Faculty';
+      const isUserAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin' || currentEmail === 'adm.exam.hss.shangus@gmail.com' || currentEmail === 'shahnawaz@gmail.com';
+      const clsNorm = String(selectedClass).replace(/class/i, '').trim();
+      const docId = `${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
+
+      // 3. Live Firestore check: prevent overwriting another teacher's cloud record
+      try {
+        const liveSnap = await getDoc(doc(db, 'attendance', docId));
+        if (liveSnap.exists()) {
+          const liveData = liveSnap.data();
+          const liveSubmitter = (liveData.submittedByEmail || '').toLowerCase();
+          if (liveSubmitter && liveSubmitter !== currentEmail && !isUserAdmin) {
+            const submitterName = liveData.submittedByName || liveSubmitter;
+            const errorMsg = `⛔ Overwrite Blocked: This attendance for ${selectedSubject || 'General'} on ${selectedDate} was marked in Cloud Database by ${submitterName}. Another teacher's attendance cannot be overwritten.`;
+            setAlert({ type: 'error', text: errorMsg });
+            setStatusModal({
+              type: 'error',
+              title: 'Overwrite Restricted!',
+              message: errorMsg
+            });
+            setSavingAttendance(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Firestore ownership check note:', e);
+      }
+
       const records = students.map((s) => ({
         rollNo: s.rollNo,
         name: s.name,
@@ -1431,8 +1506,6 @@ export default function AttendancePage() {
         status: s.status,
       }));
 
-      const clsNorm = String(selectedClass).replace(/class/i, '').trim();
-      const docId = `${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
       const payload = {
         docId,
         className: selectedClass,
@@ -1440,6 +1513,9 @@ export default function AttendancePage() {
         subject: selectedSubject || 'General',
         sessionYear: selectedSession,
         records,
+        submittedByEmail: currentEmail,
+        submittedByName: currentName,
+        submittedRole: user?.role || 'Teacher',
         updatedAt: new Date().toISOString()
       };
 
@@ -1555,71 +1631,32 @@ export default function AttendancePage() {
         {/* Main Ultra-Compact Attendance Card Container */}
         <div className="rounded-2xl p-2 sm:p-3 border shadow-xs space-y-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
 
-          {/* Ultra-Compact Native Header Bar */}
-          <div className="flex items-center justify-between p-1.5 px-2 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
+          {/* Single-Row Native Header & Quick Controls Bar */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 p-1.5 px-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
             {/* Left: Title & Status Indicator */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               <h1 className="text-xs font-black text-slate-900 dark:text-white tracking-tight">
                 Attendance <span className="text-[10px] font-bold text-slate-400">({selectedClass})</span>
               </h1>
             </div>
 
-            {/* Right: Quick Action Capsule Bar */}
-            <div className="flex items-center gap-1">
-              {/* Quick Roll Input Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setShowQuickRollBox(!showQuickRollBox)}
-                className={`px-2 py-1 rounded-lg font-black text-[10px] transition-all cursor-pointer flex items-center gap-1 ${
-                  showQuickRollBox ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-                title="Toggle Quick Roll Entry Box"
-              >
-                <Zap size={11} />
-                <span>Quick Roll</span>
-              </button>
-
-              {/* Filters Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setShowToolsDrawer(!showToolsDrawer)}
-                className="p-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 transition-colors cursor-pointer"
-                title="Toggle Filters"
-              >
-                <SlidersHorizontal size={12} />
-              </button>
-
-              {/* Print Button */}
-              <button
-                type="button"
-                onClick={() => setShowPrintReportModal(true)}
-                className="p-1 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors cursor-pointer"
-                title="Print Register"
-              >
-                <Printer size={12} />
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Roll Entry Input Box + Guidance Banner */}
-          {showQuickRollBox && (
-            <div className="p-2 rounded-xl border bg-indigo-50/90 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 space-y-1.5 animate-fadeIn">
-              {/* Input Row */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <Zap size={13} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+            {/* Middle: Inline Quick Roll Box OR Quick Roll Toggle Button */}
+            {showQuickRollBox ? (
+              <div className="flex-1 min-w-[200px] mx-1 flex items-center gap-1.5 bg-white dark:bg-slate-950 p-1 px-2 rounded-xl border border-indigo-300 dark:border-indigo-700 shadow-2xs animate-fadeIn">
+                <Zap size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                 <input
                   type="text"
                   value={quickRollInput}
                   onChange={(e) => handleQuickRollInputChange(e.target.value, quickRollMode)}
                   placeholder={quickRollMode === 'PRESENT_FIRST' ? "Enter Present Rolls (e.g. 4, 5, 10...)" : "Enter Absent Rolls (e.g. 4, 5, 10...)"}
-                  className="flex-1 px-2 py-1 rounded-lg text-[11px] sm:text-xs placeholder:text-[10px] sm:placeholder:text-xs font-semibold border bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700 focus:outline-none"
+                  className="flex-1 text-[11px] sm:text-xs placeholder:text-[10px] sm:placeholder:text-xs font-semibold bg-transparent border-none focus:outline-none text-slate-900 dark:text-white min-w-0"
                 />
                 {quickRollInput && (
                   <button
                     type="button"
                     onClick={() => handleQuickRollInputChange('', quickRollMode)}
-                    className="px-2 py-1.5 text-[10px] font-bold rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer flex-shrink-0"
+                    className="px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer flex-shrink-0"
                   >
                     Clear
                   </button>
@@ -1627,20 +1664,64 @@ export default function AttendancePage() {
                 <button
                   type="button"
                   onClick={handleToggleGuide}
-                  className={`p-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex-shrink-0 flex items-center gap-1 ${
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer flex-shrink-0 flex items-center gap-1 ${
                     showQuickRollGuide
                       ? 'bg-amber-500 text-white shadow-2xs'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                   }`}
                   title={showQuickRollGuide ? "Hide Help Guidance" : "Show Help Guidance"}
                 >
                   <span>💡</span>
-                  <span className="text-[10px] font-black hidden sm:inline">{showQuickRollGuide ? 'Hide Guide' : 'Guide'}</span>
+                  <span className="hidden sm:inline">{showQuickRollGuide ? 'Hide' : 'Guide'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickRollBox(false)}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                  title="Close Quick Roll"
+                >
+                  <X size={13} />
                 </button>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowQuickRollBox(true)}
+                className="px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                title="Toggle Quick Roll Entry Box"
+              >
+                <Zap size={13} />
+                <span>Quick Roll</span>
+              </button>
+            )}
 
-              {/* Dynamic Dismissable Monthly Guidance Banner (Full Text Display, No Ellipsis) */}
-              {showQuickRollGuide && (
+            {/* Right: Larger Filter & Print Action Buttons */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Filters Toggle Button — Larger */}
+              <button
+                type="button"
+                onClick={() => setShowToolsDrawer(!showToolsDrawer)}
+                className="p-1.5 sm:p-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs flex items-center justify-center"
+                title="Toggle Filters"
+              >
+                <SlidersHorizontal size={16} />
+              </button>
+
+              {/* Print Button — Larger */}
+              <button
+                type="button"
+                onClick={() => setShowPrintReportModal(true)}
+                className="p-1.5 sm:p-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs flex items-center justify-center"
+                title="Print Register"
+              >
+                <Printer size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Dynamic Dismissable Monthly Guidance Banner */}
+          {showQuickRollBox && showQuickRollGuide && (
+            <div className="p-2 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 space-y-1.5 animate-fadeIn">
                 <div className="flex items-start justify-between gap-2 text-[10.5px] font-bold text-indigo-900 dark:text-indigo-100 p-2 rounded-xl bg-indigo-100/90 dark:bg-indigo-900/60 border border-indigo-300/80 dark:border-indigo-800/80 animate-fadeIn shadow-2xs">
                   <div className="flex items-start gap-1.5 min-w-0 flex-1 leading-snug">
                     <Info size={13} className="flex-shrink-0 text-indigo-600 dark:text-indigo-400 mt-0.5" />
@@ -1930,18 +2011,66 @@ export default function AttendancePage() {
           {/* Sleek Centered Single Alphabet Summary Strip (P:89  L:0  A:0  T:89) + Date Selector Pill */}
           <div className="flex items-center justify-between sm:justify-center gap-1.5 p-1 px-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-black overflow-x-auto whitespace-nowrap w-full">
             <div className="flex items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30" title={`Present Students: ${presentCount}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategorySearchQuery('');
+                  setStudentCategoryModal({
+                    type: 'P',
+                    title: `Present Students (${presentCount})`,
+                    list: filteredStudentsBySubject.filter(s => (s.status === 'P' || s.status === 'Present'))
+                  });
+                }}
+                className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 hover:scale-105 transition-all cursor-pointer shadow-2xs flex items-center gap-1 font-black underline decoration-emerald-500/50 decoration-dotted underline-offset-2"
+                title="Click to view Present Students list"
+              >
                 P: {presentCount}
-              </span>
-              <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30" title={`Students on Leave: ${leaveCount}`}>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategorySearchQuery('');
+                  setStudentCategoryModal({
+                    type: 'L',
+                    title: `Students on Leave (${leaveCount})`,
+                    list: filteredStudentsBySubject.filter(s => (s.status === 'L' || s.status === 'Leave'))
+                  });
+                }}
+                className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 hover:scale-105 transition-all cursor-pointer shadow-2xs flex items-center gap-1 font-black underline decoration-amber-500/50 decoration-dotted underline-offset-2"
+                title="Click to view Students on Leave list"
+              >
                 L: {leaveCount}
-              </span>
-              <span className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30" title={`Absent Students: ${absentCount}`}>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategorySearchQuery('');
+                  setStudentCategoryModal({
+                    type: 'A',
+                    title: `Absent Students (${absentCount})`,
+                    list: filteredStudentsBySubject.filter(s => (s.status === 'A' || s.status === 'Absent' || !s.status))
+                  });
+                }}
+                className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500/30 hover:scale-105 transition-all cursor-pointer shadow-2xs flex items-center gap-1 font-black underline decoration-rose-500/50 decoration-dotted underline-offset-2"
+                title="Click to view Absent Students list"
+              >
                 A: {absentCount}
-              </span>
-              <span className="px-2 py-0.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700" title={`Total Roster Count: ${filteredStudentsBySubject.length}`}>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategorySearchQuery('');
+                  setStudentCategoryModal({
+                    type: 'T',
+                    title: `Total Roster (${filteredStudentsBySubject.length})`,
+                    list: filteredStudentsBySubject
+                  });
+                }}
+                className="px-2 py-0.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700 hover:bg-slate-300 hover:scale-105 transition-all cursor-pointer shadow-2xs flex items-center gap-1 font-black underline decoration-slate-400 decoration-dotted underline-offset-2"
+                title="Click to view full Class Roster list"
+              >
                 T: {filteredStudentsBySubject.length}
-              </span>
+              </button>
             </div>
 
             {/* Premium Interactive Date Control Capsule with 1-Click Stepping & Today Shortcut */}
@@ -2874,6 +3003,108 @@ export default function AttendancePage() {
             >
               OK, Got it
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 Interactive Student Category List Popup Modal */}
+      {studentCategoryModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-5 space-y-3.5 text-left max-h-[85vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-sm flex-shrink-0 ${
+                  studentCategoryModal.type === 'P' ? 'bg-emerald-600' :
+                  studentCategoryModal.type === 'L' ? 'bg-amber-600' :
+                  studentCategoryModal.type === 'A' ? 'bg-rose-600' : 'bg-slate-800'
+                }`}>
+                  {studentCategoryModal.type}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">
+                    {studentCategoryModal.title}
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                    Class {selectedClass} • {selectedSubject || 'General'} • {formatReadableDate(selectedDate)}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setStudentCategoryModal(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex-shrink-0"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search Input Filter */}
+            <div className="relative">
+              <input
+                type="text"
+                value={categorySearchQuery}
+                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                placeholder="Filter by name or roll number..."
+                className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+            </div>
+
+            {/* Student List */}
+            <div className="overflow-y-auto flex-1 space-y-1 pr-1 divide-y divide-slate-100 dark:divide-slate-800">
+              {studentCategoryModal.list
+                .filter(st => {
+                  if (!categorySearchQuery) return true;
+                  const q = categorySearchQuery.toLowerCase();
+                  const name = String(st.studentName || st.name || '').toLowerCase();
+                  const roll = String(st.classRollNo || st.rollNo || '');
+                  return name.includes(q) || roll.includes(q);
+                })
+                .map((st, idx) => {
+                  const rollNo = st.classRollNo || st.rollNo || idx + 1;
+                  const stName = st.studentName || st.name || `Student ${rollNo}`;
+                  const stStatus = st.status || 'A';
+
+                  return (
+                    <div key={idx} className="pt-2 flex items-center justify-between text-xs font-bold gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[10px] font-black flex items-center justify-center flex-shrink-0">
+                          {rollNo}
+                        </span>
+                        <span className="truncate text-slate-900 dark:text-slate-100 font-extrabold">
+                          {stName}
+                        </span>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase shadow-2xs flex-shrink-0 ${
+                        stStatus === 'P' || stStatus === 'Present' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                        stStatus === 'L' || stStatus === 'Leave' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                        'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}>
+                        {stStatus === 'P' || stStatus === 'Present' ? 'Present' : stStatus === 'L' || stStatus === 'Leave' ? 'Leave' : 'Absent'}
+                      </span>
+                    </div>
+                  );
+                })}
+
+              {studentCategoryModal.list.length === 0 && (
+                <div className="py-8 text-center text-xs font-bold text-slate-400">
+                  No students in this category.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setStudentCategoryModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-black text-xs uppercase tracking-wider hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

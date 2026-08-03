@@ -2000,6 +2000,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
 
       updateCachedItem('admissions', docId, payload);
+      updateCachedItem('masterRegisters', docId, payload);
       try {
         const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
         if (cachedRaw) {
@@ -2071,6 +2072,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         classRollNo: 'Class Roll No',
         admNo: 'Adm. No.',
         boardRegNo: 'Board Registration Number',
+        currExamRollNo: 'Exam R.No. (Current)',
+        examRoll: 'Exam R.No. (Current)',
+        examRollNo: 'Exam R.No. (Current)',
+        boardRoll: 'Exam R.No. (Current)',
+        boardRollNo: 'Exam R.No. (Current)',
+        'Exam R.No. (Current)': 'Exam R.No. (Current)',
         studentName: "Student's Name (as per school records)",
         fatherName: "Father's/Guardian's Name (as per school records)",
         motherName: "Mother's Name (as per school records)",
@@ -2093,8 +2100,17 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       };
 
       const targetFieldName = keyMap[colKey] || colKey;
+      const isExamRollEdit = colKey.toLowerCase().includes('exam') || colKey.toLowerCase().includes('boardroll') || targetFieldName === 'Exam R.No. (Current)' || colKey === 'currExamRollNo';
+
       const payload = {
         [targetFieldName]: newValue,
+        ...(isExamRollEdit ? {
+          'Exam R.No. (Current)': newValue,
+          currExamRollNo: newValue,
+          examRollNo: newValue,
+          examRoll: newValue,
+          boardRollNo: newValue
+        } : {}),
         updatedAt: new Date().toISOString(),
         lastEditedBy: 'Admin (Quick Cell)'
       };
@@ -2110,13 +2126,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       } catch (e) {}
 
       updateCachedItem('admissions', docId, payload);
+      updateCachedItem('masterRegisters', docId, payload);
       try {
         const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
         if (cachedRaw) {
           const parsed = JSON.parse(cachedRaw);
           const updatedActive = (parsed.activeList || []).map(st => {
             if ((cleanFNo && String(st['Form Number'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-              return { ...st, [colKey]: newValue, [targetFieldName]: newValue };
+              return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
             }
             return st;
           });
@@ -2127,14 +2144,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       if (student._isCurrentScope) {
         setCurrentAdmissions(prev => prev.map(st => {
           if ((cleanFNo && String(st['Form Number'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-            return { ...st, [colKey]: newValue, [targetFieldName]: newValue };
+            return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
           }
           return st;
         }));
       } else {
         setMasterRecords(prev => prev.map(st => {
           if ((cleanFNo && String(st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-            return { ...st, [colKey]: newValue, [targetFieldName]: newValue };
+            return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
           }
           return st;
         }));

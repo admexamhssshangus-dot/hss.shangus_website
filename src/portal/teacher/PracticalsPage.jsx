@@ -3,7 +3,7 @@ import { useNavigate, Link, useOutletContext } from 'react-router-dom';
 import { 
   ArrowLeft, UserCheck, Save, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, ArrowUpDown,
-  Bookmark, Send, AlertTriangle, FileCheck, ChevronDown, Check
+  Bookmark, Send, AlertTriangle, FileCheck, ChevronDown, Check, SlidersHorizontal
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
@@ -191,13 +191,16 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
   if (!targetSubjectCode && !targetSubjectName) return true;
   
   const rawSubjStr = String(
+    extractRawSubjectsString(st) ||
+    st.subs ||
+    st['Subs'] ||
+    st.rawSubjects ||
     st.subjects ||
     st.Subjects ||
     st.subject ||
     st['Stream / Subjects'] ||
     st['Subject Combination'] ||
     st['Selected Subjects'] ||
-    st.rawSubjects ||
     ''
   ).toUpperCase();
 
@@ -212,26 +215,32 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
   const codeUpper = String(targetSubjectCode || '').toUpperCase();
   const nameUpper = String(targetSubjectName || '').toUpperCase();
 
+  // 1. If student has explicit subject data, check subject string strictly
   if (rawSubjStr) {
-    if (codeUpper && (rawSubjStr.includes(codeUpper) || rawSubjStr.split(/[\s,+/]+/).includes(codeUpper))) return true;
+    if (codeUpper && (rawSubjStr.includes(codeUpper) || rawSubjStr.split(/[\s,+/()]+/).includes(codeUpper))) return true;
     if (nameUpper && rawSubjStr.includes(nameUpper)) return true;
-    if ((codeUpper === 'BO' || codeUpper === 'ZO') && (rawSubjStr.includes('BI') || rawSubjStr.includes('BIOLOGY') || rawSubjStr.includes('BOTANY') || rawSubjStr.includes('ZOOLOGY'))) return true;
-    if (codeUpper === 'BI' && (rawSubjStr.includes('BI') || rawSubjStr.includes('BIOLOGY') || rawSubjStr.includes('BOTANY') || rawSubjStr.includes('ZOOLOGY'))) return true;
+    if (['BO', 'ZO', 'BI'].includes(codeUpper) && (rawSubjStr.includes('BI') || rawSubjStr.includes('BIOLOGY') || rawSubjStr.includes('BOTANY') || rawSubjStr.includes('ZOOLOGY'))) return true;
+    if (codeUpper === 'PD' && (rawSubjStr.includes('PD') || rawSubjStr.includes('PHYSICAL EDUCATION') || rawSubjStr.includes('PHYSICAL ED'))) return true;
+    if (codeUpper === 'ES' && (rawSubjStr.includes('ES') || rawSubjStr.includes('ENV'))) return true;
+    if (codeUpper === 'EN' && (rawSubjStr.includes('EN') || rawSubjStr.includes('ENGLISH'))) return true;
+    return false; // Student has explicit subject list, but target subject is not in it
   }
 
+  // 2. Fallback only if rawSubjStr is completely empty
   if (streamStr) {
-    if (['PH', 'CH', 'BI', 'BO', 'ZO', 'CS', 'ITE', 'PD'].includes(codeUpper)) {
+    if (['EN', 'ES', 'PD'].includes(codeUpper)) return true; // Physical Education is an elective in all streams
+    if (['PH', 'CH', 'BI', 'BO', 'ZO', 'CS', 'ITE'].includes(codeUpper)) {
       if (streamStr.includes('SCIENCE') || streamStr.includes('MEDICAL') || streamStr.includes('NON-MEDICAL') || streamStr.includes('NON MEDICAL')) return true;
     }
-    if (['HT', 'PS', 'ED', 'SO', 'EC', 'PY', 'UR', 'AR', 'PE'].includes(codeUpper)) {
+    if (['HT', 'PS', 'ED', 'SO', 'EC', 'PY', 'UR', 'AR', 'PE', 'PD'].includes(codeUpper)) {
       if (streamStr.includes('ARTS') || streamStr.includes('HUMANITIES')) return true;
     }
-    if (['AY', 'BS', 'EP'].includes(codeUpper)) {
+    if (['AY', 'BS', 'EP', 'PD'].includes(codeUpper)) {
       if (streamStr.includes('COMMERCE')) return true;
     }
   }
 
-  if (['EN', 'ES'].includes(codeUpper)) return true;
+  if (['EN', 'ES', 'PD'].includes(codeUpper)) return true;
   if (!rawSubjStr && !streamStr) return true;
 
   return false;
@@ -362,71 +371,81 @@ function getRegNo(st) {
 }
 
 // Helper: Extract Exam Roll Badges (Exam R.No. (Current) + Exam R.no. (Prev.))
-function getExamRollBadges(st, selectedClass) {
-  if (!st) return [{ label: 'Exam R.No. (Current)', value: '—', isCurrent: true }];
+// Helper: Extract Current Class Exam Roll Number ONLY (returns '' if not assigned)
+function getExamRoll(st, selectedClass) {
+  if (!st) return '';
 
-  const badges = [];
-  const clsNorm = String(selectedClass || st.className || st.Class || st.class || '').toLowerCase();
-  const is12th = clsNorm.includes('12');
+  const getCleanVal = (val) => {
+    if (val === undefined || val === null) return '';
+    const str = String(val).trim();
+    if (str === 'undefined' || str === 'null' || str === '—' || str === '-' || str === '#N/A' || str === 'N/A' || str === 'NA') return '';
+    return str;
+  };
 
-  const rawBoard = String(
-    st.boardRoll ||
-    st.boardRollNo ||
-    st['Board Roll No'] ||
-    st['Board Roll No.'] ||
-    st['Exam Roll No'] ||
-    st['Exam Roll No.'] ||
-    st.examRollNo ||
-    ''
-  ).trim();
+  const clsStr = String(selectedClass || st.className || st.Class || st.class || '').toLowerCase();
+  const is12th = clsStr.includes('12');
+  const is11th = clsStr.includes('11');
+  const is10th = clsStr.includes('10');
 
-  // 1. Current Exam Roll (for 12th class, rawBoard is 12th Roll; for 11th class, current 11th roll if set)
-  const currentRoll = String(
-    st['Exam R.No. (Current)'] ||
-    st['Current Exam Roll'] ||
-    st['12th Exam Roll'] ||
-    st['Exam Roll Number of Class 12th'] ||
-    st.currentExamRoll ||
-    (is12th ? rawBoard : '')
-  ).trim();
+  let roll = '';
 
-  // 2. Previous Exam Roll (for 11th class, rawBoard is 10th Roll; for 12th class, 11th Roll if recorded)
-  const prevRoll = String(
-    st['Exam R.no. (Prev.)'] ||
-    st['Previous Exam Roll'] ||
-    st['10th Exam Roll'] ||
-    st['Exam Roll Number of Class 10th'] ||
-    st['11th Exam Roll'] ||
-    st['Exam Roll Number of Class 11th'] ||
-    st.prevExamRoll ||
-    st.roll10 ||
-    st.roll11 ||
-    (!is12th ? rawBoard : '')
-  ).trim();
-
-  // Add Exam R.No. (Current) badge
-  badges.push({
-    label: 'Exam R.No. (Current)',
-    value: currentRoll || '—',
-    isCurrent: true
-  });
-
-  // Add Exam R.no. (Prev.) badge if available and distinct
-  if (prevRoll && prevRoll !== currentRoll) {
-    badges.push({
-      label: 'Exam R.no. (Prev.)',
-      value: prevRoll,
-      isPrev: true
-    });
+  if (is12th) {
+    roll = getCleanVal(
+      st['12th Exam Roll'] ||
+      st['Exam Roll Number of Class 12th'] ||
+      st['12th Board Roll'] ||
+      st['Class 12th Exam Roll'] ||
+      st['12th Roll']
+    );
+  } else if (is11th) {
+    roll = getCleanVal(
+      st['11th Exam Roll'] ||
+      st['Exam Roll Number of Class 11th'] ||
+      st['11th Board Roll'] ||
+      st['Class 11th Exam Roll'] ||
+      st['11th Roll']
+    );
+  } else if (is10th) {
+    roll = getCleanVal(
+      st['10th Exam Roll'] ||
+      st['Exam Roll Number of Class 10th'] ||
+      st['10th Board Roll'] ||
+      st['Class 10th Exam Roll'] ||
+      st['10th Roll']
+    );
   }
 
-  return badges;
+  if (!roll) {
+    roll = getCleanVal(
+      st['Exam R.No. (Current)'] ||
+      st['Exam Roll'] ||
+      st['Exam Roll No'] ||
+      st['Exam Roll No.'] ||
+      st['Exam Roll Number'] ||
+      st['Board Roll'] ||
+      st['Board Roll No'] ||
+      st['Board Roll No.'] ||
+      st['Board Roll Number'] ||
+      st['Current Exam Roll'] ||
+      st.examRoll ||
+      st.examRollNo ||
+      st.boardRoll ||
+      st.boardRollNo ||
+      st.currentExamRoll
+    );
+  }
+
+  return roll;
 }
 
 // Helper: Extract Student Subjects across all schemas
 function extractRawSubjectsString(rec) {
   if (!rec) return '';
+
+  // 1. Check multi-subject array or string fields, or Subs header from masterRegisters
   const subjectArrayOrStr = 
+    rec['Subs'] ||
+    rec['subs'] ||
     rec['Subjects to be taken in Class 11th'] ||
     rec['Subjects to be taken in Class 12th'] ||
     rec['Subjects to be taken in Class 10th'] ||
@@ -442,12 +461,7 @@ function extractRawSubjectsString(rec) {
     rec['Elective Subjects'] ||
     rec['selectedSubjects'] ||
     rec['Subjects'] ||
-    rec['subjects'] ||
-    rec['subjectCombination'] ||
-    rec['Subject'] ||
-    rec['subject'] ||
-    rec['Subs'] ||
-    rec['subs'];
+    rec['subjectCombination'];
 
   if (Array.isArray(subjectArrayOrStr) && subjectArrayOrStr.length > 0) {
     const cleaned = subjectArrayOrStr.filter(s => s && String(s).trim() !== '—').map(s => String(s).trim());
@@ -458,6 +472,7 @@ function extractRawSubjectsString(rec) {
     return subjectArrayOrStr.trim();
   }
 
+  // 2. Next check Subjects1..Subjects6 columns from masterRegisters
   const subjList = [];
   const subjKeys = [
     'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
@@ -474,6 +489,13 @@ function extractRawSubjectsString(rec) {
   if (subjList.length > 0) {
     return subjList.join(', ');
   }
+
+  // 3. Fallback to single subject fields
+  const fallback = rec['subjects'] || rec['Subject'] || rec['subject'];
+  if (fallback && String(fallback).trim() && String(fallback).trim() !== '—') {
+    return String(fallback).trim();
+  }
+
   return '';
 }
 
@@ -541,6 +563,17 @@ function getAbbreviatedSubjects(st) {
     else subjectsStr = 'EN, PH, CH, BI';
   }
 
+  // Infer stream from subject tokens if streamCode was not explicit
+  if (!streamCode && subjectsStr) {
+    if (/\b(PS|ED|HT|SO|UR|AR|PE|KS|PY)\b/i.test(subjectsStr)) {
+      streamCode = 'H';
+    } else if (/\b(AY|BS|EP)\b/i.test(subjectsStr)) {
+      streamCode = 'G';
+    } else if (/\b(PH|CH|BI|BO|ZO)\b/i.test(subjectsStr)) {
+      streamCode = 'S';
+    }
+  }
+
   return streamCode ? `${subjectsStr} (${streamCode})` : subjectsStr;
 }
 
@@ -565,6 +598,76 @@ function numberToWords(numStr) {
     else { words += tens[Math.floor(number / 10)]; if (number % 10 > 0) { words += '-' + ones[number % 10]; } }
   }
   return words.trim();
+}
+
+// Helper: Render subject list with current filter subject highlighted in bold red text
+function renderSubjectsWithHighlight(subjectsStr, currentSubjObj) {
+  if (!subjectsStr || subjectsStr === 'N/A') return <span>N/A</span>;
+
+  const targetCode = String(currentSubjObj?.code || '').toLowerCase().trim();
+  const targetName = String(currentSubjObj?.name || '').toLowerCase().trim();
+
+  // Split by comma
+  const parts = String(subjectsStr).split(/,\s*/);
+
+  return parts.map((part, i) => {
+    // Extract clean code token without stream suffix (e.g. "PD (S)" -> "pd", "PH" -> "ph")
+    const pClean = part.replace(/\s*\([A-Z]\)\s*$/i, '').trim().toLowerCase();
+
+    let isTarget = false;
+
+    // 1. Biology / Botany / Zoology equivalence
+    if (['bi', 'bo', 'zo'].includes(targetCode) || ['biology', 'botany', 'zoology'].some(b => targetName.includes(b))) {
+      if (['bi', 'bo', 'zo', 'biology', 'botany', 'zoology'].includes(pClean)) {
+        isTarget = true;
+      }
+    }
+    // 2. Physical Education (PD) vs Physics (PH) — strict exact code match
+    else if (targetCode === 'pd' || targetName.includes('physical education')) {
+      if (pClean === 'pd' || pClean === 'physical education') isTarget = true;
+    }
+    else if (targetCode === 'ph' || targetName.includes('physics')) {
+      if (pClean === 'ph' || pClean === 'physics') isTarget = true;
+    }
+    // 3. General English (EN) vs Environmental Science (ES)
+    else if (targetCode === 'en' || targetName.includes('english')) {
+      if (pClean === 'en' || pClean === 'english') isTarget = true;
+    }
+    else if (targetCode === 'es' || targetName.includes('environmental')) {
+      if (pClean === 'es' || pClean === 'env' || pClean === 'environmental science') isTarget = true;
+    }
+    // 4. Political Science (PS)
+    else if (targetCode === 'ps' || targetName.includes('political')) {
+      if (pClean === 'ps' || pClean === 'political science') isTarget = true;
+    }
+    // 5. Computer Science (CS)
+    else if (targetCode === 'cs' || targetName.includes('computer')) {
+      if (pClean === 'cs' || pClean === 'computer science') isTarget = true;
+    }
+    // 6. Chemistry (CH)
+    else if (targetCode === 'ch' || targetName.includes('chemistry')) {
+      if (pClean === 'ch' || pClean === 'chemistry') isTarget = true;
+    }
+    // 7. IT / ITE
+    else if (targetCode === 'ite' || targetCode === 'it' || targetName.includes('information tech')) {
+      if (pClean === 'ite' || pClean === 'it' || pClean.includes('ite')) isTarget = true;
+    }
+    // 8. General fallback — exact code match or long name match
+    else if (targetCode && pClean === targetCode) {
+      isTarget = true;
+    } else if (targetName && pClean.length > 3 && targetName.includes(pClean)) {
+      isTarget = true;
+    }
+
+    return (
+      <React.Fragment key={i}>
+        {i > 0 && ', '}
+        <span className={isTarget ? 'text-rose-600 dark:text-rose-400 font-black bg-rose-500/10 px-1 py-0.2 rounded border border-rose-500/30' : ''}>
+          {part}
+        </span>
+      </React.Fragment>
+    );
+  });
 }
 
 function getMinPassMarks(maxMarks) {
@@ -715,6 +818,7 @@ export default function PracticalsPage() {
   const [yearSuffix, setYearSuffix] = useState(CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
   const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
+  const [showFilterSettings, setShowFilterSettings] = useState(false);
 
   // Roster & Marks State
   const [loading, setLoading] = useState(false);
@@ -1053,8 +1157,10 @@ export default function PracticalsPage() {
               classRollNo: st.classRollNo || st.rollNo || st['Class Roll No'] || '',
               admNo: extractRawAdmNo(st),
               regNo: getRegNo(st),
-              subjects: st.subjects || st['Subjects'] || st['Stream / Subjects'] || selectedSubject,
-              examRollBadges: getExamRollBadges(st, selectedClass)
+              rawSubjects: extractRawSubjectsString(st) || st.subjects || '',
+              subjects: st['Subs'] || extractRawSubjectsString(st) || st.subjects || st['Subjects'] || st['Stream / Subjects'] || selectedSubject,
+              subjectsAbbr: getAbbreviatedSubjects(st) || selectedSubject,
+              examRollNo: getExamRoll(st, selectedClass)
             });
           }
         });
@@ -1116,10 +1222,10 @@ export default function PracticalsPage() {
               formNo: richSt.formNo || richSt['Form No.'] || richSt['Form Number'] || rec.formNo || '',
               admNo: extractRawAdmNo(richSt) || extractRawAdmNo(rec),
               regNo: getRegNo(richSt) || getRegNo(rec),
-              subjects: richSt.subjects || richSt['Subjects'] || richSt['Stream / Subjects'] || rec.subjects || selectedSubject,
+              subjects: richSt['Subs'] || extractRawSubjectsString(richSt) || richSt.subjects || richSt['Subjects'] || richSt['Stream / Subjects'] || rec.subjects || selectedSubject,
               subjectsAbbr: getAbbreviatedSubjects(richSt) || getAbbreviatedSubjects(rec) || selectedSubject,
               stream: richSt.stream || richSt['Stream'] || richSt['Stream for Class 11th'] || rec.stream || '',
-              examRollBadges: getExamRollBadges({ ...richSt, boardRoll: rBoard || richSt.boardRollNo, boardRollNo: rBoard || richSt.boardRollNo }, selectedClass),
+              examRollNo: getExamRoll({ ...richSt, boardRoll: rBoard || richSt.boardRollNo, boardRollNo: rBoard || richSt.boardRollNo }, selectedClass),
               practicalMarks: rec.practicalMarks,
               vivaMarks: rec.vivaMarks,
               totalMarks: rec.totalMarks
@@ -1167,27 +1273,39 @@ export default function PracticalsPage() {
         }
       }
 
-      // Filter by Subject Matcher & Strict Class Roll Check
-      const subjectFiltered = uniqueStudents.filter(st => {
-        // STRICT CHECK FIRST: Must have assigned Class Roll No
-        if (!hasAssignedClassRoll(st)) return false;
+      // Filter by Subject Matcher & Strict Class Roll Check, and enrich with computed fields
+      const subjectFiltered = uniqueStudents
+        .filter(st => {
+          // STRICT CHECK FIRST: Must have assigned Class Roll No
+          if (!hasAssignedClassRoll(st)) return false;
 
-        // Always enforce class match regardless of session
-        const stCls = extractStudentClass(st);
-        if (stCls && !isClassMatch(stCls, selectedClass)) return false;
+          // Always enforce class match regardless of session
+          const stCls = extractStudentClass(st);
+          if (stCls && !isClassMatch(stCls, selectedClass)) return false;
 
-        // Skip granular subject filtering for historical records (marks already submitted)
-        if (st.isHistorical) return true;
+          // Skip granular subject filtering for historical records (marks already submitted)
+          if (st.isHistorical) return true;
 
-        const rawStr = extractRawSubjectsString(st);
-        const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
-        const enrichedSt = {
-          ...st,
-          rawSubjects,
-          subjectsAbbr: getAbbreviatedSubjects(st)
-        };
-        return isSubjectMatch(enrichedSt, selectedSubject);
-      });
+          const rawStr = extractRawSubjectsString(st);
+          const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
+          const enrichedSt = {
+            ...st,
+            rawSubjects,
+            subjectsAbbr: getAbbreviatedSubjects(st)
+          };
+          return isSubjectMatch(enrichedSt, selectedSubject);
+        })
+        .map(st => {
+          // Persist enriched fields into each student object for later formatting
+          const rawStr = extractRawSubjectsString(st);
+          const rawSubjects = Array.isArray(rawStr) ? rawStr.join(', ') : String(rawStr);
+          return {
+            ...st,
+            _rawSubjects: rawSubjects,
+            _subjectsAbbr: getAbbreviatedSubjects(st),
+            _examRollNo: getExamRoll(st, selectedClass)
+          };
+        });
 
       // Check local storage draft
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();
@@ -1226,10 +1344,9 @@ export default function PracticalsPage() {
           ).trim();
 
           const name = getStudentName(st);
-          const regNo = getRegNo(st);
-          const examRollBadgesList = getExamRollBadges(st, selectedClass);
-          const subsAbbr = getAbbreviatedSubjects(st);
-          const rawSubjFull = extractRawSubjectsString(st);
+          const examRollVal = st._examRollNo || getExamRoll(st, selectedClass);
+          const subsAbbr = st._subjectsAbbr || getAbbreviatedSubjects(st);
+          const rawSubjFull = st._rawSubjects || (() => { const r = extractRawSubjectsString(st); return Array.isArray(r) ? r.join(', ') : String(r); })();
           const key = roll || st.formNo || st.id;
           const saved = savedMarksMap[String(key).trim()] || 
                         savedMarksMap[String(st.formNo || '').trim()] || 
@@ -1241,10 +1358,9 @@ export default function PracticalsPage() {
           return {
             rollNo: roll,
             name: name,
-            regNo: regNo,
-            examRollBadges: examRollBadgesList,
+            examRollNo: examRollVal,
             subjectsAbbr: subsAbbr,
-            rawSubjects: Array.isArray(rawSubjFull) ? rawSubjFull.join(', ') : String(rawSubjFull),
+            rawSubjects: rawSubjFull,
             formNo: (st.formNo && String(st.formNo) !== String(roll) && String(st.formNo).length > 3)
               ? st.formNo
               : (st['Form No.'] || st['Form No'] || st['Form Number'] || st.form_no || ''),
@@ -1416,8 +1532,7 @@ export default function PracticalsPage() {
           rollNo: s.rollNo,
           name: s.name,
           formNo: s.formNo,
-          regNo: s.regNo,
-          examRollBadges: s.examRollBadges,
+          examRollNo: s.examRollNo,
           practicalMarks: pMarks,
           vivaMarks: vMarks,
           totalMarks: total,
@@ -1544,20 +1659,23 @@ export default function PracticalsPage() {
 
         {/* Main Ultra-Compact Card */}
         <div className="rounded-2xl p-3.5 sm:p-4 border shadow-md space-y-3 bg-white dark:bg-slate-900" style={{ borderColor: 'var(--border-ui, #cbd5e1)' }}>
-          {/* Title Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600/15 border border-indigo-600/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs flex-shrink-0">
-                <UserCheck size={20} />
+          {/* Title Header — Ultra-Compact */}
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-indigo-600/15 border border-indigo-600/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                <UserCheck size={16} />
               </div>
-              <div>
-                <div className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mb-0.5 border border-indigo-500/20">
-                  <ShieldCheck size={10} /> LAB EVALUATION SYSTEM
-                </div>
-                <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
+              <div className="min-w-0">
+                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
                   Practical Evaluation Portal
                 </h1>
+                <div className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                  {selectedClass} Class • {currentSubjectObj.name} ({currentSubjectObj.code})
+                </div>
               </div>
+            </div>
+            <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
+              <ShieldCheck size={10} /> LAB EVALUATION
             </div>
           </div>
 
@@ -1573,86 +1691,41 @@ export default function PracticalsPage() {
             </div>
           )}
 
-          {/* Compact Filter Controls Bar — 2 cols on mobile, 4 on sm+ */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
-            <div className="space-y-0.5">
-              <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Class</label>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+          {/* Sleek Integrated Filter Control & Toolbar Bar */}
+          <div className="rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 p-2 space-y-2">
+            {/* Single Summary Bar + Expand Toggle + Count + Sort (all one row) */}
+            <div className="flex items-center gap-1.5">
+              {/* Filters toggle — grows to fill available space */}
+              <button
+                type="button"
+                onClick={() => setShowFilterSettings(!showFilterSettings)}
+                className="flex-1 flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer min-w-0"
               >
-                <option value="12th">12th Class</option>
-                <option value="11th">11th Class</option>
-                <option value="10th">10th Class</option>
-                <option value="9th">9th Class</option>
-              </select>
-            </div>
+                <div className="flex items-center gap-1.5 truncate">
+                  <SlidersHorizontal size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="truncate text-[10.5px]">
+                    {selectedClass} • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} • {yearSuffix}
+                  </span>
+                </div>
+                <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-0.5">
+                  Filters <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
+                </span>
+              </button>
 
-            <CustomSubjectSelect
-              selectedSubject={selectedSubject}
-              setSelectedSubject={setSelectedSubject}
-              subjectMap={SUBJECT_MAP}
-              currentSubjectObj={currentSubjectObj}
-            />
+              {/* Student count + sort inline */}
+              <div className="hidden sm:flex items-center gap-1 shrink-0 text-[10px] font-extrabold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span>
+                <span>Stu.</span>
+                {showFailOnly && <span className="text-rose-600">(Fail)</span>}
+              </div>
 
-            <div className="space-y-0.5">
-              <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Eval. Type</label>
-              <select
-                value={practicalType}
-                onChange={(e) => setPracticalType(e.target.value)}
-                className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-              >
-                <option value="Internal Assessment">Internal</option>
-                <option value="External Practical">External</option>
-                <option value="Term End Evaluation">Term End</option>
-              </select>
-            </div>
-
-            <div className="space-y-0.5">
-              <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Session</label>
-              <select
-                value={yearSuffix}
-                onChange={(e) => setYearSuffix(e.target.value)}
-                className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-              >
-                {availableSessions.map(yr => {
-                  let label = yr;
-                  if (yr === '2026') label = '2025-26 (Reg. 2026)';
-                  else if (yr === '2025 APR/BIAN') label = '2025 (Annual Private/Biannual)';
-                  else if (yr === '2026 APR/BIAN') label = '2026 (Annual Private/Biannual)';
-                  else if (yr === '2024-25 (Mar-Apr)') label = '2024-25 (Mar-Apr)';
-                  else if (yr === '2024-25 (Oct-Nov)') label = '2024-25 (Oct-Nov)';
-                  else if (yr === '2024-25 (revised)') label = '2024-25 (Oct-Nov)';
-                  else if (yr === '2024-25') label = '2024-25 (Mar-Apr)';
-                  else if (yr === '2025') label = '2024-25 (Mar-Apr)';
-                  else if (yr === '2024') label = '2023-24 (Reg. 2024)';
-                  else if (yr.match(/\d{4}-\d{2}\s*\(Mar-Apr\)/i)) label = yr;
-                  else if (yr.match(/\d{4}-\d{2}\s*\(Oct-Nov\)/i)) label = yr;
-                  else if (yr.match(/^20\d\d$/)) {
-                    const yNum = parseInt(yr, 10);
-                    label = `${yNum - 1}-${yr.slice(2)} (Reg. ${yr})`;
-                  }
-                  return <option key={yr} value={yr}>{label}</option>;
-                })}
-              </select>
-            </div>
-          </div>
-
-          {/* Table Toolbar — compact on mobile */}
-          <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 px-2.5 rounded-xl border text-xs bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
-            <div className="font-extrabold text-slate-700 dark:text-slate-300 text-[11px]">
-              <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span> Students
-              {showFailOnly && <span className="ml-1 text-rose-600 font-bold">(Fail &lt;{minPassMarks}M)</span>}
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                <ArrowUpDown size={11} />
+              {/* Sort */}
+              <div className="hidden sm:flex items-center gap-0.5 shrink-0">
+                <ArrowUpDown size={10} className="text-slate-400" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-1.5 py-0.5 rounded-md border text-[10px] font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  className="px-1.5 py-1 rounded-md border text-[10px] font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                 >
                   <option value="rollAsc">Roll ↑</option>
                   <option value="rollDesc">Roll ↓</option>
@@ -1661,25 +1734,117 @@ export default function PracticalsPage() {
                 </select>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowFailOnly(!showFailOnly)}
-                className={`px-2 py-0.5 rounded-md font-bold text-[10px] border transition-all cursor-pointer ${
-                  showFailOnly
-                    ? 'bg-rose-500 text-white border-rose-500'
-                    : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                }`}
-              >
-                {showFailOnly ? 'All' : '📋 Fail'}
-              </button>
+              {/* Fail filter + Print */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowFailOnly(!showFailOnly)}
+                  className={`px-2 py-1.5 rounded-lg font-black text-xs border transition-all cursor-pointer ${
+                    showFailOnly
+                      ? 'bg-rose-500 text-white border-rose-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  {showFailOnly ? 'All' : '📋 Fail'}
+                </button>
 
-              <button
-                type="button"
-                onClick={handlePrintReport}
-                className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer flex items-center gap-1"
+                <button
+                  type="button"
+                  onClick={handlePrintReport}
+                  className="px-2.5 py-1.5 rounded-lg font-black text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-xs cursor-pointer flex items-center gap-1"
+                >
+                  <Printer size={13} /> <span className="hidden sm:inline">Print</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Expandable Filter Inputs Panel */}
+            {showFilterSettings && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Class</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="12th">12th Class</option>
+                    <option value="11th">11th Class</option>
+                    <option value="10th">10th Class</option>
+                    <option value="9th">9th Class</option>
+                  </select>
+                </div>
+
+                <CustomSubjectSelect
+                  selectedSubject={selectedSubject}
+                  setSelectedSubject={setSelectedSubject}
+                  subjectMap={SUBJECT_MAP}
+                  currentSubjectObj={currentSubjectObj}
+                />
+
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Eval. Type</label>
+                  <select
+                    value={practicalType}
+                    onChange={(e) => setPracticalType(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="Internal Assessment">Internal</option>
+                    <option value="External Practical">External</option>
+                    <option value="Term End Evaluation">Term End</option>
+                  </select>
+                </div>
+
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Session</label>
+                  <select
+                    value={yearSuffix}
+                    onChange={(e) => setYearSuffix(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  >
+                    {availableSessions.map(yr => {
+                      let label = yr;
+                      if (yr === '2026') label = '2025-26 (Reg. 2026)';
+                      else if (yr === '2025 APR/BIAN') label = '2025 (Annual Private/Biannual)';
+                      else if (yr === '2026 APR/BIAN') label = '2026 (Annual Private/Biannual)';
+                      else if (yr === '2024-25 (Mar-Apr)') label = '2024-25 (Mar-Apr)';
+                      else if (yr === '2024-25 (Oct-Nov)') label = '2024-25 (Oct-Nov)';
+                      else if (yr === '2024-25 (revised)') label = '2024-25 (Oct-Nov)';
+                      else if (yr === '2024-25') label = '2024-25 (Mar-Apr)';
+                      else if (yr === '2025') label = '2024-25 (Mar-Apr)';
+                      else if (yr === '2024') label = '2023-24 (Reg. 2024)';
+                      else if (yr.match(/\d{4}-\d{2}\s*\(Mar-Apr\)/i)) label = yr;
+                      else if (yr.match(/\d{4}-\d{2}\s*\(Oct-Nov\)/i)) label = yr;
+                      else if (yr.match(/^20\d\d$/)) {
+                        const yNum = parseInt(yr, 10);
+                        label = `${yNum - 1}-${yr.slice(2)} (Reg. ${yr})`;
+                      }
+                      return <option key={yr} value={yr}>{label}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile-only student count + sort (shown below filter bar on small screens) */}
+          <div className="sm:hidden flex items-center justify-between gap-1.5 px-1 py-0.5 text-[10px] text-slate-600 dark:text-slate-400">
+            <div className="font-extrabold">
+              <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span> Students
+              {showFailOnly && <span className="ml-1 text-rose-600">(Fail)</span>}
+            </div>
+            <div className="flex items-center gap-0.5 font-bold">
+              <ArrowUpDown size={10} />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-1.5 py-0.5 rounded-md border text-[10px] font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
               >
-                <Printer size={11} /> Print
-              </button>
+                <option value="rollAsc">Roll ↑</option>
+                <option value="rollDesc">Roll ↓</option>
+                <option value="nameAsc">Name A-Z</option>
+                <option value="formAsc">Form No.</option>
+              </select>
             </div>
           </div>
 
@@ -1691,111 +1856,125 @@ export default function PracticalsPage() {
             </div>
           ) : displayedStudents.length > 0 ? (
             <>
-              {/* ── MOBILE CARD LAYOUT (hidden on sm+) ── */}
-              <div className="sm:hidden space-y-2">
+              {/* ── MOBILE CARDS (hidden on sm+) — Ultra Compact 2-Line Format ── */}
+              <div className="sm:hidden space-y-1.5">
                 {displayedStudents.map((st, idx) => {
                   const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
-                  const totalVal = isAbsent ? 'AB' : (st.practicalMarks !== '' ? st.practicalMarks : '—');
+                  const valToConvert = isAbsent ? 'A' : (st.practicalMarks !== '' ? st.practicalMarks : '');
+                  const inWords = valToConvert ? numberToWords(valToConvert) : '';
                   const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
-                  const abbrFull = st.subjectsAbbr || '';
-                  const streamMatch = abbrFull.match(/\(([SGH])\)$/i);
-                  const streamCode = streamMatch ? streamMatch[1].toUpperCase() : '';
-                  const subjectsPart = streamCode ? abbrFull.replace(/\s*\([SGH]\)$/i, '').trim() : abbrFull;
-                  const streamColors = { S: 'bg-teal-500/15 text-teal-700 border-teal-500/30', H: 'bg-purple-500/15 text-purple-700 border-purple-500/30', G: 'bg-amber-500/15 text-amber-700 border-amber-500/30' };
+                  const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
 
                   return (
-                    <div key={idx} className={`rounded-xl border p-2.5 space-y-2 ${isAbsent ? 'border-amber-400/40 bg-amber-500/5' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'}`}>
-                      {/* Student info row */}
-                      <div className="flex items-start gap-2">
-                        <span className="min-w-[28px] h-7 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-black text-xs flex items-center justify-center border border-indigo-500/20">{st.rollNo}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-extrabold text-xs text-slate-900 dark:text-white leading-tight truncate">{st.name}</div>
-                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                            {st.formNo && String(st.formNo) !== String(st.rollNo) && String(st.formNo).length > 3 && (
-                              <span className="text-[9px] px-1.5 py-0 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">Form #{st.formNo}</span>
-                            )}
-                            {st.admNo && (
-                              <span className="text-[9px] px-1.5 py-0 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20">Adm #{st.admNo}</span>
-                            )}
-                            {st.subjectsAbbr && (
-                              <span className="text-[9px] px-1.5 py-0 rounded font-mono bg-teal-500/10 text-teal-700 dark:text-teal-400 font-black border border-teal-500/20">
-                                Subs: {st.subjectsAbbr}
-                              </span>
-                            )}
-                          </div>
+                    <div key={idx} className={`rounded-xl border p-2 space-y-1 ${isAbsent ? 'border-amber-400/40 bg-amber-500/5' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'}`}>
+                      {/* Line 1: S.No, Roll, Name, Form & Adm */}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="px-1.5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-[10px] flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0" title="Serial Number">
+                            #{idx + 1}
+                          </span>
+                          <span className="w-5 h-5 rounded-md bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-mono font-black text-[11px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>{st.rollNo}</span>
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">{st.name}</span>
                         </div>
-                        {/* Total badge */}
-                        <span className={`min-w-[36px] text-center text-xs font-black px-1.5 py-1 rounded-lg border ${
-                          isAbsent ? 'bg-amber-500/10 text-amber-600 border-amber-400/30' : 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
-                        }`}>{totalVal}</span>
+                        <div className="flex items-center gap-1 shrink-0 text-[9px] flex-wrap justify-end">
+                          {st.formNo && <span className="px-1 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">Form #{st.formNo}</span>}
+                          {st.admNo && <span className="px-1 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20">Adm #{st.admNo}</span>}
+                          <span className="px-1 py-0.2 rounded font-mono font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                            Exam Roll: {st.examRollNo || '-'}
+                          </span>
+                        </div>
                       </div>
-                      {/* Marks inputs row */}
-                      <div>
-                        <div className="text-[9px] font-black text-slate-500 mb-0.5">Marks Obt. (Prac/Assignment&Viva) ({subjectMaxMarks}M)</div>
-                        <input
-                          type="text"
-                          placeholder={`0-${subjectMaxMarks} / A`}
-                          value={st.practicalMarks}
-                          onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                          className="w-full px-2 py-1.5 rounded-lg border text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center"
-                        />
+
+                      {/* Line 2: Subjects & Marks Entry */}
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <div className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 truncate max-w-[58%]" title={`Subs: ${allSubjs}`}>
+                          <span className="font-mono font-black text-teal-800 dark:text-teal-200 bg-teal-500/15 px-1 py-0.2 rounded border border-teal-500/30 mr-1">Subs:</span>
+                          {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="text"
+                            placeholder={`0-${subjectMaxMarks} / A`}
+                            value={st.practicalMarks}
+                            onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
+                            className="w-16 px-1 py-0.5 rounded-lg border text-xs font-black h-6.5 text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase"
+                          />
+                          {inWords && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[9.5px] font-black whitespace-nowrap">
+                              {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* ── DESKTOP TABLE (hidden on mobile) ── */}
+              {/* ── DESKTOP TABLE (hidden on mobile) — Ultra Compact ── */}
               <div className="hidden sm:block overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-black uppercase text-[9.5px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <th className="py-2 px-2.5 w-16 cursor-pointer hover:text-indigo-600" onClick={() => setSortBy(sortBy === 'rollAsc' ? 'rollDesc' : 'rollAsc')}>
+                      <th className="py-1.5 px-2 w-10 text-center">S.No.</th>
+                      <th className="py-1.5 px-2.5 w-16 cursor-pointer hover:text-indigo-600" onClick={() => setSortBy(sortBy === 'rollAsc' ? 'rollDesc' : 'rollAsc')}>
                         Roll {sortBy.startsWith('roll') ? (sortBy === 'rollAsc' ? '↑' : '↓') : ''}
                       </th>
-                      <th className="py-2 px-2.5 cursor-pointer hover:text-indigo-600" onClick={() => setSortBy(sortBy === 'nameAsc' ? 'rollAsc' : 'nameAsc')}>
-                        Student Details {sortBy === 'nameAsc' ? '↑' : ''}
+                      <th className="py-1.5 px-2.5 cursor-pointer hover:text-indigo-600" onClick={() => setSortBy(sortBy === 'nameAsc' ? 'rollAsc' : 'nameAsc')}>
+                        Student Details & Subjects Offered {sortBy === 'nameAsc' ? '↑' : ''}
                       </th>
-                      <th className="py-2 px-2 text-center w-56">Marks Obt. (Prac/Assignment&Viva) ({subjectMaxMarks}M)</th>
+                      <th className="py-1.5 px-2 text-center w-64">Marks Obt. ({subjectMaxMarks}M) & In Words</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold text-slate-900 dark:text-slate-100">
                     {displayedStudents.map((st, idx) => {
                       const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
-                      const totalVal = isAbsent ? 'ABSENT' : (st.practicalMarks !== '' ? st.practicalMarks : '-');
-                      const inWords = numberToWords(totalVal);
+                      const valToConvert = isAbsent ? 'A' : (st.practicalMarks !== '' ? st.practicalMarks : '');
+                      const inWords = valToConvert ? numberToWords(valToConvert) : '';
                       const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
+                      const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
 
                       return (
                         <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-colors ${isAbsent ? 'bg-amber-500/5' : ''}`}>
-                          <td className="py-1.5 px-2.5 font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs">{st.rollNo}</td>
-                          <td className="py-1.5 px-2.5 space-y-0.5">
-                            <div className="font-extrabold text-xs text-slate-900 dark:text-white leading-tight">{st.name}</div>
-                            <div className="flex items-center gap-1.5 flex-wrap text-[9.5px]">
+                          <td className="py-1 px-2 text-center font-mono font-extrabold text-slate-400 text-xs">{idx + 1}</td>
+                          <td className="py-1 px-2.5 font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs">{st.rollNo}</td>
+                          <td className="py-1 px-2.5 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-extrabold text-xs text-slate-900 dark:text-white leading-tight">{st.name}</span>
                               {st.formNo && String(st.formNo) !== String(st.rollNo) && String(st.formNo).length > 3 && (
-                                <span className="px-1.5 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">Form #{st.formNo}</span>
+                                <span className="px-1.5 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700 text-[9px]">Form #{st.formNo}</span>
                               )}
                               {st.admNo && (
-                                <span className="px-1.5 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20">Adm #{st.admNo}</span>
+                                <span className="px-1.5 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20 text-[9px]">Adm #{st.admNo}</span>
                               )}
-                              {st.regNo && <span className="px-1.5 py-0.2 rounded font-mono bg-blue-500/10 text-blue-700 dark:text-blue-400 font-black border border-blue-500/20">Reg: {st.regNo}</span>}
-                              {(st.examRollBadges || []).map((b, bIdx) => (
-                                <span key={bIdx} className={`px-1.5 py-0.2 rounded font-mono font-black border ${
-                                  b.isCurrent ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                                }`}>{b.label}: {b.value}</span>
-                              ))}
-                              {/* Subjects + Stream — exact format matching attendance portal */}
-                              {st.subjectsAbbr && (
-                                <span className="px-1.5 py-0.2 rounded font-mono bg-teal-500/10 text-teal-700 dark:text-teal-400 font-black border border-teal-500/20 text-[9.5px]">
-                                  Subs: {st.subjectsAbbr}
-                                </span>
-                              )}
+                              <span className="px-1.5 py-0.2 rounded font-mono font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[9px]">
+                                Exam Roll: {st.examRollNo || '-'}
+                              </span>
+                            </div>
+                            {/* All Subjects List Badge */}
+                            <div className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 leading-tight">
+                              <span className="font-mono font-black text-teal-800 dark:text-teal-200 bg-teal-500/15 px-1 py-0.2 rounded border border-teal-500/30 mr-1">Subs:</span>
+                              {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
                             </div>
                           </td>
-                          <td className="py-1.5 px-2">
-                            <input type="text" placeholder={`0-${subjectMaxMarks} or A`} value={st.practicalMarks}
-                              onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                              className="w-full px-2 py-1 rounded-lg border text-xs font-bold h-7 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center" />
+                          <td className="py-1 px-2">
+                            <div className="flex items-center gap-1.5 justify-center">
+                              <input
+                                type="text"
+                                placeholder={`0-${subjectMaxMarks} / A`}
+                                value={st.practicalMarks}
+                                onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
+                                className="w-20 px-2 py-0.5 rounded-lg border text-xs font-black h-7 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center"
+                              />
+                              {inWords ? (
+                                <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black whitespace-nowrap">
+                                  {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}
+                                </span>
+                              ) : (
+                                <span className="text-[9.5px] text-slate-400 font-semibold italic">Enter mark</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

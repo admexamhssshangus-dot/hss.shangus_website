@@ -219,7 +219,7 @@ export default function ControlsAndSubjects() {
   // Super Admin Tab Permissions State
   const [adminUsers, setAdminUsers] = useState([
     { name: 'Sheikh Gulfam', email: 'adm.exam.hss.shangus@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Whitelist', 'Tools', 'OTPs'] },
-    { name: 'Nawaz Ahmad Shah', email: 'shahnawaz13678@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
+    { name: 'Nawaz Ahmad Shah (Admin)', email: 'shahnawaz@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
     { name: 'Bilal Ahmad Magray', email: 'bilalhcu@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
     { name: 'Majid Hassan Najar', email: 'majidhassannajar@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
   ]);
