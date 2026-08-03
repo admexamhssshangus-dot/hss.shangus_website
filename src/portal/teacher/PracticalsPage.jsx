@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { signOut } from 'firebase/auth';
+import { signOut, signInAnonymously } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, getDoc, addDoc } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
@@ -1392,6 +1392,9 @@ export default function PracticalsPage() {
     setShowValidationModal(false);
     setAlert(null);
     try {
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const docId = `${clsNorm}_${selectedSubject}_${practicalType}_${yearSuffix}`;
 

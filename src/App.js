@@ -106,12 +106,12 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen w-full max-w-full overflow-x-hidden">
         {/* The Navbar will always show on every page */}
         <Navbar /> 
         
         {/* Main Content Area */}
-        <main className="flex-grow flex flex-col" style={{ paddingTop: 'var(--site-header-height, 64px)', backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
+        <main className="flex-grow flex flex-col w-full max-w-full overflow-x-hidden" style={{ paddingTop: 'var(--site-header-height, 64px)', backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
           <Suspense fallback={<LazyFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />

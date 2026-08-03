@@ -313,7 +313,7 @@ export default function LoginPage() {
         path="/portal/login"
       />
 
-      <div className="w-full max-w-sm sm:max-w-lg relative">
+      <div className="w-full max-w-sm sm:max-w-lg relative overflow-hidden">
         {/* Ambient Glowing Background Orbs */}
         <div className={`absolute -top-12 -left-12 w-48 h-48 blur-3xl rounded-full pointer-events-none transition-all duration-500 ${
           isSuperAdmin ? 'bg-purple-500/20' : 'bg-teal-500/20'

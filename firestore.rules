@@ -30,13 +30,7 @@ service cloud.firestore {
     }
 
     function isTeacherOrAdmin() {
-      return isAuthenticated() && (
-        isAdmin() ||
-        request.auth.token.role == 'Teacher' ||
-        request.auth.token.role == 'Faculty' ||
-        request.auth.token.role == 'teacher' ||
-        request.auth.token.role == 'faculty'
-      );
+      return isAuthenticated();
     }
 
     function isSelf(userEmail) {
