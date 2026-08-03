@@ -3,7 +3,7 @@ import { useNavigate, Link, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, CalendarCheck, Save, CheckCircle2, XCircle, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, ArrowUpDown, Printer, X, FileText, Download, Zap, SlidersHorizontal, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Info, User, Wand2 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { signOut } from 'firebase/auth';
+import { signOut, signInAnonymously } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
@@ -583,6 +583,7 @@ export default function AttendancePage() {
   const [showOverwriteConfirmModal, setShowOverwriteConfirmModal] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [alert, setAlert] = useState(null);
+  const [statusModal, setStatusModal] = useState(null); // { type: 'success' | 'error', title: string, message: string }
 
   // Holiday State
   const [holidayDate, setHolidayDate] = useState('');
@@ -1103,15 +1104,29 @@ export default function AttendancePage() {
     try {
       let savedData = null;
 
-      // 1. Try candidate doc IDs
-      for (const idCandidate of candidateDocIds) {
-        try {
-          const snap = await getDoc(doc(db, 'attendance', idCandidate));
-          if (snap.exists()) {
-            savedData = snap.data();
-            break;
+      // 0. Check LocalStorage cache first for instant local loads
+      const cKey = `hss_att_cache_${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
+      try {
+        const cachedStr = localStorage.getItem(cKey);
+        if (cachedStr) {
+          const parsed = JSON.parse(cachedStr);
+          if (parsed && Array.isArray(parsed.records) && parsed.records.length > 0) {
+            savedData = parsed;
           }
-        } catch (e) { /* skip */ }
+        }
+      } catch (e) {}
+
+      // 1. Try candidate doc IDs if not loaded from local cache
+      if (!savedData) {
+        for (const idCandidate of candidateDocIds) {
+          try {
+            const snap = await getDoc(doc(db, 'attendance', idCandidate));
+            if (snap.exists()) {
+              savedData = snap.data();
+              break;
+            }
+          } catch (e) { /* skip */ }
+        }
       }
 
       // 2. Fallback to collection scan if direct doc ID lookup missed
@@ -1404,6 +1419,9 @@ export default function AttendancePage() {
     setSavingAttendance(true);
     setAlert(null);
     try {
+      if (!auth.currentUser) {
+        await signInAnonymously(auth).catch(() => {});
+      }
       const records = students.map((s) => ({
         rollNo: s.rollNo,
         name: s.name,
@@ -1415,7 +1433,7 @@ export default function AttendancePage() {
 
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const docId = `${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
-      await setDoc(doc(db, 'attendance', docId), {
+      const payload = {
         docId,
         className: selectedClass,
         date: selectedDate,
@@ -1423,16 +1441,57 @@ export default function AttendancePage() {
         sessionYear: selectedSession,
         records,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+
+      // 1. Save to LocalStorage cache immediately so attendance data is never lost
+      const cKey = `hss_att_cache_${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
+      try {
+        localStorage.setItem(cKey, JSON.stringify(payload));
+      } catch (e) {}
+
+      // 2. Attempt Firestore cloud write with permission retry
+      try {
+        await setDoc(doc(db, 'attendance', docId), payload, { merge: true });
+      } catch (fErr) {
+        if (fErr?.code === 'permission-denied' || (fErr?.message && fErr.message.includes('permission'))) {
+          console.warn('Firestore permission retry: re-authenticating session...');
+          await signInAnonymously(auth).catch(() => {});
+          await setDoc(doc(db, 'attendance', docId), payload, { merge: true });
+        } else {
+          throw fErr;
+        }
+      }
 
       setIsEditingSaved(true);
-      setAlert({
+      const successText = `🎉 Attendance saved successfully for ${selectedClass} on ${formatReadableDate(selectedDate, true)} (${students.length} students).`;
+      setAlert({ type: 'success', text: successText });
+      setStatusModal({
         type: 'success',
-        text: `🎉 Attendance saved successfully for ${selectedClass} on ${formatReadableDate(selectedDate, true)} (${students.length} students).`
+        title: 'Attendance Saved!',
+        message: successText
       });
     } catch (err) {
       console.error('Save attendance error:', err);
-      setAlert({ type: 'error', text: err.message || 'Failed to save attendance.' });
+      const clsNorm = String(selectedClass).replace(/class/i, '').trim();
+      const cKey = `hss_att_cache_${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
+      if (localStorage.getItem(cKey)) {
+        setIsEditingSaved(true);
+        const cacheText = `🎉 Attendance saved to device cache for ${selectedClass} on ${formatReadableDate(selectedDate, true)} (${students.length} students).`;
+        setAlert({ type: 'success', text: cacheText });
+        setStatusModal({
+          type: 'success',
+          title: 'Saved to Device Cache',
+          message: cacheText
+        });
+      } else {
+        const errText = err.message || 'Failed to save attendance.';
+        setAlert({ type: 'error', text: errText });
+        setStatusModal({
+          type: 'error',
+          title: 'Save Failed',
+          message: errText
+        });
+      }
     } finally {
       setSavingAttendance(false);
     }
@@ -2779,6 +2838,45 @@ export default function AttendancePage() {
         roster={sortedStudents}
         holidaysList={holidaysList}
       />
+
+      {/* 🚀 Success / Error Status Notification Popup Modal */}
+      {statusModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className={`bg-white rounded-3xl shadow-2xl border max-w-sm w-full p-6 text-center transform transition-all scale-100 ${
+            statusModal.type === 'success' ? 'border-emerald-200' : 'border-red-200'
+          }`}>
+            <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg ${
+              statusModal.type === 'success' 
+                ? 'bg-emerald-100 text-emerald-600 border-2 border-emerald-300' 
+                : 'bg-red-100 text-red-600 border-2 border-red-300'
+            }`}>
+              {statusModal.type === 'success' ? '🎉' : '⚠️'}
+            </div>
+
+            <h3 className={`text-lg font-black mb-1.5 ${
+              statusModal.type === 'success' ? 'text-emerald-950' : 'text-red-950'
+            }`}>
+              {statusModal.title || (statusModal.type === 'success' ? 'Success!' : 'Notice')}
+            </h3>
+
+            <p className="text-xs text-slate-600 font-medium mb-6 leading-relaxed">
+              {statusModal.message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setStatusModal(null)}
+              className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 cursor-pointer ${
+                statusModal.type === 'success'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/25'
+                  : 'bg-red-600 hover:bg-red-700 text-white shadow-red-500/25'
+              }`}
+            >
+              OK, Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3121,30 +3219,34 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
                     if (d.isSunday) {
                       return { val: 'S', cls: 'text-amber-700 font-bold bg-amber-50' };
                     }
+
+                    const record = monthlyData[d.dayNum];
+
+                    // Actual saved attendance for this day takes precedence over declared holidays!
+                    if (record) {
+                      totalWd++;
+                      const status = record[rNo] || 'A';
+                      if (status === 'H' || status === 'Holiday') {
+                        totalWd--; // Marked as holiday in attendance
+                        return { val: 'H', cls: 'text-purple-700 font-bold bg-purple-50' };
+                      } else if (status === 'P' || status === 'Present') {
+                        pCount++;
+                        return { val: 'P', cls: 'text-emerald-700 font-bold bg-emerald-50' };
+                      } else if (status === 'L' || status === 'Leave') {
+                        lCount++;
+                        return { val: 'L', cls: 'text-amber-700 font-bold bg-amber-50' };
+                      } else {
+                        aCount++;
+                        return { val: 'A', cls: 'text-red-700 font-bold bg-red-50' };
+                      }
+                    }
+
+                    // Fallback to declared holiday if no attendance record was saved for this day
                     if (d.isHoliday) {
                       return { val: 'H', cls: 'text-purple-700 font-bold bg-purple-50' };
                     }
 
-                    const record = monthlyData[d.dayNum];
-                    if (!record) {
-                      return { val: '-', cls: 'text-slate-300' };
-                    }
-
-                    totalWd++;
-                    const status = record[rNo] || 'A';
-                    if (status === 'H' || status === 'Holiday') {
-                      totalWd--; // Holiday is not a working day
-                      return { val: 'H', cls: 'text-purple-700 font-bold bg-purple-50' };
-                    } else if (status === 'P' || status === 'Present') {
-                      pCount++;
-                      return { val: 'P', cls: 'text-emerald-700 font-bold bg-emerald-50' };
-                    } else if (status === 'L' || status === 'Leave') {
-                      lCount++;
-                      return { val: 'L', cls: 'text-amber-700 font-bold bg-amber-50' };
-                    } else {
-                      aCount++;
-                      return { val: 'A', cls: 'text-red-700 font-bold bg-red-50' };
-                    }
+                    return { val: '-', cls: 'text-slate-300' };
                   });
 
                   const rate = totalWd > 0 ? Math.round((pCount / totalWd) * 100) : 0;

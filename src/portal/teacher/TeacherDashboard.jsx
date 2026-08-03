@@ -17,11 +17,17 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
-  const [stats, setStats] = useState({
-    totalStudents: 205,
-    totalClasses: 4,
-    todayAttendancePct: '0%',
-    practicalsSubmitted: 0,
+  const [stats, setStats] = useState(() => {
+    try {
+      const cached = localStorage.getItem('hss_teacher_dash_stats_cache');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return {
+      totalStudents: 205,
+      totalClasses: 4,
+      todayAttendancePct: '0%',
+      practicalsSubmitted: 0,
+    };
   });
 
   // Helper: check if student is approved and has assigned class roll no
@@ -34,118 +40,97 @@ export default function TeacherDashboard() {
     return hasRoll && isApproved;
   };
 
-  // Fetch Teacher Stats & Today's Attendance overview (Fast SWR)
+  // Fetch Teacher Stats & Today's Attendance overview (Fast 0ms SWR)
   const fetchDashboardStats = async () => {
     try {
       const cachedAdmissions = getCachedCollectionSync('admissions');
       if (!cachedAdmissions) setLoading(true);
 
-      let approvedRollCount = 0;
-      let todaysAttRecords = 0;
-      let practicalCount = 0;
+      const todayStr = new Date().toISOString().split('T')[0];
       const countSet = new Set();
 
-      // 1. Fetch via SWR Cache
-      try {
-        const [masterDocs, admDocs] = await Promise.all([
-          getCachedCollection('masterRegisters').catch(() => []),
-          getCachedCollection('admissions').catch(() => [])
-        ]);
+      // Parallelize all cache/firestore calls simultaneously using SWR (Stale-While-Revalidate)
+      const [masterDocsRes, admDocsRes, attDocsRes, pracDocsRes] = await Promise.allSettled([
+        getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
+        getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => []),
+        getCachedCollection('attendance', false, 5 * 60 * 1000).catch(() => []),
+        getCachedCollection('practicalsData', false, 5 * 60 * 1000).catch(() => [])
+      ]);
 
-        if (masterDocs && Array.isArray(masterDocs)) {
-          masterDocs.forEach(data => {
-            const items = data.items || data.data || data.records || data.students;
-            if (Array.isArray(items)) {
-              items.forEach(st => {
-                if (hasAssignedRollAndApproved(st)) {
-                  const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no;
-                  const cls = st.class || st.Class || data.className || data.id || 'st';
-                  countSet.add(`${cls}_${roll}`);
-                }
-              });
-            }
-          });
-        }
+      const masterDocs = masterDocsRes.status === 'fulfilled' ? masterDocsRes.value : [];
+      const admDocs = admDocsRes.status === 'fulfilled' ? admDocsRes.value : [];
+      const attDocs = attDocsRes.status === 'fulfilled' ? attDocsRes.value : [];
+      const pracDocs = pracDocsRes.status === 'fulfilled' ? pracDocsRes.value : [];
 
-        if (admDocs && Array.isArray(admDocs)) {
-          admDocs.forEach(data => {
-            const items = data.items || data.data || data.records || data.students;
-            if (Array.isArray(items)) {
-              items.forEach(st => {
-                if (hasAssignedRollAndApproved(st)) {
-                  const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no;
-                  const cls = st.class || st.Class || data.className || data.id || 'st';
-                  countSet.add(`${cls}_${roll}`);
-                }
-              });
-            } else if (hasAssignedRollAndApproved(data)) {
-              const roll = data.classRollNo || data.rollNo || data['Class Roll No'] || data.roll_no;
-              const cls = data.class || data.Class || 'st';
-              countSet.add(`${cls}_${roll}`);
-            }
-          });
-        }
-
-        // Check users collection
-        const userSnap = await getDocs(collection(db, 'users')).catch(() => null);
-        if (userSnap && !userSnap.empty) {
-          userSnap.docs.forEach(docSnap => {
-            const data = docSnap.data();
-            const r = String(data.role || data.Role || '').toLowerCase();
-            if ((r.includes('student') || !r) && hasAssignedRollAndApproved(data)) {
-              const roll = data.classRollNo || data.rollNo || data['Class Roll No'];
-              const cls = data.class || data.Class || 'st';
-              countSet.add(`${cls}_${roll}`);
-            }
-          });
-        }
-
-        approvedRollCount = countSet.size;
-      } catch (e) {
-        console.warn('Student roll count stats read note:', e);
+      if (Array.isArray(masterDocs)) {
+        masterDocs.forEach(data => {
+          const items = data.items || data.data || data.records || data.students;
+          if (Array.isArray(items)) {
+            items.forEach(st => {
+              if (hasAssignedRollAndApproved(st)) {
+                const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no;
+                const cls = st.class || st.Class || data.className || data.id || 'st';
+                countSet.add(`${cls}_${roll}`);
+              }
+            });
+          }
+        });
       }
 
-      // 2. Fetch today's attendance count
-      const todayStr = new Date().toISOString().split('T')[0];
-      try {
-        const attSnap = await getDocs(collection(db, 'attendance')).catch(() => null);
-        if (attSnap && !attSnap.empty) {
-          attSnap.docs.forEach(d => {
-            const data = d.data();
-            if (data.date === todayStr) {
-              todaysAttRecords += (data.records || []).length;
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('Attendance stats read note:', e);
+      if (Array.isArray(admDocs)) {
+        admDocs.forEach(data => {
+          const items = data.items || data.data || data.records || data.students;
+          if (Array.isArray(items)) {
+            items.forEach(st => {
+              if (hasAssignedRollAndApproved(st)) {
+                const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no;
+                const cls = st.class || st.Class || data.className || data.id || 'st';
+                countSet.add(`${cls}_${roll}`);
+              }
+            });
+          } else if (hasAssignedRollAndApproved(data)) {
+            const roll = data.classRollNo || data.rollNo || data['Class Roll No'] || data.roll_no;
+            const cls = data.class || data.Class || 'st';
+            countSet.add(`${cls}_${roll}`);
+          }
+        });
       }
 
-      // 3. Fetch practical submissions count
-      try {
-        const pracSnap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
-        if (pracSnap && !pracSnap.empty) {
-          practicalCount = pracSnap.size;
-        }
-      } catch (e) {
-        console.warn('Practicals stats read note:', e);
+      const approvedRollCount = countSet.size || 205;
+
+      // Count today's attendance records
+      let todaysAttRecords = 0;
+      if (Array.isArray(attDocs)) {
+        attDocs.forEach(d => {
+          const data = d.data ? (typeof d.data === 'function' ? d.data() : d.data) : d;
+          const dDate = data.date || data.dateStr || '';
+          if (dDate === todayStr && Array.isArray(data.records)) {
+            todaysAttRecords += data.records.length;
+          }
+        });
       }
 
-      const pct = approvedRollCount > 0 ? `${Math.round((todaysAttRecords / approvedRollCount) * 100)}%` : '0%';
+      // Count practicals
+      const practicalCount = Array.isArray(pracDocs) ? pracDocs.length : 0;
+      const pct = approvedRollCount > 0 && todaysAttRecords > 0 ? `${Math.round((todaysAttRecords / approvedRollCount) * 100)}%` : '0%';
 
-      setStats({
-        totalStudents: approvedRollCount || 205,
+      const newStats = {
+        totalStudents: approvedRollCount,
         totalClasses: 4,
         todayAttendancePct: pct,
-        practicalsSubmitted: practicalCount || 31,
-      });
+        practicalsSubmitted: practicalCount,
+      };
+
+      setStats(newStats);
+      try {
+        localStorage.setItem('hss_teacher_dash_stats_cache', JSON.stringify(newStats));
+      } catch (e) {}
     } catch (err) {
       console.error('Failed to load dashboard stats:', err);
     } finally {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     fetchDashboardStats();
