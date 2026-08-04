@@ -1,6 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download } from 'lucide-react';
+import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, Lock, ShieldAlert, Check } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
+import { db } from '../../services/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+
+export const ALL_ADMIN_MODULES = [
+  { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
+  { code: 'controls', label: 'System & Emergency Controls', desc: 'Enable/disable 9th-12th classes, sessions, print settings' },
+  { code: 'subjects', label: 'Subject Configuration Rules', desc: 'Configure streams, groups A/B/C, min/max limits' },
+  { code: 'gkTest', label: 'GK Test & OMR System', desc: 'Manage GK registrations, admit cards, centers & OMR' },
+  { code: 'practicals', label: 'Practicals & Awards', desc: 'Practical marks entry, examiners, awards locking' },
+  { code: 'attendanceMgmt', label: 'Attendance Management', desc: 'Class attendance registers, log attendance & reports' },
+  { code: 'rollNo', label: 'Roll Number Assignment', desc: 'Auto-assign roll numbers & roll series configuration' },
+  { code: 'bulk', label: 'Bulk Export & ID Cards', desc: 'Generate batch ID Card PDFs & Excel/CSV exports' },
+  { code: 'automations', label: 'Email & Automations', desc: 'Group Email Composer, broadcast notifications & logs' },
+  { code: 'funds', label: 'Fund & Fee Accounts', desc: 'Fee structures, student fee ledgers & account distribution' },
+  { code: 'ingestion', label: 'Direct Ingestion & CSV Import', desc: 'Express student creation & raw CSV data importer' },
+  { code: 'adminMgmt', label: 'Admin Permissions Manager', desc: 'Add, edit, or revoke other admin accounts & permissions' },
+];
+
+const DEFAULT_ADMIN_USERS = [
+  {
+    name: 'Sheikh Gulfam (SuperAdmin)',
+    email: 'adm.exam.hss.shangus@gmail.com',
+    role: 'SuperAdmin',
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
+  },
+  {
+    name: 'Nawaz Ahmad Shah (Admin)',
+    email: 'shahnawaz@gmail.com',
+    role: 'Admin',
+    perms: ['reports', 'controls', 'subjects', 'attendanceMgmt', 'rollNo', 'bulk'],
+  },
+  {
+    name: 'Bilal Ahmad Khandy',
+    email: 'bilalhcu@gmail.com',
+    role: 'Admin',
+    perms: ['reports', 'practicals', 'attendanceMgmt', 'rollNo', 'bulk'],
+  },
+  {
+    name: 'Majid Hassan Najar',
+    email: 'majidhassannajar@gmail.com',
+    role: 'Admin',
+    perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'],
+  },
+];
 
 const INITIAL_SUBJECT_MAP = {
   '8th_General': {
@@ -216,13 +260,12 @@ export default function ControlsAndSubjects() {
     setShowComboModal(true);
   };
 
-  // Super Admin Tab Permissions State
-  const [adminUsers, setAdminUsers] = useState([
-    { name: 'Sheikh Gulfam', email: 'adm.exam.hss.shangus@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Whitelist', 'Tools', 'OTPs'] },
-    { name: 'Nawaz Ahmad Shah (Admin)', email: 'shahnawaz@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
-    { name: 'Bilal Ahmad Magray', email: 'bilalhcu@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
-    { name: 'Majid Hassan Najar', email: 'majidhassannajar@gmail.com', perms: ['Controls', 'Subjects', 'Email', 'Activity', 'Tools'] },
-  ]);
+  // Super Admin Tab & Module Permissions State
+  const [adminUsers, setAdminUsers] = useState(DEFAULT_ADMIN_USERS);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [editingAdminEmail, setEditingAdminEmail] = useState(null);
+  const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'] });
+  const [userToDelete, setUserToDelete] = useState(null);
 
   // LAB Test Data Generator State
   const [testGenSize, setTestGenSize] = useState('10');
@@ -231,7 +274,7 @@ export default function ControlsAndSubjects() {
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
 
-  // Load existing subject config & app settings
+  // Load existing subject config, app settings, and Firestore permissions
   useEffect(() => {
     async function loadConfigs() {
       try {
@@ -245,6 +288,24 @@ export default function ControlsAndSubjects() {
           if (cfg.logo_url) setLogoUrl(cfg.logo_url);
         }
       } catch (e) {}
+
+      // Load Firestore Admin Permissions
+      try {
+        const permDocRef = doc(db, 'adminSettings', 'permissions');
+        const permSnap = await getDoc(permDocRef);
+        if (permSnap.exists() && Array.isArray(permSnap.data().users)) {
+          setAdminUsers(permSnap.data().users);
+        } else {
+          const cached = localStorage.getItem('hss_admin_users_permissions_v1');
+          if (cached) setAdminUsers(JSON.parse(cached));
+        }
+      } catch (err) {
+        console.warn('Firestore permissions load fallback:', err);
+        const cached = localStorage.getItem('hss_admin_users_permissions_v1');
+        if (cached) {
+          try { setAdminUsers(JSON.parse(cached)); } catch (_) {}
+        }
+      }
     }
     loadConfigs();
   }, []);
@@ -327,15 +388,31 @@ export default function ControlsAndSubjects() {
     }
   };
 
-  // Toggle Permission
-  const togglePermission = (userEmail, perm) => {
+  // Toggle Module Permission for a specific Admin
+  const togglePermission = (userEmail, moduleCode) => {
     setAdminUsers((prev) =>
       prev.map((u) => {
-        if (u.email === userEmail) {
-          const exists = u.perms.includes(perm);
+        if (u.email.toLowerCase() === userEmail.toLowerCase()) {
+          const currentPerms = Array.isArray(u.perms) ? u.perms : [];
+          const exists = currentPerms.includes(moduleCode);
+          const updatedPerms = exists
+            ? currentPerms.filter((p) => p !== moduleCode)
+            : [...currentPerms, moduleCode];
+          return { ...u, perms: updatedPerms };
+        }
+        return u;
+      })
+    );
+  };
+
+  // Select / Deselect All Permissions for an Admin
+  const setAllPermissionsForUser = (userEmail, enableAll = true) => {
+    setAdminUsers((prev) =>
+      prev.map((u) => {
+        if (u.email.toLowerCase() === userEmail.toLowerCase()) {
           return {
             ...u,
-            perms: exists ? u.perms.filter((p) => p !== perm) : [...u.perms, perm],
+            perms: enableAll ? ALL_ADMIN_MODULES.map((m) => m.code) : []
           };
         }
         return u;
@@ -343,22 +420,100 @@ export default function ControlsAndSubjects() {
     );
   };
 
-  // Apply Permissions
-  const handleApplyPermissions = async () => {
+  // Save/Apply Permissions to Firestore & Local Storage
+  const handleApplyPermissions = async (updatedList = null) => {
+    const listToSave = Array.isArray(updatedList) ? updatedList : adminUsers;
     setSaving(true);
     setAlert(null);
     try {
-      const res = await appsScriptApi.call('saveAdminPermissions', { users: adminUsers });
-      if (res && res.success !== false) {
-        setAlert({ type: 'success', text: 'Super admin tab permissions updated successfully!' });
-      } else {
-        setAlert({ type: 'error', text: res?.message || 'Failed to update permissions.' });
+      // 1. Save to Cloud Firestore
+      await setDoc(doc(db, 'adminSettings', 'permissions'), {
+        users: listToSave,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // 2. Sync to individual user documents in 'users' collection
+      for (const u of listToSave) {
+        const cleanEmail = u.email.trim().toLowerCase();
+        await setDoc(doc(db, 'users', cleanEmail), {
+          name: u.name,
+          email: cleanEmail,
+          role: u.role || 'Admin',
+          perms: u.perms || [],
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {});
       }
+
+      // 3. Cache locally
+      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
+
+      // 4. Legacy fallback
+      appsScriptApi.call('saveAdminPermissions', { users: listToSave }).catch(() => {});
+
+      setAlert({ type: 'success', text: '✨ Super Admin permissions & admin accounts updated successfully in Cloud Firestore!' });
     } catch (err) {
-      setAlert({ type: 'success', text: 'Tab permissions updated!' });
+      console.error('Failed to save permissions to Firestore:', err);
+      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
+      setAlert({ type: 'success', text: 'Permissions saved locally!' });
     } finally {
       setSaving(false);
     }
+  };
+
+  // Modal Action: Open Add Admin Modal
+  const handleOpenAddAdmin = () => {
+    setEditingAdminEmail(null);
+    setAdminForm({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'] });
+    setShowAdminModal(true);
+  };
+
+  // Modal Action: Open Edit Admin Modal
+  const handleOpenEditAdmin = (user) => {
+    setEditingAdminEmail(user.email);
+    setAdminForm({ name: user.name, email: user.email, role: user.role || 'Admin', perms: Array.isArray(user.perms) ? [...user.perms] : [] });
+    setShowAdminModal(true);
+  };
+
+  // Save Modal Form (Add or Edit)
+  const handleSaveAdminForm = (e) => {
+    e.preventDefault();
+    if (!adminForm.name.trim() || !adminForm.email.trim()) {
+      alert('Please enter both Full Name and Email Address.');
+      return;
+    }
+    const cleanEmail = adminForm.email.trim().toLowerCase();
+    let updated;
+    if (editingAdminEmail) {
+      updated = adminUsers.map((u) =>
+        u.email.toLowerCase() === editingAdminEmail.toLowerCase()
+          ? { ...u, name: adminForm.name.trim(), email: cleanEmail, role: adminForm.role, perms: adminForm.perms }
+          : u
+      );
+    } else {
+      if (adminUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+        alert('An admin account with this email address already exists!');
+        return;
+      }
+      updated = [
+        ...adminUsers,
+        { name: adminForm.name.trim(), email: cleanEmail, role: adminForm.role, perms: adminForm.perms }
+      ];
+    }
+    setAdminUsers(updated);
+    setShowAdminModal(false);
+    handleApplyPermissions(updated);
+  };
+
+  // Revoke / Delete Admin User
+  const handleDeleteAdmin = (email) => {
+    if (email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com') {
+      alert('Security Protection: The primary Super Admin account cannot be revoked.');
+      return;
+    }
+    const updated = adminUsers.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
+    setAdminUsers(updated);
+    setUserToDelete(null);
+    handleApplyPermissions(updated);
   };
 
   // Generate Test Data
@@ -837,62 +992,273 @@ export default function ControlsAndSubjects() {
         </div>
       )}
 
-      {/* SUB TAB 3: SUPER ADMIN TAB PERMISSIONS */}
+      {/* SUB TAB 3: SUPER ADMIN TAB PERMISSIONS & ADMIN ACCOUNT MANAGER */}
       {activeSubTab === 'permissions' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-4">
+            {/* Header Toolbar */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
               <div>
                 <h3 className="font-black text-sm flex items-center gap-2 text-slate-900 dark:text-white">
-                  <ShieldCheck size={16} className="text-amber-600" /> Super Admin Tab Permissions
+                  <ShieldCheck size={18} className="text-amber-600" /> Super Admin & Staff Access Manager
                 </h3>
-                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Configure granular access permissions for administrative staff members</p>
+                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                  Register new admin accounts, configure granular permissions across all 12 portal modules, and revoke access.
+                </p>
               </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenAddAdmin}
+                  className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-indigo-700 hover:bg-indigo-600 shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <UserPlus size={14} />
+                  <span>Add New Admin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPermissions()}
+                  disabled={saving}
+                  className="px-4 py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  <span>Apply Permissions</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Admin Users Cards List */}
+            <div className="space-y-4">
+              {adminUsers.map((user, idx) => {
+                const isSuper = user.role === 'SuperAdmin' || user.email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com';
+                const userPerms = Array.isArray(user.perms) ? user.perms : [];
+                const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
+
+                return (
+                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-3 shadow-sm hover:border-amber-500/50 transition-all">
+                    {/* User Info Bar */}
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isSuper ? 'bg-purple-500/20 text-purple-600 border border-purple-500/40' : 'bg-amber-500/20 text-amber-600 border border-amber-500/40'}`}>
+                          {isSuper ? <ShieldCheck size={18} /> : <Lock size={16} />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <strong className="text-sm font-black text-slate-900 dark:text-white">{user.name}</strong>
+                            <span className={`px-2.5 py-0.5 rounded-full font-black text-[9px] uppercase tracking-wider ${isSuper ? 'bg-purple-600 text-white' : 'bg-amber-700 text-white'}`}>
+                              {isSuper ? 'Super Admin' : 'Admin User'}
+                            </span>
+                          </div>
+                          <span className="text-slate-500 dark:text-slate-400 text-xs font-bold block">{user.email}</span>
+                        </div>
+                      </div>
+
+                      {/* Quick Card Controls */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                        >
+                          {allSelected ? 'Deselect All' : 'Select All (Full Access)'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditAdmin(user)}
+                          title="Edit Admin Account"
+                          className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer transition-colors"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        {!isSuper && (
+                          <button
+                            type="button"
+                            onClick={() => setUserToDelete(user)}
+                            title="Revoke Admin Access"
+                            className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200 cursor-pointer transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Permissions Badges Grid (12 Modules) */}
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2">
+                        Granted Feature Permissions ({userPerms.length} / {ALL_ADMIN_MODULES.length})
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+                        {ALL_ADMIN_MODULES.map((mod) => {
+                          const active = userPerms.includes(mod.code) || isSuper;
+                          return (
+                            <button
+                              key={mod.code}
+                              type="button"
+                              onClick={() => togglePermission(user.email, mod.code)}
+                              title={mod.desc}
+                              className={`p-2 rounded-xl text-left font-extrabold text-[11px] transition-all cursor-pointer border flex items-center justify-between ${
+                                active
+                                  ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
+                                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                              }`}
+                            >
+                              <span className="truncate pr-1">{mod.label}</span>
+                              {active ? <Check size={13} className="flex-shrink-0" /> : <Plus size={13} className="opacity-40 flex-shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD / EDIT ADMIN ACCOUNT MODAL */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-5 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <UserPlus size={18} className="text-indigo-600" />
+                {editingAdminEmail ? 'Edit Admin Account' : 'Register New Admin Account'}
+              </h3>
               <button
                 type="button"
-                onClick={handleApplyPermissions}
-                disabled={saving}
-                className="px-4 py-2 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                onClick={() => setShowAdminModal(false)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
               >
-                {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                <span>Apply Permissions</span>
+                <X size={18} />
               </button>
             </div>
 
-            <div className="space-y-3">
-              {adminUsers.map((user, idx) => (
-                <div key={idx} className="p-3.5 rounded-xl border border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-2.5 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <strong className="text-sm font-black text-slate-900 dark:text-white">{user.name}</strong>
-                      <span className="text-slate-600 dark:text-slate-400 text-xs block font-bold">{user.email}</span>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-700 text-white font-black text-[10px] uppercase">
-                      Admin User
-                    </span>
-                  </div>
+            <form onSubmit={handleSaveAdminForm} className="space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminForm.name}
+                    onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                    placeholder="e.g. Nawaz Ahmad Shah"
+                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                  />
+                </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
-                    {['Controls', 'Subjects', 'Email', 'Activity', 'Whitelist', 'Tools', 'OTPs'].map((perm) => {
-                      const active = user.perms.includes(perm);
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    disabled={!!editingAdminEmail}
+                    value={adminForm.email}
+                    onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                    placeholder="e.g. shahnawaz@gmail.com"
+                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white disabled:opacity-60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Role Type</label>
+                  <select
+                    value={adminForm.role}
+                    onChange={(e) => setAdminForm({ ...adminForm, role: e.target.value })}
+                    className="w-full p-2.5 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                  >
+                    <option value="Admin">Standard Admin</option>
+                    <option value="SuperAdmin">Super Admin (Full Control)</option>
+                  </select>
+                </div>
+
+                {/* Module Permissions Checkboxes */}
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2">Granted Feature Modules</label>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {ALL_ADMIN_MODULES.map((mod) => {
+                      const checked = adminForm.perms.includes(mod.code) || adminForm.role === 'SuperAdmin';
                       return (
-                        <button
-                          key={perm}
-                          type="button"
-                          onClick={() => togglePermission(user.email, perm)}
-                          className={`px-2.5 py-1 rounded-lg font-black text-xs transition-all cursor-pointer shadow-sm ${
-                            active
-                              ? 'bg-amber-700 text-white border border-amber-800'
-                              : 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:bg-amber-600 hover:text-white'
-                          }`}
+                        <label
+                          key={mod.code}
+                          className="flex items-start gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
-                          {active ? '✓ ' : '+ '} {perm}
-                        </button>
+                          <input
+                            type="checkbox"
+                            disabled={adminForm.role === 'SuperAdmin'}
+                            checked={checked}
+                            onChange={(e) => {
+                              const updated = e.target.checked
+                                ? [...adminForm.perms, mod.code]
+                                : adminForm.perms.filter((p) => p !== mod.code);
+                              setAdminForm({ ...adminForm, perms: updated });
+                            }}
+                            className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
+                          />
+                          <div>
+                            <span className="text-xs font-black text-slate-900 dark:text-white block">{mod.label}</span>
+                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">{mod.desc}</span>
+                          </div>
+                        </label>
                       );
                     })}
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-700 text-white hover:bg-indigo-600 shadow-md cursor-pointer"
+                >
+                  Save Admin Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE / REVOKE ADMIN MODAL */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-600 border border-rose-500/30 flex items-center justify-center mx-auto font-black">
+              <ShieldAlert size={24} />
+            </div>
+            <div>
+              <h3 className="font-black text-base text-slate-900 dark:text-white">Revoke Admin Access?</h3>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
+                Are you sure you want to revoke admin privileges for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> ({userToDelete.email})?
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteAdmin(userToDelete.email)}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-700 text-white hover:bg-rose-600 shadow-md cursor-pointer"
+              >
+                Yes, Revoke Access
+              </button>
             </div>
           </div>
         </div>

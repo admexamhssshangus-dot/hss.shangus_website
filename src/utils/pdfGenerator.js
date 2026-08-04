@@ -11,27 +11,35 @@
 export function generateStudentAdmissionPdf(studentData) {
   if (!studentData) return;
 
-  const formNo = studentData['Form Number'] || studentData['FormNo'] || 'N/A';
-  const name = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || 'N/A';
-  const fatherName = studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || 'N/A';
-  const motherName = studentData["Mother's Name (as per school records)"] || studentData["Mother's Name"] || 'N/A';
-  const dob = studentData["DoB (as per school records)"] || studentData["DoB"] || 'N/A';
-  const gender = studentData["Gender"] || 'N/A';
-  const mobile = studentData["Mobile No. (with working WhatsApp)"] || studentData["Mobile No."] || 'N/A';
-  const parentMobile = studentData["Parent's Mobile No. (must be working)"] || studentData["Parent Contact"] || 'N/A';
+  const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || studentData['form_no'] || 'N/A';
+  const name = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['studentName'] || studentData['name'] || 'N/A';
+  const fatherName = studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || studentData['fatherName'] || studentData['parentName'] || 'N/A';
+  const motherName = studentData["Mother's Name (as per school records)"] || studentData["Mother's Name"] || studentData['motherName'] || 'N/A';
+  const dob = studentData["DoB (as per school records)"] || studentData["DoB"] || studentData['dob'] || 'N/A';
+  const gender = studentData["Gender"] || studentData['gender'] || 'N/A';
+  const mobile = studentData["Mobile No. (with working WhatsApp)"] || studentData["Mobile No."] || studentData['mobile'] || 'N/A';
+  const parentMobile = studentData["Parent's Mobile No. (must be working)"] || studentData["Parent Contact"] || studentData['parentMobile'] || 'N/A';
   const email = studentData["Email Address"] || studentData["email"] || 'N/A';
-  const village = studentData["Name of your village"] || studentData["Village"] || 'N/A';
-  const district = studentData["District"] || 'Anantnag';
-  const pin = studentData["PIN code"] || '192201';
-  const classSought = studentData["Admission sought for class"] || studentData["Class"] || 'N/A';
-  const stream = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"] || studentData["Stream"] || 'General';
-  const subjects = studentData["Subjects to be taken in Class 11th"] || studentData["Subjects Studied in Class 11th"] || studentData["Subjects"] || 'N/A';
-  const photoUrl = studentData["Student Photo"] || studentData["photo_id"] || 'https://via.placeholder.com/150';
-  const status = studentData["Status"] || 'Submitted';
-  const rollNo = studentData["Class Roll No"] || studentData["RollNo"] || 'Unassigned';
-  const aadhaar = studentData["Aadhar No."] || 'N/A';
-  const category = studentData["Social category"] || 'OM';
-  const blood = studentData["Blood Group"] || 'N/A';
+  const village = studentData["Name of your village"] || studentData["Village"] || studentData['village'] || 'N/A';
+  const district = studentData["District"] || studentData['district'] || 'Anantnag';
+  const pin = studentData["PIN code"] || studentData['pin'] || '192201';
+  const classSought = studentData["Admission sought for class"] || studentData["Class"] || studentData['class'] || 'N/A';
+  const stream = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"] || studentData["Stream"] || studentData['stream'] || 'General';
+  const subjects = studentData["Subjects to be taken in Class 11th"] || studentData["Subjects Studied in Class 11th"] || studentData["Subs"] || studentData["Subjects"] || studentData['subjects'] || 'N/A';
+  const photoUrl = studentData["Student Photo"] || studentData["photo_id"] || studentData["photoUrl"] || studentData["photo"] || '/logo.png';
+  const status = studentData["Status"] || studentData['status'] || 'Submitted';
+  const rollNo = studentData["Class Roll No"] || studentData["rollNo"] || studentData["Class R.No."] || 'Unassigned';
+  const aadhaar = studentData["Aadhar No."] || studentData['aadhar'] || studentData['aadhaar'] || 'N/A';
+  const category = studentData["Social category"] || studentData['category'] || 'OM';
+  const prevSchool = studentData["Previous School"] || studentData["Previous School Name"] || studentData['prevSchool'] || 'N/A';
+  const prevMarks = studentData["Total Marks Obtained in Class 10th"] || studentData["Total Marks Obtained in Class 11th"] || studentData["Marks Obtained"] || 'N/A';
+  const prevMax = studentData["Total Max. Marks in Class 10th"] || studentData["Total Max. Marks in Class 11th"] || studentData["Max Marks"] || '500';
+  const bankAcc = studentData["Bank Account No."] || studentData['bankAccount'] || 'N/A';
+  const bankName = studentData["Name of Bank"] || studentData['bankName'] || 'N/A';
+  const ifsc = studentData["IFSC code"] || studentData['ifsc'] || 'N/A';
+  const penNo = studentData["PEN No."] || studentData['penNo'] || 'N/A';
+  const apaarId = studentData["APAAR ID"] || studentData['apaarId'] || 'N/A';
+  const submDate = studentData["submittedAt"] ? new Date(studentData["submittedAt"]).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -39,117 +47,146 @@ export function generateStudentAdmissionPdf(studentData) {
     <head>
       <title>Admission Form - ${formNo} - ${name}</title>
       <style>
-        @page { size: A4; margin: 12mm; }
-        body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; }
-        .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px; }
-        .school-title { font-size: 18px; font-weight: bold; color: #0f766e; text-transform: uppercase; letter-spacing: 0.5px; }
-        .sub-title { font-size: 11px; font-weight: bold; color: #475569; margin-top: 2px; }
-        .form-badge { display: inline-block; background: #0f766e; color: #fff; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-top: 6px; }
+        @page { size: A4; margin: 10mm 12mm 10mm 12mm; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 10.5px; margin: 0; padding: 0; line-height: 1.4; }
+        .page-container { width: 100%; box-sizing: border-box; }
+        .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 6px; margin-bottom: 10px; page-break-inside: avoid; }
+        .school-title { font-size: 17px; font-weight: bold; color: #0f766e; text-transform: uppercase; letter-spacing: 0.5px; }
+        .sub-title { font-size: 10.5px; font-weight: bold; color: #475569; margin-top: 2px; }
+        .form-badge { display: inline-block; background: #0f766e; color: #fff; padding: 3px 10px; border-radius: 4px; font-size: 10.5px; font-weight: bold; margin-top: 6px; }
 
-        .top-info { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .top-info { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; page-break-inside: avoid; }
         .info-table { width: 78%; border-collapse: collapse; }
-        .info-table td { padding: 5px 8px; border: 1px solid #cbd5e1; font-size: 11px; }
+        .info-table td { padding: 4px 7px; border: 1px solid #cbd5e1; font-size: 10.5px; }
         .info-table td.label { font-weight: bold; background: #f8fafc; color: #334155; width: 35%; }
 
-        .photo-box { width: 110px; height: 135px; border: 2px solid #0f766e; border-radius: 4px; overflow: hidden; text-align: center; background: #f1f5f9; }
+        .photo-box { width: 105px; height: 130px; border: 2px solid #0f766e; border-radius: 4px; overflow: hidden; text-align: center; background: #f1f5f9; }
         .photo-box img { width: 100%; height: 100%; object-fit: cover; }
 
-        .section-header { background: #0f766e; color: #fff; font-weight: bold; padding: 5px 10px; font-size: 11px; margin-top: 10px; margin-bottom: 6px; border-radius: 2px; }
+        .section-header { background: #0f766e; color: #fff; font-weight: bold; padding: 4px 8px; font-size: 10.5px; margin-top: 8px; margin-bottom: 5px; border-radius: 2px; page-break-after: avoid; page-break-inside: avoid; }
         
-        .full-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        .full-table td { padding: 5px 8px; border: 1px solid #cbd5e1; font-size: 11px; }
+        .full-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; page-break-inside: avoid; }
+        .full-table tr { page-break-inside: avoid; page-break-after: auto; }
+        .full-table td { padding: 4px 7px; border: 1px solid #cbd5e1; font-size: 10.5px; }
         .full-table td.label { font-weight: bold; background: #f8fafc; color: #334155; width: 25%; }
 
-        .subject-box { border: 1px solid #cbd5e1; padding: 8px 12px; background: #fafafa; border-radius: 4px; font-size: 11px; font-weight: bold; color: #0f766e; line-height: 1.6; }
+        .subject-box { border: 1px solid #cbd5e1; padding: 7px 10px; background: #fafafa; border-radius: 4px; font-size: 10.5px; font-weight: bold; color: #0f766e; line-height: 1.5; margin-bottom: 8px; page-break-inside: avoid; }
 
-        .footer-sig { display: flex; justify-content: space-between; margin-top: 35px; padding-top: 10px; }
+        .declaration-box { page-break-inside: avoid; margin-top: 10px; }
+        .footer-sig { display: flex; justify-content: space-between; margin-top: 30px; padding-top: 10px; page-break-inside: avoid; }
         .sig-box { text-align: center; width: 30%; border-top: 1px dashed #64748b; padding-top: 4px; font-weight: bold; color: #475569; font-size: 10px; }
       </style>
     </head>
     <body>
-      <div class="header">
-        <div class="school-title">GOVT HIGHER SECONDARY SCHOOL SHANGUS</div>
-        <div class="sub-title">ANANTNAG, JAMMU & KASHMIR — 192201</div>
-        <div class="sub-title">ONLINE ADMISSION APPLICATION FORM (${new Date().getFullYear()})</div>
-        <div class="form-badge">FORM NO: ${formNo} | STATUS: ${status.toUpperCase()}</div>
-      </div>
+      <div class="page-container">
+        <div class="header">
+          <div class="school-title">GOVT HIGHER SECONDARY SCHOOL SHANGUS</div>
+          <div class="sub-title">ANANTNAG, JAMMU & KASHMIR — 192201</div>
+          <div class="sub-title">ONLINE ADMISSION APPLICATION FORM (${new Date().getFullYear()})</div>
+          <div class="form-badge">FORM NO: ${formNo} | STATUS: ${status.toUpperCase()} | SUBMITTED: ${submDate}</div>
+        </div>
 
-      <div class="top-info">
-        <table class="info-table">
+        <div class="top-info">
+          <table class="info-table">
+            <tr>
+              <td class="label">Student's Name:</td>
+              <td><strong>${name}</strong></td>
+            </tr>
+            <tr>
+              <td class="label">Father's Name:</td>
+              <td>${fatherName}</td>
+            </tr>
+            <tr>
+              <td class="label">Mother's Name:</td>
+              <td>${motherName}</td>
+            </tr>
+            <tr>
+              <td class="label">Date of Birth:</td>
+              <td>${dob}</td>
+            </tr>
+            <tr>
+              <td class="label">Gender / Category:</td>
+              <td>${gender} / ${category}</td>
+            </tr>
+            <tr>
+              <td class="label">Admission Sought For:</td>
+              <td><strong>Class ${classSought} (${stream})</strong></td>
+            </tr>
+          </table>
+          <div class="photo-box">
+            <img src="${photoUrl}" alt="Student Photo" onerror="this.src='/logo.png';" />
+          </div>
+        </div>
+
+        <div class="section-header">1. CONTACT & RESIDENTIAL ADDRESS</div>
+        <table class="full-table">
           <tr>
-            <td class="label">Student's Name:</td>
-            <td><strong>${name}</strong></td>
+            <td class="label">Mobile (WhatsApp):</td>
+            <td>${mobile}</td>
+            <td class="label">Parent Mobile:</td>
+            <td>${parentMobile}</td>
           </tr>
           <tr>
-            <td class="label">Father's Name:</td>
-            <td>${fatherName}</td>
+            <td class="label">Email Address:</td>
+            <td>${email}</td>
+            <td class="label">Aadhaar Number:</td>
+            <td>${aadhaar}</td>
           </tr>
           <tr>
-            <td class="label">Mother's Name:</td>
-            <td>${motherName}</td>
-          </tr>
-          <tr>
-            <td class="label">Date of Birth:</td>
-            <td>${dob}</td>
-          </tr>
-          <tr>
-            <td class="label">Gender / Category:</td>
-            <td>${gender} / ${category}</td>
-          </tr>
-          <tr>
-            <td class="label">Admission Sought For:</td>
-            <td><strong>Class ${classSought} (${stream})</strong></td>
+            <td class="label">Village / Locality:</td>
+            <td>${village}</td>
+            <td class="label">District & PIN:</td>
+            <td>${district} - ${pin}</td>
           </tr>
         </table>
-        <div class="photo-box">
-          <img src="${photoUrl}" alt="Student Photo" />
+
+        <div class="section-header">2. ACADEMIC BACKGROUND & IDENTIFIERS</div>
+        <table class="full-table">
+          <tr>
+            <td class="label">Previous School:</td>
+            <td>${prevSchool}</td>
+            <td class="label">Previous Marks:</td>
+            <td>${prevMarks} / ${prevMax}</td>
+          </tr>
+          <tr>
+            <td class="label">PEN Number:</td>
+            <td>${penNo}</td>
+            <td class="label">APAAR ID:</td>
+            <td>${apaarId}</td>
+          </tr>
+          <tr>
+            <td class="label">Bank Account No:</td>
+            <td>${bankAcc}</td>
+            <td class="label">Bank Name & IFSC:</td>
+            <td>${bankName} (${ifsc})</td>
+          </tr>
+        </table>
+
+        <div class="section-header">3. SUBJECT ALLOCATION & ACADEMIC STREAM</div>
+        <table class="full-table">
+          <tr>
+            <td class="label">Allocated Stream:</td>
+            <td><strong>${stream}</strong></td>
+            <td class="label">Class Roll Number:</td>
+            <td><strong>${rollNo}</strong></td>
+          </tr>
+        </table>
+        <div class="subject-box">
+          Selected Subjects: ${subjects}
         </div>
-      </div>
 
-      <div class="section-header">1. CONTACT & RESIDENTIAL ADDRESS</div>
-      <table class="full-table">
-        <tr>
-          <td class="label">Mobile (WhatsApp):</td>
-          <td>${mobile}</td>
-          <td class="label">Parent Mobile:</td>
-          <td>${parentMobile}</td>
-        </tr>
-        <tr>
-          <td class="label">Email Address:</td>
-          <td>${email}</td>
-          <td class="label">Aadhaar Number:</td>
-          <td>${aadhaar}</td>
-        </tr>
-        <tr>
-          <td class="label">Village / Locality:</td>
-          <td>${village}</td>
-          <td class="label">District & PIN:</td>
-          <td>${district} - ${pin}</td>
-        </tr>
-      </table>
+        <div class="declaration-box">
+          <div class="section-header">4. APPLICANT DECLARATION & ACKNOWLEDGMENT</div>
+          <p style="font-size: 9.5px; color: #475569; margin: 4px 0 10px 0; line-height: 1.4;">
+            I hereby declare that all information furnished in this admission application is true, complete, and accurate to the best of my knowledge. I agree to abide by all rules and regulations of Govt Higher Secondary School Shangus.
+          </p>
 
-      <div class="section-header">2. SUBJECT ALLOCATION & ACADEMIC STREAM</div>
-      <table class="full-table">
-        <tr>
-          <td class="label">Allocated Stream:</td>
-          <td><strong>${stream}</strong></td>
-          <td class="label">Class Roll Number:</td>
-          <td><strong>${rollNo}</strong></td>
-        </tr>
-      </table>
-      <div class="subject-box">
-        Selected Subjects: ${subjects}
-      </div>
-
-      <div class="section-header">3. APPLICANT DECLARATION & ACKNOWLEDGMENT</div>
-      <p style="font-size: 10px; color: #475569; margin: 4px 0 12px 0; line-height: 1.4;">
-        I hereby declare that all information furnished in this admission application is true, complete, and accurate to the best of my knowledge. I agree to abide by all rules and regulations of Govt Higher Secondary School Shangus.
-      </p>
-
-      <div class="footer-sig">
-        <div class="sig-box">Signature of Student</div>
-        <div class="sig-box">Signature of Parent/Guardian</div>
-        <div class="sig-box">Admission Committee / Principal</div>
+          <div class="footer-sig">
+            <div class="sig-box">Signature of Student</div>
+            <div class="sig-box">Signature of Parent/Guardian</div>
+            <div class="sig-box">Admission Committee / Principal</div>
+          </div>
+        </div>
       </div>
     </body>
     </html>

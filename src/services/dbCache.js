@@ -145,6 +145,8 @@ export function updateCachedItem(collectionName, docId, updatedFields) {
   if (!list || !Array.isArray(list)) return;
 
   const cleanDocId = String(docId).replace(/^'/, '').toLowerCase().trim();
+  let found = false;
+
   const updatedList = list.map(item => {
     // 1. If chunk document containing an items array (like masterRegisters chunks)
     if (Array.isArray(item.items)) {
@@ -153,6 +155,7 @@ export function updateCachedItem(collectionName, docId, updatedFields) {
         const subFNo = String(subIt['Form Number'] || subIt['Form No.'] || subIt.formNo || subIt.id || '').replace(/^'/, '').toLowerCase().trim();
         if (subFNo === cleanDocId || subFNo.replace(/^(active_|hist_)/, '') === cleanDocId) {
           matchedInChunk = true;
+          found = true;
           return { ...subIt, ...updatedFields };
         }
         return subIt;
@@ -165,10 +168,15 @@ export function updateCachedItem(collectionName, docId, updatedFields) {
     // 2. Direct document match
     const itemId = String(item.id || item['Form Number'] || item['Form No.'] || item.formNo || '').replace(/^'/, '').toLowerCase().trim();
     if (itemId === cleanDocId || itemId.replace(/^(active_|hist_)/, '') === cleanDocId) {
+      found = true;
       return { ...item, ...updatedFields };
     }
     return item;
   });
+
+  if (!found && collectionName === 'admissions') {
+    updatedList.unshift({ id: docId, ...updatedFields });
+  }
 
   setCachedCollectionData(collectionName, updatedList);
 }

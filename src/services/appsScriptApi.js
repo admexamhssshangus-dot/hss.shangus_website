@@ -7,7 +7,7 @@
 
 import { sessionManager } from './sessionManager';
 import { db } from './firebase';
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { DEFAULT_FORM_STRUCTURE, DEFAULT_SUBJECTS_CONFIG } from '../utils/defaultFormSchema';
 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
@@ -331,56 +331,145 @@ async function getStudentApplication() {
       const regNo = String(user.regNo || user.boardRegNo || '').toLowerCase().trim();
       const aadhar = String(user.aadhar || user.aadhaar || '').replace(/[^0-9]/g, '');
 
-      const snap = await getDocs(collection(db, 'admissions'));
-      if (!snap.empty) {
-        const apps = snap.docs
-          .map(d => ({ docId: d.id, ...d.data() }))
-          .filter(a => {
-            const aEmail = String(a['Email Address'] || a.email || '').toLowerCase().trim();
-            const aMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || '').replace(/[^0-9]/g, '');
-            const aRegNo = String(a['Board Registration No. (Class 10th)'] || a['Board Registration No. (Class 11th)'] || a['Board Reg. No.'] || a.regNo || '').toLowerCase().trim();
-            const aAadhar = String(a['Aadhar No.'] || a.aadhar || '').replace(/[^0-9]/g, '');
+      const isMatch = (a) => {
+        if (!a) return false;
+        const aEmail = String(a['Email Address'] || a.email || '').toLowerCase().trim();
+        const aMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || '').replace(/[^0-9]/g, '');
+        const aRegNo = String(a['Board Registration No. (Class 10th)'] || a['Board Registration No. (Class 11th)'] || a['Board Reg. No.'] || a.regNo || '').toLowerCase().trim();
+        const aAadhar = String(a['Aadhar No.'] || a.aadhar || '').replace(/[^0-9]/g, '');
 
-            if (email && aEmail && aEmail === email) return true;
-            if (mobile && aMobile && aMobile.length >= 10 && aMobile.slice(-10) === mobile.slice(-10)) return true;
-            if (regNo && aRegNo && aRegNo === regNo) return true;
-            if (aadhar && aAadhar && aAadhar.length >= 12 && aAadhar.slice(-12) === aadhar.slice(-12)) return true;
+        if (email && aEmail && aEmail === email) return true;
+        if (mobile && aMobile && aMobile.length >= 10 && aMobile.slice(-10) === mobile.slice(-10)) return true;
+        if (regNo && aRegNo && aRegNo === regNo) return true;
+        if (aadhar && aAadhar && aAadhar.length >= 12 && aAadhar.slice(-12) === aadhar.slice(-12)) return true;
 
-            return false;
+        return false;
+      };
+
+      const matchedApps = [];
+      const historicalRecords = [];
+
+      // 1. Search admissions
+      try {
+        const snap = await getDocs(collection(db, 'admissions'));
+        if (!snap.empty) {
+          snap.docs.forEach(d => {
+            const data = { docId: d.id, ...d.data() };
+            if (isMatch(data)) matchedApps.push(data);
           });
-
-        if (apps.length > 0) {
-          return { success: true, applications: apps, data: { applications: apps } };
         }
-      }
+      } catch (e) {}
+
+      // 2. Search masterRegisters for historical student records
+      try {
+        const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+        if (!masterSnap.empty) {
+          masterSnap.docs.forEach(d => {
+            const dData = d.data();
+            if (Array.isArray(dData.items)) {
+              dData.items.forEach(item => {
+                if (isMatch(item)) historicalRecords.push({ docId: item['Form Number'] || d.id, ...item });
+              });
+            } else if (isMatch(dData)) {
+              historicalRecords.push({ docId: d.id, ...dData });
+            }
+          });
+        }
+      } catch (e) {}
+
+      return {
+        success: true,
+        applications: matchedApps,
+        historicalRecords,
+        data: { applications: matchedApps, historicalRecords }
+      };
     }
   } catch (e) {
-    console.warn('Firestore getStudentApplication note:', e);
+    console.warn('getStudentApplication note:', e);
   }
-  return call('getStudentApplicationData');
+  return { success: true, applications: [], historicalRecords: [], data: { applications: [], historicalRecords: [] } };
 }
 
 async function saveApplication(payload) {
   const data = payload.formData || payload;
   const formNo = String(data['Form Number'] || data['FormNo'] || data.formNumber || `FORM_${Date.now()}`);
+  const sanitizedDocId = formNo.replace(/\//g, '_');
+
+  const payloadData = {
+    ...data,
+    'Form Number': formNo,
+    Status: data.Status || 'Submitted',
+    updatedAt: new Date().toISOString()
+  };
 
   try {
-    await setDoc(doc(db, 'admissions', formNo.replace(/\//g, '_')), {
-      ...data,
-      'Form Number': formNo,
-      Status: data.Status || 'Submitted',
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
   } catch (e) {
-    console.warn('Firestore saveApplication write error:', e);
+    console.warn('Firestore saveApplication admissions write error:', e);
   }
+
+  try {
+    await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payloadData, { merge: true });
+  } catch (e) {
+    console.warn('Firestore saveApplication masterRegisters write error:', e);
+  }
+
+  try {
+    const { updateCachedItem } = require('./dbCache');
+    updateCachedItem('admissions', sanitizedDocId, payloadData);
+    updateCachedItem('masterRegisters', sanitizedDocId, payloadData);
+  } catch (e) {}
 
   // Non-blocking Apps Script background sync
   call('saveApplicationData', payload, { timeout: 120000 }).catch(err => {
     console.warn('Background Apps Script sync note:', err);
   });
 
-  return { success: true, formNumber: formNo, message: 'Application submitted successfully to Cloud Firestore.' };
+  return { success: true, formNumber: formNo, message: 'Application submitted successfully to official database.' };
+}
+
+async function deleteStudentApplication(formNoOrDocId) {
+  if (!formNoOrDocId) return { success: false, message: 'Form number required.' };
+  const cleanId = String(formNoOrDocId).trim();
+  const sanitizedDocId = cleanId.replace(/\//g, '_');
+
+  try {
+    // 1. Delete direct document IDs
+    await deleteDoc(doc(db, 'admissions', sanitizedDocId)).catch(() => {});
+    await deleteDoc(doc(db, 'masterRegisters', sanitizedDocId)).catch(() => {});
+
+    // 2. Query and delete any matching documents in admissions by Form Number or Email
+    const user = sessionManager.getUser();
+    const userEmail = (user?.email || '').toLowerCase().trim();
+
+    const admissionsSnap = await getDocs(collection(db, 'admissions')).catch(() => null);
+    if (admissionsSnap && !admissionsSnap.empty) {
+      for (const d of admissionsSnap.docs) {
+        const dData = d.data();
+        const fNo = String(dData['Form Number'] || dData['FormNo'] || dData.formNumber || '').trim();
+        if (fNo === cleanId || fNo === sanitizedDocId || d.id === sanitizedDocId) {
+          await deleteDoc(doc(db, 'admissions', d.id)).catch(() => {});
+        }
+      }
+    }
+
+    // 3. Invalidate local SWR memory cache
+    const { invalidateCache } = require('./dbCache');
+    invalidateCache('admissions');
+    invalidateCache('masterRegisters');
+
+    // 4. Recycle deleted form number into system settings
+    const { recycleDeletedFormNumber } = require('./formNumberService');
+    recycleDeletedFormNumber(cleanId, {}, user?.email || 'Student Self Delete').catch(() => {});
+
+    // 5. Clear local session storage draft
+    try { sessionStorage.removeItem('hss_admission_draft'); } catch(e) {}
+
+    return { success: true, message: `Application #${cleanId} deleted successfully.` };
+  } catch (e) {
+    console.error('deleteStudentApplication error:', e);
+    return { success: false, error: e.message };
+  }
 }
 
 function updateProfile(email, name, mobile, residence) {
@@ -500,6 +589,7 @@ const appsScriptApi = {
   getInitialData,
   getStudentApplication,
   saveApplication,
+  deleteStudentApplication,
   updateProfile,
 
   // Admin

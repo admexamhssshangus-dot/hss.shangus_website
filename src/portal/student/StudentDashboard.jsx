@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { FileText, Download, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Eye } from 'lucide-react';
+import { FileText, Download, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Eye, Trash2 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -8,6 +8,7 @@ import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
 import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
+import appsScriptApi from '../../services/appsScriptApi';
 
 export default function StudentDashboard() {
   const { user, onLogout, refreshSession } = useOutletContext();
@@ -47,14 +48,15 @@ export default function StudentDashboard() {
       if (!allApps || allApps.length === 0) return null;
       return [...allApps].reverse().find(a => {
         const appEmail = String(a['Email Address'] || a['Email'] || a.email || a.Email || a.userEmail || '').toLowerCase().trim();
-        const appMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || a.StudentMobile || '').trim();
-        const appName = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.Name || a.studentName || '').toLowerCase().trim();
+        const appMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || a.StudentMobile || '').replace(/[^0-9]/g, '');
+        const cleanUserMobile = userMobile.replace(/[^0-9]/g, '');
 
-        const matchesEmail = userEmail && appEmail && (appEmail === userEmail);
-        const matchesMobile = userMobile && appMobile && (appMobile === userMobile || appMobile.includes(userMobile) || userMobile.includes(appMobile));
-        const matchesName = userName && appName && (appName === userName);
+        const matchesEmail = Boolean(userEmail && appEmail && (appEmail === userEmail));
+        const matchesMobile = Boolean(cleanUserMobile && cleanUserMobile.length >= 10 && appMobile && appMobile.length >= 10 && (appMobile.slice(-10) === cleanUserMobile.slice(-10)));
 
-        return matchesEmail || matchesMobile || matchesName;
+        // STRICT SECURITY RULE: Match ONLY by authenticated Email or Mobile Number.
+        // NEVER match by name alone, as multiple students can share the same name!
+        return matchesEmail || matchesMobile;
       });
     };
 
@@ -90,7 +92,7 @@ export default function StudentDashboard() {
       setAppData(matchedApp || null);
     } catch (fsErr) {
       console.error('Firestore student dashboard read error:', fsErr);
-      setAlert({ type: 'error', text: 'Error fetching application data from Firestore.' });
+      setAlert({ type: 'error', text: 'Error fetching application data from database.' });
     } finally {
       setLoading(false);
     }
@@ -138,12 +140,6 @@ export default function StudentDashboard() {
   // Handle Download PDF Copy
   const handleDownloadPdf = async () => {
     if (!appData) return;
-    const existingPdfUrl = appData['PDF URL'] || appData['PDFURL'] || appData['pdfUrl'] || appData['PDF'];
-    if (existingPdfUrl) {
-      window.open(existingPdfUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
     setDownloadingPdf(true);
     try {
       generateStudentAdmissionPdf(appData);
@@ -151,7 +147,41 @@ export default function StudentDashboard() {
       console.error('Download PDF error:', err);
       setAlert({ type: 'error', text: 'Unable to generate PDF. Please try again.' });
     } finally {
-      setDownloadingPdf(false);
+      setTimeout(() => setDownloadingPdf(false), 500);
+    }
+  };
+
+  // Delete Application Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [confirmDeleteChecked, setConfirmDeleteChecked] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Handle Delete Application Request (Opens Modal)
+  const handleDeleteMyApplication = () => {
+    if (!appData) return;
+    setConfirmDeleteChecked(false);
+    setShowDeleteModal(true);
+  };
+
+  // Execute Final Permanent Application Deletion
+  const executeDeleteApplication = async () => {
+    if (!appData) return;
+    const formNo = appData['Form Number'] || appData['FormNo'] || appData['Form No.'] || appData.docId || appData.id;
+    setDeleting(true);
+    try {
+      const res = await appsScriptApi.deleteStudentApplication(formNo);
+      if (res && res.success !== false) {
+        setShowDeleteModal(false);
+        setAppData(null);
+        try { sessionStorage.removeItem('hss_admission_draft'); } catch(e) {}
+        setAlert({ type: 'success', text: `✨ Application #${formNo} deleted successfully! Form number #${formNo} has been recycled into the system queue. You can now fill out your admission form afresh.` });
+      } else {
+        setAlert({ type: 'error', text: res?.error || res?.message || 'Failed to delete application.' });
+      }
+    } catch (err) {
+      setAlert({ type: 'error', text: 'Error deleting application.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -334,24 +364,25 @@ export default function StudentDashboard() {
                 </div>
 
                 {/* Primary Action Buttons */}
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3 pt-1">
                   <button
                     onClick={() => navigate('/portal/student/application')}
-                    className={`px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer ${
-                      status === 'Draft' || status === 'Rejected' || appData.isEditable || appData['Lock Status'] === 'Unlocked'
-                        ? 'bg-teal-500 hover:bg-teal-400 text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                    }`}
+                    className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-teal-600 hover:bg-teal-500 text-white"
                   >
-                    {status === 'Draft' || status === 'Rejected' || appData.isEditable || appData['Lock Status'] === 'Unlocked' ? (
+                    {status === 'Draft' ? (
                       <>
                         <Edit3 size={16} />
-                        <span>{status === 'Draft' ? 'Continue Application' : 'Edit Application'}</span>
+                        <span>Continue Draft Application</span>
+                      </>
+                    ) : status === 'Rejected' || appData.isEditable || appData['Lock Status'] === 'Unlocked' ? (
+                      <>
+                        <Edit3 size={16} />
+                        <span>Edit Application Details</span>
                       </>
                     ) : (
                       <>
-                        <Eye size={16} />
-                        <span>View Application (Read-Only)</span>
+                        <FileText size={16} />
+                        <span>Apply Online / View Form</span>
                       </>
                     )}
                     <ArrowRight size={16} />
@@ -361,13 +392,21 @@ export default function StudentDashboard() {
                     <button
                       onClick={handleDownloadPdf}
                       disabled={downloadingPdf}
-                      className="px-5 py-3.5 rounded-2xl font-bold text-xs border flex items-center gap-2 cursor-pointer transition-all hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-                      style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+                      className="px-5 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm disabled:opacity-50"
                     >
                       <Download size={16} className={downloadingPdf ? 'animate-bounce' : ''} />
                       <span>{downloadingPdf ? 'Generating PDF...' : 'Download Form PDF'}</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={handleDeleteMyApplication}
+                    className="px-4 py-3.5 rounded-2xl font-bold text-xs border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center gap-1.5 cursor-pointer transition-all ml-auto"
+                    title="Delete current form record and apply fresh"
+                  >
+                    <Trash2 size={15} />
+                    <span>Delete & Apply Afresh</span>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -476,10 +515,122 @@ export default function StudentDashboard() {
       {/* Logout Confirmation Dialog */}
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
         onConfirm={onLogout}
-        onCancel={() => setShowLogoutConfirm(false)}
-        userName={user?.name}
       />
+
+      {/* Delete Application Warning Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="w-full max-w-lg rounded-3xl p-6 sm:p-7 border border-red-500/30 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-2xl space-y-5 animate-scaleUp">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between border-b pb-4 border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-600 dark:text-red-400 flex-shrink-0">
+                  <AlertCircle size={26} />
+                </div>
+                <div>
+                  <h3 className="font-black text-base sm:text-lg text-red-600 dark:text-red-400">
+                    Delete Application & Reset Record?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Warning: This action is permanent and cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form & Application Info Badge */}
+            <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-slate-400 font-bold">Target Form Number:</span>
+                <span className="font-black text-teal-600 dark:text-teal-400 ml-1.5">
+                  #{appData?.['Form Number'] || appData?.['FormNo'] || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-bold">Status:</span>
+                <span className="font-extrabold text-amber-600 dark:text-amber-400 ml-1.5">
+                  {status.toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            {/* Consequences List */}
+            <div className="space-y-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 bg-red-500/5 dark:bg-red-500/10 p-4 rounded-2xl border border-red-500/20">
+              <div className="font-extrabold text-red-600 dark:text-red-400 border-b pb-1.5 border-red-500/20 flex items-center gap-1.5">
+                <span>⚠️ Consequences of Deletion:</span>
+              </div>
+              <ul className="space-y-2 pt-1">
+                <li className="flex items-start gap-2">
+                  <span className="text-red-500 font-bold">•</span>
+                  <span><strong>Permanent Record Removal:</strong> Your active admission application form record will be completely erased from the school's official database register.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-red-500 font-bold">•</span>
+                  <span><strong>Recycling of Form Number:</strong> Form number <strong>#{appData?.['Form Number'] || appData?.['FormNo']}</strong> will be logged as recycled in the database for future assignment.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-red-500 font-bold">•</span>
+                  <span><strong>Loss of Submitted Details:</strong> All personal info, subject choices, contact records, and uploaded photo will be deleted.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Mandatory Checkbox Confirmation */}
+            <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={confirmDeleteChecked}
+                onChange={(e) => setConfirmDeleteChecked(e.target.checked)}
+                className="w-4.5 h-4.5 mt-0.5 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+              />
+              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 leading-snug">
+                I understand the consequences and confirm that I want to permanently delete my current application and start a fresh form.
+              </span>
+            </label>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl font-bold text-xs text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                ← Cancel & Keep My Application
+              </button>
+
+              <button
+                type="button"
+                disabled={!confirmDeleteChecked || deleting}
+                onClick={executeDeleteApplication}
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl font-black text-xs text-white bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {deleting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>Deleting Application...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    <span>Yes, Permanently Delete & Apply Afresh</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

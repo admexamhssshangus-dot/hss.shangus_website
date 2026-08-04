@@ -76,6 +76,12 @@ export default function LoginPage() {
       } else if (userEmail === 'shahnawaz13678@gmail.com') {
         resolvedRole = 'Teacher';
         resolvedName = resolvedName || 'Nawaz Ahmad Shah (Teacher)';
+      } else if (userEmail === 'bilalhcu@gmail.com') {
+        resolvedRole = 'Admin';
+        resolvedName = resolvedName || 'Bilal Ahmad Khandy (Admin)';
+      } else if (userEmail === 'majidhassannajar@gmail.com') {
+        resolvedRole = 'Admin';
+        resolvedName = resolvedName || 'Majid Hassan Najar (Admin)';
       } else {
         try {
           // 1. Direct doc lookup
@@ -286,6 +292,8 @@ export default function LoginPage() {
       let userRole = selectedRole === 'superadmin' ? 'SuperAdmin' : selectedRole === 'admin' ? 'Admin' : selectedRole === 'teacher' ? 'Teacher' : 'Student';
       let displayName = userEmailClean;
 
+      let userPerms = [];
+
       try {
         const userDocRef = doc(db, 'users', userEmailClean);
         const userSnap = await getDoc(userDocRef);
@@ -293,21 +301,42 @@ export default function LoginPage() {
           const uData = userSnap.data();
           userRole = uData.Role || uData.role || userRole;
           displayName = uData.Name || uData.name || displayName;
+          userPerms = Array.isArray(uData.perms) ? uData.perms : [];
         }
       } catch (e) {
         console.warn('Firestore profile load note:', e);
+      }
+
+      // If userPerms is empty, try loading from adminSettings/permissions
+      if (userPerms.length === 0 && (userRole === 'Admin' || userRole === 'SuperAdmin')) {
+        try {
+          const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+          if (permSnap.exists() && Array.isArray(permSnap.data().users)) {
+            const match = permSnap.data().users.find((u) => u.email.toLowerCase() === userEmailClean.toLowerCase());
+            if (match && Array.isArray(match.perms)) {
+              userPerms = match.perms;
+            }
+          }
+        } catch (_) {}
       }
 
       // Explicit Role Guarantees for staff emails
       if (userEmailClean === 'adm.exam.hss.shangus@gmail.com') {
         userRole = 'SuperAdmin';
         displayName = displayName === userEmailClean ? 'Sheikh Gulfam (SuperAdmin)' : displayName;
+        userPerms = ['*'];
       } else if (userEmailClean === 'shahnawaz@gmail.com') {
         userRole = 'Admin';
         displayName = displayName === userEmailClean ? 'Nawaz Ahmad Shah (Admin)' : displayName;
       } else if (userEmailClean === 'shahnawaz13678@gmail.com') {
         userRole = 'Teacher';
         displayName = displayName === userEmailClean ? 'Nawaz Ahmad Shah (Teacher)' : displayName;
+      } else if (userEmailClean === 'bilalhcu@gmail.com') {
+        userRole = 'Admin';
+        displayName = displayName === userEmailClean ? 'Bilal Ahmad Khandy (Admin)' : displayName;
+      } else if (userEmailClean === 'majidhassannajar@gmail.com') {
+        userRole = 'Admin';
+        displayName = displayName === userEmailClean ? 'Majid Hassan Najar (Admin)' : displayName;
       }
 
       const token = fbUser ? await fbUser.getIdToken() : `token_${Date.now()}`;
@@ -315,6 +344,7 @@ export default function LoginPage() {
         email: userEmailClean,
         name: displayName,
         role: userRole,
+        perms: userPerms,
         uid: fbUser ? fbUser.uid : null,
         token: token,
       };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -9,6 +9,7 @@ import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompress
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
+import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
 
@@ -1289,37 +1290,89 @@ const COLUMN_DEFS = [
   { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap' },
   { key: 'subs', label: 'SUBS (STREAM)', className: 'min-w-[105px] max-w-[130px] whitespace-normal break-words leading-tight', render: (val, student) => {
     const abbr = abbreviateSubjects(val);
-    const getStreamCode = (streamStr) => {
-      if (!streamStr || streamStr === '—') return '';
-      const s = String(streamStr).toLowerCase();
-      if (s.includes('science') || s.includes('med')) return 'S';
-      if (s.includes('humanities') || s.includes('art')) return 'H';
-      if (s.includes('commerce')) return 'C';
-      if (s.includes('general')) return 'G';
-      return streamStr.charAt(0).toUpperCase();
+
+    const getStreamDetails = (st, rawSubs) => {
+      const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
+      // 9th & 10th grade stream is always General (G)
+      if (cls.includes('9') || cls.includes('10')) {
+        return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
+      }
+
+      const rawStream = String(st?.stream || st?.Stream || st?.['Stream'] || '').toLowerCase();
+      const allSubjs = (String(rawSubs || '') + ' ' + String(st?.subs || '') + ' ' + String(st?.Subjects || '') + ' ' + String(st?.Subjects1 || '') + ' ' + String(st?.Subjects2 || '') + ' ' + String(st?.Subjects3 || '') + ' ' + String(st?.Subjects4 || '') + ' ' + String(st?.Subjects5 || '')).toLowerCase();
+
+      // Science stream check (Physics, Chemistry, Biology, Bio, Math in 11/12th Science)
+      if (
+        rawStream.includes('science') ||
+        rawStream.includes('med') ||
+        allSubjs.includes('physics') ||
+        allSubjs.includes('chemistry') ||
+        allSubjs.includes('biology') ||
+        allSubjs.includes(', ph,') ||
+        allSubjs.includes(', ch,') ||
+        allSubjs.includes(', bi,') ||
+        allSubjs.includes(' ph ') ||
+        allSubjs.includes(' ch ') ||
+        allSubjs.includes(' bi ') ||
+        allSubjs.startsWith('ph,') ||
+        allSubjs.includes('ge, ph') ||
+        allSubjs.includes('ge,ph')
+      ) {
+        return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
+      }
+
+      // Commerce stream check
+      if (
+        rawStream.includes('commerce') ||
+        allSubjs.includes('accountancy') ||
+        allSubjs.includes('business studies') ||
+        allSubjs.includes(', bs,') ||
+        allSubjs.includes(', ac,')
+      ) {
+        return { code: 'C', label: 'Commerce', style: 'bg-amber-700 text-white border-amber-800' };
+      }
+
+      // Humanities / Arts stream check (Education, History, Political Science, Economics, Urdu, Sociology)
+      if (
+        rawStream.includes('humanities') ||
+        rawStream.includes('art') ||
+        allSubjs.includes('history') ||
+        allSubjs.includes('political science') ||
+        allSubjs.includes('education') ||
+        allSubjs.includes('sociology') ||
+        allSubjs.includes('geography') ||
+        allSubjs.includes('psychology') ||
+        allSubjs.includes('philosophy') ||
+        allSubjs.includes('islamic studies') ||
+        allSubjs.includes(', ht,') ||
+        allSubjs.includes(', ps,') ||
+        allSubjs.includes(', ed,') ||
+        allSubjs.includes(', ec,') ||
+        allSubjs.includes(', ur,') ||
+        allSubjs.includes('ht, ps') ||
+        allSubjs.includes('ec, ht')
+      ) {
+        return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+      }
+
+      if (rawStream.includes('general')) {
+        return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
+      }
+
+      return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
     };
 
-    const sCode = getStreamCode(student?.stream);
-    const fullStream = student?.stream || '—';
-
-    const streamColors = {
-      'G': 'bg-emerald-700 text-white border-emerald-800',
-      'S': 'bg-indigo-700 text-white border-indigo-800',
-      'H': 'bg-purple-700 text-white border-purple-800',
-      'C': 'bg-amber-700 text-white border-amber-800',
-    };
-
-    const badgeStyle = streamColors[sCode] || 'bg-slate-700 text-white border-slate-800';
+    const streamInfo = getStreamDetails(student, val);
 
     return (
       <span
-        title={`Stream: ${fullStream} | Full Subjects: ${val || '—'}`}
+        title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
         className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline"
       >
         <span>{abbr}</span>
-        {sCode && (
-          <span className={`inline-block align-baseline ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${badgeStyle}`}>
-            ({sCode})
+        {streamInfo.code && (
+          <span className={`inline-block align-baseline ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
+            ({streamInfo.code})
           </span>
         )}
       </span>
@@ -1955,6 +2008,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [editingStudent, setEditingStudent] = useState(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
 
   const handleSaveStudentEdit = async (updatedFields) => {
     try {
@@ -2183,7 +2237,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   };
 
   const handleCopyRow = (student) => {
-    const rowValues = COLUMN_DEFS.filter(col => visibleCols[col.key])
+    const rowValues = orderedVisibleColumns
       .map(col => {
         const val = student[col.key];
         return (val === undefined || val === null || val === '—') ? '' : String(val);
@@ -2285,6 +2339,103 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
     return DEFAULT_RESTRICTED_COLS;
   });
+
+  // ─── Temporary Column Shifting State (Per Session / Resets on Login) ───
+  const [columnOrder, setColumnOrder] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('hss_temp_column_order_v1');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return COLUMN_DEFS.map(c => c.key);
+  });
+
+  const [draggedColKey, setDraggedColKey] = useState(null);
+
+  const handleShiftColumn = (colKey, direction) => {
+    setColumnOrder((prev) => {
+      const currentList = [...prev];
+      const idx = currentList.indexOf(colKey);
+      if (idx === -1) return prev;
+
+      const targetIdx = direction === 'left' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= currentList.length) return prev;
+
+      const temp = currentList[idx];
+      currentList[idx] = currentList[targetIdx];
+      currentList[targetIdx] = temp;
+
+      try {
+        sessionStorage.setItem('hss_temp_column_order_v1', JSON.stringify(currentList));
+      } catch (e) {}
+
+      return currentList;
+    });
+  };
+
+  const handleColumnDragStart = (e, colKey) => {
+    e.dataTransfer.setData('text/plain', colKey);
+    setDraggedColKey(colKey);
+  };
+
+  const handleColumnDrop = (e, targetColKey) => {
+    e.preventDefault();
+    const sourceColKey = e.dataTransfer.getData('text/plain') || draggedColKey;
+    if (!sourceColKey || sourceColKey === targetColKey) return;
+
+    setColumnOrder((prev) => {
+      const currentList = [...prev];
+      const fromIdx = currentList.indexOf(sourceColKey);
+      const toIdx = currentList.indexOf(targetColKey);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+
+      currentList.splice(fromIdx, 1);
+      currentList.splice(toIdx, 0, sourceColKey);
+
+      try {
+        sessionStorage.setItem('hss_temp_column_order_v1', JSON.stringify(currentList));
+      } catch (e) {}
+
+      return currentList;
+    });
+
+    setDraggedColKey(null);
+  };
+
+  const handleResetColumnOrder = () => {
+    const defaultOrder = COLUMN_DEFS.map(c => c.key);
+    setColumnOrder(defaultOrder);
+    try {
+      sessionStorage.removeItem('hss_temp_column_order_v1');
+    } catch (e) {}
+  };
+
+  const isColumnOrderCustom = useMemo(() => {
+    const defaultKeys = COLUMN_DEFS.map(c => c.key);
+    if (columnOrder.length !== defaultKeys.length) return true;
+    return columnOrder.some((k, i) => k !== defaultKeys[i]);
+  }, [columnOrder]);
+
+  const orderedVisibleColumns = useMemo(() => {
+    const map = new Map(COLUMN_DEFS.map((col) => [col.key, col]));
+    const ordered = [];
+
+    columnOrder.forEach((key) => {
+      if (key !== 'gender' && visibleCols[key] && map.has(key)) {
+        ordered.push(map.get(key));
+      }
+    });
+
+    COLUMN_DEFS.forEach((col) => {
+      if (col.key !== 'gender' && visibleCols[col.key] && !ordered.some((c) => c.key === col.key)) {
+        ordered.push(col);
+      }
+    });
+
+    return ordered;
+  }, [columnOrder, visibleCols]);
 
   const toggleRestrictedCol = (colKey) => {
     setRestrictedCols(prev => {
@@ -3247,28 +3398,26 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         if (!sel || sel.length === 0) return true;
         if (sel.includes('__NONE__')) return false;
 
-        const roll = String(s.classRollNo || '').trim();
-        const stat = String(s.status || '').trim().toLowerCase();
-        const hasRollNo = roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
+        const roll = String(s.classRollNo || s['Class Roll No'] || s.rollNo || '').trim();
+        const hasRollNo = roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
+        const rawStat = String(s.status || s.Status || '').trim().toLowerCase();
+
+        let effStatus = 'Submitted';
+        if (hasRollNo) {
+          effStatus = 'Approved';
+        } else if (rawStat.includes('reject') || rawStat.includes('rejt')) {
+          effStatus = 'Rejected';
+        } else if (rawStat.includes('draft')) {
+          effStatus = 'Draft';
+        }
 
         return sel.some(item => {
           const strItem = String(item ?? '').trim().toLowerCase();
-          if (strItem === 'approved') {
-            return hasRollNo || stat === 'approved' || stat === 'appr' || stat === 'appr.';
-          }
-          if (strItem === 'submitted') {
-            return !hasRollNo && (stat === 'submitted' || stat === 'subm');
-          }
-          if (strItem === 'draft') {
-            return !hasRollNo && stat === 'draft';
-          }
-          if (strItem === 'provisional') {
-            return stat === 'provisional' || stat === 'prov';
-          }
-          if (strItem === 'rejected') {
-            return stat === 'rejected' || stat === 'rejt';
-          }
-          return strItem === stat;
+          if (strItem === 'approved') return effStatus === 'Approved';
+          if (strItem === 'submitted') return effStatus === 'Submitted';
+          if (strItem === 'draft') return effStatus === 'Draft';
+          if (strItem === 'rejected') return effStatus === 'Rejected';
+          return strItem === effStatus.toLowerCase();
         });
       };
 
@@ -3506,7 +3655,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return;
     }
 
-    const visibleColsList = COLUMN_DEFS.filter(col => visibleCols[col.key]);
+    const visibleColsList = orderedVisibleColumns;
     const printWin = window.open('', '_blank');
     if (!printWin) {
       alert('Please allow popup windows in your browser to print the official report.');
@@ -3770,6 +3919,15 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               <span className="text-[10px] sm:text-xs font-black">All</span>
               <span className="text-[9px] sm:text-[10px] font-mono opacity-90 font-bold">({allStudents.length})</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowAnalyticsModal(true)}
+              title="Analytics & Statistical Reports Suite"
+              className="p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm flex items-center justify-center ml-1"
+            >
+              <BarChart2 size={15} />
+            </button>
           </div>
         </div>
 
@@ -3792,7 +3950,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               {isToolsOpen && (
                 <div className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-52 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-black">
                   {[
-                    { id: 'gkTest', label: '🎯 GK Test Registrations', icon: ShieldCheck },
+                    { id: 'gkTest', label: 'Competitive Exam Prep & Registrations', icon: ShieldCheck },
                     { id: 'controls', label: 'Controls & Subjects', icon: Settings },
                     { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
                     { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
@@ -3832,6 +3990,18 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
                     />
                   </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAnalyticsModal(true);
+                      setIsToolsOpen(false);
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 transition-colors cursor-pointer font-black border-b border-slate-200 dark:border-slate-800"
+                  >
+                    <BarChart2 size={13} className="text-indigo-600 dark:text-indigo-400" />
+                    <span>Analytics & Reports Suite</span>
+                  </button>
 
                   <button
                     type="button"
@@ -3891,6 +4061,19 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           {/* Right Sub-Group: Pagination + Table Settings */}
           <div className="flex items-center gap-1 flex-shrink-0">
 
+            {/* Temporary Column Order Reset Badge */}
+            {isColumnOrderCustom && (
+              <button
+                type="button"
+                onClick={handleResetColumnOrder}
+                title="Reset column positions back to official default order"
+                className="px-2 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-black text-[10px] sm:text-xs flex items-center gap-1 border border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs transition-all animate-fadeIn"
+              >
+                <RotateCcw size={11} />
+                <span>Reset Order</span>
+              </button>
+            )}
+
             {/* Compact Pagination */}
             {pageSize !== 'All' && totalPages > 1 && (
               <div className="flex items-center gap-0.5 font-black text-[10px]">
@@ -3939,21 +4122,52 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words">
             <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr>
-                {COLUMN_DEFS.filter(col => col.key !== 'gender' && visibleCols[col.key]).map(col => {
+                {orderedVisibleColumns.map((col, idx) => {
                   const widthPx = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
                   const stickyClasses = col.isSticky
                     ? 'sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700'
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
 
+                  const isFirstShiftable = idx === 0 || (idx === 1 && orderedVisibleColumns[0]?.isSticky);
+                  const isLastShiftable = idx === orderedVisibleColumns.length - 1;
+
                   return (
                     <th
                       key={col.key}
                       style={{ width: `${widthPx}px`, minWidth: `${widthPx}px` }}
-                      className={`relative group/th select-none px-2 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-words ${stickyClasses}`}
+                      draggable={!col.isSticky}
+                      onDragStart={(e) => handleColumnDragStart(e, col.key)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleColumnDrop(e, col.key)}
+                      className={`relative group/th select-none px-2 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-words cursor-grab active:cursor-grabbing transition-colors ${stickyClasses} ${draggedColKey === col.key ? 'opacity-40 bg-amber-200 dark:bg-amber-900' : ''}`}
                     >
                       <div className="flex items-center justify-between pr-2">
                         <span className="break-words font-black text-[#800000] dark:text-rose-400">{col.label}</span>
                       </div>
+
+                      {/* Floating Overlay Column Shift Controls (Activated on Mouse Hover over Header Cell, Zero Layout Impact) */}
+                      {!col.isSticky && (
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/th:opacity-100 flex items-center gap-0.5 transition-opacity bg-slate-900/90 dark:bg-slate-800/90 text-white px-1 py-0.5 rounded-lg shadow-md z-30 pointer-events-auto">
+                          <button
+                            type="button"
+                            disabled={isFirstShiftable}
+                            onClick={(e) => { e.stopPropagation(); handleShiftColumn(col.key, 'left'); }}
+                            title="Shift column left (temporary for this session)"
+                            className="w-4 h-4 rounded hover:bg-amber-500 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent font-black text-[10px] flex items-center justify-center cursor-pointer text-slate-100 transition-colors"
+                          >
+                            ◄
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLastShiftable}
+                            onClick={(e) => { e.stopPropagation(); handleShiftColumn(col.key, 'right'); }}
+                            title="Shift column right (temporary for this session)"
+                            className="w-4 h-4 rounded hover:bg-amber-500 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent font-black text-[10px] flex items-center justify-center cursor-pointer text-slate-100 transition-colors"
+                          >
+                            ►
+                          </button>
+                        </div>
+                      )}
 
                       {/* Interactive Drag Handle to Resize Column Width */}
                       <div
@@ -3983,7 +4197,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
                   return (
                     <tr key={s.id || idx} className={`group transition-colors font-bold ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
-                      {COLUMN_DEFS.filter(col => col.key !== 'gender' && visibleCols[col.key]).map(col => {
+                      {orderedVisibleColumns.map(col => {
                         const val = col.key === 'sno' ? dynamicSNo : (s[col.key] ?? '—');
                         const cellId = `${s.id || s.sno || idx}_${col.key}`;
                         const isCopied = copiedCellId === cellId;
@@ -4088,7 +4302,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               })
             ) : (
                 <tr>
-                  <td colSpan={COLUMN_DEFS.filter(col => visibleCols[col.key]).length || 1} className="p-8 text-center text-slate-600 dark:text-slate-400 font-black">
+                  <td colSpan={orderedVisibleColumns.length || 1} className="p-8 text-center text-slate-600 dark:text-slate-400 font-black">
                     No matching student records found for the selected database filters.
                   </td>
                 </tr>
@@ -4923,6 +5137,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         isOpen={showDirectIngestionModal}
         onClose={() => setShowDirectIngestionModal(false)}
         onRecordAdded={handleDirectRecordAdded}
+      />
+
+      {/* Analytics & Statistical Reports Suite Modal */}
+      <AnalyticsSuiteModal
+        isOpen={showAnalyticsModal}
+        onClose={() => setShowAnalyticsModal(false)}
+        students={allStudents.length > 0 ? allStudents : [...currentAdmissions, ...masterRecords]}
       />
 
       {/* Reusable Custom Confirmation Modal */}

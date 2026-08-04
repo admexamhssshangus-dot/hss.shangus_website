@@ -7,6 +7,7 @@ import ModernLoader from '../../components/ModernLoader';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
 
 export default function AdmissionForm() {
   const navigate = useNavigate();
@@ -19,11 +20,13 @@ export default function AdmissionForm() {
 
   // UI Flow States
   const [showInstructions, setShowInstructions] = useState(true);
+  const [hasConfirmedInstructions, setHasConfirmedInstructions] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [activeTab, setActiveTab] = useState('personal'); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [draftSavedTime, setDraftSavedTime] = useState(null);
 
   const currentUser = sessionManager.getUser();
   const currentStatus = formData.Status || formData.status || '';
@@ -50,29 +53,80 @@ export default function AdmissionForm() {
       else if (subjCfgRes) setSubjectsConfig(subjCfgRes);
 
       let existing = {};
-      if (appDataRes && appDataRes.data && appDataRes.data.applications && appDataRes.data.applications.length > 0) {
-        existing = appDataRes.data.applications[appDataRes.data.applications.length - 1];
-      } else if (appDataRes && appDataRes.applications && appDataRes.applications.length > 0) {
-        existing = appDataRes.applications[appDataRes.applications.length - 1];
+      let historical = {};
+      
+      if (appDataRes && appDataRes.data) {
+        if (Array.isArray(appDataRes.data.applications) && appDataRes.data.applications.length > 0) {
+          existing = appDataRes.data.applications[appDataRes.data.applications.length - 1];
+        }
+        if (Array.isArray(appDataRes.data.historicalRecords) && appDataRes.data.historicalRecords.length > 0) {
+          historical = appDataRes.data.historicalRecords[appDataRes.data.historicalRecords.length - 1];
+        }
+      } else if (appDataRes) {
+        if (Array.isArray(appDataRes.applications) && appDataRes.applications.length > 0) {
+          existing = appDataRes.applications[appDataRes.applications.length - 1];
+        }
+        if (Array.isArray(appDataRes.historicalRecords) && appDataRes.historicalRecords.length > 0) {
+          historical = appDataRes.historicalRecords[appDataRes.historicalRecords.length - 1];
+        }
       }
 
-      // Pre-fill student photo from any photo key
-      const preloadedPhoto = existing['Student Photo'] || existing['photo_id'] || existing['photoUrl'] || existing['photo'] || '';
+      // Check for local auto-saved draft in sessionStorage
+      let localDraft = {};
+      try {
+        const savedDraftStr = sessionStorage.getItem('hss_admission_draft');
+        if (savedDraftStr) {
+          localDraft = JSON.parse(savedDraftStr);
+        }
+      } catch (e) {}
 
-      if (Object.keys(existing).length > 0) {
+      // Pre-fill student photo from any available source
+      const preloadedPhoto = localDraft['Student Photo'] || existing['Student Photo'] || historical['Student Photo'] || existing['photo_id'] || historical['photo_id'] || existing['photoUrl'] || historical['photoUrl'] || '';
+
+      // Dynamically get next sequential Form Number if not already assigned in existing/draft
+      let assignedFormNo = existing['Form Number'] || existing['FormNo'] || localDraft['Form Number'] || localDraft['FormNo'] || '';
+      if (!assignedFormNo) {
+        assignedFormNo = await getNextAvailableFormNumber();
+      }
+
+      // If filling a NEW form, merge historical student records for instant pre-fill
+      const prefillSource = Object.keys(existing).length > 0 ? existing : historical;
+
+      const mergedData = {
+        ...prefillSource,
+        ...localDraft,
+        'Form Number': assignedFormNo,
+        'FormNo': assignedFormNo,
+        'Student Photo': preloadedPhoto,
+        'photo_id': preloadedPhoto,
+        'photoUrl': preloadedPhoto,
+      };
+
+      // Clear previous status if creating a fresh form from historical record
+      if (Object.keys(existing).length === 0 && Object.keys(historical).length > 0) {
+        delete mergedData.Status;
+        delete mergedData.status;
+        delete mergedData.submittedAt;
+      }
+
+      if (Object.keys(localDraft).length > 0) {
         setAlert({
           type: 'info',
-          text: '✨ Welcome back! Your previous student details & passport photo have been automatically retrieved. You can update any fields or select your new class & subjects.'
+          text: `✨ Restored your auto-saved draft (Form #${assignedFormNo})! You can continue filling out or updating your application form.`
+        });
+      } else if (Object.keys(existing).length > 0) {
+        setAlert({
+          type: 'info',
+          text: `✨ Welcome back! Your application (Form #${assignedFormNo}) & passport photo have been retrieved. You can update any fields or select your new class & subjects.`
+        });
+      } else if (Object.keys(historical).length > 0) {
+        setAlert({
+          type: 'info',
+          text: `✨ Smart Auto-Fill: Welcome back! Your previous school records & passport photo have been automatically retrieved. Simply choose your new class and subjects to submit for the new session!`
         });
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        ...existing,
-        'Student Photo': preloadedPhoto || prev['Student Photo'] || '',
-        'photo_id': preloadedPhoto || prev['photo_id'] || '',
-        'photoUrl': preloadedPhoto || prev['photoUrl'] || '',
-      }));
+      setFormData(mergedData);
     } catch (err) {
       console.error('Failed to initialize admission form:', err);
       setAlert({ type: 'error', text: err.userMessage || 'Failed to load form configuration.' });
@@ -84,6 +138,16 @@ export default function AdmissionForm() {
   useEffect(() => {
     initForm();
   }, [initForm]);
+
+  // Auto-save draft changes to sessionStorage on change
+  useEffect(() => {
+    if (Object.keys(formData).length > 0 && !isFormLocked) {
+      try {
+        sessionStorage.setItem('hss_admission_draft', JSON.stringify(formData));
+        setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } catch (e) {}
+    }
+  }, [formData, isFormLocked]);
 
   const handleFieldChange = (fieldName, value) => {
     setFormData((prev) => {
@@ -345,7 +409,7 @@ export default function AdmissionForm() {
     "Subjects to Reappear (Class 11th)": 'subjects',
 
     // 4. Docs & Declaration
-    "Remarks/Feedback (if any)": 'photo',
+    "Remarks/Feedback (if any)": 'subjects',
     "Declaration": 'photo'
   };
 
@@ -453,8 +517,9 @@ export default function AdmissionForm() {
     // Photo Sub-groups
     "Student Photo": '📸 Passport Photo Upload',
     "id card photo": '📸 Passport Photo Upload',
-    "Remarks/Feedback (if any)": '✍️ Remarks & Declaration',
-    "Declaration": '✍️ Remarks & Declaration'
+
+    // Subjects Sub-groups (Remarks goes here)
+    "Remarks/Feedback (if any)": '💬 Additional Remarks & Feedback'
   };
 
   const FIELD_ORDER_LIST = [
@@ -561,11 +626,10 @@ export default function AdmissionForm() {
     "Subjects Studied in Class 11th",
     "Subjects to Reappear (Class 11th)",
 
-    // 10. Photo & Declaration
+    // 10. Photo Upload
     "Student Photo",
     "id card photo",
-    "Remarks/Feedback (if any)",
-    "Declaration"
+    "Remarks/Feedback (if any)"
   ];
 
   const getFieldOrderIndex = (name) => {
@@ -578,7 +642,9 @@ export default function AdmissionForm() {
     if (fieldTabMap[fieldName]) return fieldTabMap[fieldName];
 
     const lower = fieldName.toLowerCase();
-    if (lower.includes('photo') || lower.includes('declaration')) return 'photo';
+    if (lower.includes('photo')) return 'personal'; // Photo lives in Personal tab
+    if (lower.includes('declaration')) return 'personal';
+    if (lower.includes('remarks') || lower.includes('feedback')) return 'subjects';
     if (lower.includes('subjects to be taken') || lower.includes('subjects studied') || lower.includes('stream')) return 'subjects';
     if (lower.includes('marks') || lower.includes('board') || lower.includes('school') || lower.includes('roll') || lower.includes('bank')) return 'academic';
     return 'personal';
@@ -587,99 +653,126 @@ export default function AdmissionForm() {
   const tabs = [
     { id: 'personal', label: '1. Personal Details' },
     { id: 'academic', label: '2. Academic Details' },
-    { id: 'subjects', label: '3. Subject Selection' },
-    { id: 'photo', label: '4. Docs & Declaration' },
+    { id: 'subjects', label: '3. Subject Selection & Feedback' },
   ];
 
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
     setAlert(null);
 
-    // Validate ALL visible required fields & formats
     const errors = {};
     let firstErrorField = null;
 
+    const addError = (name, msg) => {
+      if (!errors[name]) {
+        errors[name] = msg;
+        if (!firstErrorField) firstErrorField = name;
+      }
+    };
+
+    // ── HARDCODED ESSENTIAL FIELD VALIDATION ──
+    // These run regardless of formStructure availability.
+    const cls = selectedClass;
+
+    // Personal essentials
+    if (!formData["Student's Name (as per school records)"]?.trim())
+      addError("Student's Name (as per school records)", "Student's full name is required");
+    if (!formData["DoB (as per school records)"]?.trim())
+      addError("DoB (as per school records)", "Date of Birth is required");
+    if (!formData["Gender"])
+      addError("Gender", "Gender is required");
+    if (!formData["Father's/Guardian's Name (as per school records)"]?.trim())
+      addError("Father's/Guardian's Name (as per school records)", "Father's / Guardian's name is required");
+    if (!formData["Mother's Name (as per school records)"]?.trim())
+      addError("Mother's Name (as per school records)", "Mother's name is required");
+
+    // Mobile validation
+    const mobile = String(formData["Mobile No. (with working WhatsApp)"] || '').replace(/[^0-9]/g, '');
+    if (!mobile) addError("Mobile No. (with working WhatsApp)", "WhatsApp mobile number is required");
+    else if (mobile.length !== 10) addError("Mobile No. (with working WhatsApp)", "Mobile number must be exactly 10 digits");
+
+    const parentMobile = String(formData["Parent's Mobile No. (must be working)"] || '').replace(/[^0-9]/g, '');
+    if (parentMobile && parentMobile.length !== 10)
+      addError("Parent's Mobile No. (must be working)", "Parent's mobile must be exactly 10 digits");
+
+    // Aadhar
+    const aadhar = String(formData["Aadhar No."] || '').replace(/[^0-9]/g, '');
+    if (!aadhar) addError("Aadhar No.", "Aadhar number is required");
+    else if (aadhar.length !== 12) addError("Aadhar No.", "Aadhar number must be exactly 12 digits");
+
+    // Address
+    if (!formData["Name of your village"]?.trim()) addError("Name of your village", "Village / locality name is required");
+    if (!formData["District"]?.trim()) addError("District", "District is required");
+    const pin = String(formData["PIN code"] || '').replace(/[^0-9]/g, '');
+    if (pin && pin.length !== 6) addError("PIN code", "PIN code must be exactly 6 digits");
+
+    // Academic essentials
+    if (!formData["Admission sought for class"])
+      addError("Admission sought for class", "Please select the class for admission");
+
+    // Board registration number (class-dependent)
+    if (cls?.includes('11') || cls?.includes('12')) {
+      if (!formData["Board Registration No. (Class 10th)"]?.trim() && !formData["Board Registration No. (Class 11th)"]?.trim())
+        addError("Board Registration No. (Class 10th)", "Board Registration Number is required");
+    }
+
+    // Marks validation
+    ['Class 10th', 'Class 11th', 'Class 8th', 'Class 9th'].forEach(clsLabel => {
+      const obtained = parseFloat(formData[`Total Marks Obtained in ${clsLabel}`]);
+      const maxMarks = parseFloat(formData[`Total Max. Marks in ${clsLabel}`]);
+      if (!isNaN(obtained) && !isNaN(maxMarks) && maxMarks > 0 && obtained > maxMarks) {
+        addError(`Total Marks Obtained in ${clsLabel}`, `Marks Obtained (${obtained}) cannot exceed Max Marks (${maxMarks})`);
+      }
+    });
+
+    // IFSC validation (only if bank account entered)
+    const ifsc = String(formData["IFSC code"] || '').trim().toUpperCase();
+    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))
+      addError("IFSC code", "Invalid IFSC code format (e.g. SBIN0001234)");
+
+    // ── DYNAMIC required-field check from formStructure ──
     formStructure.forEach(field => {
       const name = field.fieldName || field.name || field['Field Name'];
       const required = field.required || field['Is Required?'] === 'TRUE';
       const type = field.fieldType || field.type || field['Field Type'] || '';
-      
       if (type.startsWith('autogen')) return;
+      if (name === 'Declaration') return;
       if (!isVisible(field)) return;
-
+      if (!required) return;
+      if (errors[name]) return; // already caught by hardcoded check
       const val = formData[name];
-      const lowerName = name.toLowerCase();
-
-      // Check required
-      if (required) {
-        if (val === undefined || val === null || val === '' || val === false || val === 'FALSE') {
-          errors[name] = 'This field is required';
-          if (!firstErrorField) firstErrorField = name;
-          return;
-        }
-      }
-
-      // Check format & range validations if value exists
-      if (val && typeof val === 'string') {
-        const cleanVal = val.trim();
-        if (lowerName.includes('mobile') || lowerName.includes('whatsapp')) {
-          const nums = cleanVal.replace(/[^0-9]/g, '');
-          if (nums.length !== 10) {
-            errors[name] = 'Mobile number must be 10 digits';
-            if (!firstErrorField) firstErrorField = name;
-          }
-        } else if (lowerName.includes('aadhar')) {
-          const nums = cleanVal.replace(/[^0-9]/g, '');
-          if (nums.length !== 12) {
-            errors[name] = 'Aadhar number must be 12 digits';
-            if (!firstErrorField) firstErrorField = name;
-          }
-        } else if (lowerName.includes('pin code')) {
-          const nums = cleanVal.replace(/[^0-9]/g, '');
-          if (nums.length !== 6) {
-            errors[name] = 'PIN code must be 6 digits';
-            if (!firstErrorField) firstErrorField = name;
-          }
-        } else if (lowerName.includes('ifsc')) {
-          const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-          if (!ifscRegex.test(cleanVal.toUpperCase())) {
-            errors[name] = 'Invalid IFSC code format (e.g. SBIN0001234)';
-            if (!firstErrorField) firstErrorField = name;
-          }
-        }
-      }
-
-      // Check Marks Obtained <= Max Marks
-      if (lowerName.includes('total marks obtained')) {
-        const clsMatch = name.match(/Class \d+th|Class 8th|Class 9th|Class 10th|Class 11th|Class 12th/i);
-        if (clsMatch) {
-          const cls = clsMatch[0];
-          const obt = parseFloat(val);
-          const max = parseFloat(formData[`Total Max. Marks in ${cls}`] || 500);
-          if (!isNaN(obt) && !isNaN(max) && obt > max) {
-            errors[name] = `Marks Obtained (${obt}) cannot exceed Max Marks (${max})`;
-            if (!firstErrorField) firstErrorField = name;
-          }
-        }
+      if (val === undefined || val === null || val === '' || val === false || val === 'FALSE') {
+        addError(name, 'This field is required');
       }
     });
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      if (firstErrorField) {
-        const errorTab = categorizeField(firstErrorField);
-        setActiveTab(errorTab);
-        setAlert({
-          type: 'error',
-          text: `Please correct the highlighted field(s) in "${tabs.find(t => t.id === errorTab)?.label || errorTab}". Missing/Invalid: ${firstErrorField}`
-        });
-      }
+      const errorTab = categorizeField(firstErrorField);
+      setActiveTab(errorTab);
+      // Count errors per tab for summary
+      const tabErrorCounts = {};
+      Object.keys(errors).forEach(name => {
+        const t = categorizeField(name);
+        tabErrorCounts[t] = (tabErrorCounts[t] || 0) + 1;
+      });
+      const tabSummary = tabs
+        .filter(t => tabErrorCounts[t.id])
+        .map(t => `${t.label} (${tabErrorCounts[t.id]} error${tabErrorCounts[t.id] > 1 ? 's' : ''})`)
+        .join(', ');
+      setAlert({
+        type: 'error',
+        text: `Please fix ${Object.keys(errors).length} error(s) before submitting. Issues found in: ${tabSummary}. First issue: "${firstErrorField}" — ${errors[firstErrorField]}`
+      });
+      // Scroll to first error field
+      setTimeout(() => {
+        const el = document.querySelector(`[data-field-name="${CSS.escape(firstErrorField)}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
       return;
     }
 
     setFieldErrors({});
-
-    // Show full application review modal before finalizing submission
     setShowPreviewModal(true);
   };
 
@@ -704,7 +797,13 @@ export default function AdmissionForm() {
 
       const res = await appsScriptApi.saveApplication(payloadData);
       if (res && res.success !== false) {
-        setAlert({ type: 'success', text: 'Application submitted successfully to Cloud Firestore! Redirecting...' });
+        // Consume form number in database counter
+        consumeFormNumber(formNo).catch(e => console.warn('consumeFormNumber note:', e));
+
+        // Clear local draft from sessionStorage
+        try { sessionStorage.removeItem('hss_admission_draft'); } catch(e) {}
+
+        setAlert({ type: 'success', text: `Application #${formNo} submitted successfully to official database! Redirecting...` });
 
         // Trigger browser PDF generator automatically
         try {
@@ -776,17 +875,29 @@ export default function AdmissionForm() {
                 <CheckCircle size={16} className="text-teal-500 flex-shrink-0 mt-0.5" />
                 <span>Upload a clear, recent Passport-size photograph (Max 200 KB) for your identity card.</span>
               </div>
-              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                <CheckCircle size={16} className="text-teal-500 flex-shrink-0 mt-0.5" />
-                <span>Use <strong>'Save Draft'</strong> to stop and continue later anytime.</span>
-              </div>
+            </div>
+
+            <div className="pt-2">
+              <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-teal-500/10 border border-teal-500/30 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={hasConfirmedInstructions}
+                  onChange={(e) => setHasConfirmedInstructions(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug">
+                  I have read all instructions carefully and agree to follow the best practices for admission form submission.
+                </span>
+              </label>
             </div>
 
             <button
+              disabled={!hasConfirmedInstructions}
               onClick={() => setShowInstructions(false)}
-              className="w-full py-3.5 px-6 rounded-2xl font-extrabold text-sm text-white bg-teal-500 hover:bg-teal-400 shadow-md cursor-pointer transition-all"
+              className="w-full py-3.5 px-6 rounded-2xl font-extrabold text-sm text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
             >
-              I Understand and Agree →
+              <span>I Confirm and Proceed to Application Form</span>
+              <span>→</span>
             </button>
           </div>
         </div>
@@ -904,6 +1015,19 @@ export default function AdmissionForm() {
               </div>
             </div>
 
+            {/* Declaration Block */}
+            <div className="p-4 rounded-2xl border text-xs leading-relaxed" style={{ backgroundColor: 'rgba(13,148,136,0.06)', borderColor: 'rgba(13,148,136,0.25)', color: 'var(--text-main,#334155)' }}>
+              <div className="font-extrabold text-sm mb-2 flex items-center gap-2" style={{ color: '#0d9488' }}>
+                <CheckCircle size={16} /> Declaration
+              </div>
+              <p>
+                I, <strong>{formData["Student's Name (as per school records)"] || 'the applicant'}</strong>, hereby declare that all information furnished in this admission application is true, complete, and correct to the best of my knowledge and belief. I understand that any false statement or misrepresentation may lead to cancellation of my admission. I agree to abide by the rules and regulations of Govt. Higher Secondary School Shangus and submit to the authority of the Principal in all matters relating to discipline and academic conduct.
+              </p>
+              <p className="mt-2 font-semibold">
+                By clicking <strong>"Confirm &amp; Final Submit Application"</strong> below, I confirm the above declaration and authorise the school to process my admission application.
+              </p>
+            </div>
+
             {/* Modal Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
               <button
@@ -955,8 +1079,15 @@ export default function AdmissionForm() {
           )}
         </div>
 
-        {/* Form Container Card */}
-        <div className="rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+        {/* Form Container Card with Subtle School Logo Watermark */}
+        <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+          
+          {/* School Logo Watermark */}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] select-none z-0">
+            <img src="/logo512.png" alt="" className="w-80 h-80 sm:w-96 sm:h-96 object-contain filter grayscale" />
+          </div>
+
+          <div className="relative z-10 space-y-6">
           {/* Header Info Banner */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
             <div>
@@ -982,15 +1113,27 @@ export default function AdmissionForm() {
             </div>
           </div>
 
-          {/* Alert Notification */}
+          {/* Floating / Sticky Alert Toast Notification */}
           {alert && (
-            <div className={`p-4 rounded-2xl text-xs font-semibold flex items-start gap-2.5 animate-fadeIn ${
+            <div className={`p-4 rounded-2xl text-xs font-semibold flex items-start justify-between gap-3 animate-fadeIn border shadow-sm ${
               alert.type === 'error'
-                ? 'bg-red-500/10 border border-red-500/30 text-red-600'
-                : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600'
+                ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
+                : alert.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                : 'bg-teal-500/10 border-teal-500/30 text-teal-700 dark:text-teal-300'
             }`}>
-              {alert.type === 'error' ? <AlertCircle size={16} className="flex-shrink-0" /> : <CheckCircle size={16} className="flex-shrink-0" />}
-              <span>{alert.text}</span>
+              <div className="flex items-start gap-2.5">
+                {alert.type === 'error' ? <AlertCircle size={18} className="flex-shrink-0 text-red-500 mt-0.5" /> : <CheckCircle size={18} className="flex-shrink-0 text-teal-500 mt-0.5" />}
+                <span className="leading-relaxed">{alert.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlert(null)}
+                className="p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+                title="Dismiss Notification"
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
 
@@ -1040,6 +1183,8 @@ export default function AdmissionForm() {
                   const type = field.fieldType || field.type || field['Field Type'] || '';
                   if (type.startsWith('autogen')) return false;
                   const name = field.fieldName || field.name || field['Field Name'];
+                  // Declaration is shown in the submission confirmation modal, not in the form
+                  if (name === 'Declaration') return false;
                   return isVisible(field) && categorizeField(name) === activeTab;
                 });
 
@@ -1059,8 +1204,23 @@ export default function AdmissionForm() {
                   grouped[sec].push(field);
                 });
 
+                const isFullWidthField = (field, name) => {
+                  const type = field.fieldType || field.type || field['Field Type'] || '';
+                  const lower = String(name || '').toLowerCase();
+                  return (
+                    type === 'image' ||
+                    type === 'file' ||
+                    type === 'textarea' ||
+                    type === 'checkbox_dynamic' ||
+                    type === 'checkbox_declaration' ||
+                    lower.includes('photo') ||
+                    lower.includes('remarks') ||
+                    lower.includes('feedback')
+                  );
+                };
+
                 return Object.entries(grouped).map(([sectionTitle, fields]) => (
-                  <div key={sectionTitle} className="p-4 sm:p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4">
+                  <div key={sectionTitle} className="p-4 sm:p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
                     <div className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
                       <span>{sectionTitle}</span>
@@ -1070,7 +1230,7 @@ export default function AdmissionForm() {
                       {fields.map((field, idx) => {
                         const name = field.fieldName || field.name || field['Field Name'];
                         return (
-                          <div key={idx} className={categorizeField(name) === 'photo' ? 'col-span-1 sm:col-span-2' : ''}>
+                          <div key={idx} className={isFullWidthField(field, name) ? 'col-span-1 sm:col-span-2' : 'col-span-1'}>
                             <DynamicFormField
                               config={field}
                               value={formData[name] || ''}
@@ -1127,6 +1287,7 @@ export default function AdmissionForm() {
               </div>
             </form>
           )}
+          </div>
         </div>
       </div>
     </div>

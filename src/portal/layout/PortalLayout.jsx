@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { sessionManager } from '../../services/sessionManager';
-import appsScriptApi from '../../services/appsScriptApi'; // kept for legacy heartbeat/logout only
+
 import { auth, db } from '../../services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -53,7 +53,7 @@ async function resolveUserProfile(email, fallbackRole = 'Student', fallbackName 
  * Handles:
  * - Session validation on mount (synchronous — no flicker)
  * - Firebase Auth state sync (async — fires once after mount)
- * - Periodic heartbeat for legacy Apps Script sessions only
+ * - Silent local heartbeat (no network calls)
  * - Redirects unauthenticated users to /portal/login
  * - Provides session context to child routes via Outlet props
  */
@@ -195,26 +195,14 @@ export default function PortalLayout() {
   }, [navigate, setSessionStateStable]);
 
   // ---------------------------------------------------------------------------
-  // Heartbeat (periodic session refresh — legacy Apps Script sessions only)
+  // Heartbeat (silent local session keep-alive)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!sessionState.isAuthenticated) return;
 
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => {
       if (sessionManager.isHeartbeatDue()) {
-        const session = sessionManager.getSession();
-        const token = session?.token || '';
-        const isLegacySession = token && !token.startsWith('fb_token_');
-        if (!isLegacySession) {
-          sessionManager.recordHeartbeat(); // silent — no network call for Firebase users
-          return;
-        }
-        try {
-          await appsScriptApi.heartbeat();
-          sessionManager.recordHeartbeat();
-        } catch (error) {
-          console.warn('Background heartbeat note (retaining session):', error);
-        }
+        sessionManager.recordHeartbeat();
       }
     }, sessionManager.HEARTBEAT_INTERVAL_MS);
 
@@ -248,8 +236,6 @@ export default function PortalLayout() {
   // ---------------------------------------------------------------------------
   const handleLogout = useCallback(async () => {
     try { sessionStorage.setItem('hss_explicit_logout', 'true'); } catch (_) {}
-
-    appsScriptApi.logout().catch(() => {});
 
     try {
       if (auth?.currentUser) {
