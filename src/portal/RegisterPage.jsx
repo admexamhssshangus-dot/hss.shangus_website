@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useOutletContext, useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, User, Lock, Mail, Phone, Eye, EyeOff, AlertCircle, CheckCircle, ArrowRight, RefreshCw, GraduationCap, UserCheck, BookOpen, Layers, Briefcase, Calendar } from 'lucide-react';
+import { ShieldCheck, User, Lock, Mail, Phone, Eye, EyeOff, AlertCircle, CheckCircle, ArrowRight, ArrowLeft, RefreshCw, GraduationCap, UserCheck, BookOpen, Layers, Briefcase, Calendar, KeyRound } from 'lucide-react';
 
 import SEO from '../components/SEO';
 import { auth, db } from '../services/firebase';
@@ -76,6 +76,11 @@ export default function RegisterPage() {
         type: 'error',
         text: 'Admin account creation is restricted and managed internally by the Institution Administration. Public Admin registration is disabled.',
       });
+    } else if (newRole === 'Teacher') {
+      setAlert({
+        type: 'error',
+        text: 'Teacher account registration is restricted. Teacher accounts can only be created and provisioned directly by the Administrator.',
+      });
     } else {
       setAlert(null);
     }
@@ -89,6 +94,14 @@ export default function RegisterPage() {
       setAlert({
         type: 'error',
         text: 'Admin account creation is restricted and managed internally by the Institution Administration. Public Admin registration is disabled.',
+      });
+      return;
+    }
+
+    if (role === 'Teacher') {
+      setAlert({
+        type: 'error',
+        text: 'Teacher account registration is restricted. Teacher accounts can only be created and provisioned directly by the Administrator.',
       });
       return;
     }
@@ -277,11 +290,23 @@ export default function RegisterPage() {
               to   { opacity: 1; transform: translateY(0) scale(1); }
             }
           `}</style>
-          <div className="flex justify-between items-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-teal-500/10 text-teal-600 border border-teal-500/20">
-              <ShieldCheck size={14} />
-              <span>Govt. HSS Shangus</span>
+          <div className="flex justify-between items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs"
+              title="Go back"
+            >
+              <ArrowLeft size={14} />
+              <span>Back</span>
+            </button>
+
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-teal-500/10 text-teal-600 border border-teal-500/20">
+              <ShieldCheck size={13} />
+              <span className="hidden sm:inline">Govt. HSS Shangus</span>
+              <span className="sm:hidden">HSS Shangus</span>
             </div>
+
             <span className="text-xs font-black text-slate-400">Step {step} of 2</span>
           </div>
 
@@ -310,11 +335,12 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => handleRoleChange('Teacher')}
-                className={`py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  role === 'Teacher' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'
+                className={`py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer opacity-70 ${
+                  role === 'Teacher' ? 'bg-amber-600 text-white shadow-sm opacity-100' : 'text-slate-600 dark:text-slate-400'
                 }`}
+                title="Teacher account registration is restricted"
               >
-                <UserCheck size={14} /> Teacher
+                <Lock size={14} /> Teacher
               </button>
 
               <button
@@ -341,7 +367,40 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {step === 1 ? (
+          {role === 'Teacher' || role === 'Admin' ? (
+            <div className="py-6 px-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-4 animate-fadeIn">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-500/20 shadow-xs">
+                <Lock size={24} />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                  {role} Account Registration Restricted
+                </h3>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  {role} accounts are created, provisioned, and assigned directly by the School Administration. Public self-registration is disabled.
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-center gap-2">
+                <Link
+                  to="/portal/login"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <UserCheck size={14} />
+                  <span>Sign In to Portal</span>
+                </Link>
+
+                <Link
+                  to="/portal/forgot-password"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <KeyRound size={14} />
+                  <span>Reset Password</span>
+                </Link>
+              </div>
+            </div>
+          ) : step === 1 ? (
             <form onSubmit={handleDetailsSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Full Name *</label>
@@ -387,102 +446,13 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Additional Teacher / Faculty Registration Fields */}
-              {role === 'Teacher' && (
-                <div className="space-y-3.5 pt-2 border-t border-slate-200 dark:border-slate-800 animate-fadeIn">
-                  <div className="text-[11px] font-black uppercase text-teal-600 dark:text-teal-400 tracking-wider flex items-center gap-1">
-                    <UserCheck size={13} /> Faculty Specialization Details
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Assigned Class / Grade *</label>
-                    <div className="relative">
-                      <Layers size={16} className="absolute left-3.5 top-3 text-slate-400" />
-                      <select
-                        value={teacherClass}
-                        onChange={(e) => setTeacherClass(e.target.value)}
-                        required
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                      >
-                        <option value="11th Class">11th Class</option>
-                        <option value="12th Class">12th Class</option>
-                        <option value="11th & 12th Class">11th & 12th Class (Higher Secondary)</option>
-                        <option value="10th Class">10th Class</option>
-                        <option value="9th Class">9th Class</option>
-                        <option value="All Classes">All Secondary & Higher Secondary Classes</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Teaching Subject *</label>
-                    <div className="relative">
-                      <BookOpen size={16} className="absolute left-3.5 top-3 text-slate-400" />
-                      <select
-                        value={teacherSubject}
-                        onChange={(e) => setTeacherSubject(e.target.value)}
-                        required
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                      >
-                        {MASTER_SUBJECTS.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Designation / Role</label>
-                    <div className="relative">
-                      <Briefcase size={16} className="absolute left-3.5 top-3 text-slate-400" />
-                      <select
-                        value={teacherDesignation}
-                        onChange={(e) => setTeacherDesignation(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                      >
-                        <option value="Lecturer">Lecturer</option>
-                        <option value="Senior Lecturer">Senior Lecturer</option>
-                        <option value="Teacher">Teacher</option>
-                        <option value="Master">Master</option>
-                        <option value="Physical Education Master">Physical Education Master</option>
-                        <option value="Vocational Instructor">Vocational Instructor</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Academic Session */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Academic Session *</label>
-                    <div className="relative">
-                      <Calendar size={16} className="absolute left-3.5 top-3 text-slate-400" />
-                      <select
-                        value={academicSession}
-                        onChange={(e) => setAcademicSession(e.target.value)}
-                        required
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white cursor-pointer"
-                      >
-                        {sessionOptions.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
-                      ⚠ Only one teacher may be registered per subject-class-session combination.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-
               <button
                 type="submit"
-                disabled={isLoading || role === 'Admin'}
-                className="w-full py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+                className="w-full py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isLoading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                <span>
-                  {role === 'Admin' ? 'Admin Registration Disabled' : 'Continue to Password Setup'}
-                </span>
+                <span>Continue to Password Setup</span>
               </button>
             </form>
           ) : (

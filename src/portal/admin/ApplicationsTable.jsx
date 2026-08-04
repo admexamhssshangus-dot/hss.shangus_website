@@ -158,7 +158,7 @@ export default function ApplicationsTable({
                 const parentage = app["Father's/Guardian's Name (as per school records)"] || app["Father's/Guardian's Name"] || app["Father's Name"] || app['FatherName'] || (status === 'Draft' ? 'Draft (Unfilled)' : 'N/A');
                 const cls = app['Admission sought for class'] || app['Class'] || (status === 'Draft' ? 'Draft' : 'N/A');
                 const stream = app['Stream for Class 11th'] || app['Stream opted in Class 11th'] || app['Stream'] || (status === 'Draft' ? 'Draft' : 'N/A');
-                const rollNo = app['Class Roll No'] || app['Exam Roll Number of Class 10th'] || app['Exam Roll Number of Class 11th'] || app['RollNo'] || '—';
+                const rollNo = app['Class Roll No'] || app['Class Roll No.'] || app['RL. NO.'] || app['RL. NO'] || app['Roll No'] || app['Roll No.'] || app.classRollNo || app.rollNo || app.roll || '—';
                 const photoUrl = app['Student Photo'] || app['Student Photograph'] || app['Photo'] || app['photo_id'] || app['photoUrl'] || '';
 
                 return (

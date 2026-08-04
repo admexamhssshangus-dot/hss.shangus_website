@@ -147,7 +147,7 @@ export default function DynamicFormField({
   if (type.startsWith('autogen') || lowerName === 'id card photo' || rawPlaceholder === '{{PHOTO_IC}}') return null;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-field-name={name}>
       <label className="text-xs font-bold flex items-center justify-between" style={{ color: 'var(--text-main, #1e293b)' }}>
         <span className="flex items-center gap-1.5">
           <span>{label} {required && <span className="text-red-500">*</span>}</span>

@@ -181,69 +181,16 @@
   </head>
   <body>
     <div id="root">
-      <!-- Static HTML Pre-render Fallback for Search Crawlers, SEO Bots, and No-JS Browsers -->
-      <header style="background-color:#0f172a; color:#ffffff; padding:1rem 1.5rem; border-bottom:1px solid #1e293b;">
-        <div style="max-width:1200px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
-          <div style="display:flex; align-items:center; gap:0.75rem;">
-            <img src="/logo.png" alt="Govt HSS Shangus Logo" width="44" height="44" style="border-radius:50%;" />
-            <div>
-              <h1 style="font-size:1.15rem; font-weight:800; margin:0; line-height:1.2; font-family:'Plus Jakarta Sans',sans-serif;">Govt. Higher Secondary School Shangus</h1>
-              <p style="font-size:0.75rem; color:#94a3b8; margin:0; font-family:'Inter',sans-serif;">Nurturing Minds, Shaping Futures | Est. 1971 | Anantnag, J&K</p>
-            </div>
-          </div>
-          <nav style="display:flex; gap:1rem; font-size:0.875rem; font-weight:600; font-family:'Inter',sans-serif;">
-            <a href="/" style="color:#ffffff; text-decoration:none;">Home</a>
-            <a href="/about" style="color:#cbd5e1; text-decoration:none;">About Us</a>
-            <a href="/academics" style="color:#cbd5e1; text-decoration:none;">Academics</a>
-            <a href="/admissions" style="color:#cbd5e1; text-decoration:none;">Admissions</a>
-            <a href="/notices" style="color:#cbd5e1; text-decoration:none;">Notice Board</a>
-            <a href="/login" style="color:#38bdf8; text-decoration:none;">Portal Login</a>
-          </nav>
+      <!-- Instant App Loader Shell (Eliminates page-flash on hard refresh) -->
+      <div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background-color:#f8fafc; font-family:'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif; text-align:center; padding:1.5rem;">
+        <div style="width:52px; height:52px; margin-bottom:1.25rem; display:flex; align-items:center; justify-content:center;">
+          <img src="/logo.png" alt="Govt HSS Shangus" width="52" height="52" style="border-radius:50%; box-shadow:0 8px 20px -4px rgba(13,148,136,0.3);" />
         </div>
-      </header>
-
-      <main style="max-width:1200px; margin:2rem auto; padding:0 1.5rem; font-family:'Inter',sans-serif; color:#1e293b;">
-        <section style="background:linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); color:#ffffff; border-radius:1.5rem; padding:2.5rem 2rem; margin-bottom:2rem; box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);">
-          <div style="max-width:800px;">
-            <span style="background-color:rgba(99,102,241,0.25); color:#a5b4fc; padding:0.25rem 0.75rem; border-radius:9999px; font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">Official Educational Portal</span>
-            <h2 style="font-size:2rem; font-weight:800; margin:0.75rem 0 0.5rem; font-family:'Plus Jakarta Sans',sans-serif; line-height:1.2;">Excellence in Science, Humanities & Secondary Education</h2>
-            <p style="font-size:1rem; color:#cbd5e1; margin-bottom:1.5rem; line-height:1.6;">Govt. Higher Secondary School Shangus is a premier government educational institution located in Shangus, Anantnag, Jammu & Kashmir (192201). Offering comprehensive 9th, 10th, 11th, and 12th grade education across Medical, Non-Medical, Humanities, and Vocational streams under JKBOSE.</p>
-            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-              <a href="/admissions" style="background-color:#4f46e5; color:#ffffff; padding:0.65rem 1.25rem; border-radius:0.75rem; font-weight:700; text-decoration:none; font-size:0.9rem;">Online Admissions 2026</a>
-              <a href="/login" style="background-color:rgba(255,255,255,0.1); color:#ffffff; padding:0.65rem 1.25rem; border-radius:0.75rem; font-weight:700; text-decoration:none; font-size:0.9rem; border:1px solid rgba(255,255,255,0.2);">Student & Staff Portal Login</a>
-            </div>
-          </div>
-        </section>
-
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
-          <article style="background-color:#ffffff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem;">
-            <h3 style="font-size:1.15rem; font-weight:700; color:#0f172a; margin-top:0;">Academic Programs & Streams</h3>
-            <p style="color:#475569; font-size:0.9rem; line-height:1.5;">Offering specialized subjects under JKBOSE curriculum including General English, Physics, Chemistry, Biology (Botany & Zoology), Mathematics, Physical Education, Environmental Science, Political Science, History, Economics, Sociology, Education, Computer Science, IT/ITES, Urdu, Arabic, Kashmiri, and Persian.</p>
-          </article>
-
-          <article style="background-color:#ffffff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem;">
-            <h3 style="font-size:1.15rem; font-weight:700; color:#0f172a; margin-top:0;">Online Services & Portals</h3>
-            <p style="color:#475569; font-size:0.9rem; line-height:1.5;">Access digital student records, online admission registration, roll number verification, examination result cards, fee receipts, practical evaluation rosters, datesheets, and staff portals seamlessly.</p>
-          </article>
-
-          <article style="background-color:#ffffff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem;">
-            <h3 style="font-size:1.15rem; font-weight:700; color:#0f172a; margin-top:0;">Notice Board & Circulars</h3>
-            <p style="color:#475569; font-size:0.9rem; line-height:1.5;">Stay updated with official bulletins, JKBOSE board examination schedules, practical evaluation notices, holiday declarations, and school circulars updated dynamically.</p>
-          </article>
-        </div>
-      </main>
-
-      <footer style="background-color:#0f172a; color:#94a3b8; padding:2rem 1.5rem; font-family:'Inter',sans-serif; margin-top:3rem; border-top:1px solid #1e293b;">
-        <div style="max-width:1200px; margin:0 auto; display:flex; flex-wrap:wrap; justify-content:space-between; gap:1.5rem;">
-          <div>
-            <h4 style="color:#ffffff; font-size:0.95rem; font-weight:700; margin:0 0 0.5rem;">Govt. Higher Secondary School Shangus</h4>
-            <p style="font-size:0.85rem; margin:0; line-height:1.5;">Main Road, Shangus, District Anantnag, J&K – 192201<br />Contact: +91-7006034501 | +91-7006537425<br />Email: principalhssshangus@gmail.com</p>
-          </div>
-          <div style="font-size:0.85rem;">
-            <p style="margin:0;">© 2026 Govt. Higher Secondary School Shangus. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+        <h1 style="font-size:1.1rem; font-weight:800; color:#0f172a; margin:0 0 0.25rem 0; letter-spacing:-0.02em;">Govt. Higher Secondary School Shangus</h1>
+        <p style="font-size:0.75rem; font-weight:600; color:#64748b; margin:0 0 1.5rem 0;">Official Online Student & Educational Portal</p>
+        <div style="width:32px; height:32px; border:3px solid #cbd5e1; border-top-color:#0d9488; border-radius:50%; animation:hss-spin 0.75s linear infinite;"></div>
+        <style>@keyframes hss-spin { to { transform: rotate(360deg); } }</style>
+      </div>
     </div>
     <noscript>
       <div style="padding:1rem; background-color:#fee2e2; color:#991b1b; text-align:center; font-family:sans-serif; font-weight:bold;">

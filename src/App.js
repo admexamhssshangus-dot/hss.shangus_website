@@ -75,19 +75,19 @@ function RoleGuard({ allowedRoles, children }) {
     return <Navigate to="/portal/login" replace />;
   }
 
-  const role = (user.role || '').toLowerCase().trim();
+  const role = String(user.role || '').toLowerCase().trim();
 
-  // Determine if this role is in the allowed list (using normalized role map)
+  // Flexible role matching to prevent flash on hard refresh
   const allowed = allowedRoles.some((r) => {
-    if (r === 'admin') return ['admin', 'superadmin', 'super admin'].includes(role);
-    if (r === 'teacher') return ['teacher', 'faculty'].includes(role);
-    if (r === 'student') return role === 'student';
-    return role === r;
+    const normR = String(r).toLowerCase().trim();
+    if (normR === 'admin') return role.includes('admin');
+    if (normR === 'teacher') return role.includes('teacher') || role.includes('faculty');
+    if (normR === 'student') return role.includes('student') || role === 'user';
+    return role === normR;
   });
 
   if (!allowed) {
-    // Redirect the user to their own dashboard, not to login
-    const dest = ROLE_REDIRECT[role] || '/portal/login';
+    const dest = role.includes('admin') ? '/portal/admin' : role.includes('teacher') ? '/portal/teacher' : '/portal/student';
     return <Navigate to={dest} replace />;
   }
 

@@ -78,12 +78,38 @@ export default function AdminDashboard() {
     loadAdminData();
   }, []);
 
+  // Check if a specific tab/module is permitted for the logged-in user
+  const isTabPermitted = (tabId) => {
+    if (!user) return false;
+    const role = String(user.role || '').toLowerCase();
+    const email = String(user.email || '').toLowerCase();
+    if (role === 'superadmin' || role === 'super admin' || email === 'adm.exam.hss.shangus@gmail.com') {
+      return true;
+    }
+    const perms = Array.isArray(user.perms) ? user.perms : [];
+    return perms.includes('*') || perms.includes(tabId);
+  };
+
   // Stats calculation
   const totalCount = applications.length;
   const submittedCount = applications.filter((a) => a['Status'] === 'Submitted').length;
   const draftCount = applications.filter((a) => a['Status'] === 'Draft' || !a['Status']).length;
   const approvedCount = applications.filter((a) => a['Status'] === 'Approved').length;
   const rejectedCount = applications.filter((a) => a['Status'] === 'Rejected').length;
+
+  const TOOL_MODULES = [
+    { id: 'reports', label: 'Master Register & Database', icon: BarChart2 },
+    { id: 'gkTest', label: 'Competitive Exam Prep & Registrations', icon: ShieldCheck },
+    { id: 'controls', label: 'Controls & Subjects', icon: Settings },
+    { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
+    { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
+    { id: 'rollNo', label: 'Roll Numbers', icon: Hash },
+    { id: 'bulk', label: 'Bulk Export', icon: Layers },
+    { id: 'automations', label: 'Email & Automations', icon: Mail },
+    { id: 'funds', label: 'Fund Accounts', icon: CreditCard },
+  ];
+
+  const allowedToolModules = TOOL_MODULES.filter((mod) => isTabPermitted(mod.id));
 
   return (
     <div className="w-full min-h-[85vh] py-3 px-1 sm:px-2" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
@@ -110,12 +136,14 @@ export default function AdminDashboard() {
 
                 <div className="flex items-center p-0.5 rounded-xl border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                   <span className="px-2.5 py-1 text-slate-800 dark:text-slate-200 font-black">
-                    {activeTab === 'controls' && '⚙️ Controls & Subjects'}
-                    {activeTab === 'gkTest' && '🎯 GK Test Registrations'}
-                    {activeTab === 'rollNo' && '# Roll Numbers'}
-                    {activeTab === 'bulk' && '📁 Bulk Export'}
-                    {activeTab === 'automations' && '✉️ Email & Automations'}
-                    {activeTab === 'funds' && '💳 Fund Accounts'}
+                    {activeTab === 'controls' && 'Controls & Subjects'}
+                    {activeTab === 'gkTest' && 'Competitive Exam Prep & Registrations'}
+                    {activeTab === 'rollNo' && 'Roll Numbers'}
+                    {activeTab === 'bulk' && 'Bulk Export'}
+                    {activeTab === 'automations' && 'Email & Automations'}
+                    {activeTab === 'funds' && 'Fund Accounts'}
+                    {activeTab === 'practicals' && 'Practicals & Awards'}
+                    {activeTab === 'attendanceMgmt' && 'Attendance Management'}
                   </span>
                 </div>
 
@@ -131,29 +159,8 @@ export default function AdminDashboard() {
                   </button>
 
                   {isToolsOpen && (
-                    <div className="absolute left-0 mt-1 w-56 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-bold">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('reports');
-                          setIsToolsOpen(false);
-                        }}
-                        className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-900 dark:text-slate-100 cursor-pointer"
-                      >
-                        <BarChart2 size={13} className="text-slate-500" />
-                        <span>📂 Master Register & Database</span>
-                      </button>
-
-                      {[
-                        { id: 'gkTest', label: '🎯 GK Test Registrations', icon: ShieldCheck },
-                        { id: 'controls', label: 'Controls & Subjects', icon: Settings },
-                        { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
-                        { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
-                        { id: 'rollNo', label: 'Roll Numbers', icon: Hash },
-                        { id: 'bulk', label: 'Bulk Export', icon: Layers },
-                        { id: 'automations', label: 'Email & Automations', icon: Mail },
-                        { id: 'funds', label: 'Fund Accounts', icon: CreditCard },
-                      ].map((tab) => {
+                    <div className="absolute left-0 mt-1 w-64 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-bold">
+                      {allowedToolModules.map((tab) => {
                         if (activeTab === tab.id) return null;
                         const Icon = tab.icon;
                         return (
@@ -166,8 +173,8 @@ export default function AdminDashboard() {
                             }}
                             className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-900 dark:text-slate-100 cursor-pointer"
                           >
-                            <Icon size={13} className="text-slate-500" />
-                            <span>{tab.label}</span>
+                            <Icon size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                            <span className="truncate">{tab.label}</span>
                           </button>
                         );
                       })}
@@ -200,46 +207,68 @@ export default function AdminDashboard() {
             />
           ) : (
             <>
-              {/* TAB 1: Master Register & Database (Default View with Single-Row Header) */}
-              {activeTab === 'reports' && (
-                <AdvancedReports
-                  setActiveTab={setActiveTab}
-                  viewScope={viewScope}
-                  setViewScope={setViewScope}
-                  setCounts={setCounts}
-                  user={user}
-                  onLogout={handleLogoutRequest}
-                  onSync={() => loadAdminData(true)}
-                  stats={{ totalCount, submittedCount, draftCount, approvedCount, rejectedCount }}
-                  initialData={applications}
-                />
+              {/* Permission Guard: Check if active tab is permitted */}
+              {!isTabPermitted(activeTab) ? (
+                <div className="p-12 text-center space-y-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 border border-amber-500/30 flex items-center justify-center mx-auto font-black">
+                    <Lock size={24} />
+                  </div>
+                  <h3 className="font-black text-base text-slate-900 dark:text-white">Access Restricted</h3>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                    You do not have administrative permission to access this module. Please contact the Super Admin to request access.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('reports')}
+                    className="px-4 py-2 rounded-xl text-xs font-black text-white bg-indigo-700 hover:bg-indigo-600 cursor-pointer shadow-md"
+                  >
+                    Return to Master Register
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* TAB 1: Master Register & Database (Default View with Single-Row Header) */}
+                  {activeTab === 'reports' && (
+                    <AdvancedReports
+                      setActiveTab={setActiveTab}
+                      viewScope={viewScope}
+                      setViewScope={setViewScope}
+                      setCounts={setCounts}
+                      user={user}
+                      onLogout={handleLogoutRequest}
+                      onSync={() => loadAdminData(true)}
+                      stats={{ totalCount, submittedCount, draftCount, approvedCount, rejectedCount }}
+                      initialData={applications}
+                    />
+                  )}
+
+                  {/* TAB 2: Combined Controls & Subjects Config v2 */}
+                  {activeTab === 'controls' && <ControlsAndSubjects />}
+
+                  {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
+                  {activeTab === 'gkTest' && <AdminGkTestManager />}
+
+                  {/* TAB 3: Roll No Assignment */}
+                  {activeTab === 'rollNo' && (
+                    <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
+                  )}
+
+                  {/* TAB 4: Bulk Operations & Export */}
+                  {activeTab === 'bulk' && <BulkOperations />}
+
+                  {/* TAB 5: Automations & Group Email Composer */}
+                  {activeTab === 'automations' && <AutomationsPage />}
+
+                  {/* TAB 7: Fund Distribution */}
+                  {activeTab === 'funds' && <FundDistribution />}
+
+                  {/* TAB 8: Practicals & Awards */}
+                  {activeTab === 'practicals' && <AdminPracticals />}
+
+                  {/* TAB 9: Attendance Management */}
+                  {activeTab === 'attendanceMgmt' && <AdminAttendance />}
+                </>
               )}
-
-              {/* TAB 2: Combined Controls & Subjects Config v2 */}
-              {activeTab === 'controls' && <ControlsAndSubjects />}
-
-              {/* TAB: GK Test & OMR Registrations Manager */}
-              {activeTab === 'gkTest' && <AdminGkTestManager />}
-
-              {/* TAB 3: Roll No Assignment */}
-              {activeTab === 'rollNo' && (
-                <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
-              )}
-
-              {/* TAB 4: Bulk Operations & Export */}
-              {activeTab === 'bulk' && <BulkOperations />}
-
-              {/* TAB 5: Automations & Group Email Composer */}
-              {activeTab === 'automations' && <AutomationsPage />}
-
-              {/* TAB 7: Fund Distribution */}
-              {activeTab === 'funds' && <FundDistribution />}
-
-              {/* TAB 8: Practicals & Awards */}
-              {activeTab === 'practicals' && <AdminPracticals />}
-
-              {/* TAB 9: Attendance Management */}
-              {activeTab === 'attendanceMgmt' && <AdminAttendance />}
             </>
           )}
         </div>
