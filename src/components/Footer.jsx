@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, X, Mail, Info, Lock, Unlock } from 'lucide-react';
+import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, Award, ExternalLink, ShieldCheck, MapPin, Layers, Building2 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
@@ -254,61 +254,66 @@ export default function Footer() {
           </div>
 
           {/* Line 1: Copyright */}
-          <p className="text-slate-400 font-medium">© 2023 Govt HSS Shangus. All Rights Reserved.</p>
+          <p className="text-slate-400 font-medium text-xs sm:text-sm">© 2023 Govt HSS Shangus. All Rights Reserved.</p>
 
-          {/* Line 2: Developed by */}
-          <p className="italic text-slate-400 text-xs">Developed by</p>
+          {/* Line 2: Developer Credit Badge (Developer Code/Terminal Style with Premium Brighter Border & Cyan Neon Glow) */}
+          <div className="pt-2 flex flex-col items-center justify-center">
+            <div className="inline-flex flex-wrap items-center justify-center gap-2.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-cyan-400/80 hover:border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)] hover:shadow-[0_0_22px_rgba(6,182,212,0.45)] transition-all duration-300 font-mono text-xs backdrop-blur-md">
+              <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
+                <Terminal size={14} className="text-cyan-400 animate-pulse" />
+                <span className="text-slate-500 text-[11px] font-bold">&lt;dev&gt;</span>
+              </span>
 
-          {/* Container for Developer Credit & Contact Links: Flex-col on Mobile (separate lines), Flex-row on Desktop (same line) */}
-          <div className="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 pt-0.5">
-            
-            {/* Next Life Technologies & Company Info Icon */}
-            <div className="flex items-center justify-center gap-1 text-slate-300">
-              <a 
-                href="https://nexliftech.netlify.app/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="font-bold text-teal-400 hover:text-teal-300 transition-colors underline decoration-teal-400/50 hover:decoration-teal-300 underline-offset-4"
-              >
-                Next Life Technologies
-              </a>
-              <button
-                type="button"
-                onClick={() => setActiveModal('companyInfo')}
-                className="inline-flex items-center justify-center text-teal-400 hover:text-teal-200 transition-colors cursor-pointer ml-0.5 p-0.5"
-                title="About Next Life Technologies (NexLifTech)"
-                aria-label="About Company Info"
-              >
-                <Info size={14} strokeWidth={2} />
-              </button>
-            </div>
+              <div className="flex items-center gap-1">
+                <a 
+                  href="https://nexliftech.netlify.app/" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="font-extrabold text-cyan-300 hover:text-cyan-200 transition-all underline decoration-cyan-400/50 hover:decoration-cyan-200 underline-offset-4 tracking-tight"
+                >
+                  Next Life Technologies
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal('companyInfo')}
+                  className="inline-flex items-center justify-center text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer p-0.5"
+                  title="About Next Life Technologies (NexLifTech)"
+                  aria-label="About Company Info"
+                >
+                  <Info size={13} strokeWidth={2.5} />
+                </button>
+              </div>
 
-            {/* WhatsApp | Email */}
-            <div className="flex items-center justify-center gap-3">
-              <a 
-                href="https://wa.me/919682547458" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-[#25D366] hover:text-[#20ba5a] transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-medium" 
-                title="Contact Developer on WhatsApp (+91 9682547458)"
-              >
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z" />
-                </svg>
-                <span>WhatsApp</span>
-              </a>
-              
-              <span className="text-slate-700">|</span>
+              <span className="text-slate-700 font-bold">&lt;/dev&gt;</span>
+              <span className="text-slate-700 font-bold">|</span>
 
-              <a 
-                href="mailto:2nexlif@gmail.com" 
-                onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')} 
-                className="text-teal-400 hover:text-teal-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-medium" 
-                title="Email Developer (2nexlif@gmail.com)"
-              >
-                <Mail size={15} />
-                <span>Email</span>
-              </a>
+              {/* Developer Contact Actions */}
+              <div className="flex items-center gap-2">
+                <a 
+                  href="https://wa.me/919682547458" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-[#25D366] hover:text-emerald-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-bold" 
+                  title="Contact Developer on WhatsApp (+91 9682547458)"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.858.002-2.634-1.024-5.11-2.887-6.974C16.486 1.91 14.018.883 11.399.883c-5.438 0-9.863 4.42-9.866 9.861 0 1.764.496 3.488 1.443 5.074l-1.012 3.693 3.793-1.042L6.647 19.16zM17.15 13.9c-.282-.142-1.67-.824-1.929-.918-.258-.094-.447-.142-.635.142-.188.283-.729.918-.894 1.106-.165.188-.329.212-.612.071-.282-.141-1.192-.44-2.271-1.402-.84-.749-1.407-1.673-1.572-1.956-.165-.283-.018-.436.123-.576.127-.126.282-.329.424-.494.141-.165.188-.282.282-.47.094-.188.047-.353-.024-.494-.071-.141-.635-1.53-.87-2.094-.229-.553-.46-.477-.635-.486-.164-.008-.353-.01-.54-.01-.188 0-.494.07-.753.353-.258.282-.988.965-.988 2.353s1.011 2.73 1.152 2.918c.142.188 1.99 3.04 4.821 4.261.673.29 1.2.463 1.609.593.676.214 1.291.184 1.777.112.541-.08 1.67-.682 1.905-1.341.235-.659.235-1.223.165-1.341-.07-.118-.259-.188-.541-.33z" />
+                  </svg>
+                  <span>WhatsApp</span>
+                </a>
+
+                <span className="text-slate-700 font-bold">/</span>
+
+                <a 
+                  href="mailto:2nexlif@gmail.com" 
+                  onClick={(e) => handleEmailClick(e, '2nexlif@gmail.com')} 
+                  className="text-cyan-400 hover:text-cyan-300 transition-all transform hover:scale-105 flex items-center gap-1 text-[11px] font-bold" 
+                  title="Email Developer (2nexlif@gmail.com)"
+                >
+                  <Mail size={13} />
+                  <span>Email</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -320,104 +325,181 @@ export default function Footer() {
       {/* If activeModal is NOT null, draw this dark background overlay */}
       {activeModal && (
         <div
-          className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-3"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 animate-in fade-in duration-300"
           onClick={() => setActiveModal(null)}
         >
-
-          {/* The white popup box */}
+          {/* Glassmorphic Popup Box */}
           <div
-            className="bg-white text-slate-800 rounded-3xl border-t-[5px] border-[var(--teal-accent)] shadow-2xl max-w-xl w-full p-5 md:p-8 relative animate-in fade-in zoom-in duration-200 max-h-[85vh] overflow-y-auto custom-scrollbar"
+            className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl border border-teal-500/20 dark:border-teal-500/30 shadow-[0_25px_70px_-15px_rgba(13,148,136,0.3)] max-w-2xl w-full p-5 md:p-7 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Ambient Background Glows */}
+            <div className="absolute -top-24 -left-24 w-60 h-60 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Top Accent Gradient Bar */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-500" />
 
             {/* Close Button */}
             <button
               onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors p-1"
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center shadow-sm"
               aria-label="Close Modal"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
 
             {/* Next Life Technologies (NexLifTech) Company Profile Modal */}
             {activeModal === 'companyInfo' && (
-              <div>
-                <div className="flex items-center gap-3 border-b border-slate-100 pb-3 mb-4">
-                  <div className="bg-teal-50 text-[var(--teal-accent)] p-2.5 rounded-2xl border border-teal-100 shadow-sm flex-shrink-0">
-                    <BookOpen size={24} />
+              <div className="space-y-5">
+                {/* Header */}
+                <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-teal-600 via-emerald-500 to-teal-400 text-white shadow-lg shadow-teal-500/30 flex items-center justify-center flex-shrink-0">
+                    <Building2 size={24} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold font-title tracking-wide text-[var(--teal-accent)]">
-                      Next Life Technologies
-                    </h2>
-                    <p className="text-slate-500 text-xs font-semibold">Web Development • Automation • IT Services</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white font-title">
+                        Next Life Technologies
+                      </h2>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+                        NexLifTech
+                      </span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">
+                      Web Development • Automation • Enterprise IT Services
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-4 text-xs md:text-sm text-slate-650 leading-relaxed">
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-                    <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-teal-800 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-teal-600"></span> Founder & Engineering Leadership
-                    </h4>
-                    <p className="text-slate-700 text-xs md:text-sm leading-relaxed">
-                      <strong className="text-slate-900 font-semibold">NexLifTech</strong> is a web development and IT services company founded by <strong className="text-slate-900 font-semibold">Sheikh Gulfam</strong>, who brings an unusual background to the business—having worked as a <strong>Botany lecturer and researcher</strong> (<em>CSIR NET-JRF qualified</em>, with <em>PhD research experience at CSIR-IIIM Jammu</em>) before transitioning into software development and automation.
-                    </p>
+                {/* Hero / Founder Spotlight Card */}
+                <div className="rounded-2xl bg-gradient-to-br from-teal-50/80 via-slate-50 to-emerald-50/80 p-4 md:p-5 border border-teal-200/80 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-teal-800">
+                      <Sparkles size={14} className="text-teal-600" />
+                      Founder & Engineering Leadership
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-700 bg-teal-100/70 px-2.5 py-0.5 rounded-full border border-teal-200">
+                      <MapPin size={10} className="text-teal-600" />
+                      Anantnag, J&K
+                    </span>
                   </div>
 
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-teal-800 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-teal-600"></span> Digital Services & Tech Stack
-                    </h4>
-                    <p className="text-slate-700 text-xs md:text-sm leading-relaxed">
-                      Based in <strong>Anantnag, Jammu & Kashmir</strong>, the company offers a full range of digital services including custom web development, e-commerce solutions, web applications, performance optimization, security hardening, and ongoing maintenance, built primarily on <strong>React, Next.js, Vite, and Firebase</strong>.
-                    </p>
-                  </div>
+                  <p className="text-xs md:text-sm leading-relaxed text-slate-800">
+                    <strong className="text-slate-950 font-bold">NexLifTech</strong> is a digital transformation & web development services company founded by <strong className="text-teal-900 font-bold">Sheikh Gulfam</strong>. He brings a unique scientific & analytical background to software engineering—having worked as a <strong className="text-slate-900 font-semibold">Botany lecturer and researcher</strong> before transitioning into full-stack software development, database architecture, and automation.
+                  </p>
 
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-teal-800 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-teal-600"></span> Diverse Portfolio Highlights
+                  {/* Badges / Credentials */}
+                  <div className="pt-2 border-t border-teal-200/60 flex flex-wrap gap-1.5 text-[10px] font-bold">
+                    <span className="px-2.5 py-1 rounded-lg bg-teal-100/80 text-teal-900 border border-teal-300/80 flex items-center gap-1">
+                      <Cpu size={11} className="text-teal-700" /> PhD Research (CSIR-IIIM Jammu)
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 text-emerald-900 border border-emerald-300/80 flex items-center gap-1">
+                      <Code size={11} className="text-emerald-700" /> Full-Stack & Automation
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tech Stack Banner */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Layers size={13} className="text-teal-600 dark:text-teal-400" />
+                      Core Tech Stack & Frameworks
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      <div className="bg-emerald-50/70 border border-emerald-100 p-2.5 rounded-xl">
-                        <strong className="text-emerald-900 block font-bold mb-0.5">🎓 Education & ERP</strong>
-                        <span className="text-slate-650">ERP and admission portals for government and private schools.</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
+                    {['React', 'Next.js', 'Vite', 'Firebase', 'Python', 'Tailwind CSS', 'Node.js', 'PostgreSQL'].map((tech) => (
+                      <span key={tech} className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Portfolio Grid */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Globe size={13} className="text-teal-600 dark:text-teal-400" />
+                    Diverse Portfolio Solutions
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500/5 to-teal-500/10 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-500/20 hover:border-emerald-500/40 transition-all group">
+                      <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-300 mb-1">
+                        <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                          <GraduationCap size={15} />
+                        </div>
+                        Education & ERP
                       </div>
-                      <div className="bg-sky-50/70 border border-sky-100 p-2.5 rounded-xl">
-                        <strong className="text-sky-900 block font-bold mb-0.5">✈️ Travel & Tourism</strong>
-                        <span className="text-slate-650">Custom booking and reservation platforms.</span>
+                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
+                        Comprehensive ERP & admission management portals for government & private schools.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-sky-500/5 to-blue-500/10 dark:from-sky-950/30 dark:to-blue-950/20 border border-sky-500/20 hover:border-sky-500/40 transition-all group">
+                      <div className="flex items-center gap-2 font-bold text-sky-900 dark:text-sky-300 mb-1">
+                        <div className="w-7 h-7 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
+                          <Plane size={15} />
+                        </div>
+                        Travel & Tourism
                       </div>
-                      <div className="bg-indigo-50/70 border border-indigo-100 p-2.5 rounded-xl">
-                        <strong className="text-indigo-900 block font-bold mb-0.5">💰 Personal Finance</strong>
-                        <span className="text-slate-650">Smart money management and expense tracking tools.</span>
+                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
+                        Custom booking engines, reservation portals & tour package platforms.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/10 dark:from-indigo-950/30 dark:to-purple-950/20 border border-indigo-500/20 hover:border-indigo-500/40 transition-all group">
+                      <div className="flex items-center gap-2 font-bold text-indigo-900 dark:text-indigo-300 mb-1">
+                        <div className="w-7 h-7 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                          <Wallet size={15} />
+                        </div>
+                        Personal Finance
                       </div>
-                      <div className="bg-amber-50/70 border border-amber-100 p-2.5 rounded-xl">
-                        <strong className="text-amber-900 block font-bold mb-0.5">⚡ Workflow Automation</strong>
-                        <span className="text-slate-650">Python, Selenium, and Apps Script tools for student records and exam data.</span>
+                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
+                        Smart money management, budget tracking & financial analytics web apps.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/10 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-500/20 hover:border-amber-500/40 transition-all group">
+                      <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300 mb-1">
+                        <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                          <Zap size={15} />
+                        </div>
+                        Workflow Automation
                       </div>
+                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
+                        Python, Selenium & Apps Script bots for automated record synchronization.
+                      </p>
                     </div>
                   </div>
-
-                  <div className="bg-teal-900/5 p-3.5 rounded-2xl border border-teal-200/60 space-y-1.5">
-                    <h4 className="font-bold text-teal-950 text-xs uppercase tracking-wider">Pricing & Engineering Philosophy</h4>
-                    <p className="text-slate-700 text-xs leading-relaxed">
-                      NexLifTech offers tiered pricing—from a Starter package for small businesses to custom Enterprise ERP solutions for schools and large organizations—and positions itself around combining scientific rigor with engineering excellence to deliver secure, high-performing, scalable solutions.
-                    </p>
-                  </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* Engineering Philosophy */}
+                <div className="p-3.5 rounded-2xl bg-teal-500/5 dark:bg-teal-500/10 border border-teal-500/20 space-y-1">
+                  <h4 className="font-bold text-teal-900 dark:text-teal-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck size={13} className="text-teal-600 dark:text-teal-400" />
+                    Engineering Philosophy
+                  </h4>
+                  <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed">
+                    Combining scientific rigor with software excellence—delivering secure, scalable, high-performing web platforms tailored to client needs.
+                  </p>
+                </div>
+
+                {/* Action Footer */}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
                   <a
                     href="https://nexliftech.netlify.app/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full sm:w-auto px-5 py-2.5 bg-[var(--teal-accent)] hover:bg-[var(--teal-accent-hover)] text-white text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-teal-600/25 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
                   >
-                    Visit Official Site →
+                    Visit Official Website
+                    <ExternalLink size={13} />
                   </a>
                   <button
                     onClick={() => setActiveModal(null)}
-                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
+                    className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
                     Close
                   </button>

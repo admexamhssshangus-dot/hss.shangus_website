@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { BarChart2, PieChart, Printer, Download, X, Filter, Users, CheckCircle2, Sparkles, BookOpen, Layers, ShieldCheck, FileSpreadsheet, ChevronDown, CheckSquare, Square } from 'lucide-react';
 
+import { normalizeClassVal, normalizeSessionVal } from './AdvancedReports';
+
 // ─── Reusable Multi-Select Checkbox Dropdown Component for Analytics Suite ───
 function MultiSelectDropdown({ label, options = [], selected = [], onChange, align = 'left', customAllLabel }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -121,12 +123,12 @@ function MultiSelectDropdown({ label, options = [], selected = [], onChange, ali
 export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) {
   // Filter States matching the user's reference layout
   const [analysisMode, setAnalysisMode] = useState('enrollment'); // Default: 'enrollment' (Class Enrollment Summary)
-  const [selectedSessions, setSelectedSessions] = useState(['2025-26']); // Default: Current session only
+  const [selectedSessions, setSelectedSessions] = useState([]); // Default: All sessions
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [selectedGenders, setSelectedGenders] = useState([]);
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
-  const [selectedStatuses, setSelectedStatuses] = useState(['Approved']); // Default: Approved / Roll Assigned
+  const [selectedStatuses, setSelectedStatuses] = useState([]); // Default: All statuses
 
   // Batch Report Generation States
   const [showBatchMenu, setShowBatchMenu] = useState(false);
@@ -145,8 +147,20 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   // Helper to extract assigned Class Roll No cell value across all possible database keys
   const getAssignedRollNo = (s) => {
     if (!s) return '';
-    const raw = s['Class Roll No'] ?? s['Class Roll No.'] ?? s['RL. NO.'] ?? s['RL. NO'] ?? s['Roll No'] ?? s['Roll No.'] ?? s.classRollNo ?? s.rollNo ?? s.roll ?? '';
-    return String(raw).trim();
+    const keys = [
+      'Class Roll No', 'Class Roll No.', 'RL. NO.', 'RL. NO', 
+      'Class R.No.', 'Class R.No', 'Class R. No.', 'Class R. No', 
+      'classRollNo', 'rollNo', 'Roll No.', 'Roll No', 'roll'
+    ];
+    for (const k of keys) {
+      if (s[k] !== undefined && s[k] !== null) {
+        const val = String(s[k]).trim();
+        if (val && !/^(N\/A|—|-|null|undefined)$/i.test(val)) {
+          return val;
+        }
+      }
+    }
+    return '';
   };
 
   // Helper to test if a field value is a valid unique identifier (excluding placeholders like '0', '1', 'n/a', 'none')
@@ -174,47 +188,48 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
     if (!Array.isArray(students) || students.length === 0) return [];
     const map = new Map();
 
-    students.forEach((s) => {
+    // Helper: detect bogus/dummy reg numbers (e.g. 2301000000000000 or 230101e15)
+    const isValidRegNoA = (reg) => {
+      if (!reg || reg.length < 6) return false;
+      if (/[eE]/.test(reg)) return false; // reject scientific notation (e.g. 230101e15, 2301e15)
+      if (/0{5,}$/.test(reg)) return false; // ends in 5+ zeros
+      const zeros = (reg.match(/0/g) || []).length;
+      if (zeros / reg.length >= 0.75) return false; // 75%+ zeros = dummy
+      return true;
+    };
+
+    // Sort: directly-approved (has roll no on document) FIRST, then newest form number
+    // This guarantees the admin-approved form wins when a student submitted multiple forms
+    const sorted = [...students].sort((x, y) => {
+      const hasRollX = isValidUniqueVal(getAssignedRollNo(x));
+      const hasRollY = isValidUniqueVal(getAssignedRollNo(y));
+      if (hasRollX && !hasRollY) return -1;
+      if (!hasRollX && hasRollY) return 1;
+      const fA = parseInt(String(x.formNo || x['Form No'] || x['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+      const fB = parseInt(String(y.formNo || y['Form No'] || y['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+      return fB - fA;
+    });
+
+    // Multi-key seen map: tracks identity signals (key -> { roll, name, formNo })
+    const seenMap = new Map();
+
+    sorted.forEach((s, idx) => {
       const formNo = String(s['Form No'] || s['Form Number'] || s['Form No.'] || s.formNo || s['F.NO.'] || '').trim();
-      const regNo = String(s['Board Registration Number'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || s['REG. NO.'] || '').trim();
+      const regNoRaw = String(s['Board Registration Number'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || s['REG. NO.'] || '').trim();
+      const regNo = isValidRegNoA(regNoRaw.replace(/[^a-z0-9]/gi, '').toLowerCase()) ? regNoRaw : '';
       const rollNo = getAssignedRollNo(s);
-      const sClass = String(s.class || s.Class || s['Class'] || s['Admission sought for class'] || '').trim().toLowerCase().replace(/th$/, '').replace(/class/i, '').trim();
-      const sSession = String(s.Session || s.session || s['Session'] || '').trim().toLowerCase();
+      const sClass = normalizeClassVal(s.class || s.Class || s['Class'] || s['Admission sought for class']);
+      const sSession = normalizeSessionVal(s.Session || s.session || s['Session']);
       const docId = String(s.id || s.docId || '').trim();
 
       const sName = String(s['Candidate Name'] || s.name || s.studentName || s["Student's Name (as per school records)"] || s['STUDENT\'S NAME'] || s.Name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
       const fName = String(s['Father Name'] || s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s['FATHER\'S NAME'] || s.FatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      let key = '';
+      const scope = `${sSession}_${sClass}`;
+      let isDuplicate = false;
 
-      // Unique student key based on Session + Class + Student Identity (Board Reg No or Student+Father Name)
-      if (isValidUniqueVal(regNo)) {
-        key = `reg_${sSession}_${sClass}_${regNo.toLowerCase()}`;
-      } else if (isValidUniqueVal(sName) && isValidUniqueVal(fName)) {
-        key = `name_${sSession}_${sClass}_${sName}_${fName}`;
-      } else if (isValidUniqueVal(rollNo)) {
-        key = `roll_${sSession}_${sClass}_${rollNo.toLowerCase()}`;
-      } else if (isValidUniqueVal(formNo)) {
-        key = `form_${sSession}_${sClass}_${formNo.toLowerCase()}`;
-      } else if (isValidUniqueVal(docId)) {
-        key = `doc_${docId.toLowerCase()}`;
-      } else {
-        key = `rand_${Math.random()}_${Date.now()}`;
-      }
-
-      if (!map.has(key)) {
-        map.set(key, s);
-      } else {
-        // If already exists under this student identity key, prefer the record with an assigned Class Roll No
-        const existing = map.get(key);
-        const existingRoll = getAssignedRollNo(existing);
-        const hasExistingRoll = isValidUniqueVal(existingRoll);
-        const newRoll = isValidUniqueVal(rollNo);
-
-        if (!hasExistingRoll && newRoll) {
-          map.set(key, s);
-        }
-      }
+      const primaryKey = `item_${docId || formNo || sName || Math.random()}_${idx}`;
+      map.set(primaryKey, s);
     });
 
     return Array.from(map.values());
@@ -417,10 +432,17 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   }, [deduplicatedStudents]);
 
   // Sync default session selection to the most recent REGULAR session upon opening modal
+  // Reset ref when modal closes so it re-applies on every new open
+  useEffect(() => {
+    if (!isOpen) {
+      hasSetInitialSession.current = false;
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen && availableSessions.length > 0 && !hasSetInitialSession.current) {
       const regularSession = availableSessions.find(
-        (ses) => !ses.toUpperCase().includes('BIAN') && !ses.toUpperCase().includes('BI-ANNUAL')
+        (ses) => !/bian|bi-annual|apr/i.test(ses)
       ) || availableSessions[0];
 
       setSelectedSessions([regularSession]);

@@ -13,6 +13,54 @@ import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
 
+// ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
+export function getStudentRollVal(st) {
+  if (!st) return '';
+  const keys = [
+    'Class Roll No', 'Class Roll No.', 'RL. NO.', 'RL. NO',
+    'Class R.No.', 'Class R.No', 'Class R. No.', 'Class R. No',
+    'classRollNo', 'rollNo', 'Roll No.', 'Roll No', 'roll'
+  ];
+  for (const k of keys) {
+    if (st[k] !== undefined && st[k] !== null) {
+      const val = String(st[k]).trim();
+      if (val && !/^(N\/A|—|-|null|undefined)$/i.test(val)) {
+        return val;
+      }
+    }
+  }
+  return '';
+}
+
+// ─── Global Helper to normalize class names to canonical values ('11th', '12th', '10th', '9th') ───
+export function normalizeClassVal(cls) {
+  if (!cls) return '';
+  const str = String(cls).trim().toLowerCase();
+  if (str.includes('12') || str.includes('xii')) return '12th';
+  if (str.includes('11') || str.includes('xi')) return '11th';
+  if (str.includes('10') || str.includes('x')) return '10th';
+  if (str.includes('9') || str.includes('ix')) return '9th';
+  return str;
+}
+
+// ─── Global Helper to normalize session strings to canonical format ('2025-26', '2024-25 (Mar-Apr)', '2026 APR/BIAN') ───
+export function normalizeSessionVal(sess) {
+  if (!sess) return '';
+  const str = String(sess).trim();
+  // Preserve specific session qualifiers like (Oct-Nov), (Mar-Apr), APR/BIAN
+  if (/oct|nov|mar|apr|bian|bi-annual|revised/i.test(str)) {
+    return str;
+  }
+  const match = str.match(/(\d{4})\s*[-/]\s*(\d{2,4})/);
+  if (match) {
+    const yr1 = match[1];
+    let yr2 = match[2];
+    if (yr2.length === 4) yr2 = yr2.slice(2);
+    return `${yr1}-${yr2}`;
+  }
+  return str;
+}
+
 // ─── Reusable Multi-Select Checkbox Dropdown Component ───
 function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange, align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -62,21 +110,20 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
   const displayText = isAllSelected
     ? `All ${label}`
     : isNoneSelected
-    ? `No ${label}`
-    : selected.length === 1
-    ? selected[0]
-    : `${label} (${selected.length})`;
+      ? `No ${label}`
+      : selected.length === 1
+        ? selected[0]
+        : `${label} (${selected.length})`;
 
   return (
     <div className="relative w-full text-left" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-2 py-1 rounded-xl text-[11px] sm:text-xs font-black flex items-center justify-between gap-1 transition-all cursor-pointer shadow-sm ${
-          !isAllSelected
+        className={`w-full px-2 py-1 rounded-xl text-[11px] sm:text-xs font-black flex items-center justify-between gap-1 transition-all cursor-pointer shadow-sm ${!isAllSelected
             ? 'bg-amber-700 text-white border border-amber-800'
             : 'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:bg-slate-50'
-        }`}
+          }`}
       >
         <span className="truncate flex-1 min-w-0 text-left">{displayText}</span>
         <ChevronDown size={12} className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -167,7 +214,7 @@ function UnifiedFiltersGroupDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const totalActiveFilters = 
+  const totalActiveFilters =
     (selectedClasses.length > 0 && !selectedClasses.includes('__NONE__') ? 1 : 0) +
     (selectedGenders.length > 0 && !selectedGenders.includes('__NONE__') ? 1 : 0) +
     (selectedStreams.length > 0 && !selectedStreams.includes('__NONE__') ? 1 : 0) +
@@ -190,11 +237,10 @@ function UnifiedFiltersGroupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
-          totalActiveFilters > 0
+        className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${totalActiveFilters > 0
             ? 'bg-amber-700 text-white border border-amber-800'
             : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
-        }`}
+          }`}
       >
         <span className="flex items-center gap-1">
           <span>🔍</span>
@@ -506,7 +552,7 @@ const abbreviateSubjects = (str) => {
     if (SUBJECT_ABBR_MAP[part]) return SUBJECT_ABBR_MAP[part];
     const foundKey = Object.keys(SUBJECT_ABBR_MAP).find(k => k.toLowerCase() === part.toLowerCase());
     if (foundKey) return SUBJECT_ABBR_MAP[foundKey];
-    
+
     if (/general english|functional english|english/i.test(part)) return 'GE';
     if (/math/i.test(part)) return 'MA';
     if (/social science|social studies|sst/i.test(part)) return 'SST';
@@ -585,7 +631,7 @@ const cleanAdmNoVal = (val) => {
 
 const extractRawAdmNo = (rec) => {
   if (!rec) return '';
-  
+
   // 1. Direct property key candidates across all common casing & naming variants
   const candidates = [
     rec['admNo'],
@@ -646,25 +692,25 @@ const formatStudentAdmNo = (rec) => {
   if (!rec) return '';
   let newAdm = extractRawAdmNo(rec);
 
-  const isReAdmission = 
+  const isReAdmission =
     String(
-      rec['readmission'] || 
-      rec['Re-admission'] || 
-      rec['isReadmission'] || 
-      rec['Is Re-admission'] || 
-      rec['Are you seeking Re-admission?'] || 
+      rec['readmission'] ||
+      rec['Re-admission'] ||
+      rec['isReadmission'] ||
+      rec['Is Re-admission'] ||
+      rec['Are you seeking Re-admission?'] ||
       rec['reAdmissionStatus'] || ''
     ).toLowerCase() === 'yes' ||
     rec['readmission'] === true ||
     rec['isReadmission'] === true;
 
   const oldAdm = cleanAdmNoVal(
-    rec['Old Admission No.'] || 
-    rec['Old Adm. No.'] || 
-    rec['oldAdmNo'] || 
-    rec['old_adm_no'] || 
-    rec['Old Admission Number'] || 
-    rec['Previous Adm. No.'] || 
+    rec['Old Admission No.'] ||
+    rec['Old Adm. No.'] ||
+    rec['oldAdmNo'] ||
+    rec['old_adm_no'] ||
+    rec['Old Admission Number'] ||
+    rec['Previous Adm. No.'] ||
     rec['Prev Adm No']
   );
 
@@ -702,13 +748,14 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const roll = String(student?.classRollNo || student?.['Class Roll No'] || student?.['Class Roll No.'] || '').trim();
+  const roll = String(student?.classRollNo || student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.['Class R.No.'] || student?.['Class R.No'] || student?.rollNo || student?.['Roll No.'] || student?.['Roll No'] || student?.roll || '').trim();
   const hasRoll = roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
   const val = student?.status || student?.Status || 'Submitted';
-  const isApp = hasRoll || val === 'Approved' || val === 'APPR' || val === 'appr.';
-  const isSub = !hasRoll && (val === 'Submitted' || val === 'SUBM');
-  const isDft = !hasRoll && val === 'Draft';
-  const isProv = val === 'Provisional' || val === 'PROV';
+  const isApp = hasRoll;
+  const isDft = !hasRoll && (val === 'Draft' || val === 'DRAFT' || val === 'dft');
+  const isProv = !hasRoll && (val === 'Provisional' || val === 'PROV');
+  const isRejt = !hasRoll && (val === 'Rejected' || val === 'REJT');
+  const isSub = !hasRoll && !isDft && !isProv && !isRejt;
 
   const bg = isApp ? 'bg-emerald-600 hover:bg-emerald-700' : isSub ? 'bg-teal-600 hover:bg-teal-700' : isProv ? 'bg-indigo-600 hover:bg-indigo-700' : isDft ? 'bg-amber-600 hover:bg-amber-700' : 'bg-rose-600 hover:bg-rose-700';
   const abbr = isApp ? 'APPR' : isSub ? 'SUBM' : isProv ? 'PROV' : isDft ? 'DRAFT' : 'REJT';
@@ -827,7 +874,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   const handleAssignRollNo = (e) => {
     e.stopPropagation();
     setIsOpen(false);
-    const currRoll = student?.classRollNo && student?.classRollNo !== 'N/A' ? student?.classRollNo : '';
+    const currRoll = (student?.classRollNo && student?.classRollNo !== 'N/A' && student?.classRollNo !== '—') ? student?.classRollNo : (student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.rollNo || '');
     setPromptInput(currRoll);
     setDialogConfig({
       type: 'prompt',
@@ -1087,7 +1134,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
       {dialogConfig && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-md p-5 sm:p-6 rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4">
-            
+
             {/* Header */}
             <div className="flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-800 pb-3">
               {dialogConfig.icon && (
@@ -1165,219 +1212,258 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   );
 }
 
+const formatPhotoDisplayUrl = (val) => {
+  if (!val || typeof val !== 'string') return '';
+  const str = val.trim();
+  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
+
+  if (str.startsWith('data:image/') || str.startsWith('http://') || str.startsWith('https://')) {
+    if (str.includes('drive.google.com')) {
+      const match = str.match(/\/d\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        return `https://lh3.googleusercontent.com/d/${match[1]}`;
+      }
+    }
+    return str;
+  }
+
+  // If raw Google Drive File ID (e.g. "1h1-zhjfscrX39bv9C38RVkD4w4FZ2Mk-")
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(str)) {
+    return `https://lh3.googleusercontent.com/d/${str}`;
+  }
+
+  return '';
+};
+
 const COLUMN_DEFS = [
   { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
   { key: 'formNo', label: 'F.No.', className: 'font-mono' },
-  { key: 'status', label: 'Status', className: 'text-center min-w-[70px]', render: (val, student) => {
-    return (
-      <StatusActionDropdown
-        student={student}
-        onViewEdit={(s) => {
-          if (student && typeof student._setSelectedApp === 'function') {
-            student._setSelectedApp(s);
-          }
-        }}
-        onRefresh={student?._onRefresh}
-      />
-    );
-  }},
-  { key: 'classRollNo', label: 'RL. NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
-  { key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black', render: (val, student) => {
-    const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
-    if (!formatted) return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
-
-    const isRe = 
-      String(
-        student?.['readmission'] || 
-        student?.['Re-admission'] || 
-        student?.['isReadmission'] || 
-        student?.['Is Re-admission'] || ''
-      ).toLowerCase() === 'yes' ||
-      student?.['readmission'] === true ||
-      student?.['isReadmission'] === true;
-
-    const oldAdm = cleanAdmNoVal(
-      student?.['Old Admission No.'] || 
-      student?.['Old Adm. No.'] || 
-      student?.['oldAdmNo'] || 
-      student?.['old_adm_no'] || ''
-    );
-
-    if (isRe && oldAdm && oldAdm !== formatted) {
+  {
+    key: 'status', label: 'Status', className: 'text-center min-w-[70px]', render: (val, student) => {
       return (
-        <span className="font-mono font-black text-slate-900 dark:text-white" title={`Re-admission student. New Adm No: ${formatted}, Old Adm No: ${oldAdm}`}>
-          <span className="text-amber-800 dark:text-amber-300 font-extrabold">{formatted}</span>
-          <span className="ml-1 text-[10px] text-indigo-700 dark:text-indigo-400 font-black">({oldAdm})</span>
-        </span>
+        <StatusActionDropdown
+          student={student}
+          onViewEdit={(s) => {
+            if (student && typeof student._setSelectedApp === 'function') {
+              student._setSelectedApp(s);
+            }
+          }}
+          onRefresh={student?._onRefresh}
+        />
       );
     }
+  },
+  { key: 'classRollNo', label: 'RL. NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
+  {
+    key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black', render: (val, student) => {
+      const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
+      if (!formatted) return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
 
-    return <span className="font-mono font-black text-slate-900 dark:text-white">{formatted}</span>;
-  }},
+      const isRe =
+        String(
+          student?.['readmission'] ||
+          student?.['Re-admission'] ||
+          student?.['isReadmission'] ||
+          student?.['Is Re-admission'] || ''
+        ).toLowerCase() === 'yes' ||
+        student?.['readmission'] === true ||
+        student?.['isReadmission'] === true;
+
+      const oldAdm = cleanAdmNoVal(
+        student?.['Old Admission No.'] ||
+        student?.['Old Adm. No.'] ||
+        student?.['oldAdmNo'] ||
+        student?.['old_adm_no'] || ''
+      );
+
+      if (isRe && oldAdm && oldAdm !== formatted) {
+        return (
+          <span className="font-mono font-black text-slate-900 dark:text-white" title={`Re-admission student. New Adm No: ${formatted}, Old Adm No: ${oldAdm}`}>
+            <span className="text-amber-800 dark:text-amber-300 font-extrabold">{formatted}</span>
+            <span className="ml-1 text-[10px] text-indigo-700 dark:text-indigo-400 font-black">({oldAdm})</span>
+          </span>
+        );
+      }
+
+      return <span className="font-mono font-black text-slate-900 dark:text-white">{formatted}</span>;
+    }
+  },
   { key: 'class', label: 'Class', className: 'font-black' },
   { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400' },
   { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-slate-700 dark:text-slate-300 max-w-[110px] whitespace-normal break-words leading-tight' },
-  { key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => (
-    val && typeof val === 'string' && val.startsWith('data:') ? (
-      <img
-        src={val}
-        alt="Student Photo"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (student && typeof student._setPreviewPhotoModal === 'function') {
-            student._setPreviewPhotoModal({
-              url: val,
-              name: student.studentName,
-              rollNo: student.classRollNo,
-              admNo: student.admNo,
-              class: student.class,
-              session: student.session,
-              formNo: student.formNo
-            });
-          }
-        }}
-        className="w-8 h-10 mx-auto rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
-        title="Click for full photo preview"
-      />
-    ) : (
-      <span className="text-slate-400 font-normal text-[10px]">—</span>
-    )
-  )},
-  { key: 'studentName', label: "Student's Name", className: 'font-black text-slate-900 dark:text-white min-w-[140px] whitespace-normal break-words leading-tight', render: (val, student) => {
-    const formatted = formatProperName(val);
-    const gRaw = String(student?.gender || '').trim().toLowerCase();
-    let gCode = '';
-    let gColor = '';
-
-    if (gRaw.startsWith('f')) {
-      gCode = 'F';
-      gColor = 'bg-pink-100 dark:bg-pink-950/80 text-pink-700 dark:text-pink-300 border-pink-300 dark:border-pink-800';
-    } else if (gRaw.startsWith('m')) {
-      gCode = 'M';
-      gColor = 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800';
-    } else if (gRaw && gRaw !== '—') {
-      gCode = 'O';
-      gColor = 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
+  {
+    key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
+      const rawUrl = formatPhotoDisplayUrl(val) || (student && student.photoId && student.photoId !== '—' ? formatPhotoDisplayUrl(student.photoId) : '');
+      if (rawUrl) {
+        return (
+          <img
+            src={rawUrl}
+            alt="Student Photo"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.style.display = 'none';
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (student && typeof student._setPreviewPhotoModal === 'function') {
+                student._setPreviewPhotoModal({
+                  url: rawUrl,
+                  name: student.studentName,
+                  rollNo: student.classRollNo,
+                  admNo: student.admNo,
+                  class: student.class,
+                  session: student.session,
+                  formNo: student.formNo
+                });
+              }
+            }}
+            className="w-8 h-10 mx-auto rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
+            title="Click for full photo preview"
+          />
+        );
+      }
+      return <span className="text-slate-400 font-normal text-[10px]">—</span>;
     }
+  },
+  {
+    key: 'studentName', label: "Student's Name", className: 'font-black text-slate-900 dark:text-white min-w-[140px] whitespace-normal break-words leading-tight', render: (val, student) => {
+      const formatted = formatProperName(val);
+      const gRaw = String(student?.gender || '').trim().toLowerCase();
+      let gCode = '';
+      let gColor = '';
 
-    const isDirect = Boolean(
-      student?._isDirectIngested ||
-      String(student?.remarks || '').toLowerCase().includes('direct ingestion') ||
-      String(student?.lastEditedBy || '').toLowerCase().includes('direct')
-    );
+      if (gRaw.startsWith('f')) {
+        gCode = 'F';
+        gColor = 'bg-pink-100 dark:bg-pink-950/80 text-pink-700 dark:text-pink-300 border-pink-300 dark:border-pink-800';
+      } else if (gRaw.startsWith('m')) {
+        gCode = 'M';
+        gColor = 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800';
+      } else if (gRaw && gRaw !== '—') {
+        gCode = 'O';
+        gColor = 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
+      }
 
-    const isGenderColumnSelected = student?._visibleCols?.gender;
+      const isDirect = Boolean(
+        student?._isDirectIngested ||
+        String(student?.remarks || '').toLowerCase().includes('direct ingestion') ||
+        String(student?.lastEditedBy || '').toLowerCase().includes('direct')
+      );
 
-    return (
-      <span className="inline-flex items-center gap-1 flex-wrap">
-        <span className="font-black text-slate-900 dark:text-white">{formatted}</span>
-        {isGenderColumnSelected && gCode && (
-          <span
-            title={`Gender: ${student?.gender || gCode}`}
-            className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs leading-none whitespace-nowrap ${gColor}`}
-          >
-            ({gCode})
-          </span>
-        )}
-      </span>
-    );
-  }},
+      const isGenderColumnSelected = student?._visibleCols?.gender;
+
+      return (
+        <span className="inline-flex items-center gap-1 flex-wrap">
+          <span className="font-black text-slate-900 dark:text-white">{formatted}</span>
+          {isGenderColumnSelected && gCode && (
+            <span
+              title={`Gender: ${student?.gender || gCode}`}
+              className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs leading-none whitespace-nowrap ${gColor}`}
+            >
+              ({gCode})
+            </span>
+          )}
+        </span>
+      );
+    }
+  },
   { key: 'fatherName', label: "Father's Name", className: 'text-slate-600 dark:text-slate-400 min-w-[130px] whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
   { key: 'motherName', label: "Mother's Name", className: 'text-slate-600 dark:text-slate-400 min-w-[130px] whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
   { key: 'dob', label: 'DoB', className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap' },
   { key: 'village', label: 'Village/Town', className: 'min-w-[95px] whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap' },
   { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap' },
-  { key: 'subs', label: 'SUBS (STREAM)', className: 'min-w-[105px] max-w-[130px] whitespace-normal break-words leading-tight', render: (val, student) => {
-    const abbr = abbreviateSubjects(val);
+  {
+    key: 'subs', label: 'SUBS (STREAM)', className: 'min-w-[105px] max-w-[130px] whitespace-normal break-words leading-tight', render: (val, student) => {
+      const abbr = abbreviateSubjects(val);
 
-    const getStreamDetails = (st, rawSubs) => {
-      const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
-      // 9th & 10th grade stream is always General (G)
-      if (cls.includes('9') || cls.includes('10')) {
-        return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
-      }
+      const getStreamDetails = (st, rawSubs) => {
+        const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
+        // 9th & 10th grade stream is always General (G)
+        if (cls.includes('9') || cls.includes('10')) {
+          return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
+        }
 
-      const rawStream = String(st?.stream || st?.Stream || st?.['Stream'] || '').toLowerCase();
-      const allSubjs = (String(rawSubs || '') + ' ' + String(st?.subs || '') + ' ' + String(st?.Subjects || '') + ' ' + String(st?.Subjects1 || '') + ' ' + String(st?.Subjects2 || '') + ' ' + String(st?.Subjects3 || '') + ' ' + String(st?.Subjects4 || '') + ' ' + String(st?.Subjects5 || '')).toLowerCase();
+        const rawStream = String(st?.stream || st?.Stream || st?.['Stream'] || '').toLowerCase();
+        const allSubjs = (String(rawSubs || '') + ' ' + String(st?.subs || '') + ' ' + String(st?.Subjects || '') + ' ' + String(st?.Subjects1 || '') + ' ' + String(st?.Subjects2 || '') + ' ' + String(st?.Subjects3 || '') + ' ' + String(st?.Subjects4 || '') + ' ' + String(st?.Subjects5 || '')).toLowerCase();
 
-      // Science stream check (Physics, Chemistry, Biology, Bio, Math in 11/12th Science)
-      if (
-        rawStream.includes('science') ||
-        rawStream.includes('med') ||
-        allSubjs.includes('physics') ||
-        allSubjs.includes('chemistry') ||
-        allSubjs.includes('biology') ||
-        allSubjs.includes(', ph,') ||
-        allSubjs.includes(', ch,') ||
-        allSubjs.includes(', bi,') ||
-        allSubjs.includes(' ph ') ||
-        allSubjs.includes(' ch ') ||
-        allSubjs.includes(' bi ') ||
-        allSubjs.startsWith('ph,') ||
-        allSubjs.includes('ge, ph') ||
-        allSubjs.includes('ge,ph')
-      ) {
+        // Science stream check (Physics, Chemistry, Biology, Bio, Math in 11/12th Science)
+        if (
+          rawStream.includes('science') ||
+          rawStream.includes('med') ||
+          allSubjs.includes('physics') ||
+          allSubjs.includes('chemistry') ||
+          allSubjs.includes('biology') ||
+          allSubjs.includes(', ph,') ||
+          allSubjs.includes(', ch,') ||
+          allSubjs.includes(', bi,') ||
+          allSubjs.includes(' ph ') ||
+          allSubjs.includes(' ch ') ||
+          allSubjs.includes(' bi ') ||
+          allSubjs.startsWith('ph,') ||
+          allSubjs.includes('ge, ph') ||
+          allSubjs.includes('ge,ph')
+        ) {
+          return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
+        }
+
+        // Commerce stream check
+        if (
+          rawStream.includes('commerce') ||
+          allSubjs.includes('accountancy') ||
+          allSubjs.includes('business studies') ||
+          allSubjs.includes(', bs,') ||
+          allSubjs.includes(', ac,')
+        ) {
+          return { code: 'C', label: 'Commerce', style: 'bg-amber-700 text-white border-amber-800' };
+        }
+
+        // Humanities / Arts stream check (Education, History, Political Science, Economics, Urdu, Sociology)
+        if (
+          rawStream.includes('humanities') ||
+          rawStream.includes('art') ||
+          allSubjs.includes('history') ||
+          allSubjs.includes('political science') ||
+          allSubjs.includes('education') ||
+          allSubjs.includes('sociology') ||
+          allSubjs.includes('geography') ||
+          allSubjs.includes('psychology') ||
+          allSubjs.includes('philosophy') ||
+          allSubjs.includes('islamic studies') ||
+          allSubjs.includes(', ht,') ||
+          allSubjs.includes(', ps,') ||
+          allSubjs.includes(', ed,') ||
+          allSubjs.includes(', ec,') ||
+          allSubjs.includes(', ur,') ||
+          allSubjs.includes('ht, ps') ||
+          allSubjs.includes('ec, ht')
+        ) {
+          return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+        }
+
+        if (rawStream.includes('general')) {
+          return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
+        }
+
         return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
-      }
+      };
 
-      // Commerce stream check
-      if (
-        rawStream.includes('commerce') ||
-        allSubjs.includes('accountancy') ||
-        allSubjs.includes('business studies') ||
-        allSubjs.includes(', bs,') ||
-        allSubjs.includes(', ac,')
-      ) {
-        return { code: 'C', label: 'Commerce', style: 'bg-amber-700 text-white border-amber-800' };
-      }
+      const streamInfo = getStreamDetails(student, val);
 
-      // Humanities / Arts stream check (Education, History, Political Science, Economics, Urdu, Sociology)
-      if (
-        rawStream.includes('humanities') ||
-        rawStream.includes('art') ||
-        allSubjs.includes('history') ||
-        allSubjs.includes('political science') ||
-        allSubjs.includes('education') ||
-        allSubjs.includes('sociology') ||
-        allSubjs.includes('geography') ||
-        allSubjs.includes('psychology') ||
-        allSubjs.includes('philosophy') ||
-        allSubjs.includes('islamic studies') ||
-        allSubjs.includes(', ht,') ||
-        allSubjs.includes(', ps,') ||
-        allSubjs.includes(', ed,') ||
-        allSubjs.includes(', ec,') ||
-        allSubjs.includes(', ur,') ||
-        allSubjs.includes('ht, ps') ||
-        allSubjs.includes('ec, ht')
-      ) {
-        return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
-      }
-
-      if (rawStream.includes('general')) {
-        return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
-      }
-
-      return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
-    };
-
-    const streamInfo = getStreamDetails(student, val);
-
-    return (
-      <span
-        title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
-        className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline"
-      >
-        <span>{abbr}</span>
-        {streamInfo.code && (
-          <span className={`inline-block align-baseline ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
-            ({streamInfo.code})
-          </span>
-        )}
-      </span>
-    );
-  }},
+      return (
+        <span
+          title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
+          className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline"
+        >
+          <span>{abbr}</span>
+          {streamInfo.code && (
+            <span className={`inline-block align-baseline ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
+              ({streamInfo.code})
+            </span>
+          )}
+        </span>
+      );
+    }
+  },
   { key: 'mobile', label: 'Mobile (S)', className: 'font-mono text-slate-600 dark:text-slate-400' },
   { key: 'aadhar', label: 'Aadhaar', className: 'font-mono' },
   { key: 'bankAccount', label: 'Bank Account Number', className: 'font-mono' },
@@ -1430,15 +1516,17 @@ const COLUMN_DEFS = [
   { key: 'withdrawalDate', label: 'Date of withdrawl' },
   { key: 'currCcDc', label: 'No. & Date of CC/DC Issued (This Institution)' },
   { key: 'remarks', label: 'Remarks' },
-  { key: 'pdfUrl', label: 'PDF_URL', render: (val) => (
-    val && typeof val === 'string' && val.startsWith('http') ? (
-      <a href={val} target="_blank" rel="noreferrer" className="text-teal-600 font-mono underline hover:text-teal-500 text-[10px]">
-        📄 PDF Copy
-      </a>
-    ) : (
-      <span className="text-slate-400 font-normal text-[10px]">—</span>
+  {
+    key: 'pdfUrl', label: 'PDF_URL', render: (val) => (
+      val && typeof val === 'string' && val.startsWith('http') ? (
+        <a href={val} target="_blank" rel="noreferrer" className="text-teal-600 font-mono underline hover:text-teal-500 text-[10px]">
+          📄 PDF Copy
+        </a>
+      ) : (
+        <span className="text-slate-400 font-normal text-[10px]">—</span>
+      )
     )
-  )},
+  },
   { key: 'readmission', label: 'readmission' },
   { key: 'apaarId', label: 'APAAR ID', className: 'font-mono' },
 ];
@@ -1574,7 +1662,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div className="w-full max-w-3xl my-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
+
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-amber-900 via-amber-800 to-amber-950 text-white flex items-center justify-between shadow-md">
           <div className="flex items-center gap-3">
@@ -1617,11 +1705,10 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-                  isActive
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${isActive
                     ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-700'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-900'
-                }`}
+                  }`}
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
@@ -1992,13 +2079,21 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
 }
 
 export default function AdvancedReports({ setActiveTab, viewScope = 'active', setViewScope, setCounts, user, onLogout, onSync, stats, initialData = [] }) {
+  // Clear legacy cache keys on initial render to prevent stale 191-student dataset from sticking in sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('hss_reports_cache_v2');
+      sessionStorage.removeItem('hss_reports_cache_v3');
+    } catch (_) { }
+  }, []);
+
   // Data States — Instant initialization from props or session cache
   const [loading, setLoading] = useState(() => {
     if (initialData.length > 0) return false;
     try {
-      const cached = sessionStorage.getItem('hss_reports_cache_v2');
+      const cached = sessionStorage.getItem('hss_reports_cache_v4');
       if (cached) return false;
-    } catch (_) {}
+    } catch (_) { }
     return true;
   });
   const [masterRecords, setMasterRecords] = useState([]);
@@ -2050,13 +2145,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             boardRegNo: updatedFields['Board Registration Number'] || updatedFields.boardRegNo,
             updatedAt: new Date().toISOString()
           }, { merge: true });
-        } catch (e) {}
+        } catch (e) { }
       }
 
       updateCachedItem('admissions', docId, payload);
       updateCachedItem('masterRegisters', docId, payload);
       try {
-        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
+        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v4');
         if (cachedRaw) {
           const parsed = JSON.parse(cachedRaw);
           const updatedActive = (parsed.activeList || []).map(st => {
@@ -2066,9 +2161,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             }
             return st;
           });
-          sessionStorage.setItem('hss_reports_cache_v2', JSON.stringify({ ...parsed, activeList: updatedActive }));
+          sessionStorage.setItem('hss_reports_cache_v4', JSON.stringify({ ...parsed, activeList: updatedActive }));
         }
-      } catch (e) {}
+      } catch (e) { }
 
       if (editingStudent._isCurrentScope) {
         setCurrentAdmissions(prev => prev.map(st => {
@@ -2172,12 +2267,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       if (student._isCurrentScope || cleanFNo) {
         try {
           await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true });
-        } catch (e) {}
+        } catch (e) { }
       }
 
       try {
         await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
-      } catch (e) {}
+      } catch (e) { }
 
       updateCachedItem('admissions', docId, payload);
       updateCachedItem('masterRegisters', docId, payload);
@@ -2193,7 +2288,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           });
           sessionStorage.setItem('hss_reports_cache_v2', JSON.stringify({ ...parsed, activeList: updatedActive }));
         }
-      } catch (e) {}
+      } catch (e) { }
 
       if (student._isCurrentScope) {
         setCurrentAdmissions(prev => prev.map(st => {
@@ -2262,7 +2357,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter States
+  // Filter States (All filters default to [] so all records are visible by default)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSessions, setSelectedSessions] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
@@ -2270,6 +2365,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]);
+  // Default sort: Recency in online submission (newest submission first)
   const [sortBy, setSortBy] = useState('onlineSubmDate');
   const [sortOrder, setSortOrder] = useState('desc');
 
@@ -2348,7 +2444,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (_) {}
+    } catch (_) { }
     return COLUMN_DEFS.map(c => c.key);
   });
 
@@ -2369,7 +2465,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
       try {
         sessionStorage.setItem('hss_temp_column_order_v1', JSON.stringify(currentList));
-      } catch (e) {}
+      } catch (e) { }
 
       return currentList;
     });
@@ -2396,7 +2492,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
       try {
         sessionStorage.setItem('hss_temp_column_order_v1', JSON.stringify(currentList));
-      } catch (e) {}
+      } catch (e) { }
 
       return currentList;
     });
@@ -2409,7 +2505,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     setColumnOrder(defaultOrder);
     try {
       sessionStorage.removeItem('hss_temp_column_order_v1');
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const isColumnOrderCustom = useMemo(() => {
@@ -2442,7 +2538,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const updated = { ...prev, [colKey]: !prev[colKey] };
       try {
         localStorage.setItem('hss_admin_restricted_cols_v1', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (e) { }
       return updated;
     });
   };
@@ -2553,7 +2649,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       onConfirm: async ({ reasonCategory, customReason } = {}) => {
         try {
           await deleteDoc(doc(db, 'admissions', docId));
-          try { await deleteDoc(doc(db, 'masterRegisters', docId)); } catch (e) {}
+          try { await deleteDoc(doc(db, 'masterRegisters', docId)); } catch (e) { }
 
           await logAdminActivity({
             actionType: 'delete',
@@ -2631,9 +2727,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           };
 
           if (student._isCurrentScope || cleanFNo) {
-            try { await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true }); } catch (e) {}
+            try { await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true }); } catch (e) { }
           }
-          try { await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true }); } catch (e) {}
+          try { await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true }); } catch (e) { }
 
           await logAdminActivity({
             actionType: 'cell_clear',
@@ -2663,7 +2759,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
     });
   };
-  
+
   // ID Assigner & Tools Suite States
   const [assignStartId, setAssignStartId] = useState('5476');
   const [assigningIds, setAssigningIds] = useState(false);
@@ -2684,7 +2780,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     // 1. Instant Cache Load
     try {
-      const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
+      const cachedRaw = sessionStorage.getItem('hss_reports_cache_v4');
       if (cachedRaw) {
         const parsed = JSON.parse(cachedRaw);
         if (parsed.activeList && parsed.activeList.length > 0) {
@@ -2768,14 +2864,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const payloadStr = JSON.stringify({ activeList: liteActive, historicalList: liteHist });
 
       if (payloadStr.length < 3000000) { // Only set if < 3MB
-        sessionStorage.setItem('hss_reports_cache_v2', payloadStr);
+        sessionStorage.setItem('hss_reports_cache_v4', payloadStr);
         sessionStorage.setItem('hss_reports_cache_time_v2', String(Date.now()));
       }
     } catch (e) {
       // Silently catch QuotaExceededError to prevent console noise
       try {
-        sessionStorage.removeItem('hss_reports_cache_v2');
-      } catch (err) {}
+        sessionStorage.removeItem('hss_reports_cache_v4');
+      } catch (err) { }
     }
 
     setCurrentAdmissions(activeList);
@@ -2799,13 +2895,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     } else {
       loadReportsData();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Combined Dataset
   const allStudents = useMemo(() => {
     const combined = [];
-    
+
     const cleanFormNo = (val) => {
       if (!val || val === '—') return '—';
       return String(val).replace(/^'/, '').trim();
@@ -2815,7 +2911,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       if (!rec) return '—';
 
       // 1. Array or String Subject fields across classes & forms
-      const subjectArrayOrStr = 
+      const subjectArrayOrStr =
         rec['Subjects to be taken in Class 11th'] ||
         rec['Subjects to be taken in Class 12th'] ||
         rec['Subjects to be taken in Class 10th'] ||
@@ -2883,7 +2979,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               }
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       return s.replace(/\.0+$/, '');
@@ -2910,19 +3006,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return cleanRegNoVal(raw);
     };
 
-    const extractClassRoll = (st) => {
-      if (!st) return '';
-      return String(
-        st['Class Roll No'] || 
-        st['Class Roll No.'] || 
-        st['Class R.No.'] || 
-        st.classRollNo || 
-        st.rollNo || 
-        st['Roll No.'] || 
-        st['Roll No'] || 
-        ''
-      ).replace(/^(N\/A|—)$/i, '').trim();
-    };
+    const extractClassRoll = (st) => getStudentRollVal(st);
 
     const getStudentName = (st) => {
       if (!st) return '';
@@ -2962,34 +3046,116 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const admNoSetByIdentity = new Map();
     const oldAdmNoByIdentity = new Map();
     const masterRecordByIdentity = new Map();
+    const assignedRollByIdentity = new Map();
+    const photoByIdentity = new Map();
+
+    const extractPhotoVal = (st) => {
+      if (!st) return '';
+      const raw = String(
+        st['photo_id'] ||
+        st['Student Photo'] ||
+        st['photoUrl'] ||
+        st['Student Photo URL'] ||
+        st['Photo'] ||
+        st.photo_id ||
+        st.photoUrl ||
+        st.photoId ||
+        ''
+      ).trim();
+      return formatPhotoDisplayUrl(raw);
+    };
+
+    // Helper: detect bogus/dummy reg numbers that students leave as zeros (e.g. 2301000000000000)
+    const isValidRegNo = (reg) => {
+      if (!reg || reg.length < 6) return false;
+      // Reject if last 5 or more digits are all zeros (dummy placeholder entry)
+      if (/0{5,}$/.test(reg)) return false;
+      // Reject if 80%+ of the digits are zeros (mostly-zero submissions)
+      const zeros = (reg.match(/0/g) || []).length;
+      if (zeros / reg.length >= 0.75) return false;
+      return true;
+    };
+
+    const getStudentEmail = (rec) => {
+      if (!rec) return '';
+      return String(
+        rec['email1'] || rec['Email'] || rec['Email Address'] || rec.email || rec.email1 || ''
+      ).trim().toLowerCase().replace(/[^a-z0-9@._-]/g, '');
+    };
+
+    const areNamesCompatible = (n1, n2) => {
+      if (!n1 || !n2) return true;
+      const clean1 = String(n1).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      const clean2 = String(n2).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      if (!clean1 || !clean2 || clean1 === 'student' || clean2 === 'student' || clean1 === '—' || clean2 === '—') return true;
+      if (clean1 === clean2) return true;
+
+      // Check prefix or substring inclusion (e.g. "faizan mushtaq" vs "faizan mushtaq sheikh")
+      if (clean1.startsWith(clean2) || clean2.startsWith(clean1)) return true;
+      if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+
+      // Token overlap check
+      const tokens1 = clean1.split(/\s+/).filter(t => t.length > 2);
+      const tokens2 = clean2.split(/\s+/).filter(t => t.length > 2);
+      if (tokens1.length === 0 || tokens2.length === 0) return true;
+
+      const common = tokens1.filter(t => tokens2.includes(t));
+      if (common.length >= 2) return true;
+      if (common.length >= 1 && (tokens1.length === 1 || tokens2.length === 1)) return true;
+
+      return false;
+    };
 
     const getIdentityKeys = (rec) => {
       const keys = [];
       const reg = extractRegNoClean(rec);
+      const rawAdm = extractRawAdmNo(rec);
+      const cleanAdm = cleanAdmNoVal(rawAdm);
       const sName = getStudentName(rec).toLowerCase();
       const fName = getFatherName(rec).toLowerCase();
       const fNo = cleanFormNo(rec['Form Number'] || rec['FormNo'] || rec['Form No.'] || rec.formNo);
 
-      if (reg && reg.length > 5) {
+      const cls = normalizeClassVal(rec['Admission sought for class'] || rec['Class']);
+      const sess = normalizeSessionVal(rec['Session']);
+      const scope = `${cls}_${sess}`;
+
+      // 1. Admission Number — PRIMARY STABLE IDENTIFIER ACROSS 9-10th & 11-12th
+      if (cleanAdm && cleanAdm !== '—' && cleanAdm.length > 0) {
+        keys.push(`adm_${cleanAdm}`);
+      }
+
+      // 2. Board Reg No — valid ONLY if not a dummy/zero-padded entry
+      if (reg && isValidRegNo(reg)) {
         keys.push(`reg_${reg}`);
       }
+
+      // 3. Student + Father name combination (normalized)
       if (sName && sName !== 'student' && sName.length > 2) {
         const fatherPart = fName && fName !== '—' ? fName.slice(0, 8) : '';
         keys.push(`name_${sName}_${fatherPart}`);
       }
-      if (fNo && fNo !== '—' && fNo.length > 2) {
-        keys.push(`form_${fNo.toLowerCase()}`);
+
+      // 4. Form Number (scoped to class + session so form numbers from old sessions don't collide!)
+      if (fNo && fNo !== '—' && fNo.length > 2 && scope) {
+        keys.push(`form_${scope}_${fNo.toLowerCase()}`);
       }
+
       return keys;
     };
 
-    // PASS 1: Scan ALL records (currentAdmissions + masterRecords) to index identities & adm numbers
+    // PASS 1: Scan ALL records (currentAdmissions + masterRecords) to index identities, adm numbers, photo URLs, and assigned roll numbers (scoped by Class + Session)
     const allRawDocs = [...masterRecords, ...currentAdmissions];
 
     allRawDocs.forEach(rec => {
       const keys = getIdentityKeys(rec);
       const rawAdm = extractRawAdmNo(rec);
       const cleanedAdm = cleanAdmNoVal(rawAdm);
+      const rollVal = extractClassRoll(rec);
+      const photoVal = extractPhotoVal(rec);
+      const recName = getStudentName(rec);
+
+      const recCls = normalizeClassVal(rec['Admission sought for class'] || rec['Class']);
+      const recSess = normalizeSessionVal(rec['Session']);
 
       const rawOldAdm = cleanAdmNoVal(
         rec['Old Admission No.'] || rec['Old Adm. No.'] || rec['oldAdmNo'] || rec['Previous Adm. No.']
@@ -3002,23 +3168,58 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         if (!oldAdmNoByIdentity.has(k)) oldAdmNoByIdentity.set(k, new Set());
         if (rawOldAdm) oldAdmNoByIdentity.get(k).add(rawOldAdm);
 
+        if (photoVal && !photoByIdentity.has(k)) {
+          photoByIdentity.set(k, photoVal);
+        }
+
+        if (rollVal && rollVal !== '—' && rollVal !== 'N/A') {
+          // Scope assigned roll number strictly to Class + Session AND Student Name so wrong reg numbers never transfer roll numbers!
+          assignedRollByIdentity.set(`${recCls}_${recSess}_${k}`, { roll: rollVal, name: recName });
+        }
+
         if (!masterRecordByIdentity.has(k)) {
           masterRecordByIdentity.set(k, rec);
         }
       });
     });
 
+    const getResolvedPhoto = (st) => {
+      const explicit = extractPhotoVal(st);
+      if (explicit) return explicit;
+      const stName = getStudentName(st);
+      const keys = getIdentityKeys(st);
+      for (const k of keys) {
+        const found = photoByIdentity.get(k);
+        if (found) {
+          const matchRec = masterRecordByIdentity.get(k);
+          if (!matchRec || areNamesCompatible(stName, getStudentName(matchRec))) {
+            return found;
+          }
+        }
+      }
+      return '—';
+    };
+
     // PASS 2: Helper to resolve final formatted Adm No for ANY record (with 9th/11th inheritance & re-admission formatting)
     const resolveAdmNo = (rec) => {
       const directFormat = formatStudentAdmNo(rec);
       if (directFormat && directFormat !== '—' && directFormat.length > 0) return directFormat;
 
+      const recName = getStudentName(rec);
       const keys = getIdentityKeys(rec);
 
       const collectedAdms = new Set();
       const collectedOldAdms = new Set();
 
       keys.forEach(k => {
+        // If key is a reg_ key, ensure candidate match name is compatible!
+        if (k.startsWith('reg_')) {
+          const matchRec = masterRecordByIdentity.get(k);
+          if (matchRec && !areNamesCompatible(recName, getStudentName(matchRec))) {
+            return; // Skip reg_ match if student names don't match!
+          }
+        }
+
         const adms = admNoSetByIdentity.get(k);
         if (adms) adms.forEach(a => collectedAdms.add(a));
 
@@ -3031,7 +3232,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
       if (admsList.length === 0 && oldAdmsList.length === 0) return '—';
 
-      const isRe = 
+      const isRe =
         String(rec['readmission'] || rec['Re-admission'] || rec['isReadmission'] || '').toLowerCase() === 'yes' ||
         rec['readmission'] === true;
 
@@ -3047,45 +3248,47 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     // Helper to find rich master record for any active admission
     const resolveMasterMatch = (rec) => {
+      const recName = getStudentName(rec);
       const keys = getIdentityKeys(rec);
       for (const k of keys) {
         const match = masterRecordByIdentity.get(k);
-        if (match) return match;
+        if (match) {
+          const matchName = getStudentName(match);
+          if (!areNamesCompatible(matchName, recName)) {
+            continue; // Skip false match with a different student name!
+          }
+          return match;
+        }
       }
       return null;
     };
 
     // Process active admissions (with full identity inheritance & duplicate form pruning)
-    const activeSeenIdentities = new Set();
+    // Sort order: directly-approved (has roll no on the document) FIRST, then by newest form number
+    // This ensures when a student has multiple forms, the admin-approved form always wins
+    const activeSeenIdentities = new Map();
     const sortedActive = [...currentAdmissions].sort((a1, a2) => {
+      const hasRoll1 = !!extractClassRoll(a1);
+      const hasRoll2 = !!extractClassRoll(a2);
+      // Directly-approved forms take priority
+      if (hasRoll1 && !hasRoll2) return -1;
+      if (!hasRoll1 && hasRoll2) return 1;
+      // Among equals, newest form number first
       const num1 = parseInt(cleanFormNo(a1['Form Number'] || a1['FormNo'] || a1['formNumber']), 10) || 0;
       const num2 = parseInt(cleanFormNo(a2['Form Number'] || a2['FormNo'] || a2['formNumber']), 10) || 0;
-      return num2 - num1; // Newest form first
+      return num2 - num1;
     });
 
     sortedActive.forEach((a, idx) => {
       const regClean = extractRegNoClean(a);
       const nameClean = getStudentName(a).toLowerCase();
       const fnameClean = getFatherName(a).toLowerCase();
-      const clsClean = String(a['Admission sought for class'] || a['Class'] || '').trim().toLowerCase();
-      const sessClean = String(a['Session'] || '').trim().toLowerCase();
-
-      let dupKey = '';
-      if (regClean && regClean !== '—' && !regClean.endsWith('00000000')) {
-        dupKey = `reg_${regClean}`;
-      } else if (nameClean && fnameClean) {
-        dupKey = `identity_${clsClean}_${sessClean}_${nameClean}_${fnameClean}`;
-      }
-
-      if (dupKey) {
-        if (activeSeenIdentities.has(dupKey)) {
-          return; // Skip duplicate older form entry for same student
-        }
-        activeSeenIdentities.add(dupKey);
-      }
-
+      const clsClean = normalizeClassVal(a['Admission sought for class'] || a['Class']);
+      const sessClean = normalizeSessionVal(a['Session']);
+      const rollNo = extractClassRoll(a);
       const formNoRaw = a['Form Number'] || a['FormNo'] || a['formNumber'] || '—';
       const cleanFNo = cleanFormNo(formNoRaw);
+
       const masterMatch = resolveMasterMatch(a);
       // Active admission form fields MUST take precedence over historical master records!
       const mergedRec = masterMatch ? { ...masterMatch, ...a } : a;
@@ -3105,29 +3308,58 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const submFromActive = a['Online Subm. Date'] || a['submittedAt'];
       const finalOnlineSubmDate = (submFromMaster && submFromMaster !== '—') ? submFromMaster : (submFromActive || '—');
 
-      const activeClassRoll = extractClassRoll(a) || (masterMatch ? extractClassRoll(masterMatch) : '');
-      const activeRawStatus = a['Status'] || a['status'] || masterMatch?.['Status'] || 'Submitted';
-      const activeResolvedStatus = (activeClassRoll && activeClassRoll !== '—') ? 'Approved' : (activeRawStatus === 'APPR' ? 'Approved' : activeRawStatus);
+      // Class and Session MUST strictly come from active form `a` (do not inherit 11th class values from masterMatch!)
+      const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
+      const targetSession = normalizeSessionVal(a['Session'] || '2025-26');
+
+      // Only assign class roll number if explicitly present on this active form document in Firestore
+      const activeClassRoll = extractClassRoll(a);
+
+      // Status for an active admission form: ONLY Approved if assigned a class roll number FOR THIS CLASS & SESSION
+      const activeRawStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
+      let activeResolvedStatus = 'Submitted';
+      if (activeClassRoll && activeClassRoll !== '—' && activeClassRoll !== 'N/A') {
+        activeResolvedStatus = 'Approved';
+      } else if (activeRawStatus.includes('reject') || activeRawStatus.includes('rejt')) {
+        activeResolvedStatus = 'Rejected';
+      } else if (activeRawStatus.includes('draft') || activeRawStatus.includes('dft')) {
+        activeResolvedStatus = 'Draft';
+      }
+
+      // Build sanitized student record where all raw roll number keys are strictly overridden by activeClassRoll
+      const sanitizedRecord = { ...mergedRec };
+      const rawRollKeys = [
+        'Class Roll No', 'Class Roll No.', 'RL. NO.', 'RL. NO',
+        'Class R.No.', 'Class R.No', 'Class R. No.', 'Class R. No',
+        'classRollNo', 'rollNo', 'Roll No.', 'Roll No', 'roll'
+      ];
+      rawRollKeys.forEach(k => {
+        delete sanitizedRecord[k];
+      });
 
       combined.push({
-        ...mergedRec,
+        ...sanitizedRecord,
         _isCurrentScope: true,
         id: a['Form Number'] ? `active_${a['Form Number']}` : `adm_${idx}`,
         sno: idx + 1,
         formNo: cleanFNo || '—',
         classRollNo: activeClassRoll,
+        'Class Roll No': activeClassRoll,
+        'Class Roll No.': activeClassRoll,
+        'RL. NO.': activeClassRoll,
+        'RL. NO': activeClassRoll,
         admNo: finalAdmNo,
-        class: a['Admission sought for class'] || a['Class'] || (masterMatch ? masterMatch['Class'] : '') || '11th',
-          session: a['Session'] || (masterMatch ? masterMatch['Session'] : '') || '2025-26',
-          boardRegNo: finalBoardRegNo,
-          studentName: masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student',
-          fatherName: masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—',
-          motherName: masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—',
-          dob: masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || '—',
-          village: a['Name of your village'] || a['Village/Town'] || 'Shangus',
-          gender: a['Gender'] || '—',
-          category: a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General',
-          status: activeResolvedStatus,
+        class: targetClass,
+        session: targetSession,
+        boardRegNo: finalBoardRegNo,
+        studentName: masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student',
+        fatherName: masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—',
+        motherName: masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—',
+        dob: masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || '—',
+        village: a['Name of your village'] || a['Village/Town'] || 'Shangus',
+        gender: a['Gender'] || '—',
+        category: a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General',
+        status: activeResolvedStatus,
         stream: a['Stream for Class 11th'] || a['Stream'] || 'General',
         subs: formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec),
         mobile: a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—',
@@ -3182,40 +3414,40 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         withdrawalDate: a['Date of withdrawl'] || '—',
         currCcDc: a['No. & Date of CC/DC Issued (This Institution)'] || '—',
         remarks: a['Remarks'] || '—',
-        photoId: a['photo_id'] || '—',
+        photoId: getResolvedPhoto(a),
         pdfUrl: a['PDF_URL'] || '—',
         readmission: a['readmission'] || '—',
         apaarId: a['APAAR ID'] || '—',
       });
     });
 
-    // Index active admission form numbers and class roll numbers for deduplication
+    // Index active admission form numbers and class roll numbers for deduplication (scoped by Class + Session)
     const activeFormSet = new Set();
     const activeClassRollSet = new Set();
 
     currentAdmissions.forEach((a) => {
+      const cls = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
+      const sess = normalizeSessionVal(a['Session'] || '2025-26');
       const fNo = cleanFormNo(a['Form Number'] || a['FormNo'] || a['formNumber']);
-      if (fNo && fNo !== '—') activeFormSet.add(fNo.toLowerCase());
+      if (fNo && fNo !== '—') activeFormSet.add(`${cls}_${sess}_${fNo}`.toLowerCase());
 
-      const cls = a['Admission sought for class'] || a['Class'] || '11th';
-      const sess = a['Session'] || '2025-26';
       const roll = extractClassRoll(a);
       if (roll && roll !== '—') {
         activeClassRollSet.add(`${cls}_${sess}_${roll}`.toLowerCase());
       }
     });
 
-    // Process historical master registers (skipping rows that duplicate active admissions)
+    // Process historical master registers (skipping rows that duplicate active admissions in the SAME class & session)
     masterRecords.forEach((h, idx) => {
+      const cls = normalizeClassVal(h['Class'] || '11th');
+      const sess = normalizeSessionVal(h['Session'] || '2025-26');
       const formNoRaw = h['Form No.'] || h['Form Number'] || h['FormNo'] || h.formNo || '—';
       const cleanFNo = cleanFormNo(formNoRaw);
 
-      if (cleanFNo && cleanFNo !== '—' && activeFormSet.has(cleanFNo.toLowerCase())) {
-        return; // Skip duplicate record already represented in active admissions
+      if (cleanFNo && cleanFNo !== '—' && activeFormSet.has(`${cls}_${sess}_${cleanFNo}`.toLowerCase())) {
+        return; // Skip duplicate record already represented in active admissions for THIS class & session
       }
 
-      const cls = h['Class'] || '';
-      const sess = h['Session'] || '';
       const roll = extractClassRoll(h);
       if (cls && sess && roll && activeClassRollSet.has(`${cls}_${sess}_${roll}`.toLowerCase())) {
         return; // Skip duplicate record with matching class, session, and class roll number
@@ -3294,7 +3526,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         withdrawalDate: h['Date of withdrawl'] || '—',
         currCcDc: h['No. & Date of CC/DC Issued (This Institution)'] || '—',
         remarks: h['Remarks'] || '—',
-        photoId: h['photo_id'] || '—',
+        photoId: getResolvedPhoto(h),
         pdfUrl: h['PDF_URL'] || '—',
         readmission: h['readmission'] || '—',
         apaarId: h['APAAR ID'] || '—',
@@ -3313,7 +3545,16 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const availableSessions = useMemo(() => {
     const set = new Set();
     allStudents.forEach(s => { if (s.session && s.session !== '—') set.add(s.session); });
-    return Array.from(set).sort();
+    const list = Array.from(set);
+    // Sort: Regular annual sessions (e.g. 2025-26, 2024-25) FIRST, bi-annual (APR/BIAN) sessions AFTER
+    list.sort((a, b) => {
+      const aIsBian = /bian|bi-annual|apr/i.test(a);
+      const bIsBian = /bian|bi-annual|apr/i.test(b);
+      if (aIsBian && !bIsBian) return 1;
+      if (!aIsBian && bIsBian) return -1;
+      return b.localeCompare(a, undefined, { numeric: true }); // Most recent first within same type
+    });
+    return list;
   }, [allStudents]);
 
   const availableClasses = useMemo(() => {
@@ -3433,9 +3674,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     // ─── NUMERICAL & HIERARCHICAL MULTI-FIELD SORTING LOGIC ───
     const parseNum = (val) => {
-      if (!val || val === '—' || val === 'N/A' || val === 'null' || val === 'undefined') return Infinity;
-      const clean = String(val).replace(/\D+/g, '');
-      const num = parseInt(clean, 10);
+      if (val === null || val === undefined || val === '' || val === '—' || val === 'N/A' || val === 'null' || val === 'undefined') return Infinity;
+      const str = String(val).trim();
+      const match = str.match(/\d+/);
+      if (!match) return Infinity;
+      const num = parseInt(match[0], 10);
       return isNaN(num) ? Infinity : num;
     };
 
@@ -3458,8 +3701,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         }
 
         // Sort by Class Roll No numerical third
-        const numA = parseNum(a.classRollNo);
-        const numB = parseNum(b.classRollNo);
+        const rollA = getStudentRollVal(a) || a.classRollNo;
+        const rollB = getStudentRollVal(b) || b.classRollNo;
+        const numA = parseNum(rollA);
+        const numB = parseNum(rollB);
         if (numA !== numB) {
           return (numA - numB) * factor;
         }
@@ -3527,13 +3772,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     COLUMN_DEFS.forEach(c => { allOff[c.key] = false; });
 
     if (preset === 'fit') {
-      const fitKeys = ['sno','formNo','status','classRollNo','admNo','class','session','boardRegNo','photoId','studentName','fatherName','dob','village','gender','stream','mobile'];
+      const fitKeys = ['sno', 'formNo', 'status', 'classRollNo', 'admNo', 'class', 'session', 'boardRegNo', 'photoId', 'studentName', 'fatherName', 'dob', 'village', 'gender', 'stream', 'mobile'];
       setDensity('fit');
       const next = { ...allOff };
       fitKeys.forEach(k => { next[k] = true; });
       setVisibleCols(next);
     } else if (preset === 'essential') {
-      const essentialKeys = ['sno','formNo','status','classRollNo','admNo','class','boardRegNo','photoId','studentName','fatherName','gender','stream','mobile'];
+      const essentialKeys = ['sno', 'formNo', 'status', 'classRollNo', 'admNo', 'class', 'boardRegNo', 'photoId', 'studentName', 'fatherName', 'gender', 'stream', 'mobile'];
       setDensity('compact');
       const next = { ...allOff };
       essentialKeys.forEach(k => { next[k] = true; });
@@ -3552,7 +3797,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const updated = { ...prev, [colKey]: !prev[colKey] };
       try {
         localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (e) { }
       return updated;
     });
   };
@@ -3612,7 +3857,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const handleExportCSV = () => {
     if (filteredStudents.length === 0) return;
     const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile'];
-    
+
     const cleanVal = (val) => {
       if (!val || val === '—' || val === 'N/A' || val === 'undefined' || val === 'null') return '';
       return String(val).trim();
@@ -3671,8 +3916,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const cells = visibleColsList.map(col => {
         let val = s[col.key] ?? '—';
         if (col.key === 'photoId') {
-          val = (val && typeof val === 'string' && val.startsWith('data:')) 
-            ? `<img src="${val}" style="width:28px; height:34px; object-fit:cover; border-radius:4px; border:1px solid #94a3b8;" />` 
+          val = (val && typeof val === 'string' && val.startsWith('data:'))
+            ? `<img src="${val}" style="width:28px; height:34px; object-fit:cover; border-radius:4px; border:1px solid #94a3b8;" />`
             : '—';
         }
         return `<td style="border:1px solid #e2e8f0; padding:5px 8px; font-size:10px; text-align:left; color:#0f172a; font-weight:600;">${val}</td>`;
@@ -3732,7 +3977,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       let matchedStudent = null;
 
       if (parsed.regNoOrFormNo) {
-        matchedStudent = allStudents.find(s => 
+        matchedStudent = allStudents.find(s =>
           String(s.boardRegNo || '').trim() === parsed.regNoOrFormNo ||
           String(s.formNo || '').trim() === parsed.regNoOrFormNo ||
           String(s.id || '').trim() === parsed.regNoOrFormNo
@@ -3741,7 +3986,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
       if (!matchedStudent && parsed.studentName) {
         const q = parsed.studentName.toLowerCase().replace(/_/g, ' ').trim();
-        matchedStudent = allStudents.find(s => 
+        matchedStudent = allStudents.find(s =>
           s.studentName.toLowerCase().replace(/_/g, ' ').trim() === q
         );
       }
@@ -3834,22 +4079,22 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const cellPaddingClass = density === 'fit'
     ? 'px-2 py-1.5 text-xs font-bold leading-normal'
     : density === 'compact'
-    ? 'px-2.5 py-2 text-xs sm:text-[13px] font-extrabold leading-normal'
-    : 'px-3.5 py-2.5 text-xs sm:text-sm font-black leading-normal';
+      ? 'px-2.5 py-2 text-xs sm:text-[13px] font-extrabold leading-normal'
+      : 'px-3.5 py-2.5 text-xs sm:text-sm font-black leading-normal';
 
   return (
     <div className="space-y-1.5 text-xs sm:text-sm animate-fadeIn">
       {/* Sleek Ultra-Compact Control Bar */}
       {/* Ultra-Responsive Control Bar: Single Row on Desktop / Minimal 2-Rows on Mobile */}
       <div className="p-1 sm:p-1.5 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-        
-        {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Desktop Filters + Scope Toggle */}
+
+        {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Desktop Filters + Total Records Counter */}
         <div className="flex items-center justify-between gap-1 sm:gap-1.5 flex-1 min-w-0">
-          
-          {/* Left Sub-Group: Search Bar & Desktop Filters Dropdown */}
-          <div className="flex items-center gap-1 flex-1 min-w-0">
+
+          {/* Left Sub-Group: Search Bar, Desktop Filters Dropdown, and Total Records Counter */}
+          <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
             {/* Search Input Bar (Expands aggressively on Mobile & Desktop) */}
-            <div className="relative flex-1 min-w-[100px] sm:min-w-[150px] sm:max-w-xs">
+            <div className="relative flex-1 min-w-[100px] sm:min-w-[140px] sm:max-w-[210px]">
               <Search size={12} className="absolute left-2 top-2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
@@ -3891,49 +4136,51 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 setCurrentPage={setCurrentPage}
               />
             </div>
-          </div>
 
-          {/* Quick Scope Swapper Toggle Button (RIGHT - Ultra-Compact on Mobile) */}
-          <div className="flex items-center p-0.5 rounded-lg border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => { setViewScope('active'); setCurrentPage(1); }}
-              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${
-                viewScope === 'active'
-                  ? 'bg-emerald-700 text-white shadow-2xs font-black'
-                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
-              }`}
-            >
-              <span className="text-[10px] sm:text-xs font-black">Active</span>
-              <span className="text-[9px] sm:text-[10px] font-mono opacity-90 font-bold">({currentAdmissions.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setViewScope('all'); setCurrentPage(1); }}
-              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${
-                viewScope === 'all'
-                  ? 'bg-amber-700 text-white shadow-2xs font-black'
-                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
-              }`}
-            >
-              <span className="text-[10px] sm:text-xs font-black">All</span>
-              <span className="text-[9px] sm:text-[10px] font-mono opacity-90 font-bold">({allStudents.length})</span>
-            </button>
+            {/* Total Records Counter & Scope Swapper (POSITIONED DIRECTLY TO THE RIGHT OF FILTERS BUTTON) */}
+            <div className="flex items-center p-0.5 rounded-lg border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => { setViewScope('active'); setCurrentPage(1); }}
+                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'active'
+                    ? 'bg-emerald-700 text-white shadow-2xs font-black'
+                    : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
+                  }`}
+              >
+                <span className="text-[10px] sm:text-xs font-black">Active</span>
+                <span className={`text-[9px] sm:text-[10px] font-mono font-bold ${viewScope === 'active' ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                  ({viewScope === 'active' ? filteredStudents.length : currentAdmissions.length})
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setViewScope('all'); setCurrentPage(1); }}
+                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'all'
+                    ? 'bg-amber-700 text-white shadow-2xs font-black'
+                    : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
+                  }`}
+              >
+                <span className="text-[10px] sm:text-xs font-black">All</span>
+                <span className={`text-[9px] sm:text-[10px] font-mono font-bold ${viewScope === 'all' ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                  ({viewScope === 'all' ? filteredStudents.length : allStudents.length})
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setShowAnalyticsModal(true)}
-              title="Analytics & Statistical Reports Suite"
-              className="p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm flex items-center justify-center ml-1"
-            >
-              <BarChart2 size={15} />
-            </button>
+              <button
+                type="button"
+                onClick={() => setShowAnalyticsModal(true)}
+                title="Analytics & Statistical Reports Suite"
+                className="p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm flex items-center justify-center ml-1"
+              >
+                <BarChart2 size={13} />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* ROW 2 (Mobile) / RIGHT SECTION (Desktop): Administrative Tools + Mobile Filters + Pagination + Settings */}
         <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
-          
+
           {/* Left Sub-Group on Mobile: Administrative Tools Suite + Mobile Filters Dropdown */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* Wrench Tools Suite Dropdown Button */}
@@ -4096,7 +4343,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 </button>
               </div>
             )}
-            
+
             {/* Table Settings Dropdown */}
             <MoreActionsDropdown
               density={density}
@@ -4294,13 +4541,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                                 )}
                               </div>
                             )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            ) : (
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })
+              ) : (
                 <tr>
                   <td colSpan={orderedVisibleColumns.length || 1} className="p-8 text-center text-slate-600 dark:text-slate-400 font-black">
                     No matching student records found for the selected database filters.
@@ -4330,22 +4577,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               <button
                 type="button"
                 onClick={() => setColManagerTab('visibility')}
-                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  colManagerTab === 'visibility'
+                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${colManagerTab === 'visibility'
                     ? 'bg-amber-700 text-white shadow-md'
                     : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
                 <Eye size={14} /> <span>Column Display Visibility</span>
               </button>
               <button
                 type="button"
                 onClick={() => setColManagerTab('restrictions')}
-                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  colManagerTab === 'restrictions'
+                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${colManagerTab === 'restrictions'
                     ? 'bg-amber-700 text-white shadow-md'
                     : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
                 <ShieldCheck size={14} /> <span>🔒 Lock Fields from Editing</span>
               </button>
@@ -4502,11 +4747,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       ]
                     }
                   ].map((group) => {
-                    const filteredCols = group.columns.filter(c => 
-                      c.label.toLowerCase().includes(colSearchQuery.toLowerCase()) || 
+                    const filteredCols = group.columns.filter(c =>
+                      c.label.toLowerCase().includes(colSearchQuery.toLowerCase()) ||
                       c.key.toLowerCase().includes(colSearchQuery.toLowerCase())
                     );
-                    
+
                     if (filteredCols.length === 0) return null;
 
                     return (
@@ -4552,11 +4797,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     return (
                       <label
                         key={`lock_${c.key}`}
-                        className={`flex items-center justify-between p-2 rounded-xl border font-black text-xs cursor-pointer transition-all ${
-                          isRestricted
+                        className={`flex items-center justify-between p-2 rounded-xl border font-black text-xs cursor-pointer transition-all ${isRestricted
                             ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-300'
                             : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2 truncate">
                           <input
@@ -4579,11 +4823,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
 
             {layoutNotice && (
-              <div className={`p-2 rounded-xl font-extrabold text-xs text-center border ${
-                layoutNotice.type === 'success' 
+              <div className={`p-2 rounded-xl font-extrabold text-xs text-center border ${layoutNotice.type === 'success'
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
                   : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
-              }`}>
+                }`}>
                 {layoutNotice.msg}
               </div>
             )}
@@ -4614,7 +4857,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   try {
                     localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(visibleCols));
                     localStorage.setItem('hss_admin_table_widths_v2', JSON.stringify(colWidths));
-                  } catch (e) {}
+                  } catch (e) { }
                   setShowColumnManager(false);
                 }}
                 className="w-full sm:w-auto px-5 py-2 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md cursor-pointer text-xs"
@@ -4653,9 +4896,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   key={t.id}
                   type="button"
                   onClick={() => setActiveToolsTab(t.id)}
-                  className={`py-2 px-3 rounded-xl transition-all cursor-pointer ${
-                    activeToolsTab === t.id ? 'bg-amber-700 text-white shadow-sm font-black' : 'text-slate-800 dark:text-slate-200'
-                  }`}
+                  className={`py-2 px-3 rounded-xl transition-all cursor-pointer ${activeToolsTab === t.id ? 'bg-amber-700 text-white shadow-sm font-black' : 'text-slate-800 dark:text-slate-200'
+                    }`}
                 >
                   {t.label}
                 </button>
@@ -4669,7 +4911,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   Assign Admission Numbers in Bulk
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Group assign sequential Admission Numbers to currently filtered students missing them.</p>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">Start Assigning From ID:</label>
@@ -4709,7 +4951,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   Bulk Assign Dates
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Assign a uniform Admission Date or Online Submission Date to the {filteredStudents.length} selected student records.</p>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">Target Date Field:</label>
@@ -4754,7 +4996,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   Batch Field Value Editor
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Perform batch field updates across the {filteredStudents.length} currently filtered student records in the register.</p>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">Field to Batch Update:</label>
@@ -4803,7 +5045,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   Official Admission Register Ledger
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Generate official school ledger export formatted with full 72-column register schemas for physical auditing.</p>
-                
+
                 <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-2 text-xs">
                   <div className="font-extrabold text-teal-700 dark:text-teal-400">Ledger Summary:</div>
                   <ul className="list-disc list-inside space-y-1 text-slate-700 dark:text-slate-300 font-bold">
@@ -4833,7 +5075,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   JKBOSE Sentup & Exam Roll Sheet Export
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Export formatted candidate lists for JKBOSE Sentup examination submission with Board Reg. Nos and Subject details.</p>
-                
+
                 <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-2 text-xs">
                   <div className="font-extrabold text-purple-700 dark:text-purple-400">Sentup Candidate Scope:</div>
                   <div className="text-slate-700 dark:text-slate-300 font-extrabold">
@@ -5156,11 +5398,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-[10001] px-5 py-3.5 rounded-2xl font-black text-xs shadow-2xl border flex items-center gap-2 animate-bounce ${
-          toast.type === 'error'
+        <div className={`fixed bottom-5 right-5 z-[10001] px-5 py-3.5 rounded-2xl font-black text-xs shadow-2xl border flex items-center gap-2 animate-bounce ${toast.type === 'error'
             ? 'bg-rose-950 text-rose-100 border-rose-700 shadow-rose-950/50'
             : 'bg-emerald-950 text-emerald-100 border-emerald-700 shadow-emerald-950/50'
-        }`}>
+          }`}>
           <span>{toast.message}</span>
         </div>
       )}

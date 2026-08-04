@@ -90,12 +90,19 @@ export default function AdminDashboard() {
     return perms.includes('*') || perms.includes(tabId);
   };
 
+  // Helper to test if student has a valid assigned Class Roll Number
+  const hasClassRollVal = (a) => {
+    if (!a) return false;
+    const roll = String(a['Class Roll No'] || a['Class Roll No.'] || a['RL. NO.'] || a['RL. NO'] || a['Class R.No.'] || a['Class R.No'] || a.classRollNo || a.rollNo || a.roll || '').trim();
+    return !!(roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined');
+  };
+
   // Stats calculation
   const totalCount = applications.length;
-  const submittedCount = applications.filter((a) => a['Status'] === 'Submitted').length;
-  const draftCount = applications.filter((a) => a['Status'] === 'Draft' || !a['Status']).length;
-  const approvedCount = applications.filter((a) => a['Status'] === 'Approved').length;
-  const rejectedCount = applications.filter((a) => a['Status'] === 'Rejected').length;
+  const approvedCount = applications.filter((a) => hasClassRollVal(a)).length;
+  const submittedCount = applications.filter((a) => !hasClassRollVal(a) && a['Status'] === 'Submitted').length;
+  const draftCount = applications.filter((a) => !hasClassRollVal(a) && (a['Status'] === 'Draft' || !a['Status'])).length;
+  const rejectedCount = applications.filter((a) => !hasClassRollVal(a) && a['Status'] === 'Rejected').length;
 
   const TOOL_MODULES = [
     { id: 'reports', label: 'Master Register & Database', icon: BarChart2 },
