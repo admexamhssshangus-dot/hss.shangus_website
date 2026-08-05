@@ -11,7 +11,7 @@ import DirectIngestionModal from './DirectIngestionModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import { logAdminActivity } from '../../services/adminActivityLogger';
-import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -757,7 +757,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   const isRejt = !hasRoll && (val === 'Rejected' || val === 'REJT');
   const isSub = !hasRoll && !isDft && !isProv && !isRejt;
 
-  const bg = isApp ? 'bg-emerald-600 hover:bg-emerald-700' : isSub ? 'bg-teal-600 hover:bg-teal-700' : isProv ? 'bg-indigo-600 hover:bg-indigo-700' : isDft ? 'bg-amber-600 hover:bg-amber-700' : 'bg-rose-600 hover:bg-rose-700';
+  const bg = isApp ? 'bg-green-600 hover:bg-green-700' : isSub ? 'bg-blue-600 hover:bg-blue-700' : isProv ? 'bg-indigo-600 hover:bg-indigo-700' : isDft ? 'bg-yellow-500 hover:bg-yellow-600 !text-slate-900' : 'bg-red-600 hover:bg-red-700';
   const abbr = isApp ? 'APPR' : isSub ? 'SUBM' : isProv ? 'PROV' : isDft ? 'DRAFT' : 'REJT';
 
   const handleUnlock = (e) => {
@@ -803,7 +803,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
     });
   };
 
-  const handlePdfDownload = async (e) => {
+  const handlePdfView = async (e) => {
     e.stopPropagation();
     setIsOpen(false);
     try {
@@ -811,10 +811,23 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
       await generateStudentAdmissionPdf(student);
     } catch (err) {
       console.error('PDF error:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePdfDownload = async (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    try {
+      setActionLoading(true);
+      await downloadStudentAdmissionPdf(student);
+    } catch (err) {
+      console.error('PDF error:', err);
       setDialogConfig({
         type: 'alert',
-        title: 'PDF Generation Error',
-        message: 'Could not generate PDF for this record.',
+        title: 'PDF Download Error',
+        message: 'Could not download PDF file on device.',
         icon: AlertOctagon,
         iconColor: 'text-rose-600 dark:text-rose-400',
         btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
@@ -1074,11 +1087,20 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
 
             <button
               type="button"
+              onClick={handlePdfView}
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+            >
+              <Eye size={13} className="text-teal-600 dark:text-teal-400" />
+              <span>View PDF (Print Preview)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handlePdfDownload}
               className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
             >
-              <FileSpreadsheet size={13} className="text-emerald-600 dark:text-emerald-400" />
-              <span>PDF: View / Download</span>
+              <Download size={13} className="text-emerald-600 dark:text-emerald-400" />
+              <span>Download PDF File</span>
             </button>
 
             <button
@@ -1386,41 +1408,27 @@ const COLUMN_DEFS = [
         const rawStream = String(st?.stream || st?.Stream || st?.['Stream'] || '').toLowerCase();
         const allSubjs = (String(rawSubs || '') + ' ' + String(st?.subs || '') + ' ' + String(st?.Subjects || '') + ' ' + String(st?.Subjects1 || '') + ' ' + String(st?.Subjects2 || '') + ' ' + String(st?.Subjects3 || '') + ' ' + String(st?.Subjects4 || '') + ' ' + String(st?.Subjects5 || '')).toLowerCase();
 
-        // Science stream check (Physics, Chemistry, Biology, Bio, Math in 11/12th Science)
-        if (
-          rawStream.includes('science') ||
-          rawStream.includes('med') ||
+        // 1. Core Science subjects check (Physics, Chemistry, Biology/Botany/Zoology)
+        const hasCoreScience =
           allSubjs.includes('physics') ||
           allSubjs.includes('chemistry') ||
           allSubjs.includes('biology') ||
+          allSubjs.includes('botany') ||
+          allSubjs.includes('zoology') ||
           allSubjs.includes(', ph,') ||
           allSubjs.includes(', ch,') ||
           allSubjs.includes(', bi,') ||
+          allSubjs.includes(', bo,') ||
+          allSubjs.includes(', zo,') ||
           allSubjs.includes(' ph ') ||
           allSubjs.includes(' ch ') ||
           allSubjs.includes(' bi ') ||
           allSubjs.startsWith('ph,') ||
           allSubjs.includes('ge, ph') ||
-          allSubjs.includes('ge,ph')
-        ) {
-          return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
-        }
+          allSubjs.includes('ge,ph');
 
-        // Commerce stream check
-        if (
-          rawStream.includes('commerce') ||
-          allSubjs.includes('accountancy') ||
-          allSubjs.includes('business studies') ||
-          allSubjs.includes(', bs,') ||
-          allSubjs.includes(', ac,')
-        ) {
-          return { code: 'C', label: 'Commerce', style: 'bg-amber-700 text-white border-amber-800' };
-        }
-
-        // Humanities / Arts stream check (Education, History, Political Science, Economics, Urdu, Sociology)
-        if (
-          rawStream.includes('humanities') ||
-          rawStream.includes('art') ||
+        // 2. Core Humanities subjects check (History, Political Science, Education, Economics, Urdu, Sociology, Geography)
+        const hasCoreHumanities =
           allSubjs.includes('history') ||
           allSubjs.includes('political science') ||
           allSubjs.includes('education') ||
@@ -1435,16 +1443,25 @@ const COLUMN_DEFS = [
           allSubjs.includes(', ec,') ||
           allSubjs.includes(', ur,') ||
           allSubjs.includes('ht, ps') ||
-          allSubjs.includes('ec, ht')
-        ) {
-          return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+          allSubjs.includes('ec, ht');
+
+        // 3. Core Commerce check
+        const hasCoreCommerce =
+          rawStream.includes('commerce') ||
+          allSubjs.includes('accountancy') ||
+          allSubjs.includes('business studies') ||
+          allSubjs.includes(', bs,') ||
+          allSubjs.includes(', ac,');
+
+        if (hasCoreScience || allSubjs.includes('math') || rawStream.includes('science') || rawStream.includes('med')) {
+          return { code: 'S', label: 'Science', style: 'bg-orange-600 dark:bg-orange-600 text-white border-orange-700' };
         }
 
-        if (rawStream.includes('general')) {
-          return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
+        if (hasCoreCommerce || rawStream.includes('commerce')) {
+          return { code: 'C', label: 'Commerce', style: 'bg-blue-600 text-white border-blue-700' };
         }
 
-        return { code: 'S', label: 'Science', style: 'bg-indigo-700 text-white border-indigo-800' };
+        return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
       };
 
       const streamInfo = getStreamDetails(student, val);
@@ -2104,6 +2121,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [toast, setToast] = useState(null);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [printSections, setPrintSections] = useState({
+    includeAdmissionForm: true,
+    includeLibraryForm: true,
+    includeConductDeclaration: true
+  });
+  const [selectedBulkFormIds, setSelectedBulkFormIds] = useState(new Set());
 
   const handleSaveStudentEdit = async (updatedFields) => {
     try {
@@ -4885,6 +4908,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             {/* Tools Sub Navigation */}
             <div className="flex items-center gap-1 p-1 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-xs font-black overflow-x-auto">
               {[
+                { id: 'bulk_forms', label: '📄 Bulk Forms Generator' },
                 { id: 'assign_ids', label: 'Assign IDs' },
                 { id: 'assign_dates', label: 'Assign Dates' },
                 { id: 'db_editor', label: 'DB Editor' },
@@ -4903,6 +4927,191 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 </button>
               ))}
             </div>
+
+            {/* Tool Content 0: Bulk Forms Generator */}
+            {activeToolsTab === 'bulk_forms' && (
+              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                  <div>
+                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Printer size={18} className="text-amber-600" />
+                      Bulk Official Form Generator & Section Configurator
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                      Select target student applications and configure form sections (Admission Form, Library Form, Anti-Drug Undertaking) for bulk printing.
+                    </p>
+                  </div>
+                  <div className="px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700">
+                    {selectedBulkFormIds.size} Selected / {filteredStudents.length} Filtered
+                  </div>
+                </div>
+
+                {/* Section Configurator (Super Admin / Admin Control) */}
+                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Settings size={14} className="text-indigo-600" />
+                    <span>Super Admin Form Section Selector (Toggle pages to generate):</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printSections.includeAdmissionForm}
+                        onChange={(e) => setPrintSections(prev => ({ ...prev, includeAdmissionForm: e.target.checked }))}
+                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                      />
+                      <span>📋 Admission Form (Pages 1 & 2)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printSections.includeLibraryForm}
+                        onChange={(e) => setPrintSections(prev => ({ ...prev, includeLibraryForm: e.target.checked }))}
+                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                      />
+                      <span>📚 Library Form (Page 3)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printSections.includeConductDeclaration}
+                        onChange={(e) => setPrintSections(prev => ({ ...prev, includeConductDeclaration: e.target.checked }))}
+                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                      />
+                      <span>📜 Conduct & Anti-Drug (Page 4)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Selection Action Toolbar */}
+                <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBulkFormIds(new Set(filteredStudents.map(s => s.id || s.formNo || s['Form Number'])))}
+                      className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold cursor-pointer"
+                    >
+                      Select All Filtered ({filteredStudents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBulkFormIds(new Set())}
+                      className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-extrabold cursor-pointer"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={selectedBulkFormIds.size === 0 || (!printSections.includeAdmissionForm && !printSections.includeLibraryForm && !printSections.includeConductDeclaration)}
+                      onClick={() => {
+                        const selectedList = filteredStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']));
+                        generateBulkAdmissionPdf(selectedList, printSections);
+                      }}
+                      className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-teal-700 hover:bg-teal-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <Printer size={15} />
+                      <span>View / Print ({selectedBulkFormIds.size})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={selectedBulkFormIds.size === 0 || (!printSections.includeAdmissionForm && !printSections.includeLibraryForm && !printSections.includeConductDeclaration)}
+                      onClick={() => {
+                        const selectedList = filteredStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']));
+                        downloadBulkAdmissionPdf(selectedList, printSections);
+                      }}
+                      className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <Download size={15} />
+                      <span>Download PDF ({selectedBulkFormIds.size})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filtered Records Table with Checkboxes */}
+                <div className="max-h-[38vh] overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900">
+                  <table className="w-full text-left text-xs font-bold border-collapse">
+                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black uppercase text-[10px] border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={filteredStudents.length > 0 && selectedBulkFormIds.size === filteredStudents.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBulkFormIds(new Set(filteredStudents.map(s => s.id || s.formNo || s['Form Number'])));
+                              } else {
+                                setSelectedBulkFormIds(new Set());
+                              }
+                            }}
+                            className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                          />
+                        </th>
+                        <th className="p-2.5">Form / Roll No.</th>
+                        <th className="p-2.5">Student's Name</th>
+                        <th className="p-2.5">Father's Name</th>
+                        <th className="p-2.5">Class (Stream)</th>
+                        <th className="p-2.5 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredStudents.map((st) => {
+                        const stId = st.id || st.formNo || st['Form Number'];
+                        const isChecked = selectedBulkFormIds.has(stId);
+                        return (
+                          <tr
+                            key={stId}
+                            onClick={() => {
+                              const next = new Set(selectedBulkFormIds);
+                              if (isChecked) next.delete(stId); else next.add(stId);
+                              setSelectedBulkFormIds(next);
+                            }}
+                            className={`cursor-pointer transition-colors ${isChecked ? 'bg-amber-500/10 dark:bg-amber-950/30' : 'hover:bg-slate-50 dark:hover:bg-slate-950'}`}
+                          >
+                            <td className="p-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const next = new Set(selectedBulkFormIds);
+                                  if (e.target.checked) next.add(stId); else next.delete(stId);
+                                  setSelectedBulkFormIds(next);
+                                }}
+                                className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-2.5 font-mono font-black text-amber-700 dark:text-amber-400">
+                              {st['Form Number'] || st.formNo || '—'}
+                            </td>
+                            <td className="p-2.5 font-black text-slate-900 dark:text-white">
+                              {st["Student's Name"] || st["Student's Name (as per school records)"] || st.studentName || st.name || '—'}
+                            </td>
+                            <td className="p-2.5 text-slate-600 dark:text-slate-400 font-extrabold">
+                              {st["Father's Name"] || st["Father's/Guardian's Name (as per school records)"] || st.fatherName || '—'}
+                            </td>
+                            <td className="p-2.5 font-extrabold text-teal-700 dark:text-teal-400">
+                              {st["Admission sought for class"] || st.class || '11th'} ({st.stream || st["Stream for Class 11th"] || 'General'})
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                (st.status || st.Status || '').toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {st.status || st.Status || 'Submitted'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Tool Content 1: Assign IDs */}
             {activeToolsTab === 'assign_ids' && (

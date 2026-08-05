@@ -126,14 +126,11 @@ export default function Navbar() {
   const getDashboardPath = (role) => {
     const r = String(role || '').toLowerCase();
     if (r.includes('admin')) {
-      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/portal/admin')) {
-        return '/portal/admin';
-      }
-      return '/admin/portal';
+      return '/portal/admin';
     }
     if (r.includes('teacher') || r.includes('faculty')) return '/portal/teacher';
     if (r.includes('student')) return '/portal/student';
-    return '/portal/login';
+    return '/portal/admin';
   };
 
 
@@ -324,21 +321,28 @@ export default function Navbar() {
               <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600/80 items-center h-full py-0.5">
                 {currentUser ? (
                   <div className="inline-flex items-center gap-1.5 py-0.5 px-1.5 rounded-full border shadow-md" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
-                    {/* User avatar + name → dashboard link */}
+                    {/* User avatar + name → animated dashboard redirect link */}
                     <Link
                       to={getDashboardPath(currentUser.role)}
-                      className="flex items-center gap-1.5 group cursor-pointer"
-                      title={`Signed in as ${currentUser.name || currentUser.email}. Click to open dashboard.`}
+                      className="flex items-center gap-1.5 group cursor-pointer relative px-2 py-0.5 rounded-full hover:bg-slate-800/80 transition-all duration-300 hover:ring-2 hover:ring-teal-400/60"
+                      title={`Signed in as ${currentUser.name || currentUser.email}. Click to return to Admin Dashboard.`}
                     >
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center font-black text-[9.5px] shrink-0 shadow-xs" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
-                        {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
+                      <div className="relative flex items-center justify-center shrink-0">
+                        {/* Pulsing outer aura active ONLY when outside dashboard to signal click to return */}
+                        {!location.pathname.startsWith('/portal/admin') && !location.pathname.startsWith('/admin') && (
+                          <span className="absolute inline-flex h-5 w-5 rounded-full bg-teal-400 opacity-60 animate-ping"></span>
+                        )}
+                        <div className="relative w-5 h-5 rounded-full flex items-center justify-center font-black text-[9.5px] shrink-0 shadow-sm transition-transform group-hover:scale-110" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
+                          {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
+                        </div>
                       </div>
-                      <span className="text-[11px] font-black text-white group-hover:text-teal-300 transition-colors max-w-[150px] truncate leading-none">
+                      <span className="text-[11px] font-black text-white group-hover:text-teal-300 transition-colors max-w-[150px] truncate leading-none flex items-center gap-0.5">
                         {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
-                        <span className="text-[8px] font-extrabold text-teal-400 ml-1">
+                        <span className="text-[8px] font-extrabold text-teal-400 ml-0.5">
                           ({currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')})
                         </span>
                       </span>
+                      <ShieldCheck size={11} className="text-teal-400 group-hover:translate-x-0.5 group-hover:scale-110 transition-all ml-0.5" />
                     </Link>
                     {/* Logout — white button with black text, hover to red background with white text */}
                     <button

@@ -386,7 +386,7 @@ export default function Footer() {
                   </div>
 
                   <p className="text-xs md:text-sm leading-relaxed text-slate-800">
-                    <strong className="text-slate-950 font-bold">NexLifTech</strong> is a digital transformation & web development services company founded by <strong className="text-teal-900 font-bold">Sheikh Gulfam</strong>. He brings a unique scientific & analytical background to software engineering—having worked as a <strong className="text-slate-900 font-semibold">Botany lecturer and researcher</strong> before transitioning into full-stack software development, database architecture, and automation.
+                    <strong className="text-slate-950 font-bold">NexLifTech</strong> is a digital transformation & web development services company founded by <strong className="text-teal-900 font-bold">Sheikh Gulfam</strong>. He brings a unique scientific & analytical background to software engineering—having worked as <strong className="text-slate-900 font-semibold">an educator and researcher</strong> before transitioning into full-stack software development, database architecture, and automation.
                   </p>
 
                   {/* Badges / Credentials */}

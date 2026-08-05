@@ -13,6 +13,9 @@ export default function AppSettings() {
   // Form Number Control States
   const [startingSeries, setStartingSeries] = useState(260001);
   const [nextFormNumber, setNextFormNumber] = useState(260001);
+  const [cutoffMonth, setCutoffMonth] = useState(10); // 10 = October
+  const [cutoffDay, setCutoffDay] = useState(31); // 31st
+  const [digitFormat, setDigitFormat] = useState('YY0000'); // YY0000 -> 260001
   const [recycledFormNumbers, setRecycledFormNumbers] = useState([]);
   const [deletedHistory, setDeletedHistory] = useState([]);
   const [nextPreview, setNextPreview] = useState('');
@@ -32,6 +35,9 @@ export default function AppSettings() {
           if (config.session) setSession(config.session);
           if (config.startingSeries) setStartingSeries(config.startingSeries);
           if (config.nextFormNumber) setNextFormNumber(config.nextFormNumber);
+          if (config.cutoffMonth !== undefined) setCutoffMonth(Number(config.cutoffMonth));
+          if (config.cutoffDay !== undefined) setCutoffDay(Number(config.cutoffDay));
+          if (config.digitFormat) setDigitFormat(config.digitFormat);
           if (Array.isArray(config.recycledFormNumbers)) setRecycledFormNumbers(config.recycledFormNumbers);
         }
 
@@ -79,6 +85,9 @@ export default function AppSettings() {
       // 2. Save Form Number Configuration
       const fnConfig = {
         session,
+        cutoffMonth: Number(cutoffMonth),
+        cutoffDay: Number(cutoffDay),
+        digitFormat,
         startingSeries: Number(startingSeries),
         nextFormNumber: Number(nextFormNumber),
         recycledFormNumbers,
@@ -173,6 +182,55 @@ export default function AppSettings() {
                 <option value="2025-26">2025-26 Session (Series 25xxxx)</option>
                 <option value="2026-27">2026-27 Session (Series 26xxxx)</option>
                 <option value="2027-28">2027-28 Session (Series 27xxxx)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Session Validity Cutoff Month & Day *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={cutoffMonth}
+                  onChange={(e) => setCutoffMonth(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl font-bold border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
+                >
+                  <option value={1}>January (Month 1)</option>
+                  <option value={2}>February (Month 2)</option>
+                  <option value={3}>March (Month 3)</option>
+                  <option value={4}>April (Month 4)</option>
+                  <option value={5}>May (Month 5)</option>
+                  <option value={6}>June (Month 6)</option>
+                  <option value={7}>July (Month 7)</option>
+                  <option value={8}>August (Month 8)</option>
+                  <option value={9}>September (Month 9)</option>
+                  <option value={10}>October (Month 10 - Default)</option>
+                  <option value={11}>November (Month 11)</option>
+                  <option value={12}>December (Month 12)</option>
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={cutoffDay}
+                  onChange={(e) => setCutoffDay(Number(e.target.value))}
+                  placeholder="Day (31)"
+                  className="w-full px-3 py-2 rounded-xl font-bold border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
+                />
+              </div>
+              <span className="text-[10px] text-slate-400">Till 31st Oct 2026, forms continue 2025-26 series (e.g. 250458). After 31st Oct 2026, series auto-resets to 260001 for 2026-27.</span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Form Number Digits Format *</label>
+              <select
+                value={digitFormat}
+                onChange={(e) => setDigitFormat(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl font-bold border focus:outline-none focus:ring-2 focus:ring-amber-500"
+                style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
+              >
+                <option value="YY0000">YY + 4 Digits (e.g. 260001 for 2026-27) [Default]</option>
+                <option value="YYYY0000">YYYY + 4 Digits (e.g. 20260001 for 2026-27)</option>
               </select>
             </div>
 

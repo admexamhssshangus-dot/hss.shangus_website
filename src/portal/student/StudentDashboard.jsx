@@ -6,7 +6,7 @@ import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
 import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
 import appsScriptApi from '../../services/appsScriptApi';
 
@@ -137,15 +137,21 @@ export default function StudentDashboard() {
     }
   };
 
+  // Handle View PDF Print Preview
+  const handleViewPdf = () => {
+    if (!appData) return;
+    generateStudentAdmissionPdf(appData);
+  };
+
   // Handle Download PDF Copy
   const handleDownloadPdf = async () => {
     if (!appData) return;
     setDownloadingPdf(true);
     try {
-      generateStudentAdmissionPdf(appData);
+      await downloadStudentAdmissionPdf(appData);
     } catch (err) {
       console.error('Download PDF error:', err);
-      setAlert({ type: 'error', text: 'Unable to generate PDF. Please try again.' });
+      setAlert({ type: 'error', text: 'Unable to download PDF. Please try again.' });
     } finally {
       setTimeout(() => setDownloadingPdf(false), 500);
     }
@@ -389,14 +395,24 @@ export default function StudentDashboard() {
                   </button>
 
                   {status !== 'Draft' && (
-                    <button
-                      onClick={handleDownloadPdf}
-                      disabled={downloadingPdf}
-                      className="px-5 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm disabled:opacity-50"
-                    >
-                      <Download size={16} className={downloadingPdf ? 'animate-bounce' : ''} />
-                      <span>{downloadingPdf ? 'Generating PDF...' : 'Download Form PDF'}</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={handleViewPdf}
+                        className="px-4 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-sm"
+                      >
+                        <Eye size={16} className="text-teal-600 dark:text-teal-400" />
+                        <span>View PDF</span>
+                      </button>
+
+                      <button
+                        onClick={handleDownloadPdf}
+                        disabled={downloadingPdf}
+                        className="px-4 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-teal-700 text-white hover:bg-teal-600 shadow-sm disabled:opacity-50"
+                      >
+                        <Download size={16} className={downloadingPdf ? 'animate-bounce' : ''} />
+                        <span>{downloadingPdf ? 'Downloading PDF...' : 'Download PDF File'}</span>
+                      </button>
+                    </>
                   )}
 
                   <button
