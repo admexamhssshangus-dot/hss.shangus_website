@@ -6,7 +6,7 @@ import DynamicFormField from '../components/DynamicFormField';
 import ModernLoader from '../../components/ModernLoader';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
-import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
 
 export default function AdmissionForm() {
@@ -22,11 +22,12 @@ export default function AdmissionForm() {
   const [showInstructions, setShowInstructions] = useState(true);
   const [hasConfirmedInstructions, setHasConfirmedInstructions] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('personal'); 
+  const [activeTab, setActiveTab] = useState('personal');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [draftSavedTime, setDraftSavedTime] = useState(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const currentUser = sessionManager.getUser();
   const currentStatus = formData.Status || formData.status || '';
@@ -54,7 +55,7 @@ export default function AdmissionForm() {
 
       let existing = {};
       let historical = {};
-      
+
       if (appDataRes && appDataRes.data) {
         if (Array.isArray(appDataRes.data.applications) && appDataRes.data.applications.length > 0) {
           existing = appDataRes.data.applications[appDataRes.data.applications.length - 1];
@@ -78,7 +79,7 @@ export default function AdmissionForm() {
         if (savedDraftStr) {
           localDraft = JSON.parse(savedDraftStr);
         }
-      } catch (e) {}
+      } catch (e) { }
 
       // Pre-fill student photo from any available source
       const preloadedPhoto = localDraft['Student Photo'] || existing['Student Photo'] || historical['Student Photo'] || existing['photo_id'] || historical['photo_id'] || existing['photoUrl'] || historical['photoUrl'] || '';
@@ -145,7 +146,7 @@ export default function AdmissionForm() {
       try {
         sessionStorage.setItem('hss_admission_draft', JSON.stringify(formData));
         setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      } catch (e) {}
+      } catch (e) { }
     }
   }, [formData, isFormLocked]);
 
@@ -238,6 +239,19 @@ export default function AdmissionForm() {
       setAlert({ type: 'error', text: err.userMessage || err.message || 'Failed to save draft.' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    setAlert(null);
+    try {
+      await downloadStudentAdmissionPdf(formData);
+    } catch (err) {
+      console.error('Manual PDF download error:', err);
+      setAlert({ type: 'error', text: 'Could not generate the PDF right now. Please try again in a moment.' });
+    } finally {
+      setIsDownloadingPdf(false);
     }
   };
 
@@ -394,23 +408,23 @@ export default function AdmissionForm() {
     "Total Max. Marks in Class 11th": 'academic',
     "Name of Previous School (Class 11th)": 'academic',
 
-    // 3. Subject Selection
-    "Subjects Studied in Class 8th": 'subjects',
-    "Subjects to be taken in Class 9th": 'subjects',
-    "Subjects Studied in Class 9th": 'subjects',
-    "Subjects to be taken in Class 10th": 'subjects',
-    "Subjects Studied in Class 10th": 'subjects',
-    "Stream for Class 11th": 'subjects',
-    "Subjects to be taken in Class 11th": 'subjects',
-    "Subjects to Reappear (Class 10th)": 'subjects',
-    "Stream opted in Class 11th": 'subjects',
-    "Subjects Studied in Class 11th": 'subjects',
-    "Stream & Subjects for Class 12th": 'subjects',
-    "Subjects to Reappear (Class 11th)": 'subjects',
+    // 3. Subject Selection (Merged into Academic Section)
+    "Subjects Studied in Class 8th": 'academic',
+    "Subjects to be taken in Class 9th": 'academic',
+    "Subjects Studied in Class 9th": 'academic',
+    "Subjects to be taken in Class 10th": 'academic',
+    "Subjects Studied in Class 10th": 'academic',
+    "Stream for Class 11th": 'academic',
+    "Subjects to be taken in Class 11th": 'academic',
+    "Subjects to Reappear (Class 10th)": 'academic',
+    "Stream opted in Class 11th": 'academic',
+    "Subjects Studied in Class 11th": 'academic',
+    "Stream & Subjects for Class 12th": 'academic',
+    "Subjects to Reappear (Class 11th)": 'academic',
 
     // 4. Docs & Declaration
-    "Remarks/Feedback (if any)": 'subjects',
-    "Declaration": 'photo'
+    "Remarks/Feedback (if any)": 'academic',
+    "Declaration": 'personal'
   };
 
   const fieldSectionMap = {
@@ -435,49 +449,53 @@ export default function AdmissionForm() {
     "State/UT": '🏠 Residential Address',
     "PIN code": '🏠 Residential Address',
 
-    "Height (cm)": '🩺 Physical & Category Profile',
-    "Weight (kg)": '🩺 Physical & Category Profile',
-    "Blood Group": '🩺 Physical & Category Profile',
-    "Religion": '🩺 Physical & Category Profile',
-    "Social category": '🩺 Physical & Category Profile',
-    "Socio-economic category": '🩺 Physical & Category Profile',
-    "Whether Any Disability": '🩺 Physical & Category Profile',
-    "Type of Disability": '🩺 Physical & Category Profile',
+    "Height (cm)": '🩺 Physical & Social Category',
+    "Weight (kg)": '🩺 Physical & Social Category',
+    "Blood Group": '🩺 Physical & Social Category',
+    "Religion": '🩺 Physical & Social Category',
+    "Social category": '🩺 Physical & Social Category',
+    "Socio-economic category": '🩺 Physical & Social Category',
+    "Whether Any Disability": '🩺 Physical & Social Category',
+    "Type of Disability": '🩺 Physical & Social Category',
+    "Identification Mark (if any)": '🩺 Physical & Social Category',
 
-    "Aadhar No.": '🆔 National Identifiers & Sports',
-    "PEN number (given by UDISE portal)": '🆔 National Identifiers & Sports',
-    "APAAR ID": '🆔 National Identifiers & Sports',
-    "Passport No. (if available)": '🆔 National Identifiers & Sports',
-    "Identification Mark (if any)": '🆔 National Identifiers & Sports',
-    "Previous participation in sports (if any)": '🆔 National Identifiers & Sports',
-    "Games to participate": '🆔 National Identifiers & Sports',
+    "Previous participation in sports (if any)": '⚽ Sports & Extracurricular',
+    "Games to participate": '⚽ Sports & Extracurricular',
+
+    "PEN number (given by UDISE portal)": '🆔 Official Identifiers',
+    "APAAR ID": '🆔 Official Identifiers',
+    "Passport No. (if available)": '🆔 Official Identifiers',
+    "Aadhar No.": '🆔 Official Identifiers',
+
+    "Student Photo": '📸 Passport Photo Upload',
+    "id card photo": '📸 Passport Photo Upload',
 
     // Academic Sub-groups
-    "Admission sought for class": '🎓 Target Admission Details',
-    "DIET Registration No.": '🎓 Target Admission Details',
+    "Admission sought for class": '🎓 Admission & Class Details',
+    "Admission Type (Class 11th)": '🎓 Admission & Class Details',
+    "Reason for Provisional (Class 11th)": '🎓 Admission & Class Details',
+    "Admission Type (Class 12th)": '🎓 Admission & Class Details',
+    "Reason for Provisional (Class 12th)": '🎓 Admission & Class Details',
 
-    "Admission Type (Class 11th)": '🏫 Class 10th / 11th Examination Records',
-    "Reason for Provisional (Class 11th)": '🏫 Class 10th / 11th Examination Records',
-    "Board Registration No. (Class 10th)": '🏫 Class 10th / 11th Examination Records',
-    "Exam Roll Number of Class 10th": '🏫 Class 10th / 11th Examination Records',
-    "Year of Passing Class 10th": '🏫 Class 10th / 11th Examination Records',
-    "Year of Appearing (Class 10th)": '🏫 Class 10th / 11th Examination Records',
-    "Total Marks Obtained in Class 10th": '🏫 Class 10th / 11th Examination Records',
-    "Total Max. Marks in Class 10th": '🏫 Class 10th / 11th Examination Records',
-    "Name of Previous School (Class 10th)": '🏫 Class 10th / 11th Examination Records',
-    "Board (Class 10th)": '🏫 Class 10th / 11th Examination Records',
+    "Board Registration No. (Class 10th)": '🏫 Class 10th Examination Records',
+    "Exam Roll Number of Class 10th": '🏫 Class 10th Examination Records',
+    "Year of Passing Class 10th": '🏫 Class 10th Examination Records',
+    "Year of Appearing (Class 10th)": '🏫 Class 10th Examination Records',
+    "Total Marks Obtained in Class 10th": '🏫 Class 10th Examination Records',
+    "Total Max. Marks in Class 10th": '🏫 Class 10th Examination Records',
+    "Name of Previous School (Class 10th)": '🏫 Class 10th Examination Records',
+    "Board (Class 10th)": '🏫 Class 10th Examination Records',
 
-    "Admission Type (Class 12th)": '🏫 Class 11th / 12th Examination Records',
-    "Reason for Provisional (Class 12th)": '🏫 Class 11th / 12th Examination Records',
-    "Board Registration No. (Class 11th)": '🏫 Class 11th / 12th Examination Records',
-    "Exam Roll Number of Class 11th": '🏫 Class 11th / 12th Examination Records',
-    "Year of Passing Class 11th": '🏫 Class 11th / 12th Examination Records',
-    "Year of Appearing (Class 11th)": '🏫 Class 11th / 12th Examination Records',
-    "Board (Class 11th)": '🏫 Class 11th / 12th Examination Records',
-    "Total Marks Obtained in Class 11th": '🏫 Class 11th / 12th Examination Records',
-    "Total Max. Marks in Class 11th": '🏫 Class 11th / 12th Examination Records',
-    "Name of Previous School (Class 11th)": '🏫 Class 11th / 12th Examination Records',
+    "Board Registration No. (Class 11th)": '🏫 Class 11th Examination Records',
+    "Exam Roll Number of Class 11th": '🏫 Class 11th Examination Records',
+    "Year of Passing Class 11th": '🏫 Class 11th Examination Records',
+    "Year of Appearing (Class 11th)": '🏫 Class 11th Examination Records',
+    "Total Marks Obtained in Class 11th": '🏫 Class 11th Examination Records',
+    "Total Max. Marks in Class 11th": '🏫 Class 11th Examination Records',
+    "Name of Previous School (Class 11th)": '🏫 Class 11th Examination Records',
+    "Board (Class 11th)": '🏫 Class 11th Examination Records',
 
+    "DIET Registration No.": '🏫 Class 8th / 9th Examination Records',
     "Year of Passing Class 8th": '🏫 Class 8th / 9th Examination Records',
     "Name of Previous School (Class 8th)": '🏫 Class 8th / 9th Examination Records',
     "Board (Class 8th)": '🏫 Class 8th / 9th Examination Records',
@@ -501,9 +519,9 @@ export default function AdmissionForm() {
     "Percentage Obtained in Vocational Subject": '🏦 Scholarship & Bank Account',
 
     // Subject Sub-groups
-    "Stream for Class 11th": '📚 Stream Selection',
-    "Stream opted in Class 11th": '📚 Stream Selection',
-    "Stream & Subjects for Class 12th": '📚 Stream Selection',
+    "Stream for Class 11th": '📚 Stream & Subject Selection',
+    "Stream opted in Class 11th": '📚 Stream & Subject Selection',
+    "Stream & Subjects for Class 12th": '📚 Stream & Subject Selection',
     "Subjects Studied in Class 8th": '📖 Subject Combinations',
     "Subjects to be taken in Class 9th": '📖 Subject Combinations',
     "Subjects Studied in Class 9th": '📖 Subject Combinations',
@@ -513,12 +531,6 @@ export default function AdmissionForm() {
     "Subjects to Reappear (Class 10th)": '📖 Subject Combinations',
     "Subjects Studied in Class 11th": '📖 Subject Combinations',
     "Subjects to Reappear (Class 11th)": '📖 Subject Combinations',
-
-    // Photo Sub-groups
-    "Student Photo": '📸 Passport Photo Upload',
-    "id card photo": '📸 Passport Photo Upload',
-
-    // Subjects Sub-groups (Remarks goes here)
     "Remarks/Feedback (if any)": '💬 Additional Remarks & Feedback'
   };
 
@@ -547,7 +559,7 @@ export default function AdmissionForm() {
     "State/UT",
     "PIN code",
 
-    // 4. Physical & Category Profile
+    // 4. Physical & Social Category
     "Height (cm)",
     "Weight (kg)",
     "Blood Group",
@@ -556,23 +568,23 @@ export default function AdmissionForm() {
     "Socio-economic category",
     "Whether Any Disability",
     "Type of Disability",
+    "Identification Mark (if any)",
 
-    // 5. National Identifiers & Sports
+    // 5. Sports & Extracurricular
+    "Previous participation in sports (if any)",
+    "Games to participate",
+
+    // 6. Official Identifiers
     "Aadhar No.",
     "PEN number (given by UDISE portal)",
     "APAAR ID",
     "Passport No. (if available)",
-    "Identification Mark (if any)",
-    "Previous participation in sports (if any)",
-    "Games to participate",
 
-    // 6. Target Admission Details
+    // 7. Academic Details
     "Admission sought for class",
-    "DIET Registration No.",
-
-    // 7. Academic Examinations Records (10th/11th/8th/9th)
     "Admission Type (Class 11th)",
     "Reason for Provisional (Class 11th)",
+    "Subjects to Reappear (Class 10th)",
     "Board Registration No. (Class 10th)",
     "Exam Roll Number of Class 10th",
     "Year of Passing Class 10th",
@@ -606,7 +618,16 @@ export default function AdmissionForm() {
     "Total Max. Marks in Class 9th",
     "Total Marks Obtained in Class 9th",
 
-    // 8. Scholarship & Bank Details
+    // 8. Stream & Subject Selections
+    "Stream for Class 11th",
+    "Stream opted in Class 11th",
+    "Stream & Subjects for Class 12th",
+    "Subjects to be taken in Class 11th",
+    "Subjects Studied in Class 10th",
+    "Subjects Studied in Class 11th",
+    "Subjects to Reappear (Class 11th)",
+
+    // 9. Scholarship & Bank Details
     "Whether scholarship received in previous academic year",
     "Type of scholarship received",
     "Amount received (INR)",
@@ -616,18 +637,6 @@ export default function AdmissionForm() {
     "Vocational subject in previous class",
     "Percentage Obtained in Vocational Subject",
 
-    // 9. Stream & Subject Selections
-    "Stream for Class 11th",
-    "Stream opted in Class 11th",
-    "Stream & Subjects for Class 12th",
-    "Subjects to be taken in Class 11th",
-    "Subjects Studied in Class 10th",
-    "Subjects to Reappear (Class 10th)",
-    "Subjects Studied in Class 11th",
-    "Subjects to Reappear (Class 11th)",
-
-    // 10. Photo Upload
-    "Student Photo",
     "id card photo",
     "Remarks/Feedback (if any)"
   ];
@@ -642,18 +651,18 @@ export default function AdmissionForm() {
     if (fieldTabMap[fieldName]) return fieldTabMap[fieldName];
 
     const lower = fieldName.toLowerCase();
-    if (lower.includes('photo')) return 'personal'; // Photo lives in Personal tab
+    if (lower.includes('photo')) return 'personal';
     if (lower.includes('declaration')) return 'personal';
-    if (lower.includes('remarks') || lower.includes('feedback')) return 'subjects';
-    if (lower.includes('subjects to be taken') || lower.includes('subjects studied') || lower.includes('stream')) return 'subjects';
+    if (lower.includes('remarks') || lower.includes('feedback')) return 'academic';
+    if (lower.includes('subjects') || lower.includes('stream')) return 'academic';
     if (lower.includes('marks') || lower.includes('board') || lower.includes('school') || lower.includes('roll') || lower.includes('bank')) return 'academic';
     return 'personal';
   };
 
   const tabs = [
     { id: 'personal', label: '1. Personal Details' },
-    { id: 'academic', label: '2. Academic Details' },
-    { id: 'subjects', label: '3. Subject Selection & Feedback' },
+    { id: 'academic', label: '2. Academic & Subjects' },
+    { id: 'payment', label: '3. Fee Payment & Final Submission' },
   ];
 
   const handleFinalSubmit = async (e) => {
@@ -801,13 +810,13 @@ export default function AdmissionForm() {
         consumeFormNumber(formNo).catch(e => console.warn('consumeFormNumber note:', e));
 
         // Clear local draft from sessionStorage
-        try { sessionStorage.removeItem('hss_admission_draft'); } catch(e) {}
+        try { sessionStorage.removeItem('hss_admission_draft'); } catch (e) { }
 
         setAlert({ type: 'success', text: `Application #${formNo} submitted successfully to official database! Redirecting...` });
 
         // Trigger browser PDF generator automatically
         try {
-          generateStudentAdmissionPdf(payloadData);
+          downloadStudentAdmissionPdf(payloadData);
         } catch (pdfErr) {
           console.warn('PDF generator trigger note:', pdfErr);
         }
@@ -1081,212 +1090,383 @@ export default function AdmissionForm() {
 
         {/* Form Container Card with Subtle School Logo Watermark */}
         <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
-          
+
           {/* School Logo Watermark */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] select-none z-0">
             <img src="/logo512.png" alt="" className="w-80 h-80 sm:w-96 sm:h-96 object-contain filter grayscale" />
           </div>
 
           <div className="relative z-10 space-y-6">
-          {/* Header Info Banner */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
-            <div>
-              <h1 className="text-xl font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
-                Online Admission Application
-              </h1>
-              <div className="text-xs text-slate-400 mt-0.5">
-                Form #{formData['Form Number'] || 'New'} • Class: {selectedClass} {selectedStream ? `(${selectedStream})` : ''}
+            {/* Header Info Banner */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
+              <div>
+                <h1 className="text-xl font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
+                  Online Admission Application
+                </h1>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Form #{formData['Form Number'] || 'New'} • Class: {selectedClass} {selectedStream ? `(${selectedStream})` : ''}
+                </div>
               </div>
-            </div>
 
-            {/* Quick Action Top Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={isSubmitting}
-                className="px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-                style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-              >
-                <Save size={14} /> Save Draft
-              </button>
-            </div>
-          </div>
-
-          {/* Floating / Sticky Alert Toast Notification */}
-          {alert && (
-            <div className={`p-4 rounded-2xl text-xs font-semibold flex items-start justify-between gap-3 animate-fadeIn border shadow-sm ${
-              alert.type === 'error'
-                ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
-                : alert.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                : 'bg-teal-500/10 border-teal-500/30 text-teal-700 dark:text-teal-300'
-            }`}>
-              <div className="flex items-start gap-2.5">
-                {alert.type === 'error' ? <AlertCircle size={18} className="flex-shrink-0 text-red-500 mt-0.5" /> : <CheckCircle size={18} className="flex-shrink-0 text-teal-500 mt-0.5" />}
-                <span className="leading-relaxed">{alert.text}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAlert(null)}
-                className="p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                title="Dismiss Notification"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl border text-xs font-bold overflow-x-auto" style={{ backgroundColor: 'var(--bg-secondary, #f1f5f9)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === tab.id ? 'bg-teal-500 text-white shadow-sm' : 'hover:opacity-80'
-                }`}
-                style={activeTab !== tab.id ? { color: 'var(--text-main, #334155)' } : {}}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Locked Application Banner */}
-          {isFormLocked && (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center justify-between gap-3 animate-fadeIn mb-4">
+              {/* Quick Action Top Buttons */}
               <div className="flex items-center gap-2">
-                <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
-                <span>Your application has been submitted and locked for verification. Editing is disabled.</span>
+                {isSubmittedOrApproved && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    disabled={isDownloadingPdf}
+                    className="px-4 py-2 rounded-xl text-xs font-bold border border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300 flex items-center gap-1.5 cursor-pointer hover:bg-teal-500/20 disabled:opacity-50"
+                    title="Download your submitted application as a PDF"
+                  >
+                    {isDownloadingPdf ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" /> Preparing...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={14} /> Download PDF
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                  style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+                >
+                  <Save size={14} /> Save Draft
+                </button>
               </div>
-              <Link
-                to="/portal/student"
-                className="px-3 py-1.5 rounded-xl bg-amber-500 text-white font-bold text-[11px] whitespace-nowrap hover:bg-amber-600 transition-colors"
-              >
-                Back to Dashboard
-              </Link>
             </div>
-          )}
 
-          {/* Main Form Fields */}
-          {loading ? (
-            <ModernLoader
-              text="Initializing Admission Application"
-              subtext="Loading dynamic form schema, streams, and your saved profile records..."
-            />
-          ) : (
-            <form onSubmit={handleFinalSubmit} className="space-y-6">
-              {(() => {
-                const activeFields = formStructure.filter(field => {
-                  const type = field.fieldType || field.type || field['Field Type'] || '';
-                  if (type.startsWith('autogen')) return false;
-                  const name = field.fieldName || field.name || field['Field Name'];
-                  // Declaration is shown in the submission confirmation modal, not in the form
-                  if (name === 'Declaration') return false;
-                  return isVisible(field) && categorizeField(name) === activeTab;
-                });
+            {/* Floating / Sticky Alert Toast Notification */}
+            {alert && (
+              <div className={`p-4 rounded-2xl text-xs font-semibold flex items-start justify-between gap-3 animate-fadeIn border shadow-sm ${alert.type === 'error'
+                  ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
+                  : alert.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-teal-500/10 border-teal-500/30 text-teal-700 dark:text-teal-300'
+                }`}>
+                <div className="flex items-start gap-2.5">
+                  {alert.type === 'error' ? <AlertCircle size={18} className="flex-shrink-0 text-red-500 mt-0.5" /> : <CheckCircle size={18} className="flex-shrink-0 text-teal-500 mt-0.5" />}
+                  <span className="leading-relaxed">{alert.text}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAlert(null)}
+                  className="p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+                  title="Dismiss Notification"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
-                // Sort fields strictly by standard educational form order (Personal Details First)
-                activeFields.sort((a, b) => {
-                  const nameA = a.fieldName || a.name || a['Field Name'];
-                  const nameB = b.fieldName || b.name || b['Field Name'];
-                  return getFieldOrderIndex(nameA) - getFieldOrderIndex(nameB);
-                });
+            {/* Category Tabs */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl border text-xs font-bold overflow-x-auto" style={{ backgroundColor: 'var(--bg-secondary, #f1f5f9)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${activeTab === tab.id ? 'bg-teal-500 text-white shadow-sm' : 'hover:opacity-80'
+                    }`}
+                  style={activeTab !== tab.id ? { color: 'var(--text-main, #334155)' } : {}}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-                // Group active fields by sub-section
-                const grouped = {};
-                activeFields.forEach(field => {
-                  const name = field.fieldName || field.name || field['Field Name'];
-                  const sec = fieldSectionMap[name] || '📌 General Details';
-                  if (!grouped[sec]) grouped[sec] = [];
-                  grouped[sec].push(field);
-                });
+            {/* Locked Application Banner */}
+            {isFormLocked && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center justify-between gap-3 animate-fadeIn mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
+                  <span>Your application has been submitted and locked for verification. Editing is disabled.</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    disabled={isDownloadingPdf}
+                    className="px-3 py-1.5 rounded-xl bg-teal-600 text-white font-bold text-[11px] whitespace-nowrap hover:bg-teal-500 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {isDownloadingPdf ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" /> Preparing...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={12} /> Download PDF
+                      </>
+                    )}
+                  </button>
+                  <Link
+                    to="/portal/student"
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 text-white font-bold text-[11px] whitespace-nowrap hover:bg-amber-600 transition-colors"
+                  >
+                    Back to Dashboard
+                  </Link>
+                </div>
+              </div>
+            )}
 
-                const isFullWidthField = (field, name) => {
-                  const type = field.fieldType || field.type || field['Field Type'] || '';
-                  const lower = String(name || '').toLowerCase();
-                  return (
-                    type === 'image' ||
-                    type === 'file' ||
-                    type === 'textarea' ||
-                    type === 'checkbox_dynamic' ||
-                    type === 'checkbox_declaration' ||
-                    lower.includes('photo') ||
-                    lower.includes('remarks') ||
-                    lower.includes('feedback')
-                  );
-                };
+            {/* Main Form Fields */}
+            {loading ? (
+              <ModernLoader
+                text="Initializing Admission Application"
+                subtext="Loading dynamic form schema, streams, and your saved profile records..."
+              />
+            ) : (
+              <form onSubmit={handleFinalSubmit} className="space-y-6">
+                {activeTab === 'payment' ? (
+                  <div className="space-y-6">
+                    {/* Fee Payment Info Card */}
+                    <div className="p-5 rounded-2xl border bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border-teal-500/30 space-y-3">
+                      <div className="flex items-center justify-between border-b pb-2.5 border-teal-500/20">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-teal-500"></span>
+                          <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                            💳 Fee Payment & Receipt Verification
+                          </h3>
+                        </div>
+                        <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                          {formData['Payment Status'] || formData['paymentStatus'] || 'Cash Counter / Default Fee'}
+                        </span>
+                      </div>
 
-                return Object.entries(grouped).map(([sectionTitle, fields]) => (
-                  <div key={sectionTitle} className="p-4 sm:p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-                    <div className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
-                      <span>{sectionTitle}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1">
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Admission Fee Amount</span>
+                          <span className="text-base font-black text-teal-600 dark:text-teal-400">
+                            {formData['Fee Amount'] || formData['feeAmount'] || 'Standard Govt Fee (As Applicable)'}
+                          </span>
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1">
+                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Payment Gateway / Counter Mode</span>
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                            {formData['Payment Mode'] || 'Cash Collection at School Office'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-1">
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Transaction ID / UTR No. / Receipt Reference (If Paid Online / Bank Transfer)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. UTR123456789 or Receipt No. (Optional)"
+                          value={formData['Transaction ID'] || formData['txnId'] || ''}
+                          onChange={(e) => handleFieldChange('Transaction ID', e.target.value)}
+                          disabled={isSubmitting || isFormLocked}
+                          className="w-full px-3.5 py-2.5 rounded-xl border text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-teal-500 outline-none"
+                        />
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {fields.map((field, idx) => {
-                        const name = field.fieldName || field.name || field['Field Name'];
-                        return (
-                          <div key={idx} className={isFullWidthField(field, name) ? 'col-span-1 sm:col-span-2' : 'col-span-1'}>
-                            <DynamicFormField
-                              config={field}
-                              value={formData[name] || ''}
-                              onChange={handleFieldChange}
-                              subjectsConfig={subjectsConfig}
-                              selectedStream={selectedStream}
-                              disabled={isSubmitting || isFormLocked}
-                              error={fieldErrors[name]}
-                              formData={formData}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ));
-              })()}
+                    {/* Quick Review Summary Card */}
+                    <div className="p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4">
+                      <div className="font-extrabold text-xs sm:text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+                        <span>📋 Key Details Summary Before Final Submission</span>
+                      </div>
 
-              {/* Bottom Actions Bar */}
-              <div className="flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
-                {isFormLocked ? (
-                  <div className="w-full text-center text-xs font-bold text-slate-400 py-2">
-                    Form submission locked. Contact administration if you need to unlock and edit details.
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-400 font-bold block text-[10px]">STUDENT NAME</span>
+                          <span className="font-black text-slate-900 dark:text-white">
+                            {formData["Student's Name (as per school records)"] || formData["Student's Name"] || 'N/A'}
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-400 font-bold block text-[10px]">FATHER / GUARDIAN NAME</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {formData["Father's/Guardian's Name (as per school records)"] || 'N/A'}
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-400 font-bold block text-[10px]">TARGET CLASS & STREAM</span>
+                          <span className="font-bold text-teal-600 dark:text-teal-400">
+                            Class {selectedClass} ({selectedStream})
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-400 font-bold block text-[10px]">WHATSAPP MOBILE NO.</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {formData["Mobile No. (with working WhatsApp)"] || 'N/A'}
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 sm:col-span-2">
+                          <span className="text-slate-400 font-bold block text-[10px]">CHOSEN SUBJECT COMBINATION</span>
+                          <span className="font-extrabold text-teal-700 dark:text-teal-300">
+                            {formData["Subjects to be taken in Class 11th"] || formData["Subjects Studied in Class 11th"] || formData["Subjects to be taken in Class 9th"] || formData["Subjects to be taken in Class 10th"] || 'None Selected'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Conduct & Anti-Drug Declaration Undertaking */}
+                    <div className="p-4 rounded-2xl border text-xs leading-relaxed" style={{ backgroundColor: 'rgba(13,148,136,0.06)', borderColor: 'rgba(13,148,136,0.25)', color: 'var(--text-main,#334155)' }}>
+                      <div className="font-extrabold text-sm mb-1.5 flex items-center gap-2" style={{ color: '#0d9488' }}>
+                        <CheckCircle size={16} /> Official Student & Parent Declaration
+                      </div>
+                      <p>
+                        I hereby declare that all information given in this application is accurate and matches my official certificates. I undertake to strictly adhere to the rules, regulations, anti-drug policies, anti-smoking mandates, and cell-phone ban of Govt. HSS Shangus.
+                      </p>
+                    </div>
                   </div>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleSaveDraft}
-                      disabled={isSubmitting}
-                      className="px-5 py-3 rounded-2xl font-bold text-xs border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-                      style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-                    >
-                      <Save size={16} /> Save Draft
-                    </button>
+                  (() => {
+                    const activeFields = formStructure.filter(field => {
+                      const type = field.fieldType || field.type || field['Field Type'] || '';
+                      if (type.startsWith('autogen')) return false;
+                      const name = field.fieldName || field.name || field['Field Name'];
+                      if (name === 'Declaration') return false;
+                      return isVisible(field) && categorizeField(name) === activeTab;
+                    });
 
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="px-6 py-3.5 rounded-2xl font-extrabold text-xs text-white bg-teal-500 hover:bg-teal-400 shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" /> Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Send size={16} /> Finalize & Submit Application
-                        </>
-                      )}
-                    </button>
-                  </>
+                    activeFields.sort((a, b) => {
+                      const nameA = a.fieldName || a.name || a['Field Name'];
+                      const nameB = b.fieldName || b.name || b['Field Name'];
+                      return getFieldOrderIndex(nameA) - getFieldOrderIndex(nameB);
+                    });
+
+                    const grouped = {};
+                    activeFields.forEach(field => {
+                      const name = field.fieldName || field.name || field['Field Name'];
+                      const sec = fieldSectionMap[name] || '📌 General Details';
+                      if (!grouped[sec]) grouped[sec] = [];
+                      grouped[sec].push(field);
+                    });
+
+                    const isFullWidthField = (field, name) => {
+                      const type = field.fieldType || field.type || field['Field Type'] || '';
+                      const lower = String(name || '').toLowerCase();
+                      return (
+                        type === 'image' ||
+                        type === 'file' ||
+                        type === 'textarea' ||
+                        type === 'checkbox_dynamic' ||
+                        type === 'checkbox_declaration' ||
+                        lower.includes('photo') ||
+                        lower.includes('remarks') ||
+                        lower.includes('feedback')
+                      );
+                    };
+
+                    return Object.entries(grouped).map(([sectionTitle, fields]) => (
+                      <div key={sectionTitle} className="p-4 sm:p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+                        <div className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+                          <span>{sectionTitle}</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {fields.map((field, idx) => {
+                            const name = field.fieldName || field.name || field['Field Name'];
+                            return (
+                              <div key={idx} className={isFullWidthField(field, name) ? 'col-span-1 sm:col-span-2' : 'col-span-1'}>
+                                <DynamicFormField
+                                  config={field}
+                                  value={formData[name] || ''}
+                                  onChange={handleFieldChange}
+                                  subjectsConfig={subjectsConfig}
+                                  selectedStream={selectedStream}
+                                  disabled={isSubmitting || isFormLocked}
+                                  error={fieldErrors[name]}
+                                  formData={formData}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ));
+                  })()
                 )}
-              </div>
-            </form>
-          )}
+
+                {/* Bottom Wizard Actions Navigation Bar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t pt-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
+                  {isFormLocked ? (
+                    <div className="w-full text-center text-xs font-bold text-slate-400 py-2">
+                      Form submission locked. Contact administration if you need to unlock and edit details.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {activeTab !== 'personal' && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab(activeTab === 'payment' ? 'academic' : 'personal')}
+                            className="px-4 py-2.5 rounded-2xl font-bold text-xs border flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
+                            style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+                          >
+                            ← Back
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleSaveDraft}
+                          disabled={isSubmitting}
+                          className="px-4 py-2.5 rounded-2xl font-bold text-xs border flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                          style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+                        >
+                          <Save size={14} /> Save Draft
+                        </button>
+                      </div>
+
+                      {activeTab === 'personal' && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('academic')}
+                          className="w-full sm:w-auto px-6 py-3 rounded-2xl font-extrabold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>Next: Academic &amp; Subjects</span>
+                          <span>→</span>
+                        </button>
+                      )}
+
+                      {activeTab === 'academic' && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('payment')}
+                          className="w-full sm:w-auto px-6 py-3 rounded-2xl font-extrabold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>Next: Fee Payment &amp; Final Submission</span>
+                          <span>→</span>
+                        </button>
+                      )}
+
+                      {activeTab === 'payment' && (
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full sm:w-auto px-7 py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" /> Submitting Application...
+                            </>
+                          ) : (
+                            <>
+                              <Send size={16} /> Confirm &amp; Final Submit Application →
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </form>
+            )}
           </div>
         </div>
       </div>

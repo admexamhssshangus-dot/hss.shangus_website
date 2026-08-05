@@ -15,32 +15,54 @@ const DELETED_HISTORY_COLLECTION = 'deletedFormsHistory';
 
 /**
  * Fetch current Form Number configuration from Firestore or return smart defaults.
+ * Session Rules:
+ * - Till Oct 31st 2026: Form numbers continue sequentially from the last form of 2025-26 (e.g. 250458).
+ * - After Oct 31st 2026 (Nov 1st 2026 onwards): Form numbers auto-reset to 260001 for 2026-27 session till Oct 31 2027.
+ * - Cutoff Month (default: 10 = Oct) and Cutoff Day (default: 31) are fully configurable by teachers/admins.
  */
 export async function getFormNumberConfig() {
+  let dbData = null;
   try {
     const snap = await getDoc(doc(db, SETTINGS_COLLECTION, CONFIG_DOC_ID));
     if (snap && snap.exists()) {
-      return snap.data();
+      dbData = snap.data();
     }
   } catch (e) {
     console.warn('getFormNumberConfig note:', e);
   }
 
-  // Calculate default series based on current year/session (e.g. 2026 -> 260001)
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1; // 1-12
-  // Session starts in Oct (Month 10). If Oct or later, session is next year (e.g., Oct 2025 -> 2026-27 session -> 260001)
-  const sessionStartYear = currentMonth >= 10 ? currentYear + 1 : currentYear;
-  const defaultYearPrefix = String(sessionStartYear).slice(-2);
-  const defaultSeries = parseInt(`${defaultYearPrefix}0001`, 10);
-  const defaultSessionName = `${sessionStartYear - 1}-${String(sessionStartYear).slice(-2)}`;
+  const now = new Date();
+  const calYear = now.getFullYear();
+  const calMonth = now.getMonth() + 1; // 1-12
+  const calDay = now.getDate(); // 1-31
+
+  // Teacher/Admin configurable settings (defaults: Cutoff = 31st October, Format = YY0000)
+  const cutoffMonth = dbData?.cutoffMonth !== undefined ? Number(dbData.cutoffMonth) : 10;
+  const cutoffDay = dbData?.cutoffDay !== undefined ? Number(dbData.cutoffDay) : 31;
+  const digitFormat = dbData?.digitFormat || 'YY0000'; // 'YY0000' (260001) or 'YYYY0000' (20260001)
+
+  // Determine if current date is PAST the cutoff date in the current calendar year
+  // If calDate > Cutoff (e.g. Nov 1st 2026 or later), session is 2026-27 (Prefix 26)
+  // If calDate <= Cutoff (e.g. <= Oct 31st 2026), session is 2025-26 (Prefix 25)
+  let sessionEndYear = calYear;
+  if (calMonth > cutoffMonth || (calMonth === cutoffMonth && calDay > cutoffDay)) {
+    sessionEndYear = calYear + 1;
+  }
+
+  const sessionStartYear = sessionEndYear - 1;
+  const computedSessionName = `${sessionStartYear}-${String(sessionEndYear).slice(-2)}`;
+  const yearPrefix = digitFormat === 'YYYY0000' ? String(sessionEndYear) : String(sessionEndYear).slice(-2);
+  const defaultStartingSeries = parseInt(`${yearPrefix}0001`, 10);
 
   return {
-    session: defaultSessionName,
-    startingSeries: defaultSeries,
-    nextFormNumber: defaultSeries,
-    recycledFormNumbers: [],
-    lastUpdated: new Date().toISOString()
+    session: dbData?.session || computedSessionName,
+    cutoffMonth: cutoffMonth,
+    cutoffDay: cutoffDay,
+    digitFormat: digitFormat,
+    startingSeries: dbData?.startingSeries !== undefined ? Number(dbData.startingSeries) : defaultStartingSeries,
+    nextFormNumber: dbData?.nextFormNumber !== undefined ? Number(dbData.nextFormNumber) : (dbData?.startingSeries !== undefined ? Number(dbData.startingSeries) : defaultStartingSeries),
+    recycledFormNumbers: Array.isArray(dbData?.recycledFormNumbers) ? dbData.recycledFormNumbers : [],
+    lastUpdated: dbData?.lastUpdated || new Date().toISOString()
   };
 }
 

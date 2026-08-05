@@ -237,6 +237,13 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
 
   // Helper to determine effective status (Approved = Class Roll No assigned in student roll no cell)
   const getEffectiveStatus = (s) => {
+    if (s && s.status && String(s.status).trim() !== '—') {
+      const st = String(s.status).trim();
+      if (st.toLowerCase().includes('appr')) return 'Approved';
+      if (st.toLowerCase().includes('subm')) return 'Submitted';
+      if (st.toLowerCase().includes('dft') || st.toLowerCase().includes('draft')) return 'Draft';
+      if (st.toLowerCase().includes('rejt') || st.toLowerCase().includes('reject')) return 'Rejected';
+    }
     // Approved means assigned class roll no present in student roll cell
     const rollVal = getAssignedRollNo(s);
     const hasValidRoll = isValidUniqueVal(rollVal);
@@ -253,7 +260,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
     return 'Submitted';
   };
 
-  // Helper to resolve accurate Stream (Medical and Non-Medical are unified under Science)
+  // Helper to resolve accurate Student Enrolled Stream (Science, Humanities, Commerce, General)
   const resolveStream = (s) => {
     let stm = String(s.stream || s.Stream || s['Stream'] || '').trim();
     const cls = String(s.class || s.Class || s['Class'] || s['Admission sought for class'] || '').trim().toLowerCase();
@@ -263,7 +270,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       return 'General';
     }
 
-    // If explicit stream exists and is not General/empty, normalize it (Medical and Non-Medical map to Science)
+    // Explicit stream property check (Medical / Non-Medical -> Science, Arts / Humanities -> Humanities, Commerce -> Commerce)
     if (stm && stm.toLowerCase() !== 'general' && stm.toLowerCase() !== 'n/a' && stm.toLowerCase() !== '—' && stm.toLowerCase() !== 'null') {
       const lower = stm.toLowerCase();
       if (lower.includes('med') || lower.includes('non') || lower.includes('sci')) return 'Science';
@@ -271,16 +278,20 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       if (lower.includes('com')) return 'Commerce';
     }
 
-    // For 11th & 12th grade: Infer stream from subject codes/combinations
-    const rawSubj = String(s.subjects || s['Subjects'] || s.subject_combination || s.Subject || s.subs || '').toUpperCase();
+    // For 11th & 12th grade: Infer stream from subjects with word-boundary precision
+    const norm = (String(s.subjects || s['Subjects'] || s.subject_combination || s.Subject || s.subs || '') + ' ' + String(s.Subjects1 || '') + ' ' + String(s.Subjects2 || '') + ' ' + String(s.Subjects3 || '') + ' ' + String(s.Subjects4 || '') + ' ' + String(s.Subjects5 || '')).toLowerCase();
 
-    const hasBio = rawSubj.includes('BI') || rawSubj.includes('BIOLOGY') || rawSubj.includes('BOTANY') || rawSubj.includes('ZOOLOGY') || rawSubj.includes('BO') || rawSubj.includes('ZO');
-    const hasPhy = rawSubj.includes('PH') || rawSubj.includes('PHYSICS');
-    const hasChem = rawSubj.includes('CH') || rawSubj.includes('CHEMISTRY');
-    const hasMath = rawSubj.includes('MA') || rawSubj.includes('MATH');
+    // Physics check (avoid Geography / Philosophy)
+    const hasPhysics = /\b(physics|phys)\b/i.test(norm) || /(^|[\s,/\-])ph([\s,/\-]|$)/i.test(norm);
+    // Chemistry check (avoid Psychology)
+    const hasChemistry = /\b(chemistry|chem)\b/i.test(norm) || /(^|[\s,/\-])ch([\s,/\-]|$)/i.test(norm);
+    // Biology / Botany / Zoology check (avoid Arabic, etc.)
+    const hasBio = /\b(biology|botany|zoology|bio|bot|zoo)\b/i.test(norm) || /(^|[\s,/\-])(bi|bo|zo)([\s,/\-]|$)/i.test(norm);
 
-    if (hasBio || hasMath || hasPhy || hasChem) return 'Science';
-    if (rawSubj.includes('CM') || rawSubj.includes('ACCOUNT') || rawSubj.includes('BUSINESS')) return 'Commerce';
+    if (hasPhysics || hasChemistry || hasBio) return 'Science';
+
+    const hasCommerce = /\b(commerce|accountancy|business studies|account)\b/i.test(norm) || /(^|[\s,/\-])(cm|bs|ac)([\s,/\-]|$)/i.test(norm);
+    if (hasCommerce) return 'Commerce';
 
     // Default 11th/12th stream is Humanities
     return 'Humanities';
@@ -522,20 +533,27 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
         if (!matchesStatus) return false;
       }
 
-      // 1. Session Filter (Strict exact matching to avoid matching '2025-26 BIAN' when '2025-26' is selected)
-      const ses = String(s.Session || s.session || s['Session'] || '2025-26').trim();
+      // 1. Session Filter (Normalized EN-DASH / HYPHEN matching)
+      const rawSes = String(s.Session || s.session || s['Session'] || '2025-26').trim();
+      const normSes = rawSes.replace(/–/g, '-').replace(/—/g, '-').toLowerCase();
       if (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
-        const matchesSes = selectedSessions.some((sel) => ses.toLowerCase().trim() === sel.toLowerCase().trim());
+        const matchesSes = selectedSessions.some((sel) => {
+          const normSel = String(sel).trim().replace(/–/g, '-').replace(/—/g, '-').toLowerCase();
+          return normSes === normSel;
+        });
         if (!matchesSes) return false;
       }
 
-      // 2. Class Filter
-      const cls = String(s.class || s.Class || s['Class'] || s['Admission sought for class'] || '').trim();
+      // 2. Class Filter (Normalized digit matching)
+      const rawCls = String(s.class || s.Class || s['Class'] || s['Admission sought for class'] || '').trim();
+      const normCls = rawCls.toLowerCase().replace(/class/gi, '').trim();
       if (selectedClasses.length > 0 && !selectedClasses.includes('__NONE__')) {
         const matchesCls = selectedClasses.some((sel) => {
-          const targetCls = sel.toLowerCase().replace(/th$/, '').replace(/class/i, '').trim();
-          const normCls = cls.toLowerCase().replace(/th$/, '').replace(/class/i, '').trim();
-          return normCls.includes(targetCls) || targetCls.includes(normCls);
+          const normSel = String(sel).toLowerCase().replace(/class/gi, '').trim();
+          if (normCls === normSel) return true;
+          const d1 = normCls.match(/\d+/)?.[0];
+          const d2 = normSel.match(/\d+/)?.[0];
+          return !!(d1 && d2 && d1 === d2);
         });
         if (!matchesCls) return false;
       }
@@ -608,21 +626,40 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       // Subject Aggregation
       const subList = extractSubjectList(s);
       subList.forEach((subName) => {
+        const normSub = String(subName).toLowerCase();
+        const isFlexible = (
+          normSub.includes('english') ||
+          normSub.includes('physical education') ||
+          normSub.includes('math') ||
+          normSub.includes('it') ||
+          normSub.includes('healthcare') ||
+          normSub.includes('environmental')
+        );
+        const resolvedSubjStream = isFlexible ? 'Science / Humanities' : stStream;
+
         if (!subjectMap[subName]) {
-          subjectMap[subName] = { name: subName, total: 0, male: 0, female: 0, stream: stStream };
+          subjectMap[subName] = { name: subName, total: 0, male: 0, female: 0, stream: resolvedSubjStream };
         }
         subjectMap[subName].total++;
         if (isMale) subjectMap[subName].male++;
         if (isFemale) subjectMap[subName].female++;
       });
 
-      // Stream Aggregation
-      if (!streamMap[stStream]) {
-        streamMap[stStream] = { name: stStream, total: 0, male: 0, female: 0 };
+      // Stream & Class Breakdown Aggregation
+      const classStreamKey = `${stClass} (${stStream})`;
+      if (!streamMap[classStreamKey]) {
+        streamMap[classStreamKey] = {
+          name: classStreamKey,
+          className: stClass,
+          streamName: stStream,
+          total: 0,
+          male: 0,
+          female: 0
+        };
       }
-      streamMap[stStream].total++;
-      if (isMale) streamMap[stStream].male++;
-      if (isFemale) streamMap[stStream].female++;
+      streamMap[classStreamKey].total++;
+      if (isMale) streamMap[classStreamKey].male++;
+      if (isFemale) streamMap[classStreamKey].female++;
 
       // Class Enrollment Aggregation
       if (!classMap[stClass]) {
@@ -658,19 +695,47 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
         rollStmtMap[rollKey].regCount++;
         regCount++;
       }
-      const rollNo = parseInt(s['Class Roll No'] || s.classRollNo || s.rollNo, 10);
-      if (!isNaN(rollNo)) rollStmtMap[rollKey].rolls.push(rollNo);
+
+      // Comprehensive roll number extraction across all field name variations
+      const rawRoll = String(
+        s?.classRollNo ||
+        s?.['Class Roll No'] ||
+        s?.['Class Roll No.'] ||
+        s?.['RL. NO.'] ||
+        s?.['RL. NO'] ||
+        s?.['Class R.No.'] ||
+        s?.['Class R.No'] ||
+        s?.rollNo ||
+        s?.['Roll No.'] ||
+        s?.['Roll No'] ||
+        s?.roll_no ||
+        s?.roll ||
+        ''
+      ).trim();
+
+      const match = rawRoll.match(/\d+/);
+      if (match) {
+        const parsed = parseInt(match[0], 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          rollStmtMap[rollKey].rolls.push(parsed);
+        }
+      }
     });
 
     const totalStudents = filteredStudents.length;
     const sortedSubjects = Object.values(subjectMap).sort((a, b) => b.total - a.total);
-    const sortedStreams = Object.values(streamMap).sort((a, b) => b.total - a.total);
+    const sortedStreams = Object.values(streamMap).sort((a, b) => {
+      const clsCompare = String(a.className).localeCompare(String(b.className), undefined, { numeric: true });
+      if (clsCompare !== 0) return clsCompare;
+      return b.total - a.total;
+    });
     const sortedClasses = Object.values(classMap).sort((a, b) => a.className.localeCompare(b.className));
     const sortedRollStmts = Object.values(rollStmtMap).map((r) => {
-      r.rolls.sort((a, b) => a - b);
-      const minRoll = r.rolls.length > 0 ? r.rolls[0] : '-';
-      const maxRoll = r.rolls.length > 0 ? r.rolls[r.rolls.length - 1] : '-';
-      r.rollRange = r.rolls.length > 0 ? `${minRoll} - ${maxRoll}` : 'Not Assigned';
+      const uniqueRolls = Array.from(new Set(r.rolls)).sort((a, b) => a - b);
+      r.rolls = uniqueRolls;
+      const minRoll = uniqueRolls.length > 0 ? uniqueRolls[0] : '-';
+      const maxRoll = uniqueRolls.length > 0 ? uniqueRolls[uniqueRolls.length - 1] : '-';
+      r.rollRange = uniqueRolls.length > 0 ? `${minRoll} - ${maxRoll}` : 'Not Assigned';
       return r;
     });
 

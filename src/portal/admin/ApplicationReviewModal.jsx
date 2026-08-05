@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, XCircle, Unlock, Download, User, Phone, BookOpen, GraduationCap, MapPin, RefreshCw, Camera, Upload } from 'lucide-react';
+import { X, CheckCircle2, XCircle, Unlock, Download, User, Phone, BookOpen, GraduationCap, MapPin, RefreshCw, Camera, Upload, Eye } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { compressImageFile } from '../../utils/imageCompressor';
+import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
 
 export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [rejecting, setRejecting] = useState(false);
@@ -369,15 +370,27 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={actionLoading}
-              className="px-4 py-2.5 rounded-xl font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-              style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-            >
-              {actionLoading ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />} Download PDF
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => generateStudentAdmissionPdf(app)}
+                disabled={actionLoading}
+                className="px-3.5 py-2 rounded-xl font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs"
+                style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+              >
+                <Eye size={14} className="text-teal-600 dark:text-teal-400" /> View PDF
+              </button>
+
+              <button
+                type="button"
+                onClick={() => downloadStudentAdmissionPdf(app)}
+                disabled={actionLoading}
+                className="px-3.5 py-2 rounded-xl font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs"
+                style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+              >
+                <Download size={14} className="text-emerald-600 dark:text-emerald-400" /> Download PDF
+              </button>
+            </div>
 
             <div className="flex items-center gap-2">
               <button
