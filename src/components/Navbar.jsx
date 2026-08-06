@@ -350,10 +350,9 @@ export default function Navbar() {
               ) : (
                 <Link
                   to="/portal/login"
-                  className="px-4 py-2 text-xs font-black rounded-xl text-white shadow-md transition-all duration-200 flex items-center gap-2 cursor-pointer border"
+                  className="px-4 py-2 text-xs font-black rounded-xl text-white shadow-md transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none border-0"
                   style={{
                     backgroundColor: 'var(--teal-accent, #00674F)',
-                    borderColor: 'var(--teal-accent, #00674F)',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = 'var(--teal-accent-hover, #004d3b)';
@@ -364,7 +363,7 @@ export default function Navbar() {
                   title="Student & Staff Login Portal"
                 >
                   <Lock size={13} className="stroke-[2.5]" />
-                  <span>Portal Login</span>
+                  <span>Login</span>
                 </Link>
               )}
             </div>
