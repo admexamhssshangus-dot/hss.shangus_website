@@ -185,6 +185,8 @@ export default function Navbar() {
   };
 
   const location = useLocation();
+  const isAwayFromDashboard = currentUser && !location.pathname.startsWith('/portal/admin') && !location.pathname.startsWith('/portal/teacher') && !location.pathname.startsWith('/portal/student') && !location.pathname.startsWith('/admin');
+
   function isActive(path) {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
@@ -281,6 +283,92 @@ export default function Navbar() {
               </div>
             </Link>
 
+            {/* Desktop Actions & Portal Login Button */}
+            <div className="hidden md:flex items-center gap-3">
+              {currentUser ? (
+                <div
+                  className="flex items-center gap-2 p-1 rounded-2xl border shadow-sm transition-colors duration-200"
+                  style={{
+                    backgroundColor: 'var(--bg-card, #ffffff)',
+                    borderColor: 'var(--border-ui, #cbd5e1)',
+                  }}
+                >
+                  <Link
+                    to={getDashboardPath(currentUser.role)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-extrabold text-xs shadow-sm transition-all duration-200 text-white ${
+                      isAwayFromDashboard ? 'ring-2 ring-amber-400/80 shadow-xs' : ''
+                    }`}
+                    style={{
+                      backgroundColor: 'var(--teal-accent, #00674F)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--teal-accent-hover, #004d3b)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--teal-accent, #00674F)';
+                    }}
+                    title={`Dashboard (${currentUser.role}) — Click to return to active workspace`}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <User size={14} className="stroke-[2.5]" />
+                      {isAwayFromDashboard && (
+                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400 border border-slate-900 shadow-2xs"></span>
+                        </span>
+                      )}
+                    </div>
+                    <span className="tracking-tight">{currentUser.name ? currentUser.name.split(' ')[0] : 'Dashboard'}</span>
+                    <span className="text-[10px] font-bold opacity-90 bg-black/20 px-1.5 py-0.2 rounded-md">
+                      ({currentUser.role === 'SuperAdmin' ? 'Admin' : currentUser.role})
+                    </span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleGlobalLogout}
+                    className="p-1.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center justify-center"
+                    style={{
+                      borderColor: 'var(--border-ui, #cbd5e1)',
+                      color: 'var(--text-muted, #64748b)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#dc2626';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = '#dc2626';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-muted, #64748b)';
+                      e.currentTarget.style.borderColor = 'var(--border-ui, #cbd5e1)';
+                    }}
+                    title="Sign Out of Session"
+                  >
+                    <LogOut size={15} className="stroke-[2.5]" />
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/portal/login"
+                  className="px-4 py-2 text-xs font-black rounded-xl text-white shadow-md transition-all duration-200 flex items-center gap-2 cursor-pointer border"
+                  style={{
+                    backgroundColor: 'var(--teal-accent, #00674F)',
+                    borderColor: 'var(--teal-accent, #00674F)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--teal-accent-hover, #004d3b)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--teal-accent, #00674F)';
+                  }}
+                  title="Student & Staff Login Portal"
+                >
+                  <Lock size={13} className="stroke-[2.5]" />
+                  <span>Portal Login</span>
+                </Link>
+              )}
+            </div>
+
             {/* Mobile top right actions: Hamburger Menu */}
             <div className="md:hidden flex items-center gap-2">
               <button
@@ -317,68 +405,7 @@ export default function Navbar() {
                 ))}
               </div>
 
-              {/* Login Link Area (Desktop) */}
-              <div className="hidden md:flex ml-2 md:ml-4 pl-2 md:pl-4 md:border-l border-slate-600/80 items-center h-full py-0.5">
-                {currentUser ? (
-                  <div className="inline-flex items-center gap-1.5 py-0.5 px-1.5 rounded-full border shadow-md" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
-                    {/* User avatar + name → animated dashboard redirect link */}
-                    <Link
-                      to={getDashboardPath(currentUser.role)}
-                      className="flex items-center gap-1.5 group cursor-pointer relative px-2 py-0.5 rounded-full hover:bg-slate-800/80 transition-all duration-300 hover:ring-2 hover:ring-teal-400/60"
-                      title={`Signed in as ${currentUser.name || currentUser.email}. Click to return to Admin Dashboard.`}
-                    >
-                      <div className="relative flex items-center justify-center shrink-0">
-                        {/* Pulsing outer aura active ONLY when outside dashboard to signal click to return */}
-                        {!location.pathname.startsWith('/portal/admin') && !location.pathname.startsWith('/admin') && (
-                          <span className="absolute inline-flex h-5 w-5 rounded-full bg-teal-400 opacity-60 animate-ping"></span>
-                        )}
-                        <div className="relative w-5 h-5 rounded-full flex items-center justify-center font-black text-[9.5px] shrink-0 shadow-sm transition-transform group-hover:scale-110" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
-                          {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-black text-white group-hover:text-teal-300 transition-colors max-w-[150px] truncate leading-none flex items-center gap-0.5">
-                        {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
-                        <span className="text-[8px] font-extrabold text-teal-400 ml-0.5">
-                          ({currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')})
-                        </span>
-                      </span>
-                      <ShieldCheck size={11} className="text-teal-400 group-hover:translate-x-0.5 group-hover:scale-110 transition-all ml-0.5" />
-                    </Link>
-                    {/* Logout — white button with black text, hover to red background with white text */}
-                    <button
-                      onClick={handleGlobalLogout}
-                      title="Sign Out"
-                      className="px-2.5 py-1 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95"
-                      style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = '#dc2626';
-                        e.currentTarget.style.color = '#ffffff';
-                        e.currentTarget.style.borderColor = '#dc2626';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = '#ffffff';
-                        e.currentTarget.style.color = '#000000';
-                        e.currentTarget.style.borderColor = '#cbd5e1';
-                      }}
-                    >
-                      <LogOut size={10} className="stroke-[2.5]" />
-                      <span>Logout</span>
-                    </button>
-                  </div>
-                ) : (
-                  <Link
-                    to="/portal/login"
-                    className="px-2.5 py-1 text-[11px] font-black rounded-full transition-all duration-200 inline-flex items-center gap-1 shadow-xs hover:shadow-md hover:scale-105 active:scale-95 group"
-                    style={{ backgroundColor: '#0f766e', color: '#fff', border: '1px solid #0d9488' }}
-                    title="Student & Staff Login Portal"
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#0d9488'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0f766e'; }}
-                  >
-                    <Lock size={10} className="stroke-[2.5] transition-transform duration-200 group-hover:-rotate-12" />
-                    Login
-                  </Link>
-                )}
-              </div>
+
 
               {/* Admin Lock Portal Button at Far Right Extreme (Desktop Only) */}
               <div className="hidden md:flex absolute right-0 items-center h-full py-0.5">

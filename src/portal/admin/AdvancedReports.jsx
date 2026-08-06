@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2 } from 'lucide-react';
+import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2, Building2 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -864,7 +864,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
     });
   };
 
-  const handleSendWhatsApp = (e) => {
+  const handleSendWhatsApp = async (e) => {
     e.stopPropagation();
     setIsOpen(false);
     const rawMob = String(student?.mobile || student?.["Student's Contact"] || '').replace(/\D/g, '');
@@ -880,8 +880,31 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
       return;
     }
     const cleanMob = rawMob.length === 10 ? `91${rawMob}` : rawMob;
-    const text = encodeURIComponent(`Hello ${student?.studentName}, regarding your Admission Application (Form #${student?.formNo || ''}) at HSS Shangus: Current Status is ${student?.status || 'Submitted'}.`);
-    window.open(`https://wa.me/${cleanMob}?text=${text}`, '_blank');
+
+    // 1. Trigger clean local PDF generation & download
+    try {
+      await downloadStudentAdmissionPdf(student);
+    } catch (pdfErr) {
+      console.error('WhatsApp PDF download error:', pdfErr);
+    }
+
+    const msgText = `Hello ${student?.studentName || 'Student'}, regarding your Admission Application (Form #${student?.formNo || ''}) at Govt. HSS Shangus:\n\n📌 Application Status: ${student?.status || 'Submitted'}\n📄 Form PDF: Downloaded to your device.\n\nThank you,\nGovt. HSS Shangus Administration`;
+    const text = encodeURIComponent(msgText);
+    
+    // 2. Direct launch: Attempt opening installed WhatsApp application directly first
+    const appUrl = `whatsapp://send?phone=${cleanMob}&text=${text}`;
+    const webUrl = `https://api.whatsapp.com/send?phone=${cleanMob}&text=${text}`;
+
+    const start = Date.now();
+    // Try opening deep-link protocol for installed desktop/mobile app
+    window.location.href = appUrl;
+
+    setTimeout(() => {
+      // If app protocol was not handled within 1200ms, open in WhatsApp Web browser tab
+      if (Date.now() - start < 2000) {
+        window.open(webUrl, '_blank');
+      }
+    }, 1000);
   };
 
   const handleAssignRollNo = (e) => {
@@ -1061,7 +1084,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
                 setIsOpen(false);
                 if (onViewEdit) onViewEdit(student);
               }}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-indigo-500/15 dark:hover:bg-indigo-500/25 border border-transparent hover:border-indigo-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <Eye size={13} className="text-indigo-600 dark:text-indigo-400" />
               <span>View / Edit Record</span>
@@ -1070,7 +1093,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handleUnlock}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-transparent hover:border-amber-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <Unlock size={13} className="text-amber-600 dark:text-amber-400" />
               <span>Unlock for Edit</span>
@@ -1079,7 +1102,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handleAssignRollNo}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-teal-500/15 dark:hover:bg-teal-500/25 border border-transparent hover:border-teal-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <Hash size={13} className="text-teal-600 dark:text-teal-400" />
               <span>Assign Class Roll No</span>
@@ -1088,25 +1111,16 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handlePdfView}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-emerald-500/15 dark:hover:bg-emerald-500/25 border border-transparent hover:border-emerald-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
-              <Eye size={13} className="text-teal-600 dark:text-teal-400" />
-              <span>View PDF (Print Preview)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePdfDownload}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
-            >
-              <Download size={13} className="text-emerald-600 dark:text-emerald-400" />
-              <span>Download PDF File</span>
+              <Printer size={13} className="text-emerald-600 dark:text-emerald-400" />
+              <span>Print PDF</span>
             </button>
 
             <button
               type="button"
               onClick={handleViewHistory}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-purple-500/15 dark:hover:bg-purple-500/25 border border-transparent hover:border-purple-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <History size={13} className="text-purple-600 dark:text-purple-400" />
               <span>View Activity History</span>
@@ -1115,7 +1129,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handleSendPassword}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-blue-500/15 dark:hover:bg-blue-500/25 border border-transparent hover:border-blue-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <Key size={13} className="text-blue-600 dark:text-blue-400" />
               <span>Send Password</span>
@@ -1124,7 +1138,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handleSendWhatsApp}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-emerald-500/15 dark:hover:bg-emerald-500/25 border border-transparent hover:border-emerald-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <MessageSquare size={13} className="text-emerald-600 dark:text-emerald-400" />
               <span>Send WhatsApp</span>
@@ -1133,7 +1147,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handleReject}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-rose-700 dark:text-rose-400 cursor-pointer font-extrabold"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/15 dark:hover:bg-rose-500/25 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
             >
               <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
               <span>Reject Application</span>
@@ -1142,7 +1156,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             <button
               type="button"
               onClick={handleDelete}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-red-50 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 cursor-pointer font-extrabold border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1"
+              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-red-500/20 dark:hover:bg-red-500/30 border border-transparent hover:border-red-500/30 text-red-600 dark:text-red-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01] border-t border-slate-100 dark:border-slate-800 pt-1.5 mt-1"
             >
               <Trash2 size={13} className="text-red-600 dark:text-red-400" />
               <span>Delete Record</span>
@@ -2388,9 +2402,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]);
-  // Default sort: Recency in online submission (newest submission first)
+  // Default sort: Ascending order
   const [sortBy, setSortBy] = useState('onlineSubmDate');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   // Layout & Density States (with LocalStorage Persistence)
   const [density, setDensity] = useState(() => {

@@ -74,17 +74,21 @@ export default function ThemeSelector() {
 
           <div
             className="mb-1 z-50 rounded-2xl shadow-2xl border overflow-hidden w-48 animate-fadeIn"
-            style={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }}
+            style={{
+              backgroundColor: currentTheme === 'light' ? '#ffffff' : '#0f172a',
+              borderColor: currentTheme === 'light' ? '#e2e8f0' : '#334155',
+              color: currentTheme === 'light' ? '#0f172a' : '#f8fafc'
+            }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: '#334155' }}>
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#94a3b8' }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: currentTheme === 'light' ? '#e2e8f0' : '#334155' }}>
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: currentTheme === 'light' ? '#64748b' : '#94a3b8' }}>
                 Choose Theme
               </span>
               <button
                 onClick={() => setIsOpen(false)}
                 className="transition-colors cursor-pointer p-0.5"
-                style={{ color: '#94a3b8' }}
+                style={{ color: currentTheme === 'light' ? '#64748b' : '#94a3b8' }}
               >
                 <X size={12} />
               </button>
@@ -94,18 +98,21 @@ export default function ThemeSelector() {
             <div className="p-1.5 space-y-1">
               {themes.map((t) => {
                 const isActive = currentTheme === t.id;
+                const isLight = currentTheme === 'light';
                 return (
                   <button
                     key={t.id}
                     onClick={() => handleSelect(t.id)}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all cursor-pointer ${
-                      isActive ? 'bg-slate-800 shadow-sm border border-slate-700' : 'hover:bg-slate-800/60'
+                      isActive 
+                        ? (isLight ? 'bg-slate-100 shadow-xs border border-slate-200' : 'bg-slate-800 shadow-sm border border-slate-700') 
+                        : (isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60')
                     }`}
-                    style={{ color: isActive ? '#ffffff' : '#e2e8f0' }}
+                    style={{ color: isActive ? (isLight ? '#0f172a' : '#ffffff') : (isLight ? '#475569' : '#e2e8f0') }}
                   >
                     {/* Color swatch */}
                     <span
-                      className="w-4 h-4 rounded-full border border-white/30 flex-shrink-0 relative shadow-xs"
+                      className={`w-4 h-4 rounded-full flex-shrink-0 relative shadow-xs ${isLight ? 'border border-slate-200' : 'border border-white/30'}`}
                       style={{ backgroundColor: t.color }}
                     >
                       <span
@@ -120,11 +127,11 @@ export default function ThemeSelector() {
                     </span>
                     <span
                       className="text-xs font-black flex-1"
-                      style={{ color: isActive ? '#ffffff' : '#e2e8f0' }}
+                      style={{ color: isActive ? (isLight ? '#0f172a' : '#ffffff') : (isLight ? '#475569' : '#e2e8f0') }}
                     >
                       {t.name}
                     </span>
-                    {isActive && <Check size={13} className="text-teal-400 flex-shrink-0 font-black" />}
+                    {isActive && <Check size={13} className={`${isLight ? 'text-teal-600' : 'text-teal-400'} flex-shrink-0 font-black`} />}
                   </button>
                 );
               })}
