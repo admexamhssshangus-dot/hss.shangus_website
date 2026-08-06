@@ -372,12 +372,12 @@ export default function Footer() {
                   </div>
                 </div>
 
-                {/* Hero / Founder Spotlight Card */}
+                {/* Hero / Company Profile Spotlight Card */}
                 <div className="rounded-2xl bg-gradient-to-br from-teal-50/80 via-slate-50 to-emerald-50/80 p-4 md:p-5 border border-teal-200/80 shadow-xs space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-teal-800">
                       <Sparkles size={14} className="text-teal-600" />
-                      Founder & Engineering Leadership
+                      Company Profile & Overview
                     </span>
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-700 bg-teal-100/70 px-2.5 py-0.5 rounded-full border border-teal-200">
                       <MapPin size={10} className="text-teal-600" />
@@ -385,14 +385,14 @@ export default function Footer() {
                     </span>
                   </div>
 
-                  <p className="text-xs md:text-sm leading-relaxed text-slate-800">
-                    <strong className="text-slate-950 font-bold">NexLifTech</strong> is a digital transformation & web development services company founded by <strong className="text-teal-900 font-bold">Sheikh Gulfam</strong>. He brings a unique scientific & analytical background to software engineering—having worked as <strong className="text-slate-900 font-semibold">an educator and researcher</strong> before transitioning into full-stack software development, database architecture, and automation.
+                  <p className="text-xs md:text-sm leading-relaxed text-slate-800 font-medium">
+                    <strong className="text-slate-950 font-bold">NexLifTech</strong> is a premier digital transformation and web development services agency. We specialize in building high-performance, secure, and scalable web applications, custom enterprise ERP platforms, robust cloud database solutions, and intelligent workflow automation systems tailored to drive efficiency and modern growth.
                   </p>
 
                   {/* Badges / Credentials */}
                   <div className="pt-2 border-t border-teal-200/60 flex flex-wrap gap-1.5 text-[10px] font-bold">
                     <span className="px-2.5 py-1 rounded-lg bg-teal-100/80 text-teal-900 border border-teal-300/80 flex items-center gap-1">
-                      <Cpu size={11} className="text-teal-700" /> PhD Research (CSIR-IIIM Jammu)
+                      <Cpu size={11} className="text-teal-700" /> Enterprise ERP Solutions
                     </span>
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 text-emerald-900 border border-emerald-300/80 flex items-center gap-1">
                       <Code size={11} className="text-emerald-700" /> Full-Stack & Automation

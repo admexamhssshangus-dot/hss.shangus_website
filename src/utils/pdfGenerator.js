@@ -131,7 +131,10 @@ export function buildStudentFormHtml(studentData, options = {}) {
 
   // Current & Previous Class Info
   const classSought = studentData["Admission sought for class"] || studentData["Class"] || studentData['class'] || 'N/A';
-  const stream = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"] || studentData["Stream & Subjects for Class 12th"] || studentData["Stream"] || studentData['stream'] || 'General';
+  const is12th = String(classSought).includes('12');
+  const stream12th = studentData["Stream opted in Class 11th"] || studentData["Stream Studied in Class 11th"] || studentData["Stream & Subjects for Class 12th"] || studentData["Stream for Class 12th"];
+  const stream11th = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"];
+  const stream = (is12th ? (stream12th || stream11th) : stream11th) || studentData["Stream"] || studentData['stream'] || 'General';
   const subjects = studentData["Subjects to be taken in Class 11th"] || studentData["Subjects Studied in Class 11th"] || studentData["Subjects to be taken in Class 10th"] || studentData["Subjects Studied in Class 10th"] || studentData["Subs"] || studentData["Subjects"] || studentData['subjects'] || 'N/A';
   const photoUrl = studentData["Student Photo"] || studentData["photo_id"] || studentData["photoUrl"] || studentData["photo"] || '/logo.png';
   const rollNo = studentData["Class Roll No"] || studentData["rollNo"] || studentData["Class R.No."] || '—';
@@ -160,6 +163,23 @@ export function buildStudentFormHtml(studentData, options = {}) {
 
   const rawSubmDate = studentData["submittedAt"] || studentData["Submission Date"] || studentData["created_at"];
   const formattedSubmDate = formatDateTimeDDMMMYYYY(rawSubmDate);
+
+  // Generate dynamic QR Code containing official student verification & payment payload
+  const qrPayloadText = `GOVT. HIGHER SECONDARY SCHOOL SHANGUS
+OFFICIAL ADMISSION RECORD & VERIFICATION
+Form No: ${formNo}
+Session: ${session}
+Name: ${name}
+Father: ${fatherName}
+Class: ${classSought} (${stream})
+Mobile: ${mobile}
+Aadhaar: ${aadhaar}
+Roll No: ${rollNo} | Adm No: ${admNo}
+Payment Status: ${paymentStatus}
+Txn ID: ${txnId}
+Subm Date: ${formattedSubmDate}`;
+
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&data=${encodeURIComponent(qrPayloadText)}`;
 
   let html = '';
 
@@ -202,6 +222,15 @@ export function buildStudentFormHtml(studentData, options = {}) {
         </table>
 
         <div class="top-row-grid">
+          <!-- Dynamic QR Code Column (Left) -->
+          <div class="qr-col">
+            <div class="qr-box">
+              <img src="${qrCodeUrl}" alt="Verification QR Code" class="qr-img" onerror="this.style.display='none';" />
+              <span class="qr-lbl">SCAN TO VERIFY</span>
+            </div>
+          </div>
+
+          <!-- Student Details Table (Center) -->
           <div class="details-left">
             <table class="grid-table border-table">
               <tr>
@@ -242,6 +271,8 @@ export function buildStudentFormHtml(studentData, options = {}) {
               </tr>
             </table>
           </div>
+
+          <!-- Student Passport Photo Column (Right) -->
           <div class="photo-col">
             <div class="photo-box">
               <img src="${photoUrl}" alt="Student Photo" onerror="this.src='/logo.png';" />
@@ -251,22 +282,22 @@ export function buildStudentFormHtml(studentData, options = {}) {
 
         <!-- Address & Residence -->
         <div class="section-heading">Residential Address & Financial Details</div>
-        <table class="grid-table border-table">
+        <table class="grid-table border-table address-fin-table">
           <tr>
-            <td class="lbl blue-lbl">House No. / Address:</td>
-            <td class="val">${houseNo}, ${village}</td>
-            <td class="lbl blue-lbl">Block & Tehsil:</td>
-            <td class="val">${block}, ${tehsil}</td>
-            <td class="lbl blue-lbl">District & State:</td>
-            <td class="val">${district}, ${stateUt} (${pin})</td>
+            <td class="lbl blue-lbl flex-lbl">House No. /<br/>Address:</td>
+            <td class="val address-val">${houseNo}, ${village}</td>
+            <td class="lbl blue-lbl flex-lbl">Block &<br/>Tehsil:</td>
+            <td class="val address-val">${block}, ${tehsil}</td>
+            <td class="lbl blue-lbl flex-lbl">District &<br/>State:</td>
+            <td class="val address-val">${district}, ${stateUt} (${pin})</td>
           </tr>
           <tr>
-            <td class="lbl blue-lbl">Email / Blood / Ht-Wt:</td>
-            <td class="val">${email !== 'N/A' ? email : '—'} | ${bloodGroup} | ${height}/${weight}</td>
-            <td class="lbl blue-lbl">Bank Account & IFSC:</td>
-            <td class="val bold-mono">${bankAcc} (${bankName} / ${ifsc})</td>
-            <td class="lbl blue-lbl">Scholarship / Disability:</td>
-            <td class="val">${scholarPrev === 'Yes' ? `${scholarType} (₹${scholarAmount})` : 'None'} | ${isDiffAbled === 'Yes' ? disabilityType : 'No'}</td>
+            <td class="lbl blue-lbl flex-lbl">Email / Blood<br/>/ Ht-Wt:</td>
+            <td class="val address-val">${email !== 'N/A' ? email : '—'} | ${bloodGroup} | ${height}/${weight}</td>
+            <td class="lbl blue-lbl flex-lbl">Bank Account<br/>& IFSC:</td>
+            <td class="val bold-mono address-val">${bankAcc} (${bankName} / ${ifsc})</td>
+            <td class="lbl blue-lbl flex-lbl">Scholarship /<br/>Disability:</td>
+            <td class="val address-val">${scholarPrev === 'Yes' ? `${scholarType} (₹${scholarAmount})` : 'None'} | ${isDiffAbled === 'Yes' ? disabilityType : 'No'}</td>
           </tr>
         </table>
 
@@ -316,12 +347,12 @@ export function buildStudentFormHtml(studentData, options = {}) {
         <div class="section-heading">Class & Subject Allocation</div>
         <table class="grid-table border-table">
           <tr>
-            <td class="lbl blue-lbl">Admission Class:</td>
-            <td class="val bold-txt">Class ${classSought}</td>
-            <td class="lbl blue-lbl">Stream Opted:</td>
-            <td class="val bold-txt">${stream}</td>
-            <td class="lbl blue-lbl">Identification Mark:</td>
-            <td class="val">${idMark}</td>
+            <td class="lbl blue-lbl" style="width: 12%;">Admission Class:</td>
+            <td class="val bold-txt" style="width: 10%;">Class ${classSought}</td>
+            <td class="lbl blue-lbl" style="width: 11%;">Stream Opted:</td>
+            <td class="val bold-txt" style="width: 12%;">${stream}</td>
+            <td class="lbl blue-lbl" style="width: 14%;">Identification Mark:</td>
+            <td class="val" style="width: 41%; font-weight: bold;">${idMark}</td>
           </tr>
           <tr>
             <td class="lbl blue-lbl">Subjects Offered:</td>
@@ -376,24 +407,24 @@ export function buildStudentFormHtml(studentData, options = {}) {
         ` : `
           <!-- Consolidated Declaration of Conduct, Anti-Drug Policy & Parent Undertaking -->
           <div class="section-heading">Declaration of Conduct, Anti-Drug Policy & Parent Undertaking</div>
-          <div class="compact-decl-box" style="font-size: 8.8px; line-height: 1.38; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 6px; color: #1e293b; background: #f8fafc;">
-            <div style="font-weight: 800; color: #0f766e; margin-bottom: 2px; text-transform: uppercase; font-size: 9px;">
+          <div class="compact-decl-box" style="font-size: 7.8px; line-height: 1.28; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 4px; color: #1e293b; background: #f8fafc;">
+            <div style="font-weight: 800; color: #0f766e; margin-bottom: 1.5px; text-transform: uppercase; font-size: 8px;">
               1. Declaration by Student:
             </div>
             I, <strong>${name}</strong> (Form No: <strong>${formNo}</strong>), declare that all particulars given above are true, correct, and complete. I undertake to strictly obey all rules and regulations of Govt. HSS Shangus and maintain high standards of academic discipline and moral conduct.
-            <div style="font-weight: 800; color: #15803d; margin: 4px 0 2px 0; text-transform: uppercase; font-size: 9px;">
+            <div style="font-weight: 800; color: #15803d; margin: 3px 0 1.5px 0; text-transform: uppercase; font-size: 8px;">
               2. Declaration by Parent / Guardian:
             </div>
             I, <strong>${fatherName}</strong>, hereby request admission for my ward <strong>${name}</strong>. I take full responsibility for his/her conduct, attendance, and moral behavior both inside and outside the institution, and agree to pay all institutional fees.
-            <div style="background: #fff1f2; border: 1px solid #fecdd3; border-left: 3.5px solid #e11d48; padding: 5px 8px; border-radius: 3px; margin-top: 4px;">
-              <div style="font-weight: 800; color: #b91c1c; margin-bottom: 1.5px; text-transform: uppercase; font-size: 8.5px;">
+            <div style="background: #fff1f2; border: 1px solid #fecdd3; border-left: 3px solid #e11d48; padding: 4px 6px; border-radius: 3px; margin-top: 3px;">
+              <div style="font-weight: 800; color: #b91c1c; margin-bottom: 1px; text-transform: uppercase; font-size: 7.8px;">
                 3. Anti-Drug, Anti-Smoking & Cell-Phone Ban Undertaking on Oath:
               </div>
               I, <strong>${name}</strong>, do hereby solemnly declare on oath that I shall <strong style="color: #dc2626;">STRICTLY ABSTAIN</strong> from smoking, tobacco, narcotics, illicit drugs, psychotropic substances, or alcohol. Any violation will result in <strong style="color: #dc2626;">IMMEDIATE REVOCATION OF ADMISSION and legal/police proceedings</strong>. Unauthorized <strong style="color: #dc2626;">cell phones are strictly prohibited</strong> on school grounds and will be <strong style="color: #dc2626;">permanently impounded</strong> without return.
             </div>
           </div>
 
-          <div class="signatures-row" style="margin-top: 48px; margin-bottom: 8px;">
+          <div class="signatures-row" style="margin-top: 25px; margin-bottom: 6px;">
             <div class="sig-block">Signature of Student</div>
             <div class="sig-block">Signature of Parent/Guardian</div>
             <div class="sig-block">Sig. of I/C Exam</div>
@@ -427,12 +458,12 @@ export function buildStudentFormHtml(studentData, options = {}) {
           </div>
         </div>
 
-        <div class="borrower-strip">
+        <div class="borrower-strip" style="margin-bottom: 12px;">
           <span>Session: <strong>${session}</strong> (Form No.: <strong>${formNo}</strong>)</span>
           <span class="borrower-box">BORROWER CARD NO: _______________________</span>
         </div>
 
-        <h2 class="library-main-title">LIBRARY MEMBERSHIP & BOOK ISSUE LEDGER</h2>
+        <h2 class="library-main-title" style="margin-top: 10px; margin-bottom: 12px;">LIBRARY MEMBERSHIP & BOOK ISSUE LEDGER</h2>
 
         <div class="library-student-card">
           <table class="grid-table border-table">
@@ -464,8 +495,8 @@ export function buildStudentFormHtml(studentData, options = {}) {
           </table>
         </div>
 
-        <!-- Book Log Table (Spacious 31px cells for manual librarian entry) -->
-        <div class="section-heading" style="margin-top: 14px;">Book Issue & Return Log (Librarian Handwriting Register)</div>
+        <!-- Book Log Table (Spacious 50px cells for manual librarian entry) -->
+        <div class="section-heading" style="margin-top: 10px;">Book Issue & Return Log (Librarian Handwriting Register)</div>
         <table class="grid-table library-spacious-table">
           <thead>
             <tr>
@@ -490,7 +521,7 @@ export function buildStudentFormHtml(studentData, options = {}) {
           </tbody>
         </table>
 
-        <div class="signatures-row" style="margin-top: 14px; margin-bottom: 6px;">
+        <div class="signatures-row" style="margin-top: 34px; margin-bottom: 6px;">
           <div class="sig-block">Signature of Student</div>
           <div class="sig-block">Signature of Librarian</div>
           <div class="sig-block red-txt font-bold">Principal Signature</div>
@@ -593,12 +624,12 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
         * { box-sizing: border-box; }
         body {
           font-family: Arial, Helvetica, sans-serif;
-          font-size: 10px;
+          font-size: 10.5px;
           color: #0f172a;
           background: #ffffff;
           margin: 0;
           padding: 0;
-          line-height: 1.3;
+          line-height: 1.32;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
@@ -654,9 +685,9 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
             padding: 8px !important;
             border: 1px solid #0f766e !important;
           }
-          .grid-table { font-size: 8.5px !important; }
-          .school-title { font-size: 15px !important; }
-          .form-title-bar { font-size: 10px !important; }
+          .grid-table { font-size: 9px !important; }
+          .school-title { font-size: 16px !important; }
+          .form-title-bar { font-size: 11px !important; }
           .signatures-row { flex-wrap: wrap; gap: 10px; }
           .sig-block { width: 48% !important; }
         }
@@ -677,25 +708,25 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
         .header-text-col { width: 100%; text-align: center; }
         .school-title {
           display: block;
-          font-size: 19px;
+          font-size: 20px;
           font-weight: 900;
           color: #0f766e;
           margin: 0 0 2px 0;
           text-transform: uppercase;
           letter-spacing: 0.4px;
         }
-        .font-lg { font-size: 21px !important; }
-        .school-sub { display: block; font-size: 10.5px; font-weight: bold; color: #334155; margin: 0 0 2px 0; }
-        .school-badge { display: block; font-size: 9.5px; color: #475569; margin: 0; }
+        .font-lg { font-size: 22px !important; }
+        .school-sub { display: block; font-size: 11px; font-weight: bold; color: #334155; margin: 0 0 2px 0; }
+        .school-badge { display: block; font-size: 10px; color: #475569; margin: 0; }
 
-        .header-meta-col { text-align: right; font-size: 9px; }
+        .header-meta-col { text-align: right; font-size: 9.5px; }
         .meta-tag { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 1.5px 5px; border-radius: 3px; margin-bottom: 2px; }
 
         .form-title-bar {
           background: #0f766e;
           color: #ffffff;
           font-weight: 900;
-          font-size: 11.5px;
+          font-size: 12px;
           text-align: center;
           padding: 4px;
           border-radius: 4px;
@@ -704,21 +735,27 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
         }
 
         /* Grid & Table Utility */
-        .grid-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-        .grid-table td, .grid-table th { padding: 3px 5px; border: 1px solid #cbd5e1; vertical-align: middle; }
+        .grid-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .grid-table td, .grid-table th { padding: 3.5px 5px; border: 1px solid #cbd5e1; vertical-align: middle; }
         
-        .lbl { font-weight: bold; color: #1e293b; background: #f8fafc; white-space: nowrap; }
-        .blue-lbl { background: #f0f9ff; color: #0369a1; font-weight: bold; width: 18%; }
+        .lbl { font-weight: bold; color: #002147 !important; background: #f0f4f8 !important; white-space: nowrap; }
+        .blue-lbl { background: #eff6ff !important; color: #002147 !important; font-weight: bold; width: 18%; }
+        .flex-lbl { white-space: normal !important; word-break: break-word; line-height: 1.12; font-size: 8.5px; width: 10.5% !important; padding: 2.5px 3px !important; color: #002147 !important; background: #eff6ff !important; }
+        .address-val { width: 22.8% !important; }
         .val { background: #ffffff; color: #0f172a; }
         .bold-txt { font-weight: 900; color: #000000; }
-        .blue-txt { color: #0369a1; }
+        .blue-txt { color: #002147; }
         .teal-txt { color: #0f766e; font-weight: 900; }
         .red-txt { color: #b91c1c; }
         .bold-mono { font-family: monospace; font-weight: bold; }
 
-        .top-row-grid { display: flex; gap: 6px; margin-bottom: 4px; }
+        .top-row-grid { display: flex; gap: 6px; margin-bottom: 4px; align-items: stretch; }
+        .qr-col { width: 92px; text-align: center; flex-shrink: 0; }
+        .qr-box { width: 90px; height: 115px; border: 1.5px solid #0f766e; border-radius: 4px; padding: 3px 2px; background: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: space-between; box-sizing: border-box; }
+        .qr-img { width: 80px; height: 80px; object-fit: contain; }
+        .qr-lbl { font-size: 6.8px; font-weight: 900; color: #0f766e; text-transform: uppercase; letter-spacing: 0.3px; border-top: 1px dashed #cbd5e1; width: 100%; padding-top: 2px; }
         .details-left { flex: 1; }
-        .photo-col { width: 96px; text-align: center; }
+        .photo-col { width: 96px; text-align: center; flex-shrink: 0; }
         .photo-box { width: 92px; height: 115px; border: 2px solid #0f766e; border-radius: 4px; overflow: hidden; background: #f8fafc; }
         .photo-box img { width: 100%; height: 100%; object-fit: cover; }
         .photo-frame-library { width: 90px; height: 110px; border: 1.5px solid #0f766e; overflow: hidden; margin: 0 auto; }
@@ -728,7 +765,7 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
           background: #f1f5f9;
           color: #0f766e;
           font-weight: 900;
-          font-size: 10.5px;
+          font-size: 11px;
           padding: 4px 8px;
           border-left: 3.5px solid #0f766e;
           margin-top: 10px;
@@ -743,7 +780,7 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
         .checklist-grid {
           display: flex;
           justify-content: space-between;
-          font-size: 9.5px;
+          font-size: 10px;
           font-weight: bold;
           color: #1e293b;
           background: #fafafa;
@@ -753,15 +790,15 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
           margin-bottom: 5px;
         }
 
-        .history-table th { background: #e0f2fe; color: #0369a1; font-weight: bold; text-align: center; font-size: 9px; }
-        .history-table td { text-align: center; font-size: 9px; }
+        .history-table th { background: #e0f2fe; color: #0369a1; font-weight: bold; text-align: center; font-size: 9.5px; }
+        .history-table td { text-align: center; font-size: 9.5px; }
         .highlight-row td { background: #fff; }
 
         /* Undertaking & Signatures */
         .undertaking-compact { margin-top: 6px; border-top: 1px dashed #94a3b8; padding-top: 4px; }
-        .undertaking-txt { font-size: 9px; color: #334155; margin: 0 0 8px 0; line-height: 1.3; }
+        .undertaking-txt { font-size: 9.5px; color: #334155; margin: 0 0 8px 0; line-height: 1.3; }
         .signatures-row { display: flex; justify-content: space-between; margin-top: 20px; }
-        .sig-block { width: 23%; text-align: center; border-top: 1px dashed #64748b; padding-top: 3px; font-size: 9px; font-weight: bold; color: #334155; }
+        .sig-block { width: 23%; text-align: center; border-top: 1px dashed #64748b; padding-top: 3px; font-size: 9.5px; font-weight: bold; color: #334155; }
 
         .page-footer-bar {
           position: absolute;
@@ -772,7 +809,7 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
           justify-content: space-between;
           border-top: 1px solid #cbd5e1;
           padding-top: 2px;
-          font-size: 8.5px;
+          font-size: 9px;
           color: #64748b;
         }
 
@@ -868,13 +905,12 @@ function loadHtml2Pdf() {
   return _html2pdfLoadPromise;
 }
 
-/**
- * Generates a real PDF file from form HTML and triggers a direct browser file download
- * into the user's Downloads folder (without showing the print dialog).
- */
 async function generateAndDownloadPdf(bodyHtml, fileName, onProgress) {
   const safeFileName = fileName.toLowerCase().endsWith('.pdf') ? fileName : `${fileName}.pdf`;
   const fullDoc = wrapInPrintDocument(bodyHtml, fileName);
+
+  const prevScrollX = window.scrollX;
+  const prevScrollY = window.scrollY;
 
   try {
     if (onProgress) onProgress(15, 'Loading PDF engine...');
@@ -882,23 +918,32 @@ async function generateAndDownloadPdf(bodyHtml, fileName, onProgress) {
 
     if (onProgress) onProgress(35, 'Formatting pages for direct download...');
     
+    // Scroll window to (0,0) so html2canvas captures from origin without offset clipping
+    window.scrollTo(0, 0);
+
     const parsed = new DOMParser().parseFromString(fullDoc, 'text/html');
     const styleText = Array.from(parsed.querySelectorAll('style')).map((s) => s.textContent).join('\n');
     const bodyInnerHtml = parsed.body ? parsed.body.innerHTML : '';
 
     const container = document.createElement('div');
-    container.style.position = 'fixed';
+    container.id = 'pdf-render-capture-root';
+    container.style.position = 'absolute';
     container.style.top = '0';
     container.style.left = '0';
     container.style.width = '794px';
     container.style.background = '#ffffff';
-    container.style.zIndex = '99999';
+    container.style.zIndex = '999999';
     container.style.boxSizing = 'border-box';
+    container.style.opacity = '1';
+    container.style.visibility = 'visible';
 
     const styleEl = document.createElement('style');
-    // Unwrap @media print rules so html2canvas evaluates all page styling under screen mode
-    const screenFriendlyStyle = styleText.replace(/@media\s+print\s*\{([\s\S]*?)\}/gi, '$1');
-    styleEl.textContent = screenFriendlyStyle;
+    // Ensure all print page elements are forced visible under screen capture mode
+    const forceVisibleStyle = `${styleText.replace(/@media\s+print\s*\{([\s\S]*?)\}/gi, '$1')}
+      .print-page { display: block !important; visibility: visible !important; opacity: 1 !important; background: #ffffff !important; box-shadow: none !important; margin: 0 auto 10px auto !important; position: relative !important; }
+      .lbl, .blue-lbl, .flex-lbl { color: #0284c7 !important; background: #f0f9ff !important; font-weight: bold !important; }
+    `;
+    styleEl.textContent = forceVisibleStyle;
     container.appendChild(styleEl);
 
     const contentEl = document.createElement('div');
@@ -914,13 +959,13 @@ async function generateAndDownloadPdf(bodyHtml, fileName, onProgress) {
         if (allLoaded || attemptsLeft <= 0) resolve();
         else setTimeout(() => waitForImages(attemptsLeft - 1), 100);
       };
-      setTimeout(() => waitForImages(), 150);
+      setTimeout(() => waitForImages(), 200);
     });
 
     try {
       if (onProgress) onProgress(70, 'Saving PDF file to Downloads...');
       const opt = {
-        margin: 0,
+        margin: [4, 4, 4, 4],
         filename: safeFileName,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
@@ -928,9 +973,11 @@ async function generateAndDownloadPdf(bodyHtml, fileName, onProgress) {
           useCORS: true,
           allowTaint: true,
           logging: false,
-          windowWidth: 1000,
           scrollX: 0,
-          scrollY: 0
+          scrollY: 0,
+          windowWidth: 800,
+          x: 0,
+          y: 0
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] }
@@ -942,11 +989,11 @@ async function generateAndDownloadPdf(bodyHtml, fileName, onProgress) {
       if (document.body.contains(container)) {
         document.body.removeChild(container);
       }
+      window.scrollTo(prevScrollX, prevScrollY);
     }
   } catch (err) {
-    console.error('html2pdf direct download error, falling back to print stream:', err);
-    if (onProgress) onProgress(80, 'Opening print stream fallback...');
-    printHtmlViaIframe(fullDoc);
+    console.error('generateAndDownloadPdf direct download error:', err);
+    window.scrollTo(prevScrollX, prevScrollY);
   }
 }
 
@@ -1006,9 +1053,27 @@ function printHtmlViaIframe(htmlContent) {
  */
 export function generateStudentAdmissionPdf(studentData, options = {}) {
   if (!studentData) return;
+  const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || 'Form';
+  const rawName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['name'] || 'Student';
+  const cleanName = String(rawName).trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+  const docTitle = `Admission_Form_${formNo}_${cleanName}`;
+
   const htmlBody = buildStudentFormHtml(studentData, options);
-  const fullDocument = wrapInPrintDocument(htmlBody, `Admission_Form_${studentData['Form Number'] || 'Student'}`);
+  const fullDocument = wrapInPrintDocument(htmlBody, docTitle);
+  
+  // Temporarily set document.title so browser print dialog defaults to exact relevant file name
+  const originalTitle = document.title;
+  try {
+    document.title = docTitle;
+  } catch (e) {}
+
   printHtmlViaIframe(fullDocument);
+  
+  setTimeout(() => {
+    try {
+      document.title = originalTitle;
+    } catch (e) {}
+  }, 4000);
 }
 
 function showPdfProgressModal(title = 'Generating PDF Document', message = 'Formatting pages and preparing download...') {
@@ -1063,19 +1128,7 @@ function showPdfProgressModal(title = 'Generating PDF Document', message = 'Form
  */
 export async function downloadStudentAdmissionPdf(studentData, options = {}) {
   if (!studentData) return;
-  const htmlBody = buildStudentFormHtml(studentData, options);
-  const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || 'Form';
-  const studentName = String(studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['name'] || 'Student').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fileName = `Admission_Form_${formNo}_${studentName}`;
-
-  const progress = showPdfProgressModal('Downloading PDF Document', 'Formatting form and downloading file...');
-  try {
-    await generateAndDownloadPdf(htmlBody, fileName, (pct, msg) => progress.update(pct, msg));
-  } catch (err) {
-    console.error('PDF download error:', err);
-  } finally {
-    progress.close();
-  }
+  generateStudentAdmissionPdf(studentData, options);
 }
 
 /**
