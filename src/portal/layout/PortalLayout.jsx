@@ -266,12 +266,21 @@ export default function PortalLayout() {
   // ---------------------------------------------------------------------------
   if (sessionState.loading) {
     return (
-      <div className="portal-loading-screen">
-        <div className="portal-loader-content">
-          <div className="portal-spinner"></div>
-          <p style={{ color: 'var(--text-muted, #94a3b8)', marginTop: '1rem', fontSize: '0.9rem' }}>
-            Validating session...
-          </p>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-teal-50/50 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 font-sans">
+        <div className="relative w-20 h-20 mb-4 flex items-center justify-center">
+          <div className="absolute -inset-2 rounded-full border-3 border-transparent border-t-teal-600 border-r-cyan-600 border-b-purple-600 animate-spin" />
+          <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-lg p-1 border border-slate-200 dark:border-slate-800">
+            <img src="/logo.png" alt="Govt HSS Shangus" className="w-full h-full object-contain rounded-full" />
+          </div>
+        </div>
+        <h2 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-1">
+          Govt. Higher Secondary School Shangus
+        </h2>
+        <div className="text-[11px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-3 py-1 rounded-full border border-teal-200 dark:border-teal-800 mb-3">
+          Validating Security Credentials &amp; Session...
+        </div>
+        <div className="w-40 h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full animate-pulse" style={{ width: '70%' }} />
         </div>
       </div>
     );

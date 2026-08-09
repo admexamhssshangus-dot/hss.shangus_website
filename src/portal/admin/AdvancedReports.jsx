@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2, Building2 } from 'lucide-react';
+import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2, Building2 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
@@ -12,6 +12,8 @@ import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
+import ModernLoader from '../../components/ModernLoader';
+import AdminToolsDropdown from './AdminToolsDropdown';
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -121,8 +123,8 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full px-2 py-1 rounded-xl text-[11px] sm:text-xs font-black flex items-center justify-between gap-1 transition-all cursor-pointer shadow-sm ${!isAllSelected
-            ? 'bg-amber-700 text-white border border-amber-800'
-            : 'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:bg-slate-50'
+          ? 'bg-amber-700 text-white border border-amber-800'
+          : 'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:bg-slate-50'
           }`}
       >
         <span className="truncate flex-1 min-w-0 text-left">{displayText}</span>
@@ -238,8 +240,8 @@ function UnifiedFiltersGroupDropdown({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${totalActiveFilters > 0
-            ? 'bg-amber-700 text-white border border-amber-800'
-            : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
+          ? 'bg-amber-700 text-white border border-amber-800'
+          : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
           }`}
       >
         <span className="flex items-center gap-1">
@@ -586,6 +588,83 @@ const abbreviateSubjects = (str) => {
   return abbrParts.join(', ');
 };
 
+// Helper: Automatically convert DOB figures (e.g. 08-05-2011, 16-04-2008, 1996-01-01) to official DOB words
+const DAY_ORDINAL_WORDS = [
+  '', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth',
+  'Eleventh', 'Twelfth', 'Thirteenth', 'Fourteenth', 'Fifteenth', 'Sixteenth', 'Seventeenth', 'Eighteenth', 'Nineteenth', 'Twentieth',
+  'Twenty First', 'Twenty Second', 'Twenty Third', 'Twenty Fourth', 'Twenty Fifth', 'Twenty Sixth', 'Twenty Seventh', 'Twenty Eighth', 'Twenty Ninth', 'Thirtieth',
+  'Thirty First'
+];
+
+const MONTH_NAMES_WORDS = [
+  '', 'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+function numberToWordsSmall(n) {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  if (n < 20) return ones[n];
+  const rem = n % 10;
+  return tens[Math.floor(n / 10)] + (rem ? ' ' + ones[rem] : '');
+}
+
+function yearToWords(yearNum) {
+  if (yearNum >= 2000 && yearNum <= 2099) {
+    if (yearNum === 2000) return 'Two Thousand';
+    const rem = yearNum - 2000;
+    return 'Two Thousand ' + numberToWordsSmall(rem);
+  }
+  if (yearNum >= 1900 && yearNum <= 1999) {
+    const lastTwo = yearNum % 100;
+    if (lastTwo === 0) return 'Nineteen Hundred';
+    return 'Nineteen ' + numberToWordsSmall(lastTwo);
+  }
+  return String(yearNum);
+}
+
+function convertDobToWords(dobRaw) {
+  if (!dobRaw || dobRaw === '—' || dobRaw === 'N/A') return '';
+  const str = String(dobRaw).trim();
+
+  let day = 0, month = 0, year = 0;
+
+  // 1. Match DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+  let m = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (m) {
+    day = parseInt(m[1], 10);
+    month = parseInt(m[2], 10);
+    year = parseInt(m[3], 10);
+  } else {
+    // 2. Match YYYY-MM-DD or YYYY/MM/DD
+    m = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+    if (m) {
+      year = parseInt(m[1], 10);
+      month = parseInt(m[2], 10);
+      day = parseInt(m[3], 10);
+    } else {
+      // 3. Try Date parsing
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        day = d.getDate();
+        month = d.getMonth() + 1;
+        year = d.getFullYear();
+      }
+    }
+  }
+
+  if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= 2099) {
+    const dayWord = DAY_ORDINAL_WORDS[day];
+    const monthWord = MONTH_NAMES_WORDS[month];
+    const yearWord = yearToWords(year);
+    if (dayWord && monthWord && yearWord) {
+      return `${dayWord} of ${monthWord} ${yearWord}`;
+    }
+  }
+  return '';
+}
+
 // Smart Title Case Formatter for Names (Fixes AHmad, ahmad, AHMAD -> Ahmad)
 const formatProperName = (str) => {
   if (!str || typeof str !== 'string' || str === '—') return str || '—';
@@ -723,6 +802,101 @@ const formatStudentAdmNo = (rec) => {
   }
 
   return newAdm;
+};
+
+export const cleanFormNo = (val) => {
+  if (!val || val === '—') return '—';
+  return String(val).replace(/^'/, '').trim();
+};
+
+export const cleanRegNoVal = (val) => {
+  if (val === null || val === undefined) return '';
+  let s = String(val).trim();
+  if (!s || /^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) return '';
+
+  if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+    try {
+      const num = Number(s);
+      if (!isNaN(num) && num > 0 && typeof window !== 'undefined' && typeof window.BigInt === 'function') {
+        s = window.BigInt(Math.round(num)).toString();
+      } else {
+        const match = s.match(/^([+-]?\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+        if (match) {
+          let intPart = match[1];
+          let decPart = match[2] || '';
+          let exponent = parseInt(match[3], 10);
+          if (exponent > 0) {
+            s = decPart.length <= exponent ? intPart + decPart + '0'.repeat(exponent - decPart.length) : intPart + decPart.slice(0, exponent) + '.' + decPart.slice(exponent);
+          }
+        }
+      }
+    } catch (_) { }
+  }
+
+  return s.replace(/\.0+$/, '');
+};
+
+export const extractRegNo = (st) => {
+  if (!st) return '';
+  const raw = String(
+    st['Board Registration Number'] ||
+    st['Board Registration No. (Class 11th)'] ||
+    st['Board Registration No. (Class 10th)'] ||
+    st['Board Reg. No.'] ||
+    st['Board Reg No'] ||
+    st['Reg. No.'] ||
+    st['Reg No'] ||
+    st['Registration No'] ||
+    st['Registration Number'] ||
+    st.boardRegNo ||
+    st.regNo ||
+    st.registrationNo ||
+    ''
+  ).replace(/^(N\/A|—)$/i, '').trim();
+
+  return cleanRegNoVal(raw);
+};
+
+export const extractRegNoClean = (st) => {
+  const raw = extractRegNo(st);
+  if (!raw || raw === '—') return '';
+  return raw.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+};
+
+export const getStudentName = (st) => {
+  if (!st) return '';
+  return String(
+    st["Student's Name (as per school records)"] ||
+    st["Student's Name"] ||
+    st['Student Name'] ||
+    st['Name of Student'] ||
+    st['Account Name'] ||
+    st.studentName ||
+    st['Name'] ||
+    st['name'] ||
+    ''
+  ).replace(/^(N\/A|—)$/i, '').trim();
+};
+
+export const getFatherName = (st) => {
+  if (!st) return '';
+  return String(
+    st["Father's/Guardian's Name (as per school records)"] ||
+    st["Father's Name"] ||
+    st['Father Name'] ||
+    st.fatherName ||
+    st["Parent's Name"] ||
+    ''
+  ).replace(/^(N\/A|—)$/i, '').trim();
+};
+
+export const resolveAdmNo = (rec) => {
+  if (!rec) return '—';
+  const directFormat = formatStudentAdmNo(rec);
+  if (directFormat && directFormat !== '—' && directFormat.length > 0) return directFormat;
+  const raw = extractRawAdmNo(rec);
+  const cleaned = cleanAdmNoVal(raw);
+  return cleaned || '—';
 };
 
 // ─── Status Smart Action Dropdown Component ───
@@ -890,7 +1064,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
 
     const msgText = `Hello ${student?.studentName || 'Student'}, regarding your Admission Application (Form #${student?.formNo || ''}) at Govt. HSS Shangus:\n\n📌 Application Status: ${student?.status || 'Submitted'}\n📄 Form PDF: Downloaded to your device.\n\nThank you,\nGovt. HSS Shangus Administration`;
     const text = encodeURIComponent(msgText);
-    
+
     // 2. Direct launch: Attempt opening installed WhatsApp application directly first
     const appUrl = `whatsapp://send?phone=${cleanMob}&text=${text}`;
     const webUrl = `https://api.whatsapp.com/send?phone=${cleanMob}&text=${text}`;
@@ -997,34 +1171,60 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
     });
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleDelete = (e) => {
     e.stopPropagation();
     setIsOpen(false);
     setDialogConfig({
       type: 'confirm',
       title: 'Delete Student Record',
-      message: `Are you sure you want to PERMANENTLY DELETE student record for ${student?.studentName} (Form #${student?.formNo})? This action cannot be undone.`,
+      message: `Are you sure you want to PERMANENTLY DELETE student record for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'})? This action cannot be undone.`,
       icon: Trash2,
       iconColor: 'text-red-600 dark:text-red-400',
       btnColor: 'bg-red-700 hover:bg-red-600 text-white',
       confirmText: 'Delete Permanently',
+      submittingText: 'Deleting Permanently...',
       onConfirm: async () => {
         try {
-          setActionLoading(true);
+          setIsSubmitting(true);
           if (student?.id) {
             try {
               await updateDoc(doc(db, 'admissions', String(student.id)), {
                 'Status': 'Deleted',
-                '_deleted': true
+                '_deleted': true,
+                'deletedAt': new Date().toISOString()
+              });
+              updateCachedItem('admissions', student.id, null);
+              invalidateCache('admissions');
+              await logAdminActivity({
+                actionType: 'delete',
+                actionTitle: 'Student Application Permanently Deleted',
+                details: `Deleted student record for ${student?.studentName || student?.id} (Form: ${student?.formNo || '—'})`,
+                reasonCategory: 'Record Revocation / Deletion',
+                metadata: { studentId: student.id, formNo: student.formNo }
               });
             } catch (err) { console.warn(err); }
           }
           if (onRefresh) onRefresh();
-          setDialogConfig(null);
+          // Show green success completion message
+          setDialogConfig({
+            type: 'alert',
+            title: 'Record Deleted Successfully',
+            message: `✅ Student record for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) has been permanently deleted from database.`,
+            icon: CheckCircle2,
+            iconColor: 'text-emerald-600 dark:text-emerald-400',
+            btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white',
+            confirmText: 'Done',
+            onConfirm: () => {
+              setDialogConfig(null);
+            }
+          });
         } catch (err) {
           console.warn(err);
+          setDialogConfig(null);
         } finally {
-          setActionLoading(false);
+          setIsSubmitting(false);
         }
       }
     });
@@ -1183,8 +1383,9 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
               </h3>
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setDialogConfig(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer disabled:opacity-40"
               >
                 <X size={18} />
               </button>
@@ -1201,6 +1402,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
                 <input
                   type="text"
                   autoFocus
+                  disabled={isSubmitting}
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
                   placeholder={dialogConfig.placeholder || 'Enter value...'}
@@ -1219,25 +1421,34 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
               {dialogConfig.type !== 'alert' && (
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setDialogConfig(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors disabled:opacity-40"
                 >
                   Cancel
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => {
+                disabled={isSubmitting}
+                onClick={async () => {
                   const cb = dialogConfig.onConfirm;
                   if (cb) {
-                    cb(promptInput);
+                    await cb(promptInput);
                   } else {
                     setDialogConfig(null);
                   }
                 }}
-                className={`px-5 py-2 rounded-xl font-black text-xs cursor-pointer shadow-md transition-all hover:scale-105 active:scale-95 ${dialogConfig.btnColor || 'bg-amber-700 hover:bg-amber-600 text-white'}`}
+                className={`px-5 py-2 rounded-xl font-black text-xs cursor-pointer shadow-md transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed ${dialogConfig.btnColor || 'bg-amber-700 hover:bg-amber-600 text-white'}`}
               >
-                {dialogConfig.confirmText || 'OK'}
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>{dialogConfig.submittingText || 'Saving & Syncing...'}</span>
+                  </>
+                ) : (
+                  <span>{dialogConfig.confirmText || 'OK'}</span>
+                )}
               </button>
             </div>
 
@@ -1253,19 +1464,18 @@ const formatPhotoDisplayUrl = (val) => {
   const str = val.trim();
   if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
 
-  if (str.startsWith('data:image/') || str.startsWith('http://') || str.startsWith('https://')) {
-    if (str.includes('drive.google.com')) {
-      const match = str.match(/\/d\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        return `https://lh3.googleusercontent.com/d/${match[1]}`;
-      }
-    }
+  // 1. Native Firestore Base64 image
+  if (str.startsWith('data:image/')) {
     return str;
   }
 
-  // If raw Google Drive File ID (e.g. "1h1-zhjfscrX39bv9C38RVkD4w4FZ2Mk-")
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(str)) {
-    return `https://lh3.googleusercontent.com/d/${str}`;
+  // 2. Firebase Storage or standard web image URLs
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    if (str.includes('drive.google.com') || str.includes('googleusercontent.com')) {
+      // Legacy Apps Script Drive URL — ignore to prevent 404 & CORS errors
+      return '';
+    }
+    return str;
   }
 
   return '';
@@ -1275,7 +1485,7 @@ const COLUMN_DEFS = [
   { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
   { key: 'formNo', label: 'F.No.', className: 'font-mono' },
   {
-    key: 'status', label: 'Status', className: 'text-center min-w-[70px]', render: (val, student) => {
+    key: 'status', label: 'Status', className: 'text-center', render: (val, student) => {
       return (
         <StatusActionDropdown
           student={student}
@@ -1289,7 +1499,7 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'classRollNo', label: 'RL. NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
+  { key: 'classRollNo', label: 'R.NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
   {
     key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black', render: (val, student) => {
       const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
@@ -1326,7 +1536,7 @@ const COLUMN_DEFS = [
   },
   { key: 'class', label: 'Class', className: 'font-black' },
   { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400' },
-  { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-slate-700 dark:text-slate-300 max-w-[110px] whitespace-normal break-words leading-tight' },
+  { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-normal break-all' },
   {
     key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
       const rawUrl = formatPhotoDisplayUrl(val) || (student && student.photoId && student.photoId !== '—' ? formatPhotoDisplayUrl(student.photoId) : '');
@@ -1362,7 +1572,7 @@ const COLUMN_DEFS = [
     }
   },
   {
-    key: 'studentName', label: "Student's Name", className: 'font-black text-slate-900 dark:text-white min-w-[140px] whitespace-normal break-words leading-tight', render: (val, student) => {
+    key: 'studentName', label: "Student's Name", className: 'font-black text-slate-900 dark:text-white whitespace-normal break-words leading-tight', render: (val, student) => {
       const formatted = formatProperName(val);
       const gRaw = String(student?.gender || '').trim().toLowerCase();
       let gCode = '';
@@ -1402,24 +1612,23 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'fatherName', label: "Father's Name", className: 'text-slate-600 dark:text-slate-400 min-w-[130px] whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
-  { key: 'motherName', label: "Mother's Name", className: 'text-slate-600 dark:text-slate-400 min-w-[130px] whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
+  { key: 'fatherName', label: "Father's Name", className: 'text-slate-600 dark:text-slate-400 whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
+  { key: 'motherName', label: "Mother's Name", className: 'text-slate-600 dark:text-slate-400 whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
   { key: 'dob', label: 'DoB', className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap' },
-  { key: 'village', label: 'Village/Town', className: 'min-w-[95px] whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
+  { key: 'village', label: 'Village/Town', className: 'whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap' },
   { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap' },
   {
-    key: 'subs', label: 'SUBS (STREAM)', className: 'min-w-[105px] max-w-[130px] whitespace-normal break-words leading-tight', render: (val, student) => {
+    key: 'subs', label: 'SUBS (STREAM)', className: 'whitespace-normal break-words leading-tight', render: (val, student) => {
       const abbr = abbreviateSubjects(val);
 
       const getStreamDetails = (st, rawSubs) => {
         const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
-        // 9th & 10th grade stream is always General (G)
-        if (cls.includes('9') || cls.includes('10')) {
-          return { code: 'G', label: 'General', style: 'bg-emerald-700 text-white border-emerald-800' };
-        }
-
         const rawStream = String(st?.stream || st?.Stream || st?.['Stream'] || '').toLowerCase();
+        // 9th & 10th grade or General stream is always General (G)
+        if (cls.includes('9') || cls.includes('10') || rawStream.includes('general')) {
+          return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
+        }
         const allSubjs = (String(rawSubs || '') + ' ' + String(st?.subs || '') + ' ' + String(st?.Subjects || '') + ' ' + String(st?.Subjects1 || '') + ' ' + String(st?.Subjects2 || '') + ' ' + String(st?.Subjects3 || '') + ' ' + String(st?.Subjects4 || '') + ' ' + String(st?.Subjects5 || '')).toLowerCase();
 
         // 1. Core Science subjects check (Physics, Chemistry, Biology/Botany/Zoology)
@@ -1495,16 +1704,125 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'mobile', label: 'Mobile (S)', className: 'font-mono text-slate-600 dark:text-slate-400' },
-  { key: 'aadhar', label: 'Aadhaar', className: 'font-mono' },
-  { key: 'bankAccount', label: 'Bank Account Number', className: 'font-mono' },
+  {
+    key: 'mobile',
+    label: 'Mobile (S/P)',
+    className: 'font-mono text-slate-900 dark:text-slate-100 font-extrabold',
+    render: (val, student) => {
+      const sMob = student?.mobile && student?.mobile !== '—' && student?.mobile !== '-' ? String(student.mobile).trim() : '';
+      const pMob = student?.parentContact && student?.parentContact !== '—' && student?.parentContact !== '-' ? String(student.parentContact).trim() : '';
+      const stId = student?.id || student?.sno || 'st';
+
+      if (!sMob && !pMob) return <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>;
+
+      if (sMob && pMob && sMob === pMob) {
+        const isCopied = student?._copiedCellId === `${stId}_sp`;
+        return (
+          <div className="flex items-center justify-between gap-1 group/sp">
+            <span className="font-mono text-xs sm:text-[13px] font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap tracking-wide" title="Student & Parent share same mobile number">
+              S/P: {sMob}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (student?._handleCopyCell) {
+                  student._handleCopyCell(`${stId}_sp`, sMob);
+                } else {
+                  navigator.clipboard.writeText(sMob);
+                }
+              }}
+              className="opacity-0 group-hover/sp:opacity-100 group-hover/cell:opacity-100 p-0.5 rounded hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 cursor-pointer transition-opacity flex-shrink-0 hover:scale-110"
+              title={`Copy Mobile: ${sMob}`}
+            >
+              {isCopied ? (
+                <span className="text-[9px] font-black text-emerald-600">Copied!</span>
+              ) : (
+                <Copy size={11} />
+              )}
+            </button>
+          </div>
+        );
+      }
+
+      const isSCopied = student?._copiedCellId === `${stId}_smob`;
+      const isPCopied = student?._copiedCellId === `${stId}_pmob`;
+
+      return (
+        <div className="flex flex-col text-xs sm:text-[13px] leading-tight py-0.5 font-mono tracking-wide gap-0.5">
+          {sMob ? (
+            <div className="flex items-center justify-between gap-1 group/smob">
+              <span className="text-slate-900 dark:text-slate-100 font-black whitespace-nowrap">
+                <strong className="text-indigo-700 dark:text-indigo-400 mr-1 font-black">S:</strong>{sMob}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (student?._handleCopyCell) {
+                    student._handleCopyCell(`${stId}_smob`, sMob);
+                  } else {
+                    navigator.clipboard.writeText(sMob);
+                  }
+                }}
+                className="opacity-0 group-hover/smob:opacity-100 group-hover/cell:opacity-100 p-0.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 cursor-pointer transition-opacity flex-shrink-0 hover:scale-110"
+                title={`Copy Student Mobile: ${sMob}`}
+              >
+                {isSCopied ? (
+                  <span className="text-[9px] font-black text-emerald-600">Copied!</span>
+                ) : (
+                  <Copy size={11} />
+                )}
+              </button>
+            </div>
+          ) : null}
+          {pMob ? (
+            <div className="flex items-center justify-between gap-1 group/pmob">
+              <span className="text-amber-900 dark:text-amber-300 font-black whitespace-nowrap">
+                <strong className="text-amber-700 dark:text-amber-400 mr-1 font-black">P:</strong>{pMob}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (student?._handleCopyCell) {
+                    student._handleCopyCell(`${stId}_pmob`, pMob);
+                  } else {
+                    navigator.clipboard.writeText(pMob);
+                  }
+                }}
+                className="opacity-0 group-hover/pmob:opacity-100 group-hover/cell:opacity-100 p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-950/60 text-amber-700 dark:text-amber-300 cursor-pointer transition-opacity flex-shrink-0 hover:scale-110"
+                title={`Copy Parent Mobile: ${pMob}`}
+              >
+                {isPCopied ? (
+                  <span className="text-[9px] font-black text-emerald-600">Copied!</span>
+                ) : (
+                  <Copy size={11} />
+                )}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+  },
+  { key: 'aadhar', label: 'Aadhaar', className: 'font-mono whitespace-normal break-all' },
+  { key: 'bankAccount', label: 'Bank Account Number', className: 'font-mono whitespace-normal break-all' },
   { key: 'bankName', label: 'Bank Name' },
-  { key: 'ifsc', label: 'IFSC Code', className: 'font-mono' },
+  { key: 'ifsc', label: 'IFSC Code', className: 'font-mono whitespace-normal break-all' },
 
   { key: 'onlineSubmDate', label: 'Online Subm. Date' },
   { key: 'admDate', label: 'Adm. Date' },
   { key: 'boardName', label: 'Board Name' },
-  { key: 'dobWords', label: 'DoB (words)' },
+  {
+    key: 'dobWords',
+    label: 'DoB (words)',
+    render: (val, student) => {
+      if (val && val !== '—' && String(val).trim().length > 3) return val;
+      const computed = convertDobToWords(student?.dob);
+      return computed || val || '—';
+    }
+  },
   { key: 'block', label: 'Block' },
   { key: 'tehsil', label: 'Tehsil' },
   { key: 'district', label: 'District' },
@@ -1522,7 +1840,16 @@ const COLUMN_DEFS = [
   { key: 'subjects6', label: 'Subject6' },
   { key: 'email1', label: 'email1' },
   { key: 'email2', label: 'email2' },
-  { key: 'parentContact', label: "Parent's Contact", className: 'font-mono' },
+  {
+    key: 'parentContact',
+    label: 'Mobile (P)',
+    className: 'font-mono text-amber-800 dark:text-amber-300 font-extrabold',
+    render: (val, student) => {
+      const pMob = val && val !== '—' && val !== '-' ? String(val).trim() : (student?.parentContact && student?.parentContact !== '—' && student?.parentContact !== '-' ? String(student.parentContact).trim() : '');
+      if (!pMob) return <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>;
+      return <span className="font-mono text-xs sm:text-[13px] font-black text-amber-800 dark:text-amber-300 tracking-wide">{pMob}</span>;
+    }
+  },
   { key: 'bloodType', label: 'Blood Type' },
   { key: 'height', label: 'Height (cm)' },
   { key: 'weight', label: 'Weight (kg)' },
@@ -1531,7 +1858,7 @@ const COLUMN_DEFS = [
   { key: 'houseNo', label: 'House No.' },
   { key: 'vocationalPercentage', label: 'Vocational %age' },
   { key: 'prevComplexHead', label: 'Previous Complex Head' },
-  { key: 'penNo', label: 'PEN No.' },
+  { key: 'penNo', label: 'PEN No.', className: 'font-mono whitespace-normal break-all' },
   { key: 'prevSchool', label: 'Previous School' },
   { key: 'prevCcDc', label: 'CC/DC No. & Date (Prev. insitution)' },
   { key: 'prevExamMode', label: 'Exam Mode (Prev.)' },
@@ -1559,40 +1886,28 @@ const COLUMN_DEFS = [
     )
   },
   { key: 'readmission', label: 'readmission' },
-  { key: 'apaarId', label: 'APAAR ID', className: 'font-mono' },
+  { key: 'apaarId', label: 'APAAR ID', className: 'font-mono whitespace-normal break-all' },
 ];
 
 const DEFAULT_1_WIDTHS = {
-  sno: 50,
-  formNo: 75,
-  status: 65,
-  classRollNo: 70,
-  admNo: 75,
-  class: 55,
-  session: 70,
-  boardRegNo: 110,
-  photoId: 44,
-  studentName: 145,
-  fatherName: 135,
-  motherName: 135,
-  dob: 85,
-  village: 100,
-  gender: 65,
-  category: 75,
-  stream: 80,
-  subs: 215,
-  mobile: 95,
-  aadhar: 110,
-  bankAccount: 125,
-  bankName: 110,
-  ifsc: 95,
-  onlineSubmDate: 100,
-  admDate: 90,
-  boardName: 100,
-  dobWords: 120,
-  block: 85,
-  tehsil: 85,
-  district: 85,
+  sno: 45,
+  formNo: 62,
+  status: 62,
+  classRollNo: 65,
+  admNo: 70,
+  class: 52,
+  session: 65,
+  boardRegNo: 80,
+  photoId: 66,
+  studentName: 135,
+  fatherName: 125,
+  motherName: 125,
+  dob: 78,
+  village: 90,
+  gender: 60,
+  category: 68,
+  stream: 72,
+  subs: 80,
   pinCode: 70,
   state: 80,
   residence: 130,
@@ -1679,6 +1994,9 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
     'APAAR ID': student?.apaarId || student?.['APAAR ID'] || '',
     'Previous School': student?.prevSchool || student?.['Previous School'] || '',
     'Remarks': student?.remarks || student?.['Remarks'] || '',
+    'Student Photo': student?.photoId || student?.photo_id || student?.['Student Photo'] || '',
+    'photoId': student?.photoId || student?.photo_id || student?.['Student Photo'] || '',
+    'photo_id': student?.photoId || student?.photo_id || student?.['Student Photo'] || '',
   }));
 
   const handleChange = (key, val) => {
@@ -1737,8 +2055,8 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${isActive
-                    ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-900'
+                  ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-900'
                   }`}
               >
                 <Icon size={14} />
@@ -1752,6 +2070,65 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs font-extrabold">
           {activeTab === 'basic' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Photo Upload & Change Control */}
+              <div className="sm:col-span-2 p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  {formatPhotoDisplayUrl(formData['Student Photo'] || formData['photoId']) ? (
+                    <img
+                      src={formatPhotoDisplayUrl(formData['Student Photo'] || formData['photoId'])}
+                      alt="Student"
+                      className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-600/40 shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs">
+                      No Photo
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="font-black text-slate-900 dark:text-amber-200 text-xs">Student Passport Photo</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                      Upload or replace photo for this specific student record.
+                    </p>
+                  </div>
+                </div>
+                <label className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs cursor-pointer shadow-sm flex items-center gap-1.5 transition-all flex-shrink-0">
+                  <Camera size={14} />
+                  <span>Upload / Replace Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        const img = new Image();
+                        img.onload = () => {
+                          const canvas = document.createElement('canvas');
+                          let w = img.width;
+                          let h = img.height;
+                          const maxDim = 400;
+                          if (w > maxDim || h > maxDim) {
+                            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                          }
+                          canvas.width = w;
+                          canvas.height = h;
+                          const ctx = canvas.getContext('2d');
+                          ctx.drawImage(img, 0, 0, w, h);
+                          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+                          handleChange('Student Photo', compressed);
+                          handleChange('photoId', compressed);
+                          handleChange('photo_id', compressed);
+                        };
+                        img.src = evt.target.result;
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+              </div>
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Student's Name (Full)</label>
                 <input
@@ -1835,7 +2212,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                 />
               </div>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Parent's Contact</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Mobile (P)</label>
                 <input
                   type="text"
                   value={formData["Parent's Contact"]}
@@ -2110,25 +2487,37 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
 }
 
 export default function AdvancedReports({ setActiveTab, viewScope = 'active', setViewScope, setCounts, user, onLogout, onSync, stats, initialData = [] }) {
-  // Clear legacy cache keys on initial render to prevent stale 191-student dataset from sticking in sessionStorage
+  // Clear legacy cache keys on initial render to prevent stale dataset from sticking in sessionStorage
   useEffect(() => {
     try {
       sessionStorage.removeItem('hss_reports_cache_v2');
       sessionStorage.removeItem('hss_reports_cache_v3');
+      sessionStorage.removeItem('hss_reports_cache_v4');
+      sessionStorage.removeItem('hss_reports_cache_v5');
     } catch (_) { }
   }, []);
 
-  // Data States — Instant initialization from props or session cache
-  const [loading, setLoading] = useState(() => {
-    if (initialData.length > 0) return false;
+  // Data States — Instant initialization from props or session/local cache
+  const syncCachedAdmissions = (Array.isArray(initialData) && initialData.length > 0)
+    ? initialData
+    : (getCachedCollectionSync('admissions') || []);
+
+  const syncCachedMaster = (() => {
     try {
-      const cached = sessionStorage.getItem('hss_reports_cache_v4');
-      if (cached) return false;
-    } catch (_) { }
-    return true;
-  });
-  const [masterRecords, setMasterRecords] = useState([]);
-  const [currentAdmissions, setCurrentAdmissions] = useState(initialData); // seed from parent immediately
+      const cached = sessionStorage.getItem('hss_cache_masterRegisters_v2') || localStorage.getItem('hss_cache_masterRegisters_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  })();
+
+  const [loading, setLoading] = useState(syncCachedAdmissions.length === 0 && syncCachedMaster.length === 0);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [fetchProgress, setFetchProgress] = useState(0);
+  const [masterRecords, setMasterRecords] = useState(syncCachedMaster);
+  const [currentAdmissions, setCurrentAdmissions] = useState(syncCachedAdmissions);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -2142,7 +2531,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   });
   const [selectedBulkFormIds, setSelectedBulkFormIds] = useState(new Set());
 
-  const handleSaveStudentEdit = async (updatedFields) => {
+  // ─── Direct Admin Student Edit Execution ───
+  const executeSaveStudentEdit = async (updatedFields, reasonCategory = 'Routine Update', customReason = '') => {
     try {
       setIsSavingEdit(true);
 
@@ -2155,7 +2545,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const payload = {
         ...updatedFields,
         updatedAt: new Date().toISOString(),
-        lastEditedBy: 'Admin'
+        lastEditedBy: `Admin (${user?.email || 'System'})`
       };
 
       if (editingStudent._isCurrentScope || cleanFNo) {
@@ -2164,12 +2554,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         } catch (err) {
           console.warn('Firestore write warning for admissions:', err.message);
         }
-      }
-
-      try {
-        await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
-      } catch (err) {
-        console.warn('Firestore write warning for masterRegisters:', err.message);
+        updateCachedItem('admissions', docId, payload);
+      } else {
+        try {
+          await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
+        } catch (err) {
+          console.warn('Firestore write warning for masterRegisters:', err.message);
+        }
+        updateCachedItem('masterRegisters', docId, payload);
       }
 
       if (updatedFields.email1 || updatedFields.email || cleanFNo) {
@@ -2184,23 +2576,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           }, { merge: true });
         } catch (e) { }
       }
-
-      updateCachedItem('admissions', docId, payload);
-      updateCachedItem('masterRegisters', docId, payload);
-      try {
-        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v4');
-        if (cachedRaw) {
-          const parsed = JSON.parse(cachedRaw);
-          const updatedActive = (parsed.activeList || []).map(st => {
-            const stFNo = String(st['Form Number'] || st['FormNo'] || st.formNo || '').replace(/^'/, '').trim();
-            if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
-              return { ...st, ...payload };
-            }
-            return st;
-          });
-          sessionStorage.setItem('hss_reports_cache_v4', JSON.stringify({ ...parsed, activeList: updatedActive }));
-        }
-      } catch (e) { }
 
       if (editingStudent._isCurrentScope) {
         setCurrentAdmissions(prev => prev.map(st => {
@@ -2220,9 +2595,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         }));
       }
 
+      // Log activity
+      const studentName = updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || 'Student';
+      try {
+        logAdminActivity(
+          user?.email || 'Admin',
+          'STUDENT_EDIT',
+          `Updated full profile for ${studentName} (Form #${cleanFNo || '—'}) [Reason: ${reasonCategory} - ${customReason}]`
+        );
+      } catch (_) {}
+
       setEditingStudent(null);
+      setConfirmModalConfig(null);
       setToast({
-        message: `✅ Student record for ${updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || 'Student'} updated successfully across all portals!`,
+        message: `✅ Student record for ${studentName} updated successfully across all portals!`,
         type: 'success'
       });
       setTimeout(() => setToast(null), 4000);
@@ -2238,12 +2624,30 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
   };
 
+  const handleSaveStudentEdit = (updatedFields) => {
+    const sName = updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || editingStudent?.studentName || 'Student';
+    const fNo = updatedFields['Form Number'] || updatedFields['Form No.'] || editingStudent?.formNo || '—';
+
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'warning',
+      title: 'Confirm Student Record Update',
+      message: `Are you sure you want to save modifications for ${sName} (Form #${fNo})?`,
+      consequence: 'All changed fields will be committed directly to official student registers in Cloud Firestore and synced.',
+      confirmText: 'Confirm & Commit',
+      showReasonInput: true,
+      onConfirm: ({ reasonCategory, customReason }) => {
+        executeSaveStudentEdit(updatedFields, reasonCategory, customReason);
+      }
+    });
+  };
+
   // ─── Quick Cell Edit Controls & Handlers ───
   const [enableQuickCellEdit, setEnableQuickCellEdit] = useState(false);
   const [quickEditCell, setQuickEditCell] = useState(null);
   const [isSavingQuickEdit, setIsSavingQuickEdit] = useState(false);
 
-  const handleSaveQuickCellEdit = async (student, colKey, newValue) => {
+  const executeSaveQuickCellEdit = async (student, colKey, newValue, reasonCategory = 'Routine Correction', customReason = '') => {
     try {
       setIsSavingQuickEdit(true);
 
@@ -2298,34 +2702,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           boardRollNo: newValue
         } : {}),
         updatedAt: new Date().toISOString(),
-        lastEditedBy: 'Admin (Quick Cell)'
+        lastEditedBy: `Admin (${user?.email || 'Quick Cell'})`
       };
 
       if (student._isCurrentScope || cleanFNo) {
         try {
           await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true });
         } catch (e) { }
+        updateCachedItem('admissions', docId, payload);
+      } else {
+        try {
+          await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
+        } catch (e) { }
+        updateCachedItem('masterRegisters', docId, payload);
       }
-
-      try {
-        await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
-      } catch (e) { }
-
-      updateCachedItem('admissions', docId, payload);
-      updateCachedItem('masterRegisters', docId, payload);
-      try {
-        const cachedRaw = sessionStorage.getItem('hss_reports_cache_v2');
-        if (cachedRaw) {
-          const parsed = JSON.parse(cachedRaw);
-          const updatedActive = (parsed.activeList || []).map(st => {
-            if ((cleanFNo && String(st['Form Number'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-              return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
-            }
-            return st;
-          });
-          sessionStorage.setItem('hss_reports_cache_v2', JSON.stringify({ ...parsed, activeList: updatedActive }));
-        }
-      } catch (e) { }
 
       if (student._isCurrentScope) {
         setCurrentAdmissions(prev => prev.map(st => {
@@ -2343,7 +2733,17 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         }));
       }
 
+      // Log activity
+      try {
+        logAdminActivity(
+          user?.email || 'Admin',
+          'QUICK_EDIT',
+          `Changed "${targetFieldName}" to "${newValue}" for ${student.studentName || 'Student'} (Form #${cleanFNo || '—'}) [Reason: ${reasonCategory} - ${customReason}]`
+        );
+      } catch (_) {}
+
       setQuickEditCell(null);
+      setConfirmModalConfig(null);
       setToast({
         message: `✅ Updated ${targetFieldName} to "${newValue}"!`,
         type: 'success'
@@ -2358,6 +2758,53 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
   };
 
+  const handleSaveQuickCellEdit = (student, colKey, newValue) => {
+    const rawVal = student[colKey] !== undefined ? String(student[colKey]) : (student[colKey] || '');
+    const cleanNew = String(newValue ?? '').trim();
+    const cleanOld = rawVal.trim();
+
+    // If value has not changed, simply close without prompt
+    if (cleanNew === cleanOld) {
+      setQuickEditCell(null);
+      return;
+    }
+
+    const keyMap = {
+      formNo: 'Form Number',
+      classRollNo: 'Class Roll No',
+      admNo: 'Adm. No.',
+      boardRegNo: 'Board Registration Number',
+      studentName: "Student's Name",
+      fatherName: "Father's Name",
+      motherName: "Mother's Name",
+      dob: 'Date of Birth',
+      gender: 'Gender',
+      category: 'Category',
+      village: 'Village/Town',
+      mobile: 'Mobile No.',
+      aadhar: 'Aadhar No.',
+      status: 'Status',
+      remarks: 'Remarks'
+    };
+
+    const fieldLabel = keyMap[colKey] || colKey;
+    const stName = student.studentName || student["Student's Name"] || 'Student';
+    const fNo = student.formNo || student['Form Number'] || '—';
+
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'warning',
+      title: `Confirm Quick Edit: ${fieldLabel}`,
+      message: `Are you sure you want to change "${fieldLabel}" for ${stName} (Form #${fNo})?`,
+      consequence: `Current Value: "${cleanOld || '—'}" ➔ New Value: "${cleanNew}"\nThis modification will immediately update official database records.`,
+      confirmText: 'Save & Sync',
+      showReasonInput: true,
+      onConfirm: ({ reasonCategory, customReason }) => {
+        executeSaveQuickCellEdit(student, colKey, cleanNew, reasonCategory, customReason);
+      }
+    });
+  };
+
   // Copy Cell / Row State & Handlers
   const [copiedCellId, setCopiedCellId] = useState(null);
 
@@ -2370,7 +2817,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
   const handleCopyRow = (student) => {
     const rowValues = orderedVisibleColumns
-      .map(col => {
+      .flatMap(col => {
+        if (col.key === 'mobile') {
+          const sMob = student?.mobile && student?.mobile !== '—' && student?.mobile !== '-' ? String(student.mobile).trim() : '';
+          const pMob = student?.parentContact && student?.parentContact !== '—' && student?.parentContact !== '-' ? String(student.parentContact).trim() : '';
+          return [sMob, pMob];
+        }
         const val = student[col.key];
         return (val === undefined || val === null || val === '—') ? '' : String(val);
       })
@@ -2396,6 +2848,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
   // Filter States (All filters default to [] so all records are visible by default)
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [selectedSessions, setSelectedSessions] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [selectedGenders, setSelectedGenders] = useState([]);
@@ -2597,9 +3050,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const startX = e.clientX;
     const startWidth = colWidths[colKey] || DEFAULT_1_WIDTHS[colKey] || 100;
 
+    let latestWidths = { ...colWidths };
+
     const onMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      const newWidth = Math.max(45, startWidth + deltaX);
+      const newWidth = Math.max(1, startWidth + deltaX);
+      latestWidths = { ...latestWidths, [colKey]: newWidth };
       setColWidths(prev => ({
         ...prev,
         [colKey]: newWidth
@@ -2611,6 +3067,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       document.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = 'default';
       document.body.style.userSelect = 'auto';
+      // Auto-persist widths to localStorage so they survive page refresh
+      try {
+        localStorage.setItem('hss_admin_table_widths_v2', JSON.stringify(latestWidths));
+      } catch (err) {
+        console.warn('Could not auto-save column widths', err);
+      }
     };
 
     document.body.style.cursor = 'col-resize';
@@ -2800,6 +3262,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   // ID Assigner & Tools Suite States
   const [assignStartId, setAssignStartId] = useState('5476');
   const [assigningIds, setAssigningIds] = useState(false);
+  const [assignClasses, setAssignClasses] = useState(['9th', '11th']);
+  const [assignSessionFilter, setAssignSessionFilter] = useState('2025-26');
+  const [onlyMissingAdmNo, setOnlyMissingAdmNo] = useState(true);
+  const [assignStrategies, setAssignStrategies] = useState({});
+  const [customIds, setCustomIds] = useState({});
   const [assignDateValue, setAssignDateValue] = useState(new Date().toISOString().split('T')[0]);
   const [assignDateField, setAssignDateField] = useState('admDate');
   const [batchEditField, setBatchEditField] = useState('status');
@@ -2813,102 +3280,188 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
   // Fetch Master Registers & Current Admissions with instant cache + silent background sync
   const loadReportsData = async (forceRefresh = false) => {
+    setIsFetchingData(true);
+    setFetchProgress(20);
     let hasCache = false;
 
-    // 1. Instant Cache Load
-    try {
-      const cachedRaw = sessionStorage.getItem('hss_reports_cache_v4');
-      if (cachedRaw) {
-        const parsed = JSON.parse(cachedRaw);
-        if (parsed.activeList && parsed.activeList.length > 0) {
-          setCurrentAdmissions(parsed.activeList);
-          setMasterRecords(parsed.historicalList || []);
-          if (setCounts) {
-            setCounts({
-              active: (parsed.activeList || []).length,
-              total: (parsed.activeList || []).length + (parsed.historicalList || []).length
-            });
-          }
-          setLoading(false);
-          hasCache = true;
-        }
-      }
-    } catch (e) {
-      console.warn('Cache read error:', e);
+    // ── ADMISSIONS: NEVER re-fetch from Firestore here! ──
+    // AdminDashboard already fetches admissions via dbCache and passes them as `initialData`.
+    // We ONLY use: (1) current state, (2) initialData prop, (3) dbCache sync fallback, (4) legacy cache fallback.
+    // On forceRefresh, re-read from dbCache to pick up any writes done via updateCachedItem().
+    let activeList;
+    if (forceRefresh) {
+      activeList = getCachedCollectionSync('admissions') || currentAdmissions || initialData;
+    } else {
+      activeList = currentAdmissions.length > 0
+        ? currentAdmissions
+        : (initialData.length > 0 ? initialData : (getCachedCollectionSync('admissions') || []));
     }
 
-    // If no cache or force refresh, show loader only if we have zero data
-    if (!hasCache && currentAdmissions.length === 0) {
+    // Fallback on fresh cold login: Fetch active admissions from dbCache
+    if (!activeList || activeList.length === 0) {
+      try {
+        const freshActive = await getCachedCollection('admissions');
+        if (Array.isArray(freshActive) && freshActive.length > 0) {
+          activeList = freshActive;
+        }
+      } catch (e) {
+        console.warn('Admissions fetch note:', e);
+      }
+    }
+
+    // Fallback: if still empty, try legacy combined cache (hss_reports_cache_v6)
+    if (!activeList || activeList.length === 0) {
+      try {
+        const legacyRaw = sessionStorage.getItem('hss_reports_cache_v6') || localStorage.getItem('hss_reports_cache_v6');
+        if (legacyRaw) {
+          const parsed = JSON.parse(legacyRaw);
+          if (parsed.activeList?.length > 0) {
+            activeList = parsed.activeList;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (activeList && activeList.length > 0) {
+      setCurrentAdmissions(activeList);
+      if (setCounts) {
+        const cachedMasterLen = masterRecords.length > 0 ? masterRecords.length : syncCachedMaster.length;
+        setCounts({
+          active: activeList.length,
+          total: activeList.length + cachedMasterLen
+        });
+      }
+      setLoading(false);
+    }
+
+    // ── MASTER REGISTERS: 30-Day Monthly Cache TTL ──
+    const MASTER_CACHE_KEY = 'hss_cache_masterRegisters_v2';
+    const MASTER_CACHE_TS_KEY = 'hss_cache_masterRegisters_v2_ts';
+    const MASTER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days (1 Month) — Historical archives rarely change
+
+    if (forceRefresh) {
+      try {
+        sessionStorage.removeItem(MASTER_CACHE_KEY);
+        localStorage.removeItem(MASTER_CACHE_KEY);
+        sessionStorage.removeItem(MASTER_CACHE_TS_KEY);
+        localStorage.removeItem(MASTER_CACHE_TS_KEY);
+        // Also wipe legacy combined cache
+        sessionStorage.removeItem('hss_reports_cache_v6');
+        localStorage.removeItem('hss_reports_cache_v6');
+        sessionStorage.removeItem('hss_reports_cache_time_v2');
+        localStorage.removeItem('hss_reports_cache_time_v2');
+      } catch (_) { }
+    }
+
+    let historicalList = [];
+
+    // 1. Try loading masterRegisters from 30-day persistent cache
+    if (!forceRefresh) {
+      try {
+        const cachedMaster = sessionStorage.getItem(MASTER_CACHE_KEY) || localStorage.getItem(MASTER_CACHE_KEY);
+        if (cachedMaster) {
+          const parsed = JSON.parse(cachedMaster);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            historicalList = parsed;
+            hasCache = true;
+            setFetchProgress(40);
+          }
+        }
+      } catch (e) {
+        console.warn('Master registers cache read error:', e);
+      }
+
+      // Check TTL freshness (30 days)
+      const lastCacheTime = Number(sessionStorage.getItem(MASTER_CACHE_TS_KEY) || localStorage.getItem(MASTER_CACHE_TS_KEY) || 0);
+      const isCacheFresh = (Date.now() - lastCacheTime) < MASTER_TTL_MS;
+
+      if (hasCache && isCacheFresh) {
+        // Cache is valid — render immediately, ZERO Firestore reads
+        setMasterRecords(historicalList);
+        const resolvedActive = (activeList && activeList.length > 0)
+          ? activeList
+          : (currentAdmissions?.length > 0 ? currentAdmissions : syncCachedAdmissions);
+        if (resolvedActive.length > 0) {
+          setCurrentAdmissions(resolvedActive);
+        }
+        if (setCounts) {
+          setCounts({
+            active: resolvedActive.length,
+            total: resolvedActive.length + historicalList.length
+          });
+        }
+        setFetchProgress(100);
+        setLoading(false);
+        setTimeout(() => {
+          setIsFetchingData(false);
+          setFetchProgress(0);
+        }, 300);
+        return;
+      }
+    }
+
+    // 2. Cache miss or stale — fetch ONLY masterRegisters from Firestore
+    //    (admissions are NEVER re-fetched here — saves 571 reads per load)
+    if (!hasCache && activeList.length === 0) {
       setLoading(true);
     }
 
-    // 2. Silent Background Synchronization
-    let activeList = [];
-    let historicalList = [];
+    const stripPhotos = (obj) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      const clean = {};
+      Object.keys(obj).forEach(k => {
+        const v = obj[k];
+        if (typeof v === 'string' && (v.startsWith('data:') || v.length > 800)) return;
+        clean[k] = v;
+      });
+      return clean;
+    };
 
     try {
-      const admSnap = await getDocs(collection(db, 'admissions'));
-      if (!admSnap.empty) {
-        activeList = admSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), isCurrentSession: true }));
+      setFetchProgress(50);
+      const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+      if (!masterSnap.empty) {
+        masterSnap.docs.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.items && Array.isArray(data.items)) {
+            const parsedItems = data.items.map(it => ({
+              Session: it['Session'] || data.groupKey?.split('_')[0] || docSnap.id.split('_')[0] || 'Historical',
+              ...stripPhotos(it)
+            }));
+            historicalList = historicalList.concat(parsedItems);
+          } else if (Array.isArray(data)) {
+            historicalList = historicalList.concat(data.map(stripPhotos));
+          } else if (data.data && Array.isArray(data.data)) {
+            historicalList = historicalList.concat(data.data.map(stripPhotos));
+          } else {
+            historicalList.push(stripPhotos(data));
+          }
+        });
       }
-
-      try {
-        const masterSnap = await getDocs(collection(db, 'masterRegisters'));
-        if (!masterSnap.empty) {
-          masterSnap.docs.forEach(docSnap => {
-            const data = docSnap.data();
-            if (data.items && Array.isArray(data.items)) {
-              const parsedItems = data.items.map(it => ({
-                Session: it['Session'] || data.groupKey?.split('_')[0] || docSnap.id.split('_')[0] || 'Historical',
-                ...it
-              }));
-              historicalList = historicalList.concat(parsedItems);
-            } else if (Array.isArray(data)) {
-              historicalList = historicalList.concat(data);
-            } else if (data.data && Array.isArray(data.data)) {
-              historicalList = historicalList.concat(data.data);
-            } else {
-              historicalList.push(data);
-            }
-          });
-        }
-      } catch (err) {
-        console.warn('Firestore masterRegisters read note:', err);
-      }
+      setFetchProgress(90);
     } catch (err) {
-      console.warn('Firestore loadReportsData note:', err);
+      console.warn('loadReportsData masterRegisters fetch note:', err);
     }
 
-    // Save to Session Storage Cache (sanitize large strings & images to prevent QuotaExceededError)
+    // 3. Save masterRegisters to persistent cache (photos already stripped)
     try {
-      const sanitizeItem = (item) => {
-        if (!item || typeof item !== 'object') return item;
-        const copy = {};
-        // Retain essential report metadata fields only
-        Object.keys(item).forEach(k => {
-          const val = item[k];
-          if (typeof val === 'string') {
-            if (val.startsWith('data:') || val.length > 500) return; // Skip base64 images and large strings
-          }
-          if (Array.isArray(val) && val.length > 20) return; // Skip large nested arrays
-          copy[k] = val;
-        });
-        return copy;
-      };
-
-      const liteActive = (activeList || []).map(sanitizeItem);
-      const liteHist = (historicalList || []).map(sanitizeItem);
-      const payloadStr = JSON.stringify({ activeList: liteActive, historicalList: liteHist });
-
-      if (payloadStr.length < 3000000) { // Only set if < 3MB
-        sessionStorage.setItem('hss_reports_cache_v4', payloadStr);
-        sessionStorage.setItem('hss_reports_cache_time_v2', String(Date.now()));
+      const payloadStr = JSON.stringify(historicalList);
+      if (payloadStr.length < 4500000) {
+        const nowStr = String(Date.now());
+        try {
+          sessionStorage.setItem(MASTER_CACHE_KEY, payloadStr);
+          sessionStorage.setItem(MASTER_CACHE_TS_KEY, nowStr);
+        } catch (_) {}
+        try {
+          localStorage.setItem(MASTER_CACHE_KEY, payloadStr);
+          localStorage.setItem(MASTER_CACHE_TS_KEY, nowStr);
+        } catch (_) {}
       }
     } catch (e) {
-      // Silently catch QuotaExceededError to prevent console noise
       try {
-        sessionStorage.removeItem('hss_reports_cache_v4');
-      } catch (err) { }
+        sessionStorage.removeItem(MASTER_CACHE_KEY);
+        localStorage.removeItem(MASTER_CACHE_KEY);
+      } catch (_) { }
     }
 
     setCurrentAdmissions(activeList);
@@ -2919,21 +3472,35 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         total: activeList.length + historicalList.length
       });
     }
+    setFetchProgress(100);
     setLoading(false);
+    setTimeout(() => {
+      setIsFetchingData(false);
+      setFetchProgress(0);
+    }, 450);
   };
 
   useEffect(() => {
-    // If parent provided fresh data, only load historical (masterRegisters) not admissions
-    if (initialData.length > 0) {
-      // Seed counts from initialData
-      if (setCounts) setCounts({ active: initialData.length, total: initialData.length });
-      // Still need masterRegisters — run loadReportsData but skip admissions re-fetch
-      loadReportsData();
-    } else {
-      loadReportsData();
-    }
+    // loadReportsData ONLY fetches masterRegisters from Firestore.
+    // Admissions are sourced from initialData prop / dbCache — zero duplicate reads.
+    loadReportsData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Synchronize admissions from parent whenever initialData arrives or updates
+  useEffect(() => {
+    if (Array.isArray(initialData) && initialData.length > 0) {
+      setCurrentAdmissions(initialData);
+      if (setCounts) {
+        const histLen = (masterRecords && masterRecords.length > 0) ? masterRecords.length : syncCachedMaster.length;
+        setCounts(prev => ({
+          ...prev,
+          active: initialData.length,
+          total: initialData.length + histLen
+        }));
+      }
+    }
+  }, [initialData, masterRecords?.length, syncCachedMaster.length, setCounts]);
 
   // Combined Dataset
   const allStudents = useMemo(() => {
@@ -3084,7 +3651,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const oldAdmNoByIdentity = new Map();
     const masterRecordByIdentity = new Map();
     const assignedRollByIdentity = new Map();
-    const photoByIdentity = new Map();
+
+    // ─── CLASS PHOTO GROUP: 9th+10th share 'lower' bucket; 11th+12th share 'upper' bucket ───
+    // This means a photo uploaded in 9th is reused for 10th, and a photo in 11th is reused for 12th.
+    // Last record scanned wins — so if a student re-uploads in 12th, it replaces the 11th photo.
+    const classPhotoGroup = (cls) => {
+      const n = normalizeClassVal(cls);
+      return (n === '11th' || n === '12th') ? 'upper' : 'lower';
+    };
+
+    // Separate photo maps keyed by reg no and adm no (scoped to photo group).
+    // Using TWO maps instead of one ensures reg-based lookup is always preferred over adm-based.
+    // last-write-wins: later records (e.g. 12th) overwrite earlier (e.g. 11th) for same student.
+    const photoByReg = new Map(); // key: `${group}::reg_${regNo}`
+    const photoByAdm = new Map(); // key: `${group}::adm_${admNo}`
 
     const extractPhotoVal = (st) => {
       if (!st) return '';
@@ -3205,8 +3785,15 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         if (!oldAdmNoByIdentity.has(k)) oldAdmNoByIdentity.set(k, new Set());
         if (rawOldAdm) oldAdmNoByIdentity.get(k).add(rawOldAdm);
 
-        if (photoVal && !photoByIdentity.has(k)) {
-          photoByIdentity.set(k, photoVal);
+        // ─── Photo indexing: group-scoped, reg/adm keyed, last-write-wins ───
+        // We deliberately OVERWRITE (not skip) so that a later record (e.g. 12th reupload)
+        // always replaces an earlier one (e.g. 11th) for the same student + group.
+        if (photoVal) {
+          const group = classPhotoGroup(recCls);
+          const regKey = extractRegNoClean(rec);
+          const admKey = cleanedAdm;
+          if (regKey) photoByReg.set(`${group}::reg_${regKey}`, photoVal);
+          if (admKey) photoByAdm.set(`${group}::adm_${admKey}`, photoVal);
         }
 
         if (rollVal && rollVal !== '—' && rollVal !== 'N/A') {
@@ -3220,20 +3807,39 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       });
     });
 
+    // ─── getResolvedPhoto: reg-first then adm, no name-based fallback ───
+    // 1. Check direct photo on the student's own record (fastest, no lookup needed)
+    // 2. Lookup by reg no in the student's class group (9+10 share lower, 11+12 share upper)
+    // 3. Lookup by adm no in the student's class group
+    // 4. Return '—' if nothing found — never cross-contaminate via name matching
     const getResolvedPhoto = (st) => {
       const explicit = extractPhotoVal(st);
       if (explicit) return explicit;
+
+      const stCls = normalizeClassVal(st['Admission sought for class'] || st['Class'] || '');
       const stName = getStudentName(st);
-      const keys = getIdentityKeys(st);
-      for (const k of keys) {
-        const found = photoByIdentity.get(k);
-        if (found) {
-          const matchRec = masterRecordByIdentity.get(k);
-          if (!matchRec || areNamesCompatible(stName, getStudentName(matchRec))) {
-            return found;
-          }
+      const group = classPhotoGroup(stCls);
+
+      const regKey = extractRegNoClean(st);
+      if (regKey) {
+        const byReg = photoByReg.get(`${group}::reg_${regKey}`);
+        if (byReg) {
+          console.debug(`[Photo] "${stName}" cls=${stCls} group=${group} → found via reg_${regKey}`);
+          return byReg;
         }
       }
+
+      const rawAdm = extractRawAdmNo(st);
+      const admKey = cleanAdmNoVal(rawAdm);
+      if (admKey) {
+        const byAdm = photoByAdm.get(`${group}::adm_${admKey}`);
+        if (byAdm) {
+          console.debug(`[Photo] "${stName}" cls=${stCls} group=${group} → found via adm_${admKey}`);
+          return byAdm;
+        }
+      }
+
+      console.debug(`[Photo] "${stName}" cls=${stCls} group=${group} regKey="${regKey}" admKey="${admKey}" → NOT FOUND`);
       return '—';
     };
 
@@ -3408,7 +4014,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         onlineSubmDate: finalOnlineSubmDate,
         admDate: a['Adm. Date'] || '—',
         boardName: a['Board Name'] || a['Board Name (Class 10th)'] || '—',
-        dobWords: a['DoB (words)'] || a['DoB (in words)'] || '—',
+        dobWords: (a['DoB (words)'] && a['DoB (words)'] !== '—' && String(a['DoB (words)']).trim().length > 3)
+          ? a['DoB (words)']
+          : (convertDobToWords(masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)']) || '—'),
         block: a['Block'] || '—',
         tehsil: a['Tehsil'] || '—',
         district: a['District'] || '—',
@@ -3426,7 +4034,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         subjects6: a['Subject6'] || '—',
         email1: a['email1'] || a['Email'] || '—',
         email2: a['email2'] || '—',
-        parentContact: a["Parent's Contact"] || a["Father's Mobile No."] || '—',
+        parentContact: a["Parent's Contact"] || a["Parent's Mobile No. (must be working)"] || a["Parent's Mobile No."] || a["Father's Mobile No."] || a["parentContact"] || '—',
         bloodType: a['Blood Type'] || a['Blood Group'] || '—',
         height: a['Height (cm)'] || a['Height'] || '—',
         weight: a['Weight (kg)'] || a['Weight'] || '—',
@@ -3461,16 +4069,32 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     // Index active admission form numbers and class roll numbers for deduplication (scoped by Class + Session)
     const activeFormSet = new Set();
     const activeClassRollSet = new Set();
+    const activeRegSet = new Set();
+    const activeAdmSet = new Set();
 
     currentAdmissions.forEach((a) => {
       const cls = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
       const sess = normalizeSessionVal(a['Session'] || '2025-26');
-      const fNo = cleanFormNo(a['Form Number'] || a['FormNo'] || a['formNumber']);
+      const fNo = cleanFormNo(a['Form Number'] || a['FormNo'] || a['formNumber'] || a.formNo);
       if (fNo && fNo !== '—') activeFormSet.add(`${cls}_${sess}_${fNo}`.toLowerCase());
 
       const roll = extractClassRoll(a);
       if (roll && roll !== '—') {
         activeClassRollSet.add(`${cls}_${sess}_${roll}`.toLowerCase());
+      }
+
+      const reg = extractRegNoClean(a);
+      if (reg && reg !== '—') {
+        activeRegSet.add(`${cls}_${sess}_${reg}`.toLowerCase());
+        activeRegSet.add(`${sess}_${reg}`.toLowerCase());
+        activeRegSet.add(`reg_${reg}`.toLowerCase());
+      }
+
+      const rawAdm = extractRawAdmNo(a);
+      const cleanAdm = cleanAdmNoVal(rawAdm);
+      if (cleanAdm && cleanAdm !== '—') {
+        activeAdmSet.add(`${cls}_${sess}_clean_${cleanAdm}`.toLowerCase());
+        activeAdmSet.add(`${sess}_clean_${cleanAdm}`.toLowerCase());
       }
     });
 
@@ -3488,6 +4112,17 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const roll = extractClassRoll(h);
       if (cls && sess && roll && activeClassRollSet.has(`${cls}_${sess}_${roll}`.toLowerCase())) {
         return; // Skip duplicate record with matching class, session, and class roll number
+      }
+
+      const reg = extractRegNoClean(h);
+      if (reg && reg !== '—' && (activeRegSet.has(`${cls}_${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`reg_${reg}`.toLowerCase()))) {
+        return; // Skip duplicate historical record with matching Board Registration Number
+      }
+
+      const rawAdm = extractRawAdmNo(h);
+      const cleanAdm = cleanAdmNoVal(rawAdm);
+      if (cleanAdm && cleanAdm !== '—' && (activeAdmSet.has(`${cls}_${sess}_clean_${cleanAdm}`.toLowerCase()) || activeAdmSet.has(`${sess}_clean_${cleanAdm}`.toLowerCase()))) {
+        return; // Skip duplicate historical record with matching Admission Number for same session
       }
 
       combined.push({
@@ -3520,7 +4155,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         onlineSubmDate: h['Online Subm. Date'] || '—',
         admDate: h['Adm. Date'] || '—',
         boardName: h['Board Name'] || '—',
-        dobWords: h['DoB (words)'] || '—',
+        dobWords: (h['DoB (words)'] && h['DoB (words)'] !== '—' && String(h['DoB (words)']).trim().length > 3)
+          ? h['DoB (words)']
+          : (convertDobToWords(h['DoB (figures)'] || h['DoB']) || '—'),
         block: h['Block'] || '—',
         tehsil: h['Tehsil'] || '—',
         district: h['District'] || '—',
@@ -3538,7 +4175,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         subjects6: h['Subject6'] || '—',
         email1: h['email1'] || '—',
         email2: h['email2'] || '—',
-        parentContact: h["Parent's Contact"] || '—',
+        parentContact: h["Parent's Contact"] || h["Parent's Mobile No. (must be working)"] || h["Parent's Mobile No."] || h["Father's Mobile No."] || h["parentContact"] || '—',
         bloodType: h['Blood Type'] || '—',
         height: h['Height (cm)'] || '—',
         weight: h['Weight (kg)'] || '—',
@@ -3635,7 +4272,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   // Filtered & Sorted Students
   const filteredStudents = useMemo(() => {
     const list = targetDataset.filter(s => {
-      const q = searchTerm.toLowerCase().trim();
+      const q = deferredSearchTerm.toLowerCase().trim();
       const safe = (v) => String(v ?? '').toLowerCase();
       const matchesSearch = !q ||
         safe(s.studentName).includes(q) ||
@@ -3791,7 +4428,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     });
 
     return list;
-  }, [targetDataset, searchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder]);
+  }, [targetDataset, deferredSearchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder]);
 
   // Paginated Students
   const paginatedStudents = useMemo(() => {
@@ -3828,6 +4465,48 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
   };
 
+  // Custom Layout Presets State & Dynamic Management
+  const [customPresets, setCustomPresets] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_custom_layout_presets_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+
+  const handleSaveCustomPreset = () => {
+    const name = window.prompt('Enter a title for your custom column layout preset (e.g. "Examination View", "Fee List"):');
+    if (!name || !name.trim()) return;
+    const cleanName = name.trim();
+    const newPreset = { name: cleanName, cols: { ...visibleCols } };
+    const updated = [...customPresets.filter(p => p.name !== cleanName), newPreset];
+    setCustomPresets(updated);
+    try {
+      localStorage.setItem('hss_custom_layout_presets_v1', JSON.stringify(updated));
+    } catch (_) { }
+    setToast({ message: `✨ Custom layout preset "${cleanName}" saved!`, type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const applyCustomPreset = (preset) => {
+    if (!preset || !preset.cols) return;
+    setVisibleCols({ ...preset.cols });
+    try {
+      localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(preset.cols));
+    } catch (_) { }
+    setToast({ message: `📋 Applied layout preset: "${preset.name}"`, type: 'info' });
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const deleteCustomPreset = (name) => {
+    const updated = customPresets.filter(p => p.name !== name);
+    setCustomPresets(updated);
+    try {
+      localStorage.setItem('hss_custom_layout_presets_v1', JSON.stringify(updated));
+    } catch (_) { }
+  };
+
   // Toggle Column Visibility & persist as default
   const toggleCol = (colKey) => {
     setVisibleCols(prev => {
@@ -3839,22 +4518,161 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     });
   };
 
-  // Run Assign IDs
-  const handleRunAssignIds = async () => {
-    setAssigningIds(true);
-    try {
-      const res = await appsScriptApi.call('assignAdmissionNumbers', {
-        startId: parseInt(assignStartId, 10),
-        targetCount: filteredStudents.length
-      });
-      if (res && res.success !== false) {
-        alert(`Successfully assigned Admission IDs starting from ${assignStartId}!`);
-        loadReportsData();
-      } else {
-        alert(res?.message || 'Assigned IDs locally to filtered records!');
+  // ─── ASSIGN IDs: Next Sequential ID Calculation & Reg No Lookup Helpers ───
+  const calculatedNextAdmNo = useMemo(() => {
+    let maxVal = 0;
+    allStudents.forEach(st => {
+      const raw = resolveAdmNo(st) || st.admNo || st['Adm. No.'] || '';
+      const cleaned = cleanAdmNoVal(raw);
+      const num = parseInt(cleaned, 10);
+      if (!isNaN(num) && num > maxVal && num < 100000) {
+        maxVal = num;
       }
-    } catch (e) {
-      alert('Assigned IDs to filtered student list!');
+    });
+    return maxVal > 0 ? String(maxVal + 1) : '5476';
+  }, [allStudents]);
+
+  // Sync assignStartId with calculatedNextAdmNo when tool opens or data changes
+  useEffect(() => {
+    if (calculatedNextAdmNo && (!assignStartId || assignStartId === '5476')) {
+      setAssignStartId(calculatedNextAdmNo);
+    }
+  }, [calculatedNextAdmNo]);
+
+  // Helper to find previous admission numbers linked by Board Reg No
+  const getPreviousAdmNoForStudent = useCallback((st) => {
+    const regKey = extractRegNoClean(st);
+    if (!regKey) return null;
+
+    const matches = masterRecords.filter(m => {
+      const mReg = extractRegNoClean(m);
+      const mAdm = resolveAdmNo(m) || cleanAdmNoVal(m['Adm. No.'] || m.admNo);
+      return mReg && mReg === regKey && mAdm && mAdm !== '—';
+    });
+
+    if (matches.length > 0) {
+      const m = matches[0];
+      const adm = resolveAdmNo(m) || cleanAdmNoVal(m['Adm. No.'] || m.admNo);
+      return {
+        admNo: adm,
+        class: m.class || m['Class'] || 'Previous',
+        session: m.session || m['Session'] || ''
+      };
+    }
+    return null;
+  }, [masterRecords]);
+
+  // Candidate students matching session filter, class scope & missing filter across all database records
+  const candidateAssignStudents = useMemo(() => {
+    return allStudents.filter(st => {
+      // 1. Session Filter
+      if (assignSessionFilter !== 'all') {
+        const stSess = String(st.session || st['Session'] || st['Academic Session'] || '').trim();
+        if (stSess && stSess !== assignSessionFilter) return false;
+      }
+
+      // 2. Class Scope Filter
+      const stCls = normalizeClassVal(st.class || st['Admission sought for class'] || st['Class']);
+      if (assignClasses.length > 0 && !assignClasses.includes(stCls)) return false;
+
+      // 3. Only Missing Adm No Filter
+      if (onlyMissingAdmNo) {
+        const currentAdm = resolveAdmNo(st) || cleanAdmNoVal(st.admNo || st['Adm. No.']);
+        if (currentAdm && currentAdm !== '—' && currentAdm !== 'N/A') return false;
+      }
+      return true;
+    });
+  }, [allStudents, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
+
+  // Live preview list with sequential proposed IDs & per-student strategy
+  const candidatePreviewList = useMemo(() => {
+    let seqCounter = parseInt(assignStartId, 10) || 5476;
+    return candidateAssignStudents.map(st => {
+      const prevInfo = getPreviousAdmNoForStudent(st);
+      const currentAdm = resolveAdmNo(st) || cleanAdmNoVal(st.admNo || st['Adm. No.']);
+      const userStrat = assignStrategies[st.id];
+
+      // Default strategy: if previous adm no exists via Reg No -> inherit_prev, else assign_new
+      const strat = userStrat || (prevInfo ? 'inherit_prev' : 'assign_new');
+
+      let proposed = '—';
+      if (strat === 'assign_new') {
+        proposed = String(seqCounter);
+        seqCounter++;
+      } else if (strat === 'inherit_prev' && prevInfo) {
+        proposed = prevInfo.admNo;
+      } else if (strat === 'custom') {
+        proposed = customIds[st.id] || '';
+      } else if (strat === 'skip') {
+        proposed = currentAdm || '—';
+      }
+
+      return {
+        student: st,
+        currentAdm,
+        prevInfo,
+        strat,
+        proposed
+      };
+    });
+  }, [candidateAssignStudents, assignStartId, assignStrategies, customIds, getPreviousAdmNoForStudent]);
+
+  // Execute Assign IDs on candidate preview list
+  // Fast Parallel Atomic Firestore Assign IDs Execution
+  const handleRunAssignIds = async () => {
+    if (candidatePreviewList.length === 0) {
+      setToast({ message: '⚠️ No eligible students selected for assignment.', type: 'error' });
+      return;
+    }
+
+    setAssigningIds(true);
+    let assignedCount = 0;
+    let inheritedCount = 0;
+    let customCount = 0;
+
+    try {
+      // 1. Prepare batch operation for fast atomic Firestore execution
+      const batch = writeBatch(db);
+      const todayDate = new Date().toISOString().split('T')[0];
+
+      for (const item of candidatePreviewList) {
+        const { student, proposed, strat } = item;
+        if (!proposed || proposed === '—' || strat === 'skip') continue;
+
+        const cleanFNo = cleanFormNo(student.formNo || student['Form Number'] || student['FormNo']);
+        const docId = cleanFNo ? `form_${cleanFNo}` : String(student.id || '').replace(/^(active_|hist_)/, '');
+
+        const payload = {
+          'Adm. No.': proposed,
+          'admNo': proposed,
+          'Adm. Date': student.admDate && student.admDate !== '—' ? student.admDate : todayDate,
+          updatedAt: new Date().toISOString(),
+          lastEditedBy: 'Admin (Assign IDs Tool)'
+        };
+
+        // Write directly to admissions collection in Firestore (Fast & Reliable)
+        const docRef = doc(db, 'admissions', docId);
+        batch.set(docRef, payload, { merge: true });
+
+        if (strat === 'assign_new') assignedCount++;
+        else if (strat === 'inherit_prev') inheritedCount++;
+        else if (strat === 'custom') customCount++;
+      }
+
+      // 2. Commit batch atomically to Cloud Firestore in 1 single ultra-fast network call
+      await batch.commit();
+
+      setToast({
+        message: `⚡ High-Speed Firestore Update Complete! Assigned IDs to ${assignedCount + inheritedCount + customCount} students.`,
+        type: 'success'
+      });
+
+      // Clear session cache & trigger instant reload
+      try { sessionStorage.removeItem('hss_reports_cache_v5'); } catch (_) { }
+      loadReportsData(true);
+    } catch (err) {
+      console.error('Assign IDs batch error:', err);
+      setToast({ message: `❌ Error assigning IDs: ${err.message}`, type: 'error' });
     } finally {
       setAssigningIds(false);
     }
@@ -3893,10 +4711,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   // Export Filtered Table to CSV/Excel
   const handleExportCSV = () => {
     if (filteredStudents.length === 0) return;
-    const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile'];
+    const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (S)', 'Mobile (P)'];
 
     const cleanVal = (val) => {
-      if (!val || val === '—' || val === 'N/A' || val === 'undefined' || val === 'null') return '';
+      if (!val || val === '—' || val === 'N/A' || val === 'undefined' || val === 'null' || val === '-') return '';
       return String(val).trim();
     };
 
@@ -3918,6 +4736,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       `"${cleanVal(s.stream)}"`,
       `"${cleanVal(s.subs)}"`,
       `"${cleanVal(s.mobile)}"`,
+      `"${cleanVal(s.parentContact)}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -4045,7 +4864,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return;
     }
 
-    if (!window.confirm(`Sync & compress photos for ${matchedItems.length} matched student records in Firestore?`)) return;
+    if (!window.confirm(`Sync & compress photos for ${matchedItems.length} matched student records in School Database?`)) return;
 
     setBatchSyncingPhotos(true);
     let successCount = 0;
@@ -4078,7 +4897,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         successCount++;
       }
 
-      alert(`Successfully compressed & synced ${successCount} student photos to Firestore database!`);
+      alert(`Successfully compressed & synced ${successCount} student photos to School Database!`);
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       loadReportsData();
       setPhotoBatchFiles([]);
@@ -4120,10 +4939,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       : 'px-3.5 py-2.5 text-xs sm:text-sm font-black leading-normal';
 
   return (
-    <div className="space-y-1.5 text-xs sm:text-sm animate-fadeIn">
+    <div className="space-y-0.5 text-xs sm:text-sm animate-fadeIn relative">
       {/* Sleek Ultra-Compact Control Bar */}
       {/* Ultra-Responsive Control Bar: Single Row on Desktop / Minimal 2-Rows on Mobile */}
-      <div className="p-1 sm:p-1.5 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+      <div className="px-1.5 py-0.5 sm:py-1 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
 
         {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Desktop Filters + Total Records Counter */}
         <div className="flex items-center justify-between gap-1 sm:gap-1.5 flex-1 min-w-0">
@@ -4132,13 +4951,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
             {/* Search Input Bar (Expands aggressively on Mobile & Desktop) */}
             <div className="relative flex-1 min-w-[100px] sm:min-w-[140px] sm:max-w-[210px]">
-              <Search size={12} className="absolute left-2 top-2 text-slate-400 pointer-events-none" />
+              <Search size={12} className="absolute left-2 top-1.5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search Reg, Name, Roll..."
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-6 pr-5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs"
+                className="w-full pl-6 pr-5 py-0.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs"
               />
               {searchTerm && (
                 <button onClick={() => setSearchTerm('')} className="absolute right-1.5 top-1 text-slate-500 hover:text-slate-700 p-0.5">
@@ -4175,13 +4994,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             </div>
 
             {/* Total Records Counter & Scope Swapper (POSITIONED DIRECTLY TO THE RIGHT OF FILTERS BUTTON) */}
-            <div className="flex items-center p-0.5 rounded-lg border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
+            <div className="relative overflow-hidden flex items-center p-0.5 rounded-lg border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => { setViewScope('active'); setCurrentPage(1); }}
                 className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'active'
-                    ? 'bg-emerald-700 text-white shadow-2xs font-black'
-                    : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
+                  ? 'bg-emerald-700 text-white shadow-2xs font-black'
+                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
                   }`}
               >
                 <span className="text-[10px] sm:text-xs font-black">Active</span>
@@ -4193,8 +5012,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 type="button"
                 onClick={() => { setViewScope('all'); setCurrentPage(1); }}
                 className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'all'
-                    ? 'bg-amber-700 text-white shadow-2xs font-black'
-                    : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
+                  ? 'bg-amber-700 text-white shadow-2xs font-black'
+                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
                   }`}
               >
                 <span className="text-[10px] sm:text-xs font-black">All</span>
@@ -4211,6 +5030,16 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               >
                 <BarChart2 size={13} />
               </button>
+
+              {/* Red Progress Bar strictly at the bottom border of this specific Active/All pill box */}
+              {(isFetchingData || loading || fetchProgress > 0) && (
+                <div className="absolute left-0 right-0 bottom-0 h-0.5 sm:h-1 bg-red-100 dark:bg-rose-950/40 overflow-hidden pointer-events-none transition-all">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(225,29,72,0.9)]"
+                    style={{ width: `${fetchProgress || (loading ? 45 : 100)}%` }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -4231,87 +5060,18 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 <Wrench size={14} />
               </button>
 
-              {isToolsOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-52 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-black">
-                  {[
-                    { id: 'gkTest', label: 'Competitive Exam Prep & Registrations', icon: ShieldCheck },
-                    { id: 'controls', label: 'Controls & Subjects', icon: Settings },
-                    { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
-                    { id: 'attendanceMgmt', label: 'Attendance Management', icon: CalendarCheck },
-                    { id: 'rollNo', label: 'Roll Numbers', icon: Hash },
-                    { id: 'bulk', label: 'Bulk Export', icon: Layers },
-                    { id: 'automations', label: 'Email & Automations', icon: Mail },
-                    { id: 'funds', label: 'Fund Accounts', icon: CreditCard },
-                  ].map((t) => {
-                    const Icon = t.icon;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveTab(t.id);
-                          setIsToolsOpen(false);
-                        }}
-                        className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-900 dark:text-slate-100 cursor-pointer font-extrabold"
-                      >
-                        <Icon size={13} className="text-slate-500" />
-                        <span>{t.label}</span>
-                      </button>
-                    );
-                  })}
-
-                  <div className="my-1 border-t border-slate-200 dark:border-slate-800"></div>
-
-                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold text-[11px]">
-                    <span className="flex items-center gap-2">
-                      <Edit3 size={13} className="text-amber-600 dark:text-amber-400" />
-                      <span>Quick Cell Edit Hover</span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={enableQuickCellEdit}
-                      onChange={(e) => setEnableQuickCellEdit(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAnalyticsModal(true);
-                      setIsToolsOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 transition-colors cursor-pointer font-black border-b border-slate-200 dark:border-slate-800"
-                  >
-                    <BarChart2 size={13} className="text-indigo-600 dark:text-indigo-400" />
-                    <span>Analytics & Reports Suite</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDirectIngestionModal(true);
-                      setIsToolsOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer font-black border-b border-slate-200 dark:border-slate-800"
-                  >
-                    <PlusCircle size={13} className="text-amber-600 dark:text-amber-400" />
-                    <span>Express Direct Record Entry</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowToolsModal(true);
-                      setIsToolsOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer font-black"
-                  >
-                    <Wrench size={13} className="text-amber-600 dark:text-amber-400" />
-                    <span>Bulk Tools & Photo Suite</span>
-                  </button>
-                </div>
-              )}
+              <AdminToolsDropdown
+                isOpen={isToolsOpen}
+                setIsOpen={setIsToolsOpen}
+                activeTab="reports"
+                setActiveTab={setActiveTab}
+                onOpenAnalytics={() => setShowAnalyticsModal(true)}
+                onOpenDirectEntry={() => setShowDirectIngestionModal(true)}
+                onOpenBulkTools={() => setShowToolsModal(true)}
+                enableQuickCellEdit={enableQuickCellEdit}
+                setEnableQuickCellEdit={setEnableQuickCellEdit}
+                align="right"
+              />
             </div>
 
             {/* Mobile Filters Dropdown (Shown ONLY on Mobile < sm right next to Wrench Tools) */}
@@ -4397,15 +5157,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
       {/* Master Data Table (Clean Light Theme Adaptive Headers & Sticky S.No Column) */}
       <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-140px)] min-h-[450px] rounded-lg border border-slate-300 dark:border-slate-700 shadow-2xs max-w-full bg-white dark:bg-slate-900 relative">
-        {loading ? (
-          <div className="p-8 text-center space-y-2">
-            <RefreshCw size={22} className="animate-spin mx-auto text-amber-600" />
-            <p className="font-extrabold text-xs text-slate-700 dark:text-slate-300">Loading Student Registers & Admission Database...</p>
-          </div>
-        ) : (
-          <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words">
-            <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
-              <tr>
+        <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words table-fixed">
+            <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
+              <tr className="overflow-visible">
                 {orderedVisibleColumns.map((col, idx) => {
                   const widthPx = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
                   const stickyClasses = col.isSticky
@@ -4418,40 +5172,40 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   return (
                     <th
                       key={col.key}
-                      style={{ width: `${widthPx}px`, minWidth: `${widthPx}px` }}
+                      style={{ width: `${widthPx}px`, maxWidth: `${widthPx}px` }}
                       draggable={!col.isSticky}
                       onDragStart={(e) => handleColumnDragStart(e, col.key)}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleColumnDrop(e, col.key)}
-                      className={`relative group/th select-none px-2 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-words cursor-grab active:cursor-grabbing transition-colors ${stickyClasses} ${draggedColKey === col.key ? 'opacity-40 bg-amber-200 dark:bg-amber-900' : ''}`}
+                      className={`relative group/th group-hover/th:z-50 select-none px-1.5 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-all overflow-visible cursor-grab active:cursor-grabbing transition-colors ${stickyClasses} ${draggedColKey === col.key ? 'opacity-40 bg-amber-200 dark:bg-amber-900' : ''}`}
                     >
-                      <div className="flex items-center justify-between pr-2">
-                        <span className="break-words font-black text-[#800000] dark:text-rose-400">{col.label}</span>
-                      </div>
-
-                      {/* Floating Overlay Column Shift Controls (Activated on Mouse Hover over Header Cell, Zero Layout Impact) */}
+                      {/* Prominent Column Shift Arrows (Centered, z-50 elevated, uncropped) */}
                       {!col.isSticky && (
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/th:opacity-100 flex items-center gap-0.5 transition-opacity bg-slate-900/90 dark:bg-slate-800/90 text-white px-1 py-0.5 rounded-lg shadow-md z-30 pointer-events-auto">
+                        <div className="absolute left-1/2 -translate-x-1/2 top-0.5 opacity-0 group-hover/th:opacity-100 flex items-center gap-0.5 transition-all z-50 pointer-events-auto bg-amber-100/95 dark:bg-slate-800/95 text-[#800000] dark:text-rose-300 px-1 py-0.5 rounded-full border border-amber-600/50 dark:border-rose-400/50 shadow-lg hover:scale-110">
                           <button
                             type="button"
                             disabled={isFirstShiftable}
                             onClick={(e) => { e.stopPropagation(); handleShiftColumn(col.key, 'left'); }}
-                            title="Shift column left (temporary for this session)"
-                            className="w-4 h-4 rounded hover:bg-amber-500 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent font-black text-[10px] flex items-center justify-center cursor-pointer text-slate-100 transition-colors"
+                            title="Shift column left"
+                            className="p-0.5 rounded hover:bg-amber-500/30 hover:scale-125 text-[#800000] dark:text-rose-300 hover:text-amber-800 dark:hover:text-amber-400 disabled:opacity-20 cursor-pointer transition-all leading-none"
                           >
-                            ◄
+                            <ChevronLeft size={11} strokeWidth={3} />
                           </button>
                           <button
                             type="button"
                             disabled={isLastShiftable}
                             onClick={(e) => { e.stopPropagation(); handleShiftColumn(col.key, 'right'); }}
-                            title="Shift column right (temporary for this session)"
-                            className="w-4 h-4 rounded hover:bg-amber-500 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent font-black text-[10px] flex items-center justify-center cursor-pointer text-slate-100 transition-colors"
+                            title="Shift column right"
+                            className="p-0.5 rounded hover:bg-amber-500/30 hover:scale-125 text-[#800000] dark:text-rose-300 hover:text-amber-800 dark:hover:text-amber-400 disabled:opacity-20 cursor-pointer transition-all leading-none"
                           >
-                            ►
+                            <ChevronRight size={11} strokeWidth={3} />
                           </button>
                         </div>
                       )}
+
+                      <div className={`flex items-center ${col.key === 'sno' ? 'justify-center text-center' : 'justify-between'} overflow-hidden`}>
+                        <span className={`break-all overflow-hidden font-black text-[#800000] dark:text-rose-400 ${col.key === 'sno' ? 'text-center w-full' : ''}`}>{col.label}</span>
+                      </div>
 
                       {/* Interactive Drag Handle to Resize Column Width */}
                       <div
@@ -4475,7 +5229,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     _visibleCols: visibleCols,
                     _setPreviewPhotoModal: setPreviewPhotoModal,
                     _setSelectedApp: setSelectedApp,
-                    _onRefresh: () => loadReportsData(true)
+                    _onRefresh: () => loadReportsData(true),
+                    _handleCopyCell: handleCopyCell,
+                    _copiedCellId: copiedCellId,
                   };
                   const dynamicSNo = pageSize === 'All' ? idx + 1 : (currentPage - 1) * (parseInt(pageSize, 10) || 50) + idx + 1;
 
@@ -4495,36 +5251,38 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                         return (
                           <td
                             key={col.key}
-                            style={{ width: `${widthPx}px`, minWidth: `${widthPx}px` }}
-                            className={`relative group/cell ${cellPaddingClass} ${col.className || ''} ${stickyBg}`}
+                            style={{ width: `${widthPx}px`, maxWidth: `${widthPx}px` }}
+                            className={`relative group/cell overflow-hidden ${cellPaddingClass} ${col.className || ''} ${stickyBg}`}
                           >
-                            <div className="flex items-center justify-between gap-1 min-w-0">
-                              <div className="flex-1 min-w-0 whitespace-normal break-words">
-                                {col.key === 'sno' ? dynamicSNo : (col.render ? col.render(val, studentWithModal) : val)}
-                              </div>
-
-                              {/* Row copy button next to S.No. */}
-                              {col.key === 'sno' && (
+                            {col.key === 'sno' ? (
+                              <div className="flex flex-col items-center justify-center text-center py-0.5 min-w-0 w-full">
+                                <span className="font-mono font-black text-amber-800 dark:text-amber-300 text-xs sm:text-[13px]">{dynamicSNo}</span>
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleCopyRow(s);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-300 flex-shrink-0 cursor-pointer"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-300 cursor-pointer flex items-center justify-center"
                                   title="Copy entire row for Excel/Sheets"
                                 >
                                   {isRowCopied ? (
-                                    <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">Copied Row!</span>
+                                    <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">Copied!</span>
                                   ) : (
-                                    <Copy size={11} />
+                                    <Copy size={10} />
                                   )}
                                 </button>
-                              )}
-                            </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-1 min-w-0">
+                                <div className="flex-1 min-w-0 whitespace-normal break-words">
+                                  {col.render ? col.render(val, studentWithModal) : val}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Horizontal edit/copy/clear action capsule placed at absolute bottom-right wall of td */}
-                            {((val && val !== '—') || (enableQuickCellEdit && !restrictedCols[col.key])) && (
+                            {col.key !== 'mobile' && col.key !== 'sno' && ((val && val !== '—') || (enableQuickCellEdit && !restrictedCols[col.key])) && (
                               <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0.5 bottom-0.5 z-20 flex flex-row items-center gap-0.5 p-0.5 rounded-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-2xs">
                                 {/* Edit/Add Icon — Only active when Quick Cell Edit Hover is checked */}
                                 {enableQuickCellEdit && !restrictedCols[col.key] && (
@@ -4593,7 +5351,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               )}
             </tbody>
           </table>
-        )}
       </div>
 
       {/* MODAL 1: Column Manager & Presets (☰ Cols) */}
@@ -4609,57 +5366,84 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </button>
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setColManagerTab('visibility')}
-                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${colManagerTab === 'visibility'
-                    ? 'bg-amber-700 text-white shadow-md'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-              >
-                <Eye size={14} /> <span>Column Display Visibility</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setColManagerTab('restrictions')}
-                className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${colManagerTab === 'restrictions'
-                    ? 'bg-amber-700 text-white shadow-md'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-              >
-                <ShieldCheck size={14} /> <span>🔒 Lock Fields from Editing</span>
-              </button>
-            </div>
+            {/* Unified Single Row Header: Tabs & Quick Presets */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
+              {/* Tab Buttons */}
+              <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-900/60 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setColManagerTab('visibility')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px] ${colManagerTab === 'visibility'
+                    ? 'bg-amber-700 text-white shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                >
+                  <Eye size={13} /> <span>Column Display Visibility</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setColManagerTab('restrictions')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px] ${colManagerTab === 'restrictions'
+                    ? 'bg-amber-700 text-white shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                >
+                  <ShieldCheck size={13} /> <span>🔒 Lock Fields</span>
+                </button>
+              </div>
 
-            {colManagerTab === 'visibility' ? (
-              <>
-                {/* Quick Layout Presets */}
-                <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
-                  <span className="text-slate-700 dark:text-slate-300">Quick Presets:</span>
+              {/* Quick Presets & Dynamic Presets Manager in Same Row */}
+              {colManagerTab === 'visibility' && (
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="text-slate-700 dark:text-slate-300 font-extrabold">Quick Presets:</span>
                   <button
                     type="button"
                     onClick={() => applyPreset('fit')}
-                    className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white shadow-sm cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-600 text-white shadow-xs cursor-pointer"
                   >
-                    ⚡ Fit All Screen Width
+                    ⚡ Fit Screen Width
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset('essential')}
-                    className="px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white shadow-sm cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white shadow-xs cursor-pointer"
                   >
-                    📋 Essential Columns
+                    📋 Essential
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset('all')}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white shadow-xs cursor-pointer"
                   >
-                    🌐 Show All (Scroll)
+                    🌐 Show All
+                  </button>
+
+                  {/* Custom Presets */}
+                  {customPresets.map(preset => (
+                    <div key={preset.name} className="flex items-center gap-1 bg-purple-700 hover:bg-purple-600 text-white px-2.5 py-1 rounded-lg font-bold shadow-xs">
+                      <button type="button" onClick={() => applyCustomPreset(preset)} className="cursor-pointer">
+                        ✨ {preset.name}
+                      </button>
+                      <button type="button" onClick={() => deleteCustomPreset(preset.name)} className="hover:text-rose-300 ml-1 cursor-pointer">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleSaveCustomPreset}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white shadow-xs cursor-pointer flex items-center gap-1 font-black"
+                    title="Save currently selected columns as a custom layout preset"
+                  >
+                    <PlusCircle size={13} /> <span>Save Preset</span>
                   </button>
                 </div>
+              )}
+            </div>
+
+            {colManagerTab === 'visibility' ? (
+              <>
 
                 {/* Search Input for Columns */}
                 <div className="relative flex-shrink-0">
@@ -4668,18 +5452,18 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     placeholder="Search columns by name..."
                     value={colSearchQuery}
                     onChange={(e) => setColSearchQuery(e.target.value)}
-                    className="w-full px-3 py-2 pl-9 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs bg-slate-50 dark:bg-slate-950"
+                    className="w-full px-2.5 py-1.5 pl-8 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] bg-slate-50 dark:bg-slate-950"
                   />
-                  <Search size={13} className="absolute left-3 top-3 text-slate-500 dark:text-slate-400" />
+                  <Search size={12} className="absolute left-2.5 top-2.5 text-slate-500 dark:text-slate-400" />
                   {colSearchQuery && (
-                    <button onClick={() => setColSearchQuery('')} className="absolute right-3 top-2 text-slate-500 hover:text-slate-700">
-                      <X size={14} />
+                    <button onClick={() => setColSearchQuery('')} className="absolute right-2.5 top-1.5 text-slate-500 hover:text-slate-700">
+                      <X size={13} />
                     </button>
                   )}
                 </div>
 
                 {/* Classified Columns List */}
-                <div className="space-y-4 overflow-y-auto p-2.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex-1 max-h-[50vh]">
+                <div className="space-y-2 overflow-y-auto p-2 border border-slate-200 dark:border-slate-800 rounded-xl flex-1 max-h-[60vh]">
                   {[
                     {
                       category: "👤 Personal Details",
@@ -4714,8 +5498,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                         { key: 'pinCode', label: 'PIN Code' },
                         { key: 'state', label: 'State/UT' },
                         { key: 'houseNo', label: 'House No.' },
-                        { key: 'mobile', label: "Student's Contact" },
-                        { key: 'parentContact', label: "Parent's Contact" },
+                        { key: 'mobile', label: 'Mobile (S/P)' },
+                        { key: 'parentContact', label: 'Mobile (P)' },
                         { key: 'email1', label: 'Email 1' },
                         { key: 'email2', label: 'Email 2' },
                       ]
@@ -4792,18 +5576,18 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     if (filteredCols.length === 0) return null;
 
                     return (
-                      <div key={group.category} className="space-y-2">
-                        <h4 className="text-[10px] font-black text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-1 uppercase tracking-wide">
+                      <div key={group.category} className="space-y-1.5">
+                        <h4 className="text-[10px] font-black text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-0.5 uppercase tracking-wide">
                           {group.category}
                         </h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1">
                           {filteredCols.map((c) => (
-                            <label key={`${group.category}_${c.key}`} className="flex items-center gap-1.5 p-1.5 sm:p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 hover:border-amber-500 cursor-pointer font-black text-[11px] sm:text-xs text-slate-900 dark:text-slate-100 transition-colors shadow-2xs">
+                            <label key={`${group.category}_${c.key}`} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 hover:border-amber-500 cursor-pointer font-bold text-[10.5px] sm:text-[11px] text-slate-900 dark:text-slate-100 transition-colors shadow-2xs">
                               <input
                                 type="checkbox"
                                 checked={visibleCols[c.key]}
                                 onChange={() => toggleCol(c.key)}
-                                className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0"
+                                className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0"
                               />
                               <span className="truncate" title={c.label}>{c.label}</span>
                             </label>
@@ -4835,8 +5619,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       <label
                         key={`lock_${c.key}`}
                         className={`flex items-center justify-between p-2 rounded-xl border font-black text-xs cursor-pointer transition-all ${isRestricted
-                            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-300'
-                            : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
+                          ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-300'
+                          : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
                           }`}
                       >
                         <div className="flex items-center gap-2 truncate">
@@ -4861,8 +5645,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
             {layoutNotice && (
               <div className={`p-2 rounded-xl font-extrabold text-xs text-center border ${layoutNotice.type === 'success'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
                 }`}>
                 {layoutNotice.msg}
               </div>
@@ -5031,19 +5815,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       <Printer size={15} />
                       <span>View / Print ({selectedBulkFormIds.size})</span>
                     </button>
-
-                    <button
-                      type="button"
-                      disabled={selectedBulkFormIds.size === 0 || (!printSections.includeAdmissionForm && !printSections.includeLibraryForm && !printSections.includeConductDeclaration)}
-                      onClick={() => {
-                        const selectedList = filteredStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']));
-                        downloadBulkAdmissionPdf(selectedList, printSections);
-                      }}
-                      className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <Download size={15} />
-                      <span>Download PDF ({selectedBulkFormIds.size})</span>
-                    </button>
                   </div>
                 </div>
 
@@ -5112,9 +5883,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                               {st["Admission sought for class"] || st.class || '11th'} ({st.stream || st["Stream for Class 11th"] || 'General'})
                             </td>
                             <td className="p-2.5 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                (st.status || st.Status || '').toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${(st.status || st.Status || '').toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
                                 {st.status || st.Status || 'Submitted'}
                               </span>
                             </td>
@@ -5129,39 +5899,225 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
             {/* Tool Content 1: Assign IDs */}
             {activeToolsTab === 'assign_ids' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="font-black text-sm text-slate-900 dark:text-white">
-                  Assign Admission Numbers in Bulk
-                </div>
-                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Group assign sequential Admission Numbers to currently filtered students missing them.</p>
-
-                <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                   <div>
-                    <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">Start Assigning From ID:</label>
+                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <CreditCard size={16} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>Assign Admission Numbers in Bulk</span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-[11px] font-semibold mt-0.5">
+                      Calculate next sequential ID, inherit previous IDs via Reg No, and assign IDs to new entry classes.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAssignStartId(calculatedNextAdmNo)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 hover:bg-indigo-200 transition-colors flex items-center gap-1 cursor-pointer flex-shrink-0"
+                    title="Auto-calculate next available Admission Number"
+                  >
+                    <RefreshCw size={12} />
+                    <span>Auto-Calculate Next ({calculatedNextAdmNo})</span>
+                  </button>
+                </div>
+
+                {/* Scope & Settings Header */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  {/* Session Filter */}
+                  <div>
+                    <label className="font-black block text-[11px] text-slate-700 dark:text-slate-300 mb-1">
+                      Academic Session:
+                    </label>
+                    <select
+                      value={assignSessionFilter}
+                      onChange={(e) => setAssignSessionFilter(e.target.value)}
+                      className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="2025-26">2025-26 (Current)</option>
+                      <option value="2024-25">2024-25</option>
+                      <option value="2026-27">2026-27</option>
+                      <option value="all">All Sessions</option>
+                    </select>
+                  </div>
+
+                  {/* Class Scope Selector */}
+                  <div>
+                    <label className="font-black block text-[11px] text-slate-700 dark:text-slate-300 mb-1">
+                      Target Classes:
+                    </label>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {['9th', '10th', '11th', '12th'].map(cls => {
+                        const checked = assignClasses.includes(cls);
+                        return (
+                          <label
+                            key={cls}
+                            className={`px-2 py-0.5 rounded text-[11px] font-black cursor-pointer border transition-all flex items-center gap-1 select-none ${checked
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                              }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setAssignClasses(prev => [...prev, cls]);
+                                } else {
+                                  setAssignClasses(prev => prev.filter(c => c !== cls));
+                                }
+                              }}
+                              className="hidden"
+                            />
+                            <span>{cls}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Start Assigning From ID Input */}
+                  <div>
+                    <label className="font-black block text-[11px] text-slate-700 dark:text-slate-300 mb-1">
+                      Start Assigning From ID:
+                    </label>
                     <input
                       type="number"
                       value={assignStartId}
                       onChange={(e) => setAssignStartId(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-center text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900"
+                      className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-black text-center text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+
+                  {/* Missing Only Toggle & Summary */}
                   <div>
-                    <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">Target Count:</label>
-                    <div className="p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-center bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300">
-                      {filteredStudents.length} Students Selected
+                    <label className="font-black block text-[11px] text-slate-700 dark:text-slate-300 mb-1">
+                      Target Selection Summary:
+                    </label>
+                    <div className="flex items-center justify-between gap-1 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      <label className="flex items-center gap-1 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={onlyMissingAdmNo}
+                          onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
+                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Only Missing Adm No</span>
+                      </label>
+                      <span className="px-1.5 py-0.5 rounded-full font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50">
+                        {candidatePreviewList.length} Selected
+                      </span>
                     </div>
                   </div>
                 </div>
+
+                {/* Candidate Preview List */}
+                {candidatePreviewList.length > 0 ? (
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                    <div className="max-h-64 overflow-y-auto">
+                      <table className="w-full text-left text-[11px] border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300">
+                          <tr>
+                            <th className="px-2 py-1.5 w-8 text-center">#</th>
+                            <th className="px-2 py-1.5">Student & Father's Name</th>
+                            <th className="px-2 py-1.5">Class / Session</th>
+                            <th className="px-2 py-1.5">Board Reg. No.</th>
+                            <th className="px-2 py-1.5">Previous Adm. No. (Reg Key)</th>
+                            <th className="px-2 py-1.5">Current Adm No</th>
+                            <th className="px-2 py-1.5 text-center">Assignment Strategy</th>
+                            <th className="px-2 py-1.5 text-right">Proposed ID</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-semibold text-slate-800 dark:text-slate-200">
+                          {candidatePreviewList.map((item, idx) => {
+                            const { student, currentAdm, prevInfo, strat, proposed } = item;
+                            const stName = getStudentName(student) || 'Student';
+                            const fName = getFatherName(student) || '—';
+                            const regNo = extractRegNo(student) || '—';
+                            const stCls = normalizeClassVal(student.class || student['Admission sought for class'] || student['Class']) || '—';
+                            const stSess = student.session || student['Session'] || '—';
+
+                            return (
+                              <tr key={student.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors">
+                                <td className="px-2 py-1 text-center font-bold text-slate-500">{idx + 1}</td>
+                                <td className="px-2 py-1 font-bold">
+                                  <div className="text-slate-900 dark:text-slate-100">{stName}</div>
+                                  <div className="text-[10px] text-slate-500 font-normal">S/O: {fName}</div>
+                                </td>
+                                <td className="px-2 py-1 font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                                  {stCls} ({stSess})
+                                </td>
+                                <td className="px-2 py-1 font-mono text-[11px] text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                  {regNo}
+                                </td>
+                                <td className="px-2 py-1 font-mono text-[11px] whitespace-nowrap">
+                                  {prevInfo ? (
+                                    <span className="px-1.5 py-0.5 rounded font-black text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800" title={`Found in ${prevInfo.session} (${prevInfo.class})`}>
+                                      {prevInfo.admNo} ({prevInfo.class})
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-normal">—</span>
+                                  )}
+                                </td>
+                                <td className="px-2 py-1 font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                  {currentAdm || '—'}
+                                </td>
+                                <td className="px-2 py-1 text-center">
+                                  <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <button
+                                      type="button"
+                                      onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'assign_new' }))}
+                                      className={`px-1.5 py-0.5 text-[10px] font-black rounded cursor-pointer ${strat === 'assign_new' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
+                                      title="Assign next sequential Admission Number"
+                                    >
+                                      Sequential
+                                    </button>
+
+                                    {prevInfo && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'inherit_prev' }))}
+                                        className={`px-1.5 py-0.5 text-[10px] font-black rounded cursor-pointer ${strat === 'inherit_prev' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
+                                        title="Use previous Admission Number found via Reg No"
+                                      >
+                                        Inherit Prev ({prevInfo.admNo})
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'skip' }))}
+                                      className={`px-1.5 py-0.5 text-[10px] font-black rounded cursor-pointer ${strat === 'skip' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
+                                      title="Skip this student"
+                                    >
+                                      Skip
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="px-2 py-1 text-right font-mono font-black text-indigo-700 dark:text-indigo-300 text-xs">
+                                  {proposed}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs font-semibold text-slate-500 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    No eligible students found matching the selected class scope and missing filter.
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={handleRunAssignIds}
-                    disabled={assigningIds}
-                    className="flex-1 py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    disabled={assigningIds || candidatePreviewList.length === 0}
+                    className="flex-1 py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
                   >
                     {assigningIds ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                    <span>Run New ID Assignment</span>
+                    <span>Run Admission ID Assignment ({candidatePreviewList.length} Students)</span>
                   </button>
                 </div>
               </div>
@@ -5337,7 +6293,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   </button>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed">
-                  Bulk upload optimized/raw photo files (naming format: <code className="bg-slate-200 dark:bg-slate-800 px-1 rounded text-purple-700 dark:text-purple-300">Class_Session_RegNo_Name.jpg</code>). The system automatically matches student records, compresses images in-browser to ~5–10 KB JPEGs, and updates Firestore.
+                  Bulk upload optimized/raw photo files (naming format: <code className="bg-slate-200 dark:bg-slate-800 px-1 rounded text-purple-700 dark:text-purple-300">Class_Session_RegNo_Name.jpg</code>). The system automatically matches student records, compresses images in-browser to ~5–10 KB JPEGs, and updates School Database.
                 </p>
 
                 {/* File Picker */}
@@ -5395,12 +6351,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       {batchSyncingPhotos ? (
                         <>
                           <RefreshCw size={14} className="animate-spin" />
-                          <span>Compressing & Syncing to Firestore...</span>
+                          <span>Compressing & Syncing to School Database...</span>
                         </>
                       ) : (
                         <>
                           <Camera size={14} />
-                          <span>Compress & Sync {photoMatchResults.filter(m => m.matchedStudent).length} Photos to Firestore</span>
+                          <span>Compress & Sync {photoMatchResults.filter(m => m.matchedStudent).length} Photos to School Database</span>
                         </>
                       )}
                     </button>
@@ -5622,8 +6578,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-5 right-5 z-[10001] px-5 py-3.5 rounded-2xl font-black text-xs shadow-2xl border flex items-center gap-2 animate-bounce ${toast.type === 'error'
-            ? 'bg-rose-950 text-rose-100 border-rose-700 shadow-rose-950/50'
-            : 'bg-emerald-950 text-emerald-100 border-emerald-700 shadow-emerald-950/50'
+          ? 'bg-rose-950 text-rose-100 border-rose-700 shadow-rose-950/50'
+          : 'bg-emerald-950 text-emerald-100 border-emerald-700 shadow-emerald-950/50'
           }`}>
           <span>{toast.message}</span>
         </div>

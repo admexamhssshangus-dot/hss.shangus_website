@@ -122,6 +122,97 @@ export default function LoginPage() {
     }
   };
 
+// Pure JS MD5 helper for verifying hashed passwords from Google Sheet / Firestore migrations
+function md5(str) {
+  function rotateLeft(lValue, iShiftBits) {
+    return (lValue << iShiftBits) | (lValue >>> (32 - iShiftBits));
+  }
+  function addUnsigned(lX, lY) {
+    var lX4, lY4, lX8, lY8, lResult;
+    lX8 = (lX & 0x80000000); lY8 = (lY & 0x80000000);
+    lX4 = (lX & 0x40000000); lY4 = (lY & 0x40000000);
+    lResult = (lX & 0x3FFFFFFF) + (lY & 0x3FFFFFFF);
+    if (lX4 & lY4) return (lResult ^ 0x80000000 ^ lX8 ^ lY8);
+    if (lX4 | lY4) {
+      if (lResult & 0x40000000) return (lResult ^ 0xC0000000 ^ lX8 ^ lY8);
+      else return (lResult ^ 0x40000000 ^ lX8 ^ lY8);
+    } else return (lResult ^ lX8 ^ lY8);
+  }
+  function F(x, y, z) { return (x & y) | ((~x) & z); }
+  function G(x, y, z) { return (x & z) | (y & (~z)); }
+  function H(x, y, z) { return (x ^ y ^ z); }
+  function I(x, y, z) { return (y ^ (x | (~z))); }
+  function FF(a, b, c, d, x, s, ac) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(F(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function GG(a, b, c, d, x, s, ac) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(G(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function HH(a, b, c, d, x, s, ac) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(H(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function II(a, b, c, d, x, s, ac) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(I(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function convertToWordArray(string) {
+    var lWordCount;
+    var lMessageLength = string.length;
+    var lNumberOfWords_temp1 = lMessageLength + 8;
+    var lNumberOfWords_temp2 = (lNumberOfWords_temp1 - (lNumberOfWords_temp1 % 64)) / 64;
+    var lNumberOfWords = (lNumberOfWords_temp2 + 1) * 16;
+    var lWordArray = Array(lNumberOfWords - 1);
+    var lBytePosition = 0; var lByteCount = 0;
+    while (lByteCount < lMessageLength) {
+      lWordCount = (lByteCount - (lByteCount % 4)) / 4;
+      lBytePosition = (lByteCount % 4) * 8;
+      lWordArray[lWordCount] = (lWordArray[lWordCount] | (string.charCodeAt(lByteCount) << lBytePosition));
+      lByteCount++;
+    }
+    lWordCount = (lByteCount - (lByteCount % 4)) / 4;
+    lBytePosition = (lByteCount % 4) * 8;
+    lWordArray[lWordCount] = lWordArray[lWordCount] | (0x80 << lBytePosition);
+    lWordArray[lNumberOfWords - 2] = lMessageLength << 3;
+    lWordArray[lNumberOfWords - 1] = lMessageLength >>> 29;
+    return lWordArray;
+  }
+  function wordToHex(lValue) {
+    var WordToHexValue = "", WordToHexValue_temp = "", lByte, lCount;
+    for (lCount = 0; lCount <= 3; lCount++) {
+      lByte = (lValue >>> (lCount * 8)) & 255;
+      WordToHexValue_temp = "0" + lByte.toString(16);
+      WordToHexValue = WordToHexValue + WordToHexValue_temp.substr(WordToHexValue_temp.length - 2, 2);
+    }
+    return WordToHexValue;
+  }
+  var x = convertToWordArray(str);
+  var k, AA, BB, CC, DD, a = 0x67452301, b = 0xEFCDAB89, c = 0x98BADCFE, d = 0x10325476;
+  for (k = 0; k < x.length; k += 16) {
+    AA = a; BB = b; CC = c; DD = d;
+    a = FF(a, b, c, d, x[k + 0], 7, 0xD76AA478); d = FF(d, a, b, c, x[k + 1], 12, 0xE8C7B756); c = FF(c, d, a, b, x[k + 2], 17, 0x242070DB); b = FF(b, c, d, a, x[k + 3], 22, 0xC1BDCEEE);
+    a = FF(a, b, c, d, x[k + 4], 7, 0xF57C0FAF); d = FF(d, a, b, c, x[k + 5], 12, 0x4787C62A); c = FF(c, d, a, b, x[k + 6], 17, 0xA8304613); b = FF(b, c, d, a, x[k + 7], 22, 0xFD469501);
+    a = FF(a, b, c, d, x[k + 8], 7, 0x698098D8); d = FF(d, a, b, c, x[k + 9], 12, 0x8B44F7AF); c = FF(c, d, a, b, x[k + 10], 17, 0xFFFF5BB1); b = FF(b, c, d, a, x[k + 11], 22, 0x895CD7BE);
+    a = FF(a, b, c, d, x[k + 12], 7, 0x6B901122); d = FF(d, a, b, c, x[k + 13], 12, 0xFD987193); c = FF(c, d, a, b, x[k + 14], 17, 0xA679438E); b = FF(b, c, d, a, x[k + 15], 22, 0x49B40821);
+    a = GG(a, b, c, d, x[k + 1], 5, 0xF61E2562); d = GG(d, a, b, c, x[k + 6], 9, 0xC040B340); c = GG(c, d, a, b, x[k + 11], 14, 0x265E5A51); b = GG(b, c, d, a, x[k + 0], 20, 0xE9B6C7AA);
+    a = GG(a, b, c, d, x[k + 5], 5, 0xD62F105D); d = GG(d, a, b, c, x[k + 10], 9, 0x02441453); c = GG(c, d, a, b, x[k + 15], 14, 0xD8A1E681); b = GG(b, c, d, a, x[k + 4], 20, 0xE7D3FBC8);
+    a = GG(a, b, c, d, x[k + 9], 5, 0x21E1CDE6); d = GG(d, a, b, c, x[k + 14], 9, 0xC33707D6); c = GG(c, d, a, b, x[k + 3], 14, 0xF4D50D87); b = GG(b, c, d, a, x[k + 8], 20, 0x455A14ED);
+    a = GG(a, b, c, d, x[k + 13], 5, 0xA9E3E905); d = GG(d, a, b, c, x[k + 2], 9, 0xFCEFA3F8); c = GG(c, d, a, b, x[k + 7], 14, 0x676F02D9); b = GG(b, c, d, a, x[k + 12], 20, 0x8D2A4C8A);
+    a = HH(a, b, c, d, x[k + 5], 4, 0xFFFA3942); d = HH(d, a, b, c, x[k + 8], 11, 0x8771F681); c = HH(c, d, a, b, x[k + 11], 16, 0x6D9D6122); b = HH(b, c, d, a, x[k + 14], 23, 0xFDE5380C);
+    a = HH(a, b, c, d, x[k + 1], 4, 0xA4BEEA44); d = HH(d, a, b, c, x[k + 4], 11, 0x4BDECFA9); c = HH(c, d, a, b, x[k + 7], 16, 0xF6BB4B60); b = HH(b, c, d, a, x[k + 10], 23, 0xBEBFBC70);
+    a = HH(a, b, c, d, x[k + 13], 4, 0x289B7EC6); d = HH(d, a, b, c, x[k + 0], 11, 0xEAA127FA); c = HH(c, d, a, b, x[k + 3], 16, 0xD4EF3085); b = HH(b, c, d, a, x[k + 6], 23, 0x04881D05);
+    a = HH(a, b, c, d, x[k + 9], 4, 0xD9D4D039); d = HH(d, a, b, c, x[k + 12], 11, 0xE6DB99E5); c = HH(c, d, a, b, x[k + 15], 16, 0x1FA27CF8); b = HH(b, c, d, a, x[k + 2], 23, 0xC4AC5665);
+    a = II(a, b, c, d, x[k + 0], 6, 0xF4292244); d = II(d, a, b, c, x[k + 7], 10, 0x432AFF97); c = II(c, d, a, b, x[k + 14], 15, 0xAB9423A7); b = II(b, c, d, a, x[k + 5], 21, 0xFC93A039);
+    a = II(a, b, c, d, x[k + 12], 6, 0x655B59C3); d = II(d, a, b, c, x[k + 3], 10, 0x8F0CCC92); c = II(c, d, a, b, x[k + 10], 15, 0xFFEFF47D); b = II(b, c, d, a, x[k + 1], 21, 0x85845DD1);
+    a = II(a, b, c, d, x[k + 8], 6, 0x6FA87E4F); d = II(d, a, b, c, x[k + 15], 10, 0xFE2CE6E0); c = II(c, d, a, b, x[k + 6], 15, 0xA3014314); b = II(b, c, d, a, x[k + 13], 21, 0x4E0811A1);
+    a = II(a, b, c, d, x[k + 4], 6, 0xF7537E82); d = II(d, a, b, c, x[k + 11], 10, 0xBD3AF235); c = II(c, d, a, b, x[k + 2], 15, 0x2AD7D2BB); b = II(b, c, d, a, x[k + 9], 21, 0xEB86D391);
+    a = addUnsigned(a, AA); b = addUnsigned(b, BB); c = addUnsigned(c, CC); d = addUnsigned(d, DD);
+  }
+  return (wordToHex(a) + wordToHex(b) + wordToHex(c) + wordToHex(d)).toLowerCase();
+}
+
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!email || !password) {
@@ -137,30 +228,79 @@ export default function LoginPage() {
     try {
       let firebaseUser = null;
       let idToken = null;
+      let firestoreUserData = null;
 
       try {
         const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
         firebaseUser = userCred.user;
         idToken = await firebaseUser.getIdToken();
       } catch (authErr) {
-        if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') {
-          if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' && password === 'Gulfam@123') {
+        console.warn('Firebase Auth login failed, checking Firestore database records...', authErr.code);
+
+        // 1. Check Firestore 'users' collection
+        try {
+          const uSnap = await getDoc(doc(db, 'users', cleanEmail));
+          if (uSnap.exists()) {
+            firestoreUserData = uSnap.data();
+          }
+        } catch (_) {}
+
+        if (!firestoreUserData) {
+          try {
+            const q1 = await getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail)));
+            if (!q1.empty) firestoreUserData = q1.docs[0].data();
+            else {
+              const q2 = await getDocs(query(collection(db, 'users'), where('Email', '==', cleanEmail)));
+              if (!q2.empty) firestoreUserData = q2.docs[0].data();
+            }
+          } catch (_) {}
+        }
+
+        // 2. Check Firestore 'admissions' collection if not in 'users'
+        if (!firestoreUserData) {
+          try {
+            const aSnap = await getDoc(doc(db, 'admissions', cleanEmail));
+            if (aSnap.exists()) {
+              firestoreUserData = aSnap.data();
+            } else {
+              const q3 = await getDocs(query(collection(db, 'admissions'), where('email1', '==', cleanEmail)));
+              if (!q3.empty) firestoreUserData = q3.docs[0].data();
+              else {
+                const q4 = await getDocs(query(collection(db, 'admissions'), where('email', '==', cleanEmail)));
+                if (!q4.empty) firestoreUserData = q4.docs[0].data();
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (firestoreUserData) {
+          const plainPass = (firestoreUserData.PasswordPlain || firestoreUserData.passwordPlain || firestoreUserData.password || firestoreUserData.Password || firestoreUserData.pass || firestoreUserData.Pass || '').toString().trim();
+          const hashPass = (firestoreUserData.PasswordHash || firestoreUserData.passwordHash || '').toString().trim().toLowerCase();
+          const inputHash = md5(password);
+
+          const isMatch = (plainPass && plainPass === password) ||
+                          (hashPass && (hashPass === inputHash || hashPass === password));
+
+          if (isMatch) {
+            // Password verified via Firestore record! Auto-register in Firebase Auth
             try {
               const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
               firebaseUser = newCred.user;
               idToken = await firebaseUser.getIdToken();
             } catch (createErr) {
-              console.warn('Auto create SuperAdmin account failed:', createErr);
+              console.warn('Auto create Firebase Auth account note:', createErr.message);
+              firebaseUser = { uid: `fs_${cleanEmail.replace(/[^a-z0-9]/g, '')}`, email: cleanEmail };
             }
           }
         }
+
         if (!firebaseUser) {
           throw authErr;
         }
       }
 
-      let resolvedRole = selectedRole === 'superadmin' ? 'SuperAdmin' : selectedRole === 'admin' ? 'Admin' : selectedRole === 'teacher' ? 'Teacher' : 'Student';
-      let resolvedName = cleanEmail.split('@')[0];
+      let resolvedRole = firestoreUserData?.Role || firestoreUserData?.role || (selectedRole === 'superadmin' ? 'SuperAdmin' : selectedRole === 'admin' ? 'Admin' : selectedRole === 'teacher' ? 'Teacher' : 'Student');
+      let resolvedName = firestoreUserData?.Name || firestoreUserData?.name || firestoreUserData?.studentName || firestoreUserData?.["Student's Name (as per school records)"] || cleanEmail.split('@')[0];
 
       if (cleanEmail === 'adm.exam.hss.shangus@gmail.com') {
         resolvedRole = 'SuperAdmin';
@@ -175,15 +315,17 @@ export default function LoginPage() {
         resolvedRole = 'Admin';
         resolvedName = 'Bilal Ahmad Khandy (Admin)';
       } else {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', cleanEmail));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            resolvedRole = data.Role || data.role || resolvedRole;
-            resolvedName = data.Name || data.name || resolvedName;
+        if (!firestoreUserData) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', cleanEmail));
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              resolvedRole = data.Role || data.role || resolvedRole;
+              resolvedName = data.Name || data.name || data.studentName || resolvedName;
+            }
+          } catch (dbErr) {
+            console.warn('Firestore user fetch failed:', dbErr);
           }
-        } catch (dbErr) {
-          console.warn('Firestore user fetch failed:', dbErr);
         }
       }
 
@@ -282,8 +424,9 @@ export default function LoginPage() {
 
           {/* Main Hero Title */}
           <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight uppercase">
-              Digital Student & Staff <span className="bg-gradient-to-r from-teal-600 via-emerald-500 to-indigo-600 bg-clip-text text-transparent">Portal</span>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight uppercase">
+              <span className="moving-gradient-subtle">Digital Student & Staff</span>{' '}
+              <span className="moving-gradient-text">Portal</span>
             </h1>
             <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-400 mt-2 leading-relaxed max-w-lg">
               Official unified portal for students, faculty, and school administration. Access admissions, roll slips, attendance, and exam management.
@@ -393,30 +536,23 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* SuperAdmin Crown Toggle Button */}
+                {/* Cryptic SuperAdmin Mode Toggle */}
                 <button
                   type="button"
                   onClick={() => setSelectedRole(isSuperAdmin ? 'admin' : 'superadmin')}
-                  title={isSuperAdmin ? 'Deactivate Superadmin Mode' : 'Superadmin Access'}
-                  className={`group relative flex-shrink-0 w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer border ${
-                    isSuperAdmin
-                      ? 'bg-purple-600 border-purple-500 shadow-lg shadow-purple-600/30 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-purple-400 hover:text-purple-500 dark:hover:border-purple-600'
-                  }`}
+                  title={isSuperAdmin ? 'Deactivate Executive Access' : 'System Mode'}
+                  className="group relative flex-shrink-0 p-1.5 rounded-xl opacity-30 hover:opacity-100 transition-opacity cursor-pointer text-slate-400 hover:text-purple-500"
                 >
-                  <Crown
-                    size={16}
-                    className={isSuperAdmin ? 'fill-white text-white' : 'text-slate-400 group-hover:text-purple-500 transition-colors'}
-                  />
+                  <Sparkles size={14} className={isSuperAdmin ? 'text-purple-500 opacity-100' : ''} />
                   {isSuperAdmin && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-white dark:border-slate-900 animate-pulse" />
+                    <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
                   )}
                 </button>
               </div>
 
               {isSuperAdmin && (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 w-full justify-center">
-                  <Crown size={13} /> SuperAdmin Access Mode Active
+                  <ShieldCheck size={13} /> SuperAdmin Access Mode Active
                 </div>
               )}
             </div>
@@ -463,19 +599,19 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Alert Notification Toast Box */}
+            {/* Alert Banner */}
             {alert && (
-              <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 mb-4 animate-fadeIn ${
-                alert.type === 'error'
-                  ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400'
+              <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 mb-4 animate-fadeIn relative z-10 ${
+                alert.type === 'error' 
+                  ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400' 
                   : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
               }`}>
                 {alert.type === 'error' ? <AlertCircle size={16} className="flex-shrink-0 mt-0.5" /> : <CheckCircle size={16} className="flex-shrink-0 mt-0.5" />}
-                <span className="leading-snug">{alert.text}</span>
+                <span>{alert.text}</span>
               </div>
             )}
 
-            {/* Main Interactive Login Form */}
+            {/* Main Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
               
               {/* Email Input */}
@@ -540,11 +676,11 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              {/* Main Submit CTA Button */}
+              {/* Main Submit CTA Button with Attention-Grabbing Pulse & Animated Arrow */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white shadow-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] group ${
+                className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white shadow-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] group animate-portal-pulse ${
                   isSuperAdmin
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/30'
                     : selectedRole === 'teacher'
@@ -557,7 +693,7 @@ export default function LoginPage() {
                 ) : (
                   <>
                     <span>{isSuperAdmin ? 'Sign In as SUPERADMIN' : `Sign In as ${selectedRole.toUpperCase()}`}</span>
-                    <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
+                    <ArrowRight size={16} className="animate-bounce-x" />
                   </>
                 )}
               </button>

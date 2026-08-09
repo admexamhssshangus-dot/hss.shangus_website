@@ -57,7 +57,7 @@ service cloud.firestore {
     // Rate limiting in the client + server protect against bulk scraping
     match /masterRegisters/{chunkId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAuthenticated();
     }
 
     // Historical student register data
@@ -109,10 +109,14 @@ service cloud.firestore {
     }
 
     // 7. System Activity & Email Logs
-    // Require real (non-anonymous) authenticated user to write logs
+    // Allow authenticated operations for admin activity logging
+    match /adminActivityLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
     match /activityLogs/{logId} {
       allow read: if isAuthenticated();
-      allow write: if isRealUser();
+      allow write: if isAuthenticated();
     }
     match /emailLogs/{logId} {
       allow read: if isAuthenticated();

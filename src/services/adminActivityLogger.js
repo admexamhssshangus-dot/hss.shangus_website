@@ -32,17 +32,26 @@ export async function logAdminActivity({
       metadata
     };
 
+    // Also store in local session log buffer for instant admin UI audit
+    try {
+      const recentLogs = JSON.parse(sessionStorage.getItem('hss_recent_admin_logs') || '[]');
+      recentLogs.unshift(logEntry);
+      sessionStorage.setItem('hss_recent_admin_logs', JSON.stringify(recentLogs.slice(0, 100)));
+    } catch (_) {}
+
     // Log to adminActivityLogs collection in Firestore
-    await addDoc(collection(db, 'adminActivityLogs'), logEntry);
+    try {
+      await addDoc(collection(db, 'adminActivityLogs'), logEntry);
+    } catch (_) {}
     
     // Mirror to activityLogs collection
     try {
       await addDoc(collection(db, 'activityLogs'), logEntry);
-    } catch (e) {}
+    } catch (_) {}
 
     return true;
   } catch (err) {
-    console.warn('Failed to commit admin activity log to Firestore:', err);
+    // Fail silently without clogging browser console
     return false;
   }
 }

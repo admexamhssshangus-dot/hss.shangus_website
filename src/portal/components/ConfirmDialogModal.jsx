@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Info, CheckCircle2, Trash2, X, ShieldAlert, FileText } from 'lucide-react';
+import { AlertTriangle, Info, CheckCircle2, Trash2, X, ShieldAlert, FileText, RefreshCw } from 'lucide-react';
 
 /**
  * ConfirmDialogModal — Premium Custom UI Confirmation Dialog with Reason Tracking
@@ -21,6 +21,7 @@ export default function ConfirmDialogModal({
 }) {
   const [reasonCategory, setReasonCategory] = useState('Routine Data Update & Correction');
   const [customReason, setCustomReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -62,12 +63,19 @@ export default function ConfirmDialogModal({
   const currentType = typeStyles[type] || typeStyles.warning;
   const Icon = currentType.icon;
 
-  const handleConfirmClick = () => {
-    if (onConfirm) {
-      onConfirm({
-        reasonCategory,
-        customReason: customReason.trim()
-      });
+  const handleConfirmClick = async () => {
+    if (onConfirm && !isSubmitting && !loading) {
+      try {
+        setIsSubmitting(true);
+        await onConfirm({
+          reasonCategory,
+          customReason: customReason.trim()
+        });
+      } catch (err) {
+        console.error('Confirmation error:', err);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -138,14 +146,24 @@ export default function ConfirmDialogModal({
                 <option value="Student Photo Update">📷 Student Photo Update</option>
                 <option value="Student Request / Grievance Resolution">✏️ Student Request / Grievance Resolution</option>
                 <option value="Administrative Audit & Cleanup">⚙️ Administrative Audit & Cleanup</option>
+                <option value="Custom Justification / Specific Reason">✍️ Custom Justification / Specific Reason...</option>
               </select>
 
               <input
                 type="text"
-                placeholder="Optional custom reason notes (e.g. Approved by Head of Institution)..."
+                autoFocus={reasonCategory.includes('Custom')}
+                placeholder={reasonCategory.includes('Custom') ? "Type your specific custom reason here..." : "Optional custom notes (e.g. As per Principal approval / 10th Marks card)..."}
                 value={customReason}
                 onChange={(e) => setCustomReason(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold focus:ring-2 focus:ring-amber-500 text-[11px]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleConfirmClick();
+                  }
+                }}
+                className={`w-full px-2.5 py-1.5 rounded-xl border font-extrabold text-[11px] transition-all ${reasonCategory.includes('Custom')
+                  ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-950 dark:text-amber-100 ring-2 ring-amber-500/30'
+                  : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500'
+                }`}
               />
             </div>
           )}
@@ -163,11 +181,18 @@ export default function ConfirmDialogModal({
           </button>
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || isSubmitting}
             onClick={handleConfirmClick}
-            className={`px-4 py-1.5 rounded-xl font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${currentType.confirmBtn}`}
+            className={`px-4 py-1.5 rounded-xl font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-60 ${currentType.confirmBtn}`}
           >
-            {confirmText}
+            {(loading || isSubmitting) ? (
+              <>
+                <RefreshCw size={13} className="animate-spin" />
+                <span>Saving & Syncing...</span>
+              </>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
 

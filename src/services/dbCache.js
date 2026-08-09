@@ -1,23 +1,43 @@
 // =================================================================
-// HSS SHANGUS — Fast SWR (Stale-While-Revalidate) & Memory Cache
+// HSS SHANGUS — Fast SWR (Stale-While-Revalidate) & Persistent Multi-Tier Cache
 // =================================================================
-// Caches Firestore getDocs results in memory & sessionStorage with TTL.
-// Provides instantaneous UI renders from cache while silently 
-// fetching fresh updates in the background without UI flashing.
+// Caches Firestore getDocs results in memory, sessionStorage, and localStorage.
+// Provides instantaneous UI renders (0ms) across logins and browser restarts,
+// while avoiding unnecessary database reads when cache is fresh.
 // =================================================================
 
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 
 const CACHE_PREFIX = 'hss_cache_';
-const DEFAULT_TTL_MS = 30 * 60 * 1000; // 30 minutes cache TTL
+const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
+
+// Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
+const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
 
 // In-memory cache for instant zero-latency cross-tab access
 const memoryCache = new Map();
 const memoryTs = new Map();
 
 /**
- * Get cached collection data synchronously if available in memory or sessionStorage.
+ * Clear all in-memory collection caches.
+ */
+export function clearAllMemoryCache() {
+  memoryCache.clear();
+  memoryTs.clear();
+}
+
+// Automatically wipe memory cache when user logs out
+if (typeof window !== 'undefined') {
+  window.addEventListener('hss-auth-changed', (e) => {
+    if (e?.detail?.loggedIn === false) {
+      clearAllMemoryCache();
+    }
+  });
+}
+
+/**
+ * Get cached collection data synchronously if available in memory, sessionStorage, or localStorage.
  * @param {string} collectionName
  * @returns {Array<object>|null}
  */
@@ -27,11 +47,13 @@ export function getCachedCollectionSync(collectionName) {
   }
   try {
     const cacheKey = `${CACHE_PREFIX}${collectionName}`;
-    const cachedData = sessionStorage.getItem(cacheKey);
+    const cachedData = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
     if (cachedData) {
       const parsed = JSON.parse(cachedData);
-      memoryCache.set(collectionName, parsed);
-      return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryCache.set(collectionName, parsed);
+        return parsed;
+      }
     }
   } catch (e) {
     // Ignore storage parse errors
@@ -40,7 +62,7 @@ export function getCachedCollectionSync(collectionName) {
 }
 
 /**
- * Save data into memory and sessionStorage cache safely.
+ * Save data into memory, sessionStorage, and localStorage cache safely.
  * @param {string} collectionName
  * @param {Array<object>} list
  */
@@ -53,21 +75,61 @@ export function setCachedCollectionData(collectionName, list) {
   memoryCache.set(collectionName, list);
   memoryTs.set(collectionName, Date.now());
 
+  // ── Photo URL extraction: save photo URLs SEPARATELY before stripping ──
+  // This ensures photo URLs survive the blob-stripping step below.
+  // We only save the document id + photo URL field to a dedicated mini-cache.
+  const PHOTO_FIELDS = [
+    'Student Photo', 'Student Photograph', 'Student Photo URL',
+    'Photo', 'photo_id', 'photoId', 'photoUrl', 'photo'
+  ];
   try {
-    sessionStorage.setItem(cacheKey, JSON.stringify(list));
-    sessionStorage.setItem(timestampKey, nowStr);
-  } catch (e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22) {
-      // Clear older caches to make room
-      try {
-        sessionStorage.removeItem(`${CACHE_PREFIX}masterRegisters`);
-        sessionStorage.setItem(cacheKey, JSON.stringify(list));
-        sessionStorage.setItem(timestampKey, nowStr);
-      } catch (_) {
-        // Continue with memory cache only
+    const existingPhotoCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    list.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const docId = item.id || item['Form Number'] || item['Board Registration Number'];
+      if (!docId) return;
+      for (const field of PHOTO_FIELDS) {
+        const val = item[field];
+        if (val && typeof val === 'string' && val.length > 5 && (val.startsWith('data:') ? val.length < 50000 : true)) {
+          existingPhotoCache[String(docId)] = val;
+          break; // Only save first found photo field
+        }
       }
+    });
+    const photoStr = JSON.stringify(existingPhotoCache);
+    if (photoStr.length < 3500000) { // Max 3.5MB for photo mini-cache
+      localStorage.setItem(PHOTO_CACHE_KEY, photoStr);
     }
-  }
+  } catch (_) {}
+
+  // Strip ONLY actual large blobs (base64 data URIs & strings > 5000 chars)
+  // Preserve short photo URLs, Google Drive IDs (33-44 chars), and normal text fields
+  const liteList = list.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const clean = {};
+    Object.keys(item).forEach(k => {
+      const v = item[k];
+      // Only strip: actual base64 data URIs, or strings longer than 5000 chars (real blobs)
+      // Preserve: Google Drive IDs (~33 chars), lh3.googleusercontent.com URLs (~70 chars), etc.
+      if (typeof v === 'string' && (v.startsWith('data:') || v.length > 5000)) return;
+      clean[k] = v;
+    });
+    return clean;
+  });
+
+  const jsonStr = JSON.stringify(liteList);
+  // Only save if payload fits within ~4.5MB storage limit
+  if (jsonStr.length > 4500000) return;
+
+  try {
+    sessionStorage.setItem(cacheKey, jsonStr);
+    sessionStorage.setItem(timestampKey, nowStr);
+  } catch (e) { }
+
+  try {
+    localStorage.setItem(cacheKey, jsonStr);
+    localStorage.setItem(timestampKey, nowStr);
+  } catch (e) { }
 }
 
 /**
@@ -75,16 +137,23 @@ export function setCachedCollectionData(collectionName, list) {
  *
  * @param {string} collectionName - Firestore collection name (e.g. 'admissions')
  * @param {boolean} forceRefresh - If true, forces background refresh
- * @param {number} ttlMs - Time to live in milliseconds (default: 30 mins)
+ * @param {number} ttlMs - Time to live in milliseconds (default: 60 mins)
  * @param {function} [onBackgroundUpdate] - Optional callback triggered when fresh data arrives silently
  * @returns {Promise<Array<object>>} Array of document data with id attached
  */
 export async function getCachedCollection(collectionName, forceRefresh = false, ttlMs = DEFAULT_TTL_MS, onBackgroundUpdate = null) {
   const syncData = getCachedCollectionSync(collectionName);
+  const timestampKey = `${CACHE_PREFIX}${collectionName}_ts`;
+  const lastTs = Number(sessionStorage.getItem(timestampKey) || localStorage.getItem(timestampKey) || memoryTs.get(collectionName) || 0);
+  const isFresh = (Date.now() - lastTs) < ttlMs;
 
-  // If we have cached data and forceRefresh is false, return cached data IMMEDIATELY
+  // If we have cached data and forceRefresh is false:
   if (syncData && !forceRefresh) {
-    // Trigger non-blocking silent background revalidation
+    // If cache is fresh, DO NOT trigger any database reads! Zero reads consumed.
+    if (isFresh) {
+      return syncData;
+    }
+    // Only revalidate silently if TTL has expired
     setTimeout(() => {
       revalidateBackground(collectionName, syncData, onBackgroundUpdate).catch(() => {});
     }, 100);
@@ -98,142 +167,116 @@ export async function getCachedCollection(collectionName, forceRefresh = false, 
     return list;
   } catch (err) {
     console.error(`[dbCache] Failed to fetch collection ${collectionName}:`, err);
-    if (syncData) return syncData;
-    return getFallbackSeedData(collectionName, err);
+    return syncData || [];
   }
 }
 
 /**
- * Background silent revalidation without blocking UI
+ * Silently revalidate collection data in the background and trigger callback if changed.
  */
-async function revalidateBackground(collectionName, currentData, onBackgroundUpdate) {
+async function revalidateBackground(collectionName, existingData, onBackgroundUpdate) {
+  const timestampKey = `${CACHE_PREFIX}${collectionName}_ts`;
+  const lastTs = sessionStorage.getItem(timestampKey) || localStorage.getItem(timestampKey) || memoryTs.get(collectionName) || 0;
+
+  // Check if cache is fresh enough (within TTL)
+  if (Date.now() - Number(lastTs) < DEFAULT_TTL_MS && existingData && existingData.length > 0) {
+    return;
+  }
+
   try {
     const freshList = await fetchFreshFromFirestore(collectionName);
-    setCachedCollectionData(collectionName, freshList);
-
-    // If data changed and callback provided, notify component silently
-    if (onBackgroundUpdate && typeof onBackgroundUpdate === 'function') {
-      const currentJson = JSON.stringify(currentData);
-      const freshJson = JSON.stringify(freshList);
-      if (currentJson !== freshJson) {
-        console.info(`[dbCache] Background update detected for ${collectionName}. Updating UI silently...`);
+    if (freshList && freshList.length > 0) {
+      setCachedCollectionData(collectionName, freshList);
+      if (onBackgroundUpdate && typeof onBackgroundUpdate === 'function') {
         onBackgroundUpdate(freshList);
       }
     }
   } catch (e) {
-    console.warn(`[dbCache] Background revalidation note for ${collectionName}:`, e);
+    console.warn(`[dbCache] Silent background revalidation failed for ${collectionName}:`, e);
   }
 }
 
 /**
- * Internal helper to fetch fresh documents from Firestore
+ * Directly fetch fresh documents from Firestore.
  */
 async function fetchFreshFromFirestore(collectionName) {
-  const snap = await getDocs(collection(db, collectionName));
+  const querySnapshot = await getDocs(collection(db, collectionName));
   const list = [];
-  snap.forEach(d => {
-    list.push({ id: d.id, ...d.data() });
+  querySnapshot.forEach((doc) => {
+    list.push({ id: doc.id, ...doc.data() });
   });
   return list;
 }
 
 /**
- * Update an item inside cache in-place without invalidating the whole cache
+ * Invalidate a specific collection cache.
  */
-export function updateCachedItem(collectionName, docId, updatedFields) {
-  const list = getCachedCollectionSync(collectionName);
-  if (!list || !Array.isArray(list)) return;
+export function invalidateCache(collectionName) {
+  const cacheKey = `${CACHE_PREFIX}${collectionName}`;
+  const timestampKey = `${CACHE_PREFIX}${collectionName}_ts`;
 
-  const cleanDocId = String(docId).replace(/^'/, '').toLowerCase().trim();
-  let found = false;
+  memoryCache.delete(collectionName);
+  memoryTs.delete(collectionName);
 
-  const updatedList = list.map(item => {
-    // 1. If chunk document containing an items array (like masterRegisters chunks)
-    if (Array.isArray(item.items)) {
-      let matchedInChunk = false;
-      const updatedSubItems = item.items.map(subIt => {
-        const subFNo = String(subIt['Form Number'] || subIt['Form No.'] || subIt.formNo || subIt.id || '').replace(/^'/, '').toLowerCase().trim();
-        if (subFNo === cleanDocId || subFNo.replace(/^(active_|hist_)/, '') === cleanDocId) {
-          matchedInChunk = true;
-          found = true;
-          return { ...subIt, ...updatedFields };
-        }
-        return subIt;
-      });
-      if (matchedInChunk) {
-        return { ...item, items: updatedSubItems };
-      }
-    }
+  try {
+    sessionStorage.removeItem(cacheKey);
+    sessionStorage.removeItem(timestampKey);
+  } catch (_) { }
 
-    // 2. Direct document match
-    const itemId = String(item.id || item['Form Number'] || item['Form No.'] || item.formNo || '').replace(/^'/, '').toLowerCase().trim();
-    if (itemId === cleanDocId || itemId.replace(/^(active_|hist_)/, '') === cleanDocId) {
-      found = true;
-      return { ...item, ...updatedFields };
-    }
-    return item;
-  });
+  try {
+    localStorage.removeItem(cacheKey);
+    localStorage.removeItem(timestampKey);
+  } catch (_) { }
+}
 
-  if (!found && collectionName === 'admissions') {
-    updatedList.unshift({ id: docId, ...updatedFields });
+/**
+ * Update a single item in cache without re-fetching entire collection.
+ */
+export function updateCachedItem(collectionName, itemId, updatedFields) {
+  const current = getCachedCollectionSync(collectionName) || [];
+  const idx = current.findIndex((item) => item.id === itemId);
+
+  let updatedList;
+  if (idx !== -1) {
+    updatedList = [...current];
+    updatedList[idx] = { ...updatedList[idx], ...updatedFields };
+  } else {
+    updatedList = [{ id: itemId, ...updatedFields }, ...current];
   }
 
   setCachedCollectionData(collectionName, updatedList);
+  return updatedList;
 }
 
 /**
- * Fallback seed data provider
+ * Save a single student's photo URL to the photo URL mini-cache.
+ * Call this whenever a photo URL is discovered for a student.
  */
-function getFallbackSeedData(collectionName, err) {
+export function savePhotoUrlToCache(docId, photoUrl) {
+  if (!docId || !photoUrl || typeof photoUrl !== 'string') return;
+  if (photoUrl === '/logo.png') return;
+  if (photoUrl.startsWith('data:') && photoUrl.length > 50000) return; // Skip uncompressed huge base64
   try {
-    const seedBundle = require('../data/masterSeedData.json');
-    if (collectionName === 'masterRegisters' && seedBundle.source_data) {
-      const groups = {};
-      seedBundle.source_data.forEach(r => {
-        const gKey = `${r['Session'] || 'Archive'}_${r['Class'] || 'General'}`;
-        if (!groups[gKey]) groups[gKey] = [];
-        groups[gKey].push(r);
-      });
-      const fallbackList = [];
-      for (const [gKey, items] of Object.entries(groups)) {
-        const chunkSize = 150;
-        for (let i = 0; i < items.length; i += chunkSize) {
-          const chunk = items.slice(i, i + chunkSize);
-          fallbackList.push({
-            id: `${gKey}_part_${Math.floor(i / chunkSize) + 1}`,
-            groupKey: gKey,
-            items: chunk,
-            totalCount: chunk.length
-          });
-        }
-      }
-      return fallbackList;
-    } else if (collectionName === 'admissions' && seedBundle.adm_form) {
-      return seedBundle.adm_form.map((a, idx) => ({ id: a['Form Number'] ? `active_${a['Form Number']}` : `adm_${idx}`, ...a }));
+    const existing = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    existing[String(docId)] = photoUrl;
+    const str = JSON.stringify(existing);
+    if (str.length < 3500000) {
+      localStorage.setItem(PHOTO_CACHE_KEY, str);
     }
-  } catch (fallbackErr) {
-    console.warn('[dbCache] Seed bundle fallback note:', fallbackErr);
-  }
-  throw err;
+  } catch (_) {}
 }
 
 /**
- * Invalidate cache for a specific collection or all collections.
- * @param {string} [collectionName] - Optional collection name to invalidate
+ * Retrieve a student's cached photo URL by their document ID.
+ * @param {string} docId - The Firestore document ID of the student
+ * @returns {string|null} - The cached photo URL, or null if not found
  */
-export function invalidateCache(collectionName) {
-  if (collectionName) {
-    memoryCache.delete(collectionName);
-    memoryTs.delete(collectionName);
-    sessionStorage.removeItem(`${CACHE_PREFIX}${collectionName}`);
-    sessionStorage.removeItem(`${CACHE_PREFIX}${collectionName}_ts`);
-  } else {
-    memoryCache.clear();
-    memoryTs.clear();
-    Object.keys(sessionStorage).forEach(key => {
-      if (key.startsWith(CACHE_PREFIX)) {
-        sessionStorage.removeItem(key);
-      }
-    });
+export function getPhotoUrlFromCache(docId) {
+  if (!docId) return null;
+  try {
+    const cache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    return cache[String(docId)] || null;
+  } catch (_) {
+    return null;
   }
 }

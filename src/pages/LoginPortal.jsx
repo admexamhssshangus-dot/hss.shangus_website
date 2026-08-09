@@ -46,7 +46,10 @@ export default function LoginPortal() {
               Official Govt HSS Shangus Portal
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold font-title tracking-tight leading-tight" style={{ color: '#ffffff' }}>
-              Student & Staff Login Portal
+              Student & Staff{' '}
+              <span className="bg-gradient-to-r from-teal-300 via-emerald-300 via-cyan-200 to-teal-300 bg-clip-text text-transparent bg-[length:200%_auto] animate-shimmer-text inline-block">
+                Login Portal
+              </span>
             </h1>
             <p className="text-sm sm:text-base leading-relaxed font-normal" style={{ color: '#f1f5f9' }}>
               Access online admissions status, examination results, student registration records, roll number generation, and faculty utilities.
@@ -56,10 +59,11 @@ export default function LoginPortal() {
           <div className="flex flex-col sm:flex-row md:flex-col gap-3 w-full md:w-auto z-10 flex-shrink-0">
             <Link
               to="/portal/login"
-              className="login-cta-btn px-7 py-4 bg-teal-500 hover:bg-teal-400 font-extrabold rounded-2xl shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 text-base cursor-pointer text-slate-950 no-underline"
+              className="login-cta-btn px-7 py-4 bg-teal-500 hover:bg-teal-400 font-extrabold rounded-2xl shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 text-base cursor-pointer text-slate-950 no-underline animate-portal-pulse hover:scale-105"
               style={{ color: '#020617' }}
             >
-              <span>Open Online Portal →</span>
+              <span>Open Online Portal</span>
+              <ArrowRight size={18} className="animate-bounce-x" />
             </Link>
 
             <button

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck } from 'lucide-react';
+import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import RollNoAssignment from './RollNoAssignment';
@@ -12,7 +12,9 @@ import ControlsAndSubjects from './ControlsAndSubjects';
 import AdminPracticals from './AdminPracticals';
 import AdminAttendance from './AdminAttendance';
 import AdminGkTestManager from './AdminGkTestManager';
+import StudentIdCardManager from './StudentIdCardManager';
 import ModernLoader from '../../components/ModernLoader';
+import AdminToolsDropdown from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
 import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
@@ -22,8 +24,23 @@ export default function AdminDashboard() {
 
   // Tab State: 'reports' | 'controls' | 'rollNo' | 'bulk' | 'automations' | 'funds'
   const [activeTab, setActiveTab] = useState('reports');
+  const initialCachedApps = getCachedCollectionSync('admissions');
+  const initialMasterCount = (() => {
+    try {
+      const raw = sessionStorage.getItem('hss_cache_masterRegisters_v2') || localStorage.getItem('hss_cache_masterRegisters_v2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.length;
+      }
+    } catch (_) {}
+    return 0;
+  })();
+
+  const [counts, setCounts] = useState(() => ({
+    active: initialCachedApps?.length || 0,
+    total: (initialCachedApps?.length || 0) + initialMasterCount
+  }));
   const [viewScope, setViewScope] = useState('active');
-  const [counts, setCounts] = useState({ active: 0, total: 0 });
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
@@ -42,26 +59,27 @@ export default function AdminDashboard() {
   }, []);
 
   // Applications Data State with Instant Cache + Silent Background Sync
-  const initialCachedApps = getCachedCollectionSync('admissions');
   const [loading, setLoading] = useState(!initialCachedApps || initialCachedApps.length === 0);
   const [applications, setApplications] = useState(initialCachedApps || []);
   const [selectedApp, setSelectedApp] = useState(null); // For ApplicationReviewModal
 
   // Fetch Admin Dashboard Data using shared cache with silent background revalidation
   const loadAdminData = useCallback(async (force = false) => {
-    // Only show full loader on initial cold start when NO data is available
-    if (force || applications.length === 0) {
-      if (applications.length === 0) setLoading(true);
+    // Only show full loader on initial cold start when NO data is available anywhere
+    if (applications.length === 0) {
+      setLoading(true);
     }
 
     const timeoutTimer = setTimeout(() => {
       setLoading(false);
-    }, 4000);
+    }, 3000);
 
     try {
       const list = await getCachedCollection('admissions', force, 30 * 60 * 1000, (freshList) => {
-        // Silent background update callback
-        setApplications(freshList || []);
+        // Silent background update callback without unmounting UI
+        if (freshList && Array.isArray(freshList)) {
+          setApplications(freshList);
+        }
       });
       if (list && Array.isArray(list)) {
         setApplications(list);
@@ -83,11 +101,18 @@ export default function AdminDashboard() {
     if (!user) return false;
     const role = String(user.role || '').toLowerCase();
     const email = String(user.email || '').toLowerCase();
-    if (role === 'superadmin' || role === 'super admin' || email === 'adm.exam.hss.shangus@gmail.com') {
+    // SuperAdmin, Admin, or designated admin accounts have full access across all modules
+    if (
+      role.includes('admin') || 
+      email === 'adm.exam.hss.shangus@gmail.com' ||
+      email === 'socialshiftz@gmail.com' ||
+      email === 'shahnawaz@gmail.com' ||
+      email === 'bilalhcu@gmail.com'
+    ) {
       return true;
     }
     const perms = Array.isArray(user.perms) ? user.perms : [];
-    return perms.includes('*') || perms.includes(tabId);
+    return perms.length === 0 || perms.includes('*') || perms.includes(tabId);
   };
 
   // Helper to test if student has a valid assigned Class Roll Number
@@ -106,6 +131,7 @@ export default function AdminDashboard() {
 
   const TOOL_MODULES = [
     { id: 'reports', label: 'Master Register & Database', icon: BarChart2 },
+    { id: 'idCards', label: 'Student ID Cards Suite', icon: Contact },
     { id: 'gkTest', label: 'Competitive Exam Prep & Registrations', icon: ShieldCheck },
     { id: 'controls', label: 'Controls & Subjects', icon: Settings },
     { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
@@ -119,15 +145,15 @@ export default function AdminDashboard() {
   const allowedToolModules = TOOL_MODULES.filter((mod) => isTabPermitted(mod.id));
 
   return (
-    <div className="w-full min-h-[85vh] py-3 px-1 sm:px-2" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="w-full min-h-[85vh] py-0.5 sm:py-1 px-1 sm:px-2" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Admin Dashboard | HSS Shangus"
         description="Comprehensive Super Admin Panel for managing student applications, roll numbers, fee structures, and automations."
       />
 
-      <div className="w-full max-w-[1750px] mx-auto space-y-2">
+      <div className="w-full max-w-[1750px] mx-auto space-y-0.5">
         {/* Workspace Card */}
-        <div className="rounded-xl p-2 border shadow-sm space-y-2" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+        <div className="rounded-xl p-0.5 sm:p-1 border shadow-sm space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           {/* Navigation Tabs Dynamic Toolbar (For non-reports tabs) */}
           {activeTab !== 'reports' && (
             <div className="flex items-center justify-between gap-2 p-1.5 rounded-2xl border text-xs font-bold flex-wrap sm:flex-nowrap" style={{ backgroundColor: 'var(--bg-secondary, #f1f5f9)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
@@ -154,8 +180,8 @@ export default function AdminDashboard() {
                   </span>
                 </div>
 
-                {/* Tools Icon Button */}
-                <div className="relative inline-block text-left" ref={dropdownRef}>
+                {/* Tools Icon Button & Unified Dropdown */}
+                <div className="relative inline-block text-left">
                   <button
                     type="button"
                     onClick={() => setIsToolsOpen(!isToolsOpen)}
@@ -165,28 +191,13 @@ export default function AdminDashboard() {
                     <Wrench size={14} />
                   </button>
 
-                  {isToolsOpen && (
-                    <div className="absolute left-0 mt-1 w-64 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-1 space-y-0.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-bold">
-                      {allowedToolModules.map((tab) => {
-                        if (activeTab === tab.id) return null;
-                        const Icon = tab.icon;
-                        return (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => {
-                              setActiveTab(tab.id);
-                              setIsToolsOpen(false);
-                            }}
-                            className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-900 dark:text-slate-100 cursor-pointer"
-                          >
-                            <Icon size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-                            <span className="truncate">{tab.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <AdminToolsDropdown
+                    isOpen={isToolsOpen}
+                    setIsOpen={setIsToolsOpen}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    align="left"
+                  />
                 </div>
               </div>
 
@@ -206,11 +217,11 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Loading Indicator */}
-          {loading ? (
+          {/* Loading Indicator — Only show outer loader for non-reports tabs */}
+          {loading && activeTab !== 'reports' ? (
             <ModernLoader
               text="Fetching Student Applications"
-              subtext="Synchronizing 1,500+ student registers & admission records from Cloud Firestore..."
+              totalRecords={applications.length > 0 ? applications.length : undefined}
             />
           ) : (
             <>
@@ -234,8 +245,8 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <>
-                  {/* TAB 1: Master Register & Database (Default View with Single-Row Header) */}
-                  {activeTab === 'reports' && (
+                  {/* TAB 1: Master Register & Database — always mounted, hidden via CSS to prevent re-fetch on tab switch */}
+                  <div className={activeTab === 'reports' ? '' : 'hidden'}>
                     <AdvancedReports
                       setActiveTab={setActiveTab}
                       viewScope={viewScope}
@@ -247,7 +258,7 @@ export default function AdminDashboard() {
                       stats={{ totalCount, submittedCount, draftCount, approvedCount, rejectedCount }}
                       initialData={applications}
                     />
-                  )}
+                  </div>
 
                   {/* TAB 2: Combined Controls & Subjects Config v2 */}
                   {activeTab === 'controls' && <ControlsAndSubjects />}
@@ -255,13 +266,21 @@ export default function AdminDashboard() {
                   {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
                   {activeTab === 'gkTest' && <AdminGkTestManager />}
 
+                  {/* TAB: Student ID Cards Suite */}
+                  {activeTab === 'idCards' && (
+                    <StudentIdCardManager
+                      students={applications}
+                      onClose={() => setActiveTab('reports')}
+                    />
+                  )}
+
                   {/* TAB 3: Roll No Assignment */}
                   {activeTab === 'rollNo' && (
                     <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
                   )}
 
                   {/* TAB 4: Bulk Operations & Export */}
-                  {activeTab === 'bulk' && <BulkOperations />}
+                  {activeTab === 'bulk' && <BulkOperations setActiveTab={setActiveTab} />}
 
                   {/* TAB 5: Automations & Group Email Composer */}
                   {activeTab === 'automations' && <AutomationsPage />}

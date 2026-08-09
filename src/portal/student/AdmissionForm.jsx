@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Send, CheckCircle, AlertCircle, RefreshCw, Info, HelpCircle, X, Eye, Edit3, Camera, Check, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Save, Send, CheckCircle, AlertCircle, RefreshCw, Info, HelpCircle, X, Eye, Edit3, Camera, Check, ShieldCheck, Printer } from 'lucide-react';
 import SEO from '../../components/SEO';
 import DynamicFormField from '../components/DynamicFormField';
 import ModernLoader from '../../components/ModernLoader';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
-import { downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
 
 export default function AdmissionForm() {
@@ -246,9 +246,9 @@ export default function AdmissionForm() {
     setIsDownloadingPdf(true);
     setAlert(null);
     try {
-      await downloadStudentAdmissionPdf(formData);
+      generateStudentAdmissionPdf(formData);
     } catch (err) {
-      console.error('Manual PDF download error:', err);
+      console.error('Manual PDF print error:', err);
       setAlert({ type: 'error', text: 'Could not generate the PDF right now. Please try again in a moment.' });
     } finally {
       setIsDownloadingPdf(false);
@@ -816,7 +816,7 @@ export default function AdmissionForm() {
 
         // Trigger browser PDF generator automatically
         try {
-          downloadStudentAdmissionPdf(payloadData);
+          generateStudentAdmissionPdf(payloadData);
         } catch (pdfErr) {
           console.warn('PDF generator trigger note:', pdfErr);
         }
@@ -1116,7 +1116,7 @@ export default function AdmissionForm() {
                     onClick={handleDownloadPdf}
                     disabled={isDownloadingPdf}
                     className="px-4 py-2 rounded-xl text-xs font-bold border border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300 flex items-center gap-1.5 cursor-pointer hover:bg-teal-500/20 disabled:opacity-50"
-                    title="Download your submitted application as a PDF"
+                    title="Print or Save as PDF via browser dialog"
                   >
                     {isDownloadingPdf ? (
                       <>
@@ -1124,7 +1124,7 @@ export default function AdmissionForm() {
                       </>
                     ) : (
                       <>
-                        <Save size={14} /> Download PDF
+                        <Printer size={14} /> Print PDF
                       </>
                     )}
                   </button>
@@ -1200,7 +1200,7 @@ export default function AdmissionForm() {
                       </>
                     ) : (
                       <>
-                        <Save size={12} /> Download PDF
+                        <Printer size={12} /> Print PDF
                       </>
                     )}
                   </button>

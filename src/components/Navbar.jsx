@@ -283,9 +283,9 @@ export default function Navbar() {
               </div>
             </Link>
 
-            {/* Desktop Actions & Portal Login Button */}
-            <div className="hidden md:flex items-center gap-3">
-              {currentUser ? (
+            {/* Desktop Actions: Avatar & Logout Badge in Upper White Header (ROW 2) when Logged In */}
+            {currentUser && (
+              <div className="hidden md:flex items-center gap-3">
                 <div
                   className="flex items-center gap-2 p-1 rounded-2xl border shadow-sm transition-colors duration-200"
                   style={{
@@ -347,35 +347,23 @@ export default function Navbar() {
                     <LogOut size={15} className="stroke-[2.5]" />
                   </button>
                 </div>
-              ) : (
-                <Link
-                  to="/portal/login"
-                  className="px-4 py-2 text-xs font-black rounded-xl text-white shadow-md transition-all duration-200 flex items-center gap-2 cursor-pointer outline-none border-0"
-                  style={{
-                    backgroundColor: 'var(--teal-accent, #00674F)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--teal-accent-hover, #004d3b)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--teal-accent, #00674F)';
-                  }}
-                  title="Student & Staff Login Portal"
-                >
-                  <Lock size={13} className="stroke-[2.5]" />
-                  <span>Login</span>
-                </Link>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Mobile top right actions: Hamburger Menu */}
             <div className="md:hidden flex items-center gap-2">
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}
-                className="p-1.5 rounded-lg text-slate-800 bg-slate-100 border border-slate-200 shadow-sm"
+                className="p-1.5 rounded-lg text-slate-800 bg-slate-100 border border-slate-200 shadow-sm relative"
               >
                 {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+                {currentUser && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600 border-2 border-white shadow-2xs"></span>
+                  </span>
+                )}
               </button>
             </div>
 
@@ -402,23 +390,38 @@ export default function Navbar() {
                     {link.title}
                   </Link>
                 ))}
+
+                {/* Login Button right beside Admissions when NOT logged in */}
+                {!currentUser && (
+                  <Link
+                    to="/portal/login"
+                    className="ml-2.5 px-3.5 py-1 text-xs font-black rounded-md text-white transition-all duration-200 inline-flex items-center gap-1.5 shadow-md outline-none border-0 hover:scale-[1.03] active:scale-[0.97]"
+                    style={{ backgroundColor: '#005943' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#004232'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#005943'; }}
+                    title="Student & Staff Login Portal"
+                  >
+                    <Lock size={12} className="stroke-[2.5]" />
+                    <span>Login</span>
+                  </Link>
+                )}
               </div>
 
 
 
               {/* Admin Lock Portal Button at Far Right Extreme (Desktop Only) */}
-              <div className="hidden md:flex absolute right-0 items-center h-full py-0.5">
+              <div className="hidden md:flex absolute -right-2 sm:right-0 lg:-right-4 items-center h-full py-0.5 z-20">
                 <Link
                   to="/admin/portal"
                   onClick={() => window.scrollTo(0, 0)}
                   title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
-                  className="p-1.5 rounded-md flex items-center justify-center transition-all duration-200 hover:scale-105 cursor-pointer text-slate-700/30 hover:text-slate-600/40"
+                  className="p-1.5 rounded-md flex items-center justify-center transition-all duration-200 cursor-pointer opacity-25 hover:opacity-100 hover:scale-110 text-slate-400 hover:text-white"
                   aria-label="Admin Portal"
                 >
                   {isAdmin ? (
-                    <Unlock size={16} className="stroke-[2.5] text-slate-600/40" />
+                    <Unlock size={14} className="stroke-[2.5] text-emerald-400" />
                   ) : (
-                    <Lock size={16} className="stroke-[2.5] text-slate-600/40" />
+                    <Lock size={14} className="stroke-[2.5] text-slate-400" />
                   )}
                 </Link>
               </div>

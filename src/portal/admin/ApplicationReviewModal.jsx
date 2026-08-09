@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, XCircle, Unlock, Download, User, Phone, BookOpen, GraduationCap, MapPin, RefreshCw, Camera, Upload, Eye } from 'lucide-react';
+import { X, CheckCircle2, XCircle, Unlock, Download, User, Phone, BookOpen, GraduationCap, MapPin, RefreshCw, Camera, Upload, Eye, Printer } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -378,17 +378,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
                 className="px-3.5 py-2 rounded-xl font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs"
                 style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
               >
-                <Eye size={14} className="text-teal-600 dark:text-teal-400" /> View PDF
-              </button>
-
-              <button
-                type="button"
-                onClick={() => downloadStudentAdmissionPdf(app)}
-                disabled={actionLoading}
-                className="px-3.5 py-2 rounded-xl font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs"
-                style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-              >
-                <Download size={14} className="text-emerald-600 dark:text-emerald-400" /> Download PDF
+                <Printer size={14} className="text-teal-600 dark:text-teal-400" /> Print PDF
               </button>
             </div>
 

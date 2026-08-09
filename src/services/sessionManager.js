@@ -165,6 +165,17 @@ function clearSession() {
       storage.removeItem(STORAGE_KEYS.USER);
       storage.removeItem(STORAGE_KEYS.LAST_HEARTBEAT);
       storage.removeItem('hss_explicit_logout');
+
+      // Security Guardrail: Clear admin student caches on explicit logout
+      // (ensures shared/public computers never retain historical or active student data)
+      const keysToRemove = [];
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && (key.startsWith('hss_cache_') || key.startsWith('hss_reports_cache_'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => storage.removeItem(k));
     } catch (_) {}
   });
   localStorage.removeItem(STORAGE_KEYS.PERSISTENT);

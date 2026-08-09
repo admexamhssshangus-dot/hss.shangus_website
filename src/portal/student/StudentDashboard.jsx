@@ -395,13 +395,16 @@ export default function StudentDashboard() {
                   </button>
 
                   {status !== 'Draft' && (
-                    <button
-                      onClick={handleViewPdf}
-                      className="px-4 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-teal-700 text-white hover:bg-teal-600 shadow-sm"
-                    >
-                      <Printer size={16} />
-                      <span>Print PDF</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleViewPdf}
+                        className="px-4 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-teal-700 text-white hover:bg-teal-600 shadow-sm"
+                        title="Print or Save as PDF via browser dialog"
+                      >
+                        <Printer size={16} />
+                        <span>Print PDF</span>
+                      </button>
+                    </div>
                   )}
 
                   <button

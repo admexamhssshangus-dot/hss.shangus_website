@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Download, FileSpreadsheet, FolderArchive, Contact, RefreshCw } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 
-export default function BulkOperations() {
+export default function BulkOperations({ setActiveTab }) {
   const [loadingAction, setLoadingAction] = useState(null);
 
   // CSV Export
@@ -43,22 +43,10 @@ export default function BulkOperations() {
     }
   };
 
-  // Generate ID Card Data
-  const handleGenerateIdCards = async () => {
-    setLoadingAction('idCard');
-    try {
-      const res = await appsScriptApi.call('generateIdCardData');
-      const url = res?.url || res?.data?.url;
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        alert('ID Card data generated successfully!');
-      }
-    } catch (err) {
-      console.error('ID Card generation error:', err);
-      alert('Failed to generate ID Card data.');
-    } finally {
-      setLoadingAction(null);
+  // Generate ID Card Data Suite
+  const handleGenerateIdCards = () => {
+    if (setActiveTab) {
+      setActiveTab('idCards');
     }
   };
 
