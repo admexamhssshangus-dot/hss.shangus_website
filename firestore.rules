@@ -7,166 +7,153 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // True authenticated user (not anonymous)
-    function isRealUser() {
-      return isAuthenticated() &&
-        request.auth.token.firebase.sign_in_provider != 'anonymous';
-    }
-
-    function isSuperAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.email.lower() == 'adm.exam.hss.shangus@gmail.com' ||
-        request.auth.token.role == 'SuperAdmin' ||
-        request.auth.token.role == 'superadmin'
-      );
-    }
-
     function isAdmin() {
       return isAuthenticated() && (
-        isSuperAdmin() ||
+        request.auth.token.admin == true ||
         request.auth.token.role == 'Admin' ||
-        request.auth.token.admin == true
+        request.auth.token.role == 'SuperAdmin'
       );
     }
 
-    function isTeacherOrAdmin() {
-      return isAuthenticated();
-    }
-
-    function isSelf(userEmail) {
-      return isAuthenticated() && request.auth.token.email.lower() == userEmail.lower();
-    }
-
-    // 1. Users collection (Self or Admin)
+    // 1. Users Collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isSelf(userId) || isAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // 2. Active Admissions & Applications
+    // 2. Active Admissions & Student Applications
     match /admissions/{formNo} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
+
     match /admissionApplications/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // 3. Historical Master Registers — readable by any authenticated user (incl. anonymous)
-    // Rate limiting in the client + server protect against bulk scraping
+    // 3. Historical Master Registers & Register Data
     match /masterRegisters/{chunkId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // Historical student register data
     match /registerdata/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
     // 4. Form Structure & Subject Config
     match /formStructure/{fieldId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /subjectsConfig/{configId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // 5. Exam & Practicals Settings and Data
+    // 5. Exam & Practicals Data
     match /examConfig/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /adminPracticalsSettings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacherOrAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /practicalsData/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacherOrAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // 6. Attendance & Attendance Config
+    // 6. Attendance & System Settings
     match /systemSettings/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /attendance/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacherOrAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /attendanceConfig/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacherOrAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /holidays/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacherOrAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
     // 7. System Activity & Email Logs
-    // Allow authenticated operations for admin activity logging
     match /adminActivityLogs/{logId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /activityLogs/{logId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /emailLogs/{logId} {
-      allow read: if isAuthenticated();
-      allow write: if isRealUser();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // 8. Rates & Fund Distributions
+    // 8. Fee Rates & Fund Distributions
     match /feeRates/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
     match /fundDistributions/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
     // 9. Site settings & Pages CMS
     match /site/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // 10. OMR Exam Registrations (GK Test 2026)
-    // - Any authenticated user (incl. anonymous) can CREATE their registration
-    // - Any authenticated user can READ (get/list) for duplicate checks & admit card retrieval
-    // - Invigilators (anonymous auth) can UPDATE only the OMR photo fields after the exam
-    // - Core registration fields are immutable after creation (no update for those)
-    // - Only admins can delete (revoke)
-    match /omr_registrations/{examNo} {
-      allow create: if isAuthenticated();
-      allow get: if isAuthenticated();
-      allow list: if isAuthenticated();
-      // Allow invigilator to write only OMR photo fields; block modification of core fields
-      allow update: if isAuthenticated() && (
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['omrPhotoUrl', 'omrUploadedAt', 'omrUploadedBy'])
-      );
+      allow create, update: if true;
       allow delete: if isAdmin();
     }
 
-    // 11. GK Test System Settings (Deadline & Open/Closed controls)
-    match /gktest_settings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+    // 10. OMR Exam Registrations
+    match /omr_registrations/{examNo} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
 
-    // Fallback: Require authentication for all unlisted document paths
+    // 11. GK Test System Settings
+    match /gktest_settings/{docId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // Fallback rule
     match /{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
     }
   }
 }

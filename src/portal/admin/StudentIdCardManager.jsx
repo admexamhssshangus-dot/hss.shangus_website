@@ -12,11 +12,11 @@
  * 7. Dual Orientation (Portrait A4 & Landscape A4) with clean centered fit
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Printer, CheckSquare, Square, Eye, RefreshCw, X,
   Shield, Check, ArrowLeftRight, HelpCircle, Grid,
-  Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter
+  Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette
 } from 'lucide-react';
 import {
   ID_CARD_THEMES,
@@ -209,6 +209,14 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   const [selectedTheme, setSelectedTheme] = useState(initialSettings?.selectedTheme ?? 'auto');
   const [includeBackSide, setIncludeBackSide] = useState(initialSettings?.includeBackSide ?? false);
   const [showCropMarks, setShowCropMarks] = useState(initialSettings?.showCropMarks ?? true);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  const cancelGenerationRef = useRef(false);
+
+  const handleCancelGeneration = () => {
+    cancelGenerationRef.current = true;
+    setIsGenerating(false);
+    setIsPrintingActive(false);
+  };
 
   // Auto-save settings to localStorage whenever config changes
   useEffect(() => {
@@ -784,6 +792,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   // ─── Fast Cache Photo Pre-Loader & Automatic Print Launcher ───
   const handleGenerateAndPrint = async () => {
     if (targetStudents.length === 0) return;
+    cancelGenerationRef.current = false;
     setIsPrintingActive(true);
     setPrintPageRange('all'); // Ensure ALL pages for selected range are rendered without truncation
     setIsGenerating(true);
@@ -800,6 +809,12 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     await new Promise(r => setTimeout(r, 100));
 
     for (let i = 0; i < total; i++) {
+      if (cancelGenerationRef.current) {
+        setIsGenerating(false);
+        setIsPrintingActive(false);
+        return;
+      }
+
       const st = targetStudents[i];
       const photoUrl = resolveStudentPhoto(st, liveStudents);
       
@@ -817,6 +832,12 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         });
       }
 
+      if (cancelGenerationRef.current) {
+        setIsGenerating(false);
+        setIsPrintingActive(false);
+        return;
+      }
+
       const percent = Math.round(((i + 1) / total) * 100);
       setGenerationProgress({
         current: i + 1,
@@ -828,6 +849,12 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       if (i % 3 === 0) {
         await new Promise(r => setTimeout(r, 15));
       }
+    }
+
+    if (cancelGenerationRef.current) {
+      setIsGenerating(false);
+      setIsPrintingActive(false);
+      return;
     }
 
     setGenerationProgress({
@@ -1195,6 +1222,27 @@ export default function StudentIdCardManager({ students = [], onClose }) {
             >
               {paperOrientation === 'landscape' ? '📐 Land' : '📄 Port'}
             </button>
+
+            {/* ─── 12-Theme Color Swatch Trigger Button ─── */}
+            <div className="border-l border-purple-300 dark:border-purple-700/50 pl-1">
+              <button
+                type="button"
+                onClick={() => setShowThemePicker(true)}
+                title="Change Card Theme Color Palette (12 Presets)"
+                className="px-1.5 py-0.5 rounded text-[9.5px] font-black cursor-pointer border bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-100 flex items-center gap-1 shadow-2xs"
+              >
+                <Palette size={11} className="text-purple-600 dark:text-purple-400" />
+                <span
+                  className="w-2.5 h-2.5 rounded-full inline-block border border-slate-400 shadow-2xs"
+                  style={{
+                    backgroundColor: selectedTheme === 'auto'
+                      ? (resolveClassTheme(selectedClass, selectedStream)?.dotColor || '#1d4ed8')
+                      : (ID_CARD_THEMES[selectedTheme]?.dotColor || '#1d4ed8')
+                  }}
+                />
+                <span className="hidden sm:inline">Theme</span>
+              </button>
+            </div>
           </div>
 
           {/* Group 3: Primary Action & Tools — pinned to far right */}
@@ -2568,7 +2616,17 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       {/* ─── MODAL 3: FAST CACHE GENERATION & PROGRESS BAR ─── */}
       {isGenerating && (
         <div className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-300 dark:border-slate-800 p-6 shadow-2xl space-y-4 text-center">
+          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-300 dark:border-slate-800 p-6 shadow-2xl space-y-4 text-center">
+            {/* Top-Right Close X Button */}
+            <button
+              type="button"
+              onClick={handleCancelGeneration}
+              className="absolute top-4 right-4 p-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+              title="Cancel Preparation"
+            >
+              <X size={16} />
+            </button>
+
             <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-300 dark:border-amber-700/50 shadow-inner">
               <RefreshCw size={24} className="animate-spin" />
             </div>
@@ -2596,8 +2654,93 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               </div>
             </div>
 
-            <div className="pt-2 text-[10px] text-slate-400 font-semibold italic">
+            <div className="pt-1 text-[10px] text-slate-400 font-semibold italic">
               ⚡ Pre-warming photo memory cache &amp; structuring layout for clean print...
+            </div>
+
+            {/* Cancel Action Button */}
+            <button
+              type="button"
+              onClick={handleCancelGeneration}
+              className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-200 hover:text-red-700 dark:hover:text-red-400 font-extrabold text-xs border border-slate-300 dark:border-slate-700 hover:border-red-300 dark:hover:border-red-800 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <X size={14} className="text-slate-500 hover:text-red-600" />
+              <span>Cancel Preparation</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 4: 12-THEME COLOR SWATCH PICKER OVERLAY ─── */}
+      {showThemePicker && (
+        <div
+          className="fixed inset-0 z-[10020] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn print:hidden"
+          onClick={() => setShowThemePicker(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-300 dark:border-slate-800 p-5 shadow-2xl space-y-3 text-slate-900 dark:text-white animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+              <span className="font-black text-xs uppercase tracking-wider text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                <Palette size={16} />
+                Card Theme ({Object.keys(ID_CARD_THEMES).length} Presets)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTheme('auto');
+                    setShowThemePicker(false);
+                  }}
+                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                    selectedTheme === 'auto'
+                      ? 'bg-purple-800 text-white border-purple-900 shadow-2xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                  }`}
+                  title="Reset to Class Default Theme"
+                >
+                  Auto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowThemePicker(false)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* 3-Column Swatch Dot Grid */}
+            <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto p-1 no-scrollbar">
+              {Object.values(ID_CARD_THEMES).map(t => {
+                const isSelected = selectedTheme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTheme(t.id);
+                      setShowThemePicker(false);
+                    }}
+                    title={t.name}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-purple-100 dark:bg-purple-950/80 border-purple-600 dark:border-purple-400 ring-2 ring-purple-500/50 shadow-xs scale-102'
+                        : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:scale-102'
+                    }`}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-900 shadow-md mb-1 inline-block transform transition-transform"
+                      style={{ backgroundColor: t.dotColor }}
+                    />
+                    <span className="text-[10px] font-black leading-tight truncate w-full text-slate-800 dark:text-slate-200">
+                      {t.name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2657,7 +2800,7 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
 
   return (
     <div
-      className={`relative bg-white text-slate-900 border-2 ${safeTheme.cardBorder} shadow-sm overflow-hidden flex flex-col justify-between select-none ${isReversed ? 'scale-x-[-1]' : ''}`}
+      className={`relative bg-white text-slate-900 border-2 shadow-sm overflow-hidden flex flex-col justify-between select-none ${isReversed ? 'scale-x-[-1]' : ''}`}
       style={{
         width: `${cardWidthMm}mm`,
         height: `${cardHeightMm}mm`,
@@ -2665,6 +2808,7 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
         borderRadius: '3mm',
         padding: '0.6mm',
         backgroundColor: '#ffffff',
+        borderColor: safeTheme.cardBorderHex || safeTheme.dotColor || '#1d4ed8',
         fontFamily: "'Plus Jakarta Sans', 'Outfit', 'Inter', -apple-system, sans-serif"
       }}
     >
@@ -2674,7 +2818,10 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
       )}
 
       {/* ─── Top Header (Class-Specific Dynamic Theme Banner) ─── */}
-      <div className={`relative rounded-t-[2.5mm] ${safeTheme.ribbonBg || 'bg-blue-600'} border-b-4 border-slate-900/40 text-white p-0.5 flex items-center justify-between shadow-xs overflow-hidden`}>
+      <div
+        className="relative rounded-t-[2.5mm] border-b-4 border-slate-900/40 text-white p-0.5 flex items-center justify-between shadow-xs overflow-hidden"
+        style={{ backgroundColor: safeTheme.ribbonHex || safeTheme.dotColor || '#1d4ed8' }}
+      >
         {/* School Crest Logo (Left Badge) */}
         <div
           className="rounded-full bg-white border-2 border-slate-900/60 flex items-center justify-center p-0.5 shadow-sm flex-shrink-0 z-10 my-0.5 ml-0.5"
@@ -2720,8 +2867,12 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
       <div className="flex items-center justify-center px-1 py-0.5 gap-2.5 my-0.5">
         {/* Student Photo with Stamp Overlay — Theme-Coloured Border */}
         <div
-          className={`relative rounded-md border-2 ${safeTheme.cardBorder} overflow-hidden bg-slate-100 flex-shrink-0 shadow-2xs`}
-          style={{ width: `${effectivePhotoW}px`, height: `${effectivePhotoH}px` }}
+          className="relative rounded-md border-2 overflow-hidden bg-slate-100 flex-shrink-0 shadow-2xs"
+          style={{
+            width: `${effectivePhotoW}px`,
+            height: `${effectivePhotoH}px`,
+            borderColor: safeTheme.cardBorderHex || safeTheme.dotColor || '#1d4ed8'
+          }}
         >
           <img
             src={photo}
@@ -2765,8 +2916,13 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
 
         {/* Executive Pro Verification QR Code Container — Theme-Coloured Border & Background */}
         <div
-          className={`relative p-0.5 rounded-lg ${safeTheme.ribbonBg} border-2 ${safeTheme.cardBorder} shadow-xs flex-shrink-0 flex items-center justify-center`}
-          style={{ width: `${effectiveQrSize}px`, height: `${effectiveQrSize}px` }}
+          className="relative p-0.5 rounded-lg border-2 shadow-xs flex-shrink-0 flex items-center justify-center"
+          style={{
+            width: `${effectiveQrSize}px`,
+            height: `${effectiveQrSize}px`,
+            backgroundColor: safeTheme.ribbonHex || safeTheme.dotColor || '#1d4ed8',
+            borderColor: safeTheme.cardBorderHex || safeTheme.dotColor || '#1d4ed8'
+          }}
         >
           <div className="w-full h-full bg-white rounded-[5px] p-0.5 flex items-center justify-center overflow-hidden">
             <img src={qrUrl} alt="Verify QR" className="w-full h-full object-contain" />
@@ -2778,12 +2934,18 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
       </div>
 
       {/* ─── Student Name Banner (Bigger Font) ─── */}
-      <div className={`w-full py-1 px-1 ${safeTheme.ribbonBg} ${safeTheme.ribbonText} text-center font-black text-[11px] tracking-wide uppercase shadow-2xs rounded-xs truncate`}>
+      <div
+        className="w-full py-1 px-1 text-center font-black text-[11px] tracking-wide uppercase shadow-2xs rounded-xs truncate text-white"
+        style={{ backgroundColor: safeTheme.ribbonHex || safeTheme.dotColor || '#1d4ed8' }}
+      >
         {sName}
       </div>
 
       {/* Class & Stream Sub-Header — Theme-Coloured */}
-      <div className={`w-full ${safeTheme.subHeaderBg || 'bg-blue-950'} ${safeTheme.subHeaderText || 'text-blue-100'} text-center text-[8.5px] font-black py-0.5 uppercase tracking-tight`}>
+      <div
+        className="w-full text-center text-[8.5px] font-black py-0.5 uppercase tracking-tight text-white"
+        style={{ backgroundColor: safeTheme.subHeaderHex || '#0f172a' }}
+      >
         Class <strong className="text-amber-300 font-extrabold">{cls}</strong> ({stm})
       </div>
 

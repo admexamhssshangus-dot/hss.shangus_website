@@ -168,7 +168,7 @@ export default function Admissions() {
           {[
             { step: 1, title: 'Register Online', desc: 'Create an account and fill out the admission form with your details.' },
             { step: 2, title: 'Document Verification', desc: 'Visit the school office with original documents for verification.' },
-            { step: 3, title: 'Fee Payment', desc: 'Pay fee online securely via Razorpay/Cashfree Gateway or Bank UPI.' },
+            { step: 3, title: 'Fee Payment', desc: 'Pay fee online securely via Official Online Payment Gateway or Bank UPI.' },
             { step: 4, title: 'Final Enrollment', desc: 'Receive your Roll Number and ID Card to complete enrollment.' }
           ].map((item) => (
             <div key={item.step} className="relative z-10 flex flex-col items-center text-center bg-white p-5 rounded-2xl border border-slate-200/65 shadow-sm hover:shadow-md hover:border-teal-500/35 transition-all duration-300 group">

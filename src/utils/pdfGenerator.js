@@ -5,6 +5,8 @@
  */
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { generateVerificationSignature, getStudentRollVal } from './idCardRenderer';
+import { createQrSvgDataUri } from './qrSvgGenerator';
 
 function formatDateTimeDDMMMYYYY(rawDate) {
   if (!rawDate || rawDate === 'N/A' || rawDate === '—') {
@@ -166,22 +168,15 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const rawSubmDate = studentData["submittedAt"] || studentData["Submission Date"] || studentData["created_at"];
   const formattedSubmDate = formatDateTimeDDMMMYYYY(rawSubmDate);
 
-  // Generate dynamic QR Code containing official student verification & payment payload
-  const qrPayloadText = `GOVT. HIGHER SECONDARY SCHOOL SHANGUS
-OFFICIAL ADMISSION RECORD & VERIFICATION
-Form No: ${formNo}
-Session: ${session}
-Name: ${name}
-Father: ${fatherName}
-Class: ${classSought} (${stream})
-Mobile: ${mobile}
-Aadhaar: ${aadhaar}
-Roll No: ${rollNo} | Adm No: ${admNo}
-Payment Status: ${paymentStatus}
-Txn ID: ${txnId}
-Subm Date: ${formattedSubmDate}`;
-
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(qrPayloadText)}`;
+  // Generate cryptographically signed verification URL QR Code (ultra-clean, low-density, 100% scannable matrix)
+  const regNo = studentData['Board Registration Number'] || studentData['boardRegNo'] || studentData['regNo'] || '—';
+  const rollVal = getStudentRollVal(studentData) || rollNo || '—';
+  const cleanFNo = String(formNo).replace(/[^0-9]/g, '') || formNo;
+  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+  const sig = generateVerificationSignature(regNo, rollVal, cleanFNo);
+  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regNo)}&roll=${encodeURIComponent(rollVal)}&fNo=${encodeURIComponent(cleanFNo)}&sig=${encodeURIComponent(sig)}`;
+  
+  const qrCodeUrl = createQrSvgDataUri(verifyUrl, 160) || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(verifyUrl)}`;
 
   let html = '';
 

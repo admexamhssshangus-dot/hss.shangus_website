@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2, Building2 } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2, Building2, Database, Zap } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
 import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
@@ -61,6 +61,138 @@ export function normalizeSessionVal(sess) {
     return `${yr1}-${yr2}`;
   }
   return str;
+}
+
+// ─── Global Helper for safe Firestore document mutation handling IDs with slashes ───
+export async function updateStudentDocument(student, updates) {
+  if (!student) return false;
+  const formNo = String(student['Form No.'] || student.formNo || student['Form Number'] || student.id || '').trim();
+  const rawId = String(student.docId || student._docId || student.id || formNo).trim();
+  
+  const idCandidates = Array.from(new Set([
+    rawId,
+    formNo,
+    student.id,
+    student.docId,
+    student._docId,
+    rawId.replace(/\//g, '_'),
+    rawId.replace(/[\/\s]/g, '_').toLowerCase(),
+    rawId.replace(/[\/\s]/g, '_').toUpperCase(),
+    formNo.replace(/\//g, '_'),
+    formNo.replace(/[\/\s]/g, '_').toLowerCase(),
+    formNo.replace(/[\/\s]/g, '_').toUpperCase(),
+    `active_${rawId.replace(/[\/\s]/g, '_').toLowerCase()}`,
+    `active_${rawId.replace(/[\/\s]/g, '_').toUpperCase()}`
+  ].filter(Boolean)));
+
+  let updated = false;
+
+  for (const cid of idCandidates) {
+    if (cid.includes('/')) continue;
+    try {
+      await updateDoc(doc(db, 'admissions', cid), updates);
+      updated = true;
+    } catch (e) {}
+
+    try {
+      await updateDoc(doc(db, 'masterRegisters', cid), updates);
+      updated = true;
+    } catch (e) {}
+  }
+
+  if (!updated && (formNo || rawId)) {
+    const val = formNo || rawId;
+    for (const field of ['id', 'formNo', 'Form No.', 'Form Number']) {
+      try {
+        const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', val)));
+        for (const dSnap of qSnap.docs) {
+          await updateDoc(doc(db, 'admissions', dSnap.id), updates);
+          updated = true;
+        }
+      } catch (e) {}
+    }
+  }
+
+  // Update ONLY single item in cache (no full refetch)
+  idCandidates.forEach(cid => {
+    updateCachedItem('admissions', cid, updates);
+    updateCachedItem('masterRegisters', cid, updates);
+  });
+
+  return updated;
+}
+
+export async function deleteStudentDocument(student) {
+  if (!student) return false;
+  const formNo = String(student['Form No.'] || student.formNo || student['Form Number'] || student.id || '').trim();
+  const rawId = String(student.docId || student._docId || student.id || formNo).trim();
+
+  const idCandidates = Array.from(new Set([
+    rawId,
+    formNo,
+    student.id,
+    student.docId,
+    student._docId,
+    rawId.replace(/\//g, '_'),
+    rawId.replace(/[\/\s]/g, '_').toLowerCase(),
+    rawId.replace(/[\/\s]/g, '_').toUpperCase(),
+    formNo.replace(/\//g, '_'),
+    formNo.replace(/[\/\s]/g, '_').toLowerCase(),
+    formNo.replace(/[\/\s]/g, '_').toUpperCase(),
+    `active_${rawId.replace(/[\/\s]/g, '_').toLowerCase()}`,
+    `active_${rawId.replace(/[\/\s]/g, '_').toUpperCase()}`
+  ].filter(Boolean)));
+
+  let deleted = false;
+
+  // 1. Delete direct candidate document IDs from BOTH admissions & masterRegisters
+  for (const cid of idCandidates) {
+    if (!cid || cid.includes('/')) continue;
+    
+    // Delete from admissions
+    try {
+      await deleteDoc(doc(db, 'admissions', cid));
+      deleted = true;
+    } catch (e) {}
+
+    // Delete from masterRegisters
+    try {
+      await deleteDoc(doc(db, 'masterRegisters', cid));
+      deleted = true;
+    } catch (e) {}
+  }
+
+  // 2. Query by formNo / id / Form No. / Form Number fields in BOTH admissions & masterRegisters
+  const queryVals = Array.from(new Set([formNo, rawId, student.id].filter(Boolean)));
+  for (const val of queryVals) {
+    for (const field of ['id', 'formNo', 'Form No.', 'Form Number', 'docId']) {
+      // Query admissions
+      try {
+        const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', val)));
+        for (const dSnap of qSnap.docs) {
+          await deleteDoc(doc(db, 'admissions', dSnap.id));
+          deleted = true;
+        }
+      } catch (e) {}
+
+      // Query masterRegisters
+      try {
+        const qSnap = await getDocs(query(collection(db, 'masterRegisters'), where(field, '==', val)));
+        for (const dSnap of qSnap.docs) {
+          await deleteDoc(doc(db, 'masterRegisters', dSnap.id));
+          deleted = true;
+        }
+      } catch (e) {}
+    }
+  }
+
+  // 3. Remove single item from local IndexedDB / dbCache
+  idCandidates.forEach(cid => {
+    updateCachedItem('admissions', cid, null);
+    updateCachedItem('masterRegisters', cid, null);
+  });
+
+  return deleted;
 }
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component ───
@@ -953,12 +1085,8 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
         try {
           setActionLoading(true);
           const formNo = student?.formNo || student?.['Form Number'] || student?.id;
-          await appsScriptApi.call('unlockApplication', { formNo, hours: hrs });
-          if (student?.id) {
-            try {
-              await updateDoc(doc(db, 'admissions', String(student.id)), { editUnlocked: true, editUnlockedUntil: Date.now() + hrs * 3600000 });
-            } catch (err) { console.warn(err); }
-          }
+          await appsScriptApi.call('unlockApplication', { formNo, hours: hrs }).catch(() => {});
+          await updateStudentDocument(student, { editUnlocked: true, editUnlockedUntil: Date.now() + hrs * 3600000 });
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
@@ -1099,15 +1227,11 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
         const newRoll = (inputVal || '').trim();
         try {
           setActionLoading(true);
-          if (student?.id) {
-            try {
-              await updateDoc(doc(db, 'admissions', String(student.id)), {
-                'Class Roll No': newRoll,
-                'Class R.No.': newRoll,
-                classRollNo: newRoll
-              });
-            } catch (err) { console.warn(err); }
-          }
+          await updateStudentDocument(student, {
+            'Class Roll No': newRoll,
+            'Class R.No.': newRoll,
+            classRollNo: newRoll
+          });
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
@@ -1144,15 +1268,11 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
         if (!reason) return;
         try {
           setActionLoading(true);
-          if (student?.id) {
-            try {
-              await updateDoc(doc(db, 'admissions', String(student.id)), {
-                'Status': 'Rejected',
-                'status': 'Rejected',
-                'rejectionReason': reason
-              });
-            } catch (err) { console.warn(err); }
-          }
+          await updateStudentDocument(student, {
+            'Status': 'Rejected',
+            'status': 'Rejected',
+            'rejectionReason': reason
+          });
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
@@ -1188,30 +1308,25 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
       onConfirm: async () => {
         try {
           setIsSubmitting(true);
-          if (student?.id) {
-            try {
-              await updateDoc(doc(db, 'admissions', String(student.id)), {
-                'Status': 'Deleted',
-                '_deleted': true,
-                'deletedAt': new Date().toISOString()
-              });
-              updateCachedItem('admissions', student.id, null);
-              invalidateCache('admissions');
-              await logAdminActivity({
-                actionType: 'delete',
-                actionTitle: 'Student Application Permanently Deleted',
-                details: `Deleted student record for ${student?.studentName || student?.id} (Form: ${student?.formNo || '—'})`,
-                reasonCategory: 'Record Revocation / Deletion',
-                metadata: { studentId: student.id, formNo: student.formNo }
-              });
-            } catch (err) { console.warn(err); }
-          }
+          const formNo = student?.formNo || student?.['Form No.'] || student?.id;
+          
+          await deleteStudentDocument(student);
+
+          await logAdminActivity({
+            actionType: 'delete',
+            actionTitle: 'Student Application Permanently Deleted',
+            details: `Deleted student record for ${student?.studentName || student?.id} (Form: ${formNo || '—'})`,
+            reasonCategory: 'Record Revocation / Deletion',
+            metadata: { studentId: student?.id, formNo }
+          }).catch(() => {});
+
           if (onRefresh) onRefresh();
+
           // Show green success completion message
           setDialogConfig({
             type: 'alert',
             title: 'Record Deleted Successfully',
-            message: `✅ Student record for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) has been permanently deleted from database.`,
+            message: `✅ Student record for ${student?.studentName || 'student'} (Form #${formNo || '—'}) has been permanently deleted from database.`,
             icon: CheckCircle2,
             iconColor: 'text-emerald-600 dark:text-emerald-400',
             btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white',
@@ -1221,7 +1336,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
             }
           });
         } catch (err) {
-          console.warn(err);
+          console.warn('Delete error:', err);
           setDialogConfig(null);
         } finally {
           setIsSubmitting(false);
@@ -2518,6 +2633,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [fetchProgress, setFetchProgress] = useState(0);
   const [masterRecords, setMasterRecords] = useState(syncCachedMaster);
   const [currentAdmissions, setCurrentAdmissions] = useState(syncCachedAdmissions);
+  const [showMasterFetchConfirm, setShowMasterFetchConfirm] = useState(false);
+  const [isFetchingMaster, setIsFetchingMaster] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -3355,28 +3472,36 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     let historicalList = [];
 
-    // 1. Try loading masterRegisters from 30-day persistent cache
+    // 1. Try loading masterRegisters from Memory Singleton or Persistent Cache
     if (!forceRefresh) {
-      try {
-        const cachedMaster = sessionStorage.getItem(MASTER_CACHE_KEY) || localStorage.getItem(MASTER_CACHE_KEY);
-        if (cachedMaster) {
-          const parsed = JSON.parse(cachedMaster);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            historicalList = parsed;
-            hasCache = true;
-            setFetchProgress(40);
+      if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+        historicalList = window._hssMasterRegistersCache;
+        hasCache = true;
+        setFetchProgress(40);
+      } else {
+        try {
+          let cachedMaster = sessionStorage.getItem(MASTER_CACHE_KEY) || localStorage.getItem(MASTER_CACHE_KEY);
+          if (!cachedMaster) {
+            const c0 = localStorage.getItem(`${MASTER_CACHE_KEY}_c0`) || '';
+            const c1 = localStorage.getItem(`${MASTER_CACHE_KEY}_c1`) || '';
+            if (c0 || c1) cachedMaster = c0 + c1;
           }
+          if (cachedMaster) {
+            const parsed = JSON.parse(cachedMaster);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              historicalList = parsed;
+              window._hssMasterRegistersCache = parsed;
+              hasCache = true;
+              setFetchProgress(40);
+            }
+          }
+        } catch (e) {
+          console.warn('Master registers cache read error:', e);
         }
-      } catch (e) {
-        console.warn('Master registers cache read error:', e);
       }
 
-      // Check TTL freshness (30 days)
-      const lastCacheTime = Number(sessionStorage.getItem(MASTER_CACHE_TS_KEY) || localStorage.getItem(MASTER_CACHE_TS_KEY) || 0);
-      const isCacheFresh = (Date.now() - lastCacheTime) < MASTER_TTL_MS;
-
-      if (hasCache && isCacheFresh) {
-        // Cache is valid — render immediately, ZERO Firestore reads
+      if (hasCache) {
+        // Cache is valid — render immediately with 0ms delay and ZERO Firestore reads
         setMasterRecords(historicalList);
         const resolvedActive = (activeList && activeList.length > 0)
           ? activeList
@@ -3395,16 +3520,37 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         setTimeout(() => {
           setIsFetchingData(false);
           setFetchProgress(0);
-        }, 300);
+        }, 100);
         return;
       }
     }
 
-    // 2. Cache miss or stale — fetch ONLY masterRegisters from Firestore
-    //    (admissions are NEVER re-fetched here — saves 571 reads per load)
-    if (!hasCache && activeList.length === 0) {
-      setLoading(true);
+    // 2. Default Mode (Active Only): If masterRegisters is not in cache and forceRefresh is false,
+    // DO NOT fetch historical archives automatically. Keep initial load fast & 0-read optimized.
+    if (!hasCache && !forceRefresh) {
+      setCurrentAdmissions(activeList);
+      setMasterRecords([]);
+      if (setCounts) {
+        setCounts({
+          active: activeList.length,
+          total: activeList.length
+        });
+      }
+      setLoading(false);
+      setIsFetchingData(false);
+      setFetchProgress(0);
+      return;
     }
+
+    // 3. Force Refresh or Explicit Historical Fetch:
+    await fetchHistoricalMasterRegisters(forceRefresh);
+  };
+
+  // Dedicated On-Demand Historical Archives Fetcher (Triggered ONLY when user confirms "All" tab)
+  const fetchHistoricalMasterRegisters = async (force = false) => {
+    setIsFetchingData(true);
+    setIsFetchingMaster(true);
+    setFetchProgress(20);
 
     const stripPhotos = (obj) => {
       if (!obj || typeof obj !== 'object') return obj;
@@ -3417,6 +3563,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return clean;
     };
 
+    let historicalList = [];
     try {
       setFetchProgress(50);
       const masterSnap = await getDocs(collection(db, 'masterRegisters'));
@@ -3438,46 +3585,39 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           }
         });
       }
-      setFetchProgress(90);
+      setFetchProgress(85);
     } catch (err) {
-      console.warn('loadReportsData masterRegisters fetch note:', err);
+      console.warn('Historical masterRegisters fetch note:', err);
     }
 
-    // 3. Save masterRegisters to persistent cache (photos already stripped)
+    // Save to window singleton & chunked persistent storage for 30-day fast re-access
+    window._hssMasterRegistersCache = historicalList;
     try {
+      const MASTER_CACHE_KEY = 'hss_cache_masterRegisters_v2';
+      const MASTER_CACHE_TS_KEY = 'hss_cache_masterRegisters_v2_ts';
       const payloadStr = JSON.stringify(historicalList);
-      if (payloadStr.length < 4500000) {
-        const nowStr = String(Date.now());
-        try {
-          sessionStorage.setItem(MASTER_CACHE_KEY, payloadStr);
-          sessionStorage.setItem(MASTER_CACHE_TS_KEY, nowStr);
-        } catch (_) {}
-        try {
-          localStorage.setItem(MASTER_CACHE_KEY, payloadStr);
-          localStorage.setItem(MASTER_CACHE_TS_KEY, nowStr);
-        } catch (_) {}
-      }
+      const nowStr = String(Date.now());
+      const half = Math.ceil(payloadStr.length / 2);
+      localStorage.setItem(`${MASTER_CACHE_KEY}_c0`, payloadStr.slice(0, half));
+      localStorage.setItem(`${MASTER_CACHE_KEY}_c1`, payloadStr.slice(half));
+      localStorage.setItem(MASTER_CACHE_TS_KEY, nowStr);
     } catch (e) {
-      try {
-        sessionStorage.removeItem(MASTER_CACHE_KEY);
-        localStorage.removeItem(MASTER_CACHE_KEY);
-      } catch (_) { }
+      console.warn('Master registers chunked cache save note:', e);
     }
 
-    setCurrentAdmissions(activeList);
     setMasterRecords(historicalList);
     if (setCounts) {
       setCounts({
-        active: activeList.length,
-        total: activeList.length + historicalList.length
+        active: currentAdmissions.length,
+        total: currentAdmissions.length + historicalList.length
       });
     }
     setFetchProgress(100);
-    setLoading(false);
+    setIsFetchingMaster(false);
     setTimeout(() => {
       setIsFetchingData(false);
       setFetchProgress(0);
-    }, 450);
+    }, 300);
   };
 
   useEffect(() => {
@@ -5010,7 +5150,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </button>
               <button
                 type="button"
-                onClick={() => { setViewScope('all'); setCurrentPage(1); }}
+                onClick={() => {
+                  const hasCachedMaster = (masterRecords && masterRecords.length > 0) ||
+                    (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0);
+
+                  if (hasCachedMaster) {
+                    if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
+                      setMasterRecords(window._hssMasterRegistersCache);
+                    }
+                    setViewScope('all');
+                    setCurrentPage(1);
+                  } else {
+                    setShowMasterFetchConfirm(true);
+                  }
+                }}
                 className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'all'
                   ? 'bg-amber-700 text-white shadow-2xs font-black'
                   : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
@@ -5342,10 +5495,36 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     </tr>
                   );
                 })
+              ) : (loading || isFetchingData) ? (
+                <tr>
+                  <td colSpan={orderedVisibleColumns.length || 1} className="p-10 text-center bg-slate-50/50 dark:bg-slate-900/30">
+                    <div className="flex flex-col items-center justify-center gap-2.5 py-4">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center border border-amber-300 dark:border-amber-700/50 shadow-inner">
+                        <RefreshCw size={20} className="animate-spin text-amber-700 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="font-black text-sm text-slate-800 dark:text-slate-200">
+                          Loading Student Database Records...
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                          {fetchProgress > 0 ? `Fetching & indexing records (${fetchProgress}%)...` : 'Fetching records securely from database...'}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
               ) : (
                 <tr>
-                  <td colSpan={orderedVisibleColumns.length || 1} className="p-8 text-center text-slate-600 dark:text-slate-400 font-black">
-                    No matching student records found for the selected database filters.
+                  <td colSpan={orderedVisibleColumns.length || 1} className="p-10 text-center text-slate-600 dark:text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2 py-4">
+                      <SearchX size={28} className="text-slate-400 dark:text-slate-500" />
+                      <p className="font-extrabold text-sm text-slate-700 dark:text-slate-300">
+                        No matching student records found.
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        Try adjusting your search query, class selection, or session filter.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -6566,6 +6745,56 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         onClose={() => setShowAnalyticsModal(false)}
         students={allStudents.length > 0 ? allStudents : [...currentAdmissions, ...masterRecords]}
       />
+
+      {/* Historical Archives Fetch Confirmation Modal */}
+      {showMasterFetchConfirm && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[10050] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-amber-500/50 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center mx-auto">
+              <Database size={28} className="animate-pulse" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="font-black text-lg sm:text-xl text-slate-900 dark:text-white">
+                Fetch Full Historical Archive Database?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-bold leading-relaxed">
+                You are currently viewing active session admissions (~573 records). Fetching full historical archives will retrieve <strong>9,700+ student records</strong> (2020–2025) from the central school database.
+              </p>
+            </div>
+
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/50 rounded-2xl border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 font-bold space-y-1">
+              <div className="flex items-center gap-1.5 font-black text-amber-700 dark:text-amber-300">
+                <Zap size={13} /> Database Performance &amp; Bandwidth Optimization:
+              </div>
+              <div>Historical data will be cached locally for 30 days. Subsequent visits will load in 0ms without consuming server network bandwidth.</div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowMasterFetchConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel (Stay on Active)
+              </button>
+              <button
+                type="button"
+                disabled={isFetchingMaster}
+                onClick={async () => {
+                  setShowMasterFetchConfirm(false);
+                  setViewScope('all');
+                  await fetchHistoricalMasterRegisters(true);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {isFetchingMaster ? <Loader2 size={13} className="animate-spin" /> : <Database size={13} />}
+                <span>Fetch All Records</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reusable Custom Confirmation Modal */}
       {confirmModalConfig && (

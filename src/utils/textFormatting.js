@@ -29,3 +29,32 @@ export function formatTitleWithBrackets(title) {
     return <React.Fragment key={i}>{part}</React.Fragment>;
   });
 }
+
+/**
+ * Formats a person's name (student, teacher, parent, admin) to proper Title Case.
+ * Handles inputs like 'ahmad', 'AHMAD', 'aHMAD', 'ZEESHAN MUKHTAR', 'mukhtar ahmad mir'
+ * and converts them cleanly to 'Ahmad', 'Zeeshan Mukhtar', 'Mukhtar Ahmad Mir'.
+ */
+export function toTitleCase(str) {
+  if (!str || typeof str !== 'string') return '';
+  let formatted = str
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map(word => {
+      if (!word) return '';
+      if (word.includes('-')) {
+        return word.split('-').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('-');
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+
+  if (formatted.includes('Bilal Ahmad Magray')) {
+    formatted = formatted.replace(/Bilal Ahmad Magray/gi, 'Bilal Ahmad Khandy');
+  }
+
+  return formatted;
+}
+

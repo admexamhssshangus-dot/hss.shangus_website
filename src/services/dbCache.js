@@ -25,6 +25,20 @@ const memoryTs = new Map();
 export function clearAllMemoryCache() {
   memoryCache.clear();
   memoryTs.clear();
+  if (typeof window !== 'undefined') {
+    delete window._hssMasterRegistersCache;
+  }
+  try {
+    sessionStorage.removeItem(`${CACHE_PREFIX}masterRegisters`);
+    sessionStorage.removeItem(`${CACHE_PREFIX}masterRegisters_c0`);
+    sessionStorage.removeItem(`${CACHE_PREFIX}masterRegisters_c1`);
+    localStorage.removeItem(`${CACHE_PREFIX}masterRegisters`);
+    localStorage.removeItem(`${CACHE_PREFIX}masterRegisters_c0`);
+    localStorage.removeItem(`${CACHE_PREFIX}masterRegisters_c1`);
+    localStorage.removeItem('hss_cache_masterRegisters_v2');
+    localStorage.removeItem('hss_cache_masterRegisters_v2_c0');
+    localStorage.removeItem('hss_cache_masterRegisters_v2_c1');
+  } catch (_) {}
 }
 
 // Automatically wipe memory cache when user logs out
@@ -42,16 +56,33 @@ if (typeof window !== 'undefined') {
  * @returns {Array<object>|null}
  */
 export function getCachedCollectionSync(collectionName) {
+  if (collectionName === 'masterRegisters' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+    return window._hssMasterRegistersCache;
+  }
   if (memoryCache.has(collectionName)) {
     return memoryCache.get(collectionName);
   }
   try {
     const cacheKey = `${CACHE_PREFIX}${collectionName}`;
-    const cachedData = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
+    let cachedData = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
+    
+    // Fallback check for chunked masterRegisters keys
+    if (!cachedData && collectionName === 'masterRegisters') {
+      const c0 = localStorage.getItem(`${CACHE_PREFIX}masterRegisters_c0`) || localStorage.getItem(`hss_cache_masterRegisters_v2_c0`) || '';
+      const c1 = localStorage.getItem(`${CACHE_PREFIX}masterRegisters_c1`) || localStorage.getItem(`hss_cache_masterRegisters_v2_c1`) || '';
+      if (c0 || c1) cachedData = c0 + c1;
+      if (!cachedData) {
+        cachedData = localStorage.getItem('hss_cache_masterRegisters_v2');
+      }
+    }
+
     if (cachedData) {
       const parsed = JSON.parse(cachedData);
       if (Array.isArray(parsed) && parsed.length > 0) {
         memoryCache.set(collectionName, parsed);
+        if (collectionName === 'masterRegisters') {
+          window._hssMasterRegistersCache = parsed;
+        }
         return parsed;
       }
     }
@@ -75,9 +106,11 @@ export function setCachedCollectionData(collectionName, list) {
   memoryCache.set(collectionName, list);
   memoryTs.set(collectionName, Date.now());
 
+  if (collectionName === 'masterRegisters') {
+    window._hssMasterRegistersCache = list;
+  }
+
   // ── Photo URL extraction: save photo URLs SEPARATELY before stripping ──
-  // This ensures photo URLs survive the blob-stripping step below.
-  // We only save the document id + photo URL field to a dedicated mini-cache.
   const PHOTO_FIELDS = [
     'Student Photo', 'Student Photograph', 'Student Photo URL',
     'Photo', 'photo_id', 'photoId', 'photoUrl', 'photo'
@@ -92,25 +125,22 @@ export function setCachedCollectionData(collectionName, list) {
         const val = item[field];
         if (val && typeof val === 'string' && val.length > 5 && (val.startsWith('data:') ? val.length < 50000 : true)) {
           existingPhotoCache[String(docId)] = val;
-          break; // Only save first found photo field
+          break;
         }
       }
     });
     const photoStr = JSON.stringify(existingPhotoCache);
-    if (photoStr.length < 3500000) { // Max 3.5MB for photo mini-cache
+    if (photoStr.length < 3500000) {
       localStorage.setItem(PHOTO_CACHE_KEY, photoStr);
     }
   } catch (_) {}
 
-  // Strip ONLY actual large blobs (base64 data URIs & strings > 5000 chars)
-  // Preserve short photo URLs, Google Drive IDs (33-44 chars), and normal text fields
+  // Strip large blobs
   const liteList = list.map(item => {
     if (!item || typeof item !== 'object') return item;
     const clean = {};
     Object.keys(item).forEach(k => {
       const v = item[k];
-      // Only strip: actual base64 data URIs, or strings longer than 5000 chars (real blobs)
-      // Preserve: Google Drive IDs (~33 chars), lh3.googleusercontent.com URLs (~70 chars), etc.
       if (typeof v === 'string' && (v.startsWith('data:') || v.length > 5000)) return;
       clean[k] = v;
     });
@@ -118,18 +148,23 @@ export function setCachedCollectionData(collectionName, list) {
   });
 
   const jsonStr = JSON.stringify(liteList);
-  // Only save if payload fits within ~4.5MB storage limit
-  if (jsonStr.length > 4500000) return;
-
+  
   try {
-    sessionStorage.setItem(cacheKey, jsonStr);
-    sessionStorage.setItem(timestampKey, nowStr);
-  } catch (e) { }
-
-  try {
-    localStorage.setItem(cacheKey, jsonStr);
-    localStorage.setItem(timestampKey, nowStr);
-  } catch (e) { }
+    if (jsonStr.length <= 4000000) {
+      sessionStorage.setItem(cacheKey, jsonStr);
+      sessionStorage.setItem(timestampKey, nowStr);
+      localStorage.setItem(cacheKey, jsonStr);
+      localStorage.setItem(timestampKey, nowStr);
+    } else {
+      // Chunked storage if payload exceeds 4MB
+      const half = Math.ceil(jsonStr.length / 2);
+      const part0 = jsonStr.slice(0, half);
+      const part1 = jsonStr.slice(half);
+      localStorage.setItem(`${cacheKey}_c0`, part0);
+      localStorage.setItem(`${cacheKey}_c1`, part1);
+      localStorage.setItem(timestampKey, nowStr);
+    }
+  } catch (e) {}
 }
 
 /**
@@ -233,15 +268,32 @@ export function invalidateCache(collectionName) {
  * Update a single item in cache without re-fetching entire collection.
  */
 export function updateCachedItem(collectionName, itemId, updatedFields) {
+  if (!collectionName || !itemId) return [];
   const current = getCachedCollectionSync(collectionName) || [];
-  const idx = current.findIndex((item) => item.id === itemId);
+  const targetIdStr = String(itemId).trim();
+  const normalizedTargetId = targetIdStr.replace(/[\/\s]/g, '_').toLowerCase();
+
+  const isMatchingItem = (item) => {
+    if (!item) return false;
+    const candidates = [
+      item.id, item.docId, item._docId, item.formNo, item['Form No.'], item['Form Number']
+    ].filter(Boolean).map(v => String(v).trim());
+
+    return candidates.some(c => c === targetIdStr || c.replace(/[\/\s]/g, '_').toLowerCase() === normalizedTargetId);
+  };
 
   let updatedList;
-  if (idx !== -1) {
-    updatedList = [...current];
-    updatedList[idx] = { ...updatedList[idx], ...updatedFields };
+  if (updatedFields === null || (updatedFields && (updatedFields._deleted === true || updatedFields.Status === 'Deleted' || updatedFields.status === 'Deleted'))) {
+    // Delete single item cleanly from cache
+    updatedList = current.filter(item => !isMatchingItem(item));
   } else {
-    updatedList = [{ id: itemId, ...updatedFields }, ...current];
+    const idx = current.findIndex(isMatchingItem);
+    if (idx !== -1) {
+      updatedList = [...current];
+      updatedList[idx] = { ...updatedList[idx], ...updatedFields };
+    } else {
+      updatedList = [{ id: itemId, ...updatedFields }, ...current];
+    }
   }
 
   setCachedCollectionData(collectionName, updatedList);

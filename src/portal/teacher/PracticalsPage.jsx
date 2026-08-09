@@ -12,6 +12,7 @@ import { collection, getDocs, doc, setDoc, getDoc, addDoc } from 'firebase/fires
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
+import { printIndividualAwardRoll, printIndividualWorkSheet } from '../../utils/practicalsPdfGenerator';
 
 // Subject Name to Code mapping (from legacy system)
 const SUBJECT_MAP = [
@@ -1586,7 +1587,34 @@ export default function PracticalsPage() {
   };
 
   const handlePrintReport = () => {
-    window.print();
+    if (!studentMarks || studentMarks.length === 0) {
+      setAlert({ type: 'error', text: 'No student records available to print.' });
+      return;
+    }
+
+    const recordsForPrint = studentMarks.map((st, i) => ({
+      sno: i + 1,
+      classRollNo: st.classRollNo || st.rollNo || '—',
+      rollNo: st.rollNo || st.formNo || '—',
+      examRollNo: st.rollNo || st.formNo || '—',
+      name: st.name || st.studentName || '—',
+      practicalMarks: st.practicalMarks || '—',
+      vivaMarks: st.vivaMarks || '—',
+      totalMarks: (st.practicalMarks && st.practicalMarks.toUpperCase() === 'AB') ? 'AB' : (st.totalMarks || st.practicalMarks || '—')
+    }));
+
+    const isExternal = practicalType.toLowerCase().includes('external');
+    const sessionStr = `Annual Regular ${yearSuffix}`;
+
+    printIndividualAwardRoll({
+      subjectCode: currentSubjectObj.code,
+      subjectName: currentSubjectObj.name,
+      className: selectedClass,
+      session: sessionStr,
+      records: recordsForPrint,
+      isExternal,
+      maxMarks: subjectMaxMarks
+    });
   };
 
   // Dynamic Multi-Column Sorting
