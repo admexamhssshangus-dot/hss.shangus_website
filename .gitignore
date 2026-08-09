@@ -38,7 +38,15 @@ public/slides/admins.json
 # Optimized photo dumps (large assets)
 optimized_photos*
 
-# Ignore large excel data dumps (> 100MB)
+# Ignore legacy Apps Script backup directory
+/login
+
+# Ignore large excel data dumps (> 100MB) & local backup files
 *.xlsx
 scripts/*.xlsx
+scripts/backup/
+scripts/*.json
+src/data/masterSeedData.json
+desktop.ini
+*.ini
 
