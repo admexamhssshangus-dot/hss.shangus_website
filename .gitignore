@@ -34,3 +34,11 @@ serviceAccountKey.json
 
 # Admin credentials — NEVER commit
 public/slides/admins.json
+
+# Optimized photo dumps (large assets)
+optimized_photos*
+
+# Ignore large excel data dumps (> 100MB)
+*.xlsx
+scripts/*.xlsx
+

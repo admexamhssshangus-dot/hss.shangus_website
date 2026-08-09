@@ -66,7 +66,7 @@ export default function ThemeSelector() {
   const active = themes.find(t => t.id === currentTheme) || themes[0];
 
   return (
-    <div className="fixed bottom-4 right-4 md:bottom-5 md:right-5 z-[9999] flex flex-col items-end gap-2">
+    <div className="fixed bottom-4 right-4 md:bottom-5 md:right-5 z-[9999] flex flex-col items-end gap-2 print:hidden">
       {/* Panel */}
       {isOpen && (
         <>

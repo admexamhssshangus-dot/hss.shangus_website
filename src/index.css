@@ -36,6 +36,74 @@ html, body, #root {
 	}
 }
 
+@keyframes moveGradientHorizontal {
+  0% { background-position: 0% 0%; }
+  100% { background-position: -200% 0%; }
+}
+
+@keyframes textGlowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(20, 184, 166, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.8));
+  }
+}
+
+@keyframes gentlePulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(20, 184, 166, 0.4), 0 0 24px rgba(16, 185, 129, 0.2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(20, 184, 166, 0.9), 0 0 45px rgba(16, 185, 129, 0.6);
+    transform: scale(1.03);
+  }
+}
+
+@keyframes bounceHoriz {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
+}
+
+.moving-gradient-text {
+  background: linear-gradient(90deg, #00674F, #059669, #0284c7, #6366f1, #ec4899, #059669, #00674F) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: moveGradientHorizontal 3s linear infinite !important;
+  display: inline-block !important;
+}
+
+.moving-gradient-subtle {
+  background: linear-gradient(90deg, #0f172a, #00674F, #0284c7, #6366f1, #0f172a) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: moveGradientHorizontal 4.5s linear infinite !important;
+  display: inline-block !important;
+}
+
+.animate-shimmer-text, .animate-title-shimmer {
+  background: linear-gradient(90deg, #0d9488, #10b981, #3b82f6, #8b5cf6, #ec4899, #0d9488) !important;
+  background-size: 200% 100% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: moveGradientHorizontal 3s linear infinite, textGlowPulse 2.5s ease-in-out infinite !important;
+  display: inline-block !important;
+}
+
+.animate-portal-pulse {
+  animation: gentlePulseGlow 2.2s ease-in-out infinite;
+}
+
+.animate-bounce-x {
+  animation: bounceHoriz 1.2s ease-in-out infinite;
+}
+
 /* Theme Custom Variables */
 :root {
   --bg-page: #f5f3ff; /* Colorful light violet-50 background base */
@@ -1304,11 +1372,11 @@ html, body, #root {
   color: #b45309 !important; /* Darker amber-700 for light mode contrast */
 }
 
-/* Print styles: compact tax report printing */
-@page { size: A4; margin: 8mm; }
+/* Print styles: compact tax report printing (Scoped to tax pages only) */
 @media print {
-  body * { visibility: hidden; }
-  .tax-print-container, .tax-print-container * { visibility: visible; }
+  body.tax-print-mode * { visibility: hidden; }
+  body.tax-print-mode .tax-print-container, 
+  body.tax-print-mode .tax-print-container * { visibility: visible; }
   .tax-print-container { width: 100%; page-break-inside: avoid; }
   .non-print, .no-print { display: none !important; }
   .tax-print-container { font-size: 11px !important; line-height: 1 !important; }
@@ -1439,10 +1507,19 @@ img {
     background: #ffffff !important;
     color: #000000 !important;
   }
-  header nav, footer, .theme-selector {
+  header nav, footer, .theme-selector, button[aria-label*="Settings"], button[title*="Settings"], button[aria-label*="Theme"], .fixed.bottom-4, .fixed.bottom-5 {
     display: none !important;
   }
-  body::before {
+  
+  /* Disable generic portal headers when printing ID cards */
+  body.id-card-print-mode::before,
+  body.id-card-print-mode::after,
+  .id-cards-print-area ~ * {
+    display: none !important;
+    content: none !important;
+  }
+
+  body:not(.id-card-print-mode)::before {
     content: "Govt. Higher Secondary School Shangus — Official Portal Document";
     display: block;
     text-align: center;
@@ -1453,13 +1530,19 @@ img {
     margin-bottom: 20px;
     color: #00674F;
   }
-  body::after {
+  body:not(.id-card-print-mode)::after {
     content: "Verified Official Record • hssshangus.netlify.app";
     display: block;
     text-align: center;
     font-size: 10px;
     margin-top: 30px;
     color: #64748b;
+  }
+
+  /* Force vivid colors & graphics on all ID card components */
+  .id-card-element, .id-card-element * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

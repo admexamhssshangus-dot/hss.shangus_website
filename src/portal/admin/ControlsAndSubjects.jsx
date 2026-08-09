@@ -450,7 +450,7 @@ export default function ControlsAndSubjects() {
       // 4. Legacy fallback
       appsScriptApi.call('saveAdminPermissions', { users: listToSave }).catch(() => {});
 
-      setAlert({ type: 'success', text: '✨ Super Admin permissions & admin accounts updated successfully in Cloud Firestore!' });
+      setAlert({ type: 'success', text: '✨ Super Admin permissions & admin accounts updated successfully in School Database!' });
     } catch (err) {
       console.error('Failed to save permissions to Firestore:', err);
       localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));

@@ -3,6 +3,8 @@
  * Renders complete Govt Higher Secondary School Shangus admission forms, library forms,
  * and anti-drug declarations with all undertakings consolidated on the Declaration Page.
  */
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 function formatDateTimeDDMMMYYYY(rawDate) {
   if (!rawDate || rawDate === 'N/A' || rawDate === '—') {
@@ -179,7 +181,7 @@ Payment Status: ${paymentStatus}
 Txn ID: ${txnId}
 Subm Date: ${formattedSubmDate}`;
 
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&data=${encodeURIComponent(qrPayloadText)}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(qrPayloadText)}`;
 
   let html = '';
 
@@ -225,7 +227,7 @@ Subm Date: ${formattedSubmDate}`;
           <!-- Dynamic QR Code Column (Left) -->
           <div class="qr-col">
             <div class="qr-box">
-              <img src="${qrCodeUrl}" alt="Verification QR Code" class="qr-img" onerror="this.style.display='none';" />
+              <img src="${qrCodeUrl}" alt="Verification QR Code" class="qr-img" crossorigin="anonymous" onerror="this.style.opacity='0.3';" />
               <span class="qr-lbl">SCAN TO VERIFY</span>
             </div>
           </div>
@@ -364,20 +366,20 @@ Subm Date: ${formattedSubmDate}`;
         <div class="section-heading">Fee & Payment Transaction Details</div>
         <table class="grid-table border-table">
           <tr>
-            <td class="lbl blue-lbl">Payment Status:</td>
-            <td class="val bold-txt teal-txt">${paymentStatus}</td>
-            <td class="lbl blue-lbl">Transaction ID / UTR:</td>
-            <td class="val bold-mono blue-txt">${txnId}</td>
-            <td class="lbl blue-lbl">Amount Paid:</td>
-            <td class="val bold-txt red-txt">${feeAmount !== '—' ? `₹${feeAmount}` : '—'}</td>
+            <td class="lbl blue-lbl" style="width:13%;">Payment Status:</td>
+            <td class="val bold-txt teal-txt" style="width:19%;">${paymentStatus}</td>
+            <td class="lbl blue-lbl" style="width:16%;">Transaction ID / UTR:</td>
+            <td class="val bold-mono blue-txt" style="width:22%;">${txnId}</td>
+            <td class="lbl blue-lbl" style="width:11%;">Amount Paid:</td>
+            <td class="val bold-txt red-txt" style="width:10%;">${feeAmount !== '—' ? `₹${feeAmount}` : '—'}</td>
           </tr>
           <tr>
-            <td class="lbl blue-lbl">Payment Date:</td>
-            <td class="val">${paymentDate}</td>
-            <td class="lbl blue-lbl">Payment Mode:</td>
-            <td class="val">${paymentMode}</td>
-            <td class="lbl blue-lbl">Receipt Ref No:</td>
-            <td class="val bold-mono">${receiptNo}</td>
+            <td class="lbl blue-lbl" style="width:13%;">Payment Date:</td>
+            <td class="val" style="width:19%;">${paymentDate}</td>
+            <td class="lbl blue-lbl" style="width:16%;">Payment Mode:</td>
+            <td class="val" style="width:22%;">${paymentMode}</td>
+            <td class="lbl blue-lbl" style="width:11%;">Receipt Ref No:</td>
+            <td class="val bold-mono" style="width:10%;">${receiptNo}</td>
           </tr>
         </table>
 
@@ -458,7 +460,7 @@ Subm Date: ${formattedSubmDate}`;
           </div>
         </div>
 
-        <div class="borrower-strip" style="margin-bottom: 12px;">
+        <div class="borrower-strip" style="margin-top: 14px; margin-bottom: 12px; padding-top: 8px; border-top: 1px dashed #cbd5e1;">
           <span>Session: <strong>${session}</strong> (Form No.: <strong>${formNo}</strong>)</span>
           <span class="borrower-box">BORROWER CARD NO: _______________________</span>
         </div>
@@ -780,14 +782,19 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
         .checklist-grid {
           display: flex;
           justify-content: space-between;
-          font-size: 10px;
+          gap: 4px;
+          font-size: 8.5px;
           font-weight: bold;
           color: #1e293b;
           background: #fafafa;
           border: 1px solid #cbd5e1;
-          padding: 4.5px 8px;
+          padding: 5px 8px;
           border-radius: 3.5px;
           margin-bottom: 5px;
+          align-items: center;
+        }
+        .checklist-grid span {
+          white-space: nowrap;
         }
 
         .history-table th { background: #e0f2fe; color: #0369a1; font-weight: bold; text-align: center; font-size: 9.5px; }
@@ -1011,29 +1018,34 @@ function printHtmlViaIframe(htmlContent) {
   iframe.style.border = '0';
 
   document.body.appendChild(iframe);
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(htmlContent);
-  doc.close();
 
+  // Guard: ensures executePrint is only called once even if onload + readyState both fire
+  let triggered = false;
   const executePrint = () => {
+    if (triggered) return;
+    triggered = true;
+    const doc = iframe.contentWindow.document;
     const images = Array.from(doc.images || []);
-    const waitForImages = (attempts = 30) => {
+    // Pre-warm: force reload any incomplete images
+    images.forEach(img => {
+      if (!img.complete || img.naturalWidth === 0) {
+        const src = img.src;
+        img.src = '';
+        img.src = src;
+      }
+    });
+    const waitForImages = (attempts = 60) => {
       const allLoaded = images.length === 0 || images.every(img => img.complete && img.naturalWidth > 0);
       if (allLoaded || attempts <= 0) {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          console.error('Print iframe error:', e);
+        }
         setTimeout(() => {
-          try {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-          } catch (e) {
-            console.error('Print iframe error:', e);
-          }
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          }, 3000);
-        }, 300);
+          if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        }, 5000);
       } else {
         setTimeout(() => waitForImages(attempts - 1), 100);
       }
@@ -1041,9 +1053,17 @@ function printHtmlViaIframe(htmlContent) {
     waitForImages();
   };
 
+  // Write content first, THEN set onload to avoid race conditions
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(htmlContent);
+  doc.close();
+
   if (doc.readyState === 'complete') {
+    // Synchronously complete — execute immediately
     executePrint();
   } else {
+    // Still loading — wait for onload
     iframe.onload = executePrint;
   }
 }
@@ -1124,11 +1144,113 @@ function showPdfProgressModal(title = 'Generating PDF Document', message = 'Form
 
 
 /**
- * Directly triggers a real client-side PDF file download into user's Downloads folder.
+ * Downloads the admission form as a clean PDF file directly to Downloads — no print dialog.
+ * Each .print-page is captured individually via html2canvas and placed on its own A4 page
+ * in jsPDF, producing crisp text and perfect page boundaries.
  */
 export async function downloadStudentAdmissionPdf(studentData, options = {}) {
   if (!studentData) return;
-  generateStudentAdmissionPdf(studentData, options);
+  const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || 'Form';
+  const rawName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['name'] || 'Student';
+  const cleanName = String(rawName).trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+  const fileName = `Admission_Form_${formNo}_${cleanName}.pdf`;
+  const htmlBody = buildStudentFormHtml(studentData, options);
+  const fullDocument = wrapInPrintDocument(htmlBody, fileName);
+
+  const progress = showPdfProgressModal('Generating PDF…', 'Building admission form…');
+
+  // Render iframe positioned above viewport so html2canvas x-coordinates are correct (left: 0)
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:absolute;left:0;top:0;width:794px;height:3500px;border:none;opacity:0;pointer-events:none;z-index:-1;';
+  document.body.appendChild(iframe);
+
+  try {
+    progress.update(15, 'Rendering form…');
+
+    // Write full document into iframe (its own CSS context — mm units work correctly)
+    const iDoc = iframe.contentWindow.document;
+    iDoc.open();
+    iDoc.write(fullDocument);
+    iDoc.close();
+
+    // Wait for iframe fully loaded + all images
+    await new Promise(resolve => {
+      const check = (attempts = 80) => {
+        const imgs = Array.from(iDoc.images || []);
+        const allDone = imgs.length === 0 || imgs.every(img => img.complete && img.naturalHeight > 0);
+        if (iDoc.readyState === 'complete' && allDone) {
+          resolve();
+        } else if (attempts <= 0) {
+          resolve(); // proceed anyway
+        } else {
+          setTimeout(() => check(attempts - 1), 120);
+        }
+      };
+      if (iDoc.readyState === 'complete') setTimeout(() => check(), 200);
+      else iframe.onload = () => setTimeout(() => check(), 200);
+    });
+
+    // Extra paint settle
+    await new Promise(r => setTimeout(r, 500));
+
+    progress.update(35, 'Preparing PDF engine…');
+
+    // Find all .print-page elements in the iframe
+    const pages = Array.from(iDoc.querySelectorAll('.print-page'));
+    if (pages.length === 0) {
+      throw new Error('No form pages found to capture');
+    }
+
+    progress.update(50, `Capturing ${pages.length} pages…`);
+
+    // A4 dimensions in mm
+    const a4W = 210;
+    const a4H = 297;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageEl = pages[i];
+      progress.update(50 + Math.round((i / pages.length) * 40), `Rendering page ${i + 1} of ${pages.length}…`);
+
+      // Ensure table cells are vertically centered for clean capture
+      const cells = pageEl.querySelectorAll('td, th');
+      cells.forEach(c => { c.style.verticalAlign = 'middle'; });
+
+      // Capture at scale 2 with JPEG for reasonable file size (~2-3 MB)
+      const canvas = await html2canvas(pageEl, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 794,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+      // Fit to full A4 width with small margins, image placed at top of page
+      const margin = 3;
+      const imgW = a4W - margin * 2;
+      const imgH = (canvas.height / canvas.width) * imgW;
+
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, margin, imgW, imgH);
+    }
+
+    progress.update(95, 'Saving PDF…');
+    pdf.save(fileName);
+
+    progress.update(100, 'Download complete!');
+    setTimeout(() => progress.close(), 1200);
+
+  } catch (err) {
+    console.error('PDF download error:', err);
+    progress.close();
+    // Graceful fallback: open print dialog instead
+    generateStudentAdmissionPdf(studentData, options);
+  } finally {
+    if (document.body.contains(iframe)) document.body.removeChild(iframe);
+  }
 }
 
 /**

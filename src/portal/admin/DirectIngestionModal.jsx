@@ -495,7 +495,7 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
                 ⚡ Express Direct Ingestion <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-amber-600 text-white uppercase tracking-wider">Admin Privilege</span>
               </h2>
               <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 leading-none mt-0.5">
-                Directly insert or update student records into Firestore. <strong>Zero mandatory field restrictions.</strong>
+                Directly insert or update student records into School Database. <strong>Zero mandatory field restrictions.</strong>
               </p>
             </div>
           </div>
@@ -1077,7 +1077,7 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
                       <Upload size={14} className="text-amber-600" /> 2. Upload Filled CSV Spreadsheet
                     </h4>
                     <p className="text-[11px] text-slate-500 font-bold mt-1">
-                      Select your completed CSV spreadsheet to ingest all records directly into Firestore.
+                      Select your completed CSV spreadsheet to ingest all records directly into School Database.
                     </p>
                   </div>
                   <label className="w-full py-2 px-3 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center">
@@ -1224,8 +1224,8 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
                   isOpen: true,
                   type: 'warning',
                   title: 'Express Direct Record Entry',
-                  message: `Commit new student record for "${nameDisplay}" directly into Firestore database?`,
-                  consequence: 'This record will be written to "admissions" and "masterRegisters" collections with Approved status and will instantly appear at the top of the Admin table.',
+                  message: `Commit new student record for "${nameDisplay}" directly into School Database?`,
+                  consequence: 'This record will be written to the official School Database with Approved status and will instantly appear at the top of the Admin table.',
                   confirmText: '⚡ Confirm & Save Record',
                   cancelText: 'Cancel',
                   onConfirm: async ({ reasonCategory, customReason } = {}) => {
@@ -1249,7 +1249,7 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
                   isOpen: true,
                   type: 'warning',
                   title: 'Express Direct Record Entry',
-                  message: `Commit new student record for "${nameDisplay}" directly into Firestore database?`,
+                  message: `Commit new student record for "${nameDisplay}" directly into School Database?`,
                   consequence: 'This record will be authorized and committed to master registers and active table views.',
                   confirmText: '⚡ Confirm & Save Record',
                   cancelText: 'Cancel',

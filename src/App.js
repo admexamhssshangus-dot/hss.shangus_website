@@ -35,12 +35,23 @@ const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'));
 const RefundPolicy = lazy(() => import('./pages/RefundPolicy'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
 const LoginPortal = lazy(() => import('./pages/LoginPortal'));
+const StudentVerificationPage = lazy(() => import('./pages/StudentVerificationPage'));
 
-// Suspense fallback for lazy-loaded routes
+// Suspense fallback for lazy-loaded routes with animated institutional crest
 const LazyFallback = () => (
-  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
-    <div style={{ width: 36, height: 36, border: '3px solid #e2e8f0', borderTopColor: '#14b8a6', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+  <div className="flex flex-col justify-center items-center min-h-[60vh] gap-3 p-6 text-center animate-fadeIn">
+    <div className="relative w-16 h-16 flex items-center justify-center">
+      <div className="absolute -inset-1.5 rounded-full border-2 border-transparent border-t-teal-600 border-r-cyan-600 animate-spin" />
+      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md p-0.5">
+        <img src="/logo.png" alt="Govt HSS Shangus" className="w-full h-full object-contain rounded-full" />
+      </div>
+    </div>
+    <div className="font-extrabold text-xs text-slate-800 dark:text-slate-200 tracking-tight">
+      Govt. Higher Secondary School Shangus
+    </div>
+    <div className="text-[11px] font-semibold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-3 py-1 rounded-full border border-teal-200 dark:border-teal-800">
+      Loading academic resources...
+    </div>
   </div>
 );
 
@@ -129,6 +140,8 @@ function App() {
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
             <Route path="/admin/portal" element={<AdminPortal />} />
+            <Route path="/verify-student" element={<StudentVerificationPage />} />
+            <Route path="/verify" element={<StudentVerificationPage />} />
 
             {/* ─── React Portal Routes ─── */}
             <Route path="/portal" element={<PortalLayout />}>
