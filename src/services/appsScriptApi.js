@@ -431,34 +431,56 @@ async function saveApplication(payload) {
 async function deleteStudentApplication(formNoOrDocId) {
   if (!formNoOrDocId) return { success: false, message: 'Form number required.' };
   const cleanId = String(formNoOrDocId).trim();
-  const sanitizedDocId = cleanId.replace(/\//g, '_');
+
+  const idCandidates = Array.from(new Set([
+    cleanId,
+    cleanId.replace(/\//g, '_'),
+    cleanId.replace(/[\/\s]/g, '_').toLowerCase(),
+    cleanId.replace(/[\/\s]/g, '_').toUpperCase(),
+    `active_${cleanId.replace(/[\/\s]/g, '_').toLowerCase()}`,
+    `active_${cleanId.replace(/[\/\s]/g, '_').toUpperCase()}`
+  ].filter(Boolean)));
 
   try {
-    // 1. Delete direct document IDs
-    await deleteDoc(doc(db, 'admissions', sanitizedDocId)).catch(() => {});
-    await deleteDoc(doc(db, 'masterRegisters', sanitizedDocId)).catch(() => {});
-
-    // 2. Query and delete any matching documents in admissions by Form Number or Email
-    const user = sessionManager.getUser();
-    const userEmail = (user?.email || '').toLowerCase().trim();
-
-    const admissionsSnap = await getDocs(collection(db, 'admissions')).catch(() => null);
-    if (admissionsSnap && !admissionsSnap.empty) {
-      for (const d of admissionsSnap.docs) {
-        const dData = d.data();
-        const fNo = String(dData['Form Number'] || dData['FormNo'] || dData.formNumber || '').trim();
-        if (fNo === cleanId || fNo === sanitizedDocId || d.id === sanitizedDocId) {
-          await deleteDoc(doc(db, 'admissions', d.id)).catch(() => {});
-        }
-      }
+    // 1. Delete all candidate document IDs from admissions & masterRegisters
+    for (const cid of idCandidates) {
+      if (!cid || cid.includes('/')) continue;
+      await deleteDoc(doc(db, 'admissions', cid)).catch(() => {});
+      await deleteDoc(doc(db, 'masterRegisters', cid)).catch(() => {});
     }
 
-    // 3. Invalidate local SWR memory cache
-    const { invalidateCache } = require('./dbCache');
-    invalidateCache('admissions');
-    invalidateCache('masterRegisters');
+    // 2. Query and delete any matching documents in admissions & masterRegisters by Form Number or ID
+    for (const colName of ['admissions', 'masterRegisters']) {
+      try {
+        const snap = await getDocs(collection(db, colName));
+        if (snap && !snap.empty) {
+          const targetLower = cleanId.replace(/[\/\s]/g, '_').toLowerCase();
+          for (const d of snap.docs) {
+            const dData = d.data();
+            const fNo = String(dData['Form Number'] || dData['Form No.'] || dData.formNumber || dData.id || '').trim();
+            const docId = String(d.id).trim();
+
+            if (
+              fNo === cleanId || 
+              fNo.replace(/[\/\s]/g, '_').toLowerCase() === targetLower || 
+              docId.replace(/[\/\s]/g, '_').toLowerCase() === targetLower
+            ) {
+              await deleteDoc(doc(db, colName, d.id)).catch(() => {});
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. Update single item in local IndexedDB / dbCache
+    const { updateCachedItem } = require('./dbCache');
+    idCandidates.forEach(cid => {
+      updateCachedItem('admissions', cid, null);
+      updateCachedItem('masterRegisters', cid, null);
+    });
 
     // 4. Recycle deleted form number into system settings
+    const user = sessionManager.getUser();
     const { recycleDeletedFormNumber } = require('./formNumberService');
     recycleDeletedFormNumber(cleanId, {}, user?.email || 'Student Self Delete').catch(() => {});
 
