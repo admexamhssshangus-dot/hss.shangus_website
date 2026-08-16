@@ -4,8 +4,8 @@ import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, C
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache } from '../../services/dbCache';
-import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompressor';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
+import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
@@ -69,49 +69,49 @@ export function normalizeSessionVal(sess) {
 
 // ─── Global Helper for safe Firestore document mutation handling IDs with slashes ───
 export async function updateStudentDocument(student, updates) {
-  if (!student) return false;
-  const formNo = String(student['Form No.'] || student.formNo || student['Form Number'] || student.id || '').trim();
-  const rawId = String(student.docId || student._docId || student.id || formNo).trim();
+  if (!student || !updates) return false;
+  const formNo = String(student['Form No.'] || student.formNo || student['Form Number'] || '').replace(/^'/, '').trim();
+  const rawId = String(student.docId || student._docId || student.id || '').trim();
   
   const idCandidates = Array.from(new Set([
     rawId,
-    formNo,
-    student.id,
-    student.docId,
     student._docId,
-    rawId.replace(/\//g, '_'),
-    rawId.replace(/[\/\s]/g, '_').toLowerCase(),
-    rawId.replace(/[\/\s]/g, '_').toUpperCase(),
-    formNo.replace(/\//g, '_'),
-    formNo.replace(/[\/\s]/g, '_').toLowerCase(),
-    formNo.replace(/[\/\s]/g, '_').toUpperCase(),
-    `active_${rawId.replace(/[\/\s]/g, '_').toLowerCase()}`,
-    `active_${rawId.replace(/[\/\s]/g, '_').toUpperCase()}`
+    student.docId,
+    student.id,
+    formNo ? `adm_${formNo}` : '',
+    formNo ? `active_${formNo}` : '',
+    rawId.replace(/^active_/, ''),
+    rawId.replace(/^hist_/, ''),
+    formNo
   ].filter(Boolean)));
 
   let updated = false;
 
   for (const cid of idCandidates) {
-    if (cid.includes('/')) continue;
+    if (!cid || cid.includes('/')) continue;
     try {
       await updateDoc(doc(db, 'admissions', cid), updates);
       updated = true;
+      break;
     } catch (e) {}
 
     try {
       await updateDoc(doc(db, 'masterRegisters', cid), updates);
       updated = true;
+      break;
     } catch (e) {}
   }
 
-  if (!updated && (formNo || rawId)) {
-    const val = formNo || rawId;
-    for (const field of ['id', 'formNo', 'Form No.', 'Form Number']) {
+  if (!updated && formNo && formNo !== '—') {
+    for (const field of ['Form Number', 'Form No.', 'formNo', 'id']) {
       try {
-        const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', val)));
-        for (const dSnap of qSnap.docs) {
-          await updateDoc(doc(db, 'admissions', dSnap.id), updates);
-          updated = true;
+        const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', formNo)));
+        if (!qSnap.empty) {
+          for (const dSnap of qSnap.docs) {
+            await updateDoc(doc(db, 'admissions', dSnap.id), updates);
+            updated = true;
+          }
+          break;
         }
       } catch (e) {}
     }
@@ -122,6 +122,19 @@ export async function updateStudentDocument(student, updates) {
     updateCachedItem('admissions', cid, updates);
     updateCachedItem('masterRegisters', cid, updates);
   });
+
+  // Automatically synchronize centralized student photo when registration number or photo updates
+  if (updates && (updates.boardRegNo || updates.regNo || updates['Board Registration No.'] || updates['Board Registration Number'] || updates.photo_id || updates.photoUrl)) {
+    const oldReg = student?.boardRegNo || student?.regNo || student?.['Board Registration No.'] || '';
+    const newReg = updates?.boardRegNo || updates?.regNo || updates?.['Board Registration No.'] || updates?.['Board Registration Number'] || oldReg;
+    const photoData = updates?.photo_id || updates?.photoUrl || '';
+    syncStudentPhotoOnRegUpdate({
+      oldReg,
+      newReg,
+      student: { ...student, ...updates },
+      photoData
+    }).catch(() => {});
+  }
 
   return updated;
 }
@@ -1769,26 +1782,9 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
 const formatPhotoDisplayUrl = (val, student = null) => {
   let str = (typeof val === 'string' ? val : '').trim();
 
-  // If val is empty or placeholder, check all student fields and local photo cache
+  // If val is empty or placeholder, resolve from getStudentPhotoUrl
   if ((!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') && student) {
-    str = String(
-      student.photo_id ||
-      student['photo_id'] ||
-      student['Student Photo'] ||
-      student.photoUrl ||
-      student.photoId ||
-      student['Student Photo URL'] ||
-      student.photo ||
-      student.Photo ||
-      ''
-    ).trim();
-
-    if (!str || str === '—' || str === 'N/A') {
-      const candidateId = student.id || student['Form Number'] || student['Form No.'] || student.formNo || student.docId;
-      if (candidateId) {
-        str = getPhotoUrlFromCache(candidateId) || '';
-      }
-    }
+    str = getStudentPhotoUrl(student) || '';
   }
 
   if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
@@ -1819,6 +1815,62 @@ const formatPhotoDisplayUrl = (val, student = null) => {
 
   return '';
 };
+
+function OnDemandStudentPhotoCell({ student, val }) {
+  const studentKey = `${student?.id || ''}_${student?.docId || ''}_${student?.boardRegNo || student?.regNo || ''}_${val || ''}`;
+  const [photoUrl, setPhotoUrl] = useState(() => {
+    return formatPhotoDisplayUrl(val, student) || getStudentPhotoUrl(student) || '';
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const current = formatPhotoDisplayUrl(val, student) || getStudentPhotoUrl(student);
+    if (current && current !== '/logo.png' && current !== '—') {
+      setPhotoUrl(current);
+      return;
+    }
+
+    // Fetch on-demand only for students currently active/visible on screen
+    fetchStudentPhotoOnDemand(student).then((res) => {
+      if (isMounted && res && res !== '/logo.png' && res !== '—') {
+        setPhotoUrl(res);
+      }
+    }).catch(() => {});
+
+    return () => { isMounted = false; };
+  }, [studentKey]);
+
+  if (photoUrl && photoUrl !== '—' && photoUrl !== '/logo.png') {
+    return (
+      <img
+        src={photoUrl}
+        alt="Student Photo"
+        onError={(e) => {
+          e.target.onerror = null;
+          e.target.style.display = 'none';
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (student && typeof student._setPreviewPhotoModal === 'function') {
+            student._setPreviewPhotoModal({
+              url: photoUrl,
+              name: student.studentName,
+              rollNo: student.classRollNo,
+              admNo: student.admNo,
+              class: student.class,
+              session: student.session,
+              formNo: student.formNo
+            });
+          }
+        }}
+        className="w-8 h-10 mx-auto rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
+        title="Click for full photo preview"
+      />
+    );
+  }
+
+  return <span className="text-slate-400 font-normal text-[10px]">—</span>;
+}
 
 const COLUMN_DEFS = [
   { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
@@ -1888,36 +1940,7 @@ const COLUMN_DEFS = [
   { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-normal break-all' },
   {
     key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
-      const rawUrl = formatPhotoDisplayUrl(val, student) || (student && student.photoId && student.photoId !== '—' ? formatPhotoDisplayUrl(student.photoId, student) : '');
-      if (rawUrl) {
-        return (
-          <img
-            src={rawUrl}
-            alt="Student Photo"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.style.display = 'none';
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (student && typeof student._setPreviewPhotoModal === 'function') {
-                student._setPreviewPhotoModal({
-                  url: rawUrl,
-                  name: student.studentName,
-                  rollNo: student.classRollNo,
-                  admNo: student.admNo,
-                  class: student.class,
-                  session: student.session,
-                  formNo: student.formNo
-                });
-              }
-            }}
-            className="w-8 h-10 mx-auto rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
-            title="Click for full photo preview"
-          />
-        );
-      }
-      return <span className="text-slate-400 font-normal text-[10px]">—</span>;
+      return <OnDemandStudentPhotoCell student={student} val={val} />;
     }
   },
   {
@@ -2017,34 +2040,80 @@ const COLUMN_DEFS = [
 
       const getStreamDetails = (st, rawSubs) => {
         const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
-        const rawStream = String(st?.stream || st?.Stream || st?.['Stream'] || '').toLowerCase();
-        // 9th & 10th grade or General stream is always General (G)
-        if (cls.includes('9') || cls.includes('10') || rawStream.includes('general')) {
+        const abbrSubjs = abbreviateSubjects(rawSubs);
+
+        // If no subjects and draft/empty
+        if (!rawSubs || rawSubs === '—' || abbrSubjs === '—') {
+          if (cls.includes('9') || cls.includes('10')) {
+            return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
+          }
+          return { code: '', label: '', style: '' };
+        }
+
+        // 9th & 10th grade is always General (G)
+        if (cls.includes('9') || cls.includes('10')) {
           return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
         }
-        const allSubjs = (String(rawSubs || '') + ' ' + String(st?.subs || '') + ' ' + String(st?.Subjects || '') + ' ' + String(st?.Subjects1 || '') + ' ' + String(st?.Subjects2 || '') + ' ' + String(st?.Subjects3 || '') + ' ' + String(st?.Subjects4 || '') + ' ' + String(st?.Subjects5 || '')).toLowerCase();
 
-        // 1. Core Science subjects check (Physics, Chemistry, Biology/Botany/Zoology)
+        const rawStream = String(
+          st?.stream ||
+          st?.Stream ||
+          st?.['Stream for Class 11th'] ||
+          st?.['Stream opted in Class 11th'] ||
+          st?.['Stream & Subjects for Class 12th'] ||
+          ''
+        ).toLowerCase();
+
+        const allSubjs = (
+          String(rawSubs || '') + ' ' +
+          String(abbrSubjs || '') + ' ' +
+          String(st?.subs || '') + ' ' +
+          String(st?.Subjects || '') + ' ' +
+          String(st?.Subjects1 || '') + ' ' +
+          String(st?.Subjects2 || '') + ' ' +
+          String(st?.Subjects3 || '') + ' ' +
+          String(st?.Subjects4 || '') + ' ' +
+          String(st?.Subjects5 || '')
+        ).toLowerCase();
+
+        const upperAbbr = String(abbrSubjs || '').toUpperCase();
+
+        // 1. Core Science subjects check (Physics, Chemistry, Biology/Botany/Zoology, Math, ITE, CS)
         const hasCoreScience =
+          rawStream.includes('science') ||
+          rawStream.includes('med') ||
           allSubjs.includes('physics') ||
           allSubjs.includes('chemistry') ||
           allSubjs.includes('biology') ||
           allSubjs.includes('botany') ||
           allSubjs.includes('zoology') ||
-          allSubjs.includes(', ph,') ||
-          allSubjs.includes(', ch,') ||
-          allSubjs.includes(', bi,') ||
-          allSubjs.includes(', bo,') ||
-          allSubjs.includes(', zo,') ||
-          allSubjs.includes(' ph ') ||
-          allSubjs.includes(' ch ') ||
-          allSubjs.includes(' bi ') ||
-          allSubjs.startsWith('ph,') ||
-          allSubjs.includes('ge, ph') ||
-          allSubjs.includes('ge,ph');
+          allSubjs.includes('mathematics') ||
+          allSubjs.includes('computer science') ||
+          allSubjs.includes('information tech') ||
+          allSubjs.includes('biotechnology') ||
+          upperAbbr.includes('PH') ||
+          upperAbbr.includes('CH') ||
+          upperAbbr.includes('BI') ||
+          upperAbbr.includes('BO') ||
+          upperAbbr.includes('ZO') ||
+          upperAbbr.includes('MA') ||
+          upperAbbr.includes('ITE') ||
+          upperAbbr.includes('CS');
 
-        // 2. Core Humanities subjects check (History, Political Science, Education, Economics, Urdu, Sociology, Geography)
+        // 2. Core Commerce check
+        const hasCoreCommerce =
+          rawStream.includes('commerce') ||
+          allSubjs.includes('accountancy') ||
+          allSubjs.includes('business studies') ||
+          allSubjs.includes('entrepreneurship') ||
+          upperAbbr.includes('AC') ||
+          upperAbbr.includes('BS') ||
+          upperAbbr.includes('COM');
+
+        // 3. Core Humanities subjects check (History, Political Science, Education, Economics, Urdu, Sociology, Geography, etc.)
         const hasCoreHumanities =
+          rawStream.includes('humanities') ||
+          rawStream.includes('arts') ||
           allSubjs.includes('history') ||
           allSubjs.includes('political science') ||
           allSubjs.includes('education') ||
@@ -2053,31 +2122,41 @@ const COLUMN_DEFS = [
           allSubjs.includes('psychology') ||
           allSubjs.includes('philosophy') ||
           allSubjs.includes('islamic studies') ||
-          allSubjs.includes(', ht,') ||
-          allSubjs.includes(', ps,') ||
-          allSubjs.includes(', ed,') ||
-          allSubjs.includes(', ec,') ||
-          allSubjs.includes(', ur,') ||
-          allSubjs.includes('ht, ps') ||
-          allSubjs.includes('ec, ht');
+          allSubjs.includes('economics') ||
+          allSubjs.includes('urdu') ||
+          allSubjs.includes('kashmiri') ||
+          allSubjs.includes('arabic') ||
+          allSubjs.includes('hindi') ||
+          upperAbbr.includes('HT') ||
+          upperAbbr.includes('PS') ||
+          upperAbbr.includes('ED') ||
+          upperAbbr.includes('EC') ||
+          upperAbbr.includes('SO') ||
+          upperAbbr.includes('UR') ||
+          upperAbbr.includes('KA') ||
+          upperAbbr.includes('AR') ||
+          upperAbbr.includes('HI') ||
+          upperAbbr.includes('HTC') ||
+          upperAbbr.includes('IS') ||
+          upperAbbr.includes('GG');
 
-        // 3. Core Commerce check
-        const hasCoreCommerce =
-          rawStream.includes('commerce') ||
-          allSubjs.includes('accountancy') ||
-          allSubjs.includes('business studies') ||
-          allSubjs.includes(', bs,') ||
-          allSubjs.includes(', ac,');
-
-        if (hasCoreScience || allSubjs.includes('math') || rawStream.includes('science') || rawStream.includes('med')) {
-          return { code: 'S', label: 'Science', style: 'bg-orange-600 dark:bg-orange-600 text-white border-orange-700' };
+        if (hasCoreScience) {
+          return { code: 'S', label: 'Science', style: 'bg-emerald-700 dark:bg-emerald-700 text-white border-emerald-800' };
         }
 
-        if (hasCoreCommerce || rawStream.includes('commerce')) {
+        if (hasCoreCommerce) {
           return { code: 'C', label: 'Commerce', style: 'bg-blue-600 text-white border-blue-700' };
         }
 
-        return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+        if (hasCoreHumanities) {
+          return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+        }
+
+        if (cls.includes('11') || cls.includes('12')) {
+          return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+        }
+
+        return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
       };
 
       const streamInfo = getStreamDetails(student, val);
@@ -2999,6 +3078,25 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     return `${role}::${perms}`;
   }, [user]);
 
+  const [photosLoaded, setPhotosLoaded] = useState(false);
+
+  // Preload centralized student photos into memory/cache and trigger reactive re-render
+  useEffect(() => {
+    let isMounted = true;
+    preloadStudentPhotosCache().then(() => {
+      if (isMounted) setPhotosLoaded(true);
+    }).catch(() => {});
+
+    const handlePhotosLoaded = () => {
+      if (isMounted) setPhotosLoaded(true);
+    };
+    window.addEventListener('hss-photos-loaded', handlePhotosLoaded);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('hss-photos-loaded', handlePhotosLoaded);
+    };
+  }, []);
+
   // Check if tools permissions were updated by SuperAdmin
   useEffect(() => {
     try {
@@ -3064,36 +3162,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const fNo = updatedFields['Form Number'] || updatedFields['Form No.'] || updatedFields.formNo;
       const cleanFNo = fNo ? String(fNo).replace(/^'/, '').trim() : '';
 
-      // Use actual Firestore document ID (student.id) as primary key — prevents creating new docs
-      // when Form Number is missing or contains dashes
-      const rawDocId = editingStudent.id || editingStudent.docId || editingStudent._docId || cleanFNo || `doc_${Date.now()}`;
-      const docId = String(rawDocId).replace(/^(active_|hist_|adm_)/, '').trim();
-      const sanitizedDocId = docId.replace(/[/\s]/g, '_').toLowerCase();
-
       const payload = {
         ...updatedFields,
         updatedAt: new Date().toISOString(),
         lastEditedBy: `Admin (${user?.email || 'System'})`
       };
 
-      // Active admissions always go to 'admissions' collection.
-      // masterRegisters is read-only historical archive — updated only during session close.
-      const isAdmissionsRecord = editingStudent._isCurrentScope !== false && editingStudent._source !== 'masterRegisters';
-      if (isAdmissionsRecord) {
-        try {
-          await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true });
-        } catch (err) {
-          console.warn('Firestore write warning for admissions:', err.message);
-        }
-        updateCachedItem('admissions', docId, payload);
-      } else {
-        try {
-          await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
-        } catch (err) {
-          console.warn('Firestore write warning for masterRegisters:', err.message);
-        }
-        updateCachedItem('masterRegisters', docId, payload);
-      }
+      // Perform in-place update on existing document (never creates duplicate docs)
+      await updateStudentDocument(editingStudent, payload);
 
       if (updatedFields.email1 || updatedFields.email || cleanFNo) {
         const userDocId = (updatedFields.email1 || updatedFields.email || `form_${cleanFNo}`).toLowerCase().replace(/[^a-z0-9_@-]/g, '_');
@@ -3249,22 +3325,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       setQuickEditProgress(50);
       setQuickEditStage('Syncing live record to Cloud Firestore database...');
 
-      const isAdmissionsRecord = student._isCurrentScope || student._source === 'admissions' || (student._source !== 'masterRegisters' && student._isCurrentScope === true);
-      if (isAdmissionsRecord) {
-        try {
-          await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true });
-        } catch (err) {
-          console.warn('Firestore quick edit sync warning (admissions):', err);
-        }
-        updateCachedItem('admissions', docId, payload);
-      } else {
-        try {
-          await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
-        } catch (err) {
-          console.warn('Firestore quick edit sync warning (masterRegisters):', err);
-        }
-        updateCachedItem('masterRegisters', docId, payload);
-      }
+      // Perform in-place update on existing document (never creates duplicate docs)
+      await updateStudentDocument(student, payload);
 
       setQuickEditProgress(75);
       setQuickEditStage('Updating local registers cache & table view...');
@@ -3762,13 +3824,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             lastEditedBy: 'Admin (Field Reset)'
           };
 
-          if (student._isCurrentScope || cleanFNo) {
-            try { await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true }); } catch (e) { }
-            updateCachedItem('admissions', docId, payload);
-          } else {
-            try { await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true }); } catch (e) { }
-            updateCachedItem('masterRegisters', docId, payload);
-          }
+          // Perform in-place update on existing document (never creates duplicate docs)
+          await updateStudentDocument(student, payload);
 
           await logAdminActivity({
             actionType: 'cell_clear',
@@ -4619,8 +4676,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         gender: a['Gender'] || '—',
         category: a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General',
         status: activeResolvedStatus,
-        stream: a['Stream for Class 11th'] || a['Stream'] || 'General',
+        stream: a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream & Subjects for Class 12th'] || a['Stream'] || '',
         subs: formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec),
+        photoId: extractPhotoVal(a) || extractPhotoVal(mergedRec) || getStudentPhotoUrl(a) || getStudentPhotoUrl(mergedRec) || '',
         mobile: a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—',
         aadhar: a['Aadhar No.'] || a.aadhar || '—',
         fatherAadhar: a["Father's Aadhar No."] || a["Father's Aadhaar No."] || a.fatherAadhar || '—',
@@ -4762,8 +4820,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         gender: h['Gender'] || '—',
         category: h['Cat._JKBOSE'] || h['Category'] || 'General',
         status: h['Status'] || 'Approved',
-        stream: h['Stream'] || 'General',
+        stream: h['Stream'] || '',
         subs: formatStudentSubjects(h),
+        photoId: extractPhotoVal(h) || getStudentPhotoUrl(h) || '',
         mobile: h["Student's Contact"] || h['Mobile'] || '—',
         aadhar: h['Aadhar No.'] || h.aadhar || '—',
         fatherAadhar: h["Father's Aadhar No."] || h["Father's Aadhaar No."] || h.fatherAadhar || '—',

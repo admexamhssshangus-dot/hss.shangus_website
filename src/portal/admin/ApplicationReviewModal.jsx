@@ -5,7 +5,7 @@ import { db } from '../../services/firebase';
 import { doc, updateDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
 import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
-import { savePhotoUrlToCache } from '../../services/dbCache';
+import { savePhotoUrlToCache, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
 
 export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [rejecting, setRejecting] = useState(false);
@@ -59,6 +59,14 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
         photoPath: deleteField(),
         updatedAt: serverTimestamp(),
       });
+
+      // Synchronize photo across centralized studentPhotos
+      await syncStudentPhotoOnRegUpdate({
+        newReg: app?.['Board Registration Number'] || app?.['Board Registration No.'] || app?.boardRegNo || app?.regNo,
+        student: app,
+        photoData: compressedDataUrl
+      });
+
       alert('Student photo updated in the admission record.');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       if (onRefresh) onRefresh();

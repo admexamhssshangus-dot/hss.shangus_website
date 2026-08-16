@@ -111,17 +111,24 @@ export default function PortalLayout() {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      const currentPath = window.location.pathname;
+      const isOnPublicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+        .some(p => currentPath.startsWith(p));
+
       if (fbUser) {
         // Skip if user explicitly logged out
-        if (sessionStorage.getItem('hss_explicit_logout') === 'true') return;
+        if (sessionStorage.getItem('hss_explicit_logout') === 'true') {
+          sessionManager.clearSession();
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+          if (!isOnPublicPage) navigate('/portal/login', { replace: true });
+          return;
+        }
 
-        // Skip on public routes — LoginPage handles its own session flow.
-        // Without this, onAuthStateChanged races with onLoginSuccess causing
-        // the dashboard to mount → unmount → remount (visible as flickering).
-        const currentPath = window.location.pathname;
-        const isOnPublicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
-          .some(p => currentPath.startsWith(p));
-        if (isOnPublicPage) return;
+        // On public pages, stop loading so LoginPage displays immediately
+        if (isOnPublicPage) {
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+          return;
+        }
 
         const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
         // Session already active for this user — no state update needed

@@ -762,8 +762,8 @@ export default function GkTestRegistration() {
   return (
     <div className="flex-1 min-h-[calc(100vh-var(--site-header-height,64px))] flex flex-col justify-between" style={{ background: 'linear-gradient(135deg, #0f4c3a 0%, #0f766e 40%, #134e4a 100%)' }}>
       <SEO
-        title="GK Test Registration — Govt. HSS Shangus"
-        description="Register for the General Knowledge Quiz to be held on 10 August 2026 at Govt. Hr. Sec. School Shangus."
+        title={`${gkConfig?.examTitle || 'Competitive Exam Registration'} — Govt. HSS Shangus`}
+        description={`Online registration portal for ${gkConfig?.examTitle || 'Competitive Examination'} at Govt. Higher Secondary School Shangus.`}
       />
 
       {/* Header */}
@@ -792,7 +792,7 @@ export default function GkTestRegistration() {
 
         <div className="flex items-center justify-center gap-2">
           <h1 className="text-xl sm:text-2xl font-black text-white leading-tight drop-shadow-md">
-            General Knowledge Quiz
+            {gkConfig?.examTitle || 'General Knowledge & Talent Search Exam'}
           </h1>
 
           {/* Compact Invigilator Mode Icon Button */}
@@ -808,7 +808,7 @@ export default function GkTestRegistration() {
         </div>
 
         <p className="text-teal-200 text-xs mt-0.5 font-medium">
-          📅 10 August 2026 &nbsp;·&nbsp; Govt. Hr. Sec. School Shangus
+          📅 {gkConfig?.examDate || 'Sunday, 30th August 2026'} &nbsp;·&nbsp; {gkConfig?.examCenter || 'Govt. Higher Secondary School Shangus'}
         </p>
       </div>
 
@@ -1070,22 +1070,33 @@ export default function GkTestRegistration() {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-left print:hidden">
                   <p className="text-xs font-bold text-amber-800 mb-1">📋 Test Guidelines & Instructions</p>
                   <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
-                    <li>Report to your examination hall by 9:00 AM on 10 August 2026</li>
-                    <li>Bring a <strong>blue or black ballpoint pen</strong> for filling OMR bubbles (Do NOT use pencil)</li>
-                    <li>An OMR sheet with your credentials will be provided at the hall</li>
-                    <li>Mobile phones and gadgets are strictly prohibited</li>
+                    {(gkConfig?.instructions || [
+                      `Report to your examination hall by ${gkConfig?.reportingTime || '10:30 AM'} on ${gkConfig?.examDate || 'Sunday, 30th August 2026'}`,
+                      'Bring a blue or black ballpoint pen for filling OMR bubbles (Do NOT use pencil)',
+                      'An OMR sheet with your credentials will be provided at the hall',
+                      'Mobile phones and gadgets are strictly prohibited'
+                    ]).map((inst, idx) => (
+                      <li key={idx}>{inst}</li>
+                    ))}
                   </ul>
                 </div>
 
                 <button
-                  onClick={() => generateGkTestAdmitCardPdf(student || {
-                    examNumber,
-                    name: manualData.name,
-                    fatherName: manualData.fatherName,
-                    className: manualData.className,
-                    classRollNo: manualData.classRollNo,
-                    boardRegNo: input || 'Manual',
-                    session: '2025-26'
+                  onClick={() => generateGkTestAdmitCardPdf({
+                    ...(student || {
+                      examNumber,
+                      name: manualData.name,
+                      fatherName: manualData.fatherName,
+                      className: manualData.className,
+                      classRollNo: manualData.classRollNo,
+                      boardRegNo: input || 'Manual',
+                      session: gkConfig?.academicSession || '2025-26'
+                    }),
+                    examTitle: gkConfig?.examTitle,
+                    examDate: gkConfig?.examDate,
+                    examTime: gkConfig?.examTime,
+                    examCenter: gkConfig?.examCenter,
+                    instructions: gkConfig?.instructions
                   })}
                   className="w-full py-3.5 rounded-xl bg-teal-800 text-white text-sm font-black hover:bg-teal-700 active:bg-teal-900 transition-all flex items-center justify-center gap-2 shadow-lg print:hidden cursor-pointer"
                 >
@@ -1100,7 +1111,7 @@ export default function GkTestRegistration() {
                     </h2>
                     <p className="text-xs font-bold text-slate-600">Anantnag, Jammu & Kashmir — 192201</p>
                     <div className="inline-block bg-teal-800 text-white text-xs font-black px-4 py-0.5 rounded-full uppercase tracking-widest mt-1">
-                      General Knowledge Quiz 2026 Admit Card
+                      {gkConfig?.examTitle || 'Competitive Examination Admit Card'}
                     </div>
                   </div>
 
@@ -1139,33 +1150,37 @@ export default function GkTestRegistration() {
                         </div>
                         <div>
                           <span className="text-[10px] font-bold text-slate-500 uppercase block">Session</span>
-                          <span className="font-bold text-slate-800">{student?.session || '2025-26'}</span>
+                          <span className="font-bold text-slate-800">{student?.session || gkConfig?.academicSession || '2025-26'}</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs grid grid-cols-2 gap-2 text-teal-900 font-semibold">
-                    <div>📅 <strong>Date of Test:</strong> Monday, 10 August 2026</div>
-                    <div>⏰ <strong>Reporting Time:</strong> 09:00 AM</div>
-                    <div>📍 <strong>Venue:</strong> Main Hall, HSS Shangus</div>
-                    <div>📝 <strong>Format:</strong> 60 MCQs (OMR Format)</div>
+                    <div>📅 <strong>Date of Test:</strong> {gkConfig?.examDate || 'Sunday, 30th August 2026'}</div>
+                    <div>⏰ <strong>Exam Timing:</strong> {gkConfig?.examTime || '11:00 AM – 01:00 PM'}</div>
+                    <div>📍 <strong>Venue:</strong> {gkConfig?.examCenter || 'Govt. Higher Secondary School Shangus'}</div>
+                    <div>📝 <strong>Format:</strong> {gkConfig?.duration || '120 Min'} ({gkConfig?.maxMarks || 100} Marks)</div>
                   </div>
 
                   <div className="text-[10px] text-slate-600 space-y-0.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <p className="font-bold text-slate-800 uppercase">Important Candidate Instructions:</p>
                     <ul className="list-disc list-inside space-y-0.5">
-                      <li>Bring this Admit Card and your school Identity Card to the examination hall.</li>
-                      <li>Bring a <strong>blue or black ballpoint pen</strong> for darkening OMR circles. Do NOT use pencil.</li>
-                      <li>Fill your 7-digit Exam Roll Number carefully on your OMR sheet.</li>
-                      <li>Mobile phones and gadgets are strictly forbidden inside the hall.</li>
+                      {(gkConfig?.instructions || [
+                        'Bring this Admit Card and your school Identity Card to the examination hall.',
+                        'Bring a blue or black ballpoint pen for darkening OMR circles. Do NOT use pencil.',
+                        'Fill your 7-digit Exam Roll Number carefully on your OMR sheet.',
+                        'Mobile phones and gadgets are strictly forbidden inside the hall.'
+                      ]).map((inst, idx) => (
+                        <li key={idx}>{inst}</li>
+                      ))}
                     </ul>
                   </div>
 
                   <div className="pt-6 grid grid-cols-3 gap-4 text-center text-[10px] font-bold text-slate-700">
                     <div className="border-t border-slate-400 pt-1">Candidate's Signature</div>
                     <div className="border-t border-slate-400 pt-1">Invigilator's Signature</div>
-                    <div className="border-t border-slate-400 pt-1">Convener / Principal Seal</div>
+                    <div className="border-t border-slate-400 pt-1">Controller of Examinations</div>
                   </div>
                 </div>
               </div>

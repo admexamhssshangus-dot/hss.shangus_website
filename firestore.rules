@@ -342,6 +342,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /studentPhotos/{documentId} {
+      allow read: if isTeacher();
+      allow write: if isAdmin();
+    }
+
     // Administrative and institution-wide records.
     match /{collectionName}/{documentId} {
       allow read: if isAdmin() && collectionName in [

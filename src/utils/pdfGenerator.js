@@ -1705,30 +1705,40 @@ export async function downloadBulkAdmissionPdf(studentsList, options = {}) {
  * @param {object} regData - Registration details for GK Test candidate
  */
 export function generateGkTestAdmitCardPdf(regData = {}) {
-  const regNo = regData.regNo || regData.rollNo || regData.id || 'N/A';
+  const regNo = regData.examNumber || regData.regNo || regData.rollNo || regData.id || 'N/A';
   const candidateName = (regData.name || regData.candidateName || 'N/A').toUpperCase();
-  const fatherName = (regData.parentName || regData.fatherName || 'N/A').toUpperCase();
-  const cls = regData.class || regData.classGrade || 'N/A';
-  const school = regData.school || regData.institution || 'Govt HR SEC SCHOOL SHANGUS';
+  const fatherName = (regData.fatherName || regData.parentName || 'N/A').toUpperCase();
+  const cls = regData.className || regData.class || regData.classGrade || 'N/A';
+  const school = regData.school || regData.institution || 'Govt. Higher Secondary School Shangus';
   const category = regData.category || 'General';
   const contact = regData.mobile || regData.contact || 'N/A';
-  const examCenter = regData.center || 'Govt. Higher Secondary School Shangus';
-  const examDate = regData.examDate || 'Sunday, 17th May 2026';
+  const examCenter = regData.examCenter || regData.center || regData.venue || 'Govt. Higher Secondary School Shangus';
+  const examDate = regData.examDate || 'Sunday, 30th August 2026';
   const examTime = regData.examTime || '11:00 AM – 01:00 PM';
+  const examTitle = (regData.examTitle || 'OFFICIAL ADMIT CARD — COMPETITIVE & TALENT SEARCH EXAMINATION').toUpperCase();
   const photoUrl = getStudentPhotoUrl(regData, '/logo.png');
+
+  const instructionsList = Array.isArray(regData.instructions) && regData.instructions.length > 0
+    ? regData.instructions
+    : [
+      'Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.',
+      'Reporting time at the examination center is 30 minutes prior to commencement of the test.',
+      'Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.',
+      'Use blue or black ballpoint pen only for writing responses on the answer sheet.'
+    ];
 
   const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>GK Test 2026 Admit Card - ${regNo} - ${candidateName}</title>
+      <title>${examTitle} - ${regNo} - ${candidateName}</title>
       <style>
         @page { size: A4 portrait; margin: 0.5cm; }
         body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #0f172a; margin: 0; padding: 0; line-height: 1.4; }
         .admit-card { border: 2px solid #0f766e; padding: 16px; border-radius: 8px; background: #ffffff; width: 100%; box-sizing: border-box; }
         .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 12px; }
         .school-title { font-size: 18px; font-weight: bold; color: #0f766e; text-transform: uppercase; }
-        .exam-title { font-size: 14px; font-weight: bold; color: #b91c1c; margin-top: 4px; }
+        .exam-title { font-size: 13px; font-weight: bold; color: #b91c1c; margin-top: 4px; letter-spacing: 0.5px; }
         .info-grid { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
         .info-table { width: 75%; border-collapse: collapse; }
         .info-table td { padding: 5px 8px; border: 1px solid #cbd5e1; }
@@ -1745,13 +1755,13 @@ export function generateGkTestAdmitCardPdf(regData = {}) {
     <body>
       <div class="admit-card">
         <div class="header">
-          <div class="school-title">GOVT HIGHER SECONDARY SCHOOL SHANGUS</div>
-          <div class="exam-title">OFFICIAL ADMIT CARD — ALL KASHMIR GK TALENT SEARCH TEST 2026</div>
+          <div class="school-title">GOVT. HIGHER SECONDARY SCHOOL SHANGUS</div>
+          <div class="exam-title">${examTitle}</div>
         </div>
 
         <div class="info-grid">
           <table class="info-table">
-            <tr><td class="lbl">Registration / Roll No:</td><td><strong style="color: #b91c1c; font-size: 13px;">${regNo}</strong></td></tr>
+            <tr><td class="lbl">Registration / Exam Roll No:</td><td><strong style="color: #b91c1c; font-size: 13px;">${regNo}</strong></td></tr>
             <tr><td class="lbl">Candidate's Name:</td><td><strong>${candidateName}</strong></td></tr>
             <tr><td class="lbl">Father's Name:</td><td>${fatherName}</td></tr>
             <tr><td class="lbl">Class / Category:</td><td>Class ${cls} (${category})</td></tr>
@@ -1767,10 +1777,7 @@ export function generateGkTestAdmitCardPdf(regData = {}) {
 
         <div class="rules-title">INSTRUCTIONS FOR CANDIDATES</div>
         <ol class="rules-list">
-          <li>Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.</li>
-          <li>Reporting time at the examination center is 30 minutes prior to commencement of the test.</li>
-          <li>Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.</li>
-          <li>Use blue or black ballpoint pen only for writing responses on the answer sheet.</li>
+          ${instructionsList.map(inst => `<li>${inst}</li>`).join('\n          ')}
         </ol>
 
         <div class="sigs">
