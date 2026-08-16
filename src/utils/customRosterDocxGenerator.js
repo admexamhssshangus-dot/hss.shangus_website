@@ -21,8 +21,37 @@ import {
   Header,
   Footer,
   PageNumber,
-  PageOrientation
+  PageOrientation,
+  ImageRun
 } from 'docx';
+
+/**
+ * Helper to safely convert data URLs or fetch image URLs to Uint8Array for docx ImageRun.
+ */
+async function getPhotoBuffer(photoUrl) {
+  if (!photoUrl || typeof photoUrl !== 'string') return null;
+  try {
+    if (photoUrl.startsWith('data:image/')) {
+      const base64Data = photoUrl.split(',')[1];
+      if (!base64Data) return null;
+      const binaryString = atob(base64Data);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
+    } else if (photoUrl.startsWith('http') || photoUrl.startsWith('/')) {
+      const res = await fetch(photoUrl);
+      if (!res.ok) return null;
+      const arrayBuffer = await res.arrayBuffer();
+      return new Uint8Array(arrayBuffer);
+    }
+  } catch (e) {
+    console.warn('Could not load photo for docx export:', e);
+  }
+  return null;
+}
 
 /**
  * Trigger browser file download from Blob.
@@ -112,10 +141,43 @@ export async function generateCustomRosterDocx({
   });
 
   // 2. Build Data Rows
-  const tableDataRows = rows.map((row, rowIdx) => {
-    const cells = columns.map((col) => {
+  const tableDataRows = await Promise.all(rows.map(async (row, rowIdx) => {
+    const cells = await Promise.all(columns.map(async (col) => {
       let cellParagraphs = [];
-      if (col.key === 'parentage' && row.fatherName && row.fatherName !== '—' && row.motherName && row.motherName !== '—') {
+      if (col.key === 'studentPhoto' || col.key === 'photo') {
+        const photoSrc = row.studentPhoto || row[col.key];
+        const photoBuffer = await getPhotoBuffer(photoSrc);
+        if (photoBuffer) {
+          cellParagraphs = [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new ImageRun({
+                  data: photoBuffer,
+                  transformation: {
+                    width: 30,
+                    height: 36
+                  }
+                })
+              ]
+            })
+          ];
+        } else {
+          cellParagraphs = [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: '—',
+                  size: 16,
+                  font: 'Calibri',
+                  color: '888888'
+                })
+              ]
+            })
+          ];
+        }
+      } else if (col.key === 'parentage' && row.fatherName && row.fatherName !== '—' && row.motherName && row.motherName !== '—') {
         cellParagraphs = [
           new Paragraph({
             alignment: col.align === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT,
@@ -176,13 +238,13 @@ export async function generateCustomRosterDocx({
         margins: { top: 80, bottom: 80, left: 100, right: 100 },
         children: cellParagraphs
       });
-    });
+    }));
 
     return new TableRow({
       height: { value: rowHeightDxa, rule: HeightRule.ATLEAST },
       children: cells
     });
-  });
+  }));
 
   // 3. Build Full Table
   const rosterTable = new Table({

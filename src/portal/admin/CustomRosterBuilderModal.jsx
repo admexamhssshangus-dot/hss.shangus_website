@@ -11,7 +11,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   X, Printer, FileText, FileSpreadsheet, Download, Plus, Trash2,
   ChevronLeft, ChevronRight, Sliders, CheckSquare, Square,
-  Layers, Check, Sparkles, AlertCircle, FilePlus, Eye, Settings2, RefreshCw
+  Layers, Check, Sparkles, AlertCircle, FilePlus, Eye, Settings2, RefreshCw, User
 } from 'lucide-react';
 import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator';
 import {
@@ -19,10 +19,12 @@ import {
   exportCustomRosterExcel,
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
+import { getStudentPhotoUrl } from '../../utils/imageCompressor';
 
 // Standard Available Database Fields
 const AVAILABLE_DB_COLUMNS = [
   { key: 'sno', label: 'S.No.', defaultSelected: true, defaultWidthPct: 5, align: 'center' },
+  { key: 'studentPhoto', label: 'Photo', defaultSelected: false, defaultWidthPct: 8, align: 'center' },
   { key: 'classRollNo', label: 'R.No.', defaultSelected: true, defaultWidthPct: 7, align: 'center' },
   { key: 'boardRegNo', label: 'Reg. No.', defaultSelected: true, defaultWidthPct: 12, align: 'left' },
   { key: 'admNo', label: 'Adm. No.', defaultSelected: false, defaultWidthPct: 8, align: 'center' },
@@ -33,8 +35,8 @@ const AVAILABLE_DB_COLUMNS = [
   { key: 'dob', label: 'DOB', defaultSelected: false, defaultWidthPct: 10, align: 'center' },
   { key: 'className', label: 'Class', defaultSelected: false, defaultWidthPct: 7, align: 'center' },
   { key: 'session', label: 'Session', defaultSelected: false, defaultWidthPct: 9, align: 'center' },
-  { key: 'stream', label: 'Stream', defaultSelected: true, defaultWidthPct: 10, align: 'center' },
-  { key: 'subjects', label: 'Subjects', defaultSelected: true, defaultWidthPct: 20, align: 'left' },
+  { key: 'stream', label: 'Stream', defaultSelected: false, defaultWidthPct: 10, align: 'center' },
+  { key: 'subjects', label: 'Stream & Subjects', defaultSelected: true, defaultWidthPct: 22, align: 'left' },
   { key: 'mobile', label: 'Mobile No.', defaultSelected: false, defaultWidthPct: 12, align: 'center' },
   { key: 'aadhaarNo', label: 'Aadhaar / PEN', defaultSelected: false, defaultWidthPct: 12, align: 'center' },
   { key: 'village', label: 'Village / Address', defaultSelected: false, defaultWidthPct: 12, align: 'left' },
@@ -208,6 +210,9 @@ export default function CustomRosterBuilderModal({
       // S.No.
       row['sno'] = idx + 1;
 
+      // Photo
+      row['studentPhoto'] = getStudentPhotoUrl(st);
+
       // Roll No
       row['classRollNo'] = st.classRollNo || st.rollNo || st['Class Roll No'] || st['Class Roll No.'] || '—';
 
@@ -240,14 +245,29 @@ export default function CustomRosterBuilderModal({
       row['session'] = st.session || st.Session || '—';
 
       // Stream
-      row['stream'] = st.stream || st.Stream || '—';
+      const stm = String(st.stream || st.Stream || '').trim();
+      let stmAbbr = '';
+      if (stm.toLowerCase().includes('sci') || stm.toLowerCase().includes('med')) stmAbbr = 'S';
+      else if (stm.toLowerCase().includes('hum') || stm.toLowerCase().includes('art')) stmAbbr = 'H';
+      else if (stm.toLowerCase().includes('com')) stmAbbr = 'C';
+      else if (stm.toLowerCase().includes('gen')) stmAbbr = 'G';
+      else if (stm && stm !== '—') stmAbbr = stm.charAt(0).toUpperCase();
+
+      row['stream'] = stm || '—';
 
       // Subjects
+      let rawSubs = '';
       if (useAbbreviatedSubjects) {
-        row['subjects'] = st.streamDisplay || st.subjectsShort || st.subjects || '—';
+        rawSubs = st.streamDisplay || st.subjectsShort || st.subjects || '—';
       } else {
         const subs = [st.subjects1, st.subjects2, st.subjects3, st.subjects4, st.subjects5, st.subjects6].filter(Boolean).filter(s => s !== '—');
-        row['subjects'] = subs.length > 0 ? subs.join(', ') : (st.subjects || '—');
+        rawSubs = subs.length > 0 ? subs.join(', ') : (st.subjects || '—');
+      }
+
+      if (rawSubs && rawSubs !== '—') {
+        row['subjects'] = stmAbbr ? `${rawSubs} (${stmAbbr})` : rawSubs;
+      } else {
+        row['subjects'] = stmAbbr ? `(${stmAbbr})` : '—';
       }
 
       // Mobile
@@ -748,7 +768,32 @@ export default function CustomRosterBuilderModal({
                             style={{ height: `${currentRowHeightPx}px`, textAlign: col.align || 'left' }}
                             className="border border-slate-300 px-2 py-1 text-[11px] font-medium align-middle"
                           >
-                            {row[col.key] || (col.isCustom ? (col.defaultValue || '') : '—')}
+                            {col.key === 'studentPhoto' || col.key === 'photo' ? (
+                              <div className="flex items-center justify-center p-0.5">
+                                {row.studentPhoto ? (
+                                  <img
+                                    src={row.studentPhoto}
+                                    alt={row.studentName || 'Student'}
+                                    className="w-7 h-9 object-cover rounded border border-slate-300 shadow-2xs mx-auto bg-slate-100 block"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.style.display = 'none';
+                                      if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  className={`w-7 h-9 border border-dashed border-slate-300 rounded bg-slate-50 flex-col items-center justify-center text-[7px] text-slate-400 font-bold mx-auto ${
+                                    row.studentPhoto ? 'hidden' : 'flex'
+                                  }`}
+                                >
+                                  <User size={10} className="text-slate-300 mb-0.5" />
+                                  <span>Photo</span>
+                                </div>
+                              </div>
+                            ) : (
+                              row[col.key] || (col.isCustom ? (col.defaultValue || '') : '—')
+                            )}
                           </td>
                         ))}
                       </tr>
