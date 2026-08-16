@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
@@ -18,6 +18,7 @@ import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentA
 import ModernLoader from '../../components/ModernLoader';
 import AdminToolsDropdown from './AdminToolsDropdown';
 import { recycleDeletedFormNumber, getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
+import { getStudentRegIndex, lookupStudentByRegSync, updateStudentInRegIndex, rebuildStudentRegIndex } from '../../services/studentIndexService';
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -156,6 +157,7 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
   const dropdownRef = useRef(null);
 
   useEffect(() => {
+    if (!isOpen) return;
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -163,7 +165,7 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen]);
 
   const isAllSelected = selected.length === 0;
   const isNoneSelected = selected.includes('__NONE__');
@@ -294,6 +296,7 @@ function UnifiedFiltersGroupDropdown({
   const dropdownRef = useRef(null);
 
   useEffect(() => {
+    if (!isOpen) return;
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -301,7 +304,7 @@ function UnifiedFiltersGroupDropdown({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen]);
 
   const totalActiveFilters =
     (selectedClasses.length > 0 && !selectedClasses.includes('__NONE__') ? 1 : 0) +
@@ -452,6 +455,7 @@ function MoreActionsDropdown({
   const dropdownRef = useRef(null);
 
   useEffect(() => {
+    if (!isOpen) return;
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -459,7 +463,7 @@ function MoreActionsDropdown({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen]);
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -473,7 +477,10 @@ function MoreActionsDropdown({
       </button>
 
       {isOpen && (
-        <div className={`absolute ${align === 'left' ? 'left-0 sm:right-0 sm:left-auto' : 'right-0'} mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 space-y-1 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-extrabold`}>
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`absolute ${align === 'left' ? 'left-0 sm:right-0 sm:left-auto' : 'right-0'} mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 space-y-1 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-extrabold`}
+        >
           <div className="px-2 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-black tracking-wider text-slate-400">
             Layout & Display Controls
           </div>
@@ -1151,6 +1158,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
   const btnRef = useRef(null);
 
   useEffect(() => {
+    if (!isOpen) return;
     function handleClickOutside(event) {
       // Portal-based dropdown: check both the portal element and the trigger button
       const inDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
@@ -1161,7 +1169,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen]);
 
   const roll = String(student?.classRollNo || student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.['Class R.No.'] || student?.['Class R.No'] || student?.rollNo || student?.['Roll No.'] || student?.['Roll No'] || student?.roll || '').trim();
   const hasRoll = roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
@@ -1822,11 +1830,28 @@ function OnDemandStudentPhotoCell({ student, val }) {
     return formatPhotoDisplayUrl(val, student) || getStudentPhotoUrl(student) || '';
   });
 
+  const [isHovered, setIsHovered] = useState(false);
+  const [hoverPosition, setHoverPosition] = useState({ top: 0, left: 0 });
+  const [matchingPhotos, setMatchingPhotos] = useState([]);
+  const [isLoadingMatching, setIsLoadingMatching] = useState(false);
+  const [selectedPreviewUrl, setSelectedPreviewUrl] = useState(null);
+  const [isSettingActive, setIsSettingActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const hoverTimeoutRef = useRef(null);
+  const cellRef = useRef(null);
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     let isMounted = true;
     const current = formatPhotoDisplayUrl(val, student) || getStudentPhotoUrl(student);
     if (current && current !== '/logo.png' && current !== '—') {
       setPhotoUrl(current);
+      return;
+    }
+
+    // Do NOT fetch or track photos for historical archives — only active admissions
+    if (student?._isCurrentScope === false) {
+      setPhotoUrl('');
       return;
     }
 
@@ -1840,36 +1865,418 @@ function OnDemandStudentPhotoCell({ student, val }) {
     return () => { isMounted = false; };
   }, [studentKey]);
 
-  if (photoUrl && photoUrl !== '—' && photoUrl !== '/logo.png') {
-    return (
-      <img
-        src={photoUrl}
-        alt="Student Photo"
-        onError={(e) => {
-          e.target.onerror = null;
-          e.target.style.display = 'none';
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (student && typeof student._setPreviewPhotoModal === 'function') {
-            student._setPreviewPhotoModal({
-              url: photoUrl,
-              name: student.studentName,
-              rollNo: student.classRollNo,
-              admNo: student.admNo,
-              class: student.class,
-              session: student.session,
-              formNo: student.formNo
-            });
-          }
-        }}
-        className="w-8 h-10 mx-auto rounded-lg border border-teal-500/50 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
-        title="Click for full photo preview"
-      />
-    );
-  }
+  const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(async () => {
+      if (cellRef.current) {
+        const rect = cellRef.current.getBoundingClientRect();
+        // Smart popover position calculation
+        const popoverWidth = 320;
+        const popoverHeight = 350;
+        let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
+        if (left < 10) left = 10;
+        if (left + popoverWidth > window.innerWidth - 10) left = window.innerWidth - popoverWidth - 10;
 
-  return <span className="text-slate-400 font-normal text-[10px]">—</span>;
+        let top = rect.bottom + 8;
+        if (top + popoverHeight > window.innerHeight - 10) {
+          top = Math.max(10, rect.top - popoverHeight - 8);
+        }
+
+        setHoverPosition({ top, left });
+      }
+      setIsHovered(true);
+      setSelectedPreviewUrl(photoUrl);
+
+      // Load all matching photos for this regNo
+      setIsLoadingMatching(true);
+      try {
+        const list = await fetchAllMatchingStudentPhotos(student);
+        setMatchingPhotos(list);
+      } catch (_) {}
+      setIsLoadingMatching(false);
+    }, 200);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovered(false);
+      setSelectedPreviewUrl(null);
+    }, 250);
+  };
+
+  const handleSetActivePhoto = async (targetUrl) => {
+    if (!targetUrl || isSettingActive) return;
+    setIsSettingActive(true);
+    try {
+      const reg = String(student?.boardRegNo || student?.regNo || '').trim();
+      const payload = {
+        photo_id: targetUrl,
+        photoData: targetUrl,
+        'Student Photo': targetUrl,
+        photoUrl: targetUrl
+      };
+
+      await updateStudentDocument(student, payload);
+
+      if (reg) {
+        await syncStudentPhotoOnRegUpdate({
+          newReg: reg,
+          student: { ...student, photo_id: targetUrl },
+          photoData: targetUrl
+        });
+      }
+
+      setPhotoUrl(targetUrl);
+      setSelectedPreviewUrl(targetUrl);
+      setMatchingPhotos(prev => prev.map(p => ({ ...p, isCurrent: p.url === targetUrl })));
+    } catch (err) {
+      console.error('Error setting active photo:', err);
+    } finally {
+      setIsSettingActive(false);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const compressed = await compressImageFile(file, 300, 360, 0.8);
+      await handleSetActivePhoto(compressed);
+    } catch (err) {
+      console.error('Upload photo error:', err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const displayPhoto = selectedPreviewUrl || photoUrl;
+  const sName = student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || student?.name || 'Student';
+  const regNo = student?.boardRegNo || student?.regNo || '—';
+  const rollNo = student?.classRollNo || student?.rollNo || '—';
+  const formNo = student?.formNo || student?.['Form Number'] || '—';
+  const sClass = student?.class || student?.['Class'] || '11th';
+
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
+  return (
+    <div 
+      ref={cellRef}
+      className="relative inline-block font-sans"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {photoUrl && photoUrl !== '—' && photoUrl !== '/logo.png' ? (
+        <img
+          src={photoUrl}
+          alt={sName}
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+          }}
+          className="w-8 h-10 mx-auto rounded-lg border border-teal-500/40 object-cover shadow-2xs hover:scale-110 hover:border-teal-500 hover:shadow-md transition-all cursor-pointer"
+          title={`Hover to preview photo (${sName})`}
+        />
+      ) : (
+        <div 
+          className="w-8 h-10 mx-auto rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center cursor-pointer hover:border-teal-500 transition-colors"
+          title={`Hover to upload/view photo for ${sName}`}
+        >
+          <Camera size={13} className="text-slate-400 dark:text-slate-500" />
+        </div>
+      )}
+
+      {/* Minimal Interactive Photo Hover Popover */}
+      {isHovered && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: `${hoverPosition.top}px`,
+            left: `${hoverPosition.left}px`,
+            zIndex: 99999
+          }}
+          onMouseEnter={() => {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+            setIsHovered(true);
+          }}
+          onMouseLeave={handleMouseLeave}
+          className="w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100 font-sans"
+        >
+          {/* Popover Header */}
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-2 mb-2">
+            <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+              {sName}
+            </h4>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              <span>Class {sClass}</span>
+              <span>•</span>
+              <span className="font-mono">F#{formNo}</span>
+              {regNo && regNo !== '—' && (
+                <>
+                  <span>•</span>
+                  <span className="font-mono text-blue-600 dark:text-blue-400">Reg: {regNo}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Main Photo Preview */}
+          <div className="relative w-full h-44 bg-slate-950 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center mb-2">
+            {displayPhoto && displayPhoto !== '/logo.png' && displayPhoto !== '—' ? (
+              <img
+                src={displayPhoto}
+                alt={sName}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                <Camera size={28} className="stroke-[1.5] mb-1 text-slate-400" />
+                <span className="text-[11px] font-medium">No photo available</span>
+              </div>
+            )}
+
+            {selectedPreviewUrl && selectedPreviewUrl !== photoUrl && (
+              <div className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                <Sparkles size={10} /> Preview
+              </div>
+            )}
+          </div>
+
+          {/* Matching Photos Thumbnail Strip (only shown if there are multiple candidate photos) */}
+          {matchingPhotos.length > 1 && (
+            <div className="mb-2 bg-slate-50 dark:bg-slate-950/60 rounded-xl p-1.5 border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-1 px-0.5">
+                <span>Available Photos ({matchingPhotos.length})</span>
+                <span className="text-[9px] font-normal text-slate-400">Click to preview</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
+                {matchingPhotos.map((item, idx) => {
+                  const isSelected = (selectedPreviewUrl || photoUrl) === item.url;
+                  return (
+                    <button
+                      key={item.id || idx}
+                      type="button"
+                      onClick={() => setSelectedPreviewUrl(item.url)}
+                      className={`relative shrink-0 w-10 h-12 rounded-lg overflow-hidden border-2 transition-all p-0.5 bg-white dark:bg-slate-900 ${
+                        isSelected 
+                          ? 'border-blue-500 ring-2 ring-blue-500/20' 
+                          : 'border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100'
+                      }`}
+                      title={item.title}
+                    >
+                      <img src={item.url} alt="" className="w-full h-full object-cover rounded" />
+                      {item.isCurrent && (
+                        <div className="absolute bottom-0 inset-x-0 bg-teal-600 text-white text-[7px] font-bold text-center">
+                          ACTIVE
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1.5 pt-0.5">
+            {selectedPreviewUrl && selectedPreviewUrl !== photoUrl && (
+              <button
+                type="button"
+                disabled={isSettingActive}
+                onClick={() => handleSetActivePhoto(selectedPreviewUrl)}
+                className="flex-1 py-1.5 px-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                {isSettingActive ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                Set as Active
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 py-1.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors disabled:opacity-50"
+            >
+              {isUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Upload
+            </button>
+
+            {displayPhoto && displayPhoto !== '/logo.png' && (
+              <a
+                href={displayPhoto}
+                download={`${regNo || formNo || 'student'}_photo.jpg`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-colors"
+                title="Download photo"
+              >
+                <Download size={13} />
+              </a>
+            )}
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </div>
+
+          {/* Minimal Full History Modal Link */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsHovered(false);
+              setIsHistoryModalOpen(true);
+            }}
+            className="w-full mt-1.5 py-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <History size={11} />
+            <span>View Full Photo History ({matchingPhotos.length || 1})</span>
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Minimal Photo History Modal */}
+      {isHistoryModalOpen && createPortal(
+        <div 
+          className="fixed inset-0 z-[10005] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-100 font-sans"
+          onClick={() => setIsHistoryModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[85vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Minimal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                  {sName} — Photo History
+                </h3>
+                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 font-medium">
+                  <span>Class {sClass}</span>
+                  <span>•</span>
+                  <span className="font-mono">F#{formNo}</span>
+                  <span>•</span>
+                  <span className="font-mono">R#{rollNo}</span>
+                  {regNo && regNo !== '—' && (
+                    <>
+                      <span>•</span>
+                      <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">Reg: {regNo}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Minimal Sub-toolbar */}
+            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+              <span className="text-slate-600 dark:text-slate-400 font-medium">
+                {matchingPhotos.length} photo{matchingPhotos.length !== 1 ? 's' : ''} in archive
+              </span>
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                {isUploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                Upload New
+              </button>
+            </div>
+
+            {/* Photo Cards Grid */}
+            <div className="p-4 overflow-y-auto max-h-[55vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {matchingPhotos.map((item, idx) => {
+                const isActive = item.isCurrent || (photoUrl && photoUrl === item.url);
+                return (
+                  <div
+                    key={item.id || idx}
+                    className={`rounded-xl border overflow-hidden bg-white dark:bg-slate-900 transition-all flex flex-col ${
+                      isActive 
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm' 
+                        : 'border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    {/* Card Image */}
+                    <div className="relative h-44 bg-slate-950 flex items-center justify-center p-1.5">
+                      <img
+                        src={item.url}
+                        alt=""
+                        className="w-full h-full object-contain rounded"
+                      />
+                      {isActive && (
+                        <div className="absolute top-2 left-2 bg-emerald-600 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                          <Star size={9} className="fill-white" /> Active
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="p-2.5 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                      <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200 truncate">
+                        {item.title || `Photo #${idx + 1}`}
+                      </span>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {!isActive ? (
+                          <button
+                            type="button"
+                            disabled={isSettingActive}
+                            onClick={() => handleSetActivePhoto(item.url)}
+                            className="py-1 px-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-[10px] cursor-pointer transition-colors disabled:opacity-50"
+                          >
+                            {isSettingActive ? <Loader2 size={10} className="animate-spin" /> : 'Set Active'}
+                          </button>
+                        ) : null}
+
+                        <a
+                          href={item.url}
+                          download={`${sName}_photo.jpg`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+                          title="Download"
+                        >
+                          <Download size={13} />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Minimal Footer */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+              <span>All photos permanently preserved & synced</span>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
 }
 
 const COLUMN_DEFS = [
@@ -2141,11 +2548,11 @@ const COLUMN_DEFS = [
           upperAbbr.includes('GG');
 
         if (hasCoreScience) {
-          return { code: 'S', label: 'Science', style: 'bg-emerald-700 dark:bg-emerald-700 text-white border-emerald-800' };
+          return { code: 'S', label: 'Science', style: 'bg-blue-600 dark:bg-blue-600 text-white border-blue-700' };
         }
 
         if (hasCoreCommerce) {
-          return { code: 'C', label: 'Commerce', style: 'bg-blue-600 text-white border-blue-700' };
+          return { code: 'C', label: 'Commerce', style: 'bg-amber-600 text-white border-amber-700' };
         }
 
         if (hasCoreHumanities) {
@@ -3424,9 +3831,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
   // Tools dropdown state
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [showCustomRosterModal, setShowCustomRosterModal] = useState(false);
   const toolsDropdownRef = useRef(null);
 
   useEffect(() => {
+    if (!isToolsOpen) return;
     function handleClickOutside(event) {
       if (toolsDropdownRef.current && !toolsDropdownRef.current.contains(event.target)) {
         setIsToolsOpen(false);
@@ -3434,7 +3843,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isToolsOpen]);
 
   // Filter States (All filters default to [] so all records are visible by default)
   const [searchTerm, setSearchTerm] = useState('');
@@ -3968,47 +4377,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     let historicalList = [];
 
-    // 1. Try loading masterRegisters from Memory Singleton or Persistent Cache
+    // 1. Try loading masterRegisters from in-memory singleton
     if (!forceRefresh) {
       if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
         historicalList = window._hssMasterRegistersCache;
         hasCache = true;
-        setFetchProgress(40);
-      } else {
-        try {
-          let cachedMaster = sessionStorage.getItem(MASTER_CACHE_KEY) || localStorage.getItem(MASTER_CACHE_KEY);
-          if (!cachedMaster) {
-            const c0 = localStorage.getItem(`${MASTER_CACHE_KEY}_c0`) || '';
-            const c1 = localStorage.getItem(`${MASTER_CACHE_KEY}_c1`) || '';
-            if (c0 && c1) cachedMaster = c0 + c1;
-            else if (c0) cachedMaster = c0;
-          }
-          if (cachedMaster) {
-            try {
-              const parsed = JSON.parse(cachedMaster);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                historicalList = parsed;
-                window._hssMasterRegistersCache = parsed;
-                hasCache = true;
-                setFetchProgress(40);
-              }
-            } catch (jsonErr) {
-              // Wipe malformed/truncated cache keys to prevent repeated SyntaxError
-              try {
-                localStorage.removeItem(MASTER_CACHE_KEY);
-                localStorage.removeItem(`${MASTER_CACHE_KEY}_c0`);
-                localStorage.removeItem(`${MASTER_CACHE_KEY}_c1`);
-                sessionStorage.removeItem(MASTER_CACHE_KEY);
-              } catch (_) {}
-            }
-          }
-        } catch (e) {
-          console.warn('Master registers cache read note:', e);
-        }
       }
 
       if (hasCache) {
-        // Cache is valid — render immediately with 0ms delay and ZERO Firestore reads
         setMasterRecords(historicalList);
         const resolvedActive = (activeList && activeList.length > 0)
           ? activeList
@@ -4024,16 +4400,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         }
         setFetchProgress(100);
         setLoading(false);
-        setTimeout(() => {
-          setIsFetchingData(false);
-          setFetchProgress(0);
-        }, 100);
+        setIsFetchingData(false);
         return;
       }
     }
 
-    // 2. Default Mode (Active Only): If masterRegisters is not in cache and forceRefresh is false,
-    // DO NOT fetch historical archives automatically. Keep initial load fast & 0-read optimized.
+    // 2. Default Mode (Active Only): If masterRegisters is not in memory and forceRefresh is false,
+    // Keep initial page load instantaneous with only active admissions
     if (!hasCache && !forceRefresh) {
       setCurrentAdmissions(activeList);
       setMasterRecords([]);
@@ -4049,15 +4422,39 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return;
     }
 
-    // 3. Force Refresh or Explicit Historical Fetch:
+    // 3. Explicit Background Fetch for Historical Records
     await fetchHistoricalMasterRegisters(forceRefresh);
   };
 
-  // Dedicated On-Demand Historical Archives Fetcher (Triggered ONLY when user confirms "All" tab)
+  // Dedicated Background Non-Blocking Historical Archives Fetcher
   const fetchHistoricalMasterRegisters = async (force = false) => {
+    // 1. Instant Fast Path: If already cached in memory, use immediately with 0ms delay
+    if (!force && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+      setMasterRecords(window._hssMasterRegistersCache);
+      if (setCounts) {
+        setCounts({
+          active: currentAdmissions.length,
+          total: currentAdmissions.length + window._hssMasterRegistersCache.length
+        });
+      }
+      setIsFetchingMaster(false);
+      setIsFetchingData(false);
+      setFetchProgress(0);
+      return;
+    }
+
     setIsFetchingData(true);
     setIsFetchingMaster(true);
     setFetchProgress(20);
+
+    const activeFilterDesc = (selectedModalSessions.length > 0 && selectedModalSessions.length < modalAvailableSessions.length)
+      ? selectedModalSessions.slice(0, 3).join(', ') + (selectedModalSessions.length > 3 ? '...' : '')
+      : 'historical archives';
+
+    setToast({
+      message: `⏳ Loading ${activeFilterDesc} in background...`,
+      type: 'info'
+    });
 
     const stripPhotos = (obj) => {
       if (!obj || typeof obj !== 'object') return obj;
@@ -4072,9 +4469,23 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     let historicalList = [];
     try {
-      setFetchProgress(50);
-      const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+      setFetchProgress(40);
+      await new Promise(r => setTimeout(r, 10)); // Yield to browser to keep UI smooth
+
+      // Resilient Network Fetch with 6-second Circuit Breaker
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Firestore request timed out (6s)')), 6000)
+      );
+
+      const masterSnap = await Promise.race([
+        getDocs(collection(db, 'masterRegisters')),
+        timeoutPromise
+      ]);
+
       if (!masterSnap.empty) {
+        setFetchProgress(70);
+        await new Promise(r => setTimeout(r, 10)); // Yield again for smooth render
+
         masterSnap.docs.forEach(docSnap => {
           const data = docSnap.data();
           if (data.items && Array.isArray(data.items)) {
@@ -4092,45 +4503,49 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           }
         });
       }
-      setFetchProgress(85);
+      setFetchProgress(90);
+      await new Promise(r => setTimeout(r, 10));
+
+      // Save to window singleton for instantaneous subsequent switches
+      window._hssMasterRegistersCache = historicalList;
+      setMasterRecords(historicalList);
+
+      if (setCounts) {
+        setCounts({
+          active: currentAdmissions.length,
+          total: currentAdmissions.length + historicalList.length
+        });
+      }
+
+      setToast({
+        message: `✅ Master records loaded successfully (${historicalList.length.toLocaleString()} total archive records)!`,
+        type: 'success'
+      });
+      setTimeout(() => setToast(null), 3500);
     } catch (err) {
       console.warn('Historical masterRegisters fetch note:', err);
-    }
-
-    // Save to window singleton & chunked persistent storage for 30-day fast re-access
-    window._hssMasterRegistersCache = historicalList;
-    try {
-      const MASTER_CACHE_KEY = 'hss_cache_masterRegisters_v2';
-      const MASTER_CACHE_TS_KEY = 'hss_cache_masterRegisters_v2_ts';
-      const payloadStr = JSON.stringify(historicalList);
-      const nowStr = String(Date.now());
-      const half = Math.ceil(payloadStr.length / 2);
-      localStorage.setItem(`${MASTER_CACHE_KEY}_c0`, payloadStr.slice(0, half));
-      localStorage.setItem(`${MASTER_CACHE_KEY}_c1`, payloadStr.slice(half));
-      localStorage.setItem(MASTER_CACHE_TS_KEY, nowStr);
-    } catch (e) {
-      console.warn('Master registers chunked cache save note:', e);
-    }
-
-    setMasterRecords(historicalList);
-    if (setCounts) {
-      setCounts({
-        active: currentAdmissions.length,
-        total: currentAdmissions.length + historicalList.length
+      // If network timed out, fallback to existing memory cache if available
+      if (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0) {
+        setMasterRecords(window._hssMasterRegistersCache);
+      }
+      setToast({
+        message: '⚠️ Historical fetch completed with cached/partial data.',
+        type: 'info'
       });
-    }
-    setFetchProgress(100);
-    setIsFetchingMaster(false);
-    setTimeout(() => {
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setFetchProgress(100);
+      setIsFetchingMaster(false);
       setIsFetchingData(false);
-      setFetchProgress(0);
-    }, 300);
+      setTimeout(() => setFetchProgress(0), 300);
+    }
   };
 
   useEffect(() => {
     // loadReportsData ONLY fetches masterRegisters from Firestore.
     // Admissions are sourced from initialData prop / dbCache — zero duplicate reads.
     loadReportsData();
+    getStudentRegIndex().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -4408,8 +4823,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return keys;
     };
 
-    // PASS 1: Scan ALL records (currentAdmissions + masterRecords) to index identities, adm numbers, photo URLs, and assigned roll numbers (scoped by Class + Session)
-    const allRawDocs = [...masterRecords, ...currentAdmissions];
+    // PASS 1: Scan records to index identities, adm numbers, photo URLs, and assigned roll numbers
+    const allRawDocs = (viewScope === 'all' && masterRecords && masterRecords.length > 0)
+      ? [...masterRecords, ...currentAdmissions]
+      : currentAdmissions;
 
     allRawDocs.forEach(rec => {
       const keys = getIdentityKeys(rec);
@@ -4433,10 +4850,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         if (!oldAdmNoByIdentity.has(k)) oldAdmNoByIdentity.set(k, new Set());
         if (rawOldAdm) oldAdmNoByIdentity.get(k).add(rawOldAdm);
 
-        // ─── Photo indexing: group-scoped, reg/adm keyed, last-write-wins ───
-        // We deliberately OVERWRITE (not skip) so that a later record (e.g. 12th reupload)
-        // always replaces an earlier one (e.g. 11th) for the same student + group.
-        if (photoVal) {
+        // ─── Photo indexing: Only track active admission photos ───
+        if (photoVal && !rec.isHistorical && !rec._isHistorical) {
           const group = classPhotoGroup(recCls);
           const regKey = extractRegNoClean(rec);
           const admKey = cleanedAdm;
@@ -4456,38 +4871,26 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     });
 
     // ─── getResolvedPhoto: reg-first then adm, no name-based fallback ───
-    // 1. Check direct photo on the student's own record (fastest, no lookup needed)
-    // 2. Lookup by reg no in the student's class group (9+10 share lower, 11+12 share upper)
-    // 3. Lookup by adm no in the student's class group
-    // 4. Return '—' if nothing found — never cross-contaminate via name matching
     const getResolvedPhoto = (st) => {
       const explicit = extractPhotoVal(st);
       if (explicit) return explicit;
 
       const stCls = normalizeClassVal(st['Admission sought for class'] || st['Class'] || '');
-      const stName = getStudentName(st);
       const group = classPhotoGroup(stCls);
 
       const regKey = extractRegNoClean(st);
       if (regKey) {
         const byReg = photoByReg.get(`${group}::reg_${regKey}`);
-        if (byReg) {
-          console.debug(`[Photo] "${stName}" cls=${stCls} group=${group} → found via reg_${regKey}`);
-          return byReg;
-        }
+        if (byReg) return byReg;
       }
 
       const rawAdm = extractRawAdmNo(st);
       const admKey = cleanAdmNoVal(rawAdm);
       if (admKey) {
         const byAdm = photoByAdm.get(`${group}::adm_${admKey}`);
-        if (byAdm) {
-          console.debug(`[Photo] "${stName}" cls=${stCls} group=${group} → found via adm_${admKey}`);
-          return byAdm;
-        }
+        if (byAdm) return byAdm;
       }
 
-      console.debug(`[Photo] "${stName}" cls=${stCls} group=${group} regKey="${regKey}" admKey="${admKey}" → NOT FOUND`);
       return '—';
     };
 
@@ -4495,6 +4898,15 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const resolveAdmNo = (rec) => {
       const directFormat = formatStudentAdmNo(rec);
       if (directFormat && directFormat !== '—' && directFormat.length > 0) return directFormat;
+
+      // Fast Path: Check pre-computed registration index (O(1) lookup)
+      const directReg = extractRegNoClean(rec);
+      if (directReg) {
+        const indexed = lookupStudentByRegSync(directReg);
+        if (indexed && indexed.admNo && indexed.admNo !== '—') {
+          return cleanAdmNoVal(indexed.admNo);
+        }
+      }
 
       const recName = getStudentName(rec);
       const keys = getIdentityKeys(rec);
@@ -4554,32 +4966,31 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return null;
     };
 
+    const parseNum = (val) => {
+      if (val === null || val === undefined || val === '' || val === '—' || val === 'N/A' || val === 'null' || val === 'undefined') return Infinity;
+      const str = String(val).trim();
+      const match = str.match(/\d+/);
+      if (!match) return Infinity;
+      const num = parseInt(match[0], 10);
+      return isNaN(num) ? Infinity : num;
+    };
+
     // Process active admissions (with full identity inheritance & duplicate form pruning)
-    // Sort order: directly-approved (has roll no on the document) FIRST, then by newest form number
-    // This ensures when a student has multiple forms, the admin-approved form always wins
-    const activeSeenIdentities = new Map();
     const sortedActive = [...currentAdmissions].sort((a1, a2) => {
       const hasRoll1 = !!extractClassRoll(a1);
       const hasRoll2 = !!extractClassRoll(a2);
-      // Directly-approved forms take priority
       if (hasRoll1 && !hasRoll2) return -1;
       if (!hasRoll1 && hasRoll2) return 1;
 
       const num1 = parseInt(extractStudentFormNo(a1), 10) || 0;
       const num2 = parseInt(extractStudentFormNo(a2), 10) || 0;
 
-      // If both have assigned form numbers, newest form number first
-      if (num1 > 0 && num2 > 0) {
-        return num2 - num1;
-      }
+      if (num1 > 0 && num2 > 0) return num2 - num1;
 
-      // If one or both are unnumbered drafts, prioritize active drafts and order by newest activity timestamp
       const ts1 = getDocTimestamp(a1);
       const ts2 = getDocTimestamp(a2);
-      if (num1 === 0 && num2 === 0) {
-        return ts2 - ts1;
-      }
-      if (num1 === 0 && num2 > 0) return -1; // Unassigned draft at the top
+      if (num1 === 0 && num2 === 0) return ts2 - ts1;
+      if (num1 === 0 && num2 > 0) return -1;
       if (num2 === 0 && num1 > 0) return 1;
 
       return num2 - num1;
@@ -4588,16 +4999,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     sortedActive.forEach((a, idx) => {
       const aStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
       if (aStatus === 'deleted' || a._deleted === true || aStatus === 'archived') return;
-      const regClean = extractRegNoClean(a);
-      const nameClean = getStudentName(a).toLowerCase();
-      const fnameClean = getFatherName(a).toLowerCase();
-      const clsClean = normalizeClassVal(a['Admission sought for class'] || a['Class']);
-      const sessClean = normalizeSessionVal(a['Session']);
-      const rollNo = extractClassRoll(a);
-      const cleanFNo = extractStudentFormNo(a);
 
+      const cleanFNo = extractStudentFormNo(a);
       const masterMatch = resolveMasterMatch(a);
-      // Active admission form fields MUST take precedence over historical master records!
       const mergedRec = masterMatch ? { ...masterMatch, ...a } : a;
       const finalAdmNo = resolveAdmNo(a) !== '—' ? resolveAdmNo(a) : resolveAdmNo(mergedRec);
 
@@ -4623,14 +5027,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         (masterMatch ? (masterMatch['Online Subm. Date'] || masterMatch.onlineSubmDate || masterMatch.submittedAt || masterMatch.createdAt) : null);
       const finalOnlineSubmDate = formatOnlineSubmDate(rawSubmDate);
 
-      // Class and Session MUST strictly come from active form `a` (do not inherit 11th class values from masterMatch!)
       const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
       const targetSession = normalizeSessionVal(a['Session'] || '2025-26');
-
-      // Only assign class roll number if explicitly present on this active form document in Firestore
       const activeClassRoll = extractClassRoll(a);
 
-      // Status for an active admission form: ONLY Approved if assigned a class roll number FOR THIS CLASS & SESSION
       const activeRawStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
       let activeResolvedStatus = 'Submitted';
       if (activeClassRoll && activeClassRoll !== '—' && activeClassRoll !== 'N/A') {
@@ -4641,7 +5041,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         activeResolvedStatus = 'Draft';
       }
 
-      // Build sanitized student record where all raw roll number keys are strictly overridden by activeClassRoll
       const sanitizedRecord = { ...mergedRec };
       const rawRollKeys = [
         'Class Roll No', 'Class Roll No.', 'RL. NO.', 'RL. NO',
@@ -4652,9 +5051,31 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         delete sanitizedRecord[k];
       });
 
+      const sName = masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student';
+      const fName = masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—';
+      const mName = masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—';
+      const sDob = formatDobToDisplay(masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || a['dob'] || '—');
+      const sVillage = a['Name of your village'] || a['Village/Town'] || 'Shangus';
+      const sGender = a['Gender'] || '—';
+      const sCategory = a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General';
+      const sStream = a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream & Subjects for Class 12th'] || a['Stream'] || '';
+      const sSubs = formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec);
+      const sMobile = a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—';
+      const sAadhar = a['Aadhar No.'] || a.aadhar || '—';
+      const sPen = a['PEN No.'] || '—';
+
+      const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${activeClassRoll} ${finalBoardRegNo} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory}`.toLowerCase();
+
       combined.push({
         ...sanitizedRecord,
         _isCurrentScope: true,
+        _searchBlob: searchBlob,
+        _ts: getDocTimestamp(a),
+        _formNum: parseNum(cleanFNo),
+        _rollNum: parseNum(activeClassRoll),
+        _admNum: parseNum(finalAdmNo),
+        _nameLower: sName.toLowerCase(),
+        _regLower: finalBoardRegNo.toLowerCase(),
         id: a.id || a.docId || (cleanFNo && cleanFNo !== '—' ? `active_${cleanFNo}` : `adm_${idx}`),
         docId: a.docId || a._docId || a.id || cleanFNo,
         sno: idx + 1,
@@ -4668,19 +5089,19 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         class: targetClass,
         session: targetSession,
         boardRegNo: finalBoardRegNo,
-        studentName: masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student',
-        fatherName: masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—',
-        motherName: masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—',
-        dob: formatDobToDisplay(masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || a['dob'] || '—'),
-        village: a['Name of your village'] || a['Village/Town'] || 'Shangus',
-        gender: a['Gender'] || '—',
-        category: a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General',
+        studentName: sName,
+        fatherName: fName,
+        motherName: mName,
+        dob: sDob,
+        village: sVillage,
+        gender: sGender,
+        category: sCategory,
         status: activeResolvedStatus,
-        stream: a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream & Subjects for Class 12th'] || a['Stream'] || '',
-        subs: formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec),
+        stream: sStream,
+        subs: sSubs,
         photoId: extractPhotoVal(a) || extractPhotoVal(mergedRec) || getStudentPhotoUrl(a) || getStudentPhotoUrl(mergedRec) || '',
-        mobile: a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—',
-        aadhar: a['Aadhar No.'] || a.aadhar || '—',
+        mobile: sMobile,
+        aadhar: sAadhar,
         fatherAadhar: a["Father's Aadhar No."] || a["Father's Aadhaar No."] || a.fatherAadhar || '—',
         bankAccount: a['Bank Account No.'] || a['Bank Account Number'] || '—',
         bankName: a['Name of Bank'] || a['Bank Name'] || '—',
@@ -4689,9 +5110,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         onlineSubmDate: finalOnlineSubmDate,
         admDate: a['Adm. Date'] || '—',
         boardName: a['Board Name'] || a['Board Name (Class 10th)'] || '—',
-        dobWords: (a['DoB (words)'] && a['DoB (words)'] !== '—' && String(a['DoB (words)']).trim().length > 3)
-          ? a['DoB (words)']
-          : (convertDobToWords(masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)']) || '—'),
+        dobWords: a['DoB (words)'] || '—',
         block: a['Block'] || '—',
         tehsil: a['Tehsil'] || '—',
         district: a['District'] || '—',
@@ -4718,7 +5137,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         houseNo: a['House No.'] || '—',
         vocationalPercentage: a['Vocational %age'] || '—',
         prevComplexHead: a['Previous Complex Head'] || '—',
-        penNo: a['PEN No.'] || '—',
+        penNo: sPen,
         prevSchool: a['Previous School'] || a['Name of the Institution last attended'] || '—',
         prevCcDc: a['CC/DC No. & Date (Prev. insitution)'] || '—',
         prevExamMode: a['Exam Mode (Prev.)'] || '—',
@@ -4734,14 +5153,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         withdrawalDate: a['Date of withdrawl'] || '—',
         currCcDc: a['No. & Date of CC/DC Issued (This Institution)'] || '—',
         remarks: a['Remarks'] || '—',
-        photoId: getResolvedPhoto(a),
         pdfUrl: a['PDF_URL'] || '—',
         readmission: a['readmission'] || '—',
         apaarId: a['APAAR ID'] || '—',
       });
     });
 
-    // Index active admission form numbers and class roll numbers for deduplication (scoped by Class + Session)
+    // Index active admission form numbers and class roll numbers for deduplication
     const activeFormSet = new Set();
     const activeClassRollSet = new Set();
     const activeRegSet = new Set();
@@ -4773,180 +5191,220 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
     });
 
-    // Process historical master registers (skipping rows that duplicate active admissions in the SAME class & session)
-    masterRecords.forEach((h, idx) => {
-      const hStatus = String(h['Status'] || h['status'] || '').trim().toLowerCase();
-      if (hStatus === 'deleted' || h._deleted === true || hStatus === 'archived') return;
-      const cls = normalizeClassVal(h['Class'] || '11th');
-      const sess = normalizeSessionVal(h['Session'] || '2025-26');
-      const cleanFNo = extractStudentFormNo(h);
+    // Process historical master registers only when viewScope is 'all'
+    if (viewScope === 'all' && masterRecords && masterRecords.length > 0) {
+      masterRecords.forEach((h, idx) => {
+        const hStatus = String(h['Status'] || h['status'] || '').trim().toLowerCase();
+        if (hStatus === 'deleted' || h._deleted === true || hStatus === 'archived') return;
+        const cls = normalizeClassVal(h['Class'] || '11th');
+        const sess = normalizeSessionVal(h['Session'] || '2025-26');
 
-      if (cleanFNo && cleanFNo !== '—' && activeFormSet.has(`${cls}_${sess}_${cleanFNo}`.toLowerCase())) {
-        return; // Skip duplicate record already represented in active admissions for THIS class & session
-      }
+        // Fast Pre-Filter: Skip records not matching active selected sessions or classes immediately (<0.1ms)
+        if (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
+          const rawSess = String(h['Session'] || h.session || '').trim();
+          const matchesSess = selectedSessions.some(s => rawSess.toLowerCase().includes(s.toLowerCase()) || sess.toLowerCase().includes(s.toLowerCase()));
+          if (!matchesSess) return;
+        }
 
-      const roll = extractClassRoll(h);
-      if (cls && sess && roll && activeClassRollSet.has(`${cls}_${sess}_${roll}`.toLowerCase())) {
-        return; // Skip duplicate record with matching class, session, and class roll number
-      }
+        if (selectedClasses.length > 0 && !selectedClasses.includes('__NONE__')) {
+          const rawCls = normalizeClassVal(h['Class'] || h.className || h.class || '');
+          const matchesCls = selectedClasses.some(c => rawCls.toLowerCase().includes(c.toLowerCase()) || cls.toLowerCase().includes(c.toLowerCase()));
+          if (!matchesCls) return;
+        }
 
-      const reg = extractRegNoClean(h);
-      if (reg && reg !== '—' && (activeRegSet.has(`${cls}_${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`reg_${reg}`.toLowerCase()))) {
-        return; // Skip duplicate historical record with matching Board Registration Number
-      }
+        const cleanFNo = extractStudentFormNo(h);
 
-      const rawAdm = extractRawAdmNo(h);
-      const cleanAdm = cleanAdmNoVal(rawAdm);
-      if (cleanAdm && cleanAdm !== '—' && (activeAdmSet.has(`${cls}_${sess}_clean_${cleanAdm}`.toLowerCase()) || activeAdmSet.has(`${sess}_clean_${cleanAdm}`.toLowerCase()))) {
-        return; // Skip duplicate historical record with matching Admission Number for same session
-      }
+        if (cleanFNo && cleanFNo !== '—' && activeFormSet.has(`${cls}_${sess}_${cleanFNo}`.toLowerCase())) {
+          return;
+        }
 
-      combined.push({
-        ...h,
-        _isCurrentScope: false,
-        id: `hist_${idx}`,
-        sno: combined.length + 1,
-        formNo: extractStudentFormNo(h),
-        classRollNo: extractClassRoll(h),
-        admNo: resolveAdmNo(h),
-        class: h['Class'] || '—',
-        session: h['Session'] || '—',
-        boardRegNo: extractRegNo(h),
-        studentName: h["Student's Name"] || h['Name'] || '—',
-        fatherName: h["Father's Name"] || '—',
-        motherName: h["Mother's Name"] || '—',
-        dob: formatDobToDisplay(h['DoB (figures)'] || h['DoB'] || h['dob'] || '—'),
-        village: h['Village/Town'] || h['Residence'] || '—',
-        gender: h['Gender'] || '—',
-        category: h['Cat._JKBOSE'] || h['Category'] || 'General',
-        status: h['Status'] || 'Approved',
-        stream: h['Stream'] || '',
-        subs: formatStudentSubjects(h),
-        photoId: extractPhotoVal(h) || getStudentPhotoUrl(h) || '',
-        mobile: h["Student's Contact"] || h['Mobile'] || '—',
-        aadhar: h['Aadhar No.'] || h.aadhar || '—',
-        fatherAadhar: h["Father's Aadhar No."] || h["Father's Aadhaar No."] || h.fatherAadhar || '—',
-        bankAccount: h['Bank Account Number'] || '—',
-        bankName: h['Bank Name'] || '—',
-        ifsc: h['IFSC Code'] || '—',
+        const roll = extractClassRoll(h);
+        if (cls && sess && roll && activeClassRollSet.has(`${cls}_${sess}_${roll}`.toLowerCase())) {
+          return;
+        }
 
-        onlineSubmDate: formatOnlineSubmDate(
-          h['Online Subm. Date'] || 
-          h.onlineSubmDate || 
-          h.submittedAt || 
-          h.submissionDate || 
-          h.createdAt || 
-          h.updatedAt || 
-          h['Adm. Date'] || 
-          h.admDate || 
-          '—'
-        ),
-        admDate: h['Adm. Date'] || '—',
-        boardName: h['Board Name'] || '—',
-        dobWords: (h['DoB (words)'] && h['DoB (words)'] !== '—' && String(h['DoB (words)']).trim().length > 3)
-          ? h['DoB (words)']
-          : (convertDobToWords(h['DoB (figures)'] || h['DoB']) || '—'),
-        block: h['Block'] || '—',
-        tehsil: h['Tehsil'] || '—',
-        district: h['District'] || '—',
-        pinCode: h['PIN code'] || '—',
-        state: h['State/UT'] || '—',
-        residence: h['Residence (Village, District)'] || '—',
-        religion: h['Religion'] || '—',
-        disabilityStatus: h['Disability Status'] || '—',
-        disabilityType: h['Disability Type'] || '—',
-        subjects1: h['Subjects1'] || '—',
-        subjects2: h['Subjects2'] || '—',
-        subjects3: h['Subjects3'] || '—',
-        subjects4: h['Subjects4'] || '—',
-        subjects5: h['Subjects5'] || '—',
-        subjects6: h['Subject6'] || '—',
-        email1: h['email1'] || '—',
-        email2: h['email2'] || '—',
-        parentContact: h["Parent's Contact"] || h["Parent's Mobile No. (must be working)"] || h["Parent's Mobile No."] || h["Father's Mobile No."] || h["parentContact"] || '—',
-        bloodType: h['Blood Type'] || '—',
-        height: h['Height (cm)'] || '—',
-        weight: h['Weight (kg)'] || '—',
-        socialCategory: h['Social category'] || '—',
-        socioEconomicCategory: h['Socio-economic category'] || '—',
-        houseNo: h['House No.'] || '—',
-        vocationalPercentage: h['Vocational %age'] || '—',
-        prevComplexHead: h['Previous Complex Head'] || '—',
-        penNo: h['PEN No.'] || '—',
-        prevSchool: h['Previous School'] || '—',
-        prevCcDc: h['CC/DC No. & Date (Prev. insitution)'] || '—',
-        prevExamMode: h['Exam Mode (Prev.)'] || '—',
-        prevExamRollNo: h['Exam R.No. (Prev.)'] || '—',
-        prevMarksObt: h['Marks Obt. (Prev.)'] || '—',
-        prevMaxMarks: h['Max. Marks (Prev.)'] || '—',
-        prevPercentage: h['%age (Prev.)'] || '—',
-        prevDivision: h['Div/Distinc (Prev.)'] || '—',
-        currExamMode: h['Exam Mode (Current)'] || '—',
-        currExamRollNo: h['Exam R.No. (Current)'] || '—',
-        currResult: h['Result (Current)'] || '—',
-        currMarksReapp: h['Marks/Reapp (Current)'] || '—',
-        withdrawalDate: h['Date of withdrawl'] || '—',
-        currCcDc: h['No. & Date of CC/DC Issued (This Institution)'] || '—',
-        remarks: h['Remarks'] || '—',
-        photoId: getResolvedPhoto(h),
-        pdfUrl: h['PDF_URL'] || '—',
-        readmission: h['readmission'] || '—',
-        apaarId: h['APAAR ID'] || '—',
+        const reg = extractRegNoClean(h);
+        if (reg && reg !== '—' && (activeRegSet.has(`${cls}_${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`reg_${reg}`.toLowerCase()))) {
+          return;
+        }
+
+        const rawAdm = extractRawAdmNo(h);
+        const cleanAdm = cleanAdmNoVal(rawAdm);
+        if (cleanAdm && cleanAdm !== '—' && (activeAdmSet.has(`${cls}_${sess}_clean_${cleanAdm}`.toLowerCase()) || activeAdmSet.has(`${sess}_clean_${cleanAdm}`.toLowerCase()))) {
+          return;
+        }
+
+        const hAdmNo = resolveAdmNo(h);
+        const hRollNo = extractClassRoll(h);
+        const hRegNo = extractRegNo(h);
+        const hName = h["Student's Name"] || h['Name'] || '—';
+        const hFName = h["Father's Name"] || '—';
+        const hMName = h["Mother's Name"] || '—';
+        const hDob = formatDobToDisplay(h['DoB (figures)'] || h['DoB'] || h['dob'] || '—');
+        const hVillage = h['Village/Town'] || h['Residence'] || '—';
+        const hGender = h['Gender'] || '—';
+        const hCategory = h['Cat._JKBOSE'] || h['Category'] || 'General';
+        const hStream = h['Stream'] || '';
+        const hSubs = formatStudentSubjects(h);
+        const hMobile = h["Student's Contact"] || h['Mobile'] || '—';
+        const hAadhar = h['Aadhar No.'] || h.aadhar || '—';
+        const hPen = h['PEN No.'] || '—';
+
+        const searchBlob = `${hName} ${hFName} ${hMName} ${cleanFNo} ${hRollNo} ${hRegNo} ${hAdmNo} ${cls} ${sess} ${hStream} ${hSubs} ${hMobile} ${hVillage} ${hDob} ${hPen} ${hAadhar} ${hCategory}`.toLowerCase();
+
+        combined.push({
+          ...h,
+          _isCurrentScope: false,
+          _searchBlob: searchBlob,
+          _ts: getDocTimestamp(h),
+          _formNum: parseNum(cleanFNo),
+          _rollNum: parseNum(hRollNo),
+          _admNum: parseNum(hAdmNo),
+          _nameLower: hName.toLowerCase(),
+          _regLower: hRegNo.toLowerCase(),
+          id: `hist_${idx}`,
+          sno: combined.length + 1,
+          formNo: cleanFNo,
+          classRollNo: hRollNo,
+          admNo: hAdmNo,
+          class: h['Class'] || '—',
+          session: h['Session'] || '—',
+          boardRegNo: hRegNo,
+          studentName: hName,
+          fatherName: hFName,
+          motherName: hMName,
+          dob: hDob,
+          village: hVillage,
+          gender: hGender,
+          category: hCategory,
+          status: h['Status'] || 'Approved',
+          stream: hStream,
+          subs: hSubs,
+          photoId: extractPhotoVal(h) || getStudentPhotoUrl(h) || '',
+          mobile: hMobile,
+          aadhar: hAadhar,
+          fatherAadhar: h["Father's Aadhar No."] || h["Father's Aadhaar No."] || h.fatherAadhar || '—',
+          bankAccount: h['Bank Account Number'] || '—',
+          bankName: h['Bank Name'] || '—',
+          ifsc: h['IFSC Code'] || '—',
+
+          onlineSubmDate: formatOnlineSubmDate(
+            h['Online Subm. Date'] || 
+            h.onlineSubmDate || 
+            h.submittedAt || 
+            h.submissionDate || 
+            h.createdAt || 
+            h.updatedAt || 
+            h['Adm. Date'] || 
+            h.admDate || 
+            '—'
+          ),
+          admDate: h['Adm. Date'] || '—',
+          boardName: h['Board Name'] || '—',
+          dobWords: h['DoB (words)'] || '—',
+          block: h['Block'] || '—',
+          tehsil: h['Tehsil'] || '—',
+          district: h['District'] || '—',
+          pinCode: h['PIN code'] || '—',
+          state: h['State/UT'] || '—',
+          residence: h['Residence (Village, District)'] || '—',
+          religion: h['Religion'] || '—',
+          disabilityStatus: h['Disability Status'] || '—',
+          disabilityType: h['Disability Type'] || '—',
+          subjects1: h['Subjects1'] || '—',
+          subjects2: h['Subjects2'] || '—',
+          subjects3: h['Subjects3'] || '—',
+          subjects4: h['Subjects4'] || '—',
+          subjects5: h['Subjects5'] || '—',
+          subjects6: h['Subject6'] || '—',
+          email1: h['email1'] || '—',
+          email2: h['email2'] || '—',
+          parentContact: h["Parent's Contact"] || h["Parent's Mobile No. (must be working)"] || h["Parent's Mobile No."] || h["Father's Mobile No."] || h["parentContact"] || '—',
+          bloodType: h['Blood Type'] || '—',
+          height: h['Height (cm)'] || '—',
+          weight: h['Weight (kg)'] || '—',
+          socialCategory: h['Social category'] || '—',
+          socioEconomicCategory: h['Socio-economic category'] || '—',
+          houseNo: h['House No.'] || '—',
+          vocationalPercentage: h['Vocational %age'] || '—',
+          prevComplexHead: h['Previous Complex Head'] || '—',
+          penNo: hPen,
+          prevSchool: h['Previous School'] || '—',
+          prevCcDc: h['CC/DC No. & Date (Prev. insitution)'] || '—',
+          prevExamMode: h['Exam Mode (Prev.)'] || '—',
+          prevExamRollNo: h['Exam R.No. (Prev.)'] || '—',
+          prevMarksObt: h['Marks Obt. (Prev.)'] || '—',
+          prevMaxMarks: h['Max. Marks (Prev.)'] || '—',
+          prevPercentage: h['%age (Prev.)'] || '—',
+          prevDivision: h['Div/Distinc (Prev.)'] || '—',
+          currExamMode: h['Exam Mode (Current)'] || '—',
+          currExamRollNo: h['Exam R.No. (Current)'] || '—',
+          currResult: h['Result (Current)'] || '—',
+          currMarksReapp: h['Marks/Reapp (Current)'] || '—',
+          withdrawalDate: h['Date of withdrawl'] || '—',
+          currCcDc: h['No. & Date of CC/DC Issued (This Institution)'] || '—',
+          remarks: h['Remarks'] || '—',
+          photoId: extractPhotoVal(h) || '',
+          pdfUrl: h['PDF_URL'] || '—',
+          readmission: h['readmission'] || '—',
+          apaarId: h['APAAR ID'] || '—',
+        });
       });
-    });
-
-    combined.forEach(st => {
-      st._openEditModal = (target) => setEditingStudent(target || st);
-      st._setSelectedApp = (target) => setSelectedApp(target || st);
-    });
+    }
 
     return combined;
-  }, [currentAdmissions, masterRecords]);
+  }, [currentAdmissions, masterRecords, viewScope, selectedSessions, selectedClasses]);
 
-  // Dynamic Dropdown Lists extracted directly from database records
-  const availableSessions = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(s => { if (s.session && s.session !== '—') set.add(s.session); });
-    const list = Array.from(set);
-    // Sort: Regular annual sessions (e.g. 2025-26, 2024-25) FIRST, bi-annual (APR/BIAN) sessions AFTER
-    list.sort((a, b) => {
+  // Dynamic Dropdown Lists extracted in a single fast pass directly from database records
+  const {
+    availableSessions,
+    availableClasses,
+    availableGenders,
+    availableStreams,
+    availableCategories,
+    availableStatuses,
+    calculatedNextAdmNo
+  } = useMemo(() => {
+    const sessionSet = new Set();
+    const classSet = new Set();
+    const genderSet = new Set();
+    const streamSet = new Set();
+    const categorySet = new Set();
+    const statusSet = new Set();
+    let maxAdmNo = 0;
+
+    for (let i = 0; i < allStudents.length; i++) {
+      const s = allStudents[i];
+      if (s.session && s.session !== '—') sessionSet.add(s.session);
+      if (s.class && s.class !== '—') classSet.add(s.class);
+      if (s.gender && s.gender !== '—') genderSet.add(s.gender);
+      if (s.stream && s.stream !== '—') streamSet.add(s.stream);
+      if (s.category && s.category !== '—') categorySet.add(s.category);
+      if (s.status && s.status !== '—') statusSet.add(s.status);
+
+      if (s._admNum && s._admNum !== Infinity && s._admNum > maxAdmNo && s._admNum < 100000) {
+        maxAdmNo = s._admNum;
+      }
+    }
+
+    const sessList = Array.from(sessionSet);
+    sessList.sort((a, b) => {
       const aIsBian = /bian|bi-annual|apr/i.test(a);
       const bIsBian = /bian|bi-annual|apr/i.test(b);
       if (aIsBian && !bIsBian) return 1;
       if (!aIsBian && bIsBian) return -1;
-      return b.localeCompare(a, undefined, { numeric: true }); // Most recent first within same type
+      return b.localeCompare(a, undefined, { numeric: true });
     });
-    return list;
-  }, [allStudents]);
 
-  const availableClasses = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(s => { if (s.class && s.class !== '—') set.add(s.class); });
-    return Array.from(set).sort();
-  }, [allStudents]);
-
-  const availableGenders = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(s => { if (s.gender && s.gender !== '—') set.add(s.gender); });
-    return Array.from(set).sort();
-  }, [allStudents]);
-
-  const availableStreams = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(s => { if (s.stream && s.stream !== '—') set.add(s.stream); });
-    return Array.from(set).sort();
-  }, [allStudents]);
-
-  const availableCategories = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(s => { if (s.category && s.category !== '—') set.add(s.category); });
-    return Array.from(set).sort();
-  }, [allStudents]);
-
-  const availableStatuses = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(s => { if (s.status && s.status !== '—') set.add(s.status); });
-    return Array.from(set).sort();
+    return {
+      availableSessions: sessList,
+      availableClasses: Array.from(classSet).sort(),
+      availableGenders: Array.from(genderSet).sort(),
+      availableStreams: Array.from(streamSet).sort(),
+      availableCategories: Array.from(categorySet).sort(),
+      availableStatuses: Array.from(statusSet).sort(),
+      calculatedNextAdmNo: maxAdmNo > 0 ? String(maxAdmNo + 1) : '5476'
+    };
   }, [allStudents]);
 
   // Dynamic Options for Modal Class & Session Multi-Select Filters
@@ -5049,13 +5507,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     }
   };
 
-  // Target dataset depending on viewScope ('all' vs 'active')
-  const targetDataset = useMemo(() => {
-    if (viewScope === 'active') {
-      return allStudents.filter(s => s._isCurrentScope === true);
-    }
-    return allStudents;
-  }, [allStudents, viewScope]);
+  // Target dataset directly references allStudents (already scoped by viewScope)
+  const targetDataset = allStudents;
 
   // ─── Google-like Intelligent Search & Relevance Engine ───
   const evaluateGoogleSearch = useCallback((s, query) => {
@@ -5064,93 +5517,34 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const rawTokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
     if (rawTokens.length === 0) return { matches: true, score: 0 };
 
-    const cleanNum = (str) => String(str || '').replace(/[^0-9]/g, '');
-    const cleanAlpha = (str) => String(str || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-
-    // Extract all searchable fields
-    const studentName = String(s.studentName || s["Student's Name"] || s["Student's Name (as per school records)"] || '').toLowerCase();
-    const fatherName = String(s.fatherName || s["Father's Name"] || s["Father's/Guardian's Name (as per school records)"] || '').toLowerCase();
-    const motherName = String(s.motherName || s["Mother's Name"] || '').toLowerCase();
-    const formNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').toLowerCase();
-    const classRollNo = String(s.classRollNo || s['Class Roll No'] || s['RL. NO.'] || '').toLowerCase();
-    const boardRegNo = String(s.boardRegNo || s['Board Registration Number'] || '').toLowerCase();
-    const admNo = String(s.admNo || s['Adm. No.'] || '').toLowerCase();
-    const cls = String(s.class || s['Class'] || '').toLowerCase();
-    const session = String(s.session || s['Session'] || '').toLowerCase();
-    const stream = String(s.stream || s['Stream'] || s['Stream for Class 11th'] || '').toLowerCase();
-    const subs = String(s.subs || s.subjects1 || '').toLowerCase();
-    const mobile = String(s.mobile || s['Mobile'] || s.parentContact || '').toLowerCase();
-    const village = String(s.village || s['Village/Town'] || s['Residence'] || s['Name of your village'] || '').toLowerCase();
-    const dob = String(s.dob || s['DoB (figures)'] || '').toLowerCase();
-    const penNo = String(s.penNo || s['PEN No.'] || '').toLowerCase();
-    const aadhar = String(s.aadhar || s['Aadhar No.'] || '').toLowerCase();
-    const fatherAadhar = String(s.fatherAadhar || s["Father's Aadhar No."] || s["Father's Aadhaar No."] || '').toLowerCase();
-    const bankAccount = String(s.bankAccount || s['Bank Account Number'] || s['Bank Account No.'] || '').toLowerCase();
-    const bankName = String(s.bankName || s['Name of Bank'] || '').toLowerCase();
-    const ifsc = String(s.ifsc || s['IFSC Code'] || '').toLowerCase();
-    const category = String(s.category || s.socialCategory || s['Social category'] || '').toLowerCase();
-    const prevSchool = String(s.prevSchool || s['Previous School'] || '').toLowerCase();
-    const remarks = String(s.remarks || s['Remarks'] || '').toLowerCase();
-    const status = String(s.status || s['Status'] || '').toLowerCase();
-
-    // Full text searchable blob
-    const fullTextBlob = [
-      studentName, fatherName, motherName, formNo, classRollNo, boardRegNo,
-      admNo, cls, session, stream, subs, mobile, village, dob, penNo,
-      aadhar, fatherAadhar, bankAccount, bankName, ifsc, category, prevSchool, remarks, status
-    ].join(' ');
-
-    const formDigits = cleanNum(formNo);
-    const rollDigits = cleanNum(classRollNo);
-    const regDigits = cleanNum(boardRegNo);
-    const admDigits = cleanNum(admNo);
-    const mobileDigits = cleanNum(mobile);
-    const aadharDigits = cleanNum(aadhar);
-    const fatherAadharDigits = cleanNum(fatherAadhar);
-
+    const blob = s._searchBlob || '';
     let score = 0;
 
     for (const token of rawTokens) {
-      const cleanTok = cleanAlpha(token);
-      const tokDigits = cleanNum(token);
-
-      const inBlob = fullTextBlob.includes(token) || (cleanTok && cleanAlpha(fullTextBlob).includes(cleanTok));
-      const inNum = tokDigits && tokDigits.length >= 2 && (
-        formDigits.includes(tokDigits) ||
-        rollDigits.includes(tokDigits) ||
-        regDigits.includes(tokDigits) ||
-        admDigits.includes(tokDigits) ||
-        mobileDigits.includes(tokDigits) ||
-        aadharDigits.includes(tokDigits) ||
-        fatherAadharDigits.includes(tokDigits)
-      );
-
-      if (!inBlob && !inNum) {
+      const inBlob = blob.includes(token);
+      if (!inBlob) {
         return { matches: false, score: 0 };
       }
 
       // Relevance score boosting
-      if (formNo === token || formDigits === tokDigits) score += 2000;
-      else if (formNo.includes(token)) score += 800;
+      if (s.formNo === token || String(s._formNum) === token) score += 2000;
+      else if (String(s.formNo || '').includes(token)) score += 800;
 
-      if (boardRegNo === token || regDigits === tokDigits) score += 1500;
-      else if (boardRegNo.includes(token)) score += 600;
+      if (s.boardRegNo === token) score += 1500;
+      else if (String(s.boardRegNo || '').includes(token)) score += 600;
 
-      if (classRollNo === token || (rollDigits && rollDigits === tokDigits)) score += 1200;
-      else if (classRollNo.includes(token)) score += 500;
+      if (s.classRollNo === token || String(s._rollNum) === token) score += 1200;
+      else if (String(s.classRollNo || '').includes(token)) score += 500;
 
-      if (mobileDigits && mobileDigits.includes(tokDigits)) score += 1000;
+      if (String(s.mobile || '').includes(token)) score += 1000;
 
-      if (studentName === token) score += 1000;
-      else if (studentName.startsWith(token)) score += 600;
-      else if (studentName.includes(token)) score += 300;
+      if (s._nameLower === token) score += 1000;
+      else if (s._nameLower.startsWith(token)) score += 600;
+      else if (s._nameLower.includes(token)) score += 300;
 
-      if (fatherName === token) score += 500;
-      else if (fatherName.includes(token)) score += 200;
-
-      if (subs.includes(token) || stream.includes(token)) score += 100;
-      if (village.includes(token)) score += 80;
-      if (cls.includes(token)) score += 70;
+      if (String(s.fatherName || '').toLowerCase().includes(token)) score += 200;
+      if (String(s.subs || '').toLowerCase().includes(token) || String(s.stream || '').toLowerCase().includes(token)) score += 100;
+      if (String(s.village || '').toLowerCase().includes(token)) score += 80;
     }
 
     return { matches: true, score };
@@ -5241,111 +5635,70 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     const list = scoredList.map(item => item.student);
 
-    // ─── NUMERICAL & HIERARCHICAL MULTI-FIELD SORTING LOGIC ───
-    const parseNum = (val) => {
-      if (val === null || val === undefined || val === '' || val === '—' || val === 'N/A' || val === 'null' || val === 'undefined') return Infinity;
-      const str = String(val).trim();
-      const match = str.match(/\d+/);
-      if (!match) return Infinity;
-      const num = parseInt(match[0], 10);
-      return isNaN(num) ? Infinity : num;
-    };
-
+    // ─── HIGH PERFORMANCE PRE-COMPUTED NUMERICAL & HIERARCHICAL SORTING ───
     const factor = sortOrder === 'desc' ? -1 : 1;
 
     list.sort((a, b) => {
       if (sortBy === 'classRollNo') {
-        // Group by Class first
         const clsA = String(a.class || '').toLowerCase();
         const clsB = String(b.class || '').toLowerCase();
-        if (clsA !== clsB) {
-          return clsA.localeCompare(clsB) * factor;
-        }
+        if (clsA !== clsB) return clsA.localeCompare(clsB) * factor;
 
-        // Group by Session second
         const sessA = String(a.session || '').toLowerCase();
         const sessB = String(b.session || '').toLowerCase();
-        if (sessA !== sessB) {
-          return sessA.localeCompare(sessB) * factor;
-        }
+        if (sessA !== sessB) return sessA.localeCompare(sessB) * factor;
 
-        // Sort by Class Roll No numerical third
-        const rollA = getStudentRollVal(a) || a.classRollNo;
-        const rollB = getStudentRollVal(b) || b.classRollNo;
-        const numA = parseNum(rollA);
-        const numB = parseNum(rollB);
-        if (numA !== numB) {
-          return (numA - numB) * factor;
-        }
-        return (parseNum(a.formNo) - parseNum(b.formNo)) * factor;
+        if (a._rollNum !== b._rollNum) return (a._rollNum - b._rollNum) * factor;
+        return (a._formNum - b._formNum) * factor;
       }
 
       if (sortBy === 'formNo') {
-        const isBlankA = a.formNo === '—' || a.formNo === '' || a.formNo === 'N/A' || !a.formNo;
-        const isBlankB = b.formNo === '—' || b.formNo === '' || b.formNo === 'N/A' || !b.formNo;
+        const isBlankA = !a.formNo || a.formNo === '—' || a.formNo === 'N/A';
+        const isBlankB = !b.formNo || b.formNo === '—' || b.formNo === 'N/A';
 
-        // When sorting descending (newest first), place active unnumbered drafts at the top
         if (sortOrder === 'desc') {
           if (isBlankA && !isBlankB) return -1;
           if (!isBlankA && isBlankB) return 1;
-          if (isBlankA && isBlankB) {
-            const tsA = getDocTimestamp(a);
-            const tsB = getDocTimestamp(b);
-            return tsB - tsA;
-          }
+          if (isBlankA && isBlankB) return (b._ts - a._ts);
         }
 
-        const numA = parseNum(a.formNo);
-        const numB = parseNum(b.formNo);
-        if (numA !== numB) return (numA - numB) * factor;
+        if (a._formNum !== b._formNum) return (a._formNum - b._formNum) * factor;
         return String(a.formNo || '').localeCompare(String(b.formNo || '')) * factor;
       }
 
       if (sortBy === 'admNo') {
-        const numA = parseNum(a.admNo);
-        const numB = parseNum(b.admNo);
-        if (numA !== numB) return (numA - numB) * factor;
+        if (a._admNum !== b._admNum) return (a._admNum - b._admNum) * factor;
         return String(a.admNo || '').localeCompare(String(b.admNo || '')) * factor;
       }
 
       if (sortBy === 'studentName') {
-        const nameA = String(a.studentName || '').trim();
-        const nameB = String(b.studentName || '').trim();
-        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' }) * factor;
+        return a._nameLower.localeCompare(b._nameLower, undefined, { sensitivity: 'base' }) * factor;
       }
 
       if (sortBy === 'boardRegNo') {
-        const regA = String(a.boardRegNo || '').trim();
-        const regB = String(b.boardRegNo || '').trim();
-        return regA.localeCompare(regB) * factor;
+        return a._regLower.localeCompare(b._regLower) * factor;
       }
 
       if (sortBy === 'onlineSubmDate') {
-        const isBlankA = a.formNo === '—' || a.formNo === '' || a.formNo === 'N/A' || !a.formNo;
-        const isBlankB = b.formNo === '—' || b.formNo === '' || b.formNo === 'N/A' || !b.formNo;
+        const isBlankA = !a.formNo || a.formNo === '—' || a.formNo === 'N/A';
+        const isBlankB = !b.formNo || b.formNo === '—' || b.formNo === 'N/A';
 
-        // When sorting descending, keep active unnumbered drafts at the top
         if (sortOrder === 'desc') {
           if (isBlankA && !isBlankB) return -1;
           if (!isBlankA && isBlankB) return 1;
         }
 
-        const dateA = getDocTimestamp(a);
-        const dateB = getDocTimestamp(b);
-        if (dateA !== 0 && dateB !== 0 && dateA !== dateB) {
-          return (dateA - dateB) * factor;
+        if (a._ts !== 0 && b._ts !== 0 && a._ts !== b._ts) {
+          return (a._ts - b._ts) * factor;
         }
-        if (dateA !== 0 && dateB === 0) {
+        if (a._ts !== 0 && b._ts === 0) {
           return sortOrder === 'desc' ? -1 : 1;
         }
-        if (dateA === 0 && dateB !== 0) {
+        if (a._ts === 0 && b._ts !== 0) {
           return sortOrder === 'desc' ? 1 : -1;
         }
 
-        // Secondary tiebreaker to numerical form number
-        const numA = parseNum(a.formNo);
-        const numB = parseNum(b.formNo);
-        if (numA !== numB) return (numA - numB) * factor;
+        if (a._formNum !== b._formNum) return (a._formNum - b._formNum) * factor;
         return String(a.formNo || '').localeCompare(String(b.formNo || '')) * factor;
       }
 
@@ -5442,20 +5795,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return updated;
     });
   };
-
-  // ─── ASSIGN IDs: Next Sequential ID Calculation & Reg No Lookup Helpers ───
-  const calculatedNextAdmNo = useMemo(() => {
-    let maxVal = 0;
-    allStudents.forEach(st => {
-      const raw = resolveAdmNo(st) || st.admNo || st['Adm. No.'] || '';
-      const cleaned = cleanAdmNoVal(raw);
-      const num = parseInt(cleaned, 10);
-      if (!isNaN(num) && num > maxVal && num < 100000) {
-        maxVal = num;
-      }
-    });
-    return maxVal > 0 ? String(maxVal + 1) : '5476';
-  }, [allStudents]);
 
   // Sync assignStartId with calculatedNextAdmNo when tool opens or data changes
   useEffect(() => {
@@ -5938,15 +6277,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               <button
                 type="button"
                 onClick={() => {
-                  if (masterRecords.length > 0 || window._hssMasterRegistersCache?.length > 0) {
-                    if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
-                      setMasterRecords(window._hssMasterRegistersCache);
-                    }
-                    setViewScope('all');
-                    setCurrentPage(1);
-                  } else {
-                    setShowMasterFetchConfirm(true);
-                  }
+                  setShowMasterFetchConfirm(true);
                 }}
                 className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'all'
                   ? 'bg-amber-700 text-white shadow-2xs font-black'
@@ -6024,6 +6355,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 activeTab="reports"
                 setActiveTab={setActiveTab}
                 user={user}
+                onOpenCustomRoster={() => setShowCustomRosterModal(true)}
                 onOpenAnalytics={() => setShowAnalyticsModal(true)}
                 onOpenDirectEntry={() => setShowDirectIngestionModal(true)}
                 onOpenBulkTools={() => setShowToolsModal(true)}
@@ -6135,7 +6467,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       </div>
 
       {/* Master Data Table (Clean Light Theme Adaptive Headers & Sticky S.No Column) */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-140px)] min-h-[450px] rounded-lg border border-slate-300 dark:border-slate-700 shadow-2xs max-w-full bg-white dark:bg-slate-900 relative">
+      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-110px)] rounded-lg border border-slate-300 dark:border-slate-700 shadow-2xs max-w-full bg-white dark:bg-slate-900 relative">
         <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words table-fixed">
             <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr className="overflow-visible">

@@ -9,6 +9,7 @@
 import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { getStudentPhotoUrl } from '../utils/imageCompressor';
+import { updateStudentInRegIndex } from './studentIndexService';
 
 const CACHE_PREFIX = 'hss_cache_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
@@ -410,6 +411,16 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
   }
 
   setCachedCollectionData(collectionName, updatedList);
+
+  if (collectionName === 'admissions' && updatedFields && typeof updatedFields === 'object') {
+    try {
+      const mergedStudent = updatedList.find(isMatchingItem);
+      if (mergedStudent) {
+        updateStudentInRegIndex(mergedStudent).catch(() => {});
+      }
+    } catch (_) {}
+  }
+
   return updatedList;
 }
 
@@ -603,6 +614,175 @@ export async function fetchStudentPhotoOnDemand(student) {
 }
 
 /**
+ * Fetch all matching photos for a student by Board Registration Number and candidate IDs
+ * across all classes, academic sessions, studentPhotos history, and historical registers.
+ * Returns array of photo objects with metadata.
+ */
+export async function fetchAllMatchingStudentPhotos(student) {
+  if (!student) return [];
+  const cleanReg = (val) => {
+    if (!val) return '';
+    let s = String(val).trim();
+    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+      try {
+        if (typeof window !== 'undefined' && window.BigInt) {
+          s = window.BigInt(Math.floor(Number(val))).toString();
+        } else {
+          s = Number(val).toLocaleString('fullwide', { useGrouping: false });
+        }
+      } catch (_) {}
+    }
+    return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
+  };
+
+  const reg = cleanReg(
+    student.boardRegNo ||
+    student.regNo ||
+    student['Board Registration Number'] ||
+    student['Board Registration No.'] ||
+    student['Board Registration No. (Class 10th)'] ||
+    student['Board Registration No. (Class 11th)'] ||
+    student['REG. NO.']
+  );
+
+  const formNo = String(student.formNo || student['Form Number'] || student['Form No.'] || '').trim();
+  const sName = String(student.studentName || student["Student's Name (as per school records)"] || student["Student's Name"] || student.name || '').trim().toLowerCase();
+
+  const results = [];
+  const seenUrls = new Set();
+
+  const addCandidate = (item) => {
+    if (!item || !item.url || typeof item.url !== 'string' || item.url.length < 20 || item.url === '/logo.png') return;
+    const urlHash = item.url.substring(0, 100);
+    if (!seenUrls.has(urlHash)) {
+      seenUrls.add(urlHash);
+      results.push(item);
+    }
+  };
+
+  // 1. Current direct photo from active student record
+  const currentDirect = getStudentPhotoUrl(student);
+  if (currentDirect) {
+    addCandidate({
+      id: 'current',
+      url: currentDirect,
+      title: `${student.class || ''} (${student.session || 'Active'})`,
+      badge: 'Active',
+      isCurrent: true,
+      source: 'Active Record'
+    });
+  }
+
+  // 2. Query Firestore studentPhotos by Board Reg No candidates & photoHistory array
+  const docCandidates = [];
+  if (reg) {
+    docCandidates.push(`photo_${reg}`);
+    docCandidates.push(reg);
+  }
+  if (student.docId) docCandidates.push(String(student.docId).trim());
+  if (student.id) docCandidates.push(String(student.id).trim());
+
+  for (const cId of docCandidates) {
+    try {
+      const snap = await getDoc(doc(db, 'studentPhotos', cId));
+      if (snap.exists()) {
+        const d = snap.data();
+        const p = (d.photo_id || d.photoData || d.photo || d.photoUrl || '').trim();
+        if (p && p.length > 20) {
+          addCandidate({
+            id: snap.id,
+            url: p,
+            title: d.selectedClass ? `Class ${d.selectedClass} (${d.selectedSession || 'Master DB'})` : (d.sourceFile || `Reg #${d.regNo || reg}`),
+            badge: d.selectedClass || 'Master DB',
+            regNo: d.regNo || d.boardRegNo || reg,
+            studentName: d.studentName || student.studentName || '',
+            isCurrent: currentDirect === p,
+            source: 'studentPhotos'
+          });
+        }
+
+        // Include any historical photos in photoHistory array
+        if (Array.isArray(d.photoHistory)) {
+          d.photoHistory.forEach((h, hIdx) => {
+            const hUrl = (h.url || h.photo_id || h.photoData || h.photo || '').trim();
+            if (hUrl && hUrl.length > 20) {
+              addCandidate({
+                id: `${snap.id}_hist_${hIdx}`,
+                url: hUrl,
+                title: h.class ? `Class ${h.class} (${h.session || 'Archive'})` : (h.title || `Archive Photo #${hIdx + 1}`),
+                badge: h.class || 'Archive',
+                regNo: d.regNo || reg,
+                studentName: d.studentName || student.studentName || '',
+                isCurrent: currentDirect === hUrl,
+                source: 'Photo History'
+              });
+            }
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. Cross-reference all matching records in admissions & masterRegisters caches across all sessions/classes
+  try {
+    const allAdmissions = getCachedCollectionSync('admissions') || [];
+    const allMaster = getCachedCollectionSync('masterRegisters') || [];
+    const combinedRecords = [...allAdmissions, ...allMaster];
+
+    combinedRecords.forEach((rec, rIdx) => {
+      const recReg = cleanReg(
+        rec.boardRegNo || rec.regNo || rec['Board Registration Number'] || rec['Board Registration No.'] || rec['Board Registration No. (Class 10th)'] || rec['Board Registration No. (Class 11th)']
+      );
+      const recForm = String(rec.formNo || rec['Form Number'] || rec['Form No.'] || '').trim();
+      const recName = String(rec.studentName || rec["Student's Name (as per school records)"] || rec["Student's Name"] || rec.name || '').trim().toLowerCase();
+
+      const isMatch = (reg && recReg && reg === recReg) || 
+                      (formNo && recForm && formNo === recForm && formNo !== '—' && formNo !== 'N/A') ||
+                      (sName && recName && sName.length > 5 && sName === recName);
+
+      if (isMatch) {
+        const recPhoto = (rec.photo_id || rec['Student Photo'] || rec.photoUrl || rec.photo || '').trim();
+        if (recPhoto && recPhoto.length > 20 && recPhoto !== '/logo.png' && recPhoto !== '—') {
+          const recClass = rec.class || rec['Admission sought for class'] || rec['Class'] || '';
+          const recSession = rec.session || rec['Session'] || '';
+          addCandidate({
+            id: rec._docId || rec.id || `rec_${rIdx}`,
+            url: recPhoto,
+            title: recClass ? `Class ${recClass} (${recSession || 'Record'})` : (recSession || 'Academic Record'),
+            badge: recClass || 'Record',
+            regNo: recReg || reg,
+            studentName: rec["Student's Name (as per school records)"] || rec.studentName || '',
+            isCurrent: currentDirect === recPhoto,
+            source: rec._isCurrentScope !== false ? 'Admissions' : 'Master Registers'
+          });
+        }
+      }
+    });
+  } catch (_) {}
+
+  // 4. Search in-memory photo map
+  if (typeof window !== 'undefined' && window._hss_central_photo_map) {
+    const memoryMap = window._hss_central_photo_map;
+    if (reg) {
+      [`photo_${reg}`, reg, `reg_${reg}`].forEach(k => {
+        if (memoryMap[k]) {
+          addCandidate({
+            id: k,
+            url: memoryMap[k],
+            title: `Reg #${reg}`,
+            badge: 'Cached',
+            isCurrent: currentDirect === memoryMap[k],
+            source: 'Photo Cache'
+          });
+        }
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
  * Automatically synchronizes a student's photo across Firestore `studentPhotos`
  * when their Board Registration Number or photo is created or updated (by admin or student).
  */
@@ -677,8 +857,27 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
     const sClass = student?.class || student?.['Class'] || '';
     const sSession = student?.session || student?.['Session'] || '';
 
-    // 1. Write or update new studentPhotos document with the new Board Registration No
+    // 1. Write or update new studentPhotos document with the new Board Registration No and preserve history
     if (targetNewReg) {
+      let existingHistory = [];
+      try {
+        const curSnap = await getDoc(doc(db, 'studentPhotos', `photo_${targetNewReg}`));
+        if (curSnap.exists()) {
+          const cd = curSnap.data();
+          existingHistory = Array.isArray(cd.photoHistory) ? [...cd.photoHistory] : [];
+          const curP = (cd.photo_id || cd.photoData || cd.photo || '').trim();
+          if (curP && curP.length > 20 && curP !== photoUrl && !existingHistory.some(h => (h.url || h.photo_id) === curP)) {
+            existingHistory.push({
+              url: curP,
+              photo_id: curP,
+              class: cd.selectedClass || sClass,
+              session: cd.selectedSession || sSession,
+              updatedAt: cd.updatedAt || new Date().toISOString()
+            });
+          }
+        }
+      } catch (_) {}
+
       const docPayload = {
         photo_id: photoUrl,
         regNo: targetNewReg,
@@ -686,6 +885,7 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
         studentName: sName,
         selectedClass: sClass,
         selectedSession: sSession,
+        photoHistory: existingHistory,
         updatedAt: new Date().toISOString()
       };
 

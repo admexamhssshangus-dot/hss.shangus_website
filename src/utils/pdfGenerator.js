@@ -36,13 +36,77 @@ function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream 
 
 function parseRawDate(raw) {
   if (!raw) return null;
-  if (raw instanceof Date) return raw;
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
   if (typeof raw.toDate === 'function') return raw.toDate();
-  if (typeof raw.seconds === 'number') return new Date(raw.seconds * 1000);
-  if (typeof raw._seconds === 'number') return new Date(raw._seconds * 1000);
-  if (typeof raw === 'string' || typeof raw === 'number') {
-    const d = new Date(raw);
-    if (!isNaN(d.getTime())) return d;
+  if (typeof raw.toMillis === 'function') return new Date(raw.toMillis());
+  if (typeof raw === 'object') {
+    if (typeof raw.seconds === 'number') return new Date(raw.seconds * 1000);
+    if (typeof raw._seconds === 'number') return new Date(raw._seconds * 1000);
+  }
+  if (typeof raw === 'number') {
+    // If Excel serial number e.g. 45497.5 (days since 1899-12-30)
+    if (raw > 30000 && raw < 70000) {
+      const utc_days = Math.floor(raw - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      const fractional_day = raw - Math.floor(raw) + 0.0000001;
+      let total_seconds = Math.floor(86400 * fractional_day);
+      date_info.setSeconds(date_info.getSeconds() + total_seconds);
+      return date_info;
+    }
+    // If epoch timestamp in seconds
+    if (raw < 10000000000) return new Date(raw * 1000);
+    // If epoch timestamp in milliseconds
+    return new Date(raw);
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s || s === '—' || s === 'N/A' || s === '-' || s.toLowerCase() === 'null') return null;
+
+    // Check if Firestore string like "Timestamp(seconds=1721815800, nanoseconds=0)"
+    const tsMatch = s.match(/seconds\s*[:=]\s*(\d+)/i);
+    if (tsMatch) {
+      return new Date(parseInt(tsMatch[1], 10) * 1000);
+    }
+
+    // Check if ISO string e.g. 2025-07-24T14:30:00 or 2025-07-24
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(s)) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Check if DD-MM-YYYY or DD/MM/YYYY with optional time e.g. "24-07-2025 14:30:00" or "24/07/2025 02:30 PM"
+    const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?/i);
+    if (dmyMatch) {
+      const [, day, month, year, hours, minutes, seconds, ampm] = dmyMatch;
+      let h = hours ? parseInt(hours, 10) : 0;
+      const m = minutes ? parseInt(minutes, 10) : 0;
+      const sec = seconds ? parseInt(seconds, 10) : 0;
+      if (ampm) {
+        if (ampm.toUpperCase() === 'PM' && h < 12) h += 12;
+        if (ampm.toUpperCase() === 'AM' && h === 12) h = 0;
+      }
+      const d = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), h, m, sec);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Check if DD-MMM-YYYY e.g. 24-Jul-2025
+    const monthMap = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+    const dmmmMatch = s.match(/^(\d{1,2})[-/ ]([a-zA-Z]{3,9})[-/ ](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/i);
+    if (dmmmMatch) {
+      const [, day, mStr, year, hours, minutes] = dmmmMatch;
+      const mKey = mStr.toLowerCase().substring(0, 3);
+      if (monthMap[mKey] !== undefined) {
+        const h = hours ? parseInt(hours, 10) : 0;
+        const m = minutes ? parseInt(minutes, 10) : 0;
+        const d = new Date(parseInt(year, 10), monthMap[mKey], parseInt(day, 10), h, m);
+        if (!isNaN(d.getTime())) return d;
+      }
+    }
+
+    // Direct Date.parse fallback
+    const parsed = Date.parse(s);
+    if (!isNaN(parsed)) return new Date(parsed);
   }
   return null;
 }
@@ -89,8 +153,8 @@ function formatDateTimeDDMMMYYYY(rawDate) {
   if (!rawDate) return '—';
   const d = parseRawDate(rawDate);
   if (!d) {
-    const s = String(rawDate);
-    if (s.includes('Timestamp(') || s.includes('seconds=')) return '—';
+    const s = String(rawDate).trim();
+    if (!s || s === '—' || s === 'N/A' || s.includes('Timestamp(') || s.includes('seconds=')) return '—';
     return s;
   }
   try {
@@ -98,12 +162,19 @@ function formatDateTimeDDMMMYYYY(rawDate) {
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const month = monthNames[d.getMonth()];
     const year = d.getFullYear();
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const hours = d.getHours();
+    const minutes = d.getMinutes();
+
+    // If time is not present (00:00:00), return clean date DD-MMM-YYYY
+    if (hours === 0 && minutes === 0 && d.getSeconds() === 0) {
+      return `${day}-${month}-${year}`;
+    }
+
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12 || 12;
-    const strHours = String(hours).padStart(2, '0');
-    return `${day}-${month}-${year}, ${strHours}:${minutes} ${ampm}`;
+    const h12 = hours % 12 || 12;
+    const strHours = String(h12).padStart(2, '0');
+    const strMinutes = String(minutes).padStart(2, '0');
+    return `${day}-${month}-${year}, ${strHours}:${strMinutes} ${ampm}`;
   } catch (e) {
     return '—';
   }
@@ -235,7 +306,24 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const idMark = studentData["Identification Mark (if any)"] || studentData["Identification Mark"] || studentData['idMark'] || '—';
   const prevSports = studentData["Previous participation in sports (if any)"] || studentData["Previous Sports Participation"] || studentData['prevSports'] || '—';
 
-  const rawSubmDate = studentData["submittedAt"] || studentData["Submission Date"] || studentData["created_at"];
+  const rawSubmDate = 
+    studentData["onlineSubmDate"] ||
+    studentData["online_subm_date"] ||
+    studentData["Online Submission Date"] ||
+    studentData["Online Submission"] ||
+    studentData["submittedAt"] ||
+    studentData["submissionDate"] ||
+    studentData["Submission Date"] ||
+    studentData["createdAt"] ||
+    studentData["created_at"] ||
+    studentData["timestamp"] ||
+    studentData["Timestamp"] ||
+    studentData["Date of Submission"] ||
+    studentData["admDate"] ||
+    studentData["Admission Date"] ||
+    studentData["admissionDate"] ||
+    studentData["submDate"] ||
+    studentData["updatedAt"];
   const formattedSubmDate = formatDateTimeDDMMMYYYY(rawSubmDate);
 
   // Generate cryptographically signed verification URL QR Code (ultra-clean, low-density, 100% scannable matrix)
@@ -1248,7 +1336,24 @@ export function buildProvisionalFormHtml(studentData) {
   const reappear11 = studentData['Subjects to Reappear (Class 11th)'] || '';
   const reappearSubs = reappear10 || reappear11 || 'None';
 
-  const rawSubmDate = studentData['submittedAt'] || studentData['Submission Date'] || studentData['created_at'];
+  const rawSubmDate = 
+    studentData["onlineSubmDate"] ||
+    studentData["online_subm_date"] ||
+    studentData["Online Submission Date"] ||
+    studentData["Online Submission"] ||
+    studentData["submittedAt"] ||
+    studentData["submissionDate"] ||
+    studentData["Submission Date"] ||
+    studentData["createdAt"] ||
+    studentData["created_at"] ||
+    studentData["timestamp"] ||
+    studentData["Timestamp"] ||
+    studentData["Date of Submission"] ||
+    studentData["admDate"] ||
+    studentData["Admission Date"] ||
+    studentData["admissionDate"] ||
+    studentData["submDate"] ||
+    studentData["updatedAt"];
   const formattedSubmDate = formatDateTimeDDMMMYYYY(rawSubmDate);
 
   const regNo = studentData[`Board Registration No. (Class ${previousClass})`]
