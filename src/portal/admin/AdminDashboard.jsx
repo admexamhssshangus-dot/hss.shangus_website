@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft } from 'lucide-react';
+import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import RollNoAssignment from './RollNoAssignment';
@@ -15,6 +15,7 @@ import AdminGkTestManager from './AdminGkTestManager';
 import StudentIdCardManager from './StudentIdCardManager';
 import ModernLoader from '../../components/ModernLoader';
 import AdminToolsDropdown from './AdminToolsDropdown';
+import OfficialDocumentsStudioView from './OfficialDocumentsStudioView';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache } from '../../services/dbCache';
@@ -22,24 +23,35 @@ import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, pr
 const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
 
 
+// Helper to read initial activeTab from URL search params, hash or sessionStorage
+function getInitialTab() {
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlTab = searchParams.get('tab');
+    if (urlTab) return urlTab;
+
+    const hash = window.location.hash.replace(/^#/, '');
+    if (hash) return hash;
+
+    const savedTab = sessionStorage.getItem('hss_admin_active_tab');
+    if (savedTab) return savedTab;
+  } catch (_) {}
+  return 'reports';
+}
+
+function getInitialMasterCount() {
+  try {
+    const raw = sessionStorage.getItem('hss_cache_masterRegisters_v2') || localStorage.getItem('hss_cache_masterRegisters_v2');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.length;
+    }
+  } catch (_) {}
+  return 0;
+}
+
 export default function AdminDashboard() {
   const { user, onLogout } = useOutletContext();
-
-  // Helper to read initial activeTab from URL search params, hash or sessionStorage
-  const getInitialTab = () => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const urlTab = searchParams.get('tab');
-      if (urlTab) return urlTab;
-
-      const hash = window.location.hash.replace(/^#/, '');
-      if (hash) return hash;
-
-      const savedTab = sessionStorage.getItem('hss_admin_active_tab');
-      if (savedTab) return savedTab;
-    } catch (_) {}
-    return 'reports';
-  };
 
   // Tab State: 'reports' | 'controls' | 'rollNo' | 'bulk' | 'automations' | 'funds' | 'practicals' | 'attendanceMgmt' | 'gkTest' | 'idCards'
   const [activeTab, setActiveTabState] = useState(getInitialTab);
@@ -71,24 +83,39 @@ export default function AdminDashboard() {
     } catch (_) {}
   }, [activeTab]);
 
-  const initialCachedApps = getCachedCollectionSync('admissions');
-  const initialMasterCount = (() => {
+  // Sub-Tab state for Official Documents Studio (roster | letter | certStudio)
+  const [docStudioSubTab, setDocStudioSubTabState] = useState(() => {
     try {
-      const raw = sessionStorage.getItem('hss_cache_masterRegisters_v2') || localStorage.getItem('hss_cache_masterRegisters_v2');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed.length;
-      }
-    } catch (_) {}
-    return 0;
-  })();
+      const sp = new URLSearchParams(window.location.search);
+      const sub = sp.get('subtab');
+      if (sub) return sub;
+      return sessionStorage.getItem('hss_doc_studio_subtab') || 'roster';
+    } catch {
+      return 'roster';
+    }
+  });
 
-  const [counts, setCounts] = useState(() => ({
-    active: initialCachedApps?.length || 0,
-    total: (initialCachedApps?.length || 0) + initialMasterCount
-  }));
+  const setDocStudioSubTab = useCallback((sub) => {
+    setDocStudioSubTabState(sub);
+    try {
+      sessionStorage.setItem('hss_doc_studio_subtab', sub);
+      const url = new URL(window.location.href);
+      url.searchParams.set('subtab', sub);
+      window.history.replaceState(null, '', url.toString());
+    } catch (_) {}
+  }, []);
+
+  const [counts, setCounts] = useState(() => {
+    const initialCachedApps = getCachedCollectionSync('admissions');
+    const masterCount = getInitialMasterCount();
+    return {
+      active: initialCachedApps?.length || 0,
+      total: (initialCachedApps?.length || 0) + masterCount
+    };
+  });
   const [viewScope, setViewScope] = useState('active');
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [showCustomRosterModal, setShowCustomRosterModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -100,6 +127,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    if (!isToolsOpen) return;
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsToolsOpen(false);
@@ -107,11 +135,16 @@ export default function AdminDashboard() {
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isToolsOpen]);
 
   // Applications Data State with Instant Cache + Silent Background Sync
-  const [loading, setLoading] = useState(!initialCachedApps || initialCachedApps.length === 0);
-  const [applications, setApplications] = useState(initialCachedApps || []);
+  const [loading, setLoading] = useState(() => {
+    const cached = getCachedCollectionSync('admissions');
+    return !cached || cached.length === 0;
+  });
+  const [applications, setApplications] = useState(() => {
+    return getCachedCollectionSync('admissions') || [];
+  });
   const [selectedApp, setSelectedApp] = useState(null); // For ApplicationReviewModal
 
   // Fetch Admin Dashboard Data using shared cache with silent background revalidation
@@ -224,6 +257,7 @@ export default function AdminDashboard() {
 
   const TOOL_MODULES = [
     { id: 'reports', label: 'Student Records & Reports', icon: BarChart2 },
+    { id: 'docStudio', label: 'Official Documents Studio', icon: FileSpreadsheet },
     { id: 'idCards', label: 'Student ID Cards', icon: Contact },
     { id: 'gkTest', label: 'Competitive Exams', icon: ShieldCheck },
     { id: 'controls', label: 'Academic Controls & Subjects', icon: Settings },
@@ -253,10 +287,10 @@ export default function AdminDashboard() {
             const currentModule = TOOL_MODULES.find(m => m.id === activeTab) || { id: activeTab, label: 'Admin Tool', icon: Wrench };
             const CurrentIcon = currentModule.icon;
             return (
-              <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-xl border text-xs font-bold flex-nowrap bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-2xs">
+              <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-xl border text-xs font-bold flex-wrap md:flex-nowrap bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-2xs">
                 
-                {/* Left Slot: Brand & Active Module Title */}
-                <div className="flex min-w-0 items-center gap-1.5 flex-nowrap">
+                {/* Left Slot: Brand & Active Module Title (Strictly Anchored Left) */}
+                <div className="flex min-w-0 items-center gap-1.5 flex-nowrap shrink-0 order-1">
                   <div className="flex items-center gap-1.5 font-black text-xs text-slate-800 dark:text-slate-200 border-r border-slate-300 dark:border-slate-700 pr-2.5 flex-shrink-0" title={`${user?.email || 'Admin'} • HSS Shangus`}>
                     <div className="w-6 h-6 rounded-lg bg-amber-600/10 border border-amber-600/30 flex items-center justify-center font-black text-amber-600 text-[10px]">
                       <Lock size={11} />
@@ -264,28 +298,75 @@ export default function AdminDashboard() {
                     <span className="hidden sm:inline text-[11px] font-black">Admin</span>
                   </div>
 
-                  <div className="flex min-w-0 items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                  <div className="flex min-w-0 items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shrink-0 shadow-2xs">
                     <div className="w-4 h-4 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center">
                       <CurrentIcon size={12} />
                     </div>
-                    <span className="max-w-[44vw] truncate text-slate-800 dark:text-slate-200 font-black sm:max-w-none">{currentModule.label}</span>
+                    <span className="truncate text-slate-800 dark:text-slate-200 font-black">{currentModule.label}</span>
                   </div>
                 </div>
 
-                {/* Right Slot: Admin Tools Dropdown Button & Refresh Sync Button */}
-                <div className="flex flex-shrink-0 items-center gap-1 ml-auto">
+                {/* Center Slot: Official Documents Studio Sub-Tabs (In Between on Desktop, Full Row on Mobile) */}
+                {(activeTab === 'docStudio' || activeTab === 'customRoster' || activeTab === 'officialLetter') && (
+                  <div className="w-full md:w-auto order-3 md:order-2 inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 text-[10.5px] sm:text-[11px] font-black shadow-2xs mx-auto justify-between sm:justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setDocStudioSubTab('roster')}
+                      className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
+                        docStudioSubTab === 'roster'
+                          ? 'bg-amber-600 text-white shadow-xs font-black'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                      }`}
+                    >
+                      <FileSpreadsheet size={12} className="shrink-0" />
+                      <span className="hidden sm:inline">Student Roster & Registers</span>
+                      <span className="sm:hidden text-[10px]">Roster</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDocStudioSubTab('letter')}
+                      className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
+                        docStudioSubTab === 'letter'
+                          ? 'bg-rose-700 text-white shadow-xs font-black'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                      }`}
+                    >
+                      <FileText size={12} className="shrink-0" />
+                      <span className="hidden sm:inline">Official Letterhead Writer</span>
+                      <span className="sm:hidden text-[10px]">Letterhead</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDocStudioSubTab('certStudio')}
+                      className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
+                        docStudioSubTab === 'certStudio' || docStudioSubTab === 'certificate'
+                          ? 'bg-gradient-to-r from-teal-700 to-indigo-700 text-white shadow-xs font-black'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                      }`}
+                    >
+                      <Award size={12} className="shrink-0" />
+                      <span className="hidden sm:inline">Student Bonafides & Certificates</span>
+                      <span className="sm:hidden text-[10px]">Certificates</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Right Slot: Admin Tools Dropdown Button & Refresh Sync Button (Strictly Anchored Right) */}
+                <div className="flex shrink-0 items-center gap-1 order-2 md:order-3 ml-auto">
                   {/* Administrative Tools Switcher Dropdown (Positioned on Right Side) */}
                   <div className="relative inline-block text-left" ref={dropdownRef}>
                     <button
                       type="button"
                       onClick={() => setIsToolsOpen(!isToolsOpen)}
                       title="Switch Administrative Tool / Module"
-                      className="flex h-8 items-center gap-1.5 px-2 sm:px-3 rounded-lg border border-purple-300 dark:border-purple-800 bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-200 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-all cursor-pointer shadow-2xs font-black text-xs group"
+                      className="flex h-8 items-center gap-1.5 px-2.5 sm:px-3 rounded-lg border border-purple-300 dark:border-purple-800 bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-200 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-all cursor-pointer shadow-2xs font-black text-xs group"
                     >
                       <div className="w-5 h-5 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center">
                         <Wrench size={13} />
                       </div>
-                      <span className="tracking-tight font-black hidden md:inline">Modules</span>
+                      <span className="tracking-tight font-black">Modules</span>
                       <ChevronDown size={14} className="text-purple-600 dark:text-purple-400 group-hover:translate-y-0.5 transition-transform ml-0.5" />
                     </button>
 
@@ -295,21 +376,24 @@ export default function AdminDashboard() {
                       activeTab={activeTab}
                       setActiveTab={setActiveTab}
                       user={user}
+                      onOpenCustomRoster={() => setShowCustomRosterModal(true)}
                       align="right"
                     />
                   </div>
 
                   {/* Refresh Sync Button */}
-                  {activeTab !== 'cms' && <button
-                    type="button"
-                    onClick={() => loadAdminData(true)}
-                    disabled={loading}
-                    title="Sync & Refresh Database Records"
-                    className="h-8 px-2 sm:px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95"
-                  >
-                    <RefreshCw size={13} className={loading ? 'animate-spin text-purple-600' : 'text-slate-500'} />
-                    <span className="hidden sm:inline">Sync</span>
-                  </button>}
+                  {activeTab !== 'cms' && activeTab !== 'customRoster' && activeTab !== 'officialLetter' && activeTab !== 'docStudio' && (
+                    <button
+                      type="button"
+                      onClick={() => loadAdminData(true)}
+                      disabled={loading}
+                      title="Sync & Refresh Database Records"
+                      className="h-8 px-2 sm:px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95"
+                    >
+                      <RefreshCw size={13} className={loading ? 'animate-spin text-purple-600' : 'text-slate-500'} />
+                      <span className="hidden sm:inline">Sync</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -370,6 +454,17 @@ export default function AdminDashboard() {
                   {activeTab === 'idCards' && (
                     <StudentIdCardManager
                       students={applications}
+                      onClose={() => setActiveTab('reports')}
+                    />
+                  )}
+
+                  {/* TAB: Official Documents & Registers Studio (Houses Student Roster, Official Letterhead & Certificates) */}
+                  {(activeTab === 'customRoster' || activeTab === 'officialLetter' || activeTab === 'docStudio') && (
+                    <OfficialDocumentsStudioView
+                      allStudents={applications}
+                      initialSubTab={docStudioSubTab}
+                      activeSubTab={docStudioSubTab}
+                      onSwitchSubTab={setDocStudioSubTab}
                       onClose={() => setActiveTab('reports')}
                     />
                   )}

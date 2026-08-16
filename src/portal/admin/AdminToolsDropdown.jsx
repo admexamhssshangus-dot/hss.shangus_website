@@ -2,11 +2,12 @@ import React, { useRef, useEffect, useState } from 'react';
 import { 
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
-  Wrench, Check, ChevronRight, Zap, PanelsTopLeft
+  Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText
 } from 'lucide-react';
 
 export const ADMIN_TOOL_MODULES = [
   { id: 'reports', label: 'Student Records & Reports', desc: 'Master register, student records and reports', category: 'Records & Registers', icon: BarChart2 },
+  { id: 'docStudio', label: 'Official Documents & Registers Studio', desc: 'Custom student lists, fee sheets & official letterhead writer', category: 'Records & Registers', icon: FileSpreadsheet },
   { id: 'idCards', label: 'Student ID Cards', desc: 'Generate and print student identity cards', category: 'Records & Registers', icon: Contact },
   { id: 'gkTest', label: 'Competitive Exams', desc: 'Exam preparation and registrations', category: 'Records & Registers', icon: ShieldCheck },
 
@@ -37,6 +38,9 @@ export const isUserPermittedForModule = (user, moduleId) => {
   const perms = Array.isArray(user.perms) ? user.perms : [];
   if (perms.includes('*')) return true;
   if (perms.length === 0) return moduleId === 'reports';
+  if (moduleId === 'docStudio') {
+    return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter');
+  }
   return perms.includes(moduleId);
 };
 
@@ -49,6 +53,7 @@ export default function AdminToolsDropdown({
   onOpenAnalytics,
   onOpenDirectEntry,
   onOpenBulkTools,
+  onOpenCustomRoster,
   enableQuickCellEdit,
   setEnableQuickCellEdit,
   align = 'left'
@@ -89,6 +94,7 @@ export default function AdminToolsDropdown({
   return (
     <div
       ref={dropdownRef}
+      onMouseDown={(e) => e.stopPropagation()}
       className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1.5 w-[520px] max-w-[calc(100vw-12px)] max-h-[min(76vh,460px)] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[9999] p-2 space-y-1.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold`}
     >
       {/* Menu Header */}
@@ -162,6 +168,7 @@ export default function AdminToolsDropdown({
                       type="button"
                       onClick={() => {
                         if (setActiveTab) setActiveTab(t.id);
+                        else if (onOpenCustomRoster) onOpenCustomRoster();
                         setIsOpen(false);
                       }}
                       className={`w-full text-left p-2 rounded-xl flex items-start justify-between gap-2 transition-all cursor-pointer font-bold text-[11px] ${
@@ -214,6 +221,20 @@ export default function AdminToolsDropdown({
                     />
                   </label>
                 )}
+
+                {/* Official Documents & Registers Studio Quick Action */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (setActiveTab) setActiveTab('docStudio');
+                    else if (onOpenCustomRoster) onOpenCustomRoster();
+                    setIsOpen(false);
+                  }}
+                  className="w-full text-left p-2 rounded-xl flex items-center gap-2 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-900 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer font-extrabold text-[11px]"
+                >
+                  <FileSpreadsheet size={14} className="text-indigo-600 dark:text-indigo-400" />
+                  <span>Documents & Registers Studio</span>
+                </button>
 
                 {canReports && (
                   <button
