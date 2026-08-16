@@ -20,6 +20,7 @@ import {
   exportCustomRosterExcel,
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
+import { getStudentPhotoUrl } from '../../utils/imageCompressor';
 
 // Standard Database Columns Grouped by Category (Primary core fields vs Advanced extended fields)
 const DB_COLUMN_GROUPS = [
@@ -28,6 +29,7 @@ const DB_COLUMN_GROUPS = [
     icon: UserCheck,
     columns: [
       { key: 'sno', label: 'S.No.', defaultSelected: true, defaultWidthPct: 5, align: 'center', isPrimary: true },
+      { key: 'studentPhoto', label: 'Photo', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: true },
       { key: 'classRollNo', label: 'R.No.', defaultSelected: true, defaultWidthPct: 7, align: 'center', isPrimary: true },
       { key: 'boardRegNo', label: 'Reg. No.', defaultSelected: true, defaultWidthPct: 13, align: 'left', isPrimary: true },
       { key: 'studentName', label: "Student's Name", defaultSelected: true, defaultWidthPct: 18, align: 'left', isPrimary: true },
@@ -48,8 +50,8 @@ const DB_COLUMN_GROUPS = [
     columns: [
       { key: 'className', label: 'Class', defaultSelected: false, defaultWidthPct: 7, align: 'center', isPrimary: true },
       { key: 'session', label: 'Session', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: true },
-      { key: 'stream', label: 'Stream', defaultSelected: true, defaultWidthPct: 10, align: 'center', isPrimary: true },
-      { key: 'subjects', label: 'Subjects', defaultSelected: true, defaultWidthPct: 20, align: 'left', isPrimary: true },
+      { key: 'stream', label: 'Stream', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
+      { key: 'subjects', label: 'Stream & Subjects', defaultSelected: true, defaultWidthPct: 22, align: 'left', isPrimary: true },
       { key: 'status', label: 'Status', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
       { key: 'admissionType', label: 'Adm. Type', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
       { key: 'prevSchool', label: 'Prev. School', defaultSelected: false, defaultWidthPct: 16, align: 'left', isPrimary: false },
@@ -675,6 +677,26 @@ export function extractSubjects(st, useAbbr = true) {
   return uniqueSubjs.join(', ');
 }
 
+export function extractStreamAbbr(st) {
+  const s = extractStream(st);
+  if (!s || s === '—') return '';
+  const lower = s.toLowerCase();
+  if (lower.includes('sci') || lower.includes('med')) return 'S';
+  if (lower.includes('hum') || lower.includes('art')) return 'H';
+  if (lower.includes('com')) return 'C';
+  if (lower.includes('gen')) return 'G';
+  return s.charAt(0).toUpperCase();
+}
+
+export function extractSubjectsWithStream(st, useAbbr = true) {
+  const subjs = extractSubjects(st, useAbbr);
+  const stmAbbr = extractStreamAbbr(st);
+  if (!subjs || subjs === '—') {
+    return stmAbbr ? `(${stmAbbr})` : '—';
+  }
+  return stmAbbr ? `${subjs} (${stmAbbr})` : subjs;
+}
+
 export function extractGender(st) {
   if (!st) return '—';
   const keys = ["Gender", "gender", "Sex", "sex"];
@@ -1223,7 +1245,7 @@ export default function CustomRosterDocumentBuilderView({
   const [isExporting, setIsExporting] = useState(false);
   const [showAllPreviewRows, setShowAllPreviewRows] = useState(false);
   const [draggedColIdx, setDraggedColIdx] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: 'sno', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'classRollNo', direction: 'asc' });
 
   // Open Add Modal
   const handleOpenAddModal = (preset = null) => {
@@ -1316,7 +1338,7 @@ export default function CustomRosterDocumentBuilderView({
     setSortConfig(prev => {
       if (prev.key === columnKey) {
         if (prev.direction === 'asc') return { key: columnKey, direction: 'desc' };
-        return { key: 'sno', direction: 'asc' }; // cycle back to default order
+        return { key: 'classRollNo', direction: 'asc' }; // cycle back to default order by class roll no
       }
       return { key: columnKey, direction: 'asc' };
     });
@@ -1543,6 +1565,7 @@ export default function CustomRosterDocumentBuilderView({
 
       row._originalIdx = idx + 1;
       row['sno'] = idx + 1;
+      row['studentPhoto'] = getStudentPhotoUrl(st);
       row['classRollNo'] = getStudentRollNumber(st) || '—';
       row['boardRegNo'] = extractBoardRegNo(st);
       row['admNo'] = extractAdmNo(st);
@@ -1566,7 +1589,7 @@ export default function CustomRosterDocumentBuilderView({
       row['className'] = extractClass(st) || '—';
       row['session'] = extractSession(st) || '—';
       row['stream'] = extractStream(st);
-      row['subjects'] = extractSubjects(st, useAbbreviatedSubjects);
+      row['subjects'] = extractSubjectsWithStream(st, useAbbreviatedSubjects);
       row['status'] = resolveStudentStatus(st);
       row['admissionType'] = extractAdmissionType(st);
       row['prevSchool'] = extractPrevSchool(st);
@@ -1601,22 +1624,25 @@ export default function CustomRosterDocumentBuilderView({
     if (!sortConfig.key) return rawRows;
 
     const sorted = [...rawRows].sort((a, b) => {
-      const sortKey = sortConfig.key === 'sno' ? '_originalIdx' : sortConfig.key;
+      const sortKey = sortConfig.key || 'classRollNo';
       const va = a[sortKey];
       const vb = b[sortKey];
 
-      if (va === vb) return 0;
-      if (va === '—' || va === '' || va === undefined || va === null) return 1;
-      if (vb === '—' || vb === '' || vb === undefined || vb === null) return -1;
+      const isBlankA = va === '—' || va === '' || va === undefined || va === null || /^(—|-|NA|N\/A|Nill|null|undefined)$/i.test(String(va).trim());
+      const isBlankB = vb === '—' || vb === '' || vb === undefined || vb === null || /^(—|-|NA|N\/A|Nill|null|undefined)$/i.test(String(vb).trim());
+
+      if (isBlankA && isBlankB) return a._originalIdx - b._originalIdx;
+      if (isBlankA) return 1;
+      if (isBlankB) return -1;
 
       // Numeric comparison
       const numA = Number(String(va).replace(/[^0-9.-]/g, ''));
       const numB = Number(String(vb).replace(/[^0-9.-]/g, ''));
 
-      const isAValidNum = !isNaN(numA) && String(va).trim() !== '';
-      const isBValidNum = !isNaN(numB) && String(vb).trim() !== '';
+      const isAValidNum = !isNaN(numA) && String(va).trim() !== '' && /^\d+$/.test(String(va).replace(/[^0-9]/g, ''));
+      const isBValidNum = !isNaN(numB) && String(vb).trim() !== '' && /^\d+$/.test(String(vb).replace(/[^0-9]/g, ''));
 
-      if (isAValidNum && isBValidNum && (sortKey === 'classRollNo' || sortKey === '_originalIdx' || sortKey === 'admNo' || !isNaN(Number(va)))) {
+      if (isAValidNum && isBValidNum && (sortKey === 'classRollNo' || sortKey === 'sno' || sortKey === '_originalIdx' || sortKey === 'admNo' || !isNaN(Number(va)))) {
         return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
       }
 
@@ -2314,7 +2340,30 @@ export default function CustomRosterDocumentBuilderView({
                             }}
                             className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle break-words whitespace-normal overflow-visible"
                           >
-                            {col.key === 'subjects' ? (
+                            {col.key === 'studentPhoto' || col.key === 'photo' ? (
+                              <div className="flex items-center justify-center p-0.5 min-h-[32px]">
+                                {row.studentPhoto ? (
+                                  <img
+                                    src={row.studentPhoto}
+                                    alt={row.studentName || 'Student Photo'}
+                                    className="w-7 h-9 sm:w-8 sm:h-10 object-cover rounded border border-slate-300 shadow-2xs mx-auto bg-slate-100 block"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.style.display = 'none';
+                                      if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  className={`w-7 h-9 sm:w-8 sm:h-10 border border-dashed border-slate-300 rounded bg-slate-50 flex-col items-center justify-center text-[7px] text-slate-400 font-bold mx-auto select-none ${
+                                    row.studentPhoto ? 'hidden' : 'flex'
+                                  }`}
+                                >
+                                  <User size={11} className="text-slate-300 mb-0.5" />
+                                  <span>Photo</span>
+                                </div>
+                              </div>
+                            ) : col.key === 'subjects' ? (
                               <span className="font-mono text-[9px] leading-tight block break-words whitespace-normal">
                                 {row[col.key]}
                               </span>

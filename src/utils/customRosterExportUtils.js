@@ -35,6 +35,16 @@ export function printCustomRosterTable({
       let val = '';
       if (col.key === 'sno') {
         val = idx + 1;
+      } else if (col.key === 'studentPhoto' || col.key === 'photo') {
+        const photoSrc = row.studentPhoto || row[col.key];
+        if (photoSrc && typeof photoSrc === 'string' && photoSrc.trim() && photoSrc !== '—' && photoSrc !== 'N/A') {
+          val = `<div style="display:flex; align-items:center; justify-content:center; padding:1px 0;">
+            <img src="${photoSrc}" alt="Photo" style="width:28px; height:34px; object-fit:cover; border-radius:2px; border:1px solid #9ca3af; display:block;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+            <div style="display:none; width:28px; height:34px; border:1px dashed #cbd5e1; border-radius:2px; align-items:center; justify-content:center; font-size:6pt; color:#9ca3af;">Photo</div>
+          </div>`;
+        } else {
+          val = `<div style="width:28px; height:34px; border:1px dashed #cbd5e1; border-radius:2px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:6pt; color:#9ca3af;">Photo</div>`;
+        }
       } else if (col.key === 'parentage' && row.fatherName && row.fatherName !== '—' && row.motherName && row.motherName !== '—') {
         val = `<div style="line-height:1.15; padding:1px 0;"><div style="font-weight:600;">${row.fatherName} <span style="font-size:7pt; color:#6b7280;">(F)</span></div><div style="font-size:7.5pt; color:#4b5563;">${row.motherName} <span style="font-size:7pt; color:#6b7280;">(M)</span></div></div>`;
       } else if (col.isCustom) {
