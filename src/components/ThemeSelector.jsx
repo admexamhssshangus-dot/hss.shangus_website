@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Palette, Check, Download, X } from 'lucide-react';
 
 const themes = [
@@ -63,10 +64,14 @@ export default function ThemeSelector() {
     setDeferredPrompt(null);
   };
 
+  const location = useLocation();
+  const isHome = location?.pathname === '/' || location?.pathname === '';
   const active = themes.find(t => t.id === currentTheme) || themes[0];
 
   return (
-    <div className="fixed bottom-4 right-4 md:bottom-5 md:right-5 z-[9999] flex flex-col items-end gap-2 print:hidden">
+    <div className={`fixed z-[9999] flex flex-col items-end gap-2 print:hidden transition-all duration-300 ${
+      isHome ? 'bottom-3 right-3 md:bottom-3 md:right-4' : 'bottom-3.5 right-3.5 md:bottom-3.5 md:right-4.5'
+    }`}>
       {/* Panel */}
       {isOpen && (
         <>
@@ -87,7 +92,8 @@ export default function ThemeSelector() {
               </span>
               <button
                 onClick={() => setIsOpen(false)}
-                className="transition-colors cursor-pointer p-0.5"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer hover:bg-slate-500/10"
+                aria-label="Close theme menu"
                 style={{ color: currentTheme === 'light' ? '#64748b' : '#94a3b8' }}
               >
                 <X size={12} />
@@ -159,11 +165,11 @@ export default function ThemeSelector() {
       {/* Floating Toggle Button (Original circular design) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-10 h-10 md:w-11 md:h-11 bg-[#961c14] text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all focus:outline-none z-50 relative cursor-pointer"
+        className="w-10 h-10 bg-[#961c14] text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all focus:outline-none z-50 relative cursor-pointer"
         title="Settings & Themes"
         aria-label="Settings and Themes Menu"
       >
-        <Palette size={18} className={isOpen ? 'rotate-45 transition-transform' : 'transition-transform'} />
+        <Palette size={17} className={isOpen ? 'rotate-45 transition-transform' : 'transition-transform'} />
         {!isInstalled && !isOpen && (
           <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-amber-500 border-2 border-[#961c14] animate-pulse" />
         )}

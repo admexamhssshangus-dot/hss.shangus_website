@@ -7,12 +7,13 @@ import {
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { signOut, signInAnonymously } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, getDoc, addDoc } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
 import { printIndividualAwardRoll, printIndividualWorkSheet } from '../../utils/practicalsPdfGenerator';
+import { loadSiteSettings } from '../../utils/settingsLoader';
 
 // Subject Name to Code mapping (from legacy system)
 const SUBJECT_MAP = [
@@ -806,7 +807,7 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
   );
 }
 
-const CURRENT_SESSION = '2026';
+const CURRENT_SESSION = '2025-26';
 
 export default function PracticalsPage() {
   const { user, onLogout } = useOutletContext();
@@ -820,6 +821,15 @@ export default function PracticalsPage() {
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
   const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
   const [showFilterSettings, setShowFilterSettings] = useState(false);
+  const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
+
+  useEffect(() => {
+    loadSiteSettings().then(cfg => {
+      if (cfg && cfg.practicalsSubmissionOpen !== undefined) {
+        setIsSubmissionOpen(Boolean(cfg.practicalsSubmissionOpen));
+      }
+    }).catch(() => {});
+  }, []);
 
   // Roster & Marks State
   const [loading, setLoading] = useState(false);
@@ -845,37 +855,39 @@ export default function PracticalsPage() {
     incompleteList: []
   });
 
-
-
   // Detect past session years from masterRegisters and practicalsData records
   useEffect(() => {
     const detectPastSessions = async () => {
       try {
         // Canonical sessions always present (matches exact session values stored in Firestore/Excel)
-        const sessionsSet = new Set(['2026', '2024-25 (Mar-Apr)', '2024-25 (Oct-Nov)']);
+        const sessionsSet = new Set(['2025-26', '2024-25 (Oct-Nov)']);
 
         // Helper: Normalize old/ambiguous yearSuffix values from practicalsData into canonical keys
         const normalizeSessionKey = (yr) => {
-          const s = String(yr || '').trim();
-          if (!s) return null;
-          // Old standalone year keys that mapped to academic sessions
-          if (s === '2025') return '2024-25 (Mar-Apr)'; // old Mar-Apr key
-          if (s === '2024') return '2023-24';
-          if (s === '2023') return '2022-23';
-          if (s === '2022') return '2021-22';
-          // Revised → Oct-Nov
-          if (s === '2024-25 (revised)') return '2024-25 (Oct-Nov)';
-          if (s === '2023-24 (revised)') return '2023-24 (Oct-Nov)';
-          // Already canonical or APR/BIAN — keep as-is
-          return s;
+          if (!yr) return null;
+          const s = String(yr).trim().toLowerCase();
+
+          // Reject evaluation types or invalid session strings
+          if (['internal', 'external', 'term end', 'practical', 'all', 'na', 'n/a', 'undefined', 'null'].includes(s)) {
+            return null;
+          }
+
+          if (s === '2026' || s.includes('2025-26') || s.includes('2026')) return '2025-26';
+          if (s === '2025' || s.includes('oct-nov') || s.includes('revised') || s.includes('2024-25-oct-nov')) return '2024-25 (Oct-Nov)';
+          if (s.includes('mar-apr') || s === '2024-25') return '2024-25 (Mar-Apr)';
+          if (s === '2024' || s.includes('2023-24')) return '2023-24';
+          if (s === '2023' || s.includes('2022-23')) return '2022-23';
+
+          if (/^20\d\d/.test(s)) return String(yr).trim();
+          return null;
         };
 
         const snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
         if (snap && !snap.empty) {
           snap.docs.forEach(d => {
             const data = d.data();
-            const yr = data.yearSuffix || data.Session || data.session || d.id.split('_').pop();
-            const canonical = normalizeSessionKey(yr);
+            const rawYr = data.yearSuffix || data.Session || data.session;
+            const canonical = normalizeSessionKey(rawYr);
             if (canonical) sessionsSet.add(canonical);
           });
         }
@@ -901,10 +913,20 @@ export default function PracticalsPage() {
       const targetSubjName = currentSubjectObj.name;
       const docId = `${clsNorm}_${selectedSubject}_${practicalType}_${yearSuffix}`;
 
-      // 1. Fetch saved practical marks (supporting both docId format & legacy doc_1, doc_12, etc.)
+      // 1. Fetch collections concurrently in parallel for high performance
       let savedMarksMap = {};
+      let masterDocs = [];
+      let admDocs = [];
       try {
-        const rawDocs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []);
+        const [rawDocs, masterRes, admRes] = await Promise.all([
+          getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []),
+          getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
+          getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
+        ]);
+
+        masterDocs = Array.isArray(masterRes) ? masterRes : [];
+        admDocs = Array.isArray(admRes) ? admRes : [];
+
         const docItems = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
         docItems.forEach(data => {
           const dId = data.id || data.docId || '';
@@ -915,10 +937,10 @@ export default function PracticalsPage() {
           if (!matchClass && dId !== docId) return;
 
           // Year Match — normalize old yearSuffix keys before comparing
-          // Old key "2025" = canonical "2024-25 (Mar-Apr)", "2024" = "2023-24", etc.
           const normalizeYr = (y) => {
             const s = String(y || '').trim();
-            if (s === '2025') return '2024-25 (Mar-Apr)';
+            if (s === '2026') return '2025-26';
+            if (s === '2025') return '2024-25 (Oct-Nov)';
             if (s === '2024') return '2023-24';
             if (s === '2023') return '2022-23';
             if (s === '2022') return '2021-22';
@@ -929,7 +951,7 @@ export default function PracticalsPage() {
           const docYr = String(data.yearSuffix || data.Session || data.session || dId.split('_').pop() || '').trim();
           const docYrNorm = normalizeYr(docYr);
           const targetNorm = normalizeYr(String(yearSuffix).trim());
-          const matchYr = (docYrNorm === targetNorm) || dId === docId || (yearSuffix === CURRENT_SESSION && (docYr === '2026' || docYrNorm === '2026'));
+          const matchYr = (docYrNorm === targetNorm) || dId === docId || (targetNorm === '2025-26' && (docYr === '2026' || docYrNorm === '2025-26'));
           if (!matchYr) return;
 
           // Subject Match (supporting codes, full names, and Botany/Zoology/Biology splits)
@@ -1008,64 +1030,54 @@ export default function PracticalsPage() {
       if (!uniqueStudents || uniqueStudents.length === 0) {
         let allCandidates = [];
 
-        // A. Primary Database Source: masterRegisters (The main student register database containing thousands of rows)
-        try {
-          const masterDocs = await getCachedCollection('masterRegisters').catch(() => []);
-          if (Array.isArray(masterDocs)) {
-            masterDocs.forEach(d => {
-              const items = d.items || d.data || d.records;
-              const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
-              const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
+        // A. Primary Database Source: masterRegisters
+        if (Array.isArray(masterDocs)) {
+          masterDocs.forEach(d => {
+            const items = d.items || d.data || d.records;
+            const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '';
+            const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
 
-              if (Array.isArray(items)) {
-                items.forEach(it => {
-                  allCandidates.push({
-                    ...it,
-                    session: it.Session || it.session || docSession,
-                    class: it.class || it.Class || it['Class'] || docClass
-                  });
-                });
-              } else {
+            if (Array.isArray(items)) {
+              items.forEach(it => {
                 allCandidates.push({
-                  ...d,
-                  session: d.Session || d.session || docSession,
-                  class: d.class || d.Class || d['Class'] || docClass
+                  ...it,
+                  session: it.Session || it.session || docSession,
+                  class: it.class || it.Class || it['Class'] || docClass
                 });
-              }
-            });
-          }
-        } catch (mErr) {
-          console.warn('masterRegisters lookup note:', mErr);
+              });
+            } else {
+              allCandidates.push({
+                ...d,
+                session: d.Session || d.session || docSession,
+                class: d.class || d.Class || d['Class'] || docClass
+              });
+            }
+          });
         }
 
-        // B. Secondary Database Source: admissions (Active admissions collection)
-        try {
-          const admDocs = await getCachedCollection('admissions').catch(() => []);
-          if (Array.isArray(admDocs)) {
-            admDocs.forEach(d => {
-              const items = d.items || d.students || d.records;
-              const docSession = d.Session || d.session || CURRENT_SESSION;
-              const docClass = d.class || d.Class || d['Admission sought for class'] || '';
+        // B. Secondary Database Source: admissions
+        if (Array.isArray(admDocs)) {
+          admDocs.forEach(d => {
+            const items = d.items || d.students || d.records;
+            const docSession = d.Session || d.session || CURRENT_SESSION;
+            const docClass = d.class || d.Class || d['Admission sought for class'] || '';
 
-              if (Array.isArray(items)) {
-                items.forEach(it => {
-                  allCandidates.push({
-                    ...it,
-                    session: it.Session || it.session || docSession,
-                    class: it.class || it.Class || it['Class'] || docClass
-                  });
-                });
-              } else {
+            if (Array.isArray(items)) {
+              items.forEach(it => {
                 allCandidates.push({
-                  ...d,
-                  session: d.Session || d.session || docSession,
-                  class: d.class || d.Class || docClass
+                  ...it,
+                  session: it.Session || it.session || docSession,
+                  class: it.class || it.Class || it['Class'] || docClass
                 });
-              }
-            });
-          }
-        } catch (admErr) {
-          console.warn('Admissions lookup note:', admErr);
+              });
+            } else {
+              allCandidates.push({
+                ...d,
+                session: d.Session || d.session || docSession,
+                class: d.class || d.Class || docClass
+              });
+            }
+          });
         }
 
         // C. Build Rich Index Maps for Hierarchical Matching
@@ -1510,7 +1522,7 @@ export default function PracticalsPage() {
     setAlert(null);
     try {
       if (!auth.currentUser) {
-        await signInAnonymously(auth);
+        if (!auth.currentUser) throw new Error('Authenticated teacher session required.');
       }
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const docId = `${clsNorm}_${selectedSubject}_${practicalType}_${yearSuffix}`;
@@ -1708,6 +1720,13 @@ export default function PracticalsPage() {
           </div>
 
           {/* Alert Notification */}
+          {!isSubmissionOpen && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-extrabold flex items-center gap-2 text-xs">
+              <ShieldCheck size={16} className="text-amber-600 shrink-0" />
+              <span>Practical Award Submissions are currently <strong>CLOSED</strong> by Administration. Marks entry is view-only.</span>
+            </div>
+          )}
+
           {alert && (
             <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 animate-fadeIn ${
               alert.type === 'error'
@@ -1832,7 +1851,7 @@ export default function PracticalsPage() {
                   >
                     {availableSessions.map(yr => {
                       let label = yr;
-                      if (yr === '2026') label = '2025-26 (Reg. 2026)';
+                      if (yr === '2025-26' || yr === '2026') label = '2025-26 (Reg. 2026)';
                       else if (yr === '2025 APR/BIAN') label = '2025 (Annual Private/Biannual)';
                       else if (yr === '2026 APR/BIAN') label = '2026 (Annual Private/Biannual)';
                       else if (yr === '2024-25 (Mar-Apr)') label = '2024-25 (Mar-Apr)';

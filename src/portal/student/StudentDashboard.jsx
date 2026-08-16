@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { FileText, Download, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Eye, Trash2, Printer } from 'lucide-react';
+import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
-import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
+import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import appsScriptApi from '../../services/appsScriptApi';
+import { withdrawAdmission } from '../../services/admissionWorkflowApi';
 
 export default function StudentDashboard() {
   const { user, onLogout, refreshSession } = useOutletContext();
@@ -27,8 +27,6 @@ export default function StudentDashboard() {
   const [profileResidence, setProfileResidence] = useState(user?.residence || '');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // PDF Generation State
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
 
@@ -40,56 +38,28 @@ export default function StudentDashboard() {
       return;
     }
 
-    const userEmail = (user?.email || '').toLowerCase().trim();
-    const userMobile = String(user?.mobile || '').trim();
-    const userName = (user?.name || '').toLowerCase().trim();
-
-    const findMatch = (allApps) => {
-      if (!allApps || allApps.length === 0) return null;
-      return [...allApps].reverse().find(a => {
-        const appEmail = String(a['Email Address'] || a['Email'] || a.email || a.Email || a.userEmail || '').toLowerCase().trim();
-        const appMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || a.StudentMobile || '').replace(/[^0-9]/g, '');
-        const cleanUserMobile = userMobile.replace(/[^0-9]/g, '');
-
-        const matchesEmail = Boolean(userEmail && appEmail && (appEmail === userEmail));
-        const matchesMobile = Boolean(cleanUserMobile && cleanUserMobile.length >= 10 && appMobile && appMobile.length >= 10 && (appMobile.slice(-10) === cleanUserMobile.slice(-10)));
-
-        // STRICT SECURITY RULE: Match ONLY by authenticated Email or Mobile Number.
-        // NEVER match by name alone, as multiple students can share the same name!
-        return matchesEmail || matchesMobile;
-      });
-    };
-
-    // 1. Instant Sync Cache Check
-    const cachedApps = getCachedCollectionSync('admissions');
-    if (cachedApps) {
-      const match = findMatch(cachedApps);
-      if (match) {
-        setAppData(match);
-        setLoading(false);
-      }
-    }
-
-    // 2. Background Revalidation / Cold Load
+    // Owner-scoped server load; never scan or cache every student's record.
     try {
-      let activeSession = '2025-26';
+      let activeSession = '';
+      let gatewayCfg = { gatewayMode: 'off' };
       try {
         const settingsSnap = await getDoc(doc(db, 'site', 'settings'));
         if (settingsSnap.exists()) {
           const settingsData = settingsSnap.data();
           activeSession = settingsData.session || settingsData.currentSession || activeSession;
+          if (settingsData.paymentGatewayConfig) {
+            gatewayCfg = settingsData.paymentGatewayConfig;
+          }
         }
       } catch (e) {}
       setSessionInfo(activeSession);
+      setGatewayConfig(gatewayCfg);
 
-      const allApps = await getCachedCollection('admissions', false, 30 * 60 * 1000, (freshApps) => {
-        // Silent background update callback
-        const freshMatch = findMatch(freshApps);
-        if (freshMatch) setAppData(freshMatch);
-      });
-
-      const matchedApp = findMatch(allApps);
-      setAppData(matchedApp || null);
+      const applicationResult = await appsScriptApi.getStudentApplication();
+      activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
+      setSessionInfo(activeSession);
+      const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
+      setAppData(applications[0] || null);
     } catch (fsErr) {
       console.error('Firestore student dashboard read error:', fsErr);
       setAlert({ type: 'error', text: 'Error fetching application data from database.' });
@@ -116,11 +86,8 @@ export default function StudentDashboard() {
       if (userEmailClean) {
         const userDocRef = doc(db, 'users', userEmailClean);
         await setDoc(userDocRef, {
-          Name: profileName.trim(),
           name: profileName.trim(),
-          Mobile: profileMobile.trim(),
           mobile: profileMobile.trim(),
-          Residence: profileResidence.trim(),
           residence: profileResidence.trim(),
           updatedAt: new Date().toISOString(),
         }, { merge: true });
@@ -143,20 +110,6 @@ export default function StudentDashboard() {
     generateStudentAdmissionPdf(appData);
   };
 
-  // Handle Download PDF Copy
-  const handleDownloadPdf = async () => {
-    if (!appData) return;
-    setDownloadingPdf(true);
-    try {
-      await downloadStudentAdmissionPdf(appData);
-    } catch (err) {
-      console.error('Download PDF error:', err);
-      setAlert({ type: 'error', text: 'Unable to download PDF. Please try again.' });
-    } finally {
-      setTimeout(() => setDownloadingPdf(false), 500);
-    }
-  };
-
   // Delete Application Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmDeleteChecked, setConfirmDeleteChecked] = useState(false);
@@ -169,32 +122,71 @@ export default function StudentDashboard() {
     setShowDeleteModal(true);
   };
 
-  // Execute Final Permanent Application Deletion
+  // Execute audited application withdrawal.
   const executeDeleteApplication = async () => {
     if (!appData) return;
     const formNo = appData['Form Number'] || appData['FormNo'] || appData['Form No.'] || appData.docId || appData.id;
     setDeleting(true);
     try {
-      const res = await appsScriptApi.deleteStudentApplication(formNo);
+      const res = await withdrawAdmission(appData.docId || appData.id || String(formNo));
       if (res && res.success !== false) {
         setShowDeleteModal(false);
         setAppData(null);
-        try { sessionStorage.removeItem('hss_admission_draft'); } catch(e) {}
-        setAlert({ type: 'success', text: `✨ Application #${formNo} deleted successfully! Form number #${formNo} has been recycled into the system queue. You can now fill out your admission form afresh.` });
+        setAlert({ type: 'success', text: `Application #${formNo} has been withdrawn. Its audit record and form number were retained, and you may now start a new application.` });
       } else {
-        setAlert({ type: 'error', text: res?.error || res?.message || 'Failed to delete application.' });
+        setAlert({ type: 'error', text: res?.error || res?.message || 'Failed to withdraw application.' });
       }
     } catch (err) {
-      setAlert({ type: 'error', text: 'Error deleting application.' });
+      setAlert({ type: 'error', text: err.message || 'Error withdrawing application.' });
     } finally {
       setDeleting(false);
     }
   };
 
+  // Payment Gateway Configuration
+  const [gatewayConfig, setGatewayConfig] = useState({ gatewayMode: 'off' });
+
   const status = appData?.Status || 'No Application';
   const formNum = appData?.['Form Number'] || 'N/A';
   const classSought = appData?.['Admission sought for class'] || 'N/A';
-  const rollNo = appData?.['Class Roll No'] || appData?.RollNo || '';
+  const rollNo = appData?.['Class Roll No'] || appData?.['Class Roll No.'] || appData?.RollNo || '';
+  const isApprovedByRollNo = Boolean(rollNo && String(rollNo).trim() !== '' && rollNo !== '—' && rollNo !== 'N/A');
+
+  // Detect provisional admission
+  const isProvisional =
+    appData?.['Admission Type (Class 11th)'] === 'Provisional' ||
+    appData?.['Admission Type (Class 12th)'] === 'Provisional' ||
+    appData?.['Admission Type'] === 'Provisional' ||
+    appData?.isProvisional === true;
+
+  const editableUntil = appData?.editableUntil;
+  const editableUntilMillis = typeof editableUntil === 'object'
+    ? Number(editableUntil?._seconds || editableUntil?.seconds || 0) * 1000
+    : Date.parse(editableUntil || '') || 0;
+  const isWithin3DaysRejection = status === 'Rejected' && editableUntilMillis > Date.now();
+  const isRejectionExpired = status === 'Rejected' && !isWithin3DaysRejection;
+
+  // Payment Status & Online Payment Toggle
+  const paymentMode = gatewayConfig.gatewayMode || 'off';
+  const isOnlinePaymentEnabled = paymentMode === 'manual' || paymentMode === 'cashfree' || paymentMode === 'razorpay' || paymentMode === 'online';
+  const isPaid = appData?.['Payment Status'] === 'PAID & VERIFIED' || appData?.isPaid === true;
+
+  // Editability Check
+  const isFormEditable = status === 'Draft' || isWithin3DaysRejection;
+
+  const handleConvertToFull = () => {
+    if (!appData) return;
+    try {
+      const upgradeCtx = {
+        formNo: appData['Form Number'] || appData['FormNo'] || appData.docId,
+        classSought: appData['Admission sought for class'],
+        session: appData['Session'] || appData['session'] || '',
+      };
+      sessionStorage.setItem('hss_admission_upgrade', JSON.stringify(upgradeCtx));
+      sessionStorage.setItem('hss_admission_draft', JSON.stringify(appData));
+    } catch (e) {}
+    navigate('/portal/student/application');
+  };
 
   return (
     <div className="w-full min-h-[85vh] py-4 px-3 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
@@ -286,6 +278,7 @@ export default function StudentDashboard() {
         {/* Loading Spinner State */}
         {loading ? (
           <ModernLoader
+            moduleKey="student"
             text="Loading Student Dashboard"
             subtext="Fetching application status, PDF credentials & school session records..."
           />
@@ -310,12 +303,15 @@ export default function StudentDashboard() {
                   ? 'bg-red-500/15 text-red-600 border border-red-500/30'
                   : status === 'Draft'
                   ? 'bg-amber-500/15 text-amber-600 border border-amber-500/30'
+                  : status === 'Withdrawn'
+                  ? 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
                   : 'bg-slate-500/15 text-slate-600 border border-slate-500/30'
               }`}>
                 {status === 'Submitted' && <CheckCircle2 size={13} />}
                 {status === 'Draft' && <Clock size={13} />}
                 {status === 'Rejected' && <AlertCircle size={13} />}
-                <span>{status}</span>
+                {status === 'Withdrawn' && <AlertCircle size={13} />}
+                <span>{status === 'Withdrawn' ? 'ADM. WITHDRAWN' : status}</span>
               </div>
             </div>
 
@@ -342,79 +338,163 @@ export default function StudentDashboard() {
 
                   <div className="p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--bg-page, #f8fafc)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
                     <div className="text-slate-400 text-[10px] uppercase font-bold">Class Roll No</div>
-                    <div className="font-extrabold text-sm mt-0.5 text-teal-600">
-                      {rollNo || 'Pending Assignment'}
+                    <div className={`font-extrabold text-sm mt-0.5 ${isApprovedByRollNo ? 'text-emerald-600 font-black' : 'text-slate-400'}`}>
+                      {isApprovedByRollNo ? `#${rollNo}` : 'Pending Assignment'}
                     </div>
                   </div>
                 </div>
 
+                {/* Convert Provisional → Full Admission Banner */}
+                {isProvisional && (status === 'Submitted' || status === 'Approved') && (
+                  <div className="p-5 rounded-2xl border animate-fadeIn" style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fff7ed 100%)', borderColor: '#f59e0b' }}>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#fef3c7', border: '1.5px solid #f59e0b' }}>
+                          <span style={{ fontSize: 20 }}>📋</span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-extrabold" style={{ color: '#92400e' }}>
+                            🎓 Provisional Admission Active — Convert to Full Admission
+                          </div>
+                          <div className="text-xs mt-1 leading-relaxed" style={{ color: '#b45309' }}>
+                            Got your Class {classSought === '12th' ? '11th' : '10th'} result? Submit your mark sheet and upgrade your provisional admission to a <strong>Full (Regular) Admission</strong> now. Your details are pre-filled.
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={handleConvertToFull}
+                          className="px-5 py-2.5 rounded-xl font-extrabold text-xs text-white flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                          style={{ background: 'linear-gradient(135deg, #d97706, #b45309)' }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                        >
+                          <ArrowRight size={15} />
+                          Convert → Full Admission
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 rounded-xl text-[11px] leading-relaxed" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
+                      ⚠ <strong>Reminder:</strong> Original mark sheet must be submitted within <strong>30 days</strong> of result declaration. Attendance counts only after conversion to Full Admission.
+                    </div>
+                  </div>
+                )}
+
                 {/* Status Guidance Banner */}
                 <div className={`p-4 rounded-2xl text-xs font-medium leading-relaxed ${
-                  status === 'Draft'
+                  status === 'Withdrawn'
+                    ? 'bg-rose-500/10 border border-rose-500/20 text-rose-800 dark:text-rose-300'
+                    : isApprovedByRollNo
+                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
+                    : status === 'Draft'
                     ? 'bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300'
-                    : status === 'Submitted'
-                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                     : status === 'Rejected'
-                    ? 'bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-300'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                    ? isWithin3DaysRejection
+                      ? 'bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-300'
+                      : 'bg-red-900/10 border border-red-900/20 text-red-900 dark:text-red-400'
+                    : 'bg-teal-500/10 border border-teal-500/20 text-teal-800 dark:text-teal-300'
                 }`}>
-                  {status === 'Draft' && (
+                  {status === 'Withdrawn' ? (
+                    <span>⚠️ <strong>Application Online Withdrawn:</strong> Your admission application (Form #{formNum}) was online withdrawn and is under official admin review for data cleanup. You can submit a new online admission application below whenever ready.</span>
+                  ) : isApprovedByRollNo ? (
+                    <span>🎉 <strong>ADMISSION APPROVED!</strong> You have been officially assigned Class Roll No. <strong>#{rollNo}</strong>. Welcome to Govt HSS Shangus!</span>
+                  ) : status === 'Draft' ? (
                     <span>You have a saved draft application. Click <strong>"Continue Application"</strong> below to complete your admission form and submit.</span>
-                  )}
-                  {status === 'Submitted' && (
-                    <span>Your application has been received successfully and is under official verification. You can download a PDF copy of your submitted form below.</span>
-                  )}
-                  {status === 'Rejected' && (
-                    <span>Your application requires corrections. Reason: <strong className="text-red-600 dark:text-red-400">{appData.rejectionReason || appData['Rejection Reason'] || appData['Rejected Reason'] || 'Please contact admission office.'}</strong></span>
+                  ) : status === 'Rejected' ? (
+                    isWithin3DaysRejection ? (
+                      <span>⚠️ Application returned for correction: <strong className="text-red-600 dark:text-red-400">{appData.rejectionReason || appData['Rejection Reason'] || appData['Rejected Reason'] || 'Please check specified details.'}</strong>. You have <strong>3 days</strong> to edit and resubmit your application below. {isPaid ? ' (Your online fee payment remains intact).' : ''}</span>
+                    ) : (
+                      <span>🚫 <strong>Correction Window Expired:</strong> The 3-day window to edit this rejected application has passed. Please contact the admission office to request unlock.</span>
+                    )
+                  ) : (
+                    <span>Your application has been received successfully and is under official verification. Admin approval will be confirmed upon Class Roll No assignment.</span>
                   )}
                 </div>
 
-                {/* Primary Action Buttons */}
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <button
-                    onClick={() => navigate('/portal/student/application')}
-                    className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-teal-600 hover:bg-teal-500 text-white"
-                  >
-                    {status === 'Draft' ? (
-                      <>
-                        <Edit3 size={16} />
-                        <span>Continue Draft Application</span>
-                      </>
-                    ) : status === 'Rejected' || appData.isEditable || appData['Lock Status'] === 'Unlocked' ? (
-                      <>
-                        <Edit3 size={16} />
-                        <span>Edit Application Details</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileText size={16} />
-                        <span>Apply Online / View Form</span>
-                      </>
-                    )}
-                    <ArrowRight size={16} />
-                  </button>
-
-                  {status !== 'Draft' && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleViewPdf}
-                        className="px-4 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all bg-teal-700 text-white hover:bg-teal-600 shadow-sm"
-                        title="Print or Save as PDF via browser dialog"
-                      >
-                        <Printer size={16} />
-                        <span>Print PDF</span>
-                      </button>
+                {/* Online Payment Action Card (If Online Payment Enabled & Fee Pending) */}
+                {isOnlinePaymentEnabled && !isPaid && status !== 'Draft' && status !== 'Withdrawn' && (
+                  <div className="p-4 sm:p-5 rounded-2xl border bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-amber-500/10 border-teal-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fadeIn">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 font-black text-sm text-slate-900 dark:text-white">
+                        <CreditCard size={18} className="text-teal-600" />
+                        <span>Online Admission Fee Payment Required</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">
+                        Complete your online fee payment to verify receipt and unlock your official printable PDF form.
+                      </p>
                     </div>
+                    <button
+                      onClick={() => setAlert({ type: 'info', text: 'Online Fee Payment gateway is ready. Scan QR code or enter transaction ID at counter.' })}
+                      className="px-5 py-2.5 rounded-xl font-extrabold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <CreditCard size={15} /> Pay Fee ({appData['Fee Amount'] || 'Govt Fee'})
+                    </button>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  {status === 'Withdrawn' ? (
+                    <button
+                      onClick={() => {
+                        try {
+                          sessionStorage.removeItem('hss_admission_draft');
+                          sessionStorage.removeItem('hss_admission_upgrade');
+                        } catch (e) {}
+                        navigate('/portal/student/application');
+                      }}
+                      className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-teal-600 hover:bg-teal-500 text-white"
+                    >
+                      <Edit3 size={16} />
+                      <span>Start New Online Admission Application</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  ) : status === 'Draft' ? (
+                    <button
+                      onClick={() => navigate('/portal/student/application')}
+                      className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-teal-600 hover:bg-teal-500 text-white"
+                    >
+                      <Edit3 size={16} />
+                      <span>Continue Draft Application</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  ) : isFormEditable ? (
+                    <button
+                      onClick={() => navigate('/portal/student/application')}
+                      disabled={isRejectionExpired}
+                      className={`px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+                        isRejectionExpired ? 'bg-slate-400 text-slate-200 cursor-not-allowed opacity-60' : 'bg-teal-600 hover:bg-teal-500 text-white'
+                      }`}
+                    >
+                      <Edit3 size={16} />
+                      <span>Edit Application Details (Correction Mode)</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={isProvisional ? () => generateProvisionalAdmissionPdf(appData) : handleViewPdf}
+                      className="px-6 py-3.5 rounded-2xl font-extrabold text-xs border flex items-center gap-2 cursor-pointer transition-all shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                      style={isProvisional
+                        ? { background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#ffffff', borderColor: '#d97706' }
+                        : { background: 'linear-gradient(135deg, #0d9488, #0f766e)', color: '#ffffff', borderColor: '#0f766e' }
+                      }
+                      title={isProvisional ? "Print Provisional Slip" : "Print Admission Form"}
+                    >
+                      <Printer size={17} />
+                      <span>{isProvisional ? 'Print Provisional Slip' : 'Print Admission Form'}</span>
+                    </button>
                   )}
 
-                  <button
-                    onClick={handleDeleteMyApplication}
-                    className="px-4 py-3.5 rounded-2xl font-bold text-xs border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center gap-1.5 cursor-pointer transition-all ml-auto"
-                    title="Delete current form record and apply fresh"
-                  >
-                    <Trash2 size={15} />
-                    <span>Delete & Apply Afresh</span>
-                  </button>
+                  {['Draft', 'Submitted', 'Rejected'].includes(status) && (
+                    <button
+                      onClick={handleDeleteMyApplication}
+                      className="px-4 py-3.5 rounded-2xl font-bold text-xs border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center gap-1.5 cursor-pointer transition-all ml-auto"
+                      title="Withdraw this application and apply afresh"
+                    >
+                      <Trash2 size={15} />
+                      <span>Withdraw & Apply Afresh</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -540,7 +620,7 @@ export default function StudentDashboard() {
                 </div>
                 <div>
                   <h3 className="font-black text-base sm:text-lg text-red-600 dark:text-red-400">
-                    Delete Application & Reset Record?
+                    Withdraw Application & Start Afresh?
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     Warning: This action is permanent and cannot be undone.
@@ -575,20 +655,20 @@ export default function StudentDashboard() {
             {/* Consequences List */}
             <div className="space-y-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 bg-red-500/5 dark:bg-red-500/10 p-4 rounded-2xl border border-red-500/20">
               <div className="font-extrabold text-red-600 dark:text-red-400 border-b pb-1.5 border-red-500/20 flex items-center gap-1.5">
-                <span>⚠️ Consequences of Deletion:</span>
+                <span>Important withdrawal details:</span>
               </div>
               <ul className="space-y-2 pt-1">
                 <li className="flex items-start gap-2">
                   <span className="text-red-500 font-bold">•</span>
-                  <span><strong>Permanent Record Removal:</strong> Your active admission application form record will be completely erased from the school's official database register.</span>
+                  <span><strong>Official withdrawal:</strong> The application will no longer be active, while its audit record remains available to the admission office.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-red-500 font-bold">•</span>
-                  <span><strong>Recycling of Form Number:</strong> Form number <strong>#{appData?.['Form Number'] || appData?.['FormNo']}</strong> will be logged as recycled in the database for future assignment.</span>
+                  <span><strong>Form number retained:</strong> Form number <strong>#{appData?.['Form Number'] || appData?.['FormNo']}</strong> will not be reassigned to another student.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-red-500 font-bold">•</span>
-                  <span><strong>Loss of Submitted Details:</strong> All personal info, subject choices, contact records, and uploaded photo will be deleted.</span>
+                  <span><strong>New application:</strong> You may start a fresh application after withdrawal. Previously submitted details will not be copied automatically.</span>
                 </li>
               </ul>
             </div>
@@ -602,7 +682,7 @@ export default function StudentDashboard() {
                 className="w-4.5 h-4.5 mt-0.5 rounded text-red-600 focus:ring-red-500 cursor-pointer"
               />
               <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 leading-snug">
-                I understand the consequences and confirm that I want to permanently delete my current application and start a fresh form.
+                I understand and confirm that I want to withdraw this application and start a fresh form.
               </span>
             </label>
 
@@ -625,12 +705,12 @@ export default function StudentDashboard() {
                 {deleting ? (
                   <>
                     <RefreshCw size={16} className="animate-spin" />
-                    <span>Deleting Application...</span>
+                    <span>Withdrawing Application...</span>
                   </>
                 ) : (
                   <>
                     <Trash2 size={16} />
-                    <span>Yes, Permanently Delete & Apply Afresh</span>
+                    <span>Yes, Withdraw & Apply Afresh</span>
                   </>
                 )}
               </button>

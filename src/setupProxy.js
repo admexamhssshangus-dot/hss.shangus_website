@@ -1,6 +1,22 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const https = require('https');
+
+// Explicitly load local server environment variables (.env.local & .env)
+try {
+  const dotenv = require('dotenv');
+  if (fs.existsSync(path.resolve(__dirname, '../.env.local'))) {
+    dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+  }
+  dotenv.config({ path: path.resolve(__dirname, '../.env') });
+} catch (e) {}
+
+// Ensure Netlify Functions dependencies (e.g. firebase-admin) are resolvable by local proxy
+const netlifyModulesPath = path.resolve(__dirname, '../netlify/functions/node_modules');
+if (fs.existsSync(netlifyModulesPath) && !module.paths.includes(netlifyModulesPath)) {
+  module.paths.push(netlifyModulesPath);
+}
 
 module.exports = function(app) {
   // Inject basic security headers
@@ -40,6 +56,86 @@ module.exports = function(app) {
     }
     return true;
   }
+
+  // CRA does not execute Netlify Functions. In local development, invoke the
+  // function locally when an unprefixed server credential is present; otherwise
+  // securely relay to the deployed Netlify function. This keeps browser code
+  // free of admin credentials and makes npm start exercise the real write path.
+  app.post('/.netlify/functions/admission-workflow', async (req, res) => {
+    if (!assertLocalhost(req, res)) return;
+
+    try {
+      const dotenv = require('dotenv');
+      if (fs.existsSync(path.resolve(__dirname, '../.env.local'))) {
+        dotenv.config({ path: path.resolve(__dirname, '../.env.local'), override: true });
+      }
+      dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
+    } catch (e) {}
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      try {
+        try { delete require.cache[require.resolve('../netlify/functions/admission-workflow')]; } catch (e) {}
+        const { handler } = require('../netlify/functions/admission-workflow');
+        const reqOrigin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
+        const result = await handler({
+          httpMethod: 'POST',
+          headers: {
+            authorization: req.headers.authorization || '',
+            origin: reqOrigin,
+            'x-firebase-appcheck': req.headers['x-firebase-appcheck'] || '',
+          },
+          body: JSON.stringify(req.body || {}),
+        });
+        Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
+        return res.status(result.statusCode || 500).send(result.body || '');
+      } catch (error) {
+        console.error('Local admission function error:', error.message);
+        return res.status(500).json({ error: 'The local admission service could not start.' });
+      }
+    }
+
+    const configuredUrl = process.env.ADMISSION_WORKFLOW_DEV_URL ||
+      'https://hssshangus.netlify.app/.netlify/functions/admission-workflow';
+    let target;
+    try {
+      target = new URL(configuredUrl);
+      if (target.protocol !== 'https:' || target.pathname !== '/.netlify/functions/admission-workflow') throw new Error('Invalid target');
+    } catch {
+      return res.status(503).json({ error: 'ADMISSION_WORKFLOW_DEV_URL is not configured correctly.' });
+    }
+
+    const body = JSON.stringify(req.body || {});
+    const upstream = https.request({
+      hostname: target.hostname,
+      port: 443,
+      path: target.pathname,
+      method: 'POST',
+      timeout: 20000,
+      headers: {
+        Authorization: req.headers.authorization || '',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        Origin: 'http://localhost:3000',
+        ...(req.headers['x-firebase-appcheck'] ? { 'X-Firebase-AppCheck': req.headers['x-firebase-appcheck'] } : {}),
+      },
+    }, upstreamResponse => {
+      let responseBody = '';
+      upstreamResponse.setEncoding('utf8');
+      upstreamResponse.on('data', chunk => {
+        if (responseBody.length < 1024 * 1024) responseBody += chunk;
+      });
+      upstreamResponse.on('end', () => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.type('application/json').status(upstreamResponse.statusCode || 502).send(responseBody || '{}');
+      });
+    });
+    upstream.on('timeout', () => upstream.destroy(new Error('Admission service timed out')));
+    upstream.on('error', error => {
+      console.error('Admission development relay error:', error.message);
+      if (!res.headersSent) res.status(502).json({ error: 'The deployed admission service is unavailable.' });
+    });
+    upstream.end(body);
+  });
 
   // Ensure slidesDir exists
   function ensureSlidesDir() {
@@ -168,4 +264,3 @@ module.exports = function(app) {
     }
   });
 };
-

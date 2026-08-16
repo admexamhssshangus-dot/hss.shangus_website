@@ -169,13 +169,29 @@ export default function ConfirmDialogModal({
           )}
         </div>
 
+        {/* Sync Progress Animation Bar */}
+        {(loading || isSubmitting) && (
+          <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200/60 dark:border-amber-900/40 space-y-1.5 animate-fadeIn">
+            <div className="flex items-center justify-between text-[11px] font-black text-amber-800 dark:text-amber-300">
+              <span className="flex items-center gap-1.5">
+                <RefreshCw size={12} className="animate-spin text-amber-600 dark:text-amber-400" />
+                Syncing Live Database & Local Cache...
+              </span>
+              <span className="font-mono text-[10px]">Processing</span>
+            </div>
+            <div className="w-full h-1.5 bg-amber-200 dark:bg-amber-900/60 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-500 rounded-full animate-pulse transition-all duration-300 w-full" />
+            </div>
+          </div>
+        )}
+
         {/* Footer Actions */}
         <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-2 flex-shrink-0">
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || isSubmitting}
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+            className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer transition-colors disabled:opacity-50"
           >
             {cancelText}
           </button>

@@ -2,49 +2,30 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { sessionManager } from '../../services/sessionManager';
 
-import { auth, db } from '../../services/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth } from '../../services/firebase';
+import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
 // Always returns { role, name } — never throws
 // ---------------------------------------------------------------------------
-async function resolveUserProfile(email, fallbackRole = 'Student', fallbackName = null) {
-  const cleanEmail = String(email || '').toLowerCase().trim();
-  if (!cleanEmail) return { role: fallbackRole, name: fallbackName || cleanEmail };
-
-  // SuperAdmin shortcut
-  if (cleanEmail === 'adm.exam.hss.shangus@gmail.com') {
-    return { role: 'SuperAdmin', name: fallbackName || 'Sheikh Gulfam (SuperAdmin)' };
+async function resolveUserProfile(firebaseUser) {
+  const tokenResult = await getIdTokenResult(firebaseUser, true);
+  const claims = tokenResult.claims || {};
+  const role = String(claims.role || (claims.admin ? 'Admin' : '')).trim();
+  const normalizedRole = role.toLowerCase();
+  if (!['student', 'user', 'teacher', 'faculty', 'admin', 'superadmin', 'super admin'].includes(normalizedRole)) {
+    throw new Error('No approved portal role is present in this account token.');
   }
-
-  try {
-    // 1. Direct document lookup
-    const snap = await getDoc(doc(db, 'users', cleanEmail));
-    if (snap.exists()) {
-      const d = snap.data();
-      return {
-        role: d.Role || d.role || fallbackRole,
-        name: d.Name || d.name || fallbackName || cleanEmail,
-      };
-    }
-
-    // 2. Query by email field (lowercase)
-    let q = await getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail)));
-    if (q.empty) q = await getDocs(query(collection(db, 'users'), where('Email', '==', cleanEmail)));
-    if (!q.empty) {
-      const d = q.docs[0].data();
-      return {
-        role: d.Role || d.role || fallbackRole,
-        name: d.Name || d.name || fallbackName || cleanEmail,
-      };
-    }
-  } catch (e) {
-    console.warn('resolveUserProfile note:', e);
+  if ((normalizedRole.includes('admin') || ['teacher', 'faculty'].includes(normalizedRole)) && !firebaseUser.emailVerified) {
+    throw new Error('Staff email must be verified.');
   }
-
-  return { role: fallbackRole, name: fallbackName || cleanEmail };
+  return {
+    role,
+    name: firebaseUser.displayName || String(firebaseUser.email || '').split('@')[0],
+    perms: Array.isArray(claims.permissions) ? claims.permissions : [],
+    token: tokenResult.token,
+  };
 }
 
 /**
@@ -62,20 +43,14 @@ export default function PortalLayout() {
   const location = useLocation();
 
   // Public routes that don't require authentication
-  const publicPaths = ['/portal/login', '/portal/register', '/portal/forgot-password'];
+  const publicPaths = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action'];
   const isPublicRoute = publicPaths.some(p => location.pathname.startsWith(p));
 
   // ---------------------------------------------------------------------------
   // Synchronous initial session state — reads from localStorage/sessionStorage
   // immediately (0ms latency, no flicker on page load/refresh)
   // ---------------------------------------------------------------------------
-  const [sessionState, setSessionState] = useState(() => {
-    const session = sessionManager.getSession();
-    if (session && session.token) {
-      return { loading: false, user: session.user, isAuthenticated: true };
-    }
-    return { loading: false, user: null, isAuthenticated: false };
-  });
+  const [sessionState, setSessionState] = useState({ loading: !isPublicRoute, user: null, isAuthenticated: false });
 
   // ---------------------------------------------------------------------------
   // Stable setState — only triggers a re-render when state actually changes.
@@ -121,9 +96,8 @@ export default function PortalLayout() {
   // this is just the one-time route protection gate.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!isPublicRoute && !sessionManager.getSession() && !auth.currentUser) {
-      navigate('/portal/login', { replace: true });
-    }
+    // Firebase's auth-state observer is the authority. Cached browser data is
+    // deliberately never accepted as proof of authentication.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // ← run ONCE on mount only, never on every route change
 
@@ -145,35 +119,37 @@ export default function PortalLayout() {
         // Without this, onAuthStateChanged races with onLoginSuccess causing
         // the dashboard to mount → unmount → remount (visible as flickering).
         const currentPath = window.location.pathname;
-        const isOnPublicPage = ['/portal/login', '/portal/register', '/portal/forgot-password']
+        const isOnPublicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
           .some(p => currentPath.startsWith(p));
         if (isOnPublicPage) return;
 
         const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
-        const currentSession = sessionManager.getSession();
-
         // Session already active for this user — no state update needed
-        if (currentSession?.user && String(currentSession.user.email || '').toLowerCase().trim() === cleanEmail) {
-          return;
-        }
+        // Always refresh and validate token claims; cached roles are display-only.
 
         // No session yet (e.g. page refresh with Firebase still signed in)
-        if (!currentSession?.user) {
-          const { role: userRole, name: displayName } = await resolveUserProfile(
-            cleanEmail,
-            'Student',
-            fbUser.displayName || cleanEmail
-          );
-
+        try {
+          const { role: userRole, name: displayName, perms: userPerms, token: verifiedToken } = await resolveUserProfile(fbUser);
           const defaultSession = {
             email: cleanEmail,
             name: displayName,
             role: userRole,
-            token: await fbUser.getIdToken().catch(() => `fb_token_${Date.now()}`),
+            perms: userPerms,
+            uid: fbUser.uid,
           };
-          sessionManager.saveSession({ user: defaultSession, token: defaultSession.token }, true);
+          sessionManager.saveSession({ user: defaultSession, token: verifiedToken }, true);
           setSessionStateStable({ loading: false, user: defaultSession, isAuthenticated: true });
+        } catch (error) {
+          sessionManager.clearSession();
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+          navigate('/portal/login', { replace: true, state: { message: error.message } });
         }
+      } else {
+        sessionManager.clearSession();
+        setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+        const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+          .some(p => window.location.pathname.startsWith(p));
+        if (!publicPage) navigate('/portal/login', { replace: true });
       }
     });
     return () => unsubscribe();
@@ -187,7 +163,9 @@ export default function PortalLayout() {
     const handleAuthChanged = (e) => {
       if (e.detail?.loggedIn === false) {
         setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
-        navigate('/portal/login', { replace: true });
+        const publicPage = ['/portal/login', '/portal/register', '/portal/forgot-password', '/portal/auth/action']
+          .some((path) => window.location.pathname.startsWith(path));
+        if (!publicPage) navigate('/portal/login', { replace: true });
       }
     };
     window.addEventListener('hss-auth-changed', handleAuthChanged);
@@ -266,7 +244,7 @@ export default function PortalLayout() {
   // ---------------------------------------------------------------------------
   if (sessionState.loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-teal-50/50 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 font-sans">
+      <div className="portal-shell min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-teal-50/50 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 font-sans" role="status" aria-live="polite">
         <div className="relative w-20 h-20 mb-4 flex items-center justify-center">
           <div className="absolute -inset-2 rounded-full border-3 border-transparent border-t-teal-600 border-r-cyan-600 border-b-purple-600 animate-spin" />
           <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-lg p-1 border border-slate-200 dark:border-slate-800">
@@ -290,12 +268,14 @@ export default function PortalLayout() {
   // Render child routes with context
   // ---------------------------------------------------------------------------
   return (
-    <Outlet context={{
-      user: sessionState.user,
-      isAuthenticated: sessionState.isAuthenticated,
-      onLoginSuccess: handleLoginSuccess,
-      onLogout: handleLogout,
-      refreshSession,
-    }} />
+    <div className="portal-shell contents">
+      <Outlet context={{
+        user: sessionState.user,
+        isAuthenticated: sessionState.isAuthenticated,
+        onLoginSuccess: handleLoginSuccess,
+        onLogout: handleLogout,
+        refreshSession,
+      }} />
+    </div>
   );
 }

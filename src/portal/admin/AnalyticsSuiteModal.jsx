@@ -143,6 +143,23 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
 
   const hasSetInitialSession = useRef(false);
 
+  // Dynamic Column Visibility based on active filter selections
+  const isAllStatusesSelected = selectedStatuses.length === 0;
+  const isNoneStatusesSelected = selectedStatuses.includes('__NONE__');
+  const showApprovedCol = !isNoneStatusesSelected && (isAllStatusesSelected || selectedStatuses.includes('Approved'));
+  const showSubmittedCol = !isNoneStatusesSelected && (isAllStatusesSelected || selectedStatuses.includes('Submitted'));
+  const showDraftCol = !isNoneStatusesSelected && (isAllStatusesSelected || selectedStatuses.includes('Draft'));
+
+  const isAllGendersSelected = selectedGenders.length === 0;
+  const isNoneGendersSelected = selectedGenders.includes('__NONE__');
+  const showMaleCol = !isNoneGendersSelected && (isAllGendersSelected || selectedGenders.some(g => String(g).toLowerCase().startsWith('m')));
+  const showFemaleCol = !isNoneGendersSelected && (isAllGendersSelected || selectedGenders.some(g => String(g).toLowerCase().startsWith('f')));
+
+  const enrollmentColsCount = 2 + (showApprovedCol ? 1 : 0) + (showSubmittedCol ? 1 : 0) + (showDraftCol ? 1 : 0) + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 1;
+  const rollStmtColsCount = 3 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
+  const streamGenderColsCount = 2 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
+  const subjectColsCount = 3 + (showMaleCol ? 1 : 0) + (showFemaleCol ? 1 : 0) + 2;
+
   // Helper to test if a field value is a valid unique identifier (excluding placeholders like '0', '1', 'n/a', 'none')
   // Helper to extract assigned Class Roll No cell value across all possible database keys
   const getAssignedRollNo = (s) => {
@@ -1614,8 +1631,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                   <th className="p-3 w-12 text-center">#</th>
                   <th className="p-3">Subject Name</th>
                   <th className="p-3">Dominant Stream</th>
-                  <th className="p-3 text-center">Male (M)</th>
-                  <th className="p-3 text-center">Female (F)</th>
+                  {showMaleCol && <th className="p-3 text-center">Male (M)</th>}
+                  {showFemaleCol && <th className="p-3 text-center">Female (F)</th>}
                   <th className="p-3 text-center">Total Enrolled</th>
                   <th className="p-3 text-right">% Class Share</th>
                 </tr>
@@ -1624,9 +1641,9 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
               {analysisMode === 'stream_gender' && (
                 <tr>
                   <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3">Stream Category</th>
-                  <th className="p-3 text-center">Male Candidates</th>
-                  <th className="p-3 text-center">Female Candidates</th>
+                  <th className="p-3">Stream Bracket</th>
+                  {showMaleCol && <th className="p-3 text-center">Male Candidates</th>}
+                  {showFemaleCol && <th className="p-3 text-center">Female Candidates</th>}
                   <th className="p-3 text-center">Total Strength</th>
                   <th className="p-3 text-right">Gender Split (M / F)</th>
                 </tr>
@@ -1637,8 +1654,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                   <th className="p-3 w-12 text-center">#</th>
                   <th className="p-3">Class & Stream Bracket</th>
                   <th className="p-3">Assigned Roll Range</th>
-                  <th className="p-3 text-center">Male (M)</th>
-                  <th className="p-3 text-center">Female (F)</th>
+                  {showMaleCol && <th className="p-3 text-center">Male (M)</th>}
+                  {showFemaleCol && <th className="p-3 text-center">Female (F)</th>}
                   <th className="p-3 text-center">Board Reg. Count</th>
                   <th className="p-3 text-right">Total Candidates</th>
                 </tr>
@@ -1648,11 +1665,11 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                 <tr>
                   <th className="p-3 w-12 text-center">#</th>
                   <th className="p-3">Class Bracket</th>
-                  <th className="p-3 text-center">Approved</th>
-                  <th className="p-3 text-center">Submitted</th>
-                  <th className="p-3 text-center">Draft</th>
-                  <th className="p-3 text-center">Male (M)</th>
-                  <th className="p-3 text-center">Female (F)</th>
+                  {showApprovedCol && <th className="p-3 text-center">Approved</th>}
+                  {showSubmittedCol && <th className="p-3 text-center">Submitted</th>}
+                  {showDraftCol && <th className="p-3 text-center">Draft</th>}
+                  {showMaleCol && <th className="p-3 text-center">Male (M)</th>}
+                  {showFemaleCol && <th className="p-3 text-center">Female (F)</th>}
                   <th className="p-3 text-right">Total Strength</th>
                 </tr>
               )}
@@ -1671,8 +1688,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                           {sub.stream}
                         </span>
                       </td>
-                      <td className="p-3 text-center text-sky-600 font-black">{sub.male}</td>
-                      <td className="p-3 text-center text-rose-600 font-black">{sub.female}</td>
+                      {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{sub.male}</td>}
+                      {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{sub.female}</td>}
                       <td className="p-3 text-center font-black text-slate-900 dark:text-white">{sub.total}</td>
                       <td className="p-3 text-right font-black text-indigo-600 dark:text-indigo-400">{share}%</td>
                     </tr>
@@ -1687,8 +1704,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                     <tr key={stm.name} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
                       <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
                       <td className="p-3 font-black text-slate-900 dark:text-white">{stm.name}</td>
-                      <td className="p-3 text-center text-sky-600 font-black">{stm.male}</td>
-                      <td className="p-3 text-center text-rose-600 font-black">{stm.female}</td>
+                      {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{stm.male}</td>}
+                      {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{stm.female}</td>}
                       <td className="p-3 text-center font-black text-slate-900 dark:text-white">{stm.total}</td>
                       <td className="p-3 text-right font-black">
                         <span className="text-sky-600">{mPct}% M</span> / <span className="text-rose-600">{fPct}% F</span>
@@ -1705,8 +1722,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                         <td className="p-3 text-center text-slate-400 font-mono">{r.globalIdx}</td>
                         <td className="p-3 font-black text-slate-900 dark:text-white">{r.key}</td>
                         <td className="p-3 font-mono font-bold text-amber-700 dark:text-amber-400">{r.rollRange}</td>
-                        <td className="p-3 text-center text-sky-600 font-black">{r.male}</td>
-                        <td className="p-3 text-center text-rose-600 font-black">{r.female}</td>
+                        {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{r.male}</td>}
+                        {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{r.female}</td>}
                         <td className="p-3 text-center font-bold">{r.regCount}</td>
                         <td className="p-3 text-right font-black text-slate-900 dark:text-white">{r.total}</td>
                       </tr>
@@ -1720,8 +1737,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                           Combined {grp.className} Class Total ({grp.items.length} Streams)
                         </td>
                         <td className="p-2.5 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold">All Streams Combined</td>
-                        <td className="p-2.5 text-center text-sky-700 dark:text-sky-400 font-black">{grp.male}</td>
-                        <td className="p-2.5 text-center text-rose-700 dark:text-rose-400 font-black">{grp.female}</td>
+                        {showMaleCol && <td className="p-2.5 text-center text-sky-700 dark:text-sky-400 font-black">{grp.male}</td>}
+                        {showFemaleCol && <td className="p-2.5 text-center text-rose-700 dark:text-rose-400 font-black">{grp.female}</td>}
                         <td className="p-2.5 text-center font-black">{grp.regCount}</td>
                         <td className="p-2.5 text-right font-black text-indigo-900 dark:text-indigo-200">{grp.total}</td>
                       </tr>
@@ -1734,18 +1751,22 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                   <tr key={c.className} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
                     <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
                     <td className="p-3 font-black text-slate-900 dark:text-white">Class {c.className}</td>
-                    <td className="p-3 text-center text-emerald-600 font-black">{c.approved}</td>
-                    <td className="p-3 text-center text-amber-600 font-black">{c.submitted}</td>
-                    <td className="p-3 text-center text-slate-500 font-black">{c.draft}</td>
-                    <td className="p-3 text-center text-sky-600 font-black">{c.male}</td>
-                    <td className="p-3 text-center text-rose-600 font-black">{c.female}</td>
+                    {showApprovedCol && <td className="p-3 text-center text-emerald-600 font-black">{c.approved}</td>}
+                    {showSubmittedCol && <td className="p-3 text-center text-amber-600 font-black">{c.submitted}</td>}
+                    {showDraftCol && <td className="p-3 text-center text-slate-500 font-black">{c.draft}</td>}
+                    {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{c.male}</td>}
+                    {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{c.female}</td>}
                     <td className="p-3 text-right font-black text-slate-900 dark:text-white">{c.total}</td>
                   </tr>
                 ))}
 
               {stats.totalStudents === 0 && (
                 <tr>
-                  <td colSpan="8" className="p-8 text-center text-slate-500 font-bold">
+                  <td colSpan={
+                    analysisMode === 'enrollment' ? enrollmentColsCount :
+                    analysisMode === 'roll_stmt' ? rollStmtColsCount :
+                    analysisMode === 'stream_gender' ? streamGenderColsCount : subjectColsCount
+                  } className="p-8 text-center text-slate-500 font-bold">
                     No student records match the active filter criteria.
                   </td>
                 </tr>
@@ -1757,11 +1778,11 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                 {analysisMode === 'enrollment' && (
                   <tr>
                     <td colSpan="2" className="p-3 uppercase">Summary Totals</td>
-                    <td className="p-3 text-center text-emerald-600 font-black">{stats.approvedCount}</td>
-                    <td className="p-3 text-center text-amber-600 font-black">{stats.submittedCount}</td>
-                    <td className="p-3 text-center text-slate-500 font-black">{stats.draftCount}</td>
-                    <td className="p-3 text-center text-sky-600 font-black">{stats.maleCount}</td>
-                    <td className="p-3 text-center text-rose-600 font-black">{stats.femaleCount}</td>
+                    {showApprovedCol && <td className="p-3 text-center text-emerald-600 font-black">{stats.approvedCount}</td>}
+                    {showSubmittedCol && <td className="p-3 text-center text-amber-600 font-black">{stats.submittedCount}</td>}
+                    {showDraftCol && <td className="p-3 text-center text-slate-500 font-black">{stats.draftCount}</td>}
+                    {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{stats.femaleCount}</td>}
                     <td className="p-3 text-right font-black text-slate-900 dark:text-white">{stats.totalStudents}</td>
                   </tr>
                 )}
@@ -1769,8 +1790,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                 {analysisMode === 'subject' && (
                   <tr>
                     <td colSpan="3" className="p-3 uppercase">Summary Totals</td>
-                    <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>
-                    <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>
+                    {showMaleCol && <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>}
                     <td className="p-3 text-center font-black">{stats.totalStudents}</td>
                     <td className="p-3 text-right font-black">100%</td>
                   </tr>
@@ -1779,8 +1800,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                 {analysisMode === 'stream_gender' && (
                   <tr>
                     <td colSpan="2" className="p-3 uppercase">Summary Totals</td>
-                    <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>
-                    <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>
+                    {showMaleCol && <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>}
                     <td className="p-3 text-center font-black">{stats.totalStudents}</td>
                     <td className="p-3 text-right font-black">100%</td>
                   </tr>
@@ -1789,8 +1810,8 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                 {analysisMode === 'roll_stmt' && (
                   <tr>
                     <td colSpan="3" className="p-3 uppercase">Summary Totals</td>
-                    <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>
-                    <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>
+                    {showMaleCol && <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>}
                     <td className="p-3 text-center font-black">{stats.regCount}</td>
                     <td className="p-3 text-right font-black text-slate-900 dark:text-white">{stats.totalStudents}</td>
                   </tr>

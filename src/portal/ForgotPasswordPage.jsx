@@ -2,9 +2,15 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, ArrowLeft, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import SEO from '../components/SEO';
-import { db, auth } from '../services/firebase';
+import { auth } from '../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+
+function maskEmailAddress(value) {
+  const [localPart, domain] = String(value || '').trim().split('@');
+  if (!localPart || !domain) return 'your registered email';
+  const visible = localPart.length <= 2 ? localPart.slice(0, 1) : localPart.slice(0, 2);
+  return `${visible}${'•'.repeat(Math.min(5, Math.max(3, localPart.length - visible.length)))}@${domain}`;
+}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -29,19 +35,13 @@ export default function ForgotPasswordPage() {
       const emailClean = email.trim().toLowerCase();
 
       // Verify email exists in Firestore
-      const userRef = doc(db, 'users', emailClean);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists() && emailClean !== 'adm.exam.hss.shangus@gmail.com') {
-        setAlert({ type: 'error', text: 'No account found with this email address. Please check the email or register a new account.' });
-        setIsLoading(false);
-        return;
-      }
-
       // Send Firebase Auth password reset email — NO plain-text passwords stored
-      await sendPasswordResetEmail(auth, emailClean);
+      await sendPasswordResetEmail(auth, emailClean, {
+        url: `${window.location.origin}/portal/login`,
+        handleCodeInApp: false,
+      });
       setEmailSent(true);
-      setAlert({ type: 'success', text: 'A password reset link has been sent to your email. Please check your inbox or spam folder.' });
+      setAlert({ type: 'success', text: 'If an account exists, a password reset link has been sent. Please check your inbox or spam folder.' });
     } catch (err) {
       console.error('Password reset error:', err);
       if (err.code === 'auth/user-not-found') {
@@ -57,16 +57,16 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="w-full flex-1 flex flex-col items-center justify-center py-10 px-4 sm:px-6" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
+    <div className="portal-auth-page w-full flex-1 flex flex-col items-center justify-center py-6 sm:py-10 px-4 sm:px-6" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
       <SEO
         title="Forgot Password | HSS Shangus Portal"
         description="Reset your student or faculty account password."
         path="/portal/forgot-password"
       />
 
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md space-y-4 sm:space-y-6">
         {/* Top Link */}
-        <div className="flex items-center">
+        {!emailSent && <div className="flex items-center">
           <Link
             to="/portal/login"
             className="inline-flex items-center gap-1.5 text-xs font-bold hover:underline"
@@ -74,10 +74,10 @@ export default function ForgotPasswordPage() {
           >
             <ArrowLeft size={16} /> Back to Login
           </Link>
-        </div>
+        </div>}
 
         {/* Card */}
-        <div className="rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+        <div className="rounded-3xl p-5 sm:p-8 border shadow-xl space-y-5 sm:space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           {/* Header */}
           <div className="text-center space-y-2">
             <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-teal-500/10 text-teal-600 shadow-sm">
@@ -92,8 +92,8 @@ export default function ForgotPasswordPage() {
           </div>
 
           {/* Alert */}
-          {alert && (
-            <div className={`p-4 rounded-2xl text-xs font-semibold flex items-start gap-2.5 animate-fadeIn ${
+          {alert && !emailSent && (
+            <div role="alert" aria-live="polite" className={`p-4 rounded-2xl text-xs font-semibold flex items-start gap-2.5 animate-fadeIn ${
               alert.type === 'error'
                 ? 'bg-red-500/10 border border-red-500/30 text-red-600'
                 : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600'
@@ -105,18 +105,21 @@ export default function ForgotPasswordPage() {
 
           {/* Email sent success state */}
           {emailSent ? (
-            <div className="space-y-4 text-center">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
-                <Mail size={32} className="text-emerald-500" />
+            <div className="space-y-4 text-center" role="status" aria-live="polite">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 ring-8 ring-emerald-500/5 flex items-center justify-center mx-auto">
+                <Mail size={28} className="text-emerald-500" />
               </div>
               <div className="space-y-1.5">
                 <p className="text-sm font-bold" style={{ color: 'var(--text-main, #0f172a)' }}>
-                  Reset Link Sent!
+                  Check your inbox
                 </p>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  We've sent a password reset link to <strong className="text-teal-600">{email}</strong>. 
-                  Click the link in the email to set a new password. Please also check your <strong>spam folder</strong>.
+                  If an account exists, Firebase sent a reset link to <strong className="text-teal-600">{maskEmailAddress(email)}</strong>.
+                  Check your inbox and spam folder, then choose a new password.
                 </p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-[11px] leading-relaxed text-amber-800">
+                <strong>Security reminder:</strong> never share the reset link or verification code with anyone, including school staff.
               </div>
               <div className="flex flex-col gap-2 pt-2">
                 <button
@@ -126,7 +129,7 @@ export default function ForgotPasswordPage() {
                   style={{ color: 'var(--text-main, #334155)' }}
                 >
                   <RefreshCw size={14} className="inline mr-1.5" />
-                  Send Again / Try Different Email
+                  Use a different email
                 </button>
                 <Link
                   to="/portal/login"
@@ -140,17 +143,20 @@ export default function ForgotPasswordPage() {
           ) : (
             /* Email input form */
             <form onSubmit={handleSendResetEmail} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Registered Email Address *</label>
+              <div className="space-y-1.5">
+                <label htmlFor="reset-email" className="text-xs font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Registered Email Address *</label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3.5 top-3 text-slate-400" />
                   <input
+                    id="reset-email"
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
                     placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
                     style={{ backgroundColor: 'var(--bg-page, #f8fafc)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
                   />
                 </div>
@@ -162,7 +168,7 @@ export default function ForgotPasswordPage() {
                 className="w-full py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
               >
                 {isLoading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
-                <span>Send Password Reset Link</span>
+                <span>{isLoading ? 'Sending secure link…' : 'Send Password Reset Link'}</span>
               </button>
             </form>
           )}

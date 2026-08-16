@@ -74,6 +74,9 @@ function saveSession(data, keepLoggedIn = true) {
       storage.removeItem('hss_explicit_logout');
     } catch (_) {}
   });
+  // Do not persist bearer tokens across browser restarts. Firebase Auth owns
+  // refresh-token persistence and refreshes short-lived ID tokens safely.
+  try { localStorage.removeItem(STORAGE_KEYS.TOKEN); } catch (_) {}
 
   // Auth signal in localStorage so Navbar's storage-event listener gets notified
   localStorage.setItem('hss_auth_state', JSON.stringify({ role: data.user?.role, name: data.user?.name, ts: Date.now() }));
@@ -91,7 +94,7 @@ function saveSession(data, keepLoggedIn = true) {
  */
 function getSession() {
   // Try sessionStorage first, then fallback to localStorage
-  let token = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
+  let token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
   let userRaw = sessionStorage.getItem(STORAGE_KEYS.USER) || localStorage.getItem(STORAGE_KEYS.USER);
 
   if (!token || !userRaw) return null;

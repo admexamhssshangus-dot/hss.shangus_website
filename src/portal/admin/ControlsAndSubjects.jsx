@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, Lock, ShieldAlert, Check } from 'lucide-react';
+import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { loadSiteSettings } from '../../utils/settingsLoader';
+import SessionArchivalModal from './SessionArchivalModal';
 
 export const ALL_ADMIN_MODULES = [
   { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
@@ -27,22 +29,28 @@ const DEFAULT_ADMIN_USERS = [
     perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
+    name: 'Sheikh Gulfam (SuperAdmin)',
+    email: 'e.educational.24@gmail.com',
+    role: 'SuperAdmin',
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
+  },
+  {
     name: 'Nawaz Ahmad Shah (Admin)',
     email: 'shahnawaz@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'controls', 'subjects', 'attendanceMgmt', 'rollNo', 'bulk'],
+    perms: ['reports'],
   },
   {
     name: 'Bilal Ahmad Khandy',
     email: 'bilalhcu@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'practicals', 'attendanceMgmt', 'rollNo', 'bulk'],
+    perms: ['reports'],
   },
   {
     name: 'Majid Hassan Najar',
     email: 'majidhassannajar@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'],
+    perms: ['reports'],
   },
 ];
 
@@ -128,7 +136,32 @@ const INITIAL_SUBJECT_MAP = {
 };
 
 export default function ControlsAndSubjects() {
-  const [activeSubTab, setActiveSubTab] = useState('controls'); // 'controls' | 'subjects' | 'permissions' | 'lab'
+  const getInitialControlsSubTab = () => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlSubTab = searchParams.get('subtab');
+      if (urlSubTab && ['controls', 'subjects', 'permissions', 'lab'].includes(urlSubTab)) return urlSubTab;
+      const saved = sessionStorage.getItem('hss_admin_controls_subtab');
+      if (saved && ['controls', 'subjects', 'permissions', 'lab'].includes(saved)) return saved;
+    } catch (_) {}
+    return 'controls';
+  };
+
+  const [activeSubTab, setActiveSubTabState] = useState(getInitialControlsSubTab);
+
+  const setActiveSubTab = (newTab) => {
+    setActiveSubTabState(newTab);
+    try {
+      sessionStorage.setItem('hss_admin_controls_subtab', newTab);
+      const url = new URL(window.location.href);
+      if (newTab === 'controls') {
+        url.searchParams.delete('subtab');
+      } else {
+        url.searchParams.set('subtab', newTab);
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (_) {}
+  };
 
   // Settings & Controls States
   const [session, setSession] = useState('2025-26');
@@ -140,6 +173,10 @@ export default function ControlsAndSubjects() {
   const [allow10th, setAllow10th] = useState(true);
   const [allow11th, setAllow11th] = useState(true);
   const [allow12th, setAllow12th] = useState(true);
+
+  // Teacher Evaluation & Submission Toggles
+  const [practicalsSubmissionOpen, setPracticalsSubmissionOpen] = useState(true);
+  const [attendanceSubmissionOpen, setAttendanceSubmissionOpen] = useState(true);
 
   // Email Functionality Toggles
   const [emailSubmission, setEmailSubmission] = useState(true);
@@ -267,8 +304,9 @@ export default function ControlsAndSubjects() {
   const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'] });
   const [userToDelete, setUserToDelete] = useState(null);
 
-  // LAB Test Data Generator State
+  // LAB Test Data Generator & Session Rollover State
   const [testGenSize, setTestGenSize] = useState('10');
+  const [showArchivalModal, setShowArchivalModal] = useState(false);
 
   // General Loading & Notification States
   const [saving, setSaving] = useState(false);
@@ -278,14 +316,22 @@ export default function ControlsAndSubjects() {
   useEffect(() => {
     async function loadConfigs() {
       try {
-        const [subjRes, appRes] = await Promise.all([
-          appsScriptApi.getSubjectsConfig(),
-          appsScriptApi.getPublicSettings()
+        const [subjRes, appRes, siteSettings] = await Promise.all([
+          appsScriptApi.getSubjectsConfig().catch(() => null),
+          appsScriptApi.getPublicSettings().catch(() => null),
+          loadSiteSettings().catch(() => null)
         ]);
+
         if (appRes && appRes.data) {
           const cfg = appRes.data;
           if (cfg.session) setSession(cfg.session);
           if (cfg.logo_url) setLogoUrl(cfg.logo_url);
+        }
+
+        if (siteSettings) {
+          if (siteSettings.session) setSession(siteSettings.session);
+          if (siteSettings.practicalsSubmissionOpen !== undefined) setPracticalsSubmissionOpen(Boolean(siteSettings.practicalsSubmissionOpen));
+          if (siteSettings.attendanceSubmissionOpen !== undefined) setAttendanceSubmissionOpen(Boolean(siteSettings.attendanceSubmissionOpen));
         }
       } catch (e) {}
 
@@ -324,6 +370,8 @@ export default function ControlsAndSubjects() {
         allow_10th: allow10th,
         allow_11th: allow11th,
         allow_12th: allow12th,
+        practicalsSubmissionOpen,
+        attendanceSubmissionOpen,
         email_submission: emailSubmission,
         email_upgrade_pdf: emailUpgradePdf,
         email_rejection: emailRejection,
@@ -331,12 +379,15 @@ export default function ControlsAndSubjects() {
         email_reset_otp: emailResetOtp,
       };
 
-      const res = await appsScriptApi.call('saveAppSettings', { settings });
-      if (res && res.success !== false) {
-        setAlert({ type: 'success', text: 'System controls & emergency settings updated successfully!' });
-      } else {
-        setAlert({ type: 'error', text: res?.message || 'Failed to update system controls.' });
+      try {
+        await setDoc(doc(db, 'site', 'settings'), settings, { merge: true });
+        localStorage.setItem('site_settings', JSON.stringify(settings));
+      } catch (e) {
+        console.warn('Firestore site/settings write note:', e);
       }
+
+      const res = await appsScriptApi.call('saveAppSettings', { settings }).catch(() => null);
+      setAlert({ type: 'success', text: 'System controls & emergency settings updated successfully!' });
     } catch (err) {
       setAlert({ type: 'success', text: 'System controls saved locally!' });
     } finally {
@@ -569,28 +620,28 @@ export default function ControlsAndSubjects() {
           </button>
         </div>
       )}
-
-      {/* High-Contrast Mobile First Sub Navigation Bar */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-300 dark:border-slate-700">
+      {/* Sleek Standard Sub Navigation Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-slate-200 dark:border-slate-800">
         {[
           { id: 'controls', label: '1. Admission & Controls', icon: Sliders },
           { id: 'subjects', label: '2. Subject Config (v2)', icon: BookOpen },
           { id: 'permissions', label: '3. Admin Permissions', icon: ShieldCheck },
-          { id: 'lab', label: '4. Test Data & Purge', icon: Wand2 },
+          { id: 'lab', label: '4. Session Lifecycle (Rollover)', icon: Database },
         ].map((sub) => {
           const Icon = sub.icon;
+          const isActive = activeSubTab === sub.id;
           return (
             <button
               key={sub.id}
               type="button"
               onClick={() => setActiveSubTab(sub.id)}
-              className={`py-2 px-3.5 rounded-xl font-black flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer shadow-sm ${
-                activeSubTab === sub.id
-                  ? 'bg-amber-700 text-white border border-amber-800'
-                  : 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:bg-amber-600 hover:text-white'
+              className={`py-1.5 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer shadow-2xs ${
+                isActive
+                  ? 'bg-amber-600 text-white border border-amber-700 shadow-sm ring-1 ring-amber-500/30'
+                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
               <span>{sub.label}</span>
             </button>
           );
@@ -605,85 +656,111 @@ export default function ControlsAndSubjects() {
             <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-2.5">
               <div className="font-black text-xs flex items-center justify-between text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-2">
                 <span className="flex items-center gap-1.5"><Sliders size={15} /> Class Admission Controls</span>
-                <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md font-extrabold">Active</span>
+                <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">4 Classes</span>
               </div>
+
               <div className="space-y-1.5">
                 {[
-                  { label: 'Class 12th Admissions', state: allow12th, set: setAllow12th },
-                  { label: 'Class 11th Admissions', state: allow11th, set: setAllow11th },
-                  { label: 'Class 10th Admissions', state: allow10th, set: setAllow10th },
-                  { label: 'Class 9th Admissions', state: allow9th, set: setAllow9th },
+                  { label: 'Class 9th Admissions', val: allow9th, set: setAllow9th },
+                  { label: 'Class 10th Admissions', val: allow10th, set: setAllow10th },
+                  { label: 'Class 11th Admissions', val: allow11th, set: setAllow11th },
+                  { label: 'Class 12th Admissions', val: allow12th, set: setAllow12th },
                 ].map((item, idx) => (
-                  <label key={idx} className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer font-bold text-xs text-slate-900 dark:text-slate-100 hover:border-amber-500 transition-colors">
-                    <span className="text-[11px] font-extrabold">{item.label}</span>
+                  <label
+                    key={idx}
+                    className={`flex items-center justify-between p-2 rounded-xl border text-xs font-black cursor-pointer transition-all ${
+                      item.val
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                    }`}
+                  >
+                    <span>{item.label}</span>
                     <input
                       type="checkbox"
-                      checked={item.state}
+                      checked={item.val}
                       onChange={(e) => item.set(e.target.checked)}
-                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                   </label>
                 ))}
               </div>
             </div>
 
-            {/* Column 2: Email Functionality (Emergency Backup) */}
+            {/* Column 2: Teacher Evaluation Toggles */}
             <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-2.5">
-              <div className="font-black text-xs flex items-center justify-between text-teal-700 dark:text-teal-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5"><Mail size={15} /> Email Backup Notifications</span>
-                <span className="text-[10px] bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-md font-extrabold">System</span>
+              <div className="font-black text-xs flex items-center justify-between text-indigo-700 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                <span className="flex items-center gap-1.5"><BookOpen size={15} /> Faculty Submissions</span>
+                <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full">Portals</span>
               </div>
+
               <div className="space-y-1.5">
                 {[
-                  { label: 'Submission / Update Notification', state: emailSubmission, set: setEmailSubmission },
-                  { label: 'Upgrade PDF Email Delivery', state: emailUpgradePdf, set: setEmailUpgradePdf },
-                  { label: 'Application Rejection Email', state: emailRejection, set: setEmailRejection },
-                  { label: 'Registration OTP Email', state: emailRegOtp, set: setEmailRegOtp },
-                  { label: 'Password Reset OTP Email', state: emailResetOtp, set: setEmailResetOtp },
+                  { label: 'Practicals & Marks Entry', val: practicalsSubmissionOpen, set: setPracticalsSubmissionOpen },
+                  { label: 'Attendance Management', val: attendanceSubmissionOpen, set: setAttendanceSubmissionOpen },
                 ].map((item, idx) => (
-                  <label key={idx} className="flex items-center justify-between p-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer font-bold text-slate-900 dark:text-slate-100 hover:border-teal-500 transition-colors">
-                    <span className="truncate pr-2 text-[11px] font-extrabold">{item.label}</span>
+                  <label
+                    key={idx}
+                    className={`flex items-center justify-between p-2 rounded-xl border text-xs font-black cursor-pointer transition-all ${
+                      item.val
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200'
+                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                    }`}
+                  >
+                    <span>{item.label}</span>
                     <input
                       type="checkbox"
-                      checked={item.state}
+                      checked={item.val}
                       onChange={(e) => item.set(e.target.checked)}
-                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer flex-shrink-0"
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
                   </label>
                 ))}
               </div>
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300">Active Academic Session</label>
+                <input
+                  type="text"
+                  value={session}
+                  onChange={(e) => setSession(e.target.value)}
+                  placeholder="e.g. 2025-26"
+                  className="w-full p-2 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                />
+              </div>
             </div>
 
-            {/* Column 3: Portal Settings & Session Controls */}
-            <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-3">
-              <div className="font-black text-xs flex items-center justify-between text-indigo-700 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5"><Settings size={15} /> Session & Display Settings</span>
-                <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-md font-extrabold">Config</span>
+            {/* Column 3: Automated Notifications */}
+            <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-2.5">
+              <div className="font-black text-xs flex items-center justify-between text-purple-700 dark:text-purple-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                <span className="flex items-center gap-1.5"><Mail size={15} /> Automated Notifications</span>
+                <span className="text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 px-2 py-0.5 rounded-full">Email Triggers</span>
               </div>
-              <div className="space-y-2.5">
-                <div className="space-y-1">
-                  <label className="font-extrabold text-[11px] text-slate-700 dark:text-slate-300">Academic Session</label>
-                  <select
-                    value={session}
-                    onChange={(e) => setSession(e.target.value)}
-                    className="w-full p-2 rounded-xl font-extrabold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs"
-                  >
-                    <option value="2025-26">2025-26 Session</option>
-                    <option value="2026-27">2026-27 Session</option>
-                  </select>
-                </div>
 
-                <div className="space-y-1">
-                  <label className="font-extrabold text-[11px] text-slate-700 dark:text-slate-300">Default Print Sorting</label>
-                  <select
-                    value={printOrder}
-                    onChange={(e) => setPrintOrder(e.target.value)}
-                    className="w-full p-2 rounded-xl font-extrabold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs"
+              <div className="space-y-1.5">
+                {[
+                  { label: 'Application Submission Email', val: emailSubmission, set: setEmailSubmission },
+                  { label: 'Provisional Upgrade PDF Email', val: emailUpgradePdf, set: setEmailUpgradePdf },
+                  { label: 'Rejection Notification Email', val: emailRejection, set: setEmailRejection },
+                  { label: 'Registration OTP Email', val: emailRegOtp, set: setEmailRegOtp },
+                  { label: 'Password Reset OTP Email', val: emailResetOtp, set: setEmailResetOtp },
+                ].map((item, idx) => (
+                  <label
+                    key={idx}
+                    className={`flex items-center justify-between p-2 rounded-xl border text-xs font-black cursor-pointer transition-all ${
+                      item.val
+                        ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200'
+                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                    }`}
                   >
-                    <option value="Newest">Newest First</option>
-                    <option value="Oldest">Oldest First</option>
-                  </select>
-                </div>
+                    <span>{item.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={item.val}
+                      onChange={(e) => item.set(e.target.checked)}
+                      className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                    />
+                  </label>
+                ))}
               </div>
             </div>
           </div>
@@ -691,36 +768,48 @@ export default function ControlsAndSubjects() {
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-3 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
           >
-            {saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
             <span>Save All System Controls</span>
           </button>
         </form>
       )}
 
-      {/* SUB TAB 2: SUBJECT CONFIGURATION (v2) */}
+      {/* SUB TAB 2: SUBJECT CONFIGURATION (v2) — ULTRA COMPACT & CLEAN DESIGN */}
       {activeSubTab === 'subjects' && (
-        <form onSubmit={handleSaveSubjects} className="space-y-4">
-          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                  Subject Configuration Rules (v2)
-                </h3>
-                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Configure compulsory & elective subject groups for student admission choices</p>
+        <form onSubmit={handleSaveSubjects} className="space-y-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
+            
+            {/* Header Control Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <BookOpen size={15} />
+                </div>
+                <div>
+                  <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
+                    Subject Configuration Rules (v2)
+                  </h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
+                    Configure compulsory & elective subject pools for admission forms
+                  </p>
+                </div>
               </div>
 
+              {/* Class & Stream Selectors */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Class Selector */}
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl font-black border border-slate-300 dark:border-slate-700">
+                {/* Segmented Class Selector */}
+                <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black">
                   {['8th', '9th', '10th', '11th', '12th'].map((cls) => (
                     <button
                       key={cls}
                       type="button"
                       onClick={() => setSelectedClass(cls)}
-                      className={`px-2.5 py-1 rounded-lg transition-all ${
-                        selectedClass === cls ? 'bg-amber-700 text-white font-black shadow-sm' : 'text-slate-800 dark:text-slate-200 font-bold'
+                      className={`px-2.5 py-1 rounded-lg transition-all text-xs font-black cursor-pointer ${
+                        selectedClass === cls
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {cls}
@@ -732,7 +821,7 @@ export default function ControlsAndSubjects() {
                 <select
                   value={selectedStream}
                   onChange={(e) => setSelectedStream(e.target.value)}
-                  className="p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 cursor-pointer"
+                  className="px-3 py-1 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
                 >
                   <option value="General">General Stream</option>
                   <option value="Science">Science Stream</option>
@@ -742,166 +831,182 @@ export default function ControlsAndSubjects() {
               </div>
             </div>
 
-            {/* Min / Max Rules */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-              <div>
-                <label className="font-black block text-[10px] uppercase text-slate-700 dark:text-slate-300">Min Subjects Required</label>
+            {/* Compact Rules & Numeric Limits Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-slate-50/70 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs">
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Min Subjects Required</span>
                 <input
                   type="number"
                   value={minSubjects}
                   onChange={(e) => setMinSubjects(e.target.value)}
-                  className="w-full p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 text-center bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  className="w-full py-1 px-2 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
-              <div>
-                <label className="font-black block text-[10px] uppercase text-slate-700 dark:text-slate-300">Max Subjects Required</label>
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Max Subjects Required</span>
                 <input
                   type="number"
                   value={maxSubjects}
                   onChange={(e) => setMaxSubjects(e.target.value)}
-                  className="w-full p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 text-center bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  className="w-full py-1 px-2 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
-              <div>
-                <label className="font-black block text-[10px] uppercase text-slate-700 dark:text-slate-300">G1 (Group B) Min / Max</label>
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">G1 (Group B) Min / Max</span>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={g1Min} onChange={(e) => setG1Min(e.target.value)} className="w-full p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 text-center bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" />
-                  <span className="font-black">-</span>
-                  <input type="number" value={g1Max} onChange={(e) => setG1Max(e.target.value)} className="w-full p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 text-center bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" />
+                  <input type="number" value={g1Min} onChange={(e) => setG1Min(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                  <span className="text-slate-400 font-bold">-</span>
+                  <input type="number" value={g1Max} onChange={(e) => setG1Max(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                 </div>
               </div>
-              <div>
-                <label className="font-black block text-[10px] uppercase text-slate-700 dark:text-slate-300">G2 (Group C) Min / Max</label>
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">G2 (Group C) Min / Max</span>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={g2Min} onChange={(e) => setG2Min(e.target.value)} className="w-full p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 text-center bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" />
-                  <span className="font-black">-</span>
-                  <input type="number" value={g2Max} onChange={(e) => setG2Max(e.target.value)} className="w-full p-2 rounded-xl font-black border border-slate-300 dark:border-slate-700 text-center bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" />
+                  <input type="number" value={g2Min} onChange={(e) => setG2Min(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                  <span className="text-slate-400 font-bold">-</span>
+                  <input type="number" value={g2Max} onChange={(e) => setG2Max(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                 </div>
               </div>
             </div>
 
-            {/* Subject Groups Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
-              {/* Group A */}
-              <div className="flex flex-col justify-between space-y-2 p-3.5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950">
-                <div className="space-y-2">
-                  <div className="font-black text-xs text-teal-700 dark:text-teal-400 flex items-center justify-between">
-                    <span>Group A (Compulsory)</span>
-                    <span className="text-[10px] bg-teal-700 text-white px-2 py-0.5 rounded-full font-black">{groupA.length} Subjects</span>
+            {/* Compact 3-Column Subject Pools Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 items-stretch">
+              {/* Group A (Compulsory) */}
+              <div className="flex flex-col justify-between p-2.5 rounded-xl border border-teal-200 dark:border-teal-900/50 bg-teal-50/30 dark:bg-teal-950/20 space-y-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-black text-teal-800 dark:text-teal-300">
+                    <span className="flex items-center gap-1">Group A (Compulsory)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-teal-600 text-white font-black">{groupA.length} Subjects</span>
                   </div>
-                  <div className="flex flex-wrap items-start gap-1.5 min-h-[90px] max-h-[90px] overflow-y-auto p-2 rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  {/* Clean Non-Overflowing Tag Cloud */}
+                  <div className="flex flex-wrap items-start gap-1 p-1.5 min-h-[90px] rounded-lg border border-teal-200/60 dark:border-teal-900/40 bg-white dark:bg-slate-900">
                     {groupA.map((s, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 h-7 px-3 py-1 rounded-xl bg-teal-700 text-white font-black text-xs shadow-xs">
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-600 text-white font-black text-[11px] shadow-2xs">
                         <span>{s}</span>
-                        <button type="button" onClick={() => setGroupA(groupA.filter((_, idx) => idx !== i))} className="hover:text-red-300 cursor-pointer ml-0.5"><X size={13} /></button>
+                        <button type="button" onClick={() => setGroupA(groupA.filter((_, idx) => idx !== i))} className="hover:text-red-200 cursor-pointer ml-0.5"><X size={11} /></button>
                       </span>
                     ))}
+                    {groupA.length === 0 && (
+                      <span className="text-slate-400 text-[11px] italic font-bold p-1">No compulsory subjects</span>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-1.5 pt-1">
+                <div className="flex gap-1 pt-1">
                   <input
                     type="text"
                     value={newSubA}
                     onChange={(e) => setNewSubA(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newSubA.trim()) { setGroupA([...groupA, newSubA.trim()]); setNewSubA(''); } } }}
                     placeholder="Add Compulsory subject..."
-                    className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    className="w-full py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                   />
                   <button
                     type="button"
                     onClick={() => { if (newSubA.trim()) { setGroupA([...groupA, newSubA.trim()]); setNewSubA(''); } }}
-                    className="p-2 rounded-xl bg-teal-700 text-white font-black cursor-pointer hover:bg-teal-600 flex-shrink-0"
+                    className="p-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-black cursor-pointer flex-shrink-0"
                   >
-                    <Plus size={16} />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
 
-              {/* Group B */}
-              <div className="flex flex-col justify-between space-y-2 p-3.5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950">
-                <div className="space-y-2">
-                  <div className="font-black text-xs text-amber-700 dark:text-amber-400 flex items-center justify-between">
-                    <span>Group B (Electives)</span>
-                    <span className="text-[10px] bg-amber-700 text-white px-2 py-0.5 rounded-full font-black">{groupB.length} Subjects</span>
+              {/* Group B (Electives) */}
+              <div className="flex flex-col justify-between p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/20 space-y-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-black text-amber-800 dark:text-amber-300">
+                    <span className="flex items-center gap-1">Group B (Electives)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-600 text-white font-black">{groupB.length} Subjects</span>
                   </div>
-                  <div className="flex flex-wrap items-start gap-1.5 min-h-[90px] max-h-[90px] overflow-y-auto p-2 rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  {/* Clean Non-Overflowing Tag Cloud */}
+                  <div className="flex flex-wrap items-start gap-1 p-1.5 min-h-[90px] rounded-lg border border-amber-200/60 dark:border-amber-900/40 bg-white dark:bg-slate-900">
                     {groupB.map((s, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 h-7 px-3 py-1 rounded-xl bg-amber-700 text-white font-black text-xs shadow-xs">
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-600 text-white font-black text-[11px] shadow-2xs">
                         <span>{s}</span>
-                        <button type="button" onClick={() => setGroupB(groupB.filter((_, idx) => idx !== i))} className="hover:text-red-300 cursor-pointer ml-0.5"><X size={13} /></button>
+                        <button type="button" onClick={() => setGroupB(groupB.filter((_, idx) => idx !== i))} className="hover:text-red-200 cursor-pointer ml-0.5"><X size={11} /></button>
                       </span>
                     ))}
+                    {groupB.length === 0 && (
+                      <span className="text-slate-400 text-[11px] italic font-bold p-1">No elective subjects</span>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-1.5 pt-1">
+                <div className="flex gap-1 pt-1">
                   <input
                     type="text"
                     value={newSubB}
                     onChange={(e) => setNewSubB(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newSubB.trim()) { setGroupB([...groupB, newSubB.trim()]); setNewSubB(''); } } }}
                     placeholder="Add Elective subject..."
-                    className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    className="w-full py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                   />
                   <button
                     type="button"
                     onClick={() => { if (newSubB.trim()) { setGroupB([...groupB, newSubB.trim()]); setNewSubB(''); } }}
-                    className="p-2 rounded-xl bg-amber-700 text-white font-black cursor-pointer hover:bg-amber-600 flex-shrink-0"
+                    className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black cursor-pointer flex-shrink-0"
                   >
-                    <Plus size={16} />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
 
-              {/* Group C */}
-              <div className="flex flex-col justify-between space-y-2 p-3.5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950">
-                <div className="space-y-2">
-                  <div className="font-black text-xs text-indigo-700 dark:text-indigo-400 flex items-center justify-between">
-                    <span>Group C (Vocational & Skill)</span>
-                    <span className="text-[10px] bg-indigo-700 text-white px-2 py-0.5 rounded-full font-black">{groupC.length} Subjects</span>
+              {/* Group C (Vocational & Skill) */}
+              <div className="flex flex-col justify-between p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/30 dark:bg-indigo-950/20 space-y-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-black text-indigo-800 dark:text-indigo-300">
+                    <span className="flex items-center gap-1">Group C (Vocational & Skill)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-600 text-white font-black">{groupC.length} Subjects</span>
                   </div>
-                  <div className="flex flex-wrap items-start gap-1.5 min-h-[90px] max-h-[90px] overflow-y-auto p-2 rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  {/* Clean Non-Overflowing Tag Cloud */}
+                  <div className="flex flex-wrap items-start gap-1 p-1.5 min-h-[90px] rounded-lg border border-indigo-200/60 dark:border-indigo-900/40 bg-white dark:bg-slate-900">
                     {groupC.map((s, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 h-7 px-3 py-1 rounded-xl bg-indigo-700 text-white font-black text-xs shadow-xs">
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-600 text-white font-black text-[11px] shadow-2xs">
                         <span>{s}</span>
-                        <button type="button" onClick={() => setGroupC(groupC.filter((_, idx) => idx !== i))} className="hover:text-red-300 cursor-pointer ml-0.5"><X size={13} /></button>
+                        <button type="button" onClick={() => setGroupC(groupC.filter((_, idx) => idx !== i))} className="hover:text-red-200 cursor-pointer ml-0.5"><X size={11} /></button>
                       </span>
                     ))}
+                    {groupC.length === 0 && (
+                      <span className="text-slate-400 text-[11px] italic font-bold p-1">No vocational subjects</span>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-1.5 pt-1">
+                <div className="flex gap-1 pt-1">
                   <input
                     type="text"
                     value={newSubC}
                     onChange={(e) => setNewSubC(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (newSubC.trim()) { setGroupC([...groupC, newSubC.trim()]); setNewSubC(''); } } }}
                     placeholder="Add Vocational subject..."
-                    className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    className="w-full py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                   />
                   <button
                     type="button"
                     onClick={() => { if (newSubC.trim()) { setGroupC([...groupC, newSubC.trim()]); setNewSubC(''); } }}
-                    className="p-2 rounded-xl bg-indigo-700 text-white font-black cursor-pointer hover:bg-indigo-600 flex-shrink-0"
+                    className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black cursor-pointer flex-shrink-0"
                   >
-                    <Plus size={16} />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Action Buttons Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-3 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
             >
-              {saving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+              {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
               <span>Save Subject Configuration</span>
             </button>
 
             <button
               type="button"
               onClick={handleExploreCombinations}
-              className="px-4 py-3 rounded-xl font-black text-teal-900 dark:text-teal-100 bg-teal-100 dark:bg-teal-900/60 hover:bg-teal-200 dark:hover:bg-teal-800 border border-teal-300 dark:border-teal-700 shadow-sm flex items-center gap-2 cursor-pointer transition-all"
+              className="px-3.5 py-2 rounded-xl font-black text-xs text-teal-800 dark:text-teal-200 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200 dark:border-teal-800 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
             >
-              <Sparkles size={15} className="text-teal-600 dark:text-teal-400" />
+              <Sparkles size={13} className="text-teal-600 dark:text-teal-400" />
               <span>Explore Subject Combinations ({selectedClass} {selectedStream})</span>
             </button>
           </div>
@@ -994,123 +1099,145 @@ export default function ControlsAndSubjects() {
 
       {/* SUB TAB 3: SUPER ADMIN TAB PERMISSIONS & ADMIN ACCOUNT MANAGER */}
       {activeSubTab === 'permissions' && (
-        <div className="space-y-4">
-          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-4">
+        <div className="space-y-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
             {/* Header Toolbar */}
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
-              <div>
-                <h3 className="font-black text-sm flex items-center gap-2 text-slate-900 dark:text-white">
-                  <ShieldCheck size={18} className="text-amber-600" /> Super Admin & Staff Access Manager
-                </h3>
-                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
-                  Register new admin accounts, configure granular permissions across all 12 portal modules, and revoke access.
-                </p>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <ShieldCheck size={16} />
+                </div>
+                <div>
+                  <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
+                    Admin Accounts & Dynamic Permissions
+                  </h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
+                    Configure granular module access for each administrator
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={handleOpenAddAdmin}
-                  className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-indigo-700 hover:bg-indigo-600 shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+                  className="px-3 py-1.5 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
                 >
-                  <UserPlus size={14} />
-                  <span>Add New Admin</span>
+                  <UserPlus size={13} />
+                  <span>Add Admin</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleApplyPermissions()}
                   disabled={saving}
-                  className="px-4 py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                  className="px-3.5 py-1.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
                 >
-                  {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  <span>Apply Permissions</span>
+                  {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                  <span>Save Permissions</span>
                 </button>
               </div>
             </div>
 
-            {/* Admin Users Cards List */}
-            <div className="space-y-4">
+            {/* High-Density Admin Users List */}
+            <div className="space-y-2.5">
               {adminUsers.map((user, idx) => {
                 const isSuper = user.role === 'SuperAdmin' || user.email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com';
                 const userPerms = Array.isArray(user.perms) ? user.perms : [];
                 const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
+                const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
 
                 return (
-                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-3 shadow-sm hover:border-amber-500/50 transition-all">
-                    {/* User Info Bar */}
+                  <div 
+                    key={idx} 
+                    className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 space-y-2 hover:border-amber-500/40 transition-all"
+                  >
+                    {/* Compact Single-Line User Header */}
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isSuper ? 'bg-purple-500/20 text-purple-600 border border-purple-500/40' : 'bg-amber-500/20 text-amber-600 border border-amber-500/40'}`}>
-                          {isSuper ? <ShieldCheck size={18} /> : <Lock size={16} />}
+                      <div className="flex items-center gap-2">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black ${
+                          isSuper 
+                            ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
+                            : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
+                        }`}>
+                          {isSuper ? <ShieldCheck size={14} /> : <Lock size={13} />}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <strong className="text-sm font-black text-slate-900 dark:text-white">{user.name}</strong>
-                            <span className={`px-2.5 py-0.5 rounded-full font-black text-[9px] uppercase tracking-wider ${isSuper ? 'bg-purple-600 text-white' : 'bg-amber-700 text-white'}`}>
-                              {isSuper ? 'Super Admin' : 'Admin User'}
-                            </span>
-                          </div>
-                          <span className="text-slate-500 dark:text-slate-400 text-xs font-bold block">{user.email}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <strong className="text-xs font-black text-slate-900 dark:text-white">{user.name}</strong>
+                          <span className={`px-2 py-0.2 rounded-full font-black text-[9px] uppercase tracking-wider ${
+                            isSuper ? 'bg-purple-600 text-white' : 'bg-amber-600 text-white'
+                          }`}>
+                            {isSuper ? 'SuperAdmin' : 'Admin'}
+                          </span>
+                          <span className="text-slate-400 font-mono text-[10px]">({user.email})</span>
                         </div>
                       </div>
 
-                      {/* Quick Card Controls */}
-                      <div className="flex items-center gap-2">
+                      {/* Controls & Module Count Badge */}
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                          activeCount === ALL_ADMIN_MODULES.length
+                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                        }`}>
+                          {activeCount} / {ALL_ADMIN_MODULES.length} Active
+                        </span>
+
                         <button
                           type="button"
                           onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                          className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
                         >
-                          {allSelected ? 'Deselect All' : 'Select All (Full Access)'}
+                          {allSelected ? 'Clear All' : 'Select All'}
                         </button>
+                        
                         <button
                           type="button"
                           onClick={() => handleOpenEditAdmin(user)}
-                          title="Edit Admin Account"
-                          className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer transition-colors"
+                          title="Edit Admin"
+                          className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer"
                         >
-                          <Edit3 size={14} />
+                          <Edit3 size={12} />
                         </button>
+                        
                         {!isSuper && (
                           <button
                             type="button"
                             onClick={() => setUserToDelete(user)}
-                            title="Revoke Admin Access"
-                            className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200 cursor-pointer transition-colors"
+                            title="Revoke Admin"
+                            className="p-1 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200 cursor-pointer"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={12} />
                           </button>
                         )}
                       </div>
                     </div>
 
-                    {/* Permissions Badges Grid (12 Modules) */}
-                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-2">
-                        Granted Feature Permissions ({userPerms.length} / {ALL_ADMIN_MODULES.length})
-                      </span>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
-                        {ALL_ADMIN_MODULES.map((mod) => {
-                          const active = userPerms.includes(mod.code) || isSuper;
-                          return (
-                            <button
-                              key={mod.code}
-                              type="button"
-                              onClick={() => togglePermission(user.email, mod.code)}
-                              title={mod.desc}
-                              className={`p-2 rounded-xl text-left font-extrabold text-[11px] transition-all cursor-pointer border flex items-center justify-between ${
-                                active
-                                  ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
-                                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                              }`}
-                            >
-                              <span className="truncate pr-1">{mod.label}</span>
-                              {active ? <Check size={13} className="flex-shrink-0" /> : <Plus size={13} className="opacity-40 flex-shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
+                    {/* Compact 4-Column Micro-Chips Ribbon */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
+                      {ALL_ADMIN_MODULES.map((mod) => {
+                        const active = userPerms.includes(mod.code) || isSuper;
+                        return (
+                          <button
+                            key={mod.code}
+                            type="button"
+                            onClick={() => togglePermission(user.email, mod.code)}
+                            title={mod.desc}
+                            className={`py-1 px-2 rounded-lg text-left text-[10.5px] transition-all cursor-pointer border flex items-center justify-between ${
+                              active
+                                ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400 font-bold'
+                            }`}
+                          >
+                            <span className="truncate pr-1">{mod.label}</span>
+                            {active ? (
+                              <Check size={11} className="flex-shrink-0 text-white" />
+                            ) : (
+                              <Plus size={11} className="opacity-30 flex-shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -1264,92 +1391,100 @@ export default function ControlsAndSubjects() {
         </div>
       )}
 
-      {/* SUB TAB 4: TEST GENERATOR & LOG PURGE */}
+      {/* SUB TAB 4: ANNUAL SESSION LIFECYCLE & ROLLOVER */}
       {activeSubTab === 'lab' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Test Data Generator */}
-          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-3">
-            <div className="font-black text-sm flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
-              <Wand2 size={16} /> [LAB] Test Data Generator
+        <div className="space-y-3">
+          <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400 flex-shrink-0">
+                  <Database size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white leading-tight">
+                    Annual Session Lifecycle & Archival Manager
+                  </h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs font-bold mt-0.5">
+                    100% Native Firestore Pipeline • Conclude Academic Session & Initialize Next Intake
+                  </p>
+                </div>
+              </div>
+
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                Active Session: {session}
+              </span>
             </div>
-            <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Generate mock student applications for testing portal workflows and filters.</p>
-            <div className="flex items-center gap-2">
-              <select
-                value={testGenSize}
-                onChange={(e) => setTestGenSize(e.target.value)}
-                className="p-2.5 rounded-xl font-black border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 w-32"
-              >
-                <option value="10">10 Records</option>
-                <option value="25">25 Records</option>
-                <option value="50">50 Records</option>
-              </select>
+
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+              When an academic intake concludes (e.g., in <strong>October</strong>), this utility cleanly packages all approved students with roll numbers from <code className="font-mono font-black text-purple-600 dark:text-purple-400">admissions</code> into permanent, searchable <code className="font-mono font-black text-purple-600 dark:text-purple-400">masterRegisters</code> chunks in Firestore with native Base64 photos preserved. Unsubmitted drafts are cleaned, and admissions intake is reset for the new academic year.
+            </p>
+
+            {/* 3 Safety Pillars */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-1">
+                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Layers size={14} className="text-purple-600" />
+                  <span>1. Deep Pre-Audit</span>
+                </div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Scans all active records and categorizes Approved vs. Drafts vs. Rejected before executing.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-1">
+                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-emerald-600" />
+                  <span>2. Full Dry-Run Preview</span>
+                </div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Inspect the full student table and verify photos before confirming with an explicit verification key.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-1">
+                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <FileCheck size={14} className="text-blue-600" />
+                  <span>3. Pure Firestore Schema</span>
+                </div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Zero external Google Drive or Sheets dependencies. Direct atomic batch transactions.
+                </p>
+              </div>
+            </div>
+
+            {/* Launch Action Button */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <AlertCircle size={13} />
+                <span>Zero automatic action: Clicking will only launch the safe analysis & preview modal.</span>
+              </div>
+
               <button
                 type="button"
-                onClick={handleGenerateTestData}
-                disabled={saving}
-                className="px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-white font-black shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                onClick={() => setShowArchivalModal(true)}
+                className="px-4 py-2.5 rounded-xl font-black text-xs text-white bg-purple-700 hover:bg-purple-600 shadow-md flex items-center gap-2 cursor-pointer transition-all"
               >
-                {saving ? <RefreshCw size={14} className="animate-spin" /> : <Wand2 size={14} />} Generate Test Data
+                <Database size={14} />
+                <span>Analyze & Preview Session Archival</span>
+                <ArrowRight size={14} />
               </button>
             </div>
           </div>
-
-          {/* Purge Logs */}
-          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-3">
-            <div className="font-black text-sm flex items-center gap-2 text-red-600">
-              <Trash2 size={16} /> Bulk Clear Admission Logs
-            </div>
-            <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Purge application entries for specific class brackets permanently.</p>
-            <div className="flex flex-wrap gap-1.5">
-              {['All', '9th', '10th', '11th(F)', '11th(P)', '12th(F)', '12th(P)'].map((clsToken) => (
-                <button
-                  key={clsToken}
-                  type="button"
-                  onClick={() => handleClearLog(clsToken)}
-                  className="px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-600 text-white font-black text-xs cursor-pointer shadow-sm"
-                >
-                  Clear {clsToken}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Session Lifecycle: Push to Source & Reset Session */}
-          <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md space-y-3 md:col-span-2">
-            <div className="font-black text-sm flex items-center gap-2 text-purple-700 dark:text-purple-400">
-              <Database size={16} /> Session Lifecycle: Push to Source & Reset Session
-            </div>
-            <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">
-              Archive all approved records into historical <code className="text-purple-700 dark:text-purple-300 font-black">masterRegisters</code> chunks in Firestore, append to row 9,729+ of legacy <code className="text-amber-700 dark:text-amber-300 font-black">source_data</code> Google Sheet, move photos into Google Drive archive folders, and prepare a clean database for the new academic session.
-            </p>
-            <button
-              type="button"
-              onClick={async () => {
-                if (window.confirm('Are you sure you want to execute Push to Source & Reset Session? Approved admissions will be archived into masterRegisters and appended to source_data without overwriting prior records.')) {
-                  try {
-                    setSaving(true);
-                    const res = await appsScriptApi.call('pushDataToSourceSheet');
-                    if (res && res.success !== false) {
-                      alert('Session lifecycle successfully archived! Approved admissions pushed to masterRegisters & source_data sheet.');
-                    } else {
-                      alert(res?.message || 'Archiving completed successfully!');
-                    }
-                  } catch (err) {
-                    alert('Session reset & Push to Source completed!');
-                  } finally {
-                    setSaving(false);
-                  }
-                }
-              }}
-              disabled={saving}
-              className="px-5 py-3 rounded-xl font-black text-white bg-purple-700 hover:bg-purple-600 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {saving ? <RefreshCw size={15} className="animate-spin" /> : <Database size={15} />}
-              <span>Execute Push to Source & Reset Session</span>
-            </button>
-          </div>
         </div>
       )}
+
+      {/* SESSION ARCHIVAL & ROLLOVER MODAL */}
+      <SessionArchivalModal
+        isOpen={showArchivalModal}
+        onClose={() => setShowArchivalModal(false)}
+        currentSession={session}
+        onArchivalComplete={(res) => {
+          setAlert({
+            type: 'success',
+            text: `Successfully archived ${res.archivedCount} students to masterRegisters for session ${res.archivedSession}! New session: ${res.newSession}.`
+          });
+        }}
+      />
     </div>
   );
 }

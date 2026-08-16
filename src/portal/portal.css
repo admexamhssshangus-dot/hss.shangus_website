@@ -3,7 +3,16 @@
   --font-admin-sans: 'Plus Jakarta Sans', 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-body, .admin-portal-theme, input, select, textarea, button {
+.portal-shell,
+.portal-shell input,
+.portal-shell select,
+.portal-shell textarea,
+.portal-shell button,
+.admin-portal-theme,
+.admin-portal-theme input,
+.admin-portal-theme select,
+.admin-portal-theme textarea,
+.admin-portal-theme button {
   font-family: var(--font-admin-sans);
 }
 

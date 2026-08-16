@@ -182,7 +182,7 @@ export default function NoticeBoard() {
   );
 
   return (
-    <div className="w-full bg-gradient-to-b from-teal-50 to-white py-5 sm:py-6 min-h-screen">
+    <div className="public-page w-full bg-gradient-to-b from-teal-50 to-white py-5 sm:py-6 min-h-screen">
       <SEO title="Notice Board & Updates" description="Official Notice Board of Govt. Higher Secondary School Shangus. Stay updated with dynamic bulletins, board result declarations, exam schedules, and circulars." />
 
       <div className="max-w-4xl mx-auto px-4">
@@ -203,7 +203,7 @@ export default function NoticeBoard() {
           </div>
           <div className="relative z-10">
             <span className="px-2 py-0.5 rounded bg-teal-600 text-[9px] font-bold tracking-widest uppercase">Official Notice Board</span>
-            <h2 className="text-lg md:text-xl font-bold mt-2 font-heading">Announcements & Archives</h2>
+            <h1 className="ui-page-title text-xl md:text-2xl mt-2">Announcements & Archives</h1>
             <p className="opacity-90 text-xs mt-1.5 max-w-xl">
               Stay up-to-date with exam timetables, notifications, guidelines, and other circulars published by school administration.
             </p>
@@ -214,6 +214,7 @@ export default function NoticeBoard() {
         <div className="bg-white py-2.5 px-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2.5 mb-4 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
           <Search size={18} className="text-slate-400 flex-shrink-0" />
           <input
+            aria-label="Search notices"
             type="text"
             placeholder="Search notices by keyword, date, or topic..."
             value={searchQuery}
@@ -232,15 +233,26 @@ export default function NoticeBoard() {
 
         {/* Notices list */}
         {loading ? (
-          <div className="py-20 text-center text-slate-500 text-sm">
-            <div className="w-8 h-8 rounded-full border-2 border-teal-800 border-t-transparent animate-spin mx-auto mb-4" />
-            Loading announcements...
+          <div className="space-y-2" role="status" aria-live="polite" aria-label="Loading announcements">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm" aria-hidden="true">
+                <div className="ui-skeleton h-10 w-11 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="ui-skeleton h-3 w-4/5 rounded-full" />
+                  <div className="ui-skeleton h-2.5 w-2/5 rounded-full" />
+                </div>
+              </div>
+            ))}
+            <span className="sr-only">Loading announcements…</span>
           </div>
         ) : (
           <div className="space-y-2">
             {filteredNotices.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-slate-500 italic shadow-sm">
-                No announcements found matching "{searchQuery}".
+              <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-10 text-center text-slate-500 shadow-sm" role="status">
+                <FileText size={30} className="mx-auto mb-3 text-slate-300" aria-hidden="true" />
+                <p className="font-bold text-slate-700">No announcements found</p>
+                <p className="mt-1 text-sm">Try a different keyword or clear the search.</p>
+                {searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="mt-4 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800">Clear search</button>}
               </div>
             ) : (
               filteredNotices.map((n, idx) => {

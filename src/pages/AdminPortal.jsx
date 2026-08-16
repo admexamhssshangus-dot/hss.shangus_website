@@ -50,6 +50,34 @@ const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e92
 // Default fallback admin. `hashAlgo` is explicit so the login routine
 // can deterministically pick the proper verification method.
 const DEFAULT_ADMINS = [];
+const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms', 'trash'];
+const CMS_OPERATOR_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'export', 'pages_cms', 'trash'];
+const EMBEDDED_CMS_TABS = ALL_ADMIN_TABS.filter((tab) => tab !== 'admins');
+
+const normalizeAdmin = (admin) => {
+  if (!admin) return null;
+  const copy = { ...admin };
+  const isSuperAdmin = String(copy.role || '').toLowerCase().replace(/\s+/g, '') === 'superadmin';
+  copy.allowedTabs = Array.isArray(copy.allowedTabs)
+    ? copy.allowedTabs.filter((tab) => ALL_ADMIN_TABS.includes(tab))
+    : (isSuperAdmin ? ALL_ADMIN_TABS.slice() : []);
+  return copy;
+};
+
+function sanitizePublicSettings(settings) {
+  const safe = JSON.parse(JSON.stringify(settings || {}));
+  if (safe.paymentGatewayConfig?.cashfree) {
+    delete safe.paymentGatewayConfig.cashfree.secretKey;
+    delete safe.paymentGatewayConfig.cashfree.secret;
+    delete safe.paymentGatewayConfig.cashfree.appSecret;
+  }
+  if (safe.paymentGatewayConfig?.razorpay) {
+    delete safe.paymentGatewayConfig.razorpay.keySecret;
+    delete safe.paymentGatewayConfig.razorpay.secretKey;
+    delete safe.paymentGatewayConfig.razorpay.secret;
+  }
+  return safe;
+}
 
 async function hashPassword(plainText, saltHex = null) {
   if (saltHex) {
@@ -100,41 +128,30 @@ const uploadToFirebaseStorage = async (file, filename) => {
   return await getDownloadURL(storageRef);
 };
 
-const saveToFirebase = async ({ settings, noticesText, faculty, admins, slides, recycleBin }) => {
+const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleBin }) => {
   if (!db) throw new Error('Firestore not configured');
 
   // Authorization: require authenticated admin
   const user = auth.currentUser;
   if (!user) throw new Error('Authentication required to save. Please sign in.');
 
-  const isListedAdmin = Array.isArray(admins) && admins.some(a => (a.email || '').toLowerCase() === (user.email || '').toLowerCase());
   let isAdminClaim = false;
-
-  // Skip calling getIdTokenResult if isListedAdmin is already true.
-  // This bypasses the Google popup token refresh loop entirely for listed admins.
-  if (!isListedAdmin) {
-    try {
-      const idToken = await getIdTokenResult(user, false);
-      // Token claims checked — logging suppressed in production for security
-      isAdminClaim = idToken?.claims?.admin === true;
-    } catch (e) {
-      console.warn('Failed to retrieve token claims:', e);
-    }
+  try {
+    const idToken = await getIdTokenResult(user, false);
+    const claimRole = String(idToken?.claims?.role || '').toLowerCase().replace(/\s+/g, '');
+    isAdminClaim = idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole);
+  } catch (e) {
+    console.warn('Failed to retrieve admin claims:', e);
   }
 
-  if (!isAdminClaim && !isListedAdmin) {
+  if (!isAdminClaim) {
     throw new Error('User is not authorized to perform this action.');
   }
 
   // Write core documents
-  await setDoc(doc(db, 'site', 'settings'), settings || {});
+  await setDoc(doc(db, 'site', 'settings'), sanitizePublicSettings(settings));
   await setDoc(doc(db, 'site', 'notices'), { text: noticesText || '' });
   await setDoc(doc(db, 'site', 'faculty'), { items: (faculty || []).map(({ id, ...r }) => r) });
-  await setDoc(doc(db, 'site', 'admins'), {
-    items: admins || [],
-    emails: (admins || []).map(a => (a.email || '').toLowerCase()).filter(Boolean),
-    phones: (admins || []).map(a => (a.phone || '').trim()).filter(Boolean)
-  });
   if (slides) {
     await setDoc(doc(db, 'site', 'slideshow'), { items: slides });
   }
@@ -915,16 +932,21 @@ const getEmployeeTaxOptions = (emp) => {
   };
 };
 
-export default function AdminPortal() {
-  const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms', 'trash'];
-
-  const normalizeAdmin = (a) => {
-    if (!a) return null;
-    const copy = { ...a };
-    copy.allowedTabs = Array.isArray(copy.allowedTabs) && copy.allowedTabs.length ? copy.allowedTabs : ALL_ADMIN_TABS.slice();
-    return copy;
-  };
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = null }) {
+  const embeddedRole = String(embeddedUser?.role || '').toLowerCase().replace(/\s+/g, '');
+  const embeddedPerms = Array.isArray(embeddedUser?.perms) ? embeddedUser.perms : [];
+  const embeddedTabs = embeddedRole === 'superadmin' || embeddedPerms.includes('*')
+    ? EMBEDDED_CMS_TABS.slice()
+    : Array.from(new Set([
+        ...(embeddedPerms.includes('cms') ? CMS_OPERATOR_TABS : []),
+        ...EMBEDDED_CMS_TABS.filter((tab) => embeddedPerms.includes(tab)),
+      ]));
+  const embeddedAdmin = embeddedUser ? normalizeAdmin({
+    ...embeddedUser,
+    role: embeddedRole === 'superadmin' ? 'Super Admin' : 'Admin',
+    allowedTabs: embeddedTabs,
+  }) : null;
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(embeddedAdmin));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -939,8 +961,8 @@ export default function AdminPortal() {
 
   // Dynamic admin accounts list
   const [admins, setAdmins] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(embeddedAdmin);
+  const [firebaseUser, setFirebaseUser] = useState(embeddedUser ? auth.currentUser : null);
 
   // Maintain refs to avoid infinite dependency loops & listener tear-downs in useEffects
   const currentUserRef = useRef(currentUser);
@@ -1326,6 +1348,14 @@ export default function AdminPortal() {
 
   // Firebase auth state listener (subscribes once on mount to prevent login flickering)
   useEffect(() => {
+    // The embedded CMS inherits the verified portal session and must never
+    // hydrate legacy password hashes from Firestore, localStorage or public files.
+    if (embeddedUser) {
+      setAdmins([]);
+      return undefined;
+    }
+
+    if (embeddedUser) return undefined;
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
 
@@ -1414,10 +1444,14 @@ export default function AdminPortal() {
       }
     });
     return () => unsub();
-  }, []);
+  }, [embeddedUser]);
 
   // Helper to log out of Administrative Console
   const handleLogout = async (reason) => {
+    if (embeddedUser) {
+      if (onEmbeddedLogout) onEmbeddedLogout(reason);
+      return;
+    }
     // Clear session/local storage and UI state
     sessionStorage.removeItem('isAdminAuthenticated');
     sessionStorage.removeItem('admin_session_id');
@@ -1846,6 +1880,7 @@ export default function AdminPortal() {
 
     // Monitor local storage cross-tab session changes
     const handleStorageChange = (e) => {
+      if (embeddedUser) return;
       if (e.key === 'admin_active_session_id') {
         const newSessionId = e.newValue;
         const mySessionId = sessionStorage.getItem('admin_session_id');
@@ -1861,6 +1896,7 @@ export default function AdminPortal() {
     try {
       channel = new BroadcastChannel('hss_admin_session');
       channel.onmessage = (event) => {
+        if (embeddedUser) return;
         const mySessionId = sessionStorage.getItem('admin_session_id');
         if (event.data.type === 'LOGIN' && event.data.sessionId !== mySessionId) {
           handleLogout('logged_out_elsewhere');
@@ -1878,7 +1914,7 @@ export default function AdminPortal() {
         channel.close();
       }
     };
-  }, []);
+  }, [embeddedUser]);
 
   // Monitor lockout countdown
   useEffect(() => {
@@ -1899,7 +1935,7 @@ export default function AdminPortal() {
 
   // Monitor inactivity auto-logout (15 minutes) - cross-tab synchronized
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || embeddedUser) return;
 
     const INACTIVITY_LIMIT = 15 * 60 * 1000;
 
@@ -1928,7 +1964,7 @@ export default function AdminPortal() {
         window.removeEventListener(event, updateLastActive);
       });
     };
-  }, [isAuthenticated]);
+  }, [embeddedUser, isAuthenticated]);
 
   // Validate existing faculty and notice data on changes
   useEffect(() => {
@@ -4242,7 +4278,7 @@ export default function AdminPortal() {
       { id: 'firebase', label: 'Pushing changes live to Firebase', status: 'pending', details: '' },
       { id: 'local_storage', label: 'Updating local cache', status: 'pending', details: '' },
       { id: 'files', label: 'Syncing local config files', status: 'pending', details: '' },
-      { id: 'netlify', label: 'Creating remote Netlify backups', status: 'pending', details: '' },
+      { id: 'deployment', label: 'Confirming live content source', status: 'pending', details: '' },
     ]);
     setSavePopupResult(null);
 
@@ -4254,12 +4290,10 @@ export default function AdminPortal() {
     };
 
     let fileSyncStatus = '';
-    let didDirectoryWrite = false;
     let fileWriteResults = [];
 
     try {
       // 1. Auth check stage
-      await new Promise(resolve => setTimeout(resolve, 500)); // smooth visual pacing
       const user = auth.currentUser;
       if (!user) {
         throw new Error('Authentication required to save. Please click the "Sign in with Google to Sync" button at the top first.');
@@ -4279,22 +4313,19 @@ export default function AdminPortal() {
       }
 
       updateStage('auth', 'success', `Authorized as ${user.email}`, 25);
-      updateStage('firebase', 'loading', 'Uploading settings, notices, faculty, admins, and slideshow...', 35);
-      await new Promise(resolve => setTimeout(resolve, 400));
+      updateStage('firebase', 'loading', 'Uploading settings, notices, faculty and slideshow...', 35);
 
       // 2. Firebase upload stage
-      await saveToFirebase({ settings, noticesText, faculty, admins: activeAdmins, slides, recycleBin });
+      await saveToFirebase({ settings, noticesText, faculty, slides, recycleBin });
       fileSyncStatus = 'Saved to Firebase (live)';
 
       updateStage('firebase', 'success', 'All configuration collections pushed to Cloud Firestore.', 55);
       updateStage('local_storage', 'loading', 'Updating localStorage data preview...', 60);
-      await new Promise(resolve => setTimeout(resolve, 300));
 
       // 3. Local Storage stage
       localStorage.setItem('site_settings', JSON.stringify(settings));
       localStorage.setItem('site_notices', noticesText);
       localStorage.setItem('site_faculty', JSON.stringify(faculty));
-      localStorage.setItem('site_admins', JSON.stringify(activeAdmins));
       localStorage.setItem('site_slides', JSON.stringify(slides));
       localStorage.setItem('site_recycle_bin', JSON.stringify(recycleBin));
 
@@ -4308,7 +4339,6 @@ export default function AdminPortal() {
 
       updateStage('local_storage', 'success', 'Local preview state synchronized.', 70);
       updateStage('files', 'loading', 'Writing files to disk...', 75);
-      await new Promise(resolve => setTimeout(resolve, 400));
 
       // 4. File system sync stage
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -4322,13 +4352,11 @@ export default function AdminPortal() {
               settings,
               noticesText,
               faculty,
-              admins: activeAdmins,
               slidesText
             })
           });
 
           if (res.ok) {
-            didDirectoryWrite = true;
             fileSyncStatus += ', and locally written to slides/';
             fileWriteResults.push('Saved to workspace configurations via Express Proxy API');
           } else {
@@ -4351,15 +4379,13 @@ export default function AdminPortal() {
             const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
             const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
             const ok3 = await writeLocalFile(folderHandle, 'faculty.json', JSON.stringify(cleanedFaculty, null, 2));
-            const ok4 = await writeLocalFile(folderHandle, 'admins.json', JSON.stringify(activeAdmins, null, 2));
-            const ok5 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
+            const ok4 = await writeLocalFile(folderHandle, 'slides.txt', slidesText);
 
-            if (ok1 && ok2 && ok3 && ok4 && ok5) {
-              didDirectoryWrite = true;
+            if (ok1 && ok2 && ok3 && ok4) {
               if (!fileSyncStatus.includes('slides/')) fileSyncStatus += ', and local folder updated';
               fileWriteResults.push('Saved to local directory via Web File System Access API');
             } else {
-              console.warn('folderHandle write incomplete:', { ok1, ok2, ok3, ok4, ok5 });
+              console.warn('folderHandle write incomplete:', { ok1, ok2, ok3, ok4 });
               fileWriteResults.push('Folder write partial failure');
             }
           } else {
@@ -4374,42 +4400,12 @@ export default function AdminPortal() {
 
       const fileResultStr = fileWriteResults.length > 0 ? fileWriteResults.join(', ') : 'No directory handles or local server active';
       updateStage('files', 'success', fileResultStr, 85);
-      updateStage('netlify', 'loading', 'Updating remote deployment backup...', 90);
-      await new Promise(resolve => setTimeout(resolve, 350));
-
-      // 5. Netlify backup stage
-      let netlifyStatus = 'Skipped (running on localhost)';
-      if (!isLocalhost && !didDirectoryWrite) {
-        try {
-          const remoteRes = await fetch('/.netlify/functions/save-config', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-save-secret': process.env.REACT_APP_SAVE_SECRET || ''
-            },
-            body: JSON.stringify({ settings, noticesText, faculty, admins: activeAdmins, slidesText })
-          });
-          if (remoteRes.ok) {
-            fileSyncStatus += ', plus remote Netlify backup';
-            netlifyStatus = 'Backup successfully saved on Netlify edge environment';
-          } else {
-            const errData = await remoteRes.json().catch(() => ({}));
-            console.warn('Remote save failed:', errData);
-            netlifyStatus = 'Netlify functions save failed';
-          }
-        } catch (err) {
-          console.warn('Remote save error:', err);
-          netlifyStatus = `Netlify error: ${err.message || err}`;
-        }
-      }
-
-      updateStage('netlify', 'success', netlifyStatus, 100);
-      await new Promise(resolve => setTimeout(resolve, 600)); // allow progress bar to finish animation
+      updateStage('deployment', 'success', 'Firestore is the live CMS source; no secondary remote writer is required.', 100);
 
       setSavePopupResult({
         success: true,
         title: 'Synchronized Successfully!',
-        message: `Cloud database is fully updated, local configs are cached, and all settings are active. Target sync result: ${fileSyncStatus}.`
+        message: `Cloud content is updated in Firestore and the local preview cache is refreshed. Target sync result: ${fileSyncStatus}.`
       });
     } catch (err) {
       console.error('Save sync failed:', err);
@@ -5475,7 +5471,7 @@ export default function AdminPortal() {
     printWindow.document.close();
   };
 
-  if (magicLinkSuccess) {
+  if (magicLinkSuccess && !embeddedUser) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[var(--teal-accent)]/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-[10s]" />
@@ -5494,7 +5490,7 @@ export default function AdminPortal() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !embeddedUser) {
     // Cross-portal conflict: check if the /portal session is active
     const portalSession = (() => {
       try {
@@ -5889,8 +5885,34 @@ export default function AdminPortal() {
     });
   };
 
+  const cmsNavigationGroups = [
+    { id: 'enrollment', label: 'Admissions & People', tabs: [
+      { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
+      { id: 'faculty', label: 'Faculty Directory', icon: Users },
+      { id: 'export', label: 'Data Exports', icon: Download },
+    ] },
+    { id: 'website', label: 'Website Content', tabs: [
+      { id: 'notices', label: 'Notices & Updates', icon: RefreshCw },
+      { id: 'slideshow', label: 'Hero Slideshow', icon: Image },
+      { id: 'pages_cms', label: 'Page Content', icon: FolderOpen },
+    ] },
+    { id: 'administration', label: 'Settings & Governance', tabs: [
+      { id: 'tax', label: 'Staff Tax Calculator', icon: Calculator },
+      { id: 'admins', label: 'Admin Access', icon: Settings },
+      { id: 'trash', label: 'Recycle Bin', icon: Trash2 },
+    ] },
+  ].map((group) => ({
+    ...group,
+    tabs: group.tabs.filter((tab) => allowedTabs.includes(tab.id)),
+  })).filter((group) => group.tabs.length > 0);
+  const activeCmsGroup = cmsNavigationGroups.find((group) => group.tabs.some((tab) => tab.id === activeTab)) || cmsNavigationGroups[0];
+  const openCmsTab = (tabId) => {
+    setActiveTab(tabId);
+    sessionStorage.setItem('activeAdminTab', tabId);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-4 admin-portal-container">
+    <div className={`${embeddedUser ? 'min-h-[70vh] py-1 rounded-2xl' : 'min-h-screen py-4'} bg-slate-950 text-slate-100 admin-portal-container admin-portal-theme`}>
       <style dangerouslySetInnerHTML={{
         __html: `
         /* Theme-Aware Contrast Enhancements for Inputs */
@@ -6041,22 +6063,22 @@ export default function AdminPortal() {
           color: #ffffff !important;
         }
       `}} />
-      <div className="max-w-[1440px] mx-auto px-4 md:px-6">
+      <div className={`${embeddedUser ? 'max-w-none px-2 sm:px-3' : 'max-w-[1440px] mx-auto px-4 md:px-6'}`}>
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-800 pb-3 mb-4">
-          <div>
+        {!embeddedUser && <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-800 pb-3 mb-4">
+          {!embeddedUser && <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <h2 className="text-2xl font-bold font-title tracking-wider text-orange-400">Admin Console</h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">Govt. Higher Secondary School Shangus Control Center</p>
-          </div>
+          </div>}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            {firebaseUser ? (
-              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-900/40 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5" title={`Signed in to Firebase as ${firebaseUser.email}`}>
+            {!embeddedUser && (firebaseUser ? (
+              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-900/40 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5" title={embeddedUser ? 'Protected by the unified Firebase admin session' : `Signed in to Firebase as ${firebaseUser.email}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Sync Active
+                {embeddedUser ? 'Unified Session' : 'Sync Active'}
               </span>
             ) : (
               <button
@@ -6066,7 +6088,7 @@ export default function AdminPortal() {
               >
                 Sign in with Google to Sync
               </button>
-            )}
+            ))}
             {/* Direct filesystem sync trigger */}
             <button
               onClick={handleLinkFolder}
@@ -6084,7 +6106,7 @@ export default function AdminPortal() {
               <Save size={14} className="stroke-[2.5px]" />
               Apply & Save
             </button>
-            <button
+            {!embeddedUser && <button
               onClick={() => {
                 setCustomPrompt({
                   title: 'Sign Out of Admin Console',
@@ -6105,9 +6127,9 @@ export default function AdminPortal() {
             >
               <LogOut size={14} className="stroke-[2.5px]" />
               Logout
-            </button>
+            </button>}
           </div>
-        </div>
+        </div>}
 
         {/* Save & Sync Inline Bar */}
         {saveProgress !== null && (
@@ -6261,35 +6283,62 @@ export default function AdminPortal() {
           </div>
         )}
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-800 mb-4 overflow-x-auto custom-scrollbar pb-1.5 gap-2">
-          {[
-            { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
-            { id: 'notices', label: 'Latest Notices', icon: RefreshCw },
-            { id: 'faculty', label: 'Faculty Directory', icon: Users },
-            { id: 'slideshow', label: 'Home Slideshow', icon: Image },
-            { id: 'tax', label: 'Tax Calculator', icon: Calculator },
-            { id: 'export', label: 'Export files', icon: Download },
-            { id: 'pages_cms', label: 'Page CMS', icon: FolderOpen },
-            { id: 'admins', label: 'Admin Management', icon: Settings },
-            { id: 'trash', label: `Recycle Bin${recycleBin.length ? ` (${recycleBin.length})` : ''}`, icon: Trash2 }
-          ].filter(tab => allowedTabs.includes(tab.id)).map((tab) => {
+        {/* Compact grouped module navigation */}
+        <div className="flex flex-col xl:flex-row xl:flex-nowrap xl:items-center gap-2 border-b border-slate-800 mb-2 pb-2">
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5 xl:pb-0">
+          <label htmlFor="cms-module-group" className="sr-only">CMS module group</label>
+          <select
+            id="cms-module-group"
+            value={activeCmsGroup?.id || ''}
+            onChange={(event) => {
+              const group = cmsNavigationGroups.find((item) => item.id === event.target.value);
+              if (group?.tabs[0]) openCmsTab(group.tabs[0].id);
+            }}
+            className="h-8 min-w-[156px] rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-[10px] font-black uppercase tracking-wide text-orange-300 outline-none focus:border-orange-500"
+          >
+            {cmsNavigationGroups.map((group) => (
+              <option key={group.id} value={group.id}>{group.label} · {group.tabs.length}</option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/50 p-1">
+          {(activeCmsGroup?.tabs || []).map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
+            const label = tab.id === 'trash' && recycleBin.length ? `${tab.label} (${recycleBin.length})` : tab.label;
             return (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  sessionStorage.setItem('activeAdminTab', tab.id);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-wider border-b-2 transition-all flex-shrink-0 ${active ? 'border-orange-500 text-orange-400 bg-slate-900/50' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                onClick={() => openCmsTab(tab.id)}
+                className={`flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black transition-all flex-shrink-0 ${active ? 'bg-orange-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
               >
-                <Icon size={14} />
-                {tab.label}
+                <Icon size={13} />
+                {label}
               </button>
             );
           })}
+          </div>
+          </div>
+          {embeddedUser && (
+            <div className="flex w-full flex-shrink-0 items-center gap-2 xl:ml-auto xl:w-auto xl:pl-2">
+              <button
+                type="button"
+                onClick={handleLinkFolder}
+                className={`flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[10px] font-black transition-all ${folderHandle ? 'border-emerald-500/50 bg-emerald-950 text-emerald-400' : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-orange-500/50 hover:bg-slate-800'}`}
+                title="Select the public/slides folder for direct file updates"
+              >
+                <FolderOpen size={13} />
+                {folderHandle ? 'Slides Folder Linked' : 'Link Slides Folder'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveToLocalStorage()}
+                className="flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-400 bg-emerald-500 px-3.5 text-[10px] font-black text-slate-950 shadow-sm transition-all hover:bg-emerald-400 active:scale-[0.98]"
+              >
+                <Save size={13} strokeWidth={2.5} />
+                Save Changes
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Console Body */}
@@ -6299,13 +6348,13 @@ export default function AdminPortal() {
             Loading configuration data...
           </div>
         ) : (
-          <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 md:p-5 shadow-xl">
+          <div className={`bg-slate-900/40 border border-slate-800 rounded-xl ${embeddedUser ? 'p-2.5 sm:p-3' : 'p-4 md:p-5'} shadow-xl`}>
 
             {/* TAB 1: ADMISSIONS AND FEES */}
             {activeTab === 'admissions' && allowedTabs.includes('admissions') && (
-              <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="space-y-3 animate-in fade-in duration-200">
                 {/* Global admissions open/close */}
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-slate-200">Global Enrollment System</h3>
                     <p className="text-[11px] text-slate-400 mt-0.5">Enable or disable registration online across all streams and classes.</p>

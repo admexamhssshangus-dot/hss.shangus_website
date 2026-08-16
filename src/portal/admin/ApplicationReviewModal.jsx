@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { X, CheckCircle2, XCircle, Unlock, Download, User, Phone, BookOpen, GraduationCap, MapPin, RefreshCw, Camera, Upload, Eye, Printer } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { compressImageFile } from '../../utils/imageCompressor';
+import { doc, updateDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
+import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { savePhotoUrlToCache } from '../../services/dbCache';
 
 export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [rejecting, setRejecting] = useState(false);
@@ -13,13 +14,14 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [unlockHours, setUnlockHours] = useState('24');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const initialPhoto = app ? (app['Student Photo'] || app['Student Photograph'] || app['Photo'] || app['photo_id'] || app['photoId'] || '') : '';
+  const initialPhoto = app ? getStudentPhotoUrl(app) : '';
   const [currentPhoto, setCurrentPhoto] = useState(initialPhoto);
   const [photoUploading, setPhotoUploading] = useState(false);
 
   if (!app) return null;
 
   const formNo = app['Form Number'] || app['FormNo'] || 'N/A';
+  const admissionDocId = String(app.docId || app.id || formNo);
   const name = app["Student's Name (as per school records)"] || app["Student's Name"] || app['Full Name'] || app['Name'] || app['Account Name'] || app['User Name'] || app['Email Address'] || 'Draft Student';
   const fatherName = app["Father's/Guardian's Name (as per school records)"] || app["Father's/Guardian's Name"] || app["Father's Name"] || (app['Status'] === 'Draft' ? 'Draft (Unfilled)' : 'N/A');
   const motherName = app["Mother's Name (as per school records)"] || app["Mother's Name"] || (app['Status'] === 'Draft' ? 'Draft (Unfilled)' : 'N/A');
@@ -27,10 +29,12 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const mobile = app["Mobile No. (with working WhatsApp)"] || app["Mobile No."] || app['Student Mobile No'] || app['Account Mobile'] || 'N/A';
   const category = app["Social category"] || app['Category'] || 'OM';
   const aadhar = app["Aadhar No."] || app['Aadhaar Number'] || 'N/A';
+  const fatherAadhar = app["Father's Aadhar No."] || app["Father's Aadhaar No."] || app['fatherAadhar'] || 'N/A';
   const gender = app["Gender"] || 'N/A';
   const cls = app["Admission sought for class"] || (app['Status'] === 'Draft' ? 'Draft' : 'N/A');
   const stream = app["Stream for Class 11th"] || app["Stream opted in Class 11th"] || app["Stream"] || '';
-  const rollNo = app["Exam Roll Number of Class 10th"] || app["Exam Roll Number of Class 11th"] || app["Class Roll No"] || app['10th Roll No'] || '—';
+  const classRollNo = app["Class Roll No"] || app["Class Roll No."] || app["classRollNo"] || app["Class R.No."] || '—';
+  const prevExamRollNo = app["Exam Roll Number of Class 10th"] || app["Exam Roll Number of Class 11th"] || app['10th Roll No'] || app['Exam Roll No.'] || '—';
   const marksObtained = app["Total Marks Obtained in Class 10th"] || app["Total Marks Obtained in Class 11th"] || app['Marks Obtained'] || '0';
   const totalMaxMarks = app["Total Max. Marks in Class 10th"] || app["Total Max. Marks in Class 11th"] || app['Total Marks'] || '500';
 
@@ -39,60 +43,50 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
     if (!file) return;
     setPhotoUploading(true);
     try {
-      // 1. In-browser canvas downscaling & compression (~5-10 KB)
-      const compressedDataUrl = await compressImageFile(file, 300, 360, 0.8);
+      const compressedDataUrl = await compressImageFile(file, 300, 360, 0.82);
       setCurrentPhoto(compressedDataUrl);
 
-      // 2. Persist to Firestore document
-      const payload = {
-        ...app,
-        'Student Photo': compressedDataUrl,
-        'photo_id': compressedDataUrl,
-        'photoUrl': compressedDataUrl
-      };
+      // Save to local photo cache immediately
+      if (admissionDocId) savePhotoUrlToCache(admissionDocId, compressedDataUrl);
+      if (formNo && formNo !== 'N/A') savePhotoUrlToCache(formNo, compressedDataUrl);
 
-      if (app.id) {
-        try {
-          const docRef = doc(db, 'admissions', String(app.id));
-          await updateDoc(docRef, {
-            'Student Photo': compressedDataUrl,
-            'photo_id': compressedDataUrl,
-            'photoUrl': compressedDataUrl
-          });
-        } catch (fsErr) {
-          console.warn('Firestore direct update note:', fsErr);
-        }
-      }
-
-      await appsScriptApi.saveApplication(payload);
-      alert('Student photo updated & compressed successfully!');
+      await updateDoc(doc(db, 'admissions', admissionDocId), {
+        photo_id: compressedDataUrl,
+        'Student Photo': deleteField(),
+        photoUrl: deleteField(),
+        photoId: deleteField(),
+        photo: deleteField(),
+        photoPath: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+      alert('Student photo updated in the admission record.');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Photo upload error:', err);
-      alert('Failed to update student photo.');
+      alert('Failed to compress/upload photo: ' + err.message);
     } finally {
       setPhotoUploading(false);
     }
   };
   
-  const pct = (parseFloat(marksObtained) && parseFloat(totalMaxMarks)) 
-    ? Math.round((parseFloat(marksObtained) / parseFloat(totalMaxMarks)) * 100) 
-    : 0;
+  const pct = totalMaxMarks > 0 && marksObtained > 0
+    ? ((parseFloat(marksObtained) / parseFloat(totalMaxMarks)) * 100).toFixed(1)
+    : '0.0';
 
   // Approve Application
   const handleApprove = async () => {
     if (!window.confirm(`Approve application #${formNo} for ${name}?`)) return;
     setActionLoading(true);
     try {
-      const payload = { ...app, Status: 'Approved' };
-      const res = await appsScriptApi.saveApplication(payload);
-      if (res && res.success !== false) {
-        alert('Application approved successfully!');
-        if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
-        onRefresh();
-        onClose();
-      }
+      await updateDoc(doc(db, 'admissions', admissionDocId), {
+        Status: 'Approved', approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        editableUntil: null, rejectionReason: null,
+      });
+      alert('Application approved successfully!');
+      if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      onRefresh();
+      onClose();
     } catch (err) {
       console.error('Approve error:', err);
       alert('Failed to approve application.');
@@ -110,18 +104,17 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
     }
     setActionLoading(true);
     try {
-      const res = await appsScriptApi.call('rejectApplication', {
-        formNumber: formNo,
-        reason: rejectionReason.trim(),
+      const editableUntil = Timestamp.fromMillis(Date.now() + 72 * 60 * 60 * 1000);
+      await updateDoc(doc(db, 'admissions', admissionDocId), {
+        Status: 'Rejected', rejectionReason: rejectionReason.trim(),
+        rejectedAt: serverTimestamp(), editableUntil, updatedAt: serverTimestamp(),
       });
-      if (res && res.success !== false) {
-        alert('Application rejected & sent back for correction.');
-        if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
-        onRefresh();
-        onClose();
-      } else {
-        alert(res?.error || res?.message || 'Failed to reject application.');
-      }
+      appsScriptApi.call('rejectApplication', { formNumber: formNo, reason: rejectionReason.trim() })
+        .catch(error => console.warn('Legacy rejection sync pending:', error));
+      alert('Application returned for correction for 72 hours.');
+      if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      onRefresh();
+      onClose();
     } catch (err) {
       console.error('Reject error:', err);
       alert(err.message || 'Failed to reject application.');
@@ -136,16 +129,17 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
     setActionLoading(true);
     try {
       const expiryStr = `${unlockHours} hours`;
-      const res = await appsScriptApi.call('unlockWithExpiry', {
-        formNumber: formNo,
-        expiryStr,
+      const hours = Math.min(72, Math.max(1, Number(unlockHours) || 24));
+      await updateDoc(doc(db, 'admissions', admissionDocId), {
+        Status: 'Rejected', editableUntil: Timestamp.fromMillis(Date.now() + hours * 60 * 60 * 1000),
+        updatedAt: serverTimestamp(),
       });
-      if (res && res.success !== false) {
-        alert(`Application #${formNo} unlocked for editing (${expiryStr}).`);
-        if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
-        onRefresh();
-        onClose();
-      }
+      appsScriptApi.call('unlockWithExpiry', { formNumber: formNo, expiryStr })
+        .catch(error => console.warn('Legacy unlock sync pending:', error));
+      alert(`Application #${formNo} unlocked for editing (${expiryStr}).`);
+      if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      onRefresh();
+      onClose();
     } catch (err) {
       console.error('Unlock error:', err);
       alert('Failed to unlock application.');
@@ -249,6 +243,11 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
                 </div>
 
                 <div>
+                  <span className="text-slate-400 font-bold block text-[10px]">Class Roll No</span>
+                  <strong className="font-mono text-amber-600 dark:text-amber-400">{classRollNo}</strong>
+                </div>
+
+                <div>
                   <span className="text-slate-400 font-bold block text-[10px]">Date of Birth</span>
                   <strong>{dob}</strong>
                 </div>
@@ -261,21 +260,22 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
             <h4 className="font-extrabold text-slate-400 uppercase text-[10px] flex items-center gap-1">
               <Phone size={13} /> Contact Information
             </h4>
-            <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl border" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-2xl border" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
               <div><span className="text-slate-400">Mobile:</span> <strong>{mobile}</strong></div>
               <div><span className="text-slate-400">Category:</span> <strong>{category}</strong></div>
-              <div><span className="text-slate-400">Aadhaar:</span> <strong>{aadhar}</strong></div>
               <div><span className="text-slate-400">Gender:</span> <strong>{gender}</strong></div>
+              <div><span className="text-slate-400">Student Aadhaar:</span> <strong>{aadhar}</strong></div>
+              <div><span className="text-slate-400">Father's Aadhaar:</span> <strong>{fatherAadhar}</strong></div>
             </div>
           </div>
 
           {/* Academic Record */}
           <div className="space-y-2">
             <h4 className="font-extrabold text-slate-400 uppercase text-[10px] flex items-center gap-1">
-              <GraduationCap size={13} /> Academic Record
+              <GraduationCap size={13} /> Previous Academic Record
             </h4>
             <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl border" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
-              <div><span className="text-slate-400">Roll No:</span> <strong>{rollNo}</strong></div>
+              <div><span className="text-slate-400">Board Exam Roll:</span> <strong className="font-mono">{prevExamRollNo}</strong></div>
               <div><span className="text-slate-400">Marks:</span> <strong>{marksObtained} / {totalMaxMarks}</strong></div>
               <div><span className="text-slate-400">Percentage:</span> <strong className="text-teal-600">{pct}%</strong></div>
             </div>
@@ -373,7 +373,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => generateStudentAdmissionPdf(app)}
+                onClick={() => generateStudentAdmissionPdf({ ...app, photo_id: currentPhoto, photoUrl: currentPhoto, 'Student Photo': currentPhoto })}
                 disabled={actionLoading}
                 className="px-3.5 py-2 rounded-xl font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs"
                 style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}

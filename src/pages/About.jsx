@@ -5,6 +5,7 @@ import SEO from '../components/SEO';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
+import PublicPageSkeleton from '../components/PublicPageSkeleton';
 
 export default function About() {
   const [dynamicData, setDynamicData] = useState(null);
@@ -30,11 +31,7 @@ export default function About() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
-        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
-      </div>
-    );
+    return <PublicPageSkeleton label="Loading institutional information…" />;
   }
 
   if (dynamicData) {
@@ -43,7 +40,7 @@ export default function About() {
 
   const aboutBg = '/slides/aboutus.jpg';
   return (
-    <div className="w-full mb-20">
+    <div className="public-page w-full mb-20">
       <SEO title="About Us & Institution" description="Discover the history, vision, mission, and principal's message of Govt. Higher Secondary School Shangus in Anantnag. Meet our faculty and explore our campus legacy." />
       {/* Hero */}
       <div className="relative h-[304px] sm:h-[378px] w-full bg-slate-900 flex items-center justify-center text-center">
@@ -55,7 +52,7 @@ export default function About() {
         <div className="absolute inset-0 bg-black/50"></div>
         
         <div className="relative z-10 px-4 max-w-4xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">About Our Institution</h2>
+          <h1 className="ui-page-title text-2xl sm:text-3xl md:text-4xl text-white mb-2">About Our Institution</h1>
           <h3 className="text-xl sm:text-2xl font-semibold text-slate-200 mb-6">A Beacon of Knowledge</h3>
           <p className="text-slate-100 text-sm md:text-base leading-relaxed">Serving the Anantnag district with a long tradition of academic excellence and holistic student development.</p>
         </div>

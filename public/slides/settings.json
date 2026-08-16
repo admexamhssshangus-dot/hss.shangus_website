@@ -156,13 +156,11 @@
       "instructions": "Scan the UPI QR code or transfer directly to the bank account, then enter your Transaction Reference Number / UTR."
     },
     "cashfree": {
-      "appId": "adm.exam.hss.shangus@gmail.com",
-      "secretKey": "[REDACTED_SECRET]",
+      "appId": "",
       "environment": "sandbox"
     },
     "razorpay": {
-      "keyId": "adm.exam.hss.shangus@gmail.com",
-      "keySecret": "[REDACTED_SECRET]",
+      "keyId": "",
       "environment": "test"
     }
   },

@@ -51,7 +51,7 @@ export async function getFormNumberConfig() {
 
   const sessionStartYear = sessionEndYear - 1;
   const computedSessionName = `${sessionStartYear}-${String(sessionEndYear).slice(-2)}`;
-  const yearPrefix = digitFormat === 'YYYY0000' ? String(sessionEndYear) : String(sessionEndYear).slice(-2);
+  const yearPrefix = digitFormat === 'YYYY0000' ? String(sessionStartYear) : String(sessionStartYear).slice(-2);
   const defaultStartingSeries = parseInt(`${yearPrefix}0001`, 10);
 
   return {
@@ -67,27 +67,20 @@ export async function getFormNumberConfig() {
 }
 
 /**
- * Calculate the next available Form Number for a new student.
- * 1. Checks recycled/deleted form numbers queue first.
- * 2. Scans existing applications in admissions and masterRegisters to find the maximum existing form number.
- * 3. Ensures no collision happens.
+ * Calculate the next available Form Number for a new student (Strictly Sequential max + 1).
+ * 1. Scans existing applications in admissions and masterRegisters to find the maximum existing form number.
+ * 2. Increments sequentially to max + 1 without skipping or reordering.
  */
 export async function getNextAvailableFormNumber() {
   const config = await getFormNumberConfig();
 
-  // 1. If recycled/deleted form numbers are available, return the lowest one!
-  if (Array.isArray(config.recycledFormNumbers) && config.recycledFormNumbers.length > 0) {
-    const sortedRecycled = [...config.recycledFormNumbers].sort((a, b) => Number(a) - Number(b));
-    return String(sortedRecycled[0]);
-  }
-
-  // 2. Scan admissions and masterRegisters in memory/cache & Firestore to get max existing form number
+  // Scan admissions and masterRegisters in memory/cache & Firestore to get max existing form number
   let maxFormNum = 0;
 
   const checkRecord = (rec) => {
     if (!rec) return;
     const fNoStr = String(rec['Form Number'] || rec['Form No.'] || rec['FormNo'] || rec.id || '').replace(/[^0-9]/g, '');
-    if (fNoStr && fNoStr.length >= 5 && fNoStr.length <= 8) {
+    if (fNoStr && fNoStr.length >= 4 && fNoStr.length <= 8) {
       const num = parseInt(fNoStr, 10);
       if (!isNaN(num) && num > maxFormNum) {
         maxFormNum = num;
@@ -173,7 +166,8 @@ export async function recycleDeletedFormNumber(formNo, deletedRecordData = {}, a
     });
 
     // 2. Remember basic details of deleted application in deletedFormsHistory collection
-    const docId = `del_${cleanFormNoStr}_${Date.now()}`;
+    const safeDocId = cleanFormNoStr.replace(/[\/\s\\]/g, '_');
+    const docId = `del_${safeDocId}_${Date.now()}`;
     await setDoc(doc(db, DELETED_HISTORY_COLLECTION, docId), {
       formNumber: cleanFormNoStr,
       studentName: deletedRecordData["Student's Name (as per school records)"] || deletedRecordData["Student's Name"] || deletedRecordData.name || 'N/A',

@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
 import SEO from '../components/SEO';
+import PublicPageSkeleton from '../components/PublicPageSkeleton';
 
 // WhatsApp SVG Icon component
 function WhatsAppIcon({ size = 14, className = '' }) {
@@ -98,12 +99,12 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
       {/* Actions */}
       <div className="mt-auto w-full border-t border-slate-200 pt-2 flex items-center justify-center gap-2">
         {member.profile && (
-          <button onClick={() => setActiveProfileMember(member)} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer" title="View Full Profile">
+          <button onClick={() => setActiveProfileMember(member)} className="ui-touch-target w-11 h-11 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer" title="View Full Profile" aria-label={`View profile for ${member.name}`}>
             <User size={14} />
           </button>
         )}
         {member.mobile && (
-          <a href={`tel:${member.mobile}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call">
+          <a href={`tel:${member.mobile}`} className="ui-touch-target w-11 h-11 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call" aria-label={`Call ${member.name}`}>
             <Phone size={14} />
           </a>
         )}
@@ -155,6 +156,7 @@ export default function Academics() {
   const [faculty, setFaculty] = useState([]);
   const [selectedDept, setSelectedDept] = useState('All');
   const [activeProfileMember, setActiveProfileMember] = useState(null);
+  const [showAllFacultyMobile, setShowAllFacultyMobile] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -293,11 +295,7 @@ export default function Academics() {
   }, []);
 
   if (dynamicLoading) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
-        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
-      </div>
-    );
+    return <PublicPageSkeleton label="Loading academic programmes…" />;
   }
 
   if (dynamicData) {
@@ -459,17 +457,17 @@ export default function Academics() {
 
   // reduce whitespace above/below heading by ~40%: smaller paddings/margins
   return (
-    <div className="w-full bg-gradient-to-b from-teal-50 to-white py-4 sm:py-6">
+    <div className="public-page w-full bg-gradient-to-b from-teal-50 to-white py-4 sm:py-6">
       <SEO title="Academic Streams & Combinations" description="Explore the school departments, subjects, and curriculum choices for secondary and higher secondary levels at Govt. Higher Secondary School Shangus." />
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="hidden">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">Subject Combinations & Streams</h2>
+        <header className="text-center mb-5 px-2">
+          <h1 className="ui-page-title text-2xl sm:text-3xl text-slate-800">Academics, Streams & Faculty</h1>
           <div className="h-1 w-24 bg-gradient-to-r from-teal-500 to-teal-600 mx-auto mt-3 rounded"></div>
-          <p className="text-sm text-slate-500 mt-3">Explore curated subject combinations for each stream with quick copy and download options.</p>
-        </div>
+          <p className="text-sm text-slate-500 mt-3">Explore departments, subject combinations and the people supporting every learner.</p>
+        </header>
 
         <div className="bg-white p-3 sm:p-3 rounded-lg shadow-sm border border-slate-200 mb-4">
-          <h3 className="text-xl font-bold text-teal-800 mb-4">Our Departments</h3>
+          <h2 className="text-xl font-bold text-teal-800 mb-4">Our Departments</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <h4 className="font-bold text-sm text-slate-600 mb-3 uppercase tracking-wider">Secondary (9th - 10th)</h4>
@@ -499,6 +497,7 @@ export default function Academics() {
           <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
             <div className="flex bg-slate-100/80 p-1 rounded-xl gap-1 mb-4 border border-slate-200">
               <button
+                aria-pressed={activeTab === 'science'}
                 onClick={() => switchTab('science')}
                 className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${activeTab === 'science'
                   ? 'bg-teal-600 text-white shadow-sm scale-[1.01]'
@@ -508,6 +507,7 @@ export default function Academics() {
                 Science
               </button>
               <button
+                aria-pressed={activeTab === 'humanities'}
                 onClick={() => switchTab('humanities')}
                 className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${activeTab === 'humanities'
                   ? 'bg-amber-600 text-white shadow-sm scale-[1.01]'
@@ -517,6 +517,7 @@ export default function Academics() {
                 Humanities
               </button>
               <button
+                aria-pressed={activeTab === 'secondary'}
                 onClick={() => switchTab('secondary')}
                 className={`flex-1 text-center py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 ${activeTab === 'secondary'
                   ? 'bg-violet-600 text-white shadow-sm scale-[1.01]'
@@ -587,7 +588,7 @@ export default function Academics() {
         <div className="bg-white p-3.5 sm:p-5 rounded-xl shadow-sm border border-slate-200 mt-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
             <div>
-              <h3 className="text-xl font-bold text-teal-800 font-heading">Our Distinguished Community</h3>
+              <h2 className="text-xl font-bold text-teal-800 font-heading">Our Distinguished Community</h2>
               <p className="text-sm text-slate-500 mt-1">Meet our dedicated staff.</p>
             </div>
             {/* Filter controls */}
@@ -617,7 +618,9 @@ export default function Academics() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 {teachingFaculty.map((member, idx) => (
-                  <FacultyCard key={idx} member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
+                  <div key={`${member.name}-${idx}`} className={showAllFacultyMobile ? '' : 'ui-mobile-progressive-item'}>
+                    <FacultyCard member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
+                  </div>
                 ))}
               </div>
             </>
@@ -636,7 +639,9 @@ export default function Academics() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {nonTeachingFaculty.map((member, idx) => (
-                  <FacultyCard key={idx} member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
+                  <div key={`${member.name}-${idx}`} className={showAllFacultyMobile ? '' : 'ui-mobile-progressive-item'}>
+                    <FacultyCard member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
+                  </div>
                 ))}
               </div>
             </>
@@ -646,6 +651,16 @@ export default function Academics() {
             <div className="col-span-3 py-12 text-center text-slate-400 italic text-sm">
               No faculty members found for the selected filter.
             </div>
+          )}
+          {filteredFaculty.length > 4 && (
+            <button
+              type="button"
+              onClick={() => setShowAllFacultyMobile((shown) => !shown)}
+              className="ui-mobile-only mt-5 w-full min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-bold text-teal-800"
+              aria-expanded={showAllFacultyMobile}
+            >
+              {showAllFacultyMobile ? 'Show fewer staff members' : `Show all ${filteredFaculty.length} staff members`}
+            </button>
           )}
         </div>
 

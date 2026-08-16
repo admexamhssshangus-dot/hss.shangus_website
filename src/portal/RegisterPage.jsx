@@ -4,7 +4,7 @@ import { ShieldCheck, User, Lock, Mail, Phone, Eye, EyeOff, AlertCircle, CheckCi
 
 import SEO from '../components/SEO';
 import { auth, db } from '../services/firebase';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 // Master List of Official School Subjects
@@ -182,8 +182,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!password || password.length < 6) {
-      setAlert({ type: 'error', text: 'Password must be at least 6 characters long.' });
+    if (!password || password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setAlert({ type: 'error', text: 'Use at least 12 characters with uppercase, lowercase, and a number.' });
       return;
     }
     if (password !== confirmPassword) {
@@ -202,6 +202,10 @@ export default function RegisterPage() {
       try {
         userCred = await createUserWithEmailAndPassword(auth, userEmailClean, password);
         await updateProfile(userCred.user, { displayName: name.trim() });
+        await sendEmailVerification(userCred.user, {
+          url: `${window.location.origin}/portal/login`,
+          handleCodeInApp: false,
+        });
       } catch (authErr) {
         if (authErr.code === 'auth/email-already-in-use') {
           setAlert({ type: 'error', text: 'An account with this email address already exists. Please log in.' });
@@ -217,13 +221,9 @@ export default function RegisterPage() {
       const userDocRef = doc(db, 'users', userEmailClean);
       const userData = {
         email: userEmailClean,
-        Email: userEmailClean,
         name: name.trim(),
-        Name: name.trim(),
         mobile: mobile.trim(),
-        Mobile: mobile.trim(),
-        role: role,
-        Role: role,
+        requestedRole: role,
         uid: userCred ? userCred.user.uid : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -238,27 +238,14 @@ export default function RegisterPage() {
 
       await setDoc(userDocRef, userData, { merge: true });
 
-      setAlert({ type: 'success', text: 'Account created successfully! Redirecting to workspace...' });
-
-      const newSession = {
-        success: true,
-        user: {
-          email: userEmailClean,
-          name: name.trim(),
-          role: role,
-          mobile: mobile.trim(),
-          assignedClass: role === 'Teacher' ? teacherClass : '',
-          teachingSubject: role === 'Teacher' ? teacherSubject : '',
-          designation: role === 'Teacher' ? teacherDesignation : '',
-          academicSession: role === 'Teacher' ? academicSession : '',
-        },
-        token: `token_reg_${Date.now()}`,
-      };
+      setAlert({ type: 'success', text: role === 'Teacher'
+        ? 'Registration received. Verify your email; an administrator must approve the Teacher role before sign-in.'
+        : 'Account created. Verify your email before signing in.' });
+      await signOut(auth);
 
       setTimeout(() => {
-        onLoginSuccess(newSession, true);
-        navigate(role === 'Teacher' ? '/portal/teacher' : '/portal/student');
-      }, 1000);
+        navigate('/portal/login', { state: { message: 'Check your inbox and verify your email before signing in.' } });
+      }, 1200);
     } catch (err) {
       console.error('Registration failed:', err);
       setAlert({ type: 'error', text: 'Failed to create account. Please try again.' });
@@ -268,7 +255,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="w-full flex-1 py-8 sm:py-12 px-4 sm:px-6 flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
+    <div className="portal-auth-page w-full flex-1 py-8 sm:py-12 px-4 sm:px-6 flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
       <SEO
         title="Create Portal Account"
         description="Register for Govt HSS Shangus student or faculty portal account."

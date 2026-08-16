@@ -1,236 +1,130 @@
-/**
- * Netlify Serverless Function: lookup-student
- *
- * Secure server-side proxy for GK Test registration student lookup.
- * Queries Firestore collections (masterRegisters → registerdata → admissions)
- * server-side using Firebase REST API, returning ONLY safe minimal fields.
- *
- * This prevents anonymous browser clients from bulk-reading full student records.
- *
- * Required Netlify env vars:
- *   FIREBASE_API_KEY          — Firebase Web API key (restricted, read-only)
- *   FIREBASE_PROJECT_ID       — e.g. hss-shangus-portal
- *   LOOKUP_RATE_WINDOW_MS     — (optional) window for rate limiting, default 60000
- *   LOOKUP_RATE_MAX           — (optional) max calls per IP per window, default 10
- */
+'use strict';
 
-const FIREBASE_REST = 'https://firestore.googleapis.com/v1';
+const crypto = require('crypto');
+const { initializeApp, getApp, getApps, cert } = require('firebase-admin/app');
+const { getFirestore, Timestamp } = require('firebase-admin/firestore');
 
-// Simple in-memory rate limiter (resets on cold start)
-const rateStore = new Map();
-
-function checkRate(ip, maxCalls = 10, windowMs = 60000) {
-  const now = Date.now();
-  const entry = rateStore.get(ip) || { count: 0, resetAt: now + windowMs };
-  if (now > entry.resetAt) {
-    entry.count = 0;
-    entry.resetAt = now + windowMs;
+function parseServiceAccount(raw) {
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
+  let str = String(raw).trim();
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    try { str = JSON.parse(str); } catch (e) {}
   }
-  entry.count++;
-  rateStore.set(ip, entry);
-  return entry.count <= maxCalls;
-}
-
-function normalize(val) {
-  return String(val || '').trim().toLowerCase().replace(/\s+/g, '');
-}
-
-// Convert Google Drive URLs to working image URLs (avoids CORS issues)
-function resolvePhotoUrl(raw) {
-  if (!raw) return null;
-  if (raw.includes('drive.google.com')) {
-    const m = raw.match(/[-\w]{25,}/);
-    if (m) {
-      // Use thumbnail URL which works cross-origin without login
-      return `https://lh3.googleusercontent.com/d/${m[0]}=w400`;
-    }
-  }
-  if (raw.startsWith('http') || raw.startsWith('data:')) return raw;
-  return null;
-}
-
-// Fetch a Firestore collection via REST API
-async function fetchCollection(projectId, apiKey, collectionId) {
-  const url = `${FIREBASE_REST}/projects/${projectId}/databases/(default)/documents/${collectionId}?pageSize=500&key=${apiKey}`;
-  const res = await fetch(url);
-  if (!res.ok) return [];
-  const json = await res.json();
-  return (json.documents || []);
-}
-
-// Parse a Firestore REST document value
-function parseValue(v) {
-  if (!v) return null;
-  if (v.stringValue !== undefined) return v.stringValue;
-  if (v.integerValue !== undefined) return v.integerValue;
-  if (v.doubleValue !== undefined) return v.doubleValue;
-  if (v.booleanValue !== undefined) return v.booleanValue;
-  if (v.arrayValue) return (v.arrayValue.values || []).map(parseValue);
-  if (v.mapValue) return parseFields(v.mapValue.fields || {});
-  if (v.nullValue !== undefined) return null;
-  return null;
-}
-
-function parseFields(fields) {
-  const obj = {};
-  for (const [k, v] of Object.entries(fields || {})) {
-    obj[k] = parseValue(v);
-  }
-  return obj;
-}
-
-function getField(obj, ...keys) {
-  for (const k of keys) {
-    if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
-  }
-  return '';
-}
-
-// Extract and match student from a parsed Firestore document
-function extractMatch(docData, query, type, docId) {
-  // masterRegisters: items is an array
-  const items = docData.items || docData.data || docData.records || docData.students;
-  const docSession = docData.Session || docData.session || '';
-  const docClass = docData.class || docData.Class || '';
-
-  const candidates = Array.isArray(items)
-    ? items.map(st => ({ session: docSession, class: docClass, ...st }))
-    : [docData];
-
-  for (const st of candidates) {
-    const regNorm = normalize(
-      getField(st,
-        'boardRegNo', 'Board Registration Number',
-        'Board Registration No. (Class 10th)',
-        'Board Registration No. (Class 11th)',
-        'Board Reg. No.', 'regNo', 'Registration No.'
-      )
-    );
-    const formNorm = normalize(
-      getField(st, 'formNo', 'Form Number', 'Form No.', 'FormNo')
-    );
-
-    const matched = type === 'regNo' ? (regNorm && regNorm === query) : (formNorm && formNorm === query);
-    if (!matched) continue;
-
-    const rawPhoto = getField(st,
-      'photoUrl', 'photo_id', 'Student Photo',
-      'Student Photograph', 'Photo', 'photo', 'photoId'
-    );
-    const photoUrl = resolvePhotoUrl(rawPhoto);
-
-    const rollNo = getField(st,
-      'classRollNo', 'Class Roll No', 'Class Roll No.',
-      'Class R.No.', 'Class R.No', 'Roll No.', 'Roll No',
-      'rollNo', 'roll_no', 'classRoll'
-    );
-
-    // Return ONLY safe minimum fields — no Aadhaar, no phone, no email, no address
-    return {
-      name: getField(st,
-        'studentName', "Student's Name",
-        "Student's Name (as per school records)", 'Student Name', 'Name'
-      ),
-      fatherName: getField(st,
-        'fatherName', "Father's Name",
-        "Father's/Guardian's Name (as per school records)", 'Father Name'
-      ),
-      className: getField(st, 'class', 'Class', 'Current Class') || docClass,
-      classRollNo: rollNo,
-      session: getField(st, 'session', 'Session') || docSession || '2025-26',
-      boardRegNo: getField(st,
-        'boardRegNo', 'Board Registration Number',
-        'Board Registration No. (Class 10th)',
-        'Board Registration No. (Class 11th)',
-        'Board Reg. No.', 'Registration No.', 'regNo'
-      ),
-      formNo: getField(st, 'formNo', 'Form Number', 'Form No.', 'FormNo'),
-      photoUrl,
-    };
-  }
-  return null;
-}
-
-exports.handler = async function (event) {
-  // Only allow POST
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
-  }
-
-  // Rate limiting by IP
-  const ip = event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  const maxCalls = parseInt(process.env.LOOKUP_RATE_MAX || '10', 10);
-  const windowMs = parseInt(process.env.LOOKUP_RATE_WINDOW_MS || '60000', 10);
-  if (!checkRate(ip, maxCalls, windowMs)) {
-    return {
-      statusCode: 429,
-      body: JSON.stringify({ error: 'Too many requests. Please wait and try again.' })
-    };
-  }
-
-  // Parse request body
-  let body;
-  try {
-    body = JSON.parse(event.body || '{}');
-  } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid request body' }) };
-  }
-
-  const { query: rawQuery, type } = body;
-  const query = normalize(rawQuery || '');
-
-  if (!query || query.length < 3) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Query too short' }) };
-  }
-  if (!['regNo', 'formNo'].includes(type)) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid type' }) };
-  }
-
-  const apiKey = process.env.FIREBASE_API_KEY || process.env.REACT_APP_FIREBASE_API_KEY;
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.REACT_APP_FIREBASE_PROJECT_ID;
-
-  if (!apiKey || !projectId) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'Server misconfigured' }) };
-  }
-
-  // Search in priority order: masterRegisters → registerdata → admissions
-  const collections = ['masterRegisters', 'registerdata', 'admissions'];
-  let found = null;
-
-  for (const col of collections) {
-    if (found) break;
+  if (!str.startsWith('{')) {
     try {
-      const docs = await fetchCollection(projectId, apiKey, col);
-      for (const doc of docs) {
-        const docData = parseFields(doc.fields || {});
-        const match = extractMatch(docData, query, type, doc.name);
-        if (match) {
-          found = match;
-          break;
-        }
-      }
-    } catch (err) {
-      console.error(`Error fetching ${col}:`, err.message);
+      const decoded = Buffer.from(str, 'base64').toString('utf8').trim();
+      if (decoded.startsWith('{')) str = decoded;
+    } catch (e) {}
+  }
+  const sa = typeof str === 'string' ? JSON.parse(str) : str;
+  if (sa && typeof sa.private_key === 'string') {
+    let pk = sa.private_key.trim();
+    if ((pk.startsWith('"') && pk.endsWith('"')) || (pk.startsWith("'") && pk.endsWith("'"))) {
+      pk = pk.slice(1, -1);
     }
+    pk = pk.replace(/\\n/g, '\n').replace(/\\r/g, '');
+    sa.private_key = pk;
   }
+  return sa;
+}
 
-  if (!found) {
-    return {
-      statusCode: 404,
-      body: JSON.stringify({ error: type === 'regNo'
-        ? 'No record found for this Registration Number.'
-        : 'No record found for this Form Number.'
-      })
-    };
-  }
+function getAdminApp() {
+  if (getApps().length) return getApp();
+  const credential = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  return initializeApp({ credential: cert(credential) });
+}
 
-  return {
-    statusCode: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    },
-    body: JSON.stringify({ student: found })
+function response(statusCode, body, origin = '') {
+  const headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store, max-age=0',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
   };
+  if (origin) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers.Vary = 'Origin';
+  }
+  return { statusCode, headers, body: JSON.stringify(body) };
+}
+
+function allowedOrigin(event) {
+  const origin = String(event.headers.origin || '');
+  const allowed = String(process.env.ALLOWED_ORIGINS || '')
+    .split(',').map(v => v.trim()).filter(Boolean);
+  return origin && allowed.includes(origin) ? origin : '';
+}
+
+function normalize(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+async function consumeRateLimit(db, ipHash) {
+  const ref = db.collection('securityRateLimits').doc(`student_lookup_${ipHash}`);
+  const now = Date.now();
+  const windowMs = Math.max(10000, Number(process.env.LOOKUP_RATE_WINDOW_MS || 60000));
+  const max = Math.min(20, Math.max(1, Number(process.env.LOOKUP_RATE_MAX || 8)));
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const prior = snap.exists ? snap.data() : {};
+    const resetAt = Number(prior.resetAt || 0);
+    const count = resetAt > now ? Number(prior.count || 0) + 1 : 1;
+    const nextReset = resetAt > now ? resetAt : now + windowMs;
+    tx.set(ref, { count, resetAt: nextReset, expiresAt: Timestamp.fromMillis(nextReset + 86400000) });
+    return count <= max;
+  });
+}
+
+exports.handler = async function handler(event) {
+  const origin = allowedOrigin(event);
+  if (!origin) return response(403, { error: 'Request origin is not allowed.' });
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type', Vary: 'Origin' }, body: '' };
+  }
+  if (event.httpMethod !== 'POST') return response(405, { error: 'Method not allowed.' }, origin);
+  if (Buffer.byteLength(event.body || '', 'utf8') > 2048) return response(413, { error: 'Request too large.' }, origin);
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); }
+  catch (_) { return response(400, { error: 'Invalid request.' }, origin); }
+
+  const type = body.type;
+  const value = normalize(body.query);
+  if (!['regNo', 'formNo'].includes(type) || value.length < 4 || value.length > 64 || !/^[a-z0-9/_.-]+$/.test(value)) {
+    return response(400, { error: 'Invalid lookup value.' }, origin);
+  }
+
+  try {
+    getAdminApp();
+    const db = getFirestore(getAdminApp());
+    const rateSecret = process.env.LOOKUP_RATE_SECRET;
+    const indexSecret = process.env.LOOKUP_INDEX_SECRET;
+    if (!rateSecret || rateSecret.length < 32 || !indexSecret || indexSecret.length < 32) {
+      throw new Error('Lookup secrets are not securely configured');
+    }
+    const forwarded = String(event.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ipHash = crypto.createHmac('sha256', rateSecret).update(forwarded || 'unknown').digest('hex').slice(0, 40);
+    if (!(await consumeRateLimit(db, ipHash))) return response(429, { error: 'Too many requests. Try again later.' }, origin);
+
+    const indexId = crypto.createHmac('sha256', indexSecret).update(`${type}:${value}`).digest('hex');
+    const snap = await db.collection('studentVerificationIndex').doc(indexId).get();
+    if (!snap.exists) return response(404, { error: 'No matching record was found.' }, origin);
+    const data = snap.data() || {};
+    const student = {
+      name: String(data.name || '').slice(0, 100),
+      fatherName: String(data.fatherName || '').slice(0, 100),
+      className: String(data.className || '').slice(0, 30),
+      classRollNo: String(data.classRollNo || '').slice(0, 30),
+      session: String(data.session || '').slice(0, 20),
+      boardRegNo: String(data.boardRegNo || '').slice(0, 64),
+      formNo: String(data.formNo || '').slice(0, 32),
+      photoUrl: typeof data.photoUrl === 'string' && /^https:\/\//.test(data.photoUrl) ? data.photoUrl.slice(0, 2048) : null,
+    };
+    return response(200, { student }, origin);
+  } catch (error) {
+    console.error('Student lookup failed:', error.message);
+    return response(503, { error: 'Lookup service is temporarily unavailable.' }, origin);
+  }
 };

@@ -6,6 +6,7 @@ import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
+import PublicPageSkeleton from '../components/PublicPageSkeleton';
 
 export default function Admissions() {
   const [docOpen, setDocOpen] = useState(false);
@@ -111,11 +112,7 @@ export default function Admissions() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
-        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
-      </div>
-    );
+    return <PublicPageSkeleton label="Loading admissions information…" />;
   }
 
   if (dynamicData) {
@@ -123,7 +120,7 @@ export default function Admissions() {
   }
 
   return (
-    <div className="w-full bg-gradient-to-b from-teal-50 to-white py-6 sm:py-10">
+    <div className="public-page w-full bg-gradient-to-b from-teal-50 to-white py-6 sm:py-10">
       <SEO title="Admissions 2026" description="Learn about the step-by-step admissions process at Govt. Higher Secondary School Shangus. Register online, check required documents, and explore our session fee structure." />
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         
@@ -137,7 +134,7 @@ export default function Admissions() {
 
         {/* Header */}
         <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4">Admission Process 2026</h2>
+          <h1 className="ui-page-title text-2xl sm:text-3xl text-slate-800 mb-4">Admission Process 2026</h1>
           <p className="text-slate-600">Follow these 4 simple steps to join our academic community.<br/>Applications are now open for the upcoming academic year.</p>
         </div>
 

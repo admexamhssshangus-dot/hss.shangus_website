@@ -90,14 +90,14 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="bg-slate-950 text-slate-300 pt-12 pb-16 md:pb-6 mt-0 border-t-[3px] footer-theme-border">
+      <footer className="site-footer bg-slate-950 text-slate-300 pt-12 pb-16 md:pb-6 mt-0 border-t-[3px] footer-theme-border">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
 
           {/* Brand */}
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
             <div className="flex items-center mb-4">
               <BookOpen className="text-teal-500 mr-2" size={24} />
-              <h4 className="text-white font-bold text-lg tracking-wide font-title">Govt. H.S.S. Shangus</h4>
+              <h2 className="text-white font-bold text-lg tracking-wide font-title">Govt. H.S.S. Shangus</h2>
             </div>
             <p className="text-sm text-slate-500 leading-relaxed max-w-xl">
               Since 1971, Govt HSS Shangus provides Science, Humanities and Secondary education with experienced faculty, well-equipped labs, a library and active sports programs.
@@ -157,7 +157,7 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div className="text-center">
-            <h4 className="text-white font-bold mb-4">Quick Links</h4>
+            <h2 className="text-white font-bold mb-4">Quick Links</h2>
             <ul className="space-y-2 text-sm flex flex-col">
               <Link to="/" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Home</Link>
               <Link to="/about" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">About Us</Link>
@@ -209,7 +209,7 @@ export default function Footer() {
 
           {/* Legal & Compliance Menu */}
           <div className="text-center">
-            <h4 className="text-white font-bold mb-4">Legal & Compliance</h4>
+            <h2 className="text-white font-bold mb-4">Legal & Compliance</h2>
             <ul className="space-y-2 text-sm flex flex-col items-center">
               <button onClick={() => setActiveModal('privacy')} className="hover:text-teal-400 transition-colors focus:outline-none">
                 Privacy Policy
@@ -234,16 +234,16 @@ export default function Footer() {
           {/* Mobile Only: Admin Portal Lock Button placed ABOVE Copyright */}
           <div className="flex md:hidden items-center justify-center mb-1 pt-0.5">
             <Link
-              to="/admin/portal"
+              to="/portal/login"
               onClick={() => window.scrollTo(0, 0)}
-              title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
-              className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-105 cursor-pointer border"
+              title="Open Login Portal"
+              className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-105 cursor-pointer border"
               style={{
                 color: isAdmin ? '#059669' : '#0f766e',
                 backgroundColor: isAdmin ? '#ecfdf5' : '#f0fdf4',
                 borderColor: isAdmin ? '#a7f3d0' : '#ccfbf1'
               }}
-              aria-label="Admin Portal"
+              aria-label="Open Login Portal"
             >
               {isAdmin ? (
                 <Unlock size={20} className="stroke-[2.2] animate-pulse" />

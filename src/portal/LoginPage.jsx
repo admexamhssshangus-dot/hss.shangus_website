@@ -6,9 +6,8 @@ import {
   KeyRound, Mail, School, Award, CheckCircle2, ChevronRight, Compass
 } from 'lucide-react';
 import SEO from '../components/SEO';
-import { auth, googleProvider, db } from '../services/firebase';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { auth, googleProvider } from '../services/firebase';
+import { getIdTokenResult, signInWithPopup, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
@@ -48,70 +47,52 @@ export default function LoginPage() {
 
   const isSuperAdmin = selectedRole === 'superadmin';
 
+  const createVerifiedSession = async (firebaseUser) => {
+    const tokenResult = await getIdTokenResult(firebaseUser, true);
+    const claims = tokenResult.claims || {};
+    const role = String(claims.role || (claims.admin ? 'Admin' : '')).trim();
+    const normalizedRole = role.toLowerCase();
+
+    if (!['student', 'user', 'teacher', 'faculty', 'admin', 'superadmin', 'super admin'].includes(normalizedRole)) {
+      await signOut(auth).catch(() => {});
+      throw new Error('This account has not been assigned an approved portal role. Contact the school administrator.');
+    }
+
+    if ((normalizedRole.includes('admin') || normalizedRole === 'teacher' || normalizedRole === 'faculty') && !firebaseUser.emailVerified) {
+      await signOut(auth).catch(() => {});
+      throw new Error('Staff accounts must verify their email address before signing in.');
+    }
+
+    const selected = selectedRole === 'superadmin' ? 'superadmin' : selectedRole;
+    const claimedArea = normalizedRole.includes('admin') ? 'admin'
+      : normalizedRole === 'teacher' || normalizedRole === 'faculty' ? 'teacher'
+      : 'student';
+    if ((selected === 'admin' || selected === 'superadmin' ? 'admin' : selected) !== claimedArea) {
+      await signOut(auth).catch(() => {});
+      throw new Error(`This account is authorized for the ${claimedArea} portal, not the selected portal.`);
+    }
+
+    return {
+      user: {
+        email: String(firebaseUser.email || '').toLowerCase(),
+        name: firebaseUser.displayName || String(firebaseUser.email || '').split('@')[0],
+        role,
+        perms: Array.isArray(claims.permissions) ? claims.permissions : [],
+        photoURL: firebaseUser.photoURL || null,
+        uid: firebaseUser.uid,
+      },
+      token: tokenResult.token,
+    };
+  };
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setAlert(null);
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, googleProvider);
-      const fbUser = result.user;
-      const userEmail = (fbUser?.email || '').toLowerCase();
-
-      const tabFallbackRole = selectedRole === 'superadmin' ? 'SuperAdmin'
-        : selectedRole === 'admin' ? 'Admin'
-        : selectedRole === 'teacher' ? 'Teacher'
-        : 'Student';
-
-      let resolvedRole = tabFallbackRole;
-      let resolvedName = fbUser?.displayName || userEmail;
-
-      if (userEmail === 'adm.exam.hss.shangus@gmail.com') {
-        resolvedRole = 'SuperAdmin';
-        resolvedName = resolvedName || 'Sheikh Gulfam (SuperAdmin)';
-      } else if (userEmail === 'shahnawaz@gmail.com') {
-        resolvedRole = 'Admin';
-        resolvedName = resolvedName || 'Nawaz Ahmad Shah (Admin)';
-      } else if (userEmail === 'shahnawaz13678@gmail.com') {
-        resolvedRole = 'Teacher';
-        resolvedName = resolvedName || 'Nawaz Ahmad Shah (Teacher)';
-      } else if (userEmail === 'bilalhcu@gmail.com') {
-        resolvedRole = 'Admin';
-        resolvedName = resolvedName || 'Bilal Ahmad Khandy (Admin)';
-      } else if (userEmail === 'majidhassannajar@gmail.com') {
-        resolvedRole = 'Admin';
-        resolvedName = resolvedName || 'Majid Hassan Najar (Admin)';
-      } else {
-        try {
-          const snap = await getDoc(doc(db, 'users', userEmail));
-          if (snap.exists()) {
-            const d = snap.data();
-            resolvedRole = d.Role || d.role || tabFallbackRole;
-            resolvedName = d.Name || d.name || resolvedName;
-          } else {
-            let q = await getDocs(query(collection(db, 'users'), where('email', '==', userEmail))).catch(() => null);
-            if (!q || q.empty) {
-              q = await getDocs(query(collection(db, 'users'), where('Email', '==', userEmail))).catch(() => null);
-            }
-            if (q && !q.empty) {
-              const d = q.docs[0].data();
-              resolvedRole = d.Role || d.role || tabFallbackRole;
-              resolvedName = d.Name || d.name || resolvedName;
-            }
-          }
-        } catch (e) {
-          console.warn('Firestore lookup error during Google login:', e);
-        }
-      }
-
-      const userSession = {
-        email: userEmail,
-        name: resolvedName,
-        role: resolvedRole,
-        photoURL: fbUser?.photoURL || null,
-        uid: fbUser?.uid || null,
-      };
-
-      onLoginSuccess({ user: userSession, token: await fbUser.getIdToken() }, keepLoggedIn);
+      const verifiedSession = await createVerifiedSession(result.user);
+      onLoginSuccess(verifiedSession, keepLoggedIn);
     } catch (err) {
       console.error('Google Sign-In failed:', err);
       if (err.code !== 'auth/popup-closed-by-user') {
@@ -226,119 +207,12 @@ function md5(str) {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      let firebaseUser = null;
-      let idToken = null;
-      let firestoreUserData = null;
-
-      try {
-        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
-        firebaseUser = userCred.user;
-        idToken = await firebaseUser.getIdToken();
-      } catch (authErr) {
-        console.warn('Firebase Auth login failed, checking Firestore database records...', authErr.code);
-
-        // 1. Check Firestore 'users' collection
-        try {
-          const uSnap = await getDoc(doc(db, 'users', cleanEmail));
-          if (uSnap.exists()) {
-            firestoreUserData = uSnap.data();
-          }
-        } catch (_) {}
-
-        if (!firestoreUserData) {
-          try {
-            const q1 = await getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail)));
-            if (!q1.empty) firestoreUserData = q1.docs[0].data();
-            else {
-              const q2 = await getDocs(query(collection(db, 'users'), where('Email', '==', cleanEmail)));
-              if (!q2.empty) firestoreUserData = q2.docs[0].data();
-            }
-          } catch (_) {}
-        }
-
-        // 2. Check Firestore 'admissions' collection if not in 'users'
-        if (!firestoreUserData) {
-          try {
-            const aSnap = await getDoc(doc(db, 'admissions', cleanEmail));
-            if (aSnap.exists()) {
-              firestoreUserData = aSnap.data();
-            } else {
-              const q3 = await getDocs(query(collection(db, 'admissions'), where('email1', '==', cleanEmail)));
-              if (!q3.empty) firestoreUserData = q3.docs[0].data();
-              else {
-                const q4 = await getDocs(query(collection(db, 'admissions'), where('email', '==', cleanEmail)));
-                if (!q4.empty) firestoreUserData = q4.docs[0].data();
-              }
-            }
-          } catch (_) {}
-        }
-
-        if (firestoreUserData) {
-          const plainPass = (firestoreUserData.PasswordPlain || firestoreUserData.passwordPlain || firestoreUserData.password || firestoreUserData.Password || firestoreUserData.pass || firestoreUserData.Pass || '').toString().trim();
-          const hashPass = (firestoreUserData.PasswordHash || firestoreUserData.passwordHash || '').toString().trim().toLowerCase();
-          const inputHash = md5(password);
-
-          const isMatch = (plainPass && plainPass === password) ||
-                          (hashPass && (hashPass === inputHash || hashPass === password));
-
-          if (isMatch) {
-            // Password verified via Firestore record! Auto-register in Firebase Auth
-            try {
-              const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-              firebaseUser = newCred.user;
-              idToken = await firebaseUser.getIdToken();
-            } catch (createErr) {
-              console.warn('Auto create Firebase Auth account note:', createErr.message);
-              firebaseUser = { uid: `fs_${cleanEmail.replace(/[^a-z0-9]/g, '')}`, email: cleanEmail };
-            }
-          }
-        }
-
-        if (!firebaseUser) {
-          throw authErr;
-        }
-      }
-
-      let resolvedRole = firestoreUserData?.Role || firestoreUserData?.role || (selectedRole === 'superadmin' ? 'SuperAdmin' : selectedRole === 'admin' ? 'Admin' : selectedRole === 'teacher' ? 'Teacher' : 'Student');
-      let resolvedName = firestoreUserData?.Name || firestoreUserData?.name || firestoreUserData?.studentName || firestoreUserData?.["Student's Name (as per school records)"] || cleanEmail.split('@')[0];
-
-      if (cleanEmail === 'adm.exam.hss.shangus@gmail.com') {
-        resolvedRole = 'SuperAdmin';
-        resolvedName = 'Sheikh Gulfam (SuperAdmin)';
-      } else if (cleanEmail === 'shahnawaz@gmail.com') {
-        resolvedRole = 'Admin';
-        resolvedName = 'Nawaz Ahmad Shah (Admin)';
-      } else if (cleanEmail === 'shahnawaz13678@gmail.com') {
-        resolvedRole = 'Teacher';
-        resolvedName = 'Nawaz Ahmad Shah (Teacher)';
-      } else if (cleanEmail === 'bilalhcu@gmail.com') {
-        resolvedRole = 'Admin';
-        resolvedName = 'Bilal Ahmad Khandy (Admin)';
-      } else {
-        if (!firestoreUserData) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', cleanEmail));
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              resolvedRole = data.Role || data.role || resolvedRole;
-              resolvedName = data.Name || data.name || data.studentName || resolvedName;
-            }
-          } catch (dbErr) {
-            console.warn('Firestore user fetch failed:', dbErr);
-          }
-        }
-      }
-
-      const userSession = {
-        email: cleanEmail,
-        name: resolvedName,
-        role: resolvedRole,
-        uid: firebaseUser?.uid || null,
-      };
+      const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      const verifiedSession = await createVerifiedSession(userCred.user);
 
       setAlert({ type: 'success', text: 'Login successful! Redirecting...' });
       setTimeout(() => {
-        onLoginSuccess({ success: true, user: userSession, token: idToken }, keepLoggedIn);
+        onLoginSuccess(verifiedSession, keepLoggedIn);
       }, 400);
 
     } catch (err) {
@@ -348,6 +222,8 @@ function md5(str) {
         errMsg = 'Too many failed login attempts. Please try again later or reset your password.';
       } else if (err.code === 'auth/network-request-failed') {
         errMsg = 'Network error. Please check your internet connection.';
+      } else if (err.message && err.message.includes('portal')) {
+        errMsg = err.message;
       }
       setAlert({ type: 'error', text: errMsg });
     } finally {
@@ -385,7 +261,7 @@ function md5(str) {
       badge: 'SuperAdmin Access Mode',
       title: 'Executive System Control',
       desc: 'Full administrative access across all student, faculty, financial, and monitoring modules.',
-      features: ['System-wide Override Access', 'Anganwadi Poshan Monitoring', 'Security & System Controls'],
+      features: ['System-wide Override Access', 'Administrative Module Management', 'Security & System Controls'],
       color: 'amber',
       icon: Crown,
     },
@@ -395,7 +271,7 @@ function md5(str) {
   const RoleIcon = activeRoleInfo.icon;
 
   return (
-    <div className="w-full min-h-[90vh] flex items-center justify-center py-6 px-3 sm:px-6 lg:px-8 relative overflow-hidden transition-colors duration-300">
+    <div className="portal-auth-page w-full min-h-[calc(100vh-var(--site-header-height,64px))] flex items-center justify-center py-6 px-3 sm:px-6 lg:px-8 relative overflow-hidden transition-colors duration-300">
       <SEO
         title="Student & Staff Login Portal | HSS Shangus"
         description="Official Govt HSS Shangus Online Portal. Access admissions, roll slips, attendance tracking, and faculty utilities."
@@ -424,10 +300,10 @@ function md5(str) {
 
           {/* Main Hero Title */}
           <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight uppercase">
+            <div className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight uppercase">
               <span className="moving-gradient-subtle">Digital Student & Staff</span>{' '}
               <span className="moving-gradient-text">Portal</span>
-            </h1>
+            </div>
             <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-400 mt-2 leading-relaxed max-w-lg">
               Official unified portal for students, faculty, and school administration. Access admissions, roll slips, attendance, and exam management.
             </p>
@@ -530,9 +406,9 @@ function md5(str) {
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
                       HSS Shangus Portal
                     </span>
-                    <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
                       Sign In
-                    </h2>
+                    </h1>
                   </div>
                 </div>
 
@@ -651,6 +527,7 @@ function md5(str) {
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer transition-colors p-1"
                   >

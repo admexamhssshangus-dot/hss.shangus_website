@@ -6,9 +6,11 @@
 // =================================================================
 
 import { sessionManager } from './sessionManager';
-import { db } from './firebase';
-import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import { collection, getDocs, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
 import { DEFAULT_FORM_STRUCTURE, DEFAULT_SUBJECTS_CONFIG } from '../utils/defaultFormSchema';
+import { getCachedCollection, getCachedCollectionSync } from './dbCache';
+import { loadAdmissionWorkspace, submitAdmission } from './admissionWorkflowApi';
 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
 const APPS_SCRIPT_URL = process.env.REACT_APP_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
@@ -254,6 +256,15 @@ async function getFormStructure() {
     const cachedStr = sessionStorage.getItem('cached_form_structure');
     if (cachedStr) {
       cacheFormStructure = JSON.parse(cachedStr);
+      if (cacheFormStructure && Array.isArray(cacheFormStructure.data)) {
+        const existingNames = new Set(cacheFormStructure.data.map(f => f.fieldName || f.name || f['Field Name']));
+        DEFAULT_FORM_STRUCTURE.forEach(defField => {
+          const defName = defField.fieldName || defField.name || defField['Field Name'];
+          if (!existingNames.has(defName)) {
+            cacheFormStructure.data.push(defField);
+          }
+        });
+      }
       return cacheFormStructure;
     }
   } catch (e) {}
@@ -263,6 +274,14 @@ async function getFormStructure() {
     const snap = await getDocs(collection(db, 'formStructure'));
     if (!snap.empty) {
       const items = snap.docs.map(doc => doc.data());
+      // Merge in any missing canonical fields from DEFAULT_FORM_STRUCTURE
+      const existingNames = new Set(items.map(f => f.fieldName || f.name || f['Field Name']));
+      DEFAULT_FORM_STRUCTURE.forEach(defField => {
+        const defName = defField.fieldName || defField.name || defField['Field Name'];
+        if (!existingNames.has(defName)) {
+          items.push(defField);
+        }
+      });
       cacheFormStructure = { success: true, data: items };
       try { sessionStorage.setItem('cached_form_structure', JSON.stringify(cacheFormStructure)); } catch (e) {}
       return cacheFormStructure;
@@ -294,18 +313,50 @@ async function getSubjectsConfig() {
       const configObj = {};
       snap.docs.forEach(doc => {
         const d = doc.data();
-        if (d.items && Array.isArray(d.items)) {
-          d.items.forEach(item => {
-            const cls = item.Class || item.class || '11th';
-            if (!configObj[cls]) configObj[cls] = item;
-          });
-        } else if (d.Class || d.class) {
-          configObj[d.Class || d.class] = d;
-        }
+        const rawItems = Array.isArray(d.items) ? d.items : [d];
+        rawItems.forEach(item => {
+          if (!item || typeof item !== 'object') return;
+          const cls = String(item.Class || item.class || d.groupKey || '').trim();
+          if (!cls) return;
+
+          const stream = String(item.Stream || item.stream || 'General').trim();
+          if (!configObj[cls]) configObj[cls] = {};
+
+          const compulsory = Array.isArray(item['Compulsory Subjects'] || item.compulsory)
+            ? (item['Compulsory Subjects'] || item.compulsory)
+            : String(item['Compulsory Subjects'] || item.compulsory || '').split(',').map(s => s.trim()).filter(Boolean);
+
+          const group1 = Array.isArray(item['Group1 Options'] || item['Group 1 Options'] || item.group1)
+            ? (item['Group1 Options'] || item['Group 1 Options'] || item.group1)
+            : String(item['Group1 Options'] || item['Group 1 Options'] || item.group1 || '').split(',').map(s => s.trim()).filter(Boolean);
+
+          const group2 = Array.isArray(item['Group2 Options'] || item['Group 2 Options'] || item.group2)
+            ? (item['Group2 Options'] || item['Group 2 Options'] || item.group2)
+            : String(item['Group2 Options'] || item['Group 2 Options'] || item.group2 || '').split(',').map(s => s.trim()).filter(Boolean);
+
+          const optional = Array.isArray(item.optional)
+            ? item.optional
+            : [...new Set([...group1, ...group2])];
+
+          configObj[cls][stream] = {
+            ...item,
+            compulsory,
+            group1,
+            group2,
+            optional,
+            g1Min: item['G1 Min'] !== undefined ? Number(item['G1 Min']) : 1,
+            g1Max: item['G1 Max'] !== undefined ? Number(item['G1 Max']) : 1,
+            g2Min: item['G2 Min'] !== undefined ? Number(item['G2 Min']) : 0,
+            g2Max: item['G2 Max'] !== undefined ? Number(item['G2 Max']) : 1,
+          };
+        });
       });
-      cacheSubjectsConfig = { success: true, data: configObj };
-      try { sessionStorage.setItem('cached_subjects_config', JSON.stringify(cacheSubjectsConfig)); } catch (e) {}
-      return cacheSubjectsConfig;
+
+      if (Object.keys(configObj).length > 0) {
+        cacheSubjectsConfig = { success: true, data: configObj };
+        try { sessionStorage.setItem('cached_subjects_config', JSON.stringify(cacheSubjectsConfig)); } catch (e) {}
+        return cacheSubjectsConfig;
+      }
     }
   } catch (err) {
     console.warn('Firestore getSubjectsConfig note:', err);
@@ -322,7 +373,7 @@ function getInitialData() {
   return call('getInitialDataForUser');
 }
 
-async function getStudentApplication() {
+async function legacyGetStudentApplication() {
   try {
     const user = sessionManager.getUser();
     if (user) {
@@ -333,6 +384,8 @@ async function getStudentApplication() {
 
       const isMatch = (a) => {
         if (!a) return false;
+        // Skip soft-deleted records
+        if (a.Status === 'Deleted' || a._deleted === true) return false;
         const aEmail = String(a['Email Address'] || a.email || '').toLowerCase().trim();
         const aMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || '').replace(/[^0-9]/g, '');
         const aRegNo = String(a['Board Registration No. (Class 10th)'] || a['Board Registration No. (Class 11th)'] || a['Board Reg. No.'] || a.regNo || '').toLowerCase().trim();
@@ -349,39 +402,48 @@ async function getStudentApplication() {
       const matchedApps = [];
       const historicalRecords = [];
 
-      // 1. Search admissions
-      try {
-        const snap = await getDocs(collection(db, 'admissions'));
-        if (!snap.empty) {
-          snap.docs.forEach(d => {
-            const data = { docId: d.id, ...d.data() };
-            if (isMatch(data)) matchedApps.push(data);
-          });
-        }
-      } catch (e) {}
+      // 1. Search admissions (Use instant memory/sync cache first)
+      const cachedAdmissions = getCachedCollectionSync('admissions');
+      if (cachedAdmissions && Array.isArray(cachedAdmissions)) {
+        cachedAdmissions.forEach(d => {
+          if (isMatch(d)) matchedApps.push(d);
+        });
+      }
 
-      // 2. Search masterRegisters for historical student records
-      try {
-        const masterSnap = await getDocs(collection(db, 'masterRegisters'));
-        if (!masterSnap.empty) {
-          masterSnap.docs.forEach(d => {
-            const dData = d.data();
-            if (Array.isArray(dData.items)) {
-              dData.items.forEach(item => {
-                if (isMatch(item)) historicalRecords.push({ docId: item['Form Number'] || d.id, ...item });
-              });
-            } else if (isMatch(dData)) {
-              historicalRecords.push({ docId: d.id, ...dData });
-            }
-          });
-        }
-      } catch (e) {}
+      // If sync cache missed, fetch fresh admissions from cache/Firestore SWR
+      if (matchedApps.length === 0) {
+        try {
+          const freshApps = await getCachedCollection('admissions', true, 5 * 60 * 1000);
+          if (freshApps && Array.isArray(freshApps)) {
+            freshApps.forEach(d => {
+              if (isMatch(d)) matchedApps.push(d);
+            });
+          }
+        } catch (e) {}
+      }
+
+      // 2. Search masterRegisters for historical student records (Sync cache first)
+      const cachedMaster = getCachedCollectionSync('masterRegisters');
+      if (cachedMaster && Array.isArray(cachedMaster)) {
+        cachedMaster.forEach(d => {
+          if (Array.isArray(d.items)) {
+            d.items.forEach(item => {
+              if (isMatch(item)) historicalRecords.push({ docId: item['Form Number'] || d.id, ...item });
+            });
+          } else if (isMatch(d)) {
+            historicalRecords.push({ docId: d.id, ...d });
+          }
+        });
+      }
+
+      // Filter out any soft-deleted records that slipped through cache
+      const liveApps = matchedApps.filter(a => a.Status !== 'Deleted' && a._deleted !== true);
 
       return {
         success: true,
-        applications: matchedApps,
+        applications: liveApps,
         historicalRecords,
-        data: { applications: matchedApps, historicalRecords }
+        data: { applications: liveApps, historicalRecords }
       };
     }
   } catch (e) {
@@ -390,17 +452,93 @@ async function getStudentApplication() {
   return { success: true, applications: [], historicalRecords: [], data: { applications: [], historicalRecords: [] } };
 }
 
-async function saveApplication(payload) {
+async function legacySaveApplication(payload) {
   const data = payload.formData || payload;
-  const formNo = String(data['Form Number'] || data['FormNo'] || data.formNumber || `FORM_${Date.now()}`);
+  const isUpgradeMode = Boolean(payload._upgradeMode || data._upgradeMode);
+  const provisionalFormNo = payload._provisionalFormNo || data._provisionalFormNo;
+
+  const cleanFNoVal = (val) => {
+    if (!val) return '';
+    const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
+    if (s.startsWith('FORM_')) return '';
+    return s;
+  };
+
+  let formNo = cleanFNoVal(provisionalFormNo || data['Form Number'] || data['FormNo'] || data['Form No.'] || data.formNumber || data.formNo);
+  if (!formNo) {
+    try {
+      const { getNextAvailableFormNumber } = require('./formNumberService');
+      formNo = await getNextAvailableFormNumber();
+    } catch (_) {
+      formNo = `26${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+  }
   const sanitizedDocId = formNo.replace(/\//g, '_');
+
+  const admissionClass = String(data['Admission sought for class'] || data['class'] || '').trim();
+  const session = String(data['Session'] || data['session'] || '').trim();
+  const userEmail = String(data['Email Address'] || data['email'] || '').toLowerCase().trim();
+  const userMobile = String(data['Mobile No. (with working WhatsApp)'] || data['mobile'] || '').replace(/[^0-9]/g, '');
+  const isProvisional = data['Admission Type (Class 11th)'] === 'Provisional' ||
+    data['Admission Type (Class 12th)'] === 'Provisional' ||
+    data['Admission Type'] === 'Provisional' ||
+    Boolean(data.isProvisional);
+
+  // ── DUPLICATE GUARD (skip in upgrade mode) ──
+  if (!isUpgradeMode && !isProvisional) {
+    try {
+      const snap = await getDocs(collection(db, 'admissions'));
+      if (!snap.empty) {
+        for (const d of snap.docs) {
+          if (d.id === sanitizedDocId) continue; // same doc = edit, not duplicate
+          const ex = d.data();
+          const exClass = String(ex['Admission sought for class'] || ex['class'] || '').trim();
+          const exSession = String(ex['Session'] || ex['session'] || '').trim();
+          const exStatus = String(ex['Status'] || ex['status'] || '').trim();
+          const exEmail = String(ex['Email Address'] || ex['email'] || '').toLowerCase().trim();
+          const exMobile = String(ex['Mobile No. (with working WhatsApp)'] || ex['mobile'] || '').replace(/[^0-9]/g, '');
+          const exIsProvisional = ex['Admission Type (Class 11th)'] === 'Provisional' ||
+            ex['Admission Type (Class 12th)'] === 'Provisional' ||
+            ex['Admission Type'] === 'Provisional' ||
+            Boolean(ex.isProvisional);
+
+          // Match same student (email or mobile) for same session + class
+          const isSameStudent =
+            (userEmail && exEmail && userEmail === exEmail) ||
+            (userMobile && exMobile && userMobile.slice(-10) === exMobile.slice(-10));
+          const isSameContext =
+            (!session || !exSession || session === exSession) &&
+            (exClass === admissionClass);
+          const isExistingFull = !exIsProvisional &&
+            (exStatus === 'Submitted' || exStatus === 'Approved' || exStatus === 'Draft');
+
+          if (isSameStudent && isSameContext && isExistingFull) {
+            return {
+              success: false,
+              error: 'duplicate',
+              message: `You already have an active ${exStatus} admission application (Form #${ex['Form Number'] || d.id}) for Class ${exClass}. You can edit it instead of submitting a new one.`,
+              existingFormNo: ex['Form Number'] || d.id,
+            };
+          }
+        }
+      }
+    } catch (dupErr) {
+      console.warn('Duplicate guard check error (non-fatal):', dupErr);
+    }
+  }
 
   const payloadData = {
     ...data,
+    ownerUid: auth.currentUser?.uid || data.ownerUid,
     'Form Number': formNo,
+    isProvisional: isProvisional,
     Status: data.Status || 'Submitted',
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    ...(isUpgradeMode ? { upgradedAt: new Date().toISOString(), isProvisional: false } : {}),
   };
+  // Remove internal flags from saved data
+  delete payloadData._upgradeMode;
+  delete payloadData._provisionalFormNo;
 
   try {
     await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
@@ -408,16 +546,30 @@ async function saveApplication(payload) {
     console.warn('Firestore saveApplication admissions write error:', e);
   }
 
-  try {
-    await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payloadData, { merge: true });
-  } catch (e) {
-    console.warn('Firestore saveApplication masterRegisters write error:', e);
+  // ── ADMISSION HISTORY (upgrade only) ──
+  if (isUpgradeMode) {
+    try {
+      const historyDocId = `${sanitizedDocId}_upgrade_${Date.now()}`;
+      await setDoc(doc(db, 'admissionHistory', historyDocId), {
+        formNo,
+        event: 'provisional_upgraded_to_full',
+        studentName: data["Student's Name (as per school records)"] || data['name'] || '',
+        studentEmail: userEmail,
+        admissionClass,
+        session,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (histErr) {
+      console.warn('admissionHistory write error (non-fatal):', histErr);
+    }
   }
+
+  // masterRegisters is populated ONLY during session-close (Push to Source & Reset Session).
+  // New admissions must NOT be written here.
 
   try {
     const { updateCachedItem } = require('./dbCache');
     updateCachedItem('admissions', sanitizedDocId, payloadData);
-    updateCachedItem('masterRegisters', sanitizedDocId, payloadData);
   } catch (e) {}
 
   // Non-blocking Apps Script background sync
@@ -425,67 +577,129 @@ async function saveApplication(payload) {
     console.warn('Background Apps Script sync note:', err);
   });
 
-  return { success: true, formNumber: formNo, message: 'Application submitted successfully to official database.' };
+  return {
+    success: true,
+    formNumber: formNo,
+    isProvisional,
+    wasUpgraded: isUpgradeMode,
+    message: isUpgradeMode
+      ? `Provisional admission (Form #${formNo}) successfully upgraded to Full Admission!`
+      : isProvisional
+      ? `Provisional admission form (Form #${formNo}) submitted successfully!`
+      : 'Application submitted successfully to official database.',
+  };
+}
+
+async function getStudentApplication() {
+  // Plain CRA localhost does not host Netlify Functions. Use the same
+  // owner-scoped Firestore read locally so dashboard/form loading stays clean;
+  // writes still require the authoritative Netlify workflow.
+  if (process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return { success: true, applications: [], historicalRecords: [], data: { applications: [], historicalRecords: [] } };
+    const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
+    const applications = snap.docs
+      .map(item => ({ docId: item.id, ...item.data() }))
+      .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
+    return {
+      success: true,
+      applications,
+      historicalRecords: [],
+      data: { applications, historicalRecords: [] },
+      localReadOnly: true,
+    };
+  }
+  const workspace = await loadAdmissionWorkspace();
+  const applications = Array.isArray(workspace.applications) ? workspace.applications : [];
+  return {
+    success: true,
+    applications,
+    historicalRecords: [],
+    activeSession: workspace.activeSession,
+    admissionAvailability: workspace.admissionAvailability || {},
+    data: {
+      applications,
+      historicalRecords: [],
+      activeSession: workspace.activeSession,
+      admissionAvailability: workspace.admissionAvailability || {},
+    },
+  };
+}
+
+async function saveApplication(payload) {
+  const role = String(sessionManager.getUser()?.role || '').toLowerCase();
+  if (role.includes('admin')) return legacySaveApplication(payload);
+  const data = payload.formData || payload;
+  return submitAdmission({
+    formData: data,
+    applicationId: payload.applicationId || data.docId || data.applicationId || '',
+    submissionKey: payload.submissionKey,
+    upgradeMode: Boolean(payload._upgradeMode || data._upgradeMode),
+  });
 }
 
 async function deleteStudentApplication(formNoOrDocId) {
   if (!formNoOrDocId) return { success: false, message: 'Form number required.' };
-  const cleanId = String(formNoOrDocId).trim();
+  const rawId = String(formNoOrDocId).trim();
+  const digitsOnly = rawId.replace(/[^0-9]/g, '');
+  const cleanId = rawId.replace(/^#/, '').trim();
 
+  const user = sessionManager.getUser();
+  const userEmail = user?.email ? String(user.email).toLowerCase().trim() : '';
+
+  // Generate all possible document ID formats this record could be stored under
   const idCandidates = Array.from(new Set([
+    rawId,
     cleanId,
+    digitsOnly,
+    `FORM_${digitsOnly}`,
+    `FORM_${cleanId}`,
     cleanId.replace(/\//g, '_'),
     cleanId.replace(/[\/\s]/g, '_').toLowerCase(),
     cleanId.replace(/[\/\s]/g, '_').toUpperCase(),
-    `active_${cleanId.replace(/[\/\s]/g, '_').toLowerCase()}`,
-    `active_${cleanId.replace(/[\/\s]/g, '_').toUpperCase()}`
   ].filter(Boolean)));
 
+  const deletionTimestamp = new Date().toISOString();
+  const softDeletePayload = {
+    Status: 'Deleted',
+    _deleted: true,
+    _deletedAt: deletionTimestamp,
+    _deletedBy: userEmail || 'Student Self Delete',
+  };
+
+  let softDeletedCount = 0;
+
   try {
-    // 1. Delete all candidate document IDs from admissions & masterRegisters
+    // Legacy fallback only: update exact existing candidate IDs. Do not create
+    // guessed Deleted stubs and do not scan admissions by identity.
     for (const cid of idCandidates) {
       if (!cid || cid.includes('/')) continue;
-      await deleteDoc(doc(db, 'admissions', cid)).catch(() => {});
-      await deleteDoc(doc(db, 'masterRegisters', cid)).catch(() => {});
-    }
-
-    // 2. Query and delete any matching documents in admissions & masterRegisters by Form Number or ID
-    for (const colName of ['admissions', 'masterRegisters']) {
       try {
-        const snap = await getDocs(collection(db, colName));
-        if (snap && !snap.empty) {
-          const targetLower = cleanId.replace(/[\/\s]/g, '_').toLowerCase();
-          for (const d of snap.docs) {
-            const dData = d.data();
-            const fNo = String(dData['Form Number'] || dData['Form No.'] || dData.formNumber || dData.id || '').trim();
-            const docId = String(d.id).trim();
-
-            if (
-              fNo === cleanId || 
-              fNo.replace(/[\/\s]/g, '_').toLowerCase() === targetLower || 
-              docId.replace(/[\/\s]/g, '_').toLowerCase() === targetLower
-            ) {
-              await deleteDoc(doc(db, colName, d.id)).catch(() => {});
-            }
-          }
-        }
-      } catch (e) {}
+        const ref = doc(db, 'admissions', cid);
+        const existing = await getDoc(ref);
+        if (!existing.exists()) continue;
+        await setDoc(ref, softDeletePayload, { merge: true });
+        softDeletedCount++;
+      } catch (_) {}
     }
 
-    // 3. Update single item in local IndexedDB / dbCache
-    const { updateCachedItem } = require('./dbCache');
+    // 3. Clear local multi-tier caches completely
+    const { updateCachedItem, invalidateCache } = require('./dbCache');
     idCandidates.forEach(cid => {
       updateCachedItem('admissions', cid, null);
       updateCachedItem('masterRegisters', cid, null);
     });
+    invalidateCache('admissions');
+    invalidateCache('masterRegisters');
 
-    // 4. Recycle deleted form number into system settings
-    const user = sessionManager.getUser();
+    // 4. Recycle deleted form number into system queue
     const { recycleDeletedFormNumber } = require('./formNumberService');
-    recycleDeletedFormNumber(cleanId, {}, user?.email || 'Student Self Delete').catch(() => {});
+    recycleDeletedFormNumber(cleanId || digitsOnly, {}, userEmail || 'Student Self Delete').catch(() => {});
 
     // 5. Clear local session storage draft
     try { sessionStorage.removeItem('hss_admission_draft'); } catch(e) {}
+
+    console.log(`[deleteStudentApplication] Soft-deleted ${softDeletedCount} documents for form ${cleanId}`);
 
     return { success: true, message: `Application #${cleanId} deleted successfully.` };
   } catch (e) {

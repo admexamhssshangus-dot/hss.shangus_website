@@ -1,40 +1,98 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Send, CheckCircle, AlertCircle, RefreshCw, Info, HelpCircle, X, Eye, Edit3, Camera, Check, ShieldCheck, Printer } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Save, Send, CheckCircle, CheckCircle2, AlertCircle, RefreshCw, Loader2, Info, HelpCircle, X, Eye, Edit3, Camera, ShieldCheck, Printer, ArrowUp } from 'lucide-react';
 import SEO from '../../components/SEO';
 import DynamicFormField from '../components/DynamicFormField';
 import ModernLoader from '../../components/ModernLoader';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
-import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
+import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
+import { saveAdmissionDraft } from '../../services/admissionWorkflowApi';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
+import { isValidAadhaar, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
+
+export function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
+  const cls = String(targetClass || '');
+  const strm = String(stream || '');
+  if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
+    return ["English", "Mathematics", "Science", "Social Science"];
+  }
+  if (strm === 'Humanities' || strm === 'Arts') {
+    return ["General English"];
+  }
+  if (strm === 'Commerce') {
+    return ["General English", "Accountancy", "Business Studies"];
+  }
+  return ["General English", "Physics", "Chemistry"];
+}
+
+export function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream = 'Science') {
+  const compulsory = getCompulsorySubjects(targetClass, stream);
+  const chosenArray = typeof rawSubjectsString === 'string'
+    ? rawSubjectsString.split(', ').map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawSubjectsString) ? rawSubjectsString : []);
+  
+  const allSubjects = [...new Set([...compulsory, ...chosenArray])];
+  return allSubjects.join(', ');
+}
 
 export default function AdmissionForm() {
   const navigate = useNavigate();
-
   // Loading & Data States
   const [loading, setLoading] = useState(true);
   const [formStructure, setFormStructure] = useState([]);
   const [subjectsConfig, setSubjectsConfig] = useState(null);
   const [formData, setFormData] = useState({});
+  const [isBackSaving, setIsBackSaving] = useState(false);
 
   // UI Flow States
   const [showInstructions, setShowInstructions] = useState(true);
   const [hasConfirmedInstructions, setHasConfirmedInstructions] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [isSetupCollapsed, setIsSetupCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('personal');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [draftSavedTime, setDraftSavedTime] = useState(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [showInfoBanner, setShowInfoBanner] = useState(true); // dismissible notice banner
+  const [submittedSuccessData, setSubmittedSuccessData] = useState(null); // confirmation popup data
+  const [applicationId, setApplicationId] = useState('');
+  const [admissionAvailability, setAdmissionAvailability] = useState({ globalClosed: false, classesClosed: {} });
+  const [draftState, setDraftState] = useState('idle');
+  const applicationIdRef = useRef('');
+  const submissionKeyRef = useRef('');
+  const autosaveServiceUnavailableRef = useRef(false);
+  const [upgradeMode, setUpgradeMode] = useState(false);
+  const [upgradeSourceFormNo, setUpgradeSourceFormNo] = useState(null);
 
-  const currentUser = sessionManager.getUser();
+
+  const currentUserRef = useRef(sessionManager.getUser());
+  const currentUser = currentUserRef.current;
   const currentStatus = formData.Status || formData.status || '';
   const isSubmittedOrApproved = currentStatus === 'Submitted' || currentStatus === 'Approved';
-  const isUnlocked = formData['Lock Status'] === 'Unlocked' || formData.isUnlockedEditMode || formData.isEditable || currentStatus === 'Rejected';
-  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin';
-  const isFormLocked = isSubmittedOrApproved && !isUnlocked && !isAdmin;
+
+  const timestampMillis = (value) => {
+    if (!value) return 0;
+    if (typeof value === 'object') return Number(value._seconds || value.seconds || 0) * 1000;
+    return Date.parse(value) || 0;
+  };
+  const rejectedEditable = currentStatus === 'Rejected' && timestampMillis(formData.editableUntil) > Date.now();
+  const isFormLocked = (isSubmittedOrApproved || currentStatus === 'Under Review' ||
+    (currentStatus === 'Rejected' && !rejectedEditable)) && !upgradeMode;
+  const availabilityClass = formData['Admission sought for class'] || '';
+  const admissionsClosed = admissionAvailability.globalClosed ||
+    Boolean(availabilityClass && admissionAvailability.classesClosed?.[availabilityClass]);
+
+  // Upgrade mode: provisional → full conversion
+  // Detect provisional flag on formData
+  const isProvisionalForm =
+    formData['Admission Type (Class 11th)'] === 'Provisional' ||
+    formData['Admission Type (Class 12th)'] === 'Provisional' ||
+    formData['Admission Type'] === 'Provisional' ||
+    formData.isProvisional === true;
 
   // Fetch initial form data & structure
   const initForm = useCallback(async () => {
@@ -55,59 +113,100 @@ export default function AdmissionForm() {
 
       let existing = {};
       let historical = {};
+      let requestedUpgradeFormNo = '';
+      try { requestedUpgradeFormNo = JSON.parse(sessionStorage.getItem('hss_admission_upgrade') || '{}').formNo || ''; } catch (e) { }
+
+      const isInactive = (item) => ['Withdrawn', 'Purged', 'Deleted', 'Wiped'].includes(item.Status || item.status) || item._deleted === true;
 
       if (appDataRes && appDataRes.data) {
         if (Array.isArray(appDataRes.data.applications) && appDataRes.data.applications.length > 0) {
-          existing = appDataRes.data.applications[appDataRes.data.applications.length - 1];
+          const active = appDataRes.data.applications.filter(item => !isInactive(item));
+          if (active.length > 0) {
+            existing = active.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedUpgradeFormNo)) || active[0];
+          }
         }
         if (Array.isArray(appDataRes.data.historicalRecords) && appDataRes.data.historicalRecords.length > 0) {
           historical = appDataRes.data.historicalRecords[appDataRes.data.historicalRecords.length - 1];
         }
       } else if (appDataRes) {
         if (Array.isArray(appDataRes.applications) && appDataRes.applications.length > 0) {
-          existing = appDataRes.applications[appDataRes.applications.length - 1];
+          const active = appDataRes.applications.filter(item => !isInactive(item));
+          if (active.length > 0) {
+            existing = active.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedUpgradeFormNo)) || active[0];
+          }
         }
         if (Array.isArray(appDataRes.historicalRecords) && appDataRes.historicalRecords.length > 0) {
           historical = appDataRes.historicalRecords[appDataRes.historicalRecords.length - 1];
         }
       }
 
-      // Check for local auto-saved draft in sessionStorage
-      let localDraft = {};
-      try {
-        const savedDraftStr = sessionStorage.getItem('hss_admission_draft');
-        if (savedDraftStr) {
-          localDraft = JSON.parse(savedDraftStr);
-        }
-      } catch (e) { }
+      // If no active application exists, clear stale upgrade & draft mode so form opens fresh
+      if (Object.keys(existing).length === 0) {
+        try {
+          sessionStorage.removeItem('hss_admission_upgrade');
+          sessionStorage.removeItem('hss_admission_draft');
+        } catch (e) {}
+        setUpgradeMode(false);
+        setUpgradeSourceFormNo(null);
+      }
 
-      // Pre-fill student photo from any available source
-      const preloadedPhoto = localDraft['Student Photo'] || existing['Student Photo'] || historical['Student Photo'] || existing['photo_id'] || historical['photo_id'] || existing['photoUrl'] || historical['photoUrl'] || '';
+      setAdmissionAvailability(appDataRes?.data?.admissionAvailability || appDataRes?.admissionAvailability || { globalClosed: false, classesClosed: {} });
+      const existingId = existing.docId || existing.applicationId || '';
+      setApplicationId(existingId);
+      applicationIdRef.current = existingId;
+      // Remove legacy browser drafts because they can contain Aadhaar, bank and photo data.
+      try { sessionStorage.removeItem('hss_admission_draft'); } catch (e) { }
+      const localDraft = {};
+
+      // Pre-fill student photo from any available source (draft, existing, historical, or user profile)
+      const preloadedPhoto =
+        existing['Student Photo'] || existing['photo_id'] || existing['photoUrl'] || existing['photo'] ||
+        historical['Student Photo'] || historical['photo_id'] || historical['photoUrl'] || historical['photo'] ||
+        currentUser?.['Student Photo'] || currentUser?.photo_id || currentUser?.photoUrl || currentUser?.photoURL || '';
+
+      // Helper to strip placeholder/dummy form numbers
+      const cleanFNoVal = (val) => {
+        if (!val) return '';
+        const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
+        if (s.startsWith('FORM_')) return ''; // Ignore temporary timestamp forms
+        return s;
+      };
 
       // Dynamically get next sequential Form Number if not already assigned in existing/draft
-      let assignedFormNo = existing['Form Number'] || existing['FormNo'] || localDraft['Form Number'] || localDraft['FormNo'] || '';
-      if (!assignedFormNo) {
-        assignedFormNo = await getNextAvailableFormNumber();
-      }
+      const assignedFormNo = cleanFNoVal(
+        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo']
+      );
 
       // If filling a NEW form, merge historical student records for instant pre-fill
       const prefillSource = Object.keys(existing).length > 0 ? existing : historical;
 
+      const defaultSession = (() => {
+        const now = new Date();
+        const calYear = now.getFullYear();
+        const calMonth = now.getMonth() + 1;
+        const calDay = now.getDate();
+        const isPastCutoff = calMonth > 10 || (calMonth === 10 && calDay > 31);
+        const sessionEndYear = isPastCutoff ? calYear + 1 : calYear;
+        return `${sessionEndYear - 1}-${String(sessionEndYear).slice(-2)}`;
+      })();
+
       const mergedData = {
         ...prefillSource,
-        ...localDraft,
-        'Form Number': assignedFormNo,
-        'FormNo': assignedFormNo,
+        ...(assignedFormNo ? { 'Form Number': assignedFormNo, FormNo: assignedFormNo, formNo: assignedFormNo } : {}),
+        Session: prefillSource.Session || prefillSource.session || appDataRes?.data?.activeSession || appDataRes?.activeSession || defaultSession,
+        'Email Address': prefillSource['Email Address'] || currentUser?.email || '',
         'Student Photo': preloadedPhoto,
-        'photo_id': preloadedPhoto,
         'photoUrl': preloadedPhoto,
       };
 
-      // Clear previous status if creating a fresh form from historical record
-      if (Object.keys(existing).length === 0 && Object.keys(historical).length > 0) {
+      // Clear previous status if creating a fresh form from historical record or applying afresh
+      if (Object.keys(existing).length === 0) {
         delete mergedData.Status;
         delete mergedData.status;
         delete mergedData.submittedAt;
+        delete mergedData['Form Number'];
+        delete mergedData['FormNo'];
+        delete mergedData['formNo'];
       }
 
       if (Object.keys(localDraft).length > 0) {
@@ -134,44 +233,204 @@ export default function AdmissionForm() {
     } finally {
       setLoading(false);
     }
+  }, [currentUser]);
+
+  // Detect upgrade mode from sessionStorage (set by StudentDashboard "Convert" button)
+  useEffect(() => {
+    try {
+      const upgradeStr = sessionStorage.getItem('hss_admission_upgrade');
+      if (upgradeStr) {
+        const upgradeCtx = JSON.parse(upgradeStr);
+        if (upgradeCtx && upgradeCtx.formNo && !upgradeMode) {
+          setUpgradeMode(true);
+          setUpgradeSourceFormNo(upgradeCtx.formNo || null);
+          setAlert({
+            type: 'info',
+            text: `🔄 Upgrade Mode: Converting Provisional Form #${upgradeCtx.formNo || ''} to Full Admission. All your details are pre-filled. Update the Admission Type to "Regular" and fill in the remaining required fields (marks, board reg. no., year of passing, etc.).`,
+          });
+        }
+      }
+    } catch (e) {}
   }, []);
+
+  // 60-Second Auto-Dismiss Timer for Notification Alert Toasts
+  useEffect(() => {
+    if (!alert) return;
+    const timer = setTimeout(() => {
+      setAlert(null);
+    }, 60000);
+    return () => clearTimeout(timer);
+  }, [alert]);
 
   useEffect(() => {
     initForm();
   }, [initForm]);
 
-  // Auto-save draft changes to sessionStorage on change
+  // Debounced, owner-scoped server draft. Sensitive identifiers and photos are
+  // excluded by admissionWorkflowApi and never placed in browser storage.
   useEffect(() => {
-    if (Object.keys(formData).length > 0 && !isFormLocked) {
+    if (Object.keys(formData).length === 0 || isFormLocked || autosaveServiceUnavailableRef.current) return undefined;
+    if (!formData['Admission sought for class'] && !formData["Student's Name (as per school records)"]) return undefined;
+    const timer = setTimeout(async () => {
+      setDraftState('saving');
       try {
-        sessionStorage.setItem('hss_admission_draft', JSON.stringify(formData));
+        const result = await saveAdmissionDraft({ formData, applicationId: applicationIdRef.current });
+        if (result.applicationId && !applicationIdRef.current) {
+          applicationIdRef.current = result.applicationId;
+          setApplicationId(result.applicationId);
+        }
         setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      } catch (e) { }
-    }
+        setDraftState('saved');
+        autosaveServiceUnavailableRef.current = false;
+      } catch (error) {
+        if (error.isServiceUnavailable) autosaveServiceUnavailableRef.current = true;
+        else console.warn('Admission autosave failed:', error);
+        setDraftState('error');
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
   }, [formData, isFormLocked]);
 
+  useEffect(() => {
+    if (isFormLocked || Object.keys(formData).length === 0) return undefined;
+    const warn = (event) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [formData, isFormLocked]);
+
+  // Auto-dismiss notification popup after 6 seconds for success/info
+  useEffect(() => {
+    if (alert && (alert.type === 'success' || alert.type === 'info')) {
+      const timer = setTimeout(() => {
+        setAlert(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert]);
+
+  // Preserve a useful screen across hot updates or old saved UI state after the
+  // former Subjects tab was merged into Academics.
+  useEffect(() => {
+    if (activeTab === 'subjects') setActiveTab('academic');
+  }, [activeTab]);
+
   const handleFieldChange = (fieldName, value) => {
+    // Auto-collapse setup options as soon as student inputs data into form fields
+    const isSetupField = fieldName === 'Admission sought for class' ||
+      fieldName.includes('Admission Type') ||
+      fieldName.includes('Stream for Class 11th') ||
+      fieldName.includes('Reason for Provisional');
+    if (!isSetupField && hasAdmissionStart) {
+      setIsSetupCollapsed(true);
+    }
+
     setFormData((prev) => {
       const next = { ...prev, [fieldName]: value };
 
       // ── Dependent field auto-clearing ──
+
+      // Disability
       if (fieldName === 'Whether Any Disability' && value === 'No') {
         next['Type of Disability'] = '';
       }
+
+      // Scholarship
       if (fieldName === 'Whether scholarship received in previous academic year' && value === 'No') {
         next['Type of scholarship received'] = '';
         next['Amount received (INR)'] = '';
       }
+
+      // Vocational
       if (fieldName === 'Vocational subject in previous class' && value === 'No') {
         next['Percentage Obtained in Vocational Subject'] = '';
       }
-      if (fieldName === 'Admission Type (Class 11th)' && value !== 'Provisional') {
-        next['Reason for Provisional (Class 11th)'] = '';
-        next['Subjects to Reappear (Class 10th)'] = '';
+
+      // When stream is selected for 11th, keep Stream for Class 11th in sync
+      // so 12th auto-inherits it from 'Stream opted in Class 11th'
+      if (fieldName === 'Stream for Class 11th') {
+        next['Stream'] = value; // keep general Stream key in sync
       }
-      if (fieldName === 'Admission Type (Class 12th)' && value !== 'Provisional') {
+      if (fieldName === 'Stream opted in Class 11th') {
+        next['Stream for Class 11th'] = value; // 12th carries 11th stream forward
+        next['Stream'] = value;
+        // A changed stream invalidates any subject choices made for the old stream.
+        next['Subjects Studied in Class 11th'] = '';
+        next['Stream & Subjects for Class 12th'] = '';
+      }
+      if (fieldName === 'Subjects Studied in Class 10th') {
+        // Synchronize reappear subjects: keep only subjects that remain studied (compulsory + optional)
+        const comp10 = ["English", "Mathematics", "Science", "Social Science"];
+        const studiedArr = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => s.trim()).filter(Boolean);
+        const allStudied10 = [...new Set([...comp10, ...studiedArr])];
+        const currentReappear = String(next['Subjects to Reappear (Class 10th)'] || '').split(', ').map(s => s.trim()).filter(Boolean);
+        const validReappear = currentReappear.filter(sub => allStudied10.includes(sub));
+        next['Subjects to Reappear (Class 10th)'] = validReappear.join(', ');
+      }
+      if (fieldName === 'Subjects Studied in Class 11th') {
+        // Class 12 continues the same subject combination. Keep the legacy/print
+        // summary field synchronized without asking the student to type it again.
+        next['Stream & Subjects for Class 12th'] = value;
+        const stream11 = next['Stream opted in Class 11th'] || next['Stream for Class 11th'] || '';
+        const comp11 = (stream11 === 'Humanities' || stream11 === 'Arts') ? ["General English"] : ["General English", "Physics", "Chemistry"];
+        const studiedArr = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => s.trim()).filter(Boolean);
+        const allStudied11 = [...new Set([...comp11, ...studiedArr])];
+        const currentReappear = String(next['Subjects to Reappear (Class 11th)'] || '').split(', ').map(s => s.trim()).filter(Boolean);
+        const validReappear = currentReappear.filter(sub => allStudied11.includes(sub));
+        next['Subjects to Reappear (Class 11th)'] = validReappear.join(', ');
+      }
+
+      // Class 11th Admission Type changed
+      if (fieldName === 'Admission Type (Class 11th)') {
+        if (value !== 'Provisional') {
+          // Switching to full — clear provisional-only fields
+          next['Reason for Provisional (Class 11th)'] = '';
+          next['Subjects to Reappear (Class 10th)'] = '';
+          next['Year of Appearing (Class 10th)'] = '';
+        } else {
+          // Switching to provisional — clear full-admission marks fields
+          next['Total Marks Obtained in Class 10th'] = '';
+          next['Total Max. Marks in Class 10th'] = '';
+          next['Year of Passing Class 10th'] = '';
+        }
+      }
+
+      // Class 11th Reason for Provisional changed
+      if (fieldName === 'Reason for Provisional (Class 11th)') {
+        if (value !== 'Reappear Candidate') {
+          next['Subjects to Reappear (Class 10th)'] = '';
+        }
+      }
+
+      // Class 12th Admission Type changed
+      if (fieldName === 'Admission Type (Class 12th)') {
+        if (value !== 'Provisional') {
+          next['Reason for Provisional (Class 12th)'] = '';
+          next['Subjects to Reappear (Class 11th)'] = '';
+          next['Year of Appearing (Class 11th)'] = '';
+        } else {
+          next['Total Marks Obtained in Class 11th'] = '';
+          next['Total Max. Marks in Class 11th'] = '';
+          next['Year of Passing Class 11th'] = '';
+        }
+      }
+
+      // Class 12th Reason for Provisional changed
+      if (fieldName === 'Reason for Provisional (Class 12th)') {
+        if (value !== 'Reappear Candidate') {
+          next['Subjects to Reappear (Class 11th)'] = '';
+        }
+      }
+
+      // Class changed — clear admission-type and all dependent provisional fields
+      if (fieldName === 'Admission sought for class') {
+        next['Admission Type (Class 11th)'] = '';
+        next['Admission Type (Class 12th)'] = '';
+        next['Reason for Provisional (Class 11th)'] = '';
         next['Reason for Provisional (Class 12th)'] = '';
+        next['Subjects to Reappear (Class 10th)'] = '';
         next['Subjects to Reappear (Class 11th)'] = '';
+        next['Year of Appearing (Class 10th)'] = '';
+        next['Year of Appearing (Class 11th)'] = '';
       }
 
       // ── Auto-calculate Percentage for 10th/11th/8th/9th marks ──
@@ -190,55 +449,108 @@ export default function AdmissionForm() {
       return next;
     });
 
-    if (fieldErrors[fieldName]) {
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next[fieldName];
-        return next;
-      });
+    // ── Real-time cross-field mobile duplicate check ──
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+
+      // Clear the current field's error first (normal clear-on-change)
+      delete next[fieldName];
+
+      // Determine the up-to-date values for both mobile fields
+      const STUDENT_MOBILE_KEY = "Mobile No. (with working WhatsApp)";
+      const PARENT_MOBILE_KEY  = "Parent's Mobile No. (must be working)";
+
+      const studentRaw = fieldName === STUDENT_MOBILE_KEY
+        ? String(value || '')
+        : String(formData[STUDENT_MOBILE_KEY] || '');
+      const parentRaw = fieldName === PARENT_MOBILE_KEY
+        ? String(value || '')
+        : String(formData[PARENT_MOBILE_KEY] || '');
+
+      const studentDigits = studentRaw.replace(/[^0-9]/g, '');
+      const parentDigits  = parentRaw.replace(/[^0-9]/g, '');
+
+      const DUPE_MSG = "Student's and Parent's mobile numbers must be different";
+
+      if (
+        studentDigits.length === 10 &&
+        parentDigits.length  === 10 &&
+        studentDigits === parentDigits
+      ) {
+        next[PARENT_MOBILE_KEY] = DUPE_MSG;
+      } else {
+        // Clear dupe error on either field if numbers are now distinct
+        if (next[PARENT_MOBILE_KEY] === DUPE_MSG) delete next[PARENT_MOBILE_KEY];
+        if (next[STUDENT_MOBILE_KEY] === DUPE_MSG) delete next[STUDENT_MOBILE_KEY];
+      }
+
+      return next;
+    });
+  };
+
+  const handleSaveDraft = async (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setIsSubmitting(true);
+      setAlert(null);
+    }
+    try {
+      const defaultSession = (() => {
+        const now = new Date();
+        const calYear = now.getFullYear();
+        const calMonth = now.getMonth() + 1;
+        const calDay = now.getDate();
+        const isPastCutoff = calMonth > 10 || (calMonth === 10 && calDay > 31);
+        const sessionEndYear = isPastCutoff ? calYear + 1 : calYear;
+        return `${sessionEndYear - 1}-${String(sessionEndYear).slice(-2)}`;
+      })();
+      const draftPayload = {
+        ...formData,
+        Session: formData.Session || formData.session || defaultSession,
+        'Email Address': formData['Email Address'] || currentUser?.email || '',
+      };
+      const res = await saveAdmissionDraft({ formData: draftPayload, applicationId: applicationIdRef.current, force: true });
+      if (res.applicationId) {
+        applicationIdRef.current = res.applicationId;
+        setApplicationId(res.applicationId);
+      }
+      setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setDraftState('saved');
+      autosaveServiceUnavailableRef.current = false;
+      if (!silent) {
+        setAlert({ type: 'success', text: 'Secure draft saved. Sensitive numbers and the photograph remain only in this active form until final submission.' });
+      }
+      return res;
+    } catch (err) {
+      setDraftState('error');
+      if (!silent) {
+        setAlert({ type: 'error', text: err.userMessage || err.message || 'Failed to save draft.' });
+      }
+      throw err;
+    } finally {
+      if (!silent) setIsSubmitting(false);
     }
   };
 
-  const handleSaveDraft = async () => {
-    setIsSubmitting(true);
-    setAlert(null);
-    try {
-      const studentPhoto = formData['Student Photo'] || formData['photo'] || '';
-      const currentUser = sessionManager.getUser() || { email: formData['Email Address'] || '' };
-
-      let fileDataObj = null;
-      if (studentPhoto && studentPhoto.startsWith('data:image')) {
-        const parts = studentPhoto.split(',');
-        const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-        const base64Data = parts[1];
-        fileDataObj = {
-          base64Data,
-          mimeType: mime,
-          fileName: 'student_photo.jpg'
-        };
+  const handleBackWithAutoSave = async (e) => {
+    if (e) e.preventDefault();
+    if (isFormLocked || isSubmitting) {
+      navigate('/portal/student');
+      return;
+    }
+    // Auto-save draft before navigating back
+    if (hasAdmissionStart || Object.keys(formData).length > 0) {
+      try {
+        setIsBackSaving(true);
+        await handleSaveDraft({ silent: true });
+      } catch (err) {
+        console.warn('Auto-save on back warning:', err);
+      } finally {
+        setIsBackSaving(false);
+        navigate('/portal/student');
       }
-
-      const payload = {
-        formData: {
-          ...formData,
-          'Student Photo': studentPhoto && !studentPhoto.startsWith('data:') ? studentPhoto : '',
-          'id card photo': studentPhoto && !studentPhoto.startsWith('data:') ? studentPhoto : '',
-          Status: 'Draft',
-        },
-        fileData: fileDataObj,
-        user: currentUser,
-        status: 'Draft',
-      };
-      const res = await appsScriptApi.call('saveApplicationData', payload, { timeout: 120000 });
-      if (res && res.success !== false) {
-        setAlert({ type: 'success', text: 'Application draft saved successfully! You can resume anytime.' });
-      } else {
-        setAlert({ type: 'error', text: res?.error || res?.message || 'Failed to save draft.' });
-      }
-    } catch (err) {
-      setAlert({ type: 'error', text: err.userMessage || err.message || 'Failed to save draft.' });
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      navigate('/portal/student');
     }
   };
 
@@ -246,7 +558,11 @@ export default function AdmissionForm() {
     setIsDownloadingPdf(true);
     setAlert(null);
     try {
-      generateStudentAdmissionPdf(formData);
+      if (isProvisionalForm) {
+        generateProvisionalAdmissionPdf(formData);
+      } else {
+        generateStudentAdmissionPdf(formData);
+      }
     } catch (err) {
       console.error('Manual PDF print error:', err);
       setAlert({ type: 'error', text: 'Could not generate the PDF right now. Please try again in a moment.' });
@@ -255,10 +571,85 @@ export default function AdmissionForm() {
     }
   };
 
-  const selectedClass = formData['Admission sought for class'] || '11th';
-  const selectedStream = formData['Stream for Class 11th'] || formData['Stream'] || 'Science';
+  const selectedClass = formData['Admission sought for class'] || '';
+  // 12th inherits stream from the "Stream opted in Class 11th" field;
+  // 9th/10th is always General; 11th uses explicit selection.
+  const selectedStream =
+    selectedClass.includes('12')
+      ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'] || '')
+      : (selectedClass.includes('9') || selectedClass === '10th')
+      ? 'General'
+      : (formData['Stream for Class 11th'] || formData['Stream'] || '');
+  const maskSensitive = (value, visible = 4) => {
+    const text = String(value || '').replace(/\s/g, '');
+    if (!text) return 'N/A';
+    return `${'•'.repeat(Math.max(4, text.length - visible))}${text.slice(-visible)}`;
+  };
+  const workflowSteps = [
+    { id: 'personal', label: 'Student', mobileLabel: 'Student' },
+    { id: 'contact', label: 'Contact', mobileLabel: 'Contact' },
+    { id: 'academic', label: 'Academics & Subjects', mobileLabel: 'Academics' },
+    { id: 'review', label: 'Review', mobileLabel: 'Review' },
+  ];
+  const admissionTypeField = selectedClass === '12th'
+    ? 'Admission Type (Class 12th)'
+    : selectedClass === '11th' ? 'Admission Type (Class 11th)' : 'Admission Type';
+  const selectedAdmissionType = formData[admissionTypeField] || formData['Admission Type'] || '';
+  const is11thClass = selectedClass === '11th';
+  const hasStreamIf11th = !is11thClass || Boolean(formData['Stream for Class 11th'] || formData['Stream']);
+  const hasReasonIfProvisional = selectedAdmissionType !== 'Provisional' || Boolean(
+    formData['Reason for Provisional (Class 11th)'] ||
+    formData['Reason for Provisional (Class 12th)'] ||
+    formData['Reason for Provisional']
+  );
+  const hasAdmissionStart = Boolean(selectedClass && selectedAdmissionType && hasStreamIf11th && hasReasonIfProvisional);
+
+  useEffect(() => {
+    if (!hasAdmissionStart || typeof IntersectionObserver === 'undefined') return undefined;
+    const sectionIds = ['personal', 'contact', 'academic', 'review'];
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setActiveTab(visible.target.id.replace('admission-section-', ''));
+    }, { rootMargin: '-18% 0px -68% 0px', threshold: [0.05, 0.2, 0.5] });
+    sectionIds.forEach(id => {
+      const section = document.querySelector(`#admission-section-${id}`);
+      if (section) observer.observe(section);
+    });
+    return () => observer.disconnect();
+  }, [hasAdmissionStart]);
+
+  const goToWorkflowStep = (step) => {
+    if (!hasAdmissionStart) {
+      const msg = !selectedClass
+        ? 'First select the target class for admission.'
+        : !selectedAdmissionType
+        ? 'Please select the admission type (Full or Provisional).'
+        : is11thClass && !hasStreamIf11th
+        ? 'Please select your stream (Science or Humanities) for Class 11th.'
+        : 'Please select the reason for provisional admission.';
+      setAlert({ type: 'error', text: msg });
+      document.querySelector('#admission-start')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setActiveTab(step.id);
+    document.querySelector(`#admission-section-${step.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const sectionWorkflowStep = (sectionTitle) => {
+    const section = String(sectionTitle || '').toLowerCase();
+    if (section.includes('remark') || section.includes('review') || section.includes('declaration')) return 'review';
+    if (section.includes('contact') || section.includes('address')) return 'contact';
+    if (section.includes('stream') || section.includes('subject')) return 'academic';
+    if (section.includes('admission') || section.includes('examination') || section.includes('scholarship') || section.includes('bank') || section.includes('vocational')) return 'academic';
+    return 'personal';
+  };
 
   const isVisible = (field) => {
+    const fieldName = field.fieldName || field.name || field['Field Name'];
+
+    // Class filter from field metadata
     const clsList = field.classes || field['Classes'] || '';
     if (clsList) {
       const allowed = clsList.split(',').map(c => c.trim()).filter(Boolean);
@@ -266,189 +657,136 @@ export default function AdmissionForm() {
       if (!isAllowed) return false;
     }
 
-    const fieldName = field.fieldName || field.name || field['Field Name'];
     const admType11 = formData['Admission Type (Class 11th)'];
     const admType12 = formData['Admission Type (Class 12th)'];
-    const reason11 = formData['Reason for Provisional (Class 11th)'];
-    const reason12 = formData['Reason for Provisional (Class 12th)'];
-    const disability = formData['Whether Any Disability'];
-    const scholarship = formData['Whether scholarship received in previous academic year'];
-    const vocational = formData['Vocational subject in previous class'];
+    const reason11  = formData['Reason for Provisional (Class 11th)'];
+    const reason12  = formData['Reason for Provisional (Class 12th)'];
+    const disability   = formData['Whether Any Disability'];
+    const scholarship  = formData['Whether scholarship received in previous academic year'];
+    const vocational   = formData['Vocational subject in previous class'];
 
-    // Disability Dependent Fields
-    if (fieldName === 'Type of Disability') {
-      return disability === 'Yes';
-    }
+    const is11 = selectedClass.includes('11') && !selectedClass.includes('12');
+    const is12 = selectedClass.includes('12');
+    const is10 = selectedClass === '10th';
+    const is9  = selectedClass === '9th';
 
-    // Scholarship Dependent Fields
-    if (fieldName === 'Type of scholarship received' || fieldName === 'Amount received (INR)') {
+    // ── Fields controlled by Step 1 card — never shown inside form body ──
+    if (fieldName === 'Admission sought for class')   return false;
+    if (fieldName === 'Admission Type (Class 11th)')  return false;
+    if (fieldName === 'Admission Type (Class 12th)')  return false;
+    if (fieldName === 'Admission Type')               return false;
+    if (fieldName === 'Stream for Class 11th')        return false; // handled in Step 1 for 11th
+
+    // ── Reason for Provisional — Handled in top admission options bar ──
+    if (fieldName === 'Reason for Provisional (Class 11th)') return false;
+    if (fieldName === 'Reason for Provisional (Class 12th)') return false;
+    if (fieldName === 'Reason for Provisional') return false;
+
+    // ── Reappear Subjects ──
+    if (fieldName === 'Subjects to Reappear (Class 10th)')
+      return is11 && admType11 === 'Provisional' && reason11 === 'Reappear Candidate';
+    if (fieldName === 'Subjects to Reappear (Class 11th)')
+      return is12 && admType12 === 'Provisional' && reason12 === 'Reappear Candidate';
+
+    // ── Class 10th Examination Records — visible when applying for 11th ──
+    if (fieldName === 'Board Registration No. (Class 10th)') return is11;
+    if (fieldName === 'Exam Roll Number of Class 10th')       return is11;
+    if (fieldName === 'Year of Passing Class 10th')
+      return is11 && admType11 !== 'Provisional';
+    if (fieldName === 'Year of Appearing (Class 10th)')
+      return false; // Not relevant
+    if (fieldName === 'Total Marks Obtained in Class 10th') return is11 && admType11 !== 'Provisional';
+    if (fieldName === 'Total Max. Marks in Class 10th')     return is11 && admType11 !== 'Provisional';
+    if (fieldName === 'Name of Previous School (Class 10th)') return is11;
+    if (fieldName === 'Board (Class 10th)')                   return is11;
+    // Subjects Studied in Class 10th lives in Class 10th Records section
+    if (fieldName === 'Subjects Studied in Class 10th') return is11;
+
+    // ── Class 11th Examination Records — visible when applying for 12th ──
+    if (fieldName === 'Board Registration No. (Class 11th)') return is12;
+    if (fieldName === 'Exam Roll Number of Class 11th')       return is12;
+    if (fieldName === 'Year of Passing Class 11th')
+      return is12 && admType12 !== 'Provisional';
+    if (fieldName === 'Year of Appearing (Class 11th)')
+      return false; // Not relevant
+    if (fieldName === 'Total Marks Obtained in Class 11th') return is12 && admType12 !== 'Provisional';
+    if (fieldName === 'Total Max. Marks in Class 11th')     return is12 && admType12 !== 'Provisional';
+    if (fieldName === 'Name of Previous School (Class 11th)') return is12;
+    if (fieldName === 'Board (Class 11th)')                   return is12;
+
+    // ── Stream & Subject fields for 11th (stream chosen in Step 1) ──
+    if (fieldName === 'Subjects to be taken in Class 11th') return is11;
+    // For 12th: stream is asked as 'Stream opted in Class 11th' inside form body
+    if (fieldName === 'Stream opted in Class 11th')     return is12;
+    if (fieldName === 'Subjects Studied in Class 11th') return is12;
+    // Derived from Subjects Studied in Class 11th. Keep it in saved data/PDFs,
+    // but do not display a redundant input during Class 12 admission.
+    if (fieldName === 'Stream & Subjects for Class 12th') return false;
+
+    if (fieldName === 'Subjects to be taken in Class 10th') return is10;
+    if (fieldName === 'Subjects Studied in Class 9th')      return is10;
+    if (fieldName === 'Subjects to be taken in Class 9th')  return is9;
+    if (fieldName === 'Subjects Studied in Class 8th')      return is9;
+
+    // ── Class 8th / 9th Records — only for lower classes ──
+    if (fieldName === 'DIET Registration No.')                return is9 || is10;
+    if (fieldName === 'Year of Passing Class 8th')            return is9;
+    if (fieldName === 'Name of Previous School (Class 8th)')  return is9;
+    if (fieldName === 'Board (Class 8th)')                    return is9;
+    if (fieldName === 'Total Marks Obtained in Class 8th')    return is9;
+    if (fieldName === 'Total Max. Marks in Class 8th')        return is9;
+    if (fieldName === 'Name of Previous Complex Head')        return is9 || is10;
+    if (fieldName === 'Board Registration No. (Class 9th)')   return is10;
+    if (fieldName === 'Year of Passing Class 9th')            return is10;
+    if (fieldName === 'Name of Previous School (Class 9th)')  return is10;
+    if (fieldName === 'Board (Class 9th)')                    return is10;
+    if (fieldName === 'Total Max. Marks in Class 9th')        return is10;
+    if (fieldName === 'Total Marks Obtained in Class 9th')    return is10;
+
+    // ── Disability Dependent Fields ──
+    if (fieldName === 'Type of Disability') return disability === 'Yes';
+
+    // ── Scholarship Dependent Fields ──
+    if (fieldName === 'Type of scholarship received' || fieldName === 'Amount received (INR)')
       return scholarship === 'Yes';
-    }
 
-    // Vocational Dependent Fields
-    if (fieldName === 'Percentage Obtained in Vocational Subject') {
-      return vocational === 'Yes';
-    }
-
-    // Class 11th Provisional / Reappear / Marks Dependent Fields
-    if (fieldName === 'Reason for Provisional (Class 11th)') {
-      return admType11 === 'Provisional';
-    }
-    if (fieldName === 'Reason for Provisional (Class 12th)') {
-      return admType12 === 'Provisional';
-    }
-    if (fieldName === 'Subjects to Reappear (Class 10th)') {
-      return admType11 === 'Provisional' && reason11 === 'Reappear Candidate';
-    }
-    if (fieldName === 'Subjects to Reappear (Class 11th)') {
-      return admType12 === 'Provisional' && reason12 === 'Reappear Candidate';
-    }
-    if (fieldName === 'Year of Appearing (Class 10th)') {
-      return admType11 === 'Provisional';
-    }
-    if (fieldName === 'Year of Passing Class 10th') {
-      return admType11 !== 'Provisional';
-    }
-    if (fieldName === 'Total Marks Obtained in Class 10th' || fieldName === 'Total Max. Marks in Class 10th') {
-      return admType11 !== 'Provisional';
-    }
-
-    // Class 12th Provisional / Reappear / Marks Dependent Fields
-    if (fieldName === 'Year of Appearing (Class 11th)') {
-      return admType12 === 'Provisional';
-    }
-    if (fieldName === 'Year of Passing Class 11th') {
-      return admType12 !== 'Provisional';
-    }
-    if (fieldName === 'Total Marks Obtained in Class 11th' || fieldName === 'Total Max. Marks in Class 11th') {
-      return admType12 !== 'Provisional';
-    }
+    // ── Vocational Dependent Fields ──
+    if (fieldName === 'Percentage Obtained in Vocational Subject') return vocational === 'Yes';
 
     return true;
   };
 
-  const fieldTabMap = {
-    // 1. Personal & Contact & Physical Details
-    "Student's Name (as per school records)": 'personal',
-    "DoB (as per school records)": 'personal',
-    "Gender": 'personal',
-    "Father's/Guardian's Name (as per school records)": 'personal',
-    "Mother's Name (as per school records)": 'personal',
-    "Father's/Guardian's Occupation": 'personal',
-    "Mobile No. (with working WhatsApp)": 'personal',
-    "Parent's Mobile No. (must be working)": 'personal',
-    "Aadhar No.": 'personal',
-    "House No.": 'personal',
-    "Name of your village": 'personal',
-    "Block": 'personal',
-    "Tehsil": 'personal',
-    "District": 'personal',
-    "State/UT": 'personal',
-    "PIN code": 'personal',
-    "Email Address": 'personal',
-    "Height (cm)": 'personal',
-    "Weight (kg)": 'personal',
-    "Blood Group": 'personal',
-    "Your Mother Tongue": 'personal',
-    "Religion": 'personal',
-    "Social category": 'personal',
-    "Socio-economic category": 'personal',
-    "Whether Any Disability": 'personal',
-    "Type of Disability": 'personal',
-    "Passport No. (if available)": 'personal',
-    "Identification Mark (if any)": 'personal',
-    "Previous participation in sports (if any)": 'personal',
-    "Games to participate": 'personal',
-    "PEN number (given by UDISE portal)": 'personal',
-    "APAAR ID": 'personal',
-    "Student Photo": 'personal',
-    "id card photo": 'personal',
-
-    // 2. Academic & Scholarship Details
-    "Admission sought for class": 'academic',
-    "Whether scholarship received in previous academic year": 'academic',
-    "Type of scholarship received": 'academic',
-    "Amount received (INR)": 'academic',
-    "Bank Account No.": 'academic',
-    "Name of Bank": 'academic',
-    "IFSC code": 'academic',
-    "Vocational subject in previous class": 'academic',
-    "Percentage Obtained in Vocational Subject": 'academic',
-    "DIET Registration No.": 'academic',
-    "Year of Passing Class 8th": 'academic',
-    "Name of Previous School (Class 8th)": 'academic',
-    "Board (Class 8th)": 'academic',
-    "Total Marks Obtained in Class 8th": 'academic',
-    "Total Max. Marks in Class 8th": 'academic',
-    "Name of Previous Complex Head": 'academic',
-    "Board Registration No. (Class 9th)": 'academic',
-    "Year of Passing Class 9th": 'academic',
-    "Name of Previous School (Class 9th)": 'academic',
-    "Board (Class 9th)": 'academic',
-    "Total Max. Marks in Class 9th": 'academic',
-    "Total Marks Obtained in Class 9th": 'academic',
-    "Admission Type (Class 11th)": 'academic',
-    "Reason for Provisional (Class 11th)": 'academic',
-    "Board Registration No. (Class 10th)": 'academic',
-    "Exam Roll Number of Class 10th": 'academic',
-    "Year of Passing Class 10th": 'academic',
-    "Year of Appearing (Class 10th)": 'academic',
-    "Total Marks Obtained in Class 10th": 'academic',
-    "Total Max. Marks in Class 10th": 'academic',
-    "Name of Previous School (Class 10th)": 'academic',
-    "Board (Class 10th)": 'academic',
-    "Admission Type (Class 12th)": 'academic',
-    "Reason for Provisional (Class 12th)": 'academic',
-    "Board Registration No. (Class 11th)": 'academic',
-    "Exam Roll Number of Class 11th": 'academic',
-    "Year of Passing Class 11th": 'academic',
-    "Year of Appearing (Class 11th)": 'academic',
-    "Board (Class 11th)": 'academic',
-    "Total Marks Obtained in Class 11th": 'academic',
-    "Total Max. Marks in Class 11th": 'academic',
-    "Name of Previous School (Class 11th)": 'academic',
-
-    // 3. Subject Selection (Merged into Academic Section)
-    "Subjects Studied in Class 8th": 'academic',
-    "Subjects to be taken in Class 9th": 'academic',
-    "Subjects Studied in Class 9th": 'academic',
-    "Subjects to be taken in Class 10th": 'academic',
-    "Subjects Studied in Class 10th": 'academic',
-    "Stream for Class 11th": 'academic',
-    "Subjects to be taken in Class 11th": 'academic',
-    "Subjects to Reappear (Class 10th)": 'academic',
-    "Stream opted in Class 11th": 'academic',
-    "Subjects Studied in Class 11th": 'academic',
-    "Stream & Subjects for Class 12th": 'academic',
-    "Subjects to Reappear (Class 11th)": 'academic',
-
-    // 4. Docs & Declaration
-    "Remarks/Feedback (if any)": 'academic',
-    "Declaration": 'personal'
-  };
-
+  // This is the single authoritative field-to-section classification. Keeping one
+  // map prevents tabs, validation and the PDF workflow from drifting apart.
   const fieldSectionMap = {
-    // Personal Sub-groups
+    // 1. Personal & Identity Sub-group
+    "Student Photo": '👤 Identity & Parentage',
+    "id card photo": '👤 Identity & Parentage',
     "Student's Name (as per school records)": '👤 Identity & Parentage',
     "DoB (as per school records)": '👤 Identity & Parentage',
     "Gender": '👤 Identity & Parentage',
     "Father's/Guardian's Name (as per school records)": '👤 Identity & Parentage',
-    "Mother's Name (as per school records)": '👤 Identity & Parentage',
     "Father's/Guardian's Occupation": '👤 Identity & Parentage',
+    "Mother's Name (as per school records)": '👤 Identity & Parentage',
+    "Aadhar No.": '👤 Identity & Parentage',
+    "Father's Aadhar No.": '👤 Identity & Parentage',
     "Your Mother Tongue": '👤 Identity & Parentage',
+    "Identification Mark (if any)": '👤 Identity & Parentage',
 
-    "Mobile No. (with working WhatsApp)": '📱 Contact & Communication',
-    "Parent's Mobile No. (must be working)": '📱 Contact & Communication',
-    "Email Address": '📱 Contact & Communication',
+    // 2. Combined Contact & Residential Address
+    "Mobile No. (with working WhatsApp)": '📱 Contact & Residential Address',
+    "Parent's Mobile No. (must be working)": '📱 Contact & Residential Address',
+    "Email Address": '📱 Contact & Residential Address',
+    "E-mail ID": '📱 Contact & Residential Address',
+    "House No.": '📱 Contact & Residential Address',
+    "Name of your village": '📱 Contact & Residential Address',
+    "Block": '📱 Contact & Residential Address',
+    "Tehsil": '📱 Contact & Residential Address',
+    "District": '📱 Contact & Residential Address',
+    "State/UT": '📱 Contact & Residential Address',
+    "PIN code": '📱 Contact & Residential Address',
 
-    "House No.": '🏠 Residential Address',
-    "Name of your village": '🏠 Residential Address',
-    "Block": '🏠 Residential Address',
-    "Tehsil": '🏠 Residential Address',
-    "District": '🏠 Residential Address',
-    "State/UT": '🏠 Residential Address',
-    "PIN code": '🏠 Residential Address',
-
+    // 3. Physical & Social Category
     "Height (cm)": '🩺 Physical & Social Category',
     "Weight (kg)": '🩺 Physical & Social Category',
     "Blood Group": '🩺 Physical & Social Category',
@@ -457,18 +795,13 @@ export default function AdmissionForm() {
     "Socio-economic category": '🩺 Physical & Social Category',
     "Whether Any Disability": '🩺 Physical & Social Category',
     "Type of Disability": '🩺 Physical & Social Category',
-    "Identification Mark (if any)": '🩺 Physical & Social Category',
 
+    // 4. National & Student Identifiers & Sports
+    "PEN number (given by UDISE portal)": '🆔 National & Student Identifiers',
+    "APAAR ID": '🆔 National & Student Identifiers',
+    "Passport No. (if available)": '🆔 National & Student Identifiers',
     "Previous participation in sports (if any)": '⚽ Sports & Extracurricular',
     "Games to participate": '⚽ Sports & Extracurricular',
-
-    "PEN number (given by UDISE portal)": '🆔 Official Identifiers',
-    "APAAR ID": '🆔 Official Identifiers',
-    "Passport No. (if available)": '🆔 Official Identifiers',
-    "Aadhar No.": '🆔 Official Identifiers',
-
-    "Student Photo": '📸 Passport Photo Upload',
-    "id card photo": '📸 Passport Photo Upload',
 
     // Academic Sub-groups
     "Admission sought for class": '🎓 Admission & Class Details',
@@ -509,29 +842,30 @@ export default function AdmissionForm() {
     "Total Max. Marks in Class 9th": '🏫 Class 8th / 9th Examination Records',
     "Total Marks Obtained in Class 9th": '🏫 Class 8th / 9th Examination Records',
 
-    "Whether scholarship received in previous academic year": '🏦 Scholarship & Bank Account',
-    "Type of scholarship received": '🏦 Scholarship & Bank Account',
-    "Amount received (INR)": '🏦 Scholarship & Bank Account',
-    "Bank Account No.": '🏦 Scholarship & Bank Account',
-    "Name of Bank": '🏦 Scholarship & Bank Account',
-    "IFSC code": '🏦 Scholarship & Bank Account',
-    "Vocational subject in previous class": '🏦 Scholarship & Bank Account',
-    "Percentage Obtained in Vocational Subject": '🏦 Scholarship & Bank Account',
+    "Whether scholarship received in previous academic year": '🎁 Scholarship Details',
+    "Type of scholarship received": '🎁 Scholarship Details',
+    "Amount received (INR)": '🎁 Scholarship Details',
+    "Bank Account No.": '🏦 Bank Account Details',
+    "Name of Bank": '🏦 Bank Account Details',
+    "IFSC code": '🏦 Bank Account Details',
+    "Vocational subject in previous class": '🛠️ Vocational Studies',
+    "Percentage Obtained in Vocational Subject": '🛠️ Vocational Studies',
 
     // Subject Sub-groups
     "Stream for Class 11th": '📚 Stream & Subject Selection',
     "Stream opted in Class 11th": '📚 Stream & Subject Selection',
     "Stream & Subjects for Class 12th": '📚 Stream & Subject Selection',
-    "Subjects Studied in Class 8th": '📖 Subject Combinations',
+    "Subjects Studied in Class 8th": '🏫 Class 8th / 9th Examination Records',
     "Subjects to be taken in Class 9th": '📖 Subject Combinations',
-    "Subjects Studied in Class 9th": '📖 Subject Combinations',
+    "Subjects Studied in Class 9th": '🏫 Class 8th / 9th Examination Records',
     "Subjects to be taken in Class 10th": '📖 Subject Combinations',
-    "Subjects Studied in Class 10th": '📖 Subject Combinations',
+    "Subjects Studied in Class 10th": '🏫 Class 10th Examination Records',
+    "Subjects to Reappear (Class 10th)": '🏫 Class 10th Examination Records',
     "Subjects to be taken in Class 11th": '📖 Subject Combinations',
-    "Subjects to Reappear (Class 10th)": '📖 Subject Combinations',
-    "Subjects Studied in Class 11th": '📖 Subject Combinations',
-    "Subjects to Reappear (Class 11th)": '📖 Subject Combinations',
-    "Remarks/Feedback (if any)": '💬 Additional Remarks & Feedback'
+    "Subjects Studied in Class 11th": '🏫 Class 11th Examination Records',
+    "Subjects to Reappear (Class 11th)": '🏫 Class 11th Examination Records',
+    "Remarks/Feedback (if any)": '💬 Remarks & Final Review',
+    "Declaration": '💬 Remarks & Final Review'
   };
 
   const FIELD_ORDER_LIST = [
@@ -541,16 +875,18 @@ export default function AdmissionForm() {
     "DoB (as per school records)",
     "Gender",
     "Father's/Guardian's Name (as per school records)",
-    "Mother's Name (as per school records)",
     "Father's/Guardian's Occupation",
+    "Mother's Name (as per school records)",
+    "Aadhar No.",
+    "Father's Aadhar No.",
     "Your Mother Tongue",
+    "Identification Mark (if any)",
 
-    // 2. Contact & Communication
+    // 2. Combined Contact & Residential Address
     "Mobile No. (with working WhatsApp)",
     "Parent's Mobile No. (must be working)",
     "Email Address",
-
-    // 3. Residential Address
+    "E-mail ID",
     "House No.",
     "Name of your village",
     "Block",
@@ -559,7 +895,7 @@ export default function AdmissionForm() {
     "State/UT",
     "PIN code",
 
-    // 4. Physical & Social Category
+    // 3. Physical & Social Category
     "Height (cm)",
     "Weight (kg)",
     "Blood Group",
@@ -568,43 +904,53 @@ export default function AdmissionForm() {
     "Socio-economic category",
     "Whether Any Disability",
     "Type of Disability",
-    "Identification Mark (if any)",
 
-    // 5. Sports & Extracurricular
-    "Previous participation in sports (if any)",
-    "Games to participate",
-
-    // 6. Official Identifiers
-    "Aadhar No.",
+    // 4. National & Student Identifiers & Sports
     "PEN number (given by UDISE portal)",
     "APAAR ID",
     "Passport No. (if available)",
+    "Previous participation in sports (if any)",
+    "Games to participate",
 
-    // 7. Academic Details
+    // 5. Academic & Class Details
     "Admission sought for class",
     "Admission Type (Class 11th)",
     "Reason for Provisional (Class 11th)",
-    "Subjects to Reappear (Class 10th)",
+    "Admission Type (Class 12th)",
+    "Reason for Provisional (Class 12th)",
+
+    // 6. Stream & Subject Selections
+    "Stream for Class 11th",
+    "Subjects to be taken in Class 11th",
+    "Stream opted in Class 11th",
+    "Stream & Subjects for Class 12th",
+    "Subjects to be taken in Class 10th",
+    "Subjects to be taken in Class 9th",
+
+    // 7. Class 10th Examination Records
     "Board Registration No. (Class 10th)",
     "Exam Roll Number of Class 10th",
     "Year of Passing Class 10th",
-    "Year of Appearing (Class 10th)",
     "Total Marks Obtained in Class 10th",
     "Total Max. Marks in Class 10th",
     "Name of Previous School (Class 10th)",
     "Board (Class 10th)",
+    "Subjects Studied in Class 10th",
+    "Subjects to Reappear (Class 10th)",
 
-    "Admission Type (Class 12th)",
-    "Reason for Provisional (Class 12th)",
+    // 8. Class 11th Examination Records
     "Board Registration No. (Class 11th)",
     "Exam Roll Number of Class 11th",
     "Year of Passing Class 11th",
-    "Year of Appearing (Class 11th)",
     "Total Marks Obtained in Class 11th",
     "Total Max. Marks in Class 11th",
     "Name of Previous School (Class 11th)",
     "Board (Class 11th)",
+    "Subjects Studied in Class 11th",
+    "Subjects to Reappear (Class 11th)",
 
+    // 9. Class 8th / 9th Records
+    "DIET Registration No.",
     "Year of Passing Class 8th",
     "Name of Previous School (Class 8th)",
     "Board (Class 8th)",
@@ -618,16 +964,7 @@ export default function AdmissionForm() {
     "Total Max. Marks in Class 9th",
     "Total Marks Obtained in Class 9th",
 
-    // 8. Stream & Subject Selections
-    "Stream for Class 11th",
-    "Stream opted in Class 11th",
-    "Stream & Subjects for Class 12th",
-    "Subjects to be taken in Class 11th",
-    "Subjects Studied in Class 10th",
-    "Subjects Studied in Class 11th",
-    "Subjects to Reappear (Class 11th)",
-
-    // 9. Scholarship & Bank Details
+    // 10. Scholarship & Bank Details
     "Whether scholarship received in previous academic year",
     "Type of scholarship received",
     "Amount received (INR)",
@@ -636,9 +973,9 @@ export default function AdmissionForm() {
     "IFSC code",
     "Vocational subject in previous class",
     "Percentage Obtained in Vocational Subject",
-
     "id card photo",
-    "Remarks/Feedback (if any)"
+    "Remarks/Feedback (if any)",
+    "Declaration"
   ];
 
   const getFieldOrderIndex = (name) => {
@@ -646,28 +983,89 @@ export default function AdmissionForm() {
     return idx !== -1 ? idx : 999;
   };
 
-  const categorizeField = (fieldName) => {
-    if (!fieldName) return 'personal';
-    if (fieldTabMap[fieldName]) return fieldTabMap[fieldName];
+  const MANDATORY_FIELD_NAMES = useMemo(() => new Set([
+    "Student's Name (as per school records)", "DoB (as per school records)", "Gender",
+    "Father's/Guardian's Name (as per school records)", "Father's/Guardian's Occupation", "Father's Occupation",
+    "Mother's Name (as per school records)", "Mother's Occupation",
+    "Mobile No. (with working WhatsApp)", "Parent's Mobile No. (must be working)",
+    "Aadhar No.", "Father's Aadhar No.", "Name of your village", "District",
+    "Block", "Tehsil", "State/UT", "PIN code",
+    "Religion", "Social category", "Whether Any Disability",
+    "Bank Account No.", "Name of Bank", "IFSC code",
+    'Board Registration No. (Class 10th)', 'Board Registration No. (Class 11th)',
+    'Board Registration No. (Class 9th)',
+    'Name of Previous School (Class 10th)', 'Name of Previous School (Class 11th)',
+    'Name of Previous School (Class 8th)', 'Name of Previous School (Class 9th)',
+    'Board (Class 10th)', 'Board (Class 11th)',
+    'Stream for Class 11th', 'Stream opted in Class 11th',
+    'Subjects Studied in Class 10th', 'Subjects Studied in Class 11th',
+    'Subjects to Reappear (Class 10th)', 'Subjects to Reappear (Class 11th)',
+    'Subjects to be taken in Class 11th', 'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 9th',
+    'Year of Passing Class 8th', 'Student Photo', 'Declaration'
+  ]), []);
 
-    const lower = fieldName.toLowerCase();
-    if (lower.includes('photo')) return 'personal';
-    if (lower.includes('declaration')) return 'personal';
-    if (lower.includes('remarks') || lower.includes('feedback')) return 'academic';
-    if (lower.includes('subjects') || lower.includes('stream')) return 'academic';
-    if (lower.includes('marks') || lower.includes('board') || lower.includes('school') || lower.includes('roll') || lower.includes('bank')) return 'academic';
-    return 'personal';
+  const isFieldRequired = (f) => {
+    if (!f) return false;
+    const name = f.fieldName || f.name || f['Field Name'];
+    if (MANDATORY_FIELD_NAMES.has(name)) return true;
+    if (f.required === true || f.required === 'TRUE' || f.required === 'true') return true;
+    const val = String(f['Is Required?'] || f['Is Required'] || f.isRequired || f.required || '').toUpperCase().trim();
+    return val === 'TRUE' || val === 'YES' || val === '1';
   };
 
-  const tabs = [
-    { id: 'personal', label: '1. Personal Details' },
-    { id: 'academic', label: '2. Academic & Subjects' },
-    { id: 'payment', label: '3. Fee Payment & Final Submission' },
-  ];
+  const activeFields = useMemo(() => {
+    const seenNames = new Set();
+    const list = formStructure.filter(field => {
+      const type = field.fieldType || field.type || field['Field Type'] || '';
+      if (type.startsWith('autogen')) return false;
+      const name = field.fieldName || field.name || field['Field Name'];
+      if (!name || name === 'Declaration') return false;
+
+      const normKey = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (seenNames.has(normKey)) return false;
+      seenNames.add(normKey);
+
+      return isVisible(field);
+    });
+    list.sort((a, b) => {
+      const nameA = a.fieldName || a.name || a['Field Name'];
+      const nameB = b.fieldName || b.name || b['Field Name'];
+      return getFieldOrderIndex(nameA) - getFieldOrderIndex(nameB);
+    });
+    return list;
+  }, [formStructure, selectedClass, formData]);
+
+  const requiredFields = useMemo(() => activeFields.filter(isFieldRequired), [activeFields]);
+
+  const filledRequiredCount = useMemo(() => {
+    return requiredFields.filter(f => {
+      const name = f.fieldName || f.name || f['Field Name'];
+      const val = formData[name];
+      if (val === undefined || val === null) return false;
+      const str = String(val).trim();
+      if (!str) return false;
+      if (str.toLowerCase() === 'other' || str.toLowerCase() === 'others') return false;
+      return true;
+    }).length;
+  }, [requiredFields, formData]);
+
+  const progressPercent = useMemo(() => {
+    return requiredFields.length > 0 ? Math.round((filledRequiredCount / requiredFields.length) * 100) : 100;
+  }, [filledRequiredCount, requiredFields]);
 
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
     setAlert(null);
+
+    if (admissionsClosed) {
+      setAlert({ type: 'error', text: `Admissions are currently closed${selectedClass ? ` for Class ${selectedClass}` : ''}. Your draft has not been lost.` });
+      return;
+    }
+    if (!hasConfirmedInstructions) {
+      setShowInstructions(true);
+      setAlert({ type: 'error', text: 'Please read and confirm the admission instructions before reviewing your application.' });
+      return;
+    }
 
     const errors = {};
     let firstErrorField = null;
@@ -684,10 +1082,27 @@ export default function AdmissionForm() {
     const cls = selectedClass;
 
     // Personal essentials
+    const photoVal = formData['Student Photo'] || formData['photo_id'] || formData['photo'] || formData['photoUrl'] || formData['id card photo'];
+    if (!photoVal)
+      addError("Student Photo", "Recent passport-size photograph is required");
+
     if (!formData["Student's Name (as per school records)"]?.trim())
       addError("Student's Name (as per school records)", "Student's full name is required");
-    if (!formData["DoB (as per school records)"]?.trim())
+    const dobRaw = formData["DoB (as per school records)"] || formData["DoB"] || formData['dob'] || formData['date of birth'] || '';
+    const dobIso = normalizeDobToIso(dobRaw);
+    if (dobIso && dobIso !== formData["DoB (as per school records)"]) {
+      formData["DoB (as per school records)"] = dobIso;
+    }
+    if (!dobRaw?.trim()) {
       addError("DoB (as per school records)", "Date of Birth is required");
+    } else if (!isStrictIsoDate(dobIso)) {
+      addError("DoB (as per school records)", "Enter a valid date of birth");
+    } else {
+      const ageCheck = validateMinimumAge(dobIso, cls);
+      if (!ageCheck.valid) {
+        addError("DoB (as per school records)", ageCheck.error);
+      }
+    }
     if (!formData["Gender"])
       addError("Gender", "Gender is required");
     if (!formData["Father's/Guardian's Name (as per school records)"]?.trim())
@@ -699,15 +1114,38 @@ export default function AdmissionForm() {
     const mobile = String(formData["Mobile No. (with working WhatsApp)"] || '').replace(/[^0-9]/g, '');
     if (!mobile) addError("Mobile No. (with working WhatsApp)", "WhatsApp mobile number is required");
     else if (mobile.length !== 10) addError("Mobile No. (with working WhatsApp)", "Mobile number must be exactly 10 digits");
+    else if (['0','1','2','3','4','5'].includes(mobile[0]))
+      addError("Mobile No. (with working WhatsApp)", "Mobile number must start with 6, 7, 8, or 9");
 
     const parentMobile = String(formData["Parent's Mobile No. (must be working)"] || '').replace(/[^0-9]/g, '');
-    if (parentMobile && parentMobile.length !== 10)
+    if (!parentMobile) addError("Parent's Mobile No. (must be working)", "Parent's mobile number is required");
+    else if (parentMobile.length !== 10)
       addError("Parent's Mobile No. (must be working)", "Parent's mobile must be exactly 10 digits");
+    else if (['0','1','2','3','4','5'].includes(parentMobile[0]))
+      addError("Parent's Mobile No. (must be working)", "Parent's mobile must start with 6, 7, 8, or 9");
+    else if (mobile.length === 10 && parentMobile === mobile)
+      addError("Parent's Mobile No. (must be working)", "Student's and Parent's mobile numbers must be different");
 
     // Aadhar
     const aadhar = String(formData["Aadhar No."] || '').replace(/[^0-9]/g, '');
     if (!aadhar) addError("Aadhar No.", "Aadhar number is required");
     else if (aadhar.length !== 12) addError("Aadhar No.", "Aadhar number must be exactly 12 digits");
+    else if (!isValidAadhaar(aadhar)) addError("Aadhar No.", "Enter a valid Aadhaar number (checksum failed)");
+
+    // Father's Aadhar (Mandatory)
+    const fatherAadhar = String(formData["Father's Aadhar No."] || '').replace(/[^0-9]/g, '');
+    if (!fatherAadhar) addError("Father's Aadhar No.", "Father's Aadhaar number is required");
+    else if (fatherAadhar.length !== 12) addError("Father's Aadhar No.", "Father's Aadhaar number must be exactly 12 digits");
+    else if (!isValidAadhaar(fatherAadhar)) addError("Father's Aadhar No.", "Enter a valid Father's Aadhaar number (checksum failed)");
+
+    // Occupations (Mandatory)
+    const fatherOcc = String(formData["Father's/Guardian's Occupation"] || formData["Father's Occupation"] || '').trim();
+    if (!fatherOcc) addError("Father's/Guardian's Occupation", "Father's / Guardian's occupation is required");
+
+    const motherOcc = String(formData["Mother's Occupation"] || formData["Mother's/Guardian's Occupation"] || '').trim();
+    if (formData["Mother's Occupation"] !== undefined && !motherOcc) {
+      addError("Mother's Occupation", "Mother's occupation is required");
+    }
 
     // Address
     if (!formData["Name of your village"]?.trim()) addError("Name of your village", "Village / locality name is required");
@@ -715,31 +1153,152 @@ export default function AdmissionForm() {
     const pin = String(formData["PIN code"] || '').replace(/[^0-9]/g, '');
     if (pin && pin.length !== 6) addError("PIN code", "PIN code must be exactly 6 digits");
 
-    // Academic essentials
+    // ── Academic essentials: class must be chosen ──
     if (!formData["Admission sought for class"])
       addError("Admission sought for class", "Please select the class for admission");
+    const admissionTypeKey = cls === '12th' ? 'Admission Type (Class 12th)'
+      : cls === '11th' ? 'Admission Type (Class 11th)' : 'Admission Type';
+    if (!formData[admissionTypeKey] && !formData['Admission Type'])
+      addError(admissionTypeKey, 'Please select Full or Provisional admission');
 
-    // Board registration number (class-dependent)
-    if (cls?.includes('11') || cls?.includes('12')) {
-      if (!formData["Board Registration No. (Class 10th)"]?.trim() && !formData["Board Registration No. (Class 11th)"]?.trim())
-        addError("Board Registration No. (Class 10th)", "Board Registration Number is required");
+    const admType11 = formData['Admission Type (Class 11th)'];
+    const admType12 = formData['Admission Type (Class 12th)'];
+    const isProvisionalReappear11 = admType11 === 'Provisional' && formData['Reason for Provisional (Class 11th)'] === 'Reappear Candidate';
+    const isProvisionalReappear12 = admType12 === 'Provisional' && formData['Reason for Provisional (Class 12th)'] === 'Reappear Candidate';
+
+    const is11v = cls?.includes('11') && !cls?.includes('12');
+    const is12v = cls?.includes('12');
+    const is10v = cls === '10th';
+    const is9v  = cls === '9th';
+
+    // ── Class 11th specific required fields ──
+    if (is11v) {
+      if (!formData['Stream for Class 11th']?.trim())
+        addError('Stream for Class 11th', 'Please select a stream for Class 11th');
+      if (!isProvisionalReappear11 && !formData['Board Registration No. (Class 10th)']?.trim())
+        addError('Board Registration No. (Class 10th)', 'Board Registration Number (Class 10th) is required');
+      if (!formData['Name of Previous School (Class 10th)']?.trim())
+        addError('Name of Previous School (Class 10th)', 'Name of previous school (Class 10th) is required');
+      if (!formData['Board (Class 10th)']?.trim())
+        addError('Board (Class 10th)', 'Board / Examination authority for Class 10th is required');
+      const subjects10 = String(formData['Subjects Studied in Class 10th'] || '').trim();
+      if (!subjects10)
+        addError('Subjects Studied in Class 10th', 'Please select subjects studied in Class 10th');
+
+      // Reappear subjects mandatory for Reappear Candidates
+      if (isProvisionalReappear11) {
+        const reopenSub10 = String(formData['Subjects to Reappear (Class 10th)'] || '').trim();
+        if (!reopenSub10) addError('Subjects to Reappear (Class 10th)', 'Please select the subject(s) you need to reappear in');
+      }
     }
 
-    // Marks validation
+    // ── Class 12th specific required fields ──
+    if (is12v) {
+      if (!formData['Stream opted in Class 11th']?.trim())
+        addError('Stream opted in Class 11th', 'Please select the stream you studied in Class 11th');
+      if (!isProvisionalReappear12 && !formData['Board Registration No. (Class 11th)']?.trim())
+        addError('Board Registration No. (Class 11th)', 'Board Registration Number (Class 11th) is required');
+      if (!formData['Name of Previous School (Class 11th)']?.trim())
+        addError('Name of Previous School (Class 11th)', 'Name of previous school (Class 11th) is required');
+      if (!formData['Board (Class 11th)']?.trim())
+        addError('Board (Class 11th)', 'Board / Examination authority for Class 11th is required');
+      const subjects11 = String(formData['Subjects Studied in Class 11th'] || '').trim();
+      if (!subjects11)
+        addError('Subjects Studied in Class 11th', 'Please select subjects studied in Class 11th');
+
+      // Reappear subjects mandatory for Reappear Candidates
+      if (isProvisionalReappear12) {
+        const reopenSub11 = String(formData['Subjects to Reappear (Class 11th)'] || '').trim();
+        if (!reopenSub11) addError('Subjects to Reappear (Class 11th)', 'Please select the subject(s) you need to reappear in');
+      }
+    }
+
+    // ── Class 10th specific required fields ──
+    if (is10v) {
+      if (!formData['Board Registration No. (Class 9th)']?.trim())
+        addError('Board Registration No. (Class 9th)', 'Board Registration Number (Class 9th) is required');
+      if (!formData['Name of Previous School (Class 9th)']?.trim())
+        addError('Name of Previous School (Class 9th)', 'Name of previous school (Class 9th) is required');
+    }
+
+    // ── Class 9th specific required fields ──
+    if (is9v) {
+      if (!formData['Name of Previous School (Class 8th)']?.trim())
+        addError('Name of Previous School (Class 8th)', 'Name of previous school (Class 8th) is required');
+      if (!formData['Year of Passing Class 8th']?.trim())
+        addError('Year of Passing Class 8th', 'Year of passing Class 8th is required');
+    }
+
+    // ── Marks Validation (Mandatory for Full Admission) ──
+    const effectiveAdmType = (cls === '11th' ? admType11 : cls === '12th' ? admType12 : formData['Admission Type']) || 'Full';
+    const isFullAdmission = effectiveAdmType === 'Full' || effectiveAdmType === 'Regular';
+
+    if (isFullAdmission) {
+      const prevClassForMarks = is11v ? 'Class 10th' : is12v ? 'Class 11th' : is10v ? 'Class 9th' : is9v ? 'Class 8th' : '';
+      if (prevClassForMarks) {
+        const obtKey = `Total Marks Obtained in ${prevClassForMarks}`;
+        const maxKey = `Total Max. Marks in ${prevClassForMarks}`;
+        const obtVal = formData[obtKey];
+        const maxVal = formData[maxKey];
+        const obt = parseFloat(obtVal);
+        const maxMarks = parseFloat(maxVal);
+
+        if (obtVal === undefined || obtVal === null || String(obtVal).trim() === '' || isNaN(obt)) {
+          addError(obtKey, `Total marks obtained in ${prevClassForMarks} is required for full admission`);
+        }
+        if (maxVal === undefined || maxVal === null || String(maxVal).trim() === '' || isNaN(maxMarks) || maxMarks <= 0) {
+          addError(maxKey, `Maximum marks in ${prevClassForMarks} is required for full admission`);
+        }
+      }
+    }
+
+    // Marks cross-validation (obtained cannot exceed max)
     ['Class 10th', 'Class 11th', 'Class 8th', 'Class 9th'].forEach(clsLabel => {
-      const obtained = parseFloat(formData[`Total Marks Obtained in ${clsLabel}`]);
-      const maxMarks = parseFloat(formData[`Total Max. Marks in ${clsLabel}`]);
-      if (!isNaN(obtained) && !isNaN(maxMarks) && maxMarks > 0 && obtained > maxMarks) {
+      const obtainedRaw = formData[`Total Marks Obtained in ${clsLabel}`];
+      const maximumRaw = formData[`Total Max. Marks in ${clsLabel}`];
+      const obtained = parseFloat(obtainedRaw);
+      const maxMarks = parseFloat(maximumRaw);
+      if (String(obtainedRaw ?? '').trim() && (!String(maximumRaw ?? '').trim() || isNaN(maxMarks) || maxMarks <= 0 || maxMarks > 2000)) {
+        addError(`Total Max. Marks in ${clsLabel}`, 'Enter valid maximum marks (1–2000)');
+      } else if (!isNaN(obtained) && (obtained < 0 || (!isNaN(maxMarks) && maxMarks > 0 && obtained > maxMarks))) {
         addError(`Total Marks Obtained in ${clsLabel}`, `Marks Obtained (${obtained}) cannot exceed Max Marks (${maxMarks})`);
       }
     });
 
-    // IFSC validation (only if bank account entered)
-    const ifsc = String(formData["IFSC code"] || '').trim().toUpperCase();
-    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))
-      addError("IFSC code", "Invalid IFSC code format (e.g. SBIN0001234)");
+    // ── Bank Account & IFSC (Mandatory) ──
+    const bankAccount = String(formData['Bank Account No.'] || '').replace(/\s/g, '');
+    if (!bankAccount) {
+      addError('Bank Account No.', 'Bank account number is required');
+    } else if (!/^\d{9,18}$/.test(bankAccount)) {
+      addError('Bank Account No.', 'Bank account number must contain 9–18 digits');
+    }
 
-    // ── DYNAMIC required-field check from formStructure ──
+    const ifsc = String(formData["IFSC code"] || '').trim().toUpperCase();
+    if (!ifsc) {
+      addError("IFSC code", "IFSC code is required");
+    } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+      addError("IFSC code", "Invalid IFSC code format (e.g. SBIN0001234)");
+    }
+
+    // ── Dynamic required-field sweep from formStructure ──
+    // Skips fields already hard-checked above; also skips fields hidden by isVisible.
+    const HARDCODED_FIELDS = new Set([
+      "Student's Name (as per school records)", "DoB (as per school records)", "Gender",
+      "Father's/Guardian's Name (as per school records)", "Mother's Name (as per school records)",
+      "Father's/Guardian's Occupation", "Father's Occupation", "Mother's Occupation", "Mother's/Guardian's Occupation",
+      "Mobile No. (with working WhatsApp)", "Parent's Mobile No. (must be working)",
+      "Aadhar No.", "Father's Aadhar No.", "Name of your village", "District",
+      "Bank Account No.", "IFSC code",
+      'Board Registration No. (Class 10th)', 'Board Registration No. (Class 11th)',
+      'Board Registration No. (Class 9th)',
+      'Name of Previous School (Class 10th)', 'Name of Previous School (Class 11th)',
+      'Name of Previous School (Class 8th)', 'Name of Previous School (Class 9th)',
+      'Board (Class 10th)', 'Board (Class 11th)',
+      'Stream for Class 11th', 'Stream opted in Class 11th',
+      'Subjects Studied in Class 10th', 'Subjects Studied in Class 11th',
+      'Subjects to Reappear (Class 10th)', 'Subjects to Reappear (Class 11th)',
+      'Year of Passing Class 8th',
+    ]);
     formStructure.forEach(field => {
       const name = field.fieldName || field.name || field['Field Name'];
       const required = field.required || field['Is Required?'] === 'TRUE';
@@ -747,35 +1306,41 @@ export default function AdmissionForm() {
       if (type.startsWith('autogen')) return;
       if (name === 'Declaration') return;
       if (!isVisible(field)) return;
-      if (!required) return;
-      if (errors[name]) return; // already caught by hardcoded check
       const val = formData[name];
+      if (typeof val === 'string' && (val.trim().toLowerCase() === 'other' || val.trim().toLowerCase() === 'others')) {
+        addError(name, `Please specify your custom ${name}`);
+        return;
+      }
+      if (!required) return;
+      if (HARDCODED_FIELDS.has(name)) return; // already validated above
+      if (errors[name]) return;
       if (val === undefined || val === null || val === '' || val === false || val === 'FALSE') {
         addError(name, 'This field is required');
       }
     });
 
+    // Check all form data entries for any unspecified "Other"
+    Object.keys(formData).forEach(key => {
+      const val = formData[key];
+      if (typeof val === 'string' && (val.trim().toLowerCase() === 'other' || val.trim().toLowerCase() === 'others')) {
+        addError(key, `Please specify your custom ${key}`);
+      }
+    });
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      const errorTab = categorizeField(firstErrorField);
-      setActiveTab(errorTab);
-      // Count errors per tab for summary
-      const tabErrorCounts = {};
-      Object.keys(errors).forEach(name => {
-        const t = categorizeField(name);
-        tabErrorCounts[t] = (tabErrorCounts[t] || 0) + 1;
-      });
-      const tabSummary = tabs
-        .filter(t => tabErrorCounts[t.id])
-        .map(t => `${t.label} (${tabErrorCounts[t.id]} error${tabErrorCounts[t.id] > 1 ? 's' : ''})`)
-        .join(', ');
+      const errorSection = fieldSectionMap[firstErrorField];
+      if (errorSection) setActiveTab(sectionWorkflowStep(errorSection));
       setAlert({
         type: 'error',
-        text: `Please fix ${Object.keys(errors).length} error(s) before submitting. Issues found in: ${tabSummary}. First issue: "${firstErrorField}" — ${errors[firstErrorField]}`
+        text: `Please fix ${Object.keys(errors).length} error(s) before submitting. First issue: "${firstErrorField}" — ${errors[firstErrorField]}`
       });
       // Scroll to first error field
       setTimeout(() => {
-        const el = document.querySelector(`[data-field-name="${CSS.escape(firstErrorField)}"]`);
+        const isStartError = firstErrorField === 'Admission sought for class' || String(firstErrorField).startsWith('Admission Type');
+        const el = isStartError
+          ? document.querySelector('#admission-start')
+          : document.querySelector(`[data-field-name="${CSS.escape(firstErrorField)}"]`);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
       return;
@@ -789,14 +1354,55 @@ export default function AdmissionForm() {
     setShowPreviewModal(false);
     setIsSubmitting(true);
     try {
-      const studentPhoto = formData['Student Photo'] || formData['photo_id'] || formData['photo'] || '';
-      const currentUser = sessionManager.getUser() || { email: formData['Email Address'] || '' };
+      {
+      if (!submissionKeyRef.current) {
+        submissionKeyRef.current = window.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      }
+      const res = await appsScriptApi.saveApplication({
+        ...formData,
+        applicationId: applicationIdRef.current || applicationId,
+        submissionKey: submissionKeyRef.current,
+        ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || '' } : {}),
+      });
+      const formNo = res.formNumber;
+      applicationIdRef.current = res.applicationId || applicationIdRef.current;
+      setApplicationId(applicationIdRef.current);
+      const submittedData = {
+        ...formData,
+        'Form Number': formNo,
+        FormNo: formNo,
+        formNo,
+        Status: 'Submitted',
+      };
+      setFormData(submittedData);
+      try { sessionStorage.removeItem('hss_admission_upgrade'); } catch (e) { }
+      setSubmittedSuccessData(submittedData);
+      return;
+      }
 
-      const formNo = String(formData['Form Number'] || formData['FormNo'] || `FORM_${Date.now()}`);
+      /* Legacy direct-write path retained temporarily below for historical
+         reference; execution always returns after the authoritative server
+         transaction above. */
+      // eslint-disable-next-line no-unreachable
+      const studentPhoto = formData['Student Photo'] || formData['photo_id'] || formData['photo'] || '';
+      const cleanFNoVal = (val) => {
+        if (!val) return '';
+        const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
+        if (s.startsWith('FORM_')) return '';
+        return s;
+      };
+
+      // eslint-disable-next-line no-unreachable
+      let formNo = cleanFNoVal(formData['Form Number'] || formData['FormNo'] || formData['Form No.'] || formData['formNo']);
+      if (!formNo) {
+        formNo = await getNextAvailableFormNumber();
+      }
 
       const payloadData = {
         ...formData,
         'Form Number': formNo,
+        'FormNo': formNo,
+        'formNo': formNo,
         'Student Photo': studentPhoto,
         'photo_id': studentPhoto,
         'photoUrl': studentPhoto,
@@ -804,30 +1410,47 @@ export default function AdmissionForm() {
         submittedAt: new Date().toISOString()
       };
 
-      const res = await appsScriptApi.saveApplication(payloadData);
+      // Build the payload — pass upgrade flags so saveApplication handles in-place update
+      const apiPayload = {
+        ...payloadData,
+        ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || formNo } : {}),
+      };
+
+      const res = await appsScriptApi.saveApplication(apiPayload);
+
+      if (res && res.error === 'duplicate') {
+        setAlert({
+          type: 'error',
+          text: res.message || 'Duplicate application detected. You already have an active application for this class.',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       if (res && res.success !== false) {
-        // Consume form number in database counter
+        // Consume / recycle form number in database counter
         consumeFormNumber(formNo).catch(e => console.warn('consumeFormNumber note:', e));
 
-        // Clear local draft from sessionStorage
+        // Clear local draft and upgrade context from sessionStorage
         try { sessionStorage.removeItem('hss_admission_draft'); } catch (e) { }
+        try { sessionStorage.removeItem('hss_admission_upgrade'); } catch (e) { }
 
-        setAlert({ type: 'success', text: `Application #${formNo} submitted successfully to official database! Redirecting...` });
-
-        // Trigger browser PDF generator automatically
-        try {
-          generateStudentAdmissionPdf(payloadData);
-        } catch (pdfErr) {
-          console.warn('PDF generator trigger note:', pdfErr);
-        }
-
-        setTimeout(() => {
-          navigate('/portal/student');
-        }, 1500);
+        // Display standard confirmation modal with progress tracking instead of immediate print popover
+        setSubmittedSuccessData(payloadData);
       } else {
         setAlert({ type: 'error', text: res?.error || res?.message || 'Submission failed.' });
       }
     } catch (err) {
+      if (err.fieldErrors && Object.keys(err.fieldErrors).length) {
+        setFieldErrors(err.fieldErrors);
+        const firstServerField = Object.keys(err.fieldErrors)[0];
+        const errorSection = fieldSectionMap[firstServerField];
+        if (errorSection) setActiveTab(sectionWorkflowStep(errorSection));
+        setTimeout(() => {
+          const el = document.querySelector(`[data-field-name="${CSS.escape(firstServerField)}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
       setAlert({ type: 'error', text: err.userMessage || err.message || 'Submission failed.' });
     } finally {
       setIsSubmitting(false);
@@ -835,17 +1458,80 @@ export default function AdmissionForm() {
   };
 
   return (
-    <div className="w-full min-h-[85vh] py-8 px-4 sm:px-6" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="w-full min-h-[85vh] px-2 py-2.5 sm:px-5 sm:py-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Online Admission Application"
         description="Fill out the official online admission form for Govt HSS Shangus."
         path="/portal/student/application"
       />
 
+      {/* Submission Progress & Animation Fullscreen Overlay */}
+      {isSubmitting && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[9999999] bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 animate-fadeIn pointer-events-auto"
+        >
+          <div className="w-full max-w-md rounded-3xl p-6 sm:p-8 border border-teal-500/30 bg-slate-900/95 text-white shadow-2xl space-y-6 text-center relative overflow-hidden">
+            {/* Background ambient glow */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-teal-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 space-y-4">
+              {/* Animated Icon Ring */}
+              <div className="relative inline-flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-teal-500/10 border border-teal-500/30 flex items-center justify-center animate-pulse">
+                  <Loader2 size={38} className="text-teal-400 animate-spin" />
+                </div>
+                <div className="absolute inset-0 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" style={{ animationDuration: '1.2s' }} />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-lg font-black tracking-wide text-teal-300 uppercase">
+                  Submitting Application...
+                </h3>
+                <p className="text-xs text-slate-300 font-semibold">
+                  Govt. Higher Secondary School Shangus
+                </p>
+              </div>
+
+              {/* Animated Progress Bar */}
+              <div className="space-y-2 pt-2">
+                <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                  <div className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-300 rounded-full transition-all duration-500 animate-pulse w-4/5" />
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Processing Records</span>
+                  <span className="text-teal-400 font-mono font-black animate-pulse">Please wait...</span>
+                </div>
+              </div>
+
+              {/* Step checklist */}
+              <div className="space-y-2 text-left pt-2 text-xs font-semibold text-slate-300 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                <div className="flex items-center gap-2.5 text-teal-400">
+                  <CheckCircle2 size={15} className="flex-shrink-0" />
+                  <span>Validating student profile &amp; subjects</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-teal-300">
+                  <Loader2 size={15} className="animate-spin flex-shrink-0" />
+                  <span>Encrypting photos &amp; identity details</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-400">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-500 flex-shrink-0" />
+                  <span>Generating cryptographic verification QR</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Instructions Modal Overlay (Only shown when form is editable) */}
       {showInstructions && !isFormLocked && (
         <div
-          onClick={(e) => { if (e.target === e.currentTarget) setShowInstructions(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admission-instructions-title"
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
         >
           <div className="w-full max-w-xl rounded-3xl p-6 sm:p-8 border shadow-2xl space-y-5 animate-fadeIn" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
@@ -855,7 +1541,7 @@ export default function AdmissionForm() {
                   <Info size={22} />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-lg" style={{ color: 'var(--text-main, #0f172a)' }}>
+                  <h3 id="admission-instructions-title" className="font-extrabold text-lg" style={{ color: 'var(--text-main, #0f172a)' }}>
                     Instructions for Admission
                   </h3>
                   <p className="text-xs text-slate-400">Please read carefully before proceeding to the form</p>
@@ -863,9 +1549,15 @@ export default function AdmissionForm() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowInstructions(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                title="Close Instructions"
+                onClick={() => {
+                  if (hasConfirmedInstructions) {
+                    setShowInstructions(false);
+                  } else {
+                    navigate('/portal/student');
+                  }
+                }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title={hasConfirmedInstructions ? "Close Instructions" : "Cancel & Return to Dashboard"}
               >
                 <X size={20} />
               </button>
@@ -882,7 +1574,7 @@ export default function AdmissionForm() {
               </div>
               <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
                 <CheckCircle size={16} className="text-teal-500 flex-shrink-0 mt-0.5" />
-                <span>Upload a clear, recent Passport-size photograph (Max 200 KB) for your identity card.</span>
+                <span>Upload a clear, recent passport-size JPEG, PNG, or WebP photograph (Max 200 KB). It will be optimized and securely stored.</span>
               </div>
             </div>
 
@@ -902,7 +1594,10 @@ export default function AdmissionForm() {
 
             <button
               disabled={!hasConfirmedInstructions}
-              onClick={() => setShowInstructions(false)}
+              onClick={() => {
+                setHasConfirmedInstructions(true);
+                setShowInstructions(false);
+              }}
               className="w-full py-3.5 px-6 rounded-2xl font-extrabold text-sm text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
             >
               <span>I Confirm and Proceed to Application Form</span>
@@ -914,7 +1609,7 @@ export default function AdmissionForm() {
 
       {/* Application Review & Confirmation Modal (Shown before final submit) */}
       {showPreviewModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div role="dialog" aria-modal="true" aria-labelledby="admission-review-title" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="w-full max-w-3xl rounded-3xl p-5 sm:p-7 border shadow-2xl space-y-6 my-auto max-h-[90vh] overflow-y-auto animate-fadeIn bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100">
             <div className="flex items-center justify-between border-b pb-4 border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
@@ -922,7 +1617,7 @@ export default function AdmissionForm() {
                   <Eye size={22} />
                 </div>
                 <div>
-                  <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white">
+                  <h3 id="admission-review-title" className="font-black text-base sm:text-lg text-slate-900 dark:text-white">
                     Application Summary & Final Verification
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -942,14 +1637,30 @@ export default function AdmissionForm() {
             {/* Top Identity Card Header */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-slate-500/5 to-amber-500/10 border border-teal-500/20 flex flex-col sm:flex-row items-center gap-4">
               <div className="w-24 h-28 rounded-2xl border-2 border-teal-500/40 overflow-hidden bg-slate-200 dark:bg-slate-800 shadow-md flex-shrink-0">
-                {formData['Student Photo'] ? (
-                  <img src={formData['Student Photo']} alt="Student Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 text-[10px] font-bold">
-                    <Camera size={24} />
-                    <span>No Photo</span>
-                  </div>
-                )}
+                {(() => {
+                  const photoSrc =
+                    formData['Student Photo'] || formData['photo_id'] || formData['photoUrl'] || formData['photo'] || formData['id card photo'] ||
+                    currentUser?.['Student Photo'] || currentUser?.photo_id || currentUser?.photoUrl || currentUser?.photoURL;
+                  const isValidPhoto = photoSrc && typeof photoSrc === 'string' && (
+                    photoSrc.startsWith('data:image/') || photoSrc.startsWith('http://') || photoSrc.startsWith('https://') || photoSrc.startsWith('blob:')
+                  );
+
+                  return isValidPhoto ? (
+                    <img
+                      src={photoSrc}
+                      alt="Student Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 text-[10px] font-bold p-1 text-center bg-slate-100 dark:bg-slate-800">
+                      <Camera size={22} className="text-teal-600 mb-1" />
+                      <span>No Photo</span>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="flex-1 space-y-1 text-center sm:text-left">
                 <div className="text-lg font-black text-slate-900 dark:text-white">
@@ -1007,7 +1718,11 @@ export default function AdmissionForm() {
                   📖 Chosen Subjects
                 </div>
                 <div className="text-teal-700 dark:text-teal-400 font-bold">
-                  {formData["Subjects to be taken in Class 11th"] || formData["Subjects Studied in Class 11th"] || formData["Subjects to be taken in Class 9th"] || formData["Subjects to be taken in Class 10th"] || 'None selected'}
+                  {formatAllSubjects(
+                    formData["Stream & Subjects for Class 12th"] || formData["Subjects to be taken in Class 11th"] || formData["Subjects to be taken in Class 10th"] || formData["Subjects to be taken in Class 9th"] || '',
+                    selectedClass,
+                    formData["Stream for Class 11th"] || formData["Stream opted in Class 11th"] || formData["Stream"]
+                  ) || 'None selected'}
                 </div>
               </div>
 
@@ -1016,9 +1731,10 @@ export default function AdmissionForm() {
                 <div className="font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
                   🏦 Bank Account & Identifiers
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-600 dark:text-slate-300">
-                  <div><strong>Aadhaar No:</strong> {formData["Aadhar No."] || 'N/A'}</div>
-                  <div><strong>Bank Account:</strong> {formData["Bank Account No."] || 'N/A'}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-slate-600 dark:text-slate-300">
+                  <div><strong>Student Aadhaar:</strong> {maskSensitive(formData["Aadhar No."])}</div>
+                  <div><strong>Father's Aadhaar:</strong> {maskSensitive(formData["Father's Aadhar No."])}</div>
+                  <div><strong>Bank Account:</strong> {maskSensitive(formData["Bank Account No."])}</div>
                   <div><strong>IFSC Code:</strong> {formData["IFSC code"] || 'N/A'}</div>
                 </div>
               </div>
@@ -1049,13 +1765,14 @@ export default function AdmissionForm() {
 
               <button
                 type="button"
-                disabled={isSubmitting}
                 onClick={executeFinalSubmission}
-                className="w-full sm:w-auto px-7 py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 shadow-lg shadow-teal-500/20 transition-all cursor-pointer flex items-center justify-center gap-2"
+                disabled={isSubmitting || admissionsClosed}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-2xl font-extrabold text-xs text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50 transition-all cursor-pointer shadow-lg flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>
-                    <RefreshCw size={16} className="animate-spin" /> Submitting...
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>Submitting Application...</span>
                   </>
                 ) : (
                   <>
@@ -1068,126 +1785,297 @@ export default function AdmissionForm() {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Navigation Header */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/portal/student"
-            className="inline-flex items-center gap-1.5 text-xs font-bold hover:underline"
-            style={{ color: 'var(--teal-accent, #0d9488)' }}
-          >
-            <ArrowLeft size={16} /> Back to Dashboard
-          </Link>
-          {!isFormLocked && (
-            <button
-              onClick={() => setShowInstructions(true)}
-              className="text-xs font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1 cursor-pointer"
-            >
-              <HelpCircle size={14} /> Instructions
-            </button>
-          )}
+      {submittedSuccessData && (
+        <div role="dialog" aria-modal="true" aria-labelledby="admission-success-title" className="fixed inset-0 z-[60] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl border border-emerald-200 dark:border-emerald-900 bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-2xl text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center">
+              <CheckCircle size={34} aria-hidden="true" />
+            </div>
+            <h2 id="admission-success-title" className="mt-4 text-xl font-black text-slate-900 dark:text-white">Application submitted</h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              Your official form number is <strong className="text-emerald-700 dark:text-emerald-400">#{submittedSuccessData['Form Number']}</strong>. Keep it for future reference.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">The application is now locked for verification. Its progress remains available on your dashboard.</p>
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button type="button" onClick={handleDownloadPdf} disabled={isDownloadingPdf} className="min-h-11 rounded-xl border border-slate-300 dark:border-slate-700 px-4 text-xs font-extrabold text-slate-700 dark:text-slate-200 disabled:opacity-50">
+                {isDownloadingPdf ? 'Preparing PDF…' : 'Download PDF'}
+              </button>
+              <Link to="/portal/student" className="min-h-11 rounded-xl bg-emerald-600 px-4 text-xs font-extrabold text-white flex items-center justify-center">View dashboard</Link>
+            </div>
+          </div>
         </div>
+      )}
 
-        {/* Form Container Card with Subtle School Logo Watermark */}
-        <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+      {/* Gated: Without accepting instructions, form and admission setup screen are completely hidden */}
+      {!hasConfirmedInstructions && !isFormLocked ? (
+        <div className="max-w-xl mx-auto py-16 px-4 text-center">
+          <div className="p-8 sm:p-10 rounded-3xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 animate-fadeIn">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-600">
+              <Info size={28} />
+            </div>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">Admission Instructions Required</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              You must read and confirm the official admission instructions and guidelines before accessing the admission form and setup.
+            </p>
+            <div className="pt-3 flex flex-col sm:flex-row gap-2.5 justify-center">
+              <button
+                type="button"
+                onClick={() => setShowInstructions(true)}
+                className="py-2.5 px-6 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs shadow-md transition-all cursor-pointer"
+              >
+                Read &amp; Confirm Instructions
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/portal/student')}
+                className="py-2.5 px-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-7xl mx-auto space-y-3">
+          {/* Form Container Card */}
+          <div className="relative rounded-xl border p-2.5 shadow-sm sm:rounded-2xl sm:p-4 space-y-3 min-w-0" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
 
           {/* School Logo Watermark */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] select-none z-0">
-            <img src="/logo512.png" alt="" className="w-80 h-80 sm:w-96 sm:h-96 object-contain filter grayscale" />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] select-none z-0 overflow-hidden rounded-2xl">
+            <img src="/logo512.png" alt="" className="w-64 h-64 object-contain filter grayscale" />
           </div>
 
-          <div className="relative z-10 space-y-6">
-            {/* Header Info Banner */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
-              <div>
-                <h1 className="text-xl font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
-                  Online Admission Application
-                </h1>
-                <div className="text-xs text-slate-400 mt-0.5">
-                  Form #{formData['Form Number'] || 'New'} • Class: {selectedClass} {selectedStream ? `(${selectedStream})` : ''}
+          <div className="relative z-10 space-y-3">
+            {/* Upgrade Mode Banner — dismissible */}
+            {upgradeMode && showInfoBanner && (
+              <div className="p-3 rounded-2xl border flex items-start gap-2.5 animate-fadeIn" style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', borderColor: '#f59e0b' }}>
+                <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f59e0b22' }}>
+                  <ArrowUp size={14} style={{ color: '#d97706' }} />
                 </div>
-              </div>
-
-              {/* Quick Action Top Buttons */}
-              <div className="flex items-center gap-2">
-                {isSubmittedOrApproved && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadPdf}
-                    disabled={isDownloadingPdf}
-                    className="px-4 py-2 rounded-xl text-xs font-bold border border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300 flex items-center gap-1.5 cursor-pointer hover:bg-teal-500/20 disabled:opacity-50"
-                    title="Print or Save as PDF via browser dialog"
-                  >
-                    {isDownloadingPdf ? (
-                      <>
-                        <RefreshCw size={14} className="animate-spin" /> Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <Printer size={14} /> Print PDF
-                      </>
-                    )}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-                  style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-                >
-                  <Save size={14} /> Save Draft
-                </button>
-              </div>
-            </div>
-
-            {/* Floating / Sticky Alert Toast Notification */}
-            {alert && (
-              <div className={`p-4 rounded-2xl text-xs font-semibold flex items-start justify-between gap-3 animate-fadeIn border shadow-sm ${alert.type === 'error'
-                  ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
-                  : alert.type === 'success'
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-teal-500/10 border-teal-500/30 text-teal-700 dark:text-teal-300'
-                }`}>
-                <div className="flex items-start gap-2.5">
-                  {alert.type === 'error' ? <AlertCircle size={18} className="flex-shrink-0 text-red-500 mt-0.5" /> : <CheckCircle size={18} className="flex-shrink-0 text-teal-500 mt-0.5" />}
-                  <span className="leading-relaxed">{alert.text}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-black" style={{ color: '#92400e' }}>🔄 Upgrade Mode — Converting Provisional → Full Admission</div>
+                  <div className="text-xs mt-0.5" style={{ color: '#b45309' }}>Form #{upgradeSourceFormNo} is pre-filled. Change Admission Type to <strong>Regular</strong> and complete all required mark/board details before submitting.</div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAlert(null)}
-                  className="p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
-                  title="Dismiss Notification"
+                  onClick={() => setShowInfoBanner(false)}
+                  className="flex-shrink-0 p-1 rounded-lg hover:bg-amber-200/50 text-amber-600 hover:text-amber-800 transition-colors cursor-pointer"
+                  title="Dismiss notice"
                 >
-                  <X size={14} />
+                  <X size={13} />
                 </button>
               </div>
             )}
 
-            {/* Category Tabs */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl border text-xs font-bold overflow-x-auto" style={{ backgroundColor: 'var(--bg-secondary, #f1f5f9)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-              {tabs.map((tab) => (
+            {/* Provisional warning banner — dismissible */}
+            {isProvisionalForm && !upgradeMode && !isFormLocked && showInfoBanner && (
+              <div className="p-3 rounded-2xl border flex items-center gap-2 animate-fadeIn" style={{ background: '#fff7ed', borderColor: '#fed7aa' }}>
+                <AlertCircle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
+                <div className="flex-1 text-xs" style={{ color: '#9a3412' }}>
+                  <strong>Provisional Form:</strong> A compact slip will be printed on submission. You can upgrade to Full Admission later from your dashboard.
+                </div>
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-2 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${activeTab === tab.id ? 'bg-teal-500 text-white shadow-sm' : 'hover:opacity-80'
-                    }`}
-                  style={activeTab !== tab.id ? { color: 'var(--text-main, #334155)' } : {}}
+                  onClick={() => setShowInfoBanner(false)}
+                  className="flex-shrink-0 p-1 rounded-lg hover:bg-orange-200/50 text-orange-500 hover:text-orange-700 transition-colors cursor-pointer"
+                  title="Dismiss notice"
                 >
-                  {tab.label}
+                  <X size={13} />
                 </button>
-              ))}
+              </div>
+            )}
+
+            {/* Top Navigation & Live Progress Toolbar (Unified across Mobile & Desktop) */}
+            <div
+              className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-2xl border bg-white/95 dark:bg-slate-950/95 shadow-md backdrop-blur-xl transition-all relative overflow-hidden"
+              style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}
+            >
+              {/* Left: Back Button + Student Identity Summary */}
+              <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleBackWithAutoSave}
+                  disabled={isBackSaving}
+                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:text-teal-600 shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1 text-xs font-bold"
+                  title="Save draft & back to dashboard"
+                >
+                  {isBackSaving ? <RefreshCw size={13} className="animate-spin text-teal-600" /> : <ArrowLeft size={13} />}
+                  <span className="hidden sm:inline">Back</span>
+                </button>
+                <div className="min-w-0">
+                  <div className="text-xs font-black text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                    <span className="truncate">
+                      {formData["Student's Name (as per school records)"] || formData['Student Name'] || (upgradeMode ? 'Upgrade Admission' : isProvisionalForm ? 'Provisional Form' : 'Admission Form')}
+                    </span>
+                    {isProvisionalForm && !upgradeMode && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-400">PROV</span>
+                    )}
+                    {upgradeMode && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-400">UPGRADE</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate flex items-center gap-1">
+                    <span>Form #{formData['Form Number'] || '—'}</span>
+                    {selectedClass && (
+                      <span className="text-teal-600 dark:text-teal-400 font-bold">
+                        · Class {selectedClass} {selectedStream ? `(${selectedStream})` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle: 4 Step Navigation Tabs */}
+              {!isFormLocked && (
+                <nav aria-label="Admission section shortcuts" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  {workflowSteps.map((step, index) => (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => goToWorkflowStep(step)}
+                      disabled={!hasAdmissionStart}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeTab === step.id
+                          ? 'bg-teal-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-white/50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed'
+                      }`}
+                      title={step.label}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${activeTab === step.id ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+                        {index + 1}
+                      </span>
+                      <span className="hidden md:inline">{step.label}</span>
+                      <span className="md:hidden">{step.mobileLabel}</span>
+                    </button>
+                  ))}
+                </nav>
+              )}
+
+              {/* Right: Progress & Action Controls */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {!isFormLocked && hasAdmissionStart && (
+                  <div className="hidden sm:flex flex-col items-end text-right">
+                    <span className="text-[11px] font-black text-teal-700 dark:text-teal-300">
+                      {progressPercent}% <span className="text-[9px] font-normal text-slate-400">({filledRequiredCount}/{requiredFields.length})</span>
+                    </span>
+                    <span className="text-[8.5px] font-bold text-slate-400">
+                      {draftState === 'saving' ? 'Saving…' : draftSavedTime ? `Saved ${draftSavedTime}` : 'Drafting'}
+                    </span>
+                  </div>
+                )}
+                {!isFormLocked && (
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    disabled={isSubmitting || !hasAdmissionStart}
+                    className="py-1.5 px-3 rounded-xl border border-teal-600 bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-all flex items-center gap-1.5 text-xs font-black cursor-pointer disabled:opacity-50"
+                    title="Save Draft"
+                  >
+                    {draftState === 'saving' ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                    <span className="hidden sm:inline">{draftState === 'saving' ? 'Saving…' : 'Save Draft'}</span>
+                  </button>
+                )}
+                {!isFormLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setShowInstructions(true)}
+                    className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-600 hover:text-teal-600 transition-colors cursor-pointer"
+                    title="Instructions & Help"
+                  >
+                    <HelpCircle size={15} />
+                  </button>
+                )}
+              </div>
+
+              {/* Bottom Progress Track */}
+              {!isFormLocked && hasAdmissionStart && (
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-slate-200/80 dark:bg-slate-800/80">
+                  <div
+                    className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-600 transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              )}
             </div>
+
+            {/* Main Application Form Body */}
+            <div className="space-y-3">
+
+            {/* Floating / Fixed Alert Toast Notification Popup — High Contrast Top-Right Position via Portal */}
+            {alert && createPortal(
+              <div
+                role={alert.type === 'error' ? 'alert' : 'status'}
+                aria-live="assertive"
+                className="fixed top-24 right-4 sm:right-6 z-[99999999] w-[92vw] max-w-sm sm:max-w-md animate-fadeIn pointer-events-auto drop-shadow-2xl shadow-2xl"
+              >
+                <div
+                  className={`relative overflow-hidden p-4 rounded-2xl text-xs font-semibold flex items-start justify-between gap-3 border-2 shadow-2xl transition-all ${
+                    alert.type === 'error'
+                      ? 'border-red-500 ring-4 ring-red-500/30'
+                      : alert.type === 'success'
+                        ? 'border-emerald-500 ring-4 ring-emerald-500/30'
+                        : 'border-teal-500 ring-4 ring-teal-500/30'
+                  }`}
+                  style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    {alert.type === 'error' ? (
+                      <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/30">
+                        <AlertCircle size={22} className="stroke-[2.5]" />
+                      </div>
+                    ) : alert.type === 'success' ? (
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-emerald-500/30">
+                        <CheckCircle size={22} className="stroke-[2.5]" />
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-teal-500/30">
+                        <Info size={22} className="stroke-[2.5]" />
+                      </div>
+                    )}
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <h4 className={`text-xs sm:text-sm font-black tracking-wider uppercase flex items-center justify-between ${
+                        alert.type === 'error' ? 'text-red-400' : alert.type === 'success' ? 'text-emerald-400' : 'text-teal-400'
+                      }`}>
+                        <span>{alert.type === 'error' ? 'Action Required' : alert.type === 'success' ? 'Saved Successfully' : 'Notice'}</span>
+                      </h4>
+                      <p className="text-xs font-semibold leading-relaxed text-slate-100 break-words">
+                        {alert.text}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAlert(null)}
+                    className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-xs border border-white/20 transition-all cursor-pointer flex-shrink-0 hover:scale-105 active:scale-95 ml-1"
+                    title="Dismiss Notification"
+                  >
+                    <X size={16} className="stroke-[2.5]" />
+                  </button>
+
+                  {/* 60-Second Auto-Dismiss Countdown Bar */}
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-slate-800">
+                    <div
+                      className={`h-full ${
+                        alert.type === 'error' ? 'bg-red-500' : alert.type === 'success' ? 'bg-emerald-400' : 'bg-teal-400'
+                      }`}
+                      style={{
+                        animation: 'shrink60s 60s linear forwards',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
             {/* Locked Application Banner */}
             {isFormLocked && (
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center justify-between gap-3 animate-fadeIn mb-4">
+              <div className="mb-3 flex flex-col items-stretch gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-700 animate-fadeIn dark:text-amber-300 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:rounded-2xl sm:gap-3 sm:p-4">
                 <div className="flex items-center gap-2">
                   <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
                   <span>Your application has been submitted and locked for verification. Editing is disabled.</span>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-shrink-0 sm:items-center">
                   <button
                     type="button"
                     onClick={handleDownloadPdf}
@@ -1214,262 +2102,557 @@ export default function AdmissionForm() {
               </div>
             )}
 
+            {admissionsClosed && !isFormLocked && (
+              <div role="alert" className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-semibold flex items-start gap-2">
+                <ShieldCheck size={17} className="flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-black text-sm">Admissions are currently closed{selectedClass ? ` for Class ${selectedClass}` : ''}.</div>
+                  <p className="mt-1 text-[11px]">Your draft remains available, but final submission is disabled until enrollment reopens.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Rejection Alert Banner (Within 3 Days) */}
+            {rejectedEditable && (
+              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-semibold space-y-1 animate-fadeIn mb-4">
+                <div className="flex items-center gap-2 font-extrabold text-sm">
+                  <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+                  <span>⚠️ Application Returned for Correction (3-Day Edit Window Active)</span>
+                </div>
+                <p>Reason for rejection: <strong className="text-red-600">{formData.rejectionReason || formData['Rejection Reason'] || formData['Rejected Reason'] || 'Please correct specified details.'}</strong></p>
+                <p className="text-[11px] text-slate-500">
+                  You can edit and resubmit your details below. {formData['Payment Status'] === 'PAID & VERIFIED' ? '✅ Your online fee payment is retained — you will NOT be asked to pay fee again.' : ''}
+                </p>
+              </div>
+            )}
+
+            {/* Rejection Expired Banner */}
+            {currentStatus === 'Rejected' && !rejectedEditable && (
+              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-semibold space-y-1 animate-fadeIn mb-4">
+                <div className="flex items-center gap-2 font-extrabold text-sm">
+                  <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+                  <span>🚫 Correction Window Expired</span>
+                </div>
+                <p>The 3-day correction window for this rejected application has passed. Form editing is locked. Please contact the admission office to request unlock.</p>
+              </div>
+            )}
+
             {/* Main Form Fields */}
             {loading ? (
               <ModernLoader
+                moduleKey="student"
                 text="Initializing Admission Application"
                 subtext="Loading dynamic form schema, streams, and your saved profile records..."
               />
             ) : (
-              <form onSubmit={handleFinalSubmit} className="space-y-6">
-                {activeTab === 'payment' ? (
-                  <div className="space-y-6">
-                    {/* Fee Payment Info Card */}
-                    <div className="p-5 rounded-2xl border bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border-teal-500/30 space-y-3">
-                      <div className="flex items-center justify-between border-b pb-2.5 border-teal-500/20">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-teal-500"></span>
-                          <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                            💳 Fee Payment & Receipt Verification
-                          </h3>
-                        </div>
-                        <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                          {formData['Payment Status'] || formData['paymentStatus'] || 'Cash Counter / Default Fee'}
-                        </span>
-                      </div>
+              <form onSubmit={handleFinalSubmit} className="space-y-3">
+                {(() => {
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1">
-                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Admission Fee Amount</span>
-                          <span className="text-base font-black text-teal-600 dark:text-teal-400">
-                            {formData['Fee Amount'] || formData['feeAmount'] || 'Standard Govt Fee (As Applicable)'}
-                          </span>
-                        </div>
-                        <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1">
-                          <span className="text-slate-400 font-bold uppercase text-[10px] block">Payment Gateway / Counter Mode</span>
-                          <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                            {formData['Payment Mode'] || 'Cash Collection at School Office'}
-                          </span>
-                        </div>
-                      </div>
+                  const isFullWidthField = (field, name) => {
+                    const type = field.fieldType || field.type || field['Field Type'] || '';
+                    const lower = String(name || '').toLowerCase();
+                    return (
+                      type === 'image' ||
+                      type === 'file' ||
+                      type === 'textarea' ||
+                      type === 'checkbox_dynamic' ||
+                      type === 'checkbox_declaration' ||
+                      lower.includes('photo') ||
+                      lower.includes('remarks') ||
+                      lower.includes('feedback')
+                    );
+                  };
 
-                      <div className="pt-1">
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                          Transaction ID / UTR No. / Receipt Reference (If Paid Online / Bank Transfer)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. UTR123456789 or Receipt No. (Optional)"
-                          value={formData['Transaction ID'] || formData['txnId'] || ''}
-                          onChange={(e) => handleFieldChange('Transaction ID', e.target.value)}
-                          disabled={isSubmitting || isFormLocked}
-                          className="w-full px-3.5 py-2.5 rounded-xl border text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-teal-500 outline-none"
-                        />
-                      </div>
-                    </div>
+                  // Find global photo field to ensure it always lands in Identity & Parentage
+                  const globalPhotoField = activeFields.find(field => {
+                    const n = String(field.fieldName || field.name || field['Field Name'] || '').toLowerCase();
+                    const t = String(field.fieldType || field.type || field['Field Type'] || '').toLowerCase();
+                    return t.startsWith('image') || t.startsWith('file') || n.includes('photo');
+                  });
 
-                    {/* Quick Review Summary Card */}
-                    <div className="p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4">
-                      <div className="font-extrabold text-xs sm:text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
-                        <span>📋 Key Details Summary Before Final Submission</span>
-                      </div>
+                  const SECTION_ORDER = [
+                    '👤 Identity & Parentage',
+                    '📱 Contact & Residential Address',
+                    '🩺 Physical & Social Category',
+                    '🆔 National & Student Identifiers',
+                    '⚽ Sports & Extracurricular',
+                    '🎓 Admission & Class Details',
+                    '🏫 Class 10th Examination Records',
+                    '🏫 Class 11th Examination Records',
+                    '🏫 Class 8th / 9th Examination Records',
+                    '🎁 Scholarship Details',
+                    '🏦 Bank Account Details',
+                    '🛠️ Vocational Studies',
+                    '📚 Stream & Subject Selection',
+                    '📖 Subject Combinations',
+                    '💬 Remarks & Final Review',
+                  ];
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                          <span className="text-slate-400 font-bold block text-[10px]">STUDENT NAME</span>
-                          <span className="font-black text-slate-900 dark:text-white">
-                            {formData["Student's Name (as per school records)"] || formData["Student's Name"] || 'N/A'}
-                          </span>
-                        </div>
-
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                          <span className="text-slate-400 font-bold block text-[10px]">FATHER / GUARDIAN NAME</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            {formData["Father's/Guardian's Name (as per school records)"] || 'N/A'}
-                          </span>
-                        </div>
-
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                          <span className="text-slate-400 font-bold block text-[10px]">TARGET CLASS & STREAM</span>
-                          <span className="font-bold text-teal-600 dark:text-teal-400">
-                            Class {selectedClass} ({selectedStream})
-                          </span>
-                        </div>
-
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                          <span className="text-slate-400 font-bold block text-[10px]">WHATSAPP MOBILE NO.</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            {formData["Mobile No. (with working WhatsApp)"] || 'N/A'}
-                          </span>
-                        </div>
-
-                        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 sm:col-span-2">
-                          <span className="text-slate-400 font-bold block text-[10px]">CHOSEN SUBJECT COMBINATION</span>
-                          <span className="font-extrabold text-teal-700 dark:text-teal-300">
-                            {formData["Subjects to be taken in Class 11th"] || formData["Subjects Studied in Class 11th"] || formData["Subjects to be taken in Class 9th"] || formData["Subjects to be taken in Class 10th"] || 'None Selected'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Conduct & Anti-Drug Declaration Undertaking */}
-                    <div className="p-4 rounded-2xl border text-xs leading-relaxed" style={{ backgroundColor: 'rgba(13,148,136,0.06)', borderColor: 'rgba(13,148,136,0.25)', color: 'var(--text-main,#334155)' }}>
-                      <div className="font-extrabold text-sm mb-1.5 flex items-center gap-2" style={{ color: '#0d9488' }}>
-                        <CheckCircle size={16} /> Official Student & Parent Declaration
-                      </div>
-                      <p>
-                        I hereby declare that all information given in this application is accurate and matches my official certificates. I undertake to strictly adhere to the rules, regulations, anti-drug policies, anti-smoking mandates, and cell-phone ban of Govt. HSS Shangus.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  (() => {
-                    const activeFields = formStructure.filter(field => {
-                      const type = field.fieldType || field.type || field['Field Type'] || '';
-                      if (type.startsWith('autogen')) return false;
-                      const name = field.fieldName || field.name || field['Field Name'];
-                      if (name === 'Declaration') return false;
-                      return isVisible(field) && categorizeField(name) === activeTab;
-                    });
-
-                    activeFields.sort((a, b) => {
-                      const nameA = a.fieldName || a.name || a['Field Name'];
-                      const nameB = b.fieldName || b.name || b['Field Name'];
-                      return getFieldOrderIndex(nameA) - getFieldOrderIndex(nameB);
-                    });
-
-                    const grouped = {};
-                    activeFields.forEach(field => {
-                      const name = field.fieldName || field.name || field['Field Name'];
-                      const sec = fieldSectionMap[name] || '📌 General Details';
-                      if (!grouped[sec]) grouped[sec] = [];
-                      grouped[sec].push(field);
-                    });
-
-                    const isFullWidthField = (field, name) => {
-                      const type = field.fieldType || field.type || field['Field Type'] || '';
+                  const grouped = {};
+                  activeFields.forEach(field => {
+                    const name = field.fieldName || field.name || field['Field Name'];
+                    let sec = (field === globalPhotoField) ? '👤 Identity & Parentage' : fieldSectionMap[name];
+                    if (!sec) {
                       const lower = String(name || '').toLowerCase();
-                      return (
-                        type === 'image' ||
-                        type === 'file' ||
-                        type === 'textarea' ||
-                        type === 'checkbox_dynamic' ||
-                        type === 'checkbox_declaration' ||
-                        lower.includes('photo') ||
-                        lower.includes('remarks') ||
-                        lower.includes('feedback')
-                      );
-                    };
+                      if (lower.includes('remark') || lower.includes('feedback')) sec = '💬 Remarks & Final Review';
+                      else if (lower.includes('scholarship')) sec = '🎁 Scholarship Details';
+                      else if (lower.includes('bank') || lower.includes('ifsc') || lower.includes('account')) sec = '🏦 Bank Account Details';
+                      else if (lower.includes('subject') || lower.includes('stream')) sec = '📖 Subject Combinations';
+                      else if (lower.includes('school') || lower.includes('board') || lower.includes('marks') || lower.includes('pass') || lower.includes('roll')) sec = '🏫 Class 10th Examination Records';
+                      else sec = '👤 Identity & Parentage';
+                    }
+                    if (!grouped[sec]) grouped[sec] = [];
+                    grouped[sec].push(field);
+                  });
 
-                    return Object.entries(grouped).map(([sectionTitle, fields]) => (
-                      <div key={sectionTitle} className="p-4 sm:p-5 rounded-2xl border bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
-                        <div className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
-                          <span>{sectionTitle}</span>
-                        </div>
+                  const sortedGroupedEntries = Object.entries(grouped).sort(([secA], [secB]) => {
+                    const indexA = SECTION_ORDER.indexOf(secA);
+                    const indexB = SECTION_ORDER.indexOf(secB);
+                    const posA = indexA !== -1 ? indexA : 90;
+                    const posB = indexB !== -1 ? indexB : 90;
+                    return posA - posB;
+                  });
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {fields.map((field, idx) => {
-                            const name = field.fieldName || field.name || field['Field Name'];
-                            return (
-                              <div key={idx} className={isFullWidthField(field, name) ? 'col-span-1 sm:col-span-2' : 'col-span-1'}>
-                                <DynamicFormField
-                                  config={field}
-                                  value={formData[name] || ''}
-                                  onChange={handleFieldChange}
-                                  subjectsConfig={subjectsConfig}
-                                  selectedStream={selectedStream}
-                                  disabled={isSubmitting || isFormLocked}
-                                  error={fieldErrors[name]}
-                                  formData={formData}
-                                />
+                  return (
+                    <div id="admission-workflow-content" className="space-y-3 scroll-mt-24">
+                      {/* Select the admission context before showing class-specific fields — Mobile-First Responsive Layout */}
+                      {!isFormLocked && (
+                        <div id="admission-start" className="p-3 sm:p-4 rounded-2xl border bg-white/95 dark:bg-slate-900/95 border-teal-500/30 shadow-md space-y-3 scroll-mt-24 transition-all">
+                          {/* Card Header with Progress Badge & Hide/Unhide Toggle */}
+                          <div className="flex items-center justify-between gap-2 border-b border-teal-500/20 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-teal-500 flex-shrink-0 animate-pulse"></span>
+                              <div>
+                                <h2 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide flex items-center gap-2">
+                                  <span>Admission Setup</span>
+                                </h2>
+                                <p className="text-[10px] text-slate-400">
+                                  {isSetupCollapsed
+                                    ? 'Your active class, stream & admission options'
+                                    : 'Select your class, type & stream to open your form'}
+                                </p>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ));
-                  })()
-                )}
+                            </div>
 
-                {/* Bottom Wizard Actions Navigation Bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t pt-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${hasAdmissionStart ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shadow-2xs' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'}`}>
+                                {hasAdmissionStart ? '✓ Ready' : 'Required'}
+                              </span>
+
+                              {hasAdmissionStart && (
+                                <button
+                                  type="button"
+                                  onClick={() => setIsSetupCollapsed(!isSetupCollapsed)}
+                                  className="px-2.5 py-1 rounded-xl text-[11px] font-extrabold border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                  title={isSetupCollapsed ? "Unhide setup options" : "Hide setup options to save space"}
+                                >
+                                  <span>{isSetupCollapsed ? 'Unhide Setup Options ▼' : 'Hide Setup ▲'}</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Compact Bar when Setup is Collapsed */}
+                          {hasAdmissionStart && isSetupCollapsed ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-teal-500/5 border border-teal-500/20 text-xs font-semibold animate-fadeIn">
+                              <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                                <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">Active Setup:</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30">
+                                  Class {formData['Admission sought for class']}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                  {formData['Admission Type (Class 11th)'] || formData['Admission Type (Class 12th)'] || formData['Admission Type'] || 'Full'}
+                                </span>
+                                {selectedClass === '11th' && (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                                    {formData['Stream for Class 11th'] || 'Science'}
+                                  </span>
+                                )}
+                                {selectedAdmissionType === 'Provisional' && (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 truncate max-w-[180px]">
+                                    {formData['Reason for Provisional (Class 11th)'] || formData['Reason for Provisional (Class 12th)'] || formData['Reason for Provisional'] || 'Provisional'}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setIsSetupCollapsed(false)}
+                                className="text-[10px] font-extrabold text-teal-600 hover:text-teal-700 dark:text-teal-400 underline cursor-pointer"
+                              >
+                                Change Setup
+                              </button>
+                            </div>
+                          ) : (
+                            /* Expanded Options Grid */
+                            <div className="space-y-3.5 animate-fadeIn">
+                              <div className={`grid grid-cols-1 ${selectedClass === '11th' ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'} gap-3`}>
+                                {/* 1. Target Class */}
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">1</span>
+                                      <span>Class applying for</span>
+                                    </span>
+                                    <span className="text-red-500 text-xs font-bold">*</span>
+                                  </label>
+                                  <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    {['9th', '10th', '11th', '12th'].map(clsVal => {
+                                      const isSel = String(formData['Admission sought for class'] || '') === clsVal;
+                                      return (
+                                        <button
+                                          key={clsVal}
+                                          type="button"
+                                          onClick={() => handleFieldChange('Admission sought for class', clsVal)}
+                                          className={`min-h-[44px] sm:min-h-[40px] rounded-lg font-black text-sm transition-all cursor-pointer flex items-center justify-center ${
+                                            isSel
+                                              ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30 scale-[1.02]'
+                                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                          }`}
+                                        >
+                                          {clsVal}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* 2. Admission Category */}
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">2</span>
+                                      <span>Admission Type</span>
+                                    </span>
+                                    <span className="text-red-500 text-xs font-bold">*</span>
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    {[
+                                      { key: 'Full', label: 'Full Admission' },
+                                      { key: 'Provisional', label: 'Provisional' },
+                                    ].map(cat => {
+                                      const admTypeKey = selectedClass === '12th'
+                                        ? 'Admission Type (Class 12th)'
+                                        : selectedClass === '11th' ? 'Admission Type (Class 11th)' : 'Admission Type';
+                                      const currentVal = formData[admTypeKey] || formData['Admission Type'] || '';
+                                      const isSel = currentVal === cat.key;
+                                      return (
+                                        <button
+                                          key={cat.key}
+                                          type="button"
+                                          onClick={() => {
+                                            handleFieldChange(admTypeKey, cat.key);
+                                            handleFieldChange('Admission Type', cat.key);
+                                            handleFieldChange('isProvisional', cat.key === 'Provisional');
+                                          }}
+                                          className={`min-h-[44px] sm:min-h-[40px] px-2 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
+                                            isSel
+                                              ? cat.key === 'Provisional'
+                                                ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/30 scale-[1.02]'
+                                                : 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30 scale-[1.02]'
+                                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                          }`}
+                                        >
+                                          {cat.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* 3. Stream Selection — Shown ONLY for Class 11th */}
+                                {selectedClass === '11th' && (
+                                  <div className="space-y-1.5 md:col-span-2 lg:col-span-1 animate-fadeIn">
+                                    <label className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">3</span>
+                                        <span>Stream Selection</span>
+                                      </span>
+                                      <span className="text-red-500 text-xs font-bold">*</span>
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                      {[
+                                        { val: 'Science', label: '🔬 Science' },
+                                        { val: 'Humanities', label: '🎨 Humanities' },
+                                      ].map(st => {
+                                        const isSel = selectedStream === st.val;
+                                        return (
+                                          <button
+                                            key={st.val}
+                                            type="button"
+                                            onClick={() => handleFieldChange('Stream for Class 11th', st.val)}
+                                            className={`min-h-[44px] sm:min-h-[40px] px-2 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
+                                              isSel
+                                                ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30 scale-[1.02]'
+                                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                          >
+                                            {st.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Dynamically populated Reason for Provisional Row */}
+                              {selectedAdmissionType === 'Provisional' && (
+                                <div className="p-3 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 space-y-2 animate-fadeIn">
+                                  <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
+                                    <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] flex items-center justify-center font-black">!</span>
+                                    <div className="text-xs font-black uppercase tracking-wider">
+                                      Reason for Provisional Admission <span className="text-red-500">*</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {[
+                                      { val: 'Reappear Candidate', label: '🔄 Reappear Candidate' },
+                                      { val: 'Result Awaited', label: '⏳ Result Awaited' },
+                                      { val: 'Document Deficient', label: '📄 Doc Deficient' },
+                                      { val: 'Other', label: '📝 Other Reason' },
+                                    ].map(r => {
+                                      const reasonKey = selectedClass === '12th'
+                                        ? 'Reason for Provisional (Class 12th)'
+                                        : selectedClass === '11th' ? 'Reason for Provisional (Class 11th)' : 'Reason for Provisional';
+                                      const currentReason = formData[reasonKey] || formData['Reason for Provisional'] || '';
+                                      const isSel = currentReason === r.val;
+                                      return (
+                                        <button
+                                          key={r.val}
+                                          type="button"
+                                          onClick={() => {
+                                            handleFieldChange(reasonKey, r.val);
+                                            handleFieldChange('Reason for Provisional', r.val);
+                                          }}
+                                          className={`min-h-[44px] sm:min-h-[40px] px-2.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
+                                            isSel
+                                              ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/30 scale-[1.02]'
+                                              : 'bg-white/80 dark:bg-slate-900/80 text-amber-900 dark:text-amber-200 border border-amber-500/30 hover:bg-amber-500/15'
+                                          }`}
+                                        >
+                                          {r.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Gate notice if admission setup options are pending */}
+
+                      {!hasAdmissionStart && !isFormLocked && (
+                        <div className="rounded-2xl border border-dashed border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/10 p-5 text-center space-y-1 animate-fadeIn">
+                          <div className="font-black text-sm text-amber-800 dark:text-amber-300">
+                            {!selectedClass
+                              ? '👉 Please select your Class above to get started'
+                              : !selectedAdmissionType
+                              ? '👉 Please choose Full or Provisional Admission'
+                              : selectedAdmissionType === 'Provisional' && !hasReasonIfProvisional
+                              ? '👉 Please select Reason for Provisional Admission'
+                              : is11thClass && !hasStreamIf11th
+                              ? '👉 Please select your Stream (Science or Humanities) for Class 11th'
+                              : 'Select your admission options above to open the application form'}
+                          </div>
+                          <p className="text-[11px] text-slate-500">The application form will unlock automatically once your initial setup is selected.</p>
+                        </div>
+                      )}
+
+                      {/* Single-page form: shortcuts above jump to these numbered groups. */}
+                      {hasAdmissionStart && workflowSteps.map((workflowStep, workflowIndex) => {
+                        const stepSections = sortedGroupedEntries.filter(
+                          ([sectionTitle]) => sectionWorkflowStep(sectionTitle) === workflowStep.id
+                        );
+
+                        return (
+                          <section
+                            key={workflowStep.id}
+                            id={`admission-section-${workflowStep.id}`}
+                            className="scroll-mt-24 space-y-3 p-3 sm:p-4 rounded-2xl bg-slate-100/60 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80"
+                            onFocusCapture={() => {
+                              setActiveTab(workflowStep.id);
+                              if (hasAdmissionStart) setIsSetupCollapsed(true);
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="w-6 h-6 rounded-lg bg-teal-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 shadow-2xs">
+                                  {workflowIndex + 1}
+                                </span>
+                                <div className="min-w-0">
+                                  <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate">{workflowStep.label}</h2>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Complete the labelled groups below</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                                {stepSections.length} group{stepSections.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+
+                            {stepSections.map(([sectionTitle, fields]) => {
+                              const isIdentitySection = sectionTitle === '👤 Identity & Parentage';
+                              const photoFieldInSec = isIdentitySection ? (fields.find(f => f === globalPhotoField) || globalPhotoField) : null;
+                              const displayFields = photoFieldInSec ? fields.filter(f => f !== photoFieldInSec) : fields;
+                              if (displayFields.length === 0 && !photoFieldInSec) return null;
+
+                              return (
+                                <div
+                                  key={sectionTitle}
+                                  className="p-3 sm:p-4 rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-all hover:border-teal-500/40"
+                                >
+                                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                    <div className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 min-w-0">
+                                      <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0"></span>
+                                      <span className="tracking-wide uppercase text-[11px] truncate">{sectionTitle}</span>
+                                    </div>
+                                    {isIdentitySection && <span className="hidden text-[9.5px] font-semibold text-slate-400 whitespace-nowrap sm:inline">Match official school records</span>}
+                                  </div>
+
+                                  {isIdentitySection ? (
+                                    <div className="flex flex-col md:flex-row items-start gap-3.5">
+                                      <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {displayFields.map((field, idx) => {
+                                          const name = field.fieldName || field.name || field['Field Name'];
+                                          const hasError = Boolean(fieldErrors[name]);
+                                          return (
+                                            <div
+                                              key={idx}
+                                              data-field-name={name}
+                                              className={`relative rounded-xl transition-all duration-200 ${
+                                                hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm' : ''
+                                              }`}
+                                            >
+                                              <DynamicFormField
+                                                config={field}
+                                                value={formData[name] || ''}
+                                                onChange={handleFieldChange}
+                                                subjectsConfig={subjectsConfig}
+                                                selectedStream={selectedStream}
+                                                disabled={isSubmitting || isFormLocked}
+                                                error={fieldErrors[name]}
+                                                formData={formData}
+                                                targetClass={selectedClass}
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      {photoFieldInSec && (
+                                        <div
+                                          data-field-name={photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']}
+                                          className={`w-full md:w-auto flex flex-col items-center md:items-end flex-shrink-0 pt-0.5 rounded-xl transition-all duration-200 ${
+                                            Boolean(fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']])
+                                              ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 shadow-sm'
+                                              : ''
+                                          }`}
+                                        >
+                                          <DynamicFormField
+                                            config={photoFieldInSec}
+                                            value={formData[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']] || ''}
+                                            onChange={handleFieldChange}
+                                            subjectsConfig={subjectsConfig}
+                                            selectedStream={selectedStream}
+                                            disabled={isSubmitting || isFormLocked}
+                                            error={fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']]}
+                                            formData={formData}
+                                            targetClass={selectedClass}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {displayFields.map((field, idx) => {
+                                        const name = field.fieldName || field.name || field['Field Name'];
+                                        const hasError = Boolean(fieldErrors[name]);
+                                        return (
+                                          <div
+                                            key={idx}
+                                            data-field-name={name}
+                                            className={`${isFullWidthField(field, name) ? 'md:col-span-2 lg:col-span-3' : ''} relative rounded-xl transition-all duration-200 ${
+                                              hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm' : ''
+                                            }`}
+                                          >
+                                            <DynamicFormField
+                                              config={field}
+                                              value={formData[name] || ''}
+                                              onChange={handleFieldChange}
+                                              subjectsConfig={subjectsConfig}
+                                              selectedStream={selectedStream}
+                                              disabled={isSubmitting || isFormLocked}
+                                              error={fieldErrors[name]}
+                                              formData={formData}
+                                              targetClass={selectedClass}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {workflowStep.id === 'review' && (
+                              <div className="rounded-xl border border-teal-500/25 bg-teal-500/5 p-3 flex items-center gap-2.5">
+                                <ShieldCheck size={20} className="text-teal-600 flex-shrink-0" />
+                                <div>
+                                  <div className="font-black text-xs text-slate-800 dark:text-slate-100">Review before final submission</div>
+                                  <p className="text-[10px] text-slate-500">Use Review &amp; Submit below. Any missing or invalid field will be shown in a popup and highlighted in place.</p>
+                                </div>
+                              </div>
+                            )}
+                          </section>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* Bottom Actions Bar — Compact Sticky-Style */}
+                <div id="admission-form-actions" className="sticky bottom-1 z-20 grid grid-cols-2 items-stretch gap-2 rounded-xl border bg-white/95 p-2 shadow-lg backdrop-blur-xl dark:bg-slate-950/95 sm:bottom-2 sm:flex sm:items-center sm:justify-between sm:rounded-2xl sm:p-2.5" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
                   {isFormLocked ? (
-                    <div className="w-full text-center text-xs font-bold text-slate-400 py-2">
-                      Form submission locked. Contact administration if you need to unlock and edit details.
+                    <div className="col-span-2 w-full text-center text-[11px] font-bold text-slate-400 py-1.5 flex items-center justify-center gap-1.5 sm:col-auto">
+                      <ShieldCheck size={14} className="text-teal-500" />
+                      <span>Locked & submitted. View PDF on dashboard.</span>
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        {activeTab !== 'personal' && (
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab(activeTab === 'payment' ? 'academic' : 'personal')}
-                            className="px-4 py-2.5 rounded-2xl font-bold text-xs border flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-                            style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-                          >
-                            ← Back
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleSaveDraft}
-                          disabled={isSubmitting}
-                          className="px-4 py-2.5 rounded-2xl font-bold text-xs border flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-                          style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-                        >
-                          <Save size={14} /> Save Draft
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveDraft}
+                        disabled={isSubmitting || !hasAdmissionStart}
+                        className="min-w-0 rounded-lg border px-2.5 py-2.5 font-extrabold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-all sm:rounded-xl sm:px-4 sm:text-xs"
+                        style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+                      >
+                        <Save size={14} /> Save Draft
+                      </button>
 
-                      {activeTab === 'personal' && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('academic')}
-                          className="w-full sm:w-auto px-6 py-3 rounded-2xl font-extrabold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <span>Next: Academic &amp; Subjects</span>
-                          <span>→</span>
-                        </button>
-                      )}
-
-                      {activeTab === 'academic' && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('payment')}
-                          className="w-full sm:w-auto px-6 py-3 rounded-2xl font-extrabold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <span>Next: Fee Payment &amp; Final Submission</span>
-                          <span>→</span>
-                        </button>
-                      )}
-
-                      {activeTab === 'payment' && (
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full sm:w-auto px-7 py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                        >
-                          {isSubmitting ? (
-                            <>
-                              <RefreshCw size={16} className="animate-spin" /> Submitting Application...
-                            </>
-                          ) : (
-                            <>
-                              <Send size={16} /> Confirm &amp; Final Submit Application →
-                            </>
-                          )}
-                        </button>
-                      )}
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || admissionsClosed || !hasAdmissionStart}
+                        className="min-w-0 rounded-lg px-2.5 py-2.5 font-black text-[11px] text-white shadow-md flex items-center justify-center gap-1 cursor-pointer transition-all sm:rounded-xl sm:px-5 sm:text-xs sm:gap-1.5"
+                        style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)' }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = '0.92'}
+                        onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                      >
+                        <Send size={14} />
+                        <span>Review & Submit →</span>
+                      </button>
                     </>
                   )}
                 </div>
-              </form>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+</form>
+)}
+</div>
+</div>
+</div>
+</div>
+)}
+</div>
+);
 }

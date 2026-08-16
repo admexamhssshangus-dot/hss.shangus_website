@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
 import { FileQuestion, Home } from 'lucide-react';
+import PublicPageSkeleton from '../components/PublicPageSkeleton';
 
 export default function DynamicPage() {
   const { pageId } = useParams();
@@ -46,12 +47,7 @@ export default function DynamicPage() {
   }, [pageId]);
 
   if (loading) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 py-20">
-        <div className="w-10 h-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4" />
-        <span className="text-sm font-semibold tracking-wider uppercase">Loading Page Content...</span>
-      </div>
-    );
+    return <PublicPageSkeleton label="Loading page content…" />;
   }
 
   if (notFound) {

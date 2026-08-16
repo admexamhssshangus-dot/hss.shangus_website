@@ -1,19 +1,12 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getAuth } from 'firebase/auth';
-
-const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID,
-};
-
-const app = initializeApp(firebaseConfig);
-
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const auth = getAuth(app);
+// Compatibility entry point for older public-site imports.
+// All Firebase products must come from the single initialized app in
+// services/firebase; initializing a second default app breaks Firestore during
+// Fast Refresh and can create inconsistent Auth/Storage instances.
+export {
+  default,
+  auth,
+  db,
+  functions,
+  googleProvider,
+  storage,
+} from './services/firebase';

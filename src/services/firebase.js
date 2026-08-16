@@ -2,6 +2,8 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { getStorage } from 'firebase/storage';
+import { initializeFirebaseAppCheck } from './firebaseAppCheck';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -15,11 +17,13 @@ const firebaseConfig = {
 
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
+initializeFirebaseAppCheck(app);
 
 // Export Auth, Firestore & Functions services
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
+export const storage = getStorage(app);
 
 export default app;

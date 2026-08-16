@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Award, BookOpen, GraduationCap } from 'lucide-react';
+import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -77,6 +77,7 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
 export default function Home() {
   const [notices, setNotices] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [tickerPaused, setTickerPaused] = useState(false);
   const [principalName, setPrincipalName] = useState("Mr. Aijaz Ahmad Wagay");
   const [slides, setSlides] = useState(() => {
     try {
@@ -385,7 +386,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="w-full">
+    <div className="public-page w-full">
       <SEO title="Home" description="Official website of Govt. Higher Secondary School Shangus. Explore latest notices, school admissions process, ERP portals, and details from Principal." image="/slides/searchtn.jpg" />
       {/* Hidden img tag to prompt search engine snippet crawlers to prioritize the school building image */}
       <img src="/slides/searchtn.jpg" alt="Govt. Higher Secondary School Shangus Campus" className="sr-only" aria-hidden="true" />
@@ -395,7 +396,7 @@ export default function Home() {
         <Slideshow slides={slides} configUrl={slides.length === 0 ? "/slides/slides.txt" : null} imageFolder="/slides/" interval={6000} />
         
         <div className="relative z-20 px-4">
-          <h2
+          <h1
             className="text-[19px] sm:text-[33px] md:text-[50px] font-semibold mb-3.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
             style={{
               color: '#961c14',
@@ -403,36 +404,89 @@ export default function Home() {
             }}
           >
             nurturing minds, shaping futures
-          </h2>
+          </h1>
           <div className="flex flex-row justify-center items-center space-x-1.5">
-            <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded-md transition-all shadow-lg inline-block text-[10px] sm:text-[14px] btn-hero-primary">
+            <Link to="/admissions" className="ui-touch-target min-h-11 px-4 sm:px-5 py-2 font-bold rounded-lg transition-all shadow-lg inline-flex items-center text-xs sm:text-sm btn-hero-primary">
               {settings?.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open 2026'}
             </Link>
-            <Link to="/about" className="px-1.5 py-0.5 sm:px-[14px] sm:py-[6px] font-bold rounded-md transition-all shadow-lg inline-block text-[9px] sm:text-[12px] btn-hero-secondary">
+            <Link to="/about" className="min-h-9 px-3 sm:px-3.5 py-1.5 font-bold rounded-md transition-all shadow-md inline-flex items-center text-[11px] sm:text-xs btn-hero-secondary">
               Learn More
             </Link>
           </div>
         </div>
-        
-          {/* (Removed legacy bottom banner to avoid overlapping with slideshow captions) */}
+
+        {notices.length > 0 && (
+          <aside className={`hero-news-ticker ${tickerPaused ? 'is-paused' : ''}`} aria-label="Latest school updates">
+            <div className="hero-news-ticker__label">
+              <Megaphone size={17} aria-hidden="true" />
+              <span>Latest Updates</span>
+            </div>
+            <div className="hero-news-ticker__viewport">
+              <div className="hero-news-ticker__track">
+                {[0, 1].map((copy) => (
+                  <div key={copy} className="hero-news-ticker__set" aria-hidden={copy === 1 ? 'true' : undefined}>
+                    {notices.slice(0, 6).map((notice, idx) => {
+                      const external = notice.link && (notice.link.startsWith('http') || notice.link.startsWith('mailto:'));
+                      const content = (
+                        <>
+                          <span className="hero-news-ticker__pulse" aria-hidden="true" />
+                          <span>{formatTitleWithBrackets(notice.title)}</span>
+                        </>
+                      );
+                      return notice.link && notice.link !== '#' ? (
+                        external ? (
+                          <a key={`${copy}-${idx}`} href={notice.link} target="_blank" rel="noopener noreferrer" className="hero-news-ticker__item" tabIndex={copy === 1 ? -1 : 0}>{content}</a>
+                        ) : (
+                          <Link key={`${copy}-${idx}`} to={notice.link} className="hero-news-ticker__item" tabIndex={copy === 1 ? -1 : 0}>{content}</Link>
+                        )
+                      ) : (
+                        <span key={`${copy}-${idx}`} className="hero-news-ticker__item">{content}</span>
+                      );
+                    })}
+                    <span className="hero-news-ticker__loop-break" aria-hidden="true">
+                      <span>End</span>
+                      <span className="hero-news-ticker__loop-line" />
+                      <span>Beginning again</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="hero-news-ticker__actions">
+              <button
+                type="button"
+                className="hero-news-ticker__pause"
+                onClick={() => setTickerPaused((paused) => !paused)}
+                aria-pressed={tickerPaused}
+                aria-label={tickerPaused ? 'Resume latest updates' : 'Pause latest updates'}
+                title={tickerPaused ? 'Resume updates' : 'Pause updates'}
+              >
+                {tickerPaused ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}
+              </button>
+              <Link to="/notices" className="hero-news-ticker__all">
+                View all <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* Main Content Area: Notices & Principal */}
-      <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-4 py-8 md:py-7 grid grid-cols-1 md:grid-cols-3 gap-6" aria-label="School updates and Principal's message">
         
         {/* Notices Sidebar */}
         <div className="col-span-1">
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow duration-300">
-            <div className="bg-teal-800 text-white p-4 flex justify-between items-center">
-              <h3 className="font-bold text-lg font-heading tracking-wide">Latest Notices</h3>
+            <div className="bg-teal-800 text-white px-4 py-3 flex justify-between items-center">
+              <h2 className="font-bold text-lg font-heading tracking-wide">Latest Notices</h2>
               <span className="bg-teal-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Updates</span>
             </div>
-            <div className="max-h-[320px] overflow-y-auto custom-scrollbar px-4">
+            <div className="max-h-[240px] overflow-y-auto custom-scrollbar px-4">
               <ul className="">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                   return (
-                    <li key={idx} className="py-3 flex items-center gap-3 transition-all duration-200 hover:bg-slate-50/70 -mx-4 px-4 border-l-2 border-l-transparent hover:border-l-teal-800 border-b border-slate-100 last:border-b-0 group">
+                    <li key={idx} className="py-2.5 flex items-center gap-3 transition-all duration-200 hover:bg-slate-50/70 -mx-4 px-4 border-l-2 border-l-transparent hover:border-l-teal-800 border-b border-slate-100 last:border-b-0 group">
                       {/* Mini Date Badge */}
                       {(() => {
                         const formatted = formatDate(n.date);
@@ -495,21 +549,21 @@ export default function Home() {
 
         {/* Principal Message & Stats */}
         <div className="col-span-1 md:col-span-2">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-800 md:border-l-4 md:border-teal-800 md:pl-4 mb-6 font-heading">Principal's Message</h2>
-            <div className="flex flex-col sm:flex-row bg-white p-6 rounded-2xl shadow-lg border border-slate-200/80 items-center hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden group">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-slate-800 md:border-l-4 md:border-teal-800 md:pl-4 mb-3 font-heading">Principal's Message</h2>
+            <div className="flex flex-col sm:flex-row bg-white p-4 rounded-2xl shadow-lg border border-slate-200/80 items-center hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-teal-500/5 to-transparent rounded-bl-full pointer-events-none" />
-              <div className="w-32 h-32 flex-shrink-0 rounded-2xl overflow-hidden mx-auto mb-4 sm:mb-0 shadow-md border-2 border-teal-600/80 hover:scale-105 transition-transform duration-300">
+              <div className="w-28 h-28 flex-shrink-0 rounded-2xl overflow-hidden mx-auto mb-4 sm:mb-0 shadow-md border-2 border-teal-600/80 hover:scale-105 transition-transform duration-300">
                 <img src="/slides/Principal.jpg" alt={`Principal ${principalName}`} className="w-full h-full object-cover" loading="lazy" />
               </div>
               <div className="flex-1 lg:border-l lg:border-slate-100 lg:pl-6 pl-0 relative min-w-0 w-full">
                 {/* Stylized background quote icon */}
                 <div className="absolute top-0 left-2 text-slate-100 select-none text-8xl font-serif leading-none pointer-events-none opacity-40">“</div>
-                <div className="relative z-10 bg-slate-50/50 p-4 rounded-xl border border-slate-100/80">
+                <div className="relative z-10 bg-slate-50/50 p-3 rounded-xl border border-slate-100/80">
                   <p className="text-slate-700 italic text-[13.5px] sm:text-sm leading-relaxed pl-2">
                     Welcome to <strong className="text-slate-800 font-bold">Govt HSS Shangus</strong>. Our mandate is to <strong>empower leaders</strong> defined by <strong>academic excellence and ethics</strong>. We offer a learning environment where <strong>cutting-edge resources</strong> in <strong>Science and Humanities</strong> meet <strong>value-based education</strong> — equipping you with the skills to thrive and the character to lead in a global society.
                   </p>
-                  <p className="text-right text-xs text-teal-800 font-bold mt-4 pr-1">{principalName}<br/><span className="text-slate-400 font-normal">Principal, HSS Shangus</span></p>
+                  <p className="text-right text-xs text-teal-800 font-bold mt-2 pr-1">{principalName}<br/><span className="text-slate-400 font-normal">Principal, HSS Shangus</span></p>
                 </div>
               </div>
             </div>
@@ -539,7 +593,7 @@ export default function Home() {
           </div>
         </div>
 
-      </div>
+      </section>
     </div>
   );
 }

@@ -3,11 +3,12 @@ import { useNavigate, Link, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, CalendarCheck, Save, CheckCircle2, XCircle, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, ArrowUpDown, Printer, X, FileText, Download, Zap, SlidersHorizontal, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Info, User, Wand2 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { signOut, signInAnonymously } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
+import { loadSiteSettings } from '../../utils/settingsLoader';
 
 // Master List of Official School Subjects with Codes
 const MASTER_SUBJECTS = [
@@ -459,6 +460,15 @@ export default function AttendancePage() {
 
   // Tab State: 'mark' | 'holidays'
   const [activeTab, setActiveTab] = useState('mark');
+  const [isAttendanceOpen, setIsAttendanceOpen] = useState(true);
+
+  useEffect(() => {
+    loadSiteSettings().then(cfg => {
+      if (cfg && cfg.attendanceSubmissionOpen !== undefined) {
+        setIsAttendanceOpen(Boolean(cfg.attendanceSubmissionOpen));
+      }
+    }).catch(() => {});
+  }, []);
 
   const SAVED_FILTERS_KEY = 'hss_attendance_saved_filters';
 
@@ -1465,7 +1475,7 @@ export default function AttendancePage() {
     setAlert(null);
     try {
       if (!auth.currentUser) {
-        await signInAnonymously(auth).catch(() => {});
+        if (!auth.currentUser) throw new Error('Authenticated teacher session required.');
       }
 
       const currentEmail = (user?.email || auth.currentUser?.email || '').toLowerCase();
@@ -1531,7 +1541,7 @@ export default function AttendancePage() {
       } catch (fErr) {
         if (fErr?.code === 'permission-denied' || (fErr?.message && fErr.message.includes('permission'))) {
           console.warn('Firestore permission retry: re-authenticating session...');
-          await signInAnonymously(auth).catch(() => {});
+          if (!auth.currentUser) throw new Error('Authenticated teacher session required.');
           await setDoc(doc(db, 'attendance', docId), payload, { merge: true });
         } else {
           throw fErr;
@@ -1742,6 +1752,14 @@ export default function AttendancePage() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Attendance Closed Warning Banner */}
+          {!isAttendanceOpen && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-extrabold flex items-center gap-2 text-xs mb-2">
+              <ShieldCheck size={16} className="text-amber-600 shrink-0" />
+              <span>Daily Attendance Submissions are currently <strong>CLOSED</strong> by Administration. Attendance entry is view-only.</span>
             </div>
           )}
 
@@ -2225,7 +2243,8 @@ export default function AttendancePage() {
                 <button
                   type="button"
                   onClick={handleSaveAttendance}
-                  disabled={savingAttendance || students.length === 0}
+                  disabled={savingAttendance || students.length === 0 || !isAttendanceOpen}
+                  title={!isAttendanceOpen ? "Attendance Submissions are Closed by Admin" : "Save Daily Attendance"}
                   className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {savingAttendance ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
