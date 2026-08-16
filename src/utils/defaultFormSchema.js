@@ -9,16 +9,17 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "DoB (as per school records)", "Field Type": "date", "Is Required?": "TRUE", "Help Text": "Date of Birth as per school record" },
   { "Field Name": "Gender", "Field Type": "list", "Is Required?": "TRUE", "Options / Range / Length": "Male, Female, Transgender" },
   { "Field Name": "Father's/Guardian's Name (as per school records)", "Field Type": "text", "Is Required?": "TRUE" },
-  { "Field Name": "Mother's Name (as per school records)", "Field Type": "text", "Is Required?": "TRUE" },
   { "Field Name": "Father's/Guardian's Occupation", "Field Type": "text", "Is Required?": "FALSE" },
+  { "Field Name": "Mother's Name (as per school records)", "Field Type": "text", "Is Required?": "TRUE" },
+  { "Field Name": "Aadhar No.", "Field Type": "text_numeric", "Is Required?": "TRUE", "Options / Range / Length": "12", "Help Text": "12-digit Aadhaar Card Number" },
+  { "Field Name": "Father's Aadhar No.", "Field Type": "text_numeric", "Is Required?": "TRUE", "Options / Range / Length": "12", "Help Text": "12-digit Father's Aadhaar Card Number" },
   { "Field Name": "Your Mother Tongue", "Field Type": "list", "Is Required?": "FALSE", "Options / Range / Length": "Kashmiri, Urdu, Pahari, Gujri, Gojri, Hindi, Dogri, English, Other" },
+  { "Field Name": "Identification Mark (if any)", "Field Type": "text", "Is Required?": "FALSE" },
 
-  // Contact Details
+  // 2. Contact & Residential Address
   { "Field Name": "Mobile No. (with working WhatsApp)", "Field Type": "text_numeric", "Is Required?": "TRUE", "Options / Range / Length": "10", "Help Text": "10-digit WhatsApp Mobile No." },
   { "Field Name": "Parent's Mobile No. (must be working)", "Field Type": "text_numeric", "Is Required?": "TRUE", "Options / Range / Length": "10", "Help Text": "10-digit Parent Contact No." },
   { "Field Name": "Email Address", "Field Type": "text", "Is Required?": "TRUE" },
-
-  // Residential Address
   { "Field Name": "House No.", "Field Type": "text", "Is Required?": "FALSE" },
   { "Field Name": "Name of your village", "Field Type": "text", "Is Required?": "TRUE" },
   { "Field Name": "Block", "Field Type": "list", "Is Required?": "TRUE", "Options / Range / Length": "Shangus, Achabal, Kuthar, Breng, Anantnag, Other" },
@@ -27,7 +28,7 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "State/UT", "Field Type": "list", "Is Required?": "TRUE", "Options / Range / Length": "Jammu and Kashmir, Ladakh, Punjab, Himachal Pradesh, Delhi, Other" },
   { "Field Name": "PIN code", "Field Type": "text_numeric", "Is Required?": "TRUE", "Options / Range / Length": "6" },
 
-  // Physical & Category Profile
+  // 3. Physical & Social Category Profile
   { "Field Name": "Height (cm)", "Field Type": "number", "Is Required?": "FALSE", "Placeholder": "e.g. 165" },
   { "Field Name": "Weight (kg)", "Field Type": "number", "Is Required?": "FALSE", "Placeholder": "e.g. 55" },
   { "Field Name": "Blood Group", "Field Type": "list", "Is Required?": "FALSE", "Options / Range / Length": "A+, A-, B+, B-, O+, O-, AB+, AB-, Unknown" },
@@ -37,16 +38,14 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "Whether Any Disability", "Field Type": "list", "Is Required?": "TRUE", "Options / Range / Length": "No, Yes" },
   { "Field Name": "Type of Disability", "Field Type": "text", "Is Required?": "FALSE", "Help Text": "If Yes, specify nature of disability" },
 
-  // National Identifiers & Sports
-  { "Field Name": "Aadhar No.", "Field Type": "text_numeric", "Is Required?": "TRUE", "Options / Range / Length": "12", "Help Text": "12-digit Aadhaar Card Number" },
+  // 4. National & Student Identifiers & Sports
   { "Field Name": "PEN number (given by UDISE portal)", "Field Type": "text", "Is Required?": "FALSE" },
   { "Field Name": "APAAR ID", "Field Type": "text", "Is Required?": "FALSE" },
   { "Field Name": "Passport No. (if available)", "Field Type": "text", "Is Required?": "FALSE" },
-  { "Field Name": "Identification Mark (if any)", "Field Type": "text", "Is Required?": "FALSE" },
   { "Field Name": "Previous participation in sports (if any)", "Field Type": "list", "Is Required?": "FALSE", "Options / Range / Length": "School Level, Zone Level, District Level, Division Level, State Level, National Level, None" },
   { "Field Name": "Games to participate", "Field Type": "text", "Is Required?": "FALSE" },
 
-  // 2. Academic Details & Schooling
+  // 5. Academic Details & Schooling
   { "Field Name": "Admission sought for class", "Field Type": "list", "Is Required?": "TRUE", "Options / Range / Length": "11th, 12th, 9th, 10th" },
   { "Field Name": "DIET Registration No.", "Field Type": "text", "Is Required?": "FALSE" },
 
@@ -92,11 +91,11 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "Vocational subject in previous class", "Field Type": "list", "Is Required?": "FALSE", "Options / Range / Length": "No, Yes" },
   { "Field Name": "Percentage Obtained in Vocational Subject", "Field Type": "text", "Is Required?": "FALSE" },
 
-  // 3. Subject Selections
-  { "Field Name": "Stream for Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "11th", "Options / Range / Length": "Medical, Non-Medical, Science, Arts, Commerce" },
+  // 6. Subject Selections
+  { "Field Name": "Stream for Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "11th", "Options / Range / Length": "Medical, Non-Medical, Science, Arts, Humanities, Commerce" },
   { "Field Name": "Subjects to be taken in Class 11th", "Field Type": "checkbox_dynamic", "Is Required?": "TRUE", "Classes": "11th" },
   { "Field Name": "Subjects to Reappear (Class 10th)", "Field Type": "text", "Is Required?": "FALSE", "Classes": "11th" },
-  { "Field Name": "Stream opted in Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "12th", "Options / Range / Length": "Medical, Non-Medical, Science, Arts, Commerce" },
+  { "Field Name": "Stream opted in Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "12th", "Options / Range / Length": "Medical, Non-Medical, Science, Arts, Humanities, Commerce" },
   { "Field Name": "Subjects Studied in Class 11th", "Field Type": "checkbox_dynamic", "Is Required?": "TRUE", "Classes": "12th" },
   { "Field Name": "Stream & Subjects for Class 12th", "Field Type": "text", "Is Required?": "FALSE", "Classes": "12th" },
   { "Field Name": "Subjects to Reappear (Class 11th)", "Field Type": "text", "Is Required?": "FALSE", "Classes": "12th" },
@@ -105,7 +104,7 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "Subjects Studied in Class 9th", "Field Type": "text", "Is Required?": "FALSE", "Classes": "10th" },
   { "Field Name": "Subjects to be taken in Class 10th", "Field Type": "checkbox_dynamic", "Is Required?": "TRUE", "Classes": "10th" },
 
-  // 4. Docs & Declaration
+  // 7. Docs & Declaration
   { "Field Name": "Student Photo", "Field Type": "image", "Is Required?": "TRUE", "Help Text": "Upload clear passport-size photo (Max 200 KB)" },
   { "Field Name": "Remarks/Feedback (if any)", "Field Type": "textarea", "Is Required?": "FALSE" },
   { "Field Name": "Declaration", "Field Type": "checkbox_declaration", "Is Required?": "TRUE", "Options / Range / Length": "I hereby declare that all particulars filled in this form are correct and true to the best of my knowledge." }
@@ -113,6 +112,11 @@ export const DEFAULT_FORM_STRUCTURE = [
 
 export const DEFAULT_SUBJECTS_CONFIG = {
   "11th": {
+    "Science": {
+      "compulsory": ["General English", "Physics", "Chemistry"],
+      "group1": ["Biology", "Mathematics", "Environmental Science"],
+      "group2": ["Information Practices", "Computer Science", "Physical Education", "Urdu", "Psychology"]
+    },
     "Medical": {
       "compulsory": ["General English", "Physics", "Chemistry", "Biology"],
       "group1": ["Environmental Science", "Mathematics", "Information Practices", "Urdu", "Computer Science"],
@@ -123,15 +127,15 @@ export const DEFAULT_SUBJECTS_CONFIG = {
       "group1": ["Environmental Science", "Information Practices", "Computer Science", "Urdu"],
       "group2": ["Physical Education", "Statistics", "Geology"]
     },
-    "Science": {
-      "compulsory": ["General English", "Physics", "Chemistry"],
-      "group1": ["Biology", "Mathematics", "Environmental Science"],
-      "group2": ["Information Practices", "Computer Science", "Physical Education", "Urdu"]
+    "Humanities": {
+      "compulsory": ["General English"],
+      "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
+      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration", "Psychology"]
     },
     "Arts": {
       "compulsory": ["General English"],
       "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
-      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration"]
+      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration", "Psychology"]
     },
     "Commerce": {
       "compulsory": ["General English", "Accountancy", "Business Studies"],
@@ -140,6 +144,11 @@ export const DEFAULT_SUBJECTS_CONFIG = {
     }
   },
   "12th": {
+    "Science": {
+      "compulsory": ["General English", "Physics", "Chemistry"],
+      "group1": ["Biology", "Mathematics", "Environmental Science"],
+      "group2": ["Information Practices", "Computer Science", "Physical Education", "Urdu"]
+    },
     "Medical": {
       "compulsory": ["General English", "Physics", "Chemistry", "Biology"],
       "group1": ["Environmental Science", "Mathematics", "Information Practices", "Urdu", "Computer Science"],
@@ -150,10 +159,10 @@ export const DEFAULT_SUBJECTS_CONFIG = {
       "group1": ["Environmental Science", "Information Practices", "Computer Science", "Urdu"],
       "group2": ["Physical Education", "Statistics"]
     },
-    "Science": {
-      "compulsory": ["General English", "Physics", "Chemistry"],
-      "group1": ["Biology", "Mathematics", "Environmental Science"],
-      "group2": ["Information Practices", "Computer Science", "Physical Education", "Urdu"]
+    "Humanities": {
+      "compulsory": ["General English"],
+      "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
+      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration"]
     },
     "Arts": {
       "compulsory": ["General English"],
@@ -168,14 +177,17 @@ export const DEFAULT_SUBJECTS_CONFIG = {
   },
   "9th": {
     "General": {
-      "compulsory": ["English", "Mathematics", "Science", "Social Science", "Urdu / Hindi"],
-      "group1": ["Computer Applications", "Environmental Education", "Physical Education"]
+      "compulsory": ["English", "Mathematics", "Science", "Social Science"],
+      "languages": ["Urdu", "Kashmiri", "Hindi"],
+      "vocational": ["IT & ITES", "Healthcare", "Computer Applications", "Retail", "Tourism"]
     }
   },
   "10th": {
     "General": {
-      "compulsory": ["English", "Mathematics", "Science", "Social Science", "Urdu / Hindi"],
-      "group1": ["Computer Applications", "Environmental Education", "Physical Education"]
+      "compulsory": ["English", "Mathematics", "Science", "Social Science"],
+      "languages": ["Urdu", "Kashmiri", "Hindi"],
+      "vocational": ["IT & ITES", "Healthcare", "Computer Applications", "Retail", "Tourism"]
     }
   }
 };
+

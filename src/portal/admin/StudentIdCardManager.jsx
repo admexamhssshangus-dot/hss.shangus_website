@@ -55,17 +55,27 @@ export function formatPhotoDisplayUrl(val) {
   const str = val.trim();
   if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
 
-  // 1. Native Firestore Base64 image
-  if (str.startsWith('data:image/')) {
+  // 1. Native Firestore / Data URL Base64 image
+  if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
     return str;
   }
+  // Raw Base64 string without data: prefix (e.g. /9j/4AAQSkZJRg... or long base64 string)
+  if (str.startsWith('/9j/') || str.startsWith('iVBORw') || /^[A-Za-z0-9+/=]{100,}$/.test(str)) {
+    return `data:image/jpeg;base64,${str}`;
+  }
 
-  // 2. Firebase Storage or standard web image URLs
-  if (str.startsWith('http://') || str.startsWith('https://')) {
-    if (str.includes('drive.google.com') || str.includes('googleusercontent.com')) {
-      // Legacy Apps Script Drive URL — ignore to prevent 404 & CORS errors
-      return '';
+  // 2. Google Drive Links -> Convert to direct thumbnail URL
+  if (str.includes('drive.google.com') || str.includes('docs.google.com')) {
+    const fileIdMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                        str.match(/id=([a-zA-Z0-9_-]+)/) ||
+                        str.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w300`;
     }
+  }
+
+  // 3. Firebase Storage or standard web image URLs
+  if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
   }
 
@@ -202,11 +212,24 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, percent: 0, status: '' });
 
-  // ─── Advanced Filters ───
+  // ─── Advanced Filters & Theme State ───
   const [selectedSession, setSelectedSession] = useState(initialSettings?.selectedSession ?? 'All');
   const [selectedStatus, setSelectedStatus] = useState(initialSettings?.selectedStatus ?? 'Approved');
   const [printMode, setPrintMode] = useState(initialSettings?.printMode ?? 'normal');
-  const [selectedTheme, setSelectedTheme] = useState(initialSettings?.selectedTheme ?? 'auto');
+  const [selectedTheme, setSelectedTheme] = useState(initialSettings?.selectedTheme ?? 'classified');
+  const [classThemes, setClassThemes] = useState(() => {
+    return initialSettings?.classThemes ?? {
+      '11th_Science': 'cobalt',
+      '11th_Arts': 'navy',
+      '11th_Commerce': 'amber',
+      '12th_Science': 'emerald',
+      '12th_Arts': 'burgundy',
+      '12th_Commerce': 'amber',
+      '10th': 'purple',
+      '9th': 'purple',
+    };
+  });
+  const [themeModalTab, setThemeModalTab] = useState('classified'); // 'classified' | 'presets'
   const [includeBackSide, setIncludeBackSide] = useState(initialSettings?.includeBackSide ?? false);
   const [showCropMarks, setShowCropMarks] = useState(initialSettings?.showCropMarks ?? true);
   const [showThemePicker, setShowThemePicker] = useState(false);
@@ -232,6 +255,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       selectedSession,
       selectedStatus,
       selectedTheme,
+      classThemes,
       includeBackSide,
       showCropMarks,
       cols,
@@ -247,7 +271,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   }, [
     cardWidthMm, cardHeightMm, paperMarginMm, cardGapMm, paperOrientation,
     selectedClass, selectedStream, printPageRange, selectedSession,
-    selectedStatus, selectedTheme, includeBackSide, showCropMarks,
+    selectedStatus, selectedTheme, classThemes, includeBackSide, showCropMarks,
     cols, rows, isCustomGrid, photoWidthPx, photoHeightPx, qrSizePx
   ]);
 
@@ -445,7 +469,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                   // Update liveStudents in memory immediately
                   setLiveStudents(prev => prev.map(s =>
                     (s.id === docId || s['Form Number'] === formNo)
-                      ? { ...s, photo_id: v, photoId: v, 'Student Photo': v }
+                      ? { ...s, photo_id: v }
                       : s
                   ));
                 }
@@ -948,6 +972,17 @@ export default function StudentIdCardManager({ students = [], onClose }) {
             display: none !important;
           }
 
+          /* Single card instant print isolated 1-page bounds (zero page bleed) */
+          body.single-card-print-active .id-card-sheet,
+          body.single-card-print-active .id-card-sheets-container {
+            display: none !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+          }
+
           body.single-card-print-active * {
             visibility: hidden !important;
           }
@@ -965,6 +1000,12 @@ export default function StudentIdCardManager({ students = [], onClose }) {
             box-shadow: none !important;
             border-radius: 3mm !important;
             background: #ffffff !important;
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            break-before: avoid !important;
+            break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .id-card-sheet {
@@ -1223,24 +1264,41 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               {paperOrientation === 'landscape' ? '📐 Land' : '📄 Port'}
             </button>
 
-            {/* ─── 12-Theme Color Swatch Trigger Button ─── */}
-            <div className="border-l border-purple-300 dark:border-purple-700/50 pl-1">
+            {/* ─── Classified Theme Palette Selector Button ─── */}
+            <div className="border-l border-purple-300 dark:border-purple-700/50 pl-1 flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setShowThemePicker(true)}
-                title="Change Card Theme Color Palette (12 Presets)"
-                className="px-1.5 py-0.5 rounded text-[9.5px] font-black cursor-pointer border bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-100 flex items-center gap-1 shadow-2xs"
+                title="Manage Card Themes (Realtime Classified View & 12 Presets)"
+                className="px-2 py-0.5 rounded text-[9.5px] font-black cursor-pointer border bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-100 flex items-center gap-1 shadow-2xs"
               >
                 <Palette size={11} className="text-purple-600 dark:text-purple-400" />
                 <span
                   className="w-2.5 h-2.5 rounded-full inline-block border border-slate-400 shadow-2xs"
                   style={{
-                    backgroundColor: selectedTheme === 'auto'
-                      ? (resolveClassTheme(selectedClass, selectedStream)?.dotColor || '#1d4ed8')
+                    backgroundColor: (selectedTheme === 'auto' || selectedTheme === 'classified')
+                      ? (resolveClassTheme(selectedClass, selectedStream, classThemes)?.dotColor || '#1d4ed8')
                       : (ID_CARD_THEMES[selectedTheme]?.dotColor || '#1d4ed8')
                   }}
                 />
-                <span className="hidden sm:inline">Theme</span>
+                <span className="hidden sm:inline">
+                  {selectedTheme === 'auto' || selectedTheme === 'classified' ? 'Theme' : `Theme: ${ID_CARD_THEMES[selectedTheme]?.name || selectedTheme}`}
+                </span>
+              </button>
+
+              {/* ─── Normal / Reverse Mode Toggle Under Tools Header ─── */}
+              <button
+                type="button"
+                onClick={() => setPrintMode(prev => prev === 'normal' ? 'reversed' : 'normal')}
+                title={`Print View Mode: ${printMode === 'reversed' ? 'Reverse Mirrored (Transparent Sheet/PVC)' : 'Normal Direct Front'}`}
+                className={`px-1.5 py-0.5 rounded text-[9.5px] font-black cursor-pointer border flex items-center gap-1 transition-all shadow-2xs ${
+                  printMode === 'reversed'
+                    ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 text-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-100'
+                }`}
+              >
+                <ArrowLeftRight size={10} className="text-amber-500 dark:text-amber-400" />
+                <span>{printMode === 'reversed' ? '🔄 Reverse' : '➡️ Normal'}</span>
               </button>
             </div>
           </div>
@@ -1252,10 +1310,10 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               type="button"
               onClick={handleGenerateAndPrint}
               disabled={targetStudents.length === 0 || isGenerating}
-              className="px-2.5 py-1 rounded-lg bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-2xs cursor-pointer flex items-center gap-1 transition-all hover:scale-102 disabled:opacity-50 ring-1 ring-amber-500/40"
+              className="px-2 py-0.5 rounded-lg bg-amber-800 hover:bg-amber-700 text-white font-black text-[11px] shadow-2xs cursor-pointer flex items-center gap-1 transition-all hover:scale-102 disabled:opacity-50 ring-1 ring-amber-500/40"
             >
-              <Printer size={13} />
-              <span>⚡ PRINT ({rangeMode === 'range' ? `${rangeFrom}–${rangeTo}` : `All ${targetStudents.length}`})</span>
+              <Printer size={12} />
+              <span>⚡ PRINT ({rangeMode === 'range' ? `${rangeFrom}–${rangeTo}` : targetStudents.length})</span>
             </button>
 
             {/* Layout & Filters Toggle */}
@@ -1263,13 +1321,13 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               type="button"
               onClick={() => setShowFiltersPanel(prev => !prev)}
               title="Layout & Filters"
-              className={`px-2 py-1 rounded-lg border font-extrabold text-[11px] cursor-pointer flex items-center gap-1 transition-all ${showFiltersPanel 
+              className={`px-1.5 py-0.5 rounded-lg border font-extrabold text-[10.5px] cursor-pointer flex items-center gap-0.5 transition-all ${showFiltersPanel 
                 ? 'bg-amber-800 text-white border-amber-900' 
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
               }`}
             >
-              <Filter size={12} />
-              <span className="hidden lg:inline">Filters</span>
+              <Filter size={11} />
+              <span className="hidden xl:inline">Filters</span>
             </button>
 
             {/* Seal & Sign Button */}
@@ -1277,10 +1335,10 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               type="button"
               onClick={() => setShowSealModal(true)}
               title="Seal & Signature Setup"
-              className="px-2 py-1 rounded-lg bg-purple-700 hover:bg-purple-600 text-white font-black text-[11px] cursor-pointer flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded-lg bg-purple-700 hover:bg-purple-600 text-white font-black text-[10.5px] cursor-pointer flex items-center gap-0.5"
             >
-              <Upload size={12} />
-              <span className="hidden lg:inline">Stamp</span>
+              <Upload size={11} />
+              <span className="hidden xl:inline">Stamp</span>
             </button>
 
             {/* Reset Button */}
@@ -1288,9 +1346,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               type="button"
               onClick={handleResetToDefaults}
               title="Reset all settings"
-              className="px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 cursor-pointer"
+              className="px-1 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 cursor-pointer"
             >
-              <RotateCcw size={12} className="text-amber-600" />
+              <RotateCcw size={11} className="text-amber-600" />
             </button>
 
             {onClose && (
@@ -1298,7 +1356,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                 type="button"
                 onClick={onClose}
                 title="Close ID Suite"
-                className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold text-[11px] text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer"
+                className="px-2 py-0.5 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 font-extrabold text-[10.5px] text-red-700 dark:text-red-300 cursor-pointer shadow-2xs"
               >
                 Close
               </button>
@@ -1320,7 +1378,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs animate-fadeIn">
             <div className="flex flex-wrap items-center justify-between gap-2">
               
-              {/* Paper Orientation (Default LANDSCAPE) */}
+              {/* Paper Orientation & Normal/Reverse Print Mode */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-extrabold text-[11px] text-slate-500">Paper Fit:</span>
                 <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-300 dark:border-slate-700 font-extrabold text-[11px]">
@@ -1343,6 +1401,30 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                     }`}
                   >
                     Portrait A4
+                  </button>
+                </div>
+
+                <span className="font-extrabold text-[11px] text-slate-500 ml-1">View Mode:</span>
+                <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-300 dark:border-slate-700 font-extrabold text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setPrintMode('normal')}
+                    className={`px-2.5 py-0.5 rounded-lg transition-all cursor-pointer ${printMode === 'normal'
+                      ? 'bg-purple-700 text-white shadow-2xs font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    ➡️ Normal Direct
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintMode('reversed')}
+                    className={`px-2.5 py-0.5 rounded-lg transition-all cursor-pointer ${printMode === 'reversed'
+                      ? 'bg-amber-600 text-white shadow-2xs font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    🔄 Reverse Mirrored (Transparent PVC)
                   </button>
                 </div>
 
@@ -1936,7 +2018,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                       const theme = resolveClassTheme(
                         st['Admission sought for class'] || st['Class'] || st.class,
                         getStudentStreamVal(st),
-                        selectedTheme !== 'auto' ? selectedTheme : null,
+                        (selectedTheme !== 'auto' && selectedTheme !== 'classified') ? selectedTheme : classThemes,
                         st
                       );
 
@@ -2600,7 +2682,8 @@ export default function StudentIdCardManager({ students = [], onClose }) {
           theme={resolveClassTheme(
             previewStudent['Admission sought for class'] || previewStudent['Class'] || previewStudent.class,
             previewStudent['Stream for Class 11th'] || previewStudent['Stream'] || previewStudent.stream,
-            selectedTheme !== 'auto' ? selectedTheme : null
+            (selectedTheme !== 'auto' && selectedTheme !== 'classified') ? selectedTheme : classThemes,
+            previewStudent
           )}
           sealConfig={sealConfig}
           printMode={printMode}
@@ -2671,76 +2754,194 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         </div>
       )}
 
-      {/* ─── MODAL 4: 12-THEME COLOR SWATCH PICKER OVERLAY ─── */}
+      {/* ─── MODAL 4: REALTIME CLASSIFIED & PRESET THEME PICKER (UNBLURRED BACKGROUND) ─── */}
       {showThemePicker && (
         <div
-          className="fixed inset-0 z-[10020] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn print:hidden"
+          className="fixed inset-0 z-[10020] flex items-center justify-center p-3 sm:p-4 bg-slate-950/20 animate-fadeIn print:hidden"
           onClick={() => setShowThemePicker(false)}
         >
           <div
-            className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-300 dark:border-slate-800 p-5 shadow-2xl space-y-3 text-slate-900 dark:text-white animate-scaleUp"
+            className="w-full max-w-lg bg-white/95 dark:bg-slate-900/95 rounded-3xl border border-slate-300 dark:border-slate-800 p-4 sm:p-5 shadow-2xl space-y-4 text-slate-900 dark:text-white animate-scaleUp"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
-              <span className="font-black text-xs uppercase tracking-wider text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
-                <Palette size={16} />
-                Card Theme ({Object.keys(ID_CARD_THEMES).length} Presets)
-              </span>
+            {/* Header with Title & Action Controls */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 flex items-center justify-center border border-purple-300 dark:border-purple-700/50">
+                  <Palette size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider text-purple-900 dark:text-purple-300">
+                    Card Theme Suite
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    Realtime live application — unblurred background view
+                  </p>
+                </div>
+              </div>
+
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedTheme('auto');
-                    setShowThemePicker(false);
+                    setSelectedTheme('classified');
                   }}
-                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                    selectedTheme === 'auto'
-                      ? 'bg-purple-800 text-white border-purple-900 shadow-2xs'
+                  className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                    selectedTheme === 'auto' || selectedTheme === 'classified'
+                      ? 'bg-purple-700 text-white border-purple-800 shadow-2xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
                   }`}
-                  title="Reset to Class Default Theme"
+                  title="Reset to Classified Class Themes"
                 >
-                  Auto
+                  Classified Auto
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowThemePicker(false)}
                   className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-            {/* 3-Column Swatch Dot Grid */}
-            <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto p-1 no-scrollbar">
-              {Object.values(ID_CARD_THEMES).map(t => {
-                const isSelected = selectedTheme === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTheme(t.id);
-                      setShowThemePicker(false);
-                    }}
-                    title={t.name}
-                    className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-purple-100 dark:bg-purple-950/80 border-purple-600 dark:border-purple-400 ring-2 ring-purple-500/50 shadow-xs scale-102'
-                        : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:scale-102'
-                    }`}
-                  >
-                    <span
-                      className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-900 shadow-md mb-1 inline-block transform transition-transform"
-                      style={{ backgroundColor: t.dotColor }}
-                    />
-                    <span className="text-[10px] font-black leading-tight truncate w-full text-slate-800 dark:text-slate-200">
-                      {t.name}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Tab Selector: Classified View vs 12 Presets */}
+            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-black">
+              <button
+                type="button"
+                onClick={() => setThemeModalTab('classified')}
+                className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                  themeModalTab === 'classified'
+                    ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 shadow-xs border border-purple-200 dark:border-purple-800'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                🏫 Classified (Class-wise Themes)
+              </button>
+              <button
+                type="button"
+                onClick={() => setThemeModalTab('presets')}
+                className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                  themeModalTab === 'presets'
+                    ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 shadow-xs border border-purple-200 dark:border-purple-800'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                🎨 Global 12 Presets
+              </button>
+            </div>
+
+            {/* TAB 1: CLASSIFIED CLASS-WISE THEME MANAGER */}
+            {themeModalTab === 'classified' && (
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1 no-scrollbar">
+                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-purple-50 dark:bg-purple-950/40 p-2 rounded-xl border border-purple-200 dark:border-purple-900/40">
+                  💡 Below are theme assignments for each class &amp; stream category. Clicking any swatch applies it <strong className="text-purple-700 dark:text-purple-300">LIVE IN REALTIME</strong> to background cards!
+                </div>
+
+                {[
+                  { key: '11th_Science', label: 'Class 11th (Science)', icon: '🧪' },
+                  { key: '11th_Arts', label: 'Class 11th (Humanities / Arts)', icon: '📖' },
+                  { key: '11th_Commerce', label: 'Class 11th (Commerce)', icon: '📈' },
+                  { key: '12th_Science', label: 'Class 12th (Science)', icon: '🔬' },
+                  { key: '12th_Arts', label: 'Class 12th (Humanities / Arts)', icon: '🏛️' },
+                  { key: '12th_Commerce', label: 'Class 12th (Commerce)', icon: '💼' },
+                  { key: '10th', label: 'Class 9th & 10th (Secondary)', icon: '📚' },
+                ].map(item => {
+                  const currentThemeId = classThemes[item.key] || 'emerald';
+                  const currentThemeObj = ID_CARD_THEMES[currentThemeId] || ID_CARD_THEMES.emerald;
+                  return (
+                    <div
+                      key={item.key}
+                      className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                          <span>{item.icon}</span> {item.label}
+                        </span>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md text-white shadow-2xs flex items-center gap-1" style={{ backgroundColor: currentThemeObj.dotColor }}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-white inline-block"></span>
+                          {currentThemeObj.name}
+                        </span>
+                      </div>
+
+                      {/* Swatch row for this class */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                        {Object.values(ID_CARD_THEMES).map(t => {
+                          const isActive = currentThemeId === t.id && (selectedTheme === 'auto' || selectedTheme === 'classified');
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setClassThemes(prev => ({ ...prev, [item.key]: t.id }));
+                                setSelectedTheme('classified');
+                              }}
+                              title={`Set ${item.label} to ${t.name}`}
+                              className={`w-6 h-6 rounded-full border-2 transition-all transform hover:scale-115 flex items-center justify-center cursor-pointer shrink-0 ${
+                                isActive ? 'border-purple-600 ring-2 ring-purple-500/60 scale-110 shadow-sm' : 'border-white dark:border-slate-900 shadow-2xs opacity-85 hover:opacity-100'
+                              }`}
+                              style={{ backgroundColor: t.dotColor }}
+                            >
+                              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TAB 2: GLOBAL 12 PRESETS GRID */}
+            {themeModalTab === 'presets' && (
+              <div className="space-y-2">
+                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  Select a global theme preset to apply uniformly across all classes live:
+                </div>
+                <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto p-1 no-scrollbar">
+                  {Object.values(ID_CARD_THEMES).map(t => {
+                    const isSelected = selectedTheme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTheme(t.id);
+                        }}
+                        title={t.name}
+                        className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-purple-100 dark:bg-purple-950/80 border-purple-600 dark:border-purple-400 ring-2 ring-purple-500/50 shadow-xs scale-102 font-black'
+                            : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:scale-102 font-bold'
+                        }`}
+                      >
+                        <span
+                          className="w-5 h-5 rounded-full border-2 border-white dark:border-slate-900 shadow-md mb-1 inline-block transform transition-transform"
+                          style={{ backgroundColor: t.dotColor }}
+                        />
+                        <span className="text-[10px] leading-tight truncate w-full text-slate-800 dark:text-slate-200">
+                          {t.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Footer Action */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-slate-500">
+                {selectedTheme === 'auto' || selectedTheme === 'classified' ? '✨ Classified Mode Active' : `🎨 Preset: ${ID_CARD_THEMES[selectedTheme]?.name}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowThemePicker(false)}
+                className="px-4 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs shadow-md cursor-pointer transition-all hover:scale-102"
+              >
+                ✓ Apply &amp; Close
+              </button>
             </div>
           </div>
         </div>

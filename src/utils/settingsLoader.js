@@ -75,6 +75,8 @@ export const DEFAULT_PAYMENT_GATEWAY_CONFIG = {
 
 export const DEFAULT_SETTINGS = {
   globalAdmissionsClosed: false,
+  practicalsSubmissionOpen: true,
+  attendanceSubmissionOpen: true,
   defaultNewNoticeDays: 7,
   admissionsClosed: {
     "9th": false,
@@ -127,6 +129,8 @@ export function mergeSiteSettings(parsed = {}) {
   return {
     ...DEFAULT_SETTINGS,
     ...parsed,
+    practicalsSubmissionOpen: parsed.practicalsSubmissionOpen !== undefined ? Boolean(parsed.practicalsSubmissionOpen) : true,
+    attendanceSubmissionOpen: parsed.attendanceSubmissionOpen !== undefined ? Boolean(parsed.attendanceSubmissionOpen) : true,
     admissionsClosed: { ...DEFAULT_SETTINGS.admissionsClosed, ...(parsed.admissionsClosed || {}) },
     fees: { ...DEFAULT_SETTINGS.fees, ...(parsed.fees || {}) },
     socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(parsed.socialLinks || {}) },

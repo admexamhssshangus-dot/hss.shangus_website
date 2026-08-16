@@ -1,0 +1,31 @@
+{
+  "attendance": [],
+  "admissions": [],
+  "users": [],
+  "site": [
+    {
+      "id": "admins",
+      "data": {
+        "email": "adm.exam.hss.shangus@gmail.com"
+      }
+    },
+    {
+      "id": "faculty",
+      "data": {
+        "placeholder": "true"
+      }
+    },
+    {
+      "id": "notices",
+      "data": {
+        "content": "Welcome"
+      }
+    },
+    {
+      "id": "settings",
+      "data": {
+        "placeholder": "true"
+      }
+    }
+  ]
+}

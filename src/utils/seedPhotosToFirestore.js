@@ -7,8 +7,8 @@
  */
 
 import { db } from '../services/firebase';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
-import { parseStudentPhotoFilename, compressStudentPhoto } from './imageCompressor';
+import { collection, getDocs, doc, setDoc, deleteField } from 'firebase/firestore';
+import { parsePhotoFilename, compressStudentPhoto } from './imageCompressor';
 
 /**
  * Sync a batch of image files to Firestore student records.
@@ -38,7 +38,7 @@ export async function seedPhotosToFirestore(files, onProgress = null) {
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const parsed = parseStudentPhotoFilename(file.name);
+    const parsed = parsePhotoFilename(file.name);
 
     if (onProgress) {
       onProgress(i + 1, files.length, file.name, `Matching student record for ${file.name}...`);
@@ -70,12 +70,15 @@ export async function seedPhotosToFirestore(files, onProgress = null) {
       matchedCount++;
       try {
         // Compress photo to ~5-10 KB JPEG
-        const { dataUrl } = await compressStudentPhoto(file, 300, 360, 0.8);
+        const dataUrl = await compressStudentPhoto(file, 300, 360, 0.8);
 
         // Update Firestore student record
         await setDoc(doc(db, 'admissions', studentMatch.docId), {
-          'Student Photo': dataUrl,
-          'photo_id': dataUrl,
+          photo_id: dataUrl,
+          'Student Photo': deleteField(),
+          photoUrl: deleteField(),
+          photoId: deleteField(),
+          photo: deleteField(),
           'photo_synced_at': new Date().toISOString()
         }, { merge: true });
 

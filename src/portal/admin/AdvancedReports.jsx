@@ -1,19 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, BarChart2, Building2, Database, Zap } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
+import DeleteApplicationModal from './DeleteApplicationModal';
+import RecycleBinModal from './RecycleBinModal';
+import { moveToRecycleBin, getRecycleBinItems } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
 import ModernLoader from '../../components/ModernLoader';
 import AdminToolsDropdown from './AdminToolsDropdown';
+import { recycleDeletedFormNumber, getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -124,75 +128,13 @@ export async function updateStudentDocument(student, updates) {
 
 export async function deleteStudentDocument(student) {
   if (!student) return false;
-  const formNo = String(student['Form No.'] || student.formNo || student['Form Number'] || student.id || '').trim();
-  const rawId = String(student.docId || student._docId || student.id || formNo).trim();
-
-  const idCandidates = Array.from(new Set([
-    rawId,
-    formNo,
-    student.id,
-    student.docId,
-    student._docId,
-    rawId.replace(/\//g, '_'),
-    rawId.replace(/[\/\s]/g, '_').toLowerCase(),
-    rawId.replace(/[\/\s]/g, '_').toUpperCase(),
-    formNo.replace(/\//g, '_'),
-    formNo.replace(/[\/\s]/g, '_').toLowerCase(),
-    formNo.replace(/[\/\s]/g, '_').toUpperCase(),
-    `active_${rawId.replace(/[\/\s]/g, '_').toLowerCase()}`,
-    `active_${rawId.replace(/[\/\s]/g, '_').toUpperCase()}`
-  ].filter(Boolean)));
-
-  let deleted = false;
-
-  // 1. Delete direct candidate document IDs from BOTH admissions & masterRegisters
-  for (const cid of idCandidates) {
-    if (!cid || cid.includes('/')) continue;
-    
-    // Delete from admissions
-    try {
-      await deleteDoc(doc(db, 'admissions', cid));
-      deleted = true;
-    } catch (e) {}
-
-    // Delete from masterRegisters
-    try {
-      await deleteDoc(doc(db, 'masterRegisters', cid));
-      deleted = true;
-    } catch (e) {}
+  const sourceColl = student._sourceCollection || student._source || (student._isCurrentScope ? 'admissions' : 'masterRegisters');
+  try {
+    await moveToRecycleBin(student, sourceColl, 'Admin');
+  } catch (err) {
+    console.error('moveToRecycleBin in deleteStudentDocument error:', err);
   }
-
-  // 2. Query by formNo / id / Form No. / Form Number fields in BOTH admissions & masterRegisters
-  const queryVals = Array.from(new Set([formNo, rawId, student.id].filter(Boolean)));
-  for (const val of queryVals) {
-    for (const field of ['id', 'formNo', 'Form No.', 'Form Number', 'docId']) {
-      // Query admissions
-      try {
-        const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', val)));
-        for (const dSnap of qSnap.docs) {
-          await deleteDoc(doc(db, 'admissions', dSnap.id));
-          deleted = true;
-        }
-      } catch (e) {}
-
-      // Query masterRegisters
-      try {
-        const qSnap = await getDocs(query(collection(db, 'masterRegisters'), where(field, '==', val)));
-        for (const dSnap of qSnap.docs) {
-          await deleteDoc(doc(db, 'masterRegisters', dSnap.id));
-          deleted = true;
-        }
-      } catch (e) {}
-    }
-  }
-
-  // 3. Remove single item from local IndexedDB / dbCache
-  idCandidates.forEach(cid => {
-    updateCachedItem('admissions', cid, null);
-    updateCachedItem('masterRegisters', cid, null);
-  });
-
-  return deleted;
+  return true;
 }
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component ───
@@ -489,6 +431,7 @@ function MoreActionsDropdown({
   onPrint,
   onExportCSV,
   onSync,
+  onOpenRecycleBin,
   loading,
   align = 'right'
 }) {
@@ -756,6 +699,99 @@ function yearToWords(yearNum) {
   return String(yearNum);
 }
 
+/**
+ * Standardize DOB strings to DD-MM-YYYY format for consistent table display across all records.
+ */
+export function formatDobToDisplay(dobRaw) {
+  if (!dobRaw || dobRaw === '—' || dobRaw === 'N/A' || dobRaw === 'null' || dobRaw === 'undefined') return '—';
+  const str = String(dobRaw).trim();
+  // 1. Match DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dmyMatch) {
+    const d = dmyMatch[1].padStart(2, '0');
+    const m = dmyMatch[2].padStart(2, '0');
+    const y = dmyMatch[3];
+    return `${d}-${m}-${y}`;
+  }
+  // 2. Match YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (ymdMatch) {
+    const y = ymdMatch[1];
+    const m = ymdMatch[2].padStart(2, '0');
+    const d = ymdMatch[3].padStart(2, '0');
+    return `${d}-${m}-${y}`;
+  }
+  // 3. Fallback Date parse
+  const d = new Date(str);
+  if (!isNaN(d.getTime()) && d.getFullYear() > 1900 && d.getFullYear() < 2100) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return str;
+}
+
+/**
+ * Format online submission date/timestamp to DD-MM-YYYY HH:mm AM/PM or DD-MM-YYYY
+ */
+export function formatOnlineSubmDate(val) {
+  if (!val || val === '—' || val === 'N/A' || val === '-') return '—';
+  try {
+    let d;
+    if (typeof val.toDate === 'function') {
+      d = val.toDate();
+    } else if (typeof val.toMillis === 'function') {
+      d = new Date(val.toMillis());
+    } else if (typeof val === 'object' && typeof val.seconds === 'number') {
+      d = new Date(val.seconds * 1000);
+    } else if (typeof val === 'number') {
+      d = new Date(val);
+    } else if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed || trimmed === '—') return '—';
+      if (/^\d{2}[-/.]\d{2}[-/.]\d{4}/.test(trimmed)) {
+        return trimmed.replace(/\//g, '-');
+      }
+      const parsed = Date.parse(trimmed);
+      if (!isNaN(parsed)) {
+        d = new Date(parsed);
+      } else {
+        return trimmed;
+      }
+    }
+
+    if (d && !isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const strHours = String(hours).padStart(2, '0');
+      return `${day}-${month}-${year} ${strHours}:${minutes} ${ampm}`;
+    }
+  } catch (err) {
+    console.error('Error formatting onlineSubmDate:', err);
+  }
+  return String(val);
+}
+
+/**
+ * Extract numerical timestamp for sorting records by newest activity.
+ */
+export function getDocTimestamp(rec) {
+  if (!rec) return 0;
+  const ts = rec.updatedAt || rec.createdAt || rec['Online Subm. Date'] || rec.onlineSubmDate || rec.submittedAt || rec.timestamp || rec.admDate;
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000;
+  const parsed = Date.parse(ts);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 function convertDobToWords(dobRaw) {
   if (!dobRaw || dobRaw === '—' || dobRaw === 'N/A') return '';
   const str = String(dobRaw).trim();
@@ -937,8 +973,20 @@ const formatStudentAdmNo = (rec) => {
 };
 
 export const cleanFormNo = (val) => {
-  if (!val || val === '—') return '—';
-  return String(val).replace(/^'/, '').trim();
+  if (!val) return '—';
+  if (typeof val === 'object') {
+    val = val['Form Number'] || val['Form No.'] || val['Form No'] || val['FormNo'] || val['formNumber'] || val.formNo || val.form_no || val.docId || val.id || '—';
+  }
+  const str = String(val).replace(/^'/, '').trim();
+  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '-') return '—';
+  return str;
+};
+
+export const extractStudentFormNo = (rec) => {
+  if (!rec) return '—';
+  if (typeof rec !== 'object') return cleanFormNo(rec);
+  const val = rec['Form Number'] || rec['Form No.'] || rec['Form No'] || rec['FormNo'] || rec['formNumber'] || rec.formNo || rec.form_no || rec.docId || rec.id;
+  return cleanFormNo(val);
 };
 
 export const cleanRegNoVal = (val) => {
@@ -966,6 +1014,54 @@ export const cleanRegNoVal = (val) => {
   }
 
   return s.replace(/\.0+$/, '');
+};
+
+export const areNamesCompatible = (n1, n2) => {
+  if (!n1 || !n2) return true;
+  const clean1 = String(n1).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const clean2 = String(n2).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  if (!clean1 || !clean2 || clean1 === 'student' || clean2 === 'student' || clean1 === '—' || clean2 === '—') return true;
+  if (clean1 === clean2) return true;
+
+  if (clean1.startsWith(clean2) || clean2.startsWith(clean1)) return true;
+  if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+
+  const tokens1 = clean1.split(/\s+/).filter(t => t.length > 2);
+  const tokens2 = clean2.split(/\s+/).filter(t => t.length > 2);
+  if (tokens1.length === 0 || tokens2.length === 0) return true;
+
+  const common = tokens1.filter(t => tokens2.includes(t));
+  if (common.length >= 2) return true;
+  if (common.length >= 1 && (tokens1.length === 1 || tokens2.length === 1)) return true;
+
+  return false;
+};
+
+export const filterActiveAgainstRecycleBin = (list, trashItems) => {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  if (!Array.isArray(trashItems) || trashItems.length === 0) {
+    return list.filter(s => s && s.Status !== 'Deleted' && s.status !== 'Deleted' && s._deleted !== true);
+  }
+
+  const trashRegs = new Set(trashItems.map(i => extractRegNoClean(i.data || i)).filter(Boolean));
+  const trashForms = new Set(trashItems.map(i => i.formNo || i.data?.['Form Number'] || i.data?.formNo).filter(f => f && f !== '—'));
+  const trashDocIds = new Set(trashItems.map(i => i.originalDocId || i.sanitizedDocId || i.trashId).filter(Boolean));
+
+  return list.filter(s => {
+    if (!s) return false;
+    if (s.Status === 'Deleted' || s.status === 'Deleted' || s._deleted === true) return false;
+
+    const sForm = extractStudentFormNo(s);
+    if (sForm && sForm !== '—' && trashForms.has(sForm)) return false;
+
+    const sReg = extractRegNoClean(s);
+    if (sReg && trashRegs.has(sReg)) return false;
+
+    const sId = String(s.id || s.docId || s._docId || '').trim();
+    if (sId && trashDocIds.has(sId)) return false;
+
+    return true;
+  });
 };
 
 export const extractRegNo = (st) => {
@@ -1032,7 +1128,7 @@ export const resolveAdmNo = (rec) => {
 };
 
 // ─── Status Smart Action Dropdown Component ───
-function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
+function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, onTriggerDelete }) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, openUp: false });
   const [actionLoading, setActionLoading] = useState(false);
@@ -1061,10 +1157,111 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   const isDft = !hasRoll && (val === 'Draft' || val === 'DRAFT' || val === 'dft');
   const isProv = !hasRoll && (val === 'Provisional' || val === 'PROV');
   const isRejt = !hasRoll && (val === 'Rejected' || val === 'REJT');
-  const isSub = !hasRoll && !isDft && !isProv && !isRejt;
+  const isWithdrawn = !hasRoll && (val === 'Withdrawn' || val === 'WITHDRAWN' || val === 'withdrawn' || val === 'Adm Withdrawn' || val === 'ADM WITHDRAWN');
+  const isSub = !hasRoll && !isDft && !isProv && !isRejt && !isWithdrawn;
 
-  const bg = isApp ? 'bg-green-600 hover:bg-green-700' : isSub ? 'bg-blue-600 hover:bg-blue-700' : isProv ? 'bg-indigo-600 hover:bg-indigo-700' : isDft ? 'bg-yellow-500 hover:bg-yellow-600 !text-slate-900' : 'bg-red-600 hover:bg-red-700';
-  const abbr = isApp ? 'APPR' : isSub ? 'SUBM' : isProv ? 'PROV' : isDft ? 'DRAFT' : 'REJT';
+  const bg = isApp ? 'bg-green-600 hover:bg-green-700' : isSub ? 'bg-blue-600 hover:bg-blue-700' : isProv ? 'bg-indigo-600 hover:bg-indigo-700' : isDft ? 'bg-yellow-500 hover:bg-yellow-600 !text-slate-900' : isWithdrawn ? 'bg-rose-600 hover:bg-rose-700 font-extrabold' : 'bg-red-600 hover:bg-red-700';
+  const abbr = isApp ? 'APPR' : isSub ? 'SUBM' : isProv ? 'PROV' : isDft ? 'DRAFT' : isWithdrawn ? 'WTHD' : 'REJT';
+
+  const handleAssignFormNo = (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    setDialogConfig({
+      type: 'confirm',
+      title: 'Assign Form Number',
+      message: `Assign next available sequential form number to ${student?.studentName || 'student'}?`,
+      icon: Hash,
+      iconColor: 'text-teal-600 dark:text-teal-400',
+      btnColor: 'bg-teal-700 hover:bg-teal-600 text-white',
+      confirmText: 'Assign Form No',
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          const nextNo = await getNextAvailableFormNumber();
+          if (nextNo) {
+            await consumeFormNumber(nextNo);
+            await updateStudentDocument(student, {
+              'Form Number': nextNo,
+              'FormNo': nextNo,
+              formNo: nextNo
+            });
+            if (onRefresh) onRefresh();
+            setDialogConfig({
+              type: 'alert',
+              title: 'Form Number Assigned',
+              message: `Form #${nextNo} successfully assigned to ${student?.studentName}.`,
+              icon: CheckCircle2,
+              iconColor: 'text-emerald-600 dark:text-emerald-400',
+              btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
+            });
+          }
+        } catch (err) {
+          console.error('Assign form no error:', err);
+        } finally {
+          setActionLoading(false);
+        }
+      }
+    });
+  };
+
+  const handlePurgeSensitiveData = (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    setDialogConfig({
+      type: 'confirm',
+      title: 'Approve Erasure & Wipe Sensitive Data',
+      message: `Approve online erasure for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'})?\n\nThis will completely wipe out sensitive details (photograph, bank info, Aadhaar) from Firebase, recycle Form #${student?.formNo || '—'}, and retain minimal reference metadata for audit logs.`,
+      icon: ShieldAlert,
+      iconColor: 'text-rose-600 dark:text-rose-400',
+      btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
+      confirmText: 'Wipe Sensitive Data',
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          const formNo = student?.formNo || student?.['Form Number'] || student?.['FormNo'];
+          const rawId = student?.docId || student?._docId || student?.id || formNo;
+
+          // 1. Save 90-day recovery archive in recycleBin
+          await moveToRecycleBin(student, 'admissions', 'Admin').catch(() => {});
+
+          // 2. Recycle Form Number in Firebase
+          if (formNo && formNo !== '—') {
+            await recycleDeletedFormNumber(formNo, student, 'Admin').catch(() => {});
+          }
+
+          // 3. Keep sanitized minimal identity record in admissions collection
+          if (rawId) {
+            await setDoc(doc(db, 'admissions', rawId), {
+              "Student's Name (as per school records)": student?.studentName || student?.name || 'Student',
+              "Father's/Guardian's Name (as per school records)": student?.fatherName || 'N/A',
+              "Admission sought for class": student?.class || '11th',
+              "Form Number": formNo || 'N/A',
+              "Session": student?.session || '',
+              "Status": "Purged",
+              "_purged": true,
+              "purgedAt": new Date().toISOString(),
+              "purgedBy": "Admin"
+            }, { merge: false }).catch(() => {});
+          }
+
+          if (onRefresh) onRefresh();
+
+          setDialogConfig({
+            type: 'alert',
+            title: 'Sensitive Data Wiped',
+            message: `Sensitive data for ${student?.studentName} has been wiped. Form #${formNo || '—'} is now recycled for the next applicant.`,
+            icon: CheckCircle2,
+            iconColor: 'text-emerald-600 dark:text-emerald-400',
+            btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
+          });
+        } catch (err) {
+          console.error('Purge error:', err);
+        } finally {
+          setActionLoading(false);
+        }
+      }
+    });
+  };
 
   const handleUnlock = (e) => {
     e.stopPropagation();
@@ -1296,51 +1493,24 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   const handleDelete = (e) => {
     e.stopPropagation();
     setIsOpen(false);
+    if (onTriggerDelete) {
+      onTriggerDelete(student);
+      return;
+    }
     setDialogConfig({
       type: 'confirm',
       title: 'Delete Student Record',
-      message: `Are you sure you want to PERMANENTLY DELETE student record for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'})? This action cannot be undone.`,
+      message: `Are you sure you want to delete student record for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'})?`,
       icon: Trash2,
       iconColor: 'text-red-600 dark:text-red-400',
       btnColor: 'bg-red-700 hover:bg-red-600 text-white',
-      confirmText: 'Delete Permanently',
-      submittingText: 'Deleting Permanently...',
+      confirmText: 'Delete Record',
       onConfirm: async () => {
         try {
           setIsSubmitting(true);
-          const formNo = student?.formNo || student?.['Form No.'] || student?.id;
-          
+          if (onDeleteRecord) onDeleteRecord(student);
           await deleteStudentDocument(student);
-
-          await logAdminActivity({
-            actionType: 'delete',
-            actionTitle: 'Student Application Permanently Deleted',
-            details: `Deleted student record for ${student?.studentName || student?.id} (Form: ${formNo || '—'})`,
-            reasonCategory: 'Record Revocation / Deletion',
-            metadata: { studentId: student?.id, formNo }
-          }).catch(() => {});
-
-          if (onRefresh) onRefresh();
-
-          // Show green success completion message
-          setDialogConfig({
-            type: 'alert',
-            title: 'Record Deleted Successfully',
-            message: `✅ Student record for ${student?.studentName || 'student'} (Form #${formNo || '—'}) has been permanently deleted from database.`,
-            icon: CheckCircle2,
-            iconColor: 'text-emerald-600 dark:text-emerald-400',
-            btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white',
-            confirmText: 'Done',
-            onConfirm: () => {
-              setDialogConfig(null);
-            }
-          });
-        } catch (err) {
-          console.warn('Delete error:', err);
-          setDialogConfig(null);
-        } finally {
-          setIsSubmitting(false);
-        }
+        } catch (_) {} finally { setIsSubmitting(false); }
       }
     });
   };
@@ -1392,6 +1562,17 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
           </div>
 
           <div className="space-y-0.5 pt-1">
+            {(!student?.formNo || student?.formNo === '—' || student?.formNo === 'N/A') && (
+              <button
+                type="button"
+                onClick={handleAssignFormNo}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-teal-500/15 dark:hover:bg-teal-500/25 border border-transparent hover:border-teal-500/30 text-teal-700 dark:text-teal-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <Hash size={13} className="text-teal-600 dark:text-teal-400" />
+                <span>Assign Form No</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={(e) => {
@@ -1404,6 +1585,17 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
               <Eye size={13} className="text-indigo-600 dark:text-indigo-400" />
               <span>View / Edit Record</span>
             </button>
+
+            {isWithdrawn && (
+              <button
+                type="button"
+                onClick={handlePurgeSensitiveData}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-300 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <ShieldAlert size={13} className="text-rose-600 dark:text-rose-400" />
+                <span>Approve Erasure &amp; Wipe Data</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -1574,22 +1766,54 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh }) {
   );
 }
 
-const formatPhotoDisplayUrl = (val) => {
-  if (!val || typeof val !== 'string') return '';
-  const str = val.trim();
-  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
+const formatPhotoDisplayUrl = (val, student = null) => {
+  let str = (typeof val === 'string' ? val : '').trim();
 
-  // 1. Native Firestore Base64 image
-  if (str.startsWith('data:image/')) {
-    return str;
+  // If val is empty or placeholder, check all student fields and local photo cache
+  if ((!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') && student) {
+    str = String(
+      student.photo_id ||
+      student['photo_id'] ||
+      student['Student Photo'] ||
+      student.photoUrl ||
+      student.photoId ||
+      student['Student Photo URL'] ||
+      student.photo ||
+      student.Photo ||
+      ''
+    ).trim();
+
+    if (!str || str === '—' || str === 'N/A') {
+      const candidateId = student.id || student['Form Number'] || student['Form No.'] || student.formNo || student.docId;
+      if (candidateId) {
+        str = getPhotoUrlFromCache(candidateId) || '';
+      }
+    }
   }
 
-  // 2. Firebase Storage or standard web image URLs
-  if (str.startsWith('http://') || str.startsWith('https://')) {
-    if (str.includes('drive.google.com') || str.includes('googleusercontent.com')) {
-      // Legacy Apps Script Drive URL — ignore to prevent 404 & CORS errors
-      return '';
+  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
+
+  // 1. Native Firestore / Data URL Base64 image
+  if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
+    return str;
+  }
+  // Raw Base64 string without data: prefix
+  if (/^[A-Za-z0-9+/=]{100,}$/.test(str)) {
+    return `data:image/jpeg;base64,${str}`;
+  }
+
+  // 2. Google Drive Links -> Convert to direct thumbnail URL with size parameter
+  if (str.includes('drive.google.com') || str.includes('docs.google.com')) {
+    const fileIdMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                        str.match(/id=([a-zA-Z0-9_-]+)/) ||
+                        str.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w200`;
     }
+  }
+
+  // 3. Firebase Storage or standard web image URLs
+  if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
   }
 
@@ -1598,7 +1822,15 @@ const formatPhotoDisplayUrl = (val) => {
 
 const COLUMN_DEFS = [
   { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
-  { key: 'formNo', label: 'F.No.', className: 'font-mono' },
+  {
+    key: 'formNo', label: 'F.No.', className: 'font-mono font-bold', render: (val, student) => {
+      const raw = String(val || student?.['Form Number'] || student?.FormNo || student?.['Form No.'] || '').trim();
+      if (!raw || raw === '—' || raw === 'N/A' || raw.length > 10 || raw.startsWith('doc_') || raw.startsWith('FORM_')) {
+        return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
+      }
+      return raw;
+    }
+  },
   {
     key: 'status', label: 'Status', className: 'text-center', render: (val, student) => {
       return (
@@ -1610,6 +1842,8 @@ const COLUMN_DEFS = [
             }
           }}
           onRefresh={student?._onRefresh}
+          onDeleteRecord={student?._onDeleteRecord}
+          onTriggerDelete={student?._onTriggerDelete}
         />
       );
     }
@@ -1654,7 +1888,7 @@ const COLUMN_DEFS = [
   { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-normal break-all' },
   {
     key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
-      const rawUrl = formatPhotoDisplayUrl(val) || (student && student.photoId && student.photoId !== '—' ? formatPhotoDisplayUrl(student.photoId) : '');
+      const rawUrl = formatPhotoDisplayUrl(val, student) || (student && student.photoId && student.photoId !== '—' ? formatPhotoDisplayUrl(student.photoId, student) : '');
       if (rawUrl) {
         return (
           <img
@@ -1727,8 +1961,52 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'fatherName', label: "Father's Name", className: 'text-slate-600 dark:text-slate-400 whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
-  { key: 'motherName', label: "Mother's Name", className: 'text-slate-600 dark:text-slate-400 whitespace-normal break-words leading-tight', render: (val) => formatProperName(val) },
+  {
+    key: 'fatherName',
+    label: 'Parentage',
+    isComposite: true,
+    className: 'text-slate-600 dark:text-slate-400 whitespace-normal break-words leading-tight',
+    render: (fatherName, student) => {
+      const father = formatProperName(fatherName || '—');
+      const mother = formatProperName(student?.motherName || '—');
+      const stId = student?.id || student?.sno || 'st';
+      const copyValue = (event, id, value) => {
+        event.stopPropagation();
+        if (!value || value === '—') return;
+        if (student?._handleCopyCell) student._handleCopyCell(id, value);
+        else navigator.clipboard?.writeText(value);
+      };
+
+      return (
+        <div className="group/parentage grid min-w-0 gap-1 py-0.5 leading-tight">
+          <div className="flex min-w-0 items-center justify-between gap-1" title="Father's name">
+            <span className="min-w-0 break-words font-extrabold text-slate-700 dark:text-slate-200">{father}</span>
+            {father !== '—' && <button
+              type="button"
+              onClick={(event) => copyValue(event, `${stId}_father`, father)}
+              className="flex-shrink-0 rounded p-0.5 text-teal-700 opacity-0 transition-opacity hover:bg-teal-100 focus:opacity-100 group-hover/parentage:opacity-100 dark:text-teal-300 dark:hover:bg-teal-950/60"
+              title="Copy father's name"
+              aria-label="Copy father's name"
+            >
+              {student?._copiedCellId === `${stId}_father` ? <Check size={11} /> : <Copy size={11} />}
+            </button>}
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-1 border-t border-slate-200/70 pt-1 dark:border-slate-700/70" title="Mother's name">
+            <span className="min-w-0 break-words font-extrabold text-slate-700 dark:text-slate-200">{mother}</span>
+            {mother !== '—' && <button
+              type="button"
+              onClick={(event) => copyValue(event, `${stId}_mother`, mother)}
+              className="flex-shrink-0 rounded p-0.5 text-teal-700 opacity-0 transition-opacity hover:bg-teal-100 focus:opacity-100 group-hover/parentage:opacity-100 dark:text-teal-300 dark:hover:bg-teal-950/60"
+              title="Copy mother's name"
+              aria-label="Copy mother's name"
+            >
+              {student?._copiedCellId === `${stId}_mother` ? <Check size={11} /> : <Copy size={11} />}
+            </button>}
+          </div>
+        </div>
+      );
+    }
+  },
   { key: 'dob', label: 'DoB', className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap' },
   { key: 'village', label: 'Village/Town', className: 'whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap' },
@@ -1834,8 +2112,8 @@ const COLUMN_DEFS = [
         const isCopied = student?._copiedCellId === `${stId}_sp`;
         return (
           <div className="flex items-center justify-between gap-1 group/sp">
-            <span className="font-mono text-xs sm:text-[13px] font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap tracking-wide" title="Student & Parent share same mobile number">
-              S/P: {sMob}
+            <span className="font-mono text-xs sm:text-[13px] font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap tracking-wide" title="Student and parent share this mobile number">
+              {sMob}
             </span>
             <button
               type="button"
@@ -1866,9 +2144,9 @@ const COLUMN_DEFS = [
       return (
         <div className="flex flex-col text-xs sm:text-[13px] leading-tight py-0.5 font-mono tracking-wide gap-0.5">
           {sMob ? (
-            <div className="flex items-center justify-between gap-1 group/smob">
+            <div className="flex items-center justify-between gap-1 group/smob" title="Student mobile number">
               <span className="text-slate-900 dark:text-slate-100 font-black whitespace-nowrap">
-                <strong className="text-indigo-700 dark:text-indigo-400 mr-1 font-black">S:</strong>{sMob}
+                {sMob}
               </span>
               <button
                 type="button"
@@ -1892,9 +2170,9 @@ const COLUMN_DEFS = [
             </div>
           ) : null}
           {pMob ? (
-            <div className="flex items-center justify-between gap-1 group/pmob">
+            <div className={`flex items-center justify-between gap-1 group/pmob ${sMob ? 'border-t border-slate-200/70 pt-1 dark:border-slate-700/70' : ''}`} title="Parent mobile number">
               <span className="text-amber-900 dark:text-amber-300 font-black whitespace-nowrap">
-                <strong className="text-amber-700 dark:text-amber-400 mr-1 font-black">P:</strong>{pMob}
+                {pMob}
               </span>
               <button
                 type="button"
@@ -1921,12 +2199,69 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'aadhar', label: 'Aadhaar', className: 'font-mono whitespace-normal break-all' },
+  {
+    key: 'aadhar',
+    label: 'Aadhaar / PEN',
+    isComposite: true,
+    className: 'font-mono whitespace-normal break-all',
+    render: (aadhar, student) => {
+      const aadhaarValue = aadhar || '—';
+      const penValue = student?.penNo || '—';
+      const stId = student?.id || student?.sno || 'st';
+      const copyValue = (event, id, value) => {
+        event.stopPropagation();
+        if (!value || value === '—') return;
+        if (student?._handleCopyCell) student._handleCopyCell(id, value);
+        else navigator.clipboard?.writeText(value);
+      };
+
+      return (
+        <div className="group/identifiers grid min-w-0 gap-1 py-0.5 leading-tight">
+          <div className="flex min-w-0 items-center justify-between gap-1" title="Aadhaar number">
+            <span className="min-w-0 break-all font-bold text-slate-700 dark:text-slate-200">{aadhaarValue}</span>
+            {aadhaarValue !== '—' && <button
+              type="button"
+              onClick={(event) => copyValue(event, `${stId}_aadhaar`, aadhaarValue)}
+              className="flex-shrink-0 rounded p-0.5 text-teal-700 opacity-0 transition-opacity hover:bg-teal-100 focus:opacity-100 group-hover/identifiers:opacity-100 dark:text-teal-300 dark:hover:bg-teal-950/60"
+              title="Copy Aadhaar number"
+              aria-label="Copy Aadhaar number"
+            >
+              {student?._copiedCellId === `${stId}_aadhaar` ? <Check size={11} /> : <Copy size={11} />}
+            </button>}
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-1 border-t border-slate-200/70 pt-1 dark:border-slate-700/70" title="PEN number">
+            <span className="min-w-0 break-all font-bold text-slate-700 dark:text-slate-200">{penValue}</span>
+            {penValue !== '—' && <button
+              type="button"
+              onClick={(event) => copyValue(event, `${stId}_pen`, penValue)}
+              className="flex-shrink-0 rounded p-0.5 text-teal-700 opacity-0 transition-opacity hover:bg-teal-100 focus:opacity-100 group-hover/identifiers:opacity-100 dark:text-teal-300 dark:hover:bg-teal-950/60"
+              title="Copy PEN number"
+              aria-label="Copy PEN number"
+            >
+              {student?._copiedCellId === `${stId}_pen` ? <Check size={11} /> : <Copy size={11} />}
+            </button>}
+          </div>
+        </div>
+      );
+    }
+  },
+  {
+    key: 'fatherAadhar',
+    label: "Father's Aadhaar",
+    className: 'font-mono whitespace-normal break-all'
+  },
   { key: 'bankAccount', label: 'Bank Account Number', className: 'font-mono whitespace-normal break-all' },
   { key: 'bankName', label: 'Bank Name' },
-  { key: 'ifsc', label: 'IFSC Code', className: 'font-mono whitespace-normal break-all' },
-
-  { key: 'onlineSubmDate', label: 'Online Subm. Date' },
+  {
+    key: 'onlineSubmDate',
+    label: 'Online Subm. Date',
+    className: 'font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap text-xs',
+    render: (val, student) => {
+      const formatted = formatOnlineSubmDate(val || student?.submittedAt || student?.createdAt || student?.updatedAt);
+      if (!formatted || formatted === '—') return <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>;
+      return <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{formatted}</span>;
+    }
+  },
   { key: 'admDate', label: 'Adm. Date' },
   { key: 'boardName', label: 'Board Name' },
   {
@@ -1973,7 +2308,6 @@ const COLUMN_DEFS = [
   { key: 'houseNo', label: 'House No.' },
   { key: 'vocationalPercentage', label: 'Vocational %age' },
   { key: 'prevComplexHead', label: 'Previous Complex Head' },
-  { key: 'penNo', label: 'PEN No.', className: 'font-mono whitespace-normal break-all' },
   { key: 'prevSchool', label: 'Previous School' },
   { key: 'prevCcDc', label: 'CC/DC No. & Date (Prev. insitution)' },
   { key: 'prevExamMode', label: 'Exam Mode (Prev.)' },
@@ -2015,14 +2349,16 @@ const DEFAULT_1_WIDTHS = {
   boardRegNo: 80,
   photoId: 66,
   studentName: 135,
-  fatherName: 125,
-  motherName: 125,
+  fatherName: 165,
+  aadhar: 140,
+  fatherAadhar: 140,
   dob: 78,
   village: 90,
   gender: 60,
   category: 68,
   stream: 72,
   subs: 80,
+  mobile: 100,
   pinCode: 70,
   state: 80,
   residence: 130,
@@ -2046,7 +2382,6 @@ const DEFAULT_1_WIDTHS = {
   houseNo: 80,
   vocationalPercentage: 90,
   prevComplexHead: 110,
-  penNo: 90,
   prevSchool: 130,
   prevCcDc: 120,
   prevExamMode: 90,
@@ -2094,6 +2429,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
     'Mobile No.': student?.mobile || student?.['Mobile No. (with working WhatsApp)'] || student?.["Student's Contact"] || '',
     "Parent's Contact": student?.parentContact || student?.["Parent's Contact"] || '',
     'Aadhar No.': student?.aadhar || student?.['Aadhar No.'] || '',
+    "Father's Aadhar No.": student?.fatherAadhar || student?.["Father's Aadhar No."] || student?.["Father's Aadhaar No."] || '',
 
     'Subjects1': student?.subjects1 || student?.['Subjects1'] || '',
     'Subjects2': student?.subjects2 || student?.['Subjects2'] || '',
@@ -2109,9 +2445,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
     'APAAR ID': student?.apaarId || student?.['APAAR ID'] || '',
     'Previous School': student?.prevSchool || student?.['Previous School'] || '',
     'Remarks': student?.remarks || student?.['Remarks'] || '',
-    'Student Photo': student?.photoId || student?.photo_id || student?.['Student Photo'] || '',
-    'photoId': student?.photoId || student?.photo_id || student?.['Student Photo'] || '',
-    'photo_id': student?.photoId || student?.photo_id || student?.['Student Photo'] || '',
+    'photo_id': student?.photo_id || student?.photoId || student?.['Student Photo'] || '',
   }));
 
   const handleChange = (key, val) => {
@@ -2341,6 +2675,15 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                   type="text"
                   value={formData['Aadhar No.']}
                   onChange={(e) => handleChange('Aadhar No.', e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Father's Aadhaar Number</label>
+                <input
+                  type="text"
+                  value={formData["Father's Aadhar No."]}
+                  onChange={(e) => handleChange("Father's Aadhar No.", e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
                 />
               </div>
@@ -2601,7 +2944,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
   );
 }
 
-export default function AdvancedReports({ setActiveTab, viewScope = 'active', setViewScope, setCounts, user, onLogout, onSync, stats, initialData = [] }) {
+export default function AdvancedReports({ setActiveTab, viewScope = 'active', setViewScope, setCounts, user, onLogout, onSync, stats, initialData = [], onRecordDeleted }) {
   // Clear legacy cache keys on initial render to prevent stale dataset from sticking in sessionStorage
   useEffect(() => {
     try {
@@ -2634,6 +2977,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [masterRecords, setMasterRecords] = useState(syncCachedMaster);
   const [currentAdmissions, setCurrentAdmissions] = useState(syncCachedAdmissions);
   const [showMasterFetchConfirm, setShowMasterFetchConfirm] = useState(false);
+  const [masterFetchClasses, setMasterFetchClasses] = useState([]);
+  const [masterFetchSessions, setMasterFetchSessions] = useState([]);
   const [isFetchingMaster, setIsFetchingMaster] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
@@ -2641,6 +2986,69 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [toast, setToast] = useState(null);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [deletingStudentTarget, setDeletingStudentTarget] = useState(null);
+  const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
+  const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
+  const recycleBinCount = unreadRecycleBinCount;
+  const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
+
+  // Compute active user permissions signature
+  const currentPermsSig = useMemo(() => {
+    const role = String(user?.role || '').toLowerCase().trim();
+    const perms = Array.isArray(user?.perms) ? [...user.perms].sort().join(',') : '*';
+    return `${role}::${perms}`;
+  }, [user]);
+
+  // Check if tools permissions were updated by SuperAdmin
+  useEffect(() => {
+    try {
+      const savedSig = localStorage.getItem('hss_seen_tools_perms_v1');
+      if (savedSig && savedSig !== currentPermsSig) {
+        setHasUnseenToolsUpdate(true);
+      } else if (!savedSig) {
+        localStorage.setItem('hss_seen_tools_perms_v1', currentPermsSig);
+      }
+    } catch (_) {}
+  }, [currentPermsSig]);
+
+  const handleMarkToolsSeen = useCallback(() => {
+    try {
+      localStorage.setItem('hss_seen_tools_perms_v1', currentPermsSig);
+      setHasUnseenToolsUpdate(false);
+    } catch (_) {}
+  }, [currentPermsSig]);
+
+  const handleMarkRecycleBinSeen = useCallback(() => {
+    try {
+      localStorage.setItem('hss_seen_recycle_bin_time_v1', String(Date.now()));
+      setUnreadRecycleBinCount(0);
+    } catch (_) {}
+  }, []);
+
+  const refreshRecycleBinCount = useCallback(async () => {
+    try {
+      const items = await getRecycleBinItems();
+      if (!items || items.length === 0) {
+        setUnreadRecycleBinCount(0);
+        return;
+      }
+      const savedTime = parseInt(localStorage.getItem('hss_seen_recycle_bin_time_v1') || '0', 10);
+      if (!savedTime) {
+        setUnreadRecycleBinCount(items.length);
+      } else {
+        const unread = items.filter(it => new Date(it.deletedAt || 0).getTime() > savedTime);
+        setUnreadRecycleBinCount(unread.length);
+      }
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (showRecycleBinModal) {
+      handleMarkRecycleBinSeen();
+    } else {
+      refreshRecycleBinCount();
+    }
+  }, [refreshRecycleBinCount, handleMarkRecycleBinSeen, showRecycleBinModal, deletingStudentTarget]);
   const [printSections, setPrintSections] = useState({
     includeAdmissionForm: true,
     includeLibraryForm: true,
@@ -2656,8 +3064,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const fNo = updatedFields['Form Number'] || updatedFields['Form No.'] || updatedFields.formNo;
       const cleanFNo = fNo ? String(fNo).replace(/^'/, '').trim() : '';
 
-      const docId = cleanFNo ? cleanFNo : (editingStudent.id ? editingStudent.id.replace(/^(active_|hist_)/, '') : `doc_${Date.now()}`);
-      const sanitizedDocId = docId.replace(/\//g, '_').toLowerCase();
+      // Use actual Firestore document ID (student.id) as primary key — prevents creating new docs
+      // when Form Number is missing or contains dashes
+      const rawDocId = editingStudent.id || editingStudent.docId || editingStudent._docId || cleanFNo || `doc_${Date.now()}`;
+      const docId = String(rawDocId).replace(/^(active_|hist_|adm_)/, '').trim();
+      const sanitizedDocId = docId.replace(/[/\s]/g, '_').toLowerCase();
 
       const payload = {
         ...updatedFields,
@@ -2665,7 +3076,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         lastEditedBy: `Admin (${user?.email || 'System'})`
       };
 
-      if (editingStudent._isCurrentScope || cleanFNo) {
+      // Active admissions always go to 'admissions' collection.
+      // masterRegisters is read-only historical archive — updated only during session close.
+      const isAdmissionsRecord = editingStudent._isCurrentScope !== false && editingStudent._source !== 'masterRegisters';
+      if (isAdmissionsRecord) {
         try {
           await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true });
         } catch (err) {
@@ -2763,16 +3177,26 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [enableQuickCellEdit, setEnableQuickCellEdit] = useState(false);
   const [quickEditCell, setQuickEditCell] = useState(null);
   const [isSavingQuickEdit, setIsSavingQuickEdit] = useState(false);
+  const [quickEditProgress, setQuickEditProgress] = useState(0);
+  const [quickEditStage, setQuickEditStage] = useState('');
+  const [quickEditReasonCategory, setQuickEditReasonCategory] = useState('Routine Data Update & Correction');
+  const [quickEditCustomReason, setQuickEditCustomReason] = useState('');
+  const [showQuickEditReason, setShowQuickEditReason] = useState(false);
 
   const executeSaveQuickCellEdit = async (student, colKey, newValue, reasonCategory = 'Routine Correction', customReason = '') => {
     try {
       setIsSavingQuickEdit(true);
+      setQuickEditProgress(15);
+      setQuickEditStage('Validating & Preparing field updates...');
+      await new Promise(r => setTimeout(r, 100));
 
       const fNo = student['Form Number'] || student['Form No.'] || student.formNo;
       const cleanFNo = fNo ? String(fNo).replace(/^'/, '').trim() : '';
 
-      const docId = cleanFNo ? cleanFNo : (student.id ? student.id.replace(/^(active_|hist_)/, '') : `doc_${Date.now()}`);
-      const sanitizedDocId = docId.replace(/\//g, '_').toLowerCase();
+      // Use actual Firestore document ID as primary key to prevent creating duplicate docs
+      const rawDocId = student.id || student.docId || student._docId || cleanFNo || `doc_${Date.now()}`;
+      const docId = String(rawDocId).replace(/^(active_|hist_|adm_)/, '').trim();
+      const sanitizedDocId = docId.replace(/[/\s]/g, '_').toLowerCase();
 
       const keyMap = {
         formNo: 'Form Number',
@@ -2822,17 +3246,28 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         lastEditedBy: `Admin (${user?.email || 'Quick Cell'})`
       };
 
-      if (student._isCurrentScope || cleanFNo) {
+      setQuickEditProgress(50);
+      setQuickEditStage('Syncing live record to Cloud Firestore database...');
+
+      const isAdmissionsRecord = student._isCurrentScope || student._source === 'admissions' || (student._source !== 'masterRegisters' && student._isCurrentScope === true);
+      if (isAdmissionsRecord) {
         try {
           await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true });
-        } catch (e) { }
+        } catch (err) {
+          console.warn('Firestore quick edit sync warning (admissions):', err);
+        }
         updateCachedItem('admissions', docId, payload);
       } else {
         try {
           await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true });
-        } catch (e) { }
+        } catch (err) {
+          console.warn('Firestore quick edit sync warning (masterRegisters):', err);
+        }
         updateCachedItem('masterRegisters', docId, payload);
       }
+
+      setQuickEditProgress(75);
+      setQuickEditStage('Updating local registers cache & table view...');
 
       if (student._isCurrentScope) {
         setCurrentAdmissions(prev => prev.map(st => {
@@ -2850,6 +3285,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         }));
       }
 
+      setQuickEditProgress(90);
+      setQuickEditStage('Logging administrative activity audit trail...');
+
       // Log activity
       try {
         logAdminActivity(
@@ -2858,6 +3296,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           `Changed "${targetFieldName}" to "${newValue}" for ${student.studentName || 'Student'} (Form #${cleanFNo || '—'}) [Reason: ${reasonCategory} - ${customReason}]`
         );
       } catch (_) {}
+
+      setQuickEditProgress(100);
+      setQuickEditStage('✅ Successfully Synced System-Wide!');
+      await new Promise(r => setTimeout(r, 450));
 
       setQuickEditCell(null);
       setConfirmModalConfig(null);
@@ -2872,6 +3314,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       setTimeout(() => setToast(null), 3000);
     } finally {
       setIsSavingQuickEdit(false);
+      setQuickEditProgress(0);
+      setQuickEditStage('');
     }
   };
 
@@ -2886,40 +3330,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       return;
     }
 
-    const keyMap = {
-      formNo: 'Form Number',
-      classRollNo: 'Class Roll No',
-      admNo: 'Adm. No.',
-      boardRegNo: 'Board Registration Number',
-      studentName: "Student's Name",
-      fatherName: "Father's Name",
-      motherName: "Mother's Name",
-      dob: 'Date of Birth',
-      gender: 'Gender',
-      category: 'Category',
-      village: 'Village/Town',
-      mobile: 'Mobile No.',
-      aadhar: 'Aadhar No.',
-      status: 'Status',
-      remarks: 'Remarks'
-    };
-
-    const fieldLabel = keyMap[colKey] || colKey;
-    const stName = student.studentName || student["Student's Name"] || 'Student';
-    const fNo = student.formNo || student['Form Number'] || '—';
-
-    setConfirmModalConfig({
-      isOpen: true,
-      type: 'warning',
-      title: `Confirm Quick Edit: ${fieldLabel}`,
-      message: `Are you sure you want to change "${fieldLabel}" for ${stName} (Form #${fNo})?`,
-      consequence: `Current Value: "${cleanOld || '—'}" ➔ New Value: "${cleanNew}"\nThis modification will immediately update official database records.`,
-      confirmText: 'Save & Sync',
-      showReasonInput: true,
-      onConfirm: ({ reasonCategory, customReason }) => {
-        executeSaveQuickCellEdit(student, colKey, cleanNew, reasonCategory, customReason);
-      }
-    });
+    executeSaveQuickCellEdit(student, colKey, cleanNew, quickEditReasonCategory, quickEditCustomReason);
   };
 
   // Copy Cell / Row State & Handlers
@@ -2972,9 +3383,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]);
-  // Default sort: Ascending order
+  // Default sort: Most Recent First (Descending order)
   const [sortBy, setSortBy] = useState('onlineSubmDate');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Layout & Density States (with LocalStorage Persistence)
   const [density, setDensity] = useState(() => {
@@ -2998,15 +3409,15 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     photoId: true,
     studentName: true,
     fatherName: true,
-    motherName: false,
     dob: true,
     village: true,
-    gender: true,
-    stream: true,
+    gender: false,
+    stream: false,
     subs: true,
     mobile: true,
     category: false,
-    aadhar: false,
+    aadhar: true,
+    fatherAadhar: false,
     bankAccount: false,
     bankName: false,
     ifsc: false,
@@ -3249,45 +3660,54 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleRecordDeleted = (student) => {
+    if (!student) return;
+    const formNo = String(student?.formNo || student?.['Form No.'] || student?.['Form Number'] || student?.id || '').replace(/^(N\/A|—)$/i, '').trim();
+    const rawId = String(student?.docId || student?._docId || student?.id || formNo).replace(/^(N\/A|—)$/i, '').trim();
+    const normForm = formNo ? formNo.replace(/[\/\s]/g, '_').toLowerCase() : '';
+    const normId = rawId ? rawId.replace(/[\/\s]/g, '_').toLowerCase() : '';
+    const studentName = String(student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || '').trim().toLowerCase();
+
+    const isMatch = (s) => {
+      if (!s) return false;
+      if (student.id && (s.id === student.id || s.docId === student.id)) return true;
+      if (student.docId && (s.id === student.docId || s.docId === student.docId)) return true;
+      const sf = String(s.formNo || s['Form No.'] || s['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim();
+      const snForm = sf ? sf.replace(/[\/\s]/g, '_').toLowerCase() : '';
+      if (normForm && snForm && snForm === normForm) return true;
+      const sId = String(s.id || s.docId || s._docId || '').trim().replace(/[\/\s]/g, '_').toLowerCase();
+      if (normId && sId && sId === normId) return true;
+
+      const sReg = extractRegNoClean(s);
+      const targetReg = extractRegNoClean(student);
+      if (sReg && targetReg && sReg === targetReg) return true;
+
+      const sName = getStudentName(s);
+      const targetName = getStudentName(student);
+      if (sName && targetName && areNamesCompatible(sName, targetName)) {
+        if (!sf || sf === '—' || !formNo || formNo === '—' || sf === normForm) return true;
+      }
+      return false;
+    };
+
+    // 1. Immediately remove from React state (0ms instant UI update)
+    setCurrentAdmissions(prev => prev.filter(s => !isMatch(s)));
+    setMasterRecords(prev => prev.filter(s => !isMatch(s)));
+
+    // 2. Remove from global window memory cache
+    if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
+      window._hssMasterRegistersCache = window._hssMasterRegistersCache.filter(s => !isMatch(s));
+    }
+
+    // 3. Notify parent dashboard to update counts & applications list
+    if (onRecordDeleted && typeof onRecordDeleted === 'function') {
+      onRecordDeleted(student);
+    }
+  };
+
   const handleDeleteStudent = (student) => {
     if (!student) return;
-    const docId = String(student.id || student.formNo || student['Form Number']).replace(/^(active_|hist_)/, '');
-    const nameDisplay = student.studentName || student["Student's Name (as per school records)"] || 'Student Record';
-
-    setConfirmModalConfig({
-      isOpen: true,
-      type: 'danger',
-      title: 'Permanent Application Deletion',
-      message: `Are you sure you want to permanently delete the application record for "${nameDisplay}"?`,
-      consequence: 'This action will permanently remove the student entry from all master database registers and local tables. This operation cannot be undone.',
-      confirmText: '🔥 Confirm & Delete Application',
-      cancelText: 'Cancel',
-      onConfirm: async ({ reasonCategory, customReason } = {}) => {
-        try {
-          await deleteDoc(doc(db, 'admissions', docId));
-          try { await deleteDoc(doc(db, 'masterRegisters', docId)); } catch (e) { }
-
-          await logAdminActivity({
-            actionType: 'delete',
-            actionTitle: 'Deleted Student Application',
-            details: `Permanently deleted application record for "${nameDisplay}" (ID: ${docId})`,
-            reasonCategory,
-            customReason,
-            metadata: { docId, studentName: nameDisplay }
-          });
-
-          setCurrentAdmissions(prev => prev.filter(s => String(s.id || s.formNo).replace(/^(active_|hist_)/, '') !== docId));
-          setMasterRecords(prev => prev.filter(s => String(s.id || s.formNo).replace(/^(active_|hist_)/, '') !== docId));
-          setToast({ message: `🗑️ Deleted application record for "${nameDisplay}"`, type: 'error' });
-          setTimeout(() => setToast(null), 3000);
-        } catch (err) {
-          console.error('Delete student error:', err);
-          setToast({ message: `❌ Delete failed: ${err.message}`, type: 'error' });
-        } finally {
-          setConfirmModalConfig(null);
-        }
-      }
-    });
+    setDeletingStudentTarget(student);
   };
 
   const handleClearCellField = (student, col) => {
@@ -3344,8 +3764,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
           if (student._isCurrentScope || cleanFNo) {
             try { await setDoc(doc(db, 'admissions', sanitizedDocId), payload, { merge: true }); } catch (e) { }
+            updateCachedItem('admissions', docId, payload);
+          } else {
+            try { await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true }); } catch (e) { }
+            updateCachedItem('masterRegisters', docId, payload);
           }
-          try { await setDoc(doc(db, 'masterRegisters', sanitizedDocId), payload, { merge: true }); } catch (e) { }
 
           await logAdminActivity({
             actionType: 'cell_clear',
@@ -3401,17 +3824,33 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     setFetchProgress(20);
     let hasCache = false;
 
-    // ── ADMISSIONS: NEVER re-fetch from Firestore here! ──
-    // AdminDashboard already fetches admissions via dbCache and passes them as `initialData`.
-    // We ONLY use: (1) current state, (2) initialData prop, (3) dbCache sync fallback, (4) legacy cache fallback.
-    // On forceRefresh, re-read from dbCache to pick up any writes done via updateCachedItem().
+    // ── ADMISSIONS: On forceRefresh (e.g. after deletion), fetch from Firebase directly ──
+    // Otherwise use cached data to avoid unnecessary Firestore reads.
     let activeList;
     if (forceRefresh) {
-      activeList = getCachedCollectionSync('admissions') || currentAdmissions || initialData;
+      try {
+        // Force fresh Firestore fetch — bypasses stale cache that may still include deleted records
+        const freshFromFirestore = await getCachedCollection('admissions', true);
+        activeList = Array.isArray(freshFromFirestore) && freshFromFirestore.length > 0
+          ? freshFromFirestore
+          : (getCachedCollectionSync('admissions') || currentAdmissions || initialData);
+      } catch (_) {
+        activeList = getCachedCollectionSync('admissions') || currentAdmissions || initialData;
+      }
     } else {
       activeList = currentAdmissions.length > 0
         ? currentAdmissions
         : (initialData.length > 0 ? initialData : (getCachedCollectionSync('admissions') || []));
+    }
+
+    // Filter out any residual soft-deleted records or items residing in Recycle Bin
+    let recycleBinItems = [];
+    try {
+      recycleBinItems = await getRecycleBinItems();
+    } catch (_) {}
+
+    if (Array.isArray(activeList)) {
+      activeList = filterActiveAgainstRecycleBin(activeList, recycleBinItems);
     }
 
     // Fallback on fresh cold login: Fetch active admissions from dbCache
@@ -3419,7 +3858,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       try {
         const freshActive = await getCachedCollection('admissions');
         if (Array.isArray(freshActive) && freshActive.length > 0) {
-          activeList = freshActive;
+          activeList = freshActive.filter(s => !s || (s.Status !== 'Deleted' && s.status !== 'Deleted' && s._deleted !== true));
         }
       } catch (e) {
         console.warn('Admissions fetch note:', e);
@@ -3484,19 +3923,30 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           if (!cachedMaster) {
             const c0 = localStorage.getItem(`${MASTER_CACHE_KEY}_c0`) || '';
             const c1 = localStorage.getItem(`${MASTER_CACHE_KEY}_c1`) || '';
-            if (c0 || c1) cachedMaster = c0 + c1;
+            if (c0 && c1) cachedMaster = c0 + c1;
+            else if (c0) cachedMaster = c0;
           }
           if (cachedMaster) {
-            const parsed = JSON.parse(cachedMaster);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              historicalList = parsed;
-              window._hssMasterRegistersCache = parsed;
-              hasCache = true;
-              setFetchProgress(40);
+            try {
+              const parsed = JSON.parse(cachedMaster);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                historicalList = parsed;
+                window._hssMasterRegistersCache = parsed;
+                hasCache = true;
+                setFetchProgress(40);
+              }
+            } catch (jsonErr) {
+              // Wipe malformed/truncated cache keys to prevent repeated SyntaxError
+              try {
+                localStorage.removeItem(MASTER_CACHE_KEY);
+                localStorage.removeItem(`${MASTER_CACHE_KEY}_c0`);
+                localStorage.removeItem(`${MASTER_CACHE_KEY}_c1`);
+                sessionStorage.removeItem(MASTER_CACHE_KEY);
+              } catch (_) {}
             }
           }
         } catch (e) {
-          console.warn('Master registers cache read error:', e);
+          console.warn('Master registers cache read note:', e);
         }
       }
 
@@ -3627,29 +4077,30 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Synchronize admissions from parent whenever initialData arrives or updates
+  // Synchronize admissions from parent whenever initialData arrives or updates (filtered against Recycle Bin)
   useEffect(() => {
     if (Array.isArray(initialData) && initialData.length > 0) {
-      setCurrentAdmissions(initialData);
-      if (setCounts) {
-        const histLen = (masterRecords && masterRecords.length > 0) ? masterRecords.length : syncCachedMaster.length;
-        setCounts(prev => ({
-          ...prev,
-          active: initialData.length,
-          total: initialData.length + histLen
-        }));
-      }
+      getRecycleBinItems().then(recycleBinList => {
+        const filtered = filterActiveAgainstRecycleBin(initialData, recycleBinList);
+        setCurrentAdmissions(filtered);
+        if (setCounts) {
+          const histLen = (masterRecords && masterRecords.length > 0) ? masterRecords.length : syncCachedMaster.length;
+          setCounts(prev => ({
+            ...prev,
+            active: filtered.length,
+            total: filtered.length + histLen
+          }));
+        }
+      }).catch(() => {
+        const filtered = filterActiveAgainstRecycleBin(initialData, []);
+        setCurrentAdmissions(filtered);
+      });
     }
   }, [initialData, masterRecords?.length, syncCachedMaster.length, setCounts]);
 
   // Combined Dataset
   const allStudents = useMemo(() => {
     const combined = [];
-
-    const cleanFormNo = (val) => {
-      if (!val || val === '—') return '—';
-      return String(val).replace(/^'/, '').trim();
-    };
 
     const formatStudentSubjects = (rec) => {
       if (!rec) return '—';
@@ -3819,7 +4270,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         st.photoId ||
         ''
       ).trim();
-      return formatPhotoDisplayUrl(raw);
+      return formatPhotoDisplayUrl(raw, st);
     };
 
     // Helper: detect bogus/dummy reg numbers that students leave as zeros (e.g. 2301000000000000)
@@ -4056,21 +4507,37 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       // Directly-approved forms take priority
       if (hasRoll1 && !hasRoll2) return -1;
       if (!hasRoll1 && hasRoll2) return 1;
-      // Among equals, newest form number first
-      const num1 = parseInt(cleanFormNo(a1['Form Number'] || a1['FormNo'] || a1['formNumber']), 10) || 0;
-      const num2 = parseInt(cleanFormNo(a2['Form Number'] || a2['FormNo'] || a2['formNumber']), 10) || 0;
+
+      const num1 = parseInt(extractStudentFormNo(a1), 10) || 0;
+      const num2 = parseInt(extractStudentFormNo(a2), 10) || 0;
+
+      // If both have assigned form numbers, newest form number first
+      if (num1 > 0 && num2 > 0) {
+        return num2 - num1;
+      }
+
+      // If one or both are unnumbered drafts, prioritize active drafts and order by newest activity timestamp
+      const ts1 = getDocTimestamp(a1);
+      const ts2 = getDocTimestamp(a2);
+      if (num1 === 0 && num2 === 0) {
+        return ts2 - ts1;
+      }
+      if (num1 === 0 && num2 > 0) return -1; // Unassigned draft at the top
+      if (num2 === 0 && num1 > 0) return 1;
+
       return num2 - num1;
     });
 
     sortedActive.forEach((a, idx) => {
+      const aStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
+      if (aStatus === 'deleted' || a._deleted === true || aStatus === 'archived') return;
       const regClean = extractRegNoClean(a);
       const nameClean = getStudentName(a).toLowerCase();
       const fnameClean = getFatherName(a).toLowerCase();
       const clsClean = normalizeClassVal(a['Admission sought for class'] || a['Class']);
       const sessClean = normalizeSessionVal(a['Session']);
       const rollNo = extractClassRoll(a);
-      const formNoRaw = a['Form Number'] || a['FormNo'] || a['formNumber'] || '—';
-      const cleanFNo = cleanFormNo(formNoRaw);
+      const cleanFNo = extractStudentFormNo(a);
 
       const masterMatch = resolveMasterMatch(a);
       // Active admission form fields MUST take precedence over historical master records!
@@ -4087,9 +4554,17 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
       if (!finalBoardRegNo) finalBoardRegNo = '—';
 
-      const submFromMaster = masterMatch ? (masterMatch['Online Subm. Date'] || masterMatch['submittedAt']) : '';
-      const submFromActive = a['Online Subm. Date'] || a['submittedAt'];
-      const finalOnlineSubmDate = (submFromMaster && submFromMaster !== '—') ? submFromMaster : (submFromActive || '—');
+      const rawSubmDate = 
+        a['Online Subm. Date'] || 
+        a.onlineSubmDate || 
+        a.submittedAt || 
+        a.submissionDate || 
+        a['Submission Date'] ||
+        a.createdAt || 
+        a.updatedAt || 
+        a.timestamp || 
+        (masterMatch ? (masterMatch['Online Subm. Date'] || masterMatch.onlineSubmDate || masterMatch.submittedAt || masterMatch.createdAt) : null);
+      const finalOnlineSubmDate = formatOnlineSubmDate(rawSubmDate);
 
       // Class and Session MUST strictly come from active form `a` (do not inherit 11th class values from masterMatch!)
       const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
@@ -4123,7 +4598,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       combined.push({
         ...sanitizedRecord,
         _isCurrentScope: true,
-        id: a['Form Number'] ? `active_${a['Form Number']}` : `adm_${idx}`,
+        id: a.id || a.docId || (cleanFNo && cleanFNo !== '—' ? `active_${cleanFNo}` : `adm_${idx}`),
+        docId: a.docId || a._docId || a.id || cleanFNo,
         sno: idx + 1,
         formNo: cleanFNo || '—',
         classRollNo: activeClassRoll,
@@ -4138,7 +4614,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         studentName: masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student',
         fatherName: masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—',
         motherName: masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—',
-        dob: masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || '—',
+        dob: formatDobToDisplay(masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || a['dob'] || '—'),
         village: a['Name of your village'] || a['Village/Town'] || 'Shangus',
         gender: a['Gender'] || '—',
         category: a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General',
@@ -4146,7 +4622,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         stream: a['Stream for Class 11th'] || a['Stream'] || 'General',
         subs: formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec),
         mobile: a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—',
-        aadhar: a['Aadhar No.'] || '—',
+        aadhar: a['Aadhar No.'] || a.aadhar || '—',
+        fatherAadhar: a["Father's Aadhar No."] || a["Father's Aadhaar No."] || a.fatherAadhar || '—',
         bankAccount: a['Bank Account No.'] || a['Bank Account Number'] || '—',
         bankName: a['Name of Bank'] || a['Bank Name'] || '—',
         ifsc: a['IFSC code'] || a['IFSC Code'] || '—',
@@ -4215,7 +4692,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     currentAdmissions.forEach((a) => {
       const cls = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
       const sess = normalizeSessionVal(a['Session'] || '2025-26');
-      const fNo = cleanFormNo(a['Form Number'] || a['FormNo'] || a['formNumber'] || a.formNo);
+      const fNo = extractStudentFormNo(a);
       if (fNo && fNo !== '—') activeFormSet.add(`${cls}_${sess}_${fNo}`.toLowerCase());
 
       const roll = extractClassRoll(a);
@@ -4240,10 +4717,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     // Process historical master registers (skipping rows that duplicate active admissions in the SAME class & session)
     masterRecords.forEach((h, idx) => {
+      const hStatus = String(h['Status'] || h['status'] || '').trim().toLowerCase();
+      if (hStatus === 'deleted' || h._deleted === true || hStatus === 'archived') return;
       const cls = normalizeClassVal(h['Class'] || '11th');
       const sess = normalizeSessionVal(h['Session'] || '2025-26');
-      const formNoRaw = h['Form No.'] || h['Form Number'] || h['FormNo'] || h.formNo || '—';
-      const cleanFNo = cleanFormNo(formNoRaw);
+      const cleanFNo = extractStudentFormNo(h);
 
       if (cleanFNo && cleanFNo !== '—' && activeFormSet.has(`${cls}_${sess}_${cleanFNo}`.toLowerCase())) {
         return; // Skip duplicate record already represented in active admissions for THIS class & session
@@ -4270,7 +4748,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         _isCurrentScope: false,
         id: `hist_${idx}`,
         sno: combined.length + 1,
-        formNo: cleanFormNo(formNoRaw),
+        formNo: extractStudentFormNo(h),
         classRollNo: extractClassRoll(h),
         admNo: resolveAdmNo(h),
         class: h['Class'] || '—',
@@ -4279,7 +4757,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         studentName: h["Student's Name"] || h['Name'] || '—',
         fatherName: h["Father's Name"] || '—',
         motherName: h["Mother's Name"] || '—',
-        dob: h['DoB (figures)'] || h['DoB'] || '—',
+        dob: formatDobToDisplay(h['DoB (figures)'] || h['DoB'] || h['dob'] || '—'),
         village: h['Village/Town'] || h['Residence'] || '—',
         gender: h['Gender'] || '—',
         category: h['Cat._JKBOSE'] || h['Category'] || 'General',
@@ -4287,12 +4765,23 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         stream: h['Stream'] || 'General',
         subs: formatStudentSubjects(h),
         mobile: h["Student's Contact"] || h['Mobile'] || '—',
-        aadhar: h['Aadhar No.'] || '—',
+        aadhar: h['Aadhar No.'] || h.aadhar || '—',
+        fatherAadhar: h["Father's Aadhar No."] || h["Father's Aadhaar No."] || h.fatherAadhar || '—',
         bankAccount: h['Bank Account Number'] || '—',
         bankName: h['Bank Name'] || '—',
         ifsc: h['IFSC Code'] || '—',
 
-        onlineSubmDate: h['Online Subm. Date'] || '—',
+        onlineSubmDate: formatOnlineSubmDate(
+          h['Online Subm. Date'] || 
+          h.onlineSubmDate || 
+          h.submittedAt || 
+          h.submissionDate || 
+          h.createdAt || 
+          h.updatedAt || 
+          h['Adm. Date'] || 
+          h.admDate || 
+          '—'
+        ),
         admDate: h['Adm. Date'] || '—',
         boardName: h['Board Name'] || '—',
         dobWords: (h['DoB (words)'] && h['DoB (words)'] !== '—' && String(h['DoB (words)']).trim().length > 3)
@@ -4401,6 +4890,106 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     return Array.from(set).sort();
   }, [allStudents]);
 
+  // Dynamic Options for Modal Class & Session Multi-Select Filters
+  const modalAvailableClasses = useMemo(() => {
+    const set = new Set();
+    availableClasses.forEach(c => { if (c && c !== '—') set.add(c); });
+    ['11th', '12th', '10th', '9th'].forEach(c => set.add(c));
+    return Array.from(set).sort((a, b) => {
+      const numA = parseInt(a, 10) || 0;
+      const numB = parseInt(b, 10) || 0;
+      return numB - numA; // 12th, 11th, 10th, 9th
+    });
+  }, [availableClasses]);
+
+  const modalAvailableSessions = useMemo(() => {
+    const set = new Set();
+    availableSessions.forEach(s => { if (s && s !== '—') set.add(s); });
+    [
+      '2026 APR/BIAN',
+      '2025 APR/BIAN',
+      '2025-26',
+      '2024-25 (Oct-Nov)',
+      '2024-25 (Mar-Apr)',
+      '2024-25',
+      '2023-24',
+      '2022-23',
+      '2021-22',
+      '2020-21',
+      '2019-20',
+      '2018-19',
+      '2017-18',
+      '2016-17',
+      '2015-16',
+      '2014-15',
+      '2013-14',
+      '2012-13',
+      '2011-12',
+      '2010-11',
+      '2009-10',
+      '2008-09',
+      '2007-08',
+      '2006-07'
+    ].forEach(s => set.add(s));
+    const list = Array.from(set);
+    list.sort((a, b) => {
+      const aIsBian = /bian|bi-annual|apr/i.test(a);
+      const bIsBian = /bian|bi-annual|apr/i.test(b);
+      if (aIsBian && !bIsBian) return 1;
+      if (!aIsBian && bIsBian) return -1;
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
+    return list;
+  }, [availableSessions]);
+
+  const selectedModalClasses = useMemo(() => {
+    if (masterFetchClasses.length === 0) return modalAvailableClasses;
+    if (masterFetchClasses.includes('__NONE__')) return [];
+    return masterFetchClasses;
+  }, [masterFetchClasses, modalAvailableClasses]);
+
+  const selectedModalSessions = useMemo(() => {
+    if (masterFetchSessions.length === 0) return modalAvailableSessions.slice(0, 6);
+    if (masterFetchSessions.includes('__NONE__')) return [];
+    return masterFetchSessions;
+  }, [masterFetchSessions, modalAvailableSessions]);
+
+  const isAllClassesModalSelected = selectedModalClasses.length === modalAvailableClasses.length;
+  const isAllSessionsModalSelected = selectedModalSessions.length === modalAvailableSessions.length;
+  const isNoClassesModalSelected = selectedModalClasses.length === 0;
+  const isNoSessionsModalSelected = selectedModalSessions.length === 0;
+
+  const handleSelectAllModalClasses = () => setMasterFetchClasses([]);
+  const handleDeselectAllModalClasses = () => setMasterFetchClasses(['__NONE__']);
+
+  const handleToggleModalClass = (cls) => {
+    if (isAllClassesModalSelected) {
+      setMasterFetchClasses(modalAvailableClasses.filter(c => c !== cls));
+    } else if (isNoClassesModalSelected) {
+      setMasterFetchClasses([cls]);
+    } else if (selectedModalClasses.includes(cls)) {
+      const next = selectedModalClasses.filter(c => c !== cls);
+      setMasterFetchClasses(next.length === 0 ? ['__NONE__'] : next);
+    } else {
+      const next = [...selectedModalClasses, cls];
+      setMasterFetchClasses(next.length === modalAvailableClasses.length ? [] : next);
+    }
+  };
+
+  const handleSelectAllModalSessions = () => setMasterFetchSessions(modalAvailableSessions);
+  const handleDeselectAllModalSessions = () => setMasterFetchSessions(['__NONE__']);
+
+  const handleToggleModalSession = (sess) => {
+    const current = selectedModalSessions;
+    if (current.includes(sess)) {
+      const next = current.filter(s => s !== sess);
+      setMasterFetchSessions(next.length === 0 ? ['__NONE__'] : next);
+    } else {
+      const next = [...current, sess];
+      setMasterFetchSessions(next.length === modalAvailableSessions.length ? modalAvailableSessions : next);
+    }
+  };
+
   // Target dataset depending on viewScope ('all' vs 'active')
   const targetDataset = useMemo(() => {
     if (viewScope === 'active') {
@@ -4409,72 +4998,166 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     return allStudents;
   }, [allStudents, viewScope]);
 
-  // Filtered & Sorted Students
+  // ─── Google-like Intelligent Search & Relevance Engine ───
+  const evaluateGoogleSearch = useCallback((s, query) => {
+    if (!query || !query.trim()) return { matches: true, score: 0 };
+
+    const rawTokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (rawTokens.length === 0) return { matches: true, score: 0 };
+
+    const cleanNum = (str) => String(str || '').replace(/[^0-9]/g, '');
+    const cleanAlpha = (str) => String(str || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+
+    // Extract all searchable fields
+    const studentName = String(s.studentName || s["Student's Name"] || s["Student's Name (as per school records)"] || '').toLowerCase();
+    const fatherName = String(s.fatherName || s["Father's Name"] || s["Father's/Guardian's Name (as per school records)"] || '').toLowerCase();
+    const motherName = String(s.motherName || s["Mother's Name"] || '').toLowerCase();
+    const formNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').toLowerCase();
+    const classRollNo = String(s.classRollNo || s['Class Roll No'] || s['RL. NO.'] || '').toLowerCase();
+    const boardRegNo = String(s.boardRegNo || s['Board Registration Number'] || '').toLowerCase();
+    const admNo = String(s.admNo || s['Adm. No.'] || '').toLowerCase();
+    const cls = String(s.class || s['Class'] || '').toLowerCase();
+    const session = String(s.session || s['Session'] || '').toLowerCase();
+    const stream = String(s.stream || s['Stream'] || s['Stream for Class 11th'] || '').toLowerCase();
+    const subs = String(s.subs || s.subjects1 || '').toLowerCase();
+    const mobile = String(s.mobile || s['Mobile'] || s.parentContact || '').toLowerCase();
+    const village = String(s.village || s['Village/Town'] || s['Residence'] || s['Name of your village'] || '').toLowerCase();
+    const dob = String(s.dob || s['DoB (figures)'] || '').toLowerCase();
+    const penNo = String(s.penNo || s['PEN No.'] || '').toLowerCase();
+    const aadhar = String(s.aadhar || s['Aadhar No.'] || '').toLowerCase();
+    const fatherAadhar = String(s.fatherAadhar || s["Father's Aadhar No."] || s["Father's Aadhaar No."] || '').toLowerCase();
+    const bankAccount = String(s.bankAccount || s['Bank Account Number'] || s['Bank Account No.'] || '').toLowerCase();
+    const bankName = String(s.bankName || s['Name of Bank'] || '').toLowerCase();
+    const ifsc = String(s.ifsc || s['IFSC Code'] || '').toLowerCase();
+    const category = String(s.category || s.socialCategory || s['Social category'] || '').toLowerCase();
+    const prevSchool = String(s.prevSchool || s['Previous School'] || '').toLowerCase();
+    const remarks = String(s.remarks || s['Remarks'] || '').toLowerCase();
+    const status = String(s.status || s['Status'] || '').toLowerCase();
+
+    // Full text searchable blob
+    const fullTextBlob = [
+      studentName, fatherName, motherName, formNo, classRollNo, boardRegNo,
+      admNo, cls, session, stream, subs, mobile, village, dob, penNo,
+      aadhar, fatherAadhar, bankAccount, bankName, ifsc, category, prevSchool, remarks, status
+    ].join(' ');
+
+    const formDigits = cleanNum(formNo);
+    const rollDigits = cleanNum(classRollNo);
+    const regDigits = cleanNum(boardRegNo);
+    const admDigits = cleanNum(admNo);
+    const mobileDigits = cleanNum(mobile);
+    const aadharDigits = cleanNum(aadhar);
+    const fatherAadharDigits = cleanNum(fatherAadhar);
+
+    let score = 0;
+
+    for (const token of rawTokens) {
+      const cleanTok = cleanAlpha(token);
+      const tokDigits = cleanNum(token);
+
+      const inBlob = fullTextBlob.includes(token) || (cleanTok && cleanAlpha(fullTextBlob).includes(cleanTok));
+      const inNum = tokDigits && tokDigits.length >= 2 && (
+        formDigits.includes(tokDigits) ||
+        rollDigits.includes(tokDigits) ||
+        regDigits.includes(tokDigits) ||
+        admDigits.includes(tokDigits) ||
+        mobileDigits.includes(tokDigits) ||
+        aadharDigits.includes(tokDigits) ||
+        fatherAadharDigits.includes(tokDigits)
+      );
+
+      if (!inBlob && !inNum) {
+        return { matches: false, score: 0 };
+      }
+
+      // Relevance score boosting
+      if (formNo === token || formDigits === tokDigits) score += 2000;
+      else if (formNo.includes(token)) score += 800;
+
+      if (boardRegNo === token || regDigits === tokDigits) score += 1500;
+      else if (boardRegNo.includes(token)) score += 600;
+
+      if (classRollNo === token || (rollDigits && rollDigits === tokDigits)) score += 1200;
+      else if (classRollNo.includes(token)) score += 500;
+
+      if (mobileDigits && mobileDigits.includes(tokDigits)) score += 1000;
+
+      if (studentName === token) score += 1000;
+      else if (studentName.startsWith(token)) score += 600;
+      else if (studentName.includes(token)) score += 300;
+
+      if (fatherName === token) score += 500;
+      else if (fatherName.includes(token)) score += 200;
+
+      if (subs.includes(token) || stream.includes(token)) score += 100;
+      if (village.includes(token)) score += 80;
+      if (cls.includes(token)) score += 70;
+    }
+
+    return { matches: true, score };
+  }, []);
+
+  // Filtered & Sorted Students with Google Search Relevance
   const filteredStudents = useMemo(() => {
-    const list = targetDataset.filter(s => {
-      const q = deferredSearchTerm.toLowerCase().trim();
-      const safe = (v) => String(v ?? '').toLowerCase();
-      const matchesSearch = !q ||
-        safe(s.studentName).includes(q) ||
-        safe(s.fatherName).includes(q) ||
-        safe(s.boardRegNo).includes(q) ||
-        safe(s.formNo).includes(q) ||
-        safe(s.classRollNo).includes(q) ||
-        safe(s.mobile).includes(q) ||
-        safe(s.admNo).includes(q) ||
-        safe(s.aadhar).includes(q);
+    const activeQuery = deferredSearchTerm.trim();
 
-      // Strict exact string matching for Sessions, Streams, Gender, Categories
-      const matchesExact = (sel, val) => {
-        if (!sel || sel.length === 0) return true;
-        if (sel.includes('__NONE__')) return false;
-        const strVal = String(val ?? '').trim().toLowerCase();
-        return sel.some(item => String(item ?? '').trim().toLowerCase() === strVal);
-      };
+    // Strict exact string matching for Sessions, Streams, Gender, Categories
+    const matchesExact = (sel, val) => {
+      if (!sel || sel.length === 0) return true;
+      if (sel.includes('__NONE__')) return false;
+      const strVal = String(val ?? '').trim().toLowerCase();
+      return sel.some(item => String(item ?? '').trim().toLowerCase() === strVal);
+    };
 
-      // Class matching allowing '11th' vs 'Class 11th'
-      const matchesClass = (sel, val) => {
-        if (!sel || sel.length === 0) return true;
-        if (sel.includes('__NONE__')) return false;
-        const strVal = String(val ?? '').trim().toLowerCase();
-        const cleanVal = strVal.replace(/class/gi, '').trim();
+    // Class matching allowing '11th' vs 'Class 11th'
+    const matchesClass = (sel, val) => {
+      if (!sel || sel.length === 0) return true;
+      if (sel.includes('__NONE__')) return false;
+      const strVal = String(val ?? '').trim().toLowerCase();
+      const cleanVal = strVal.replace(/class/gi, '').trim();
 
-        return sel.some(item => {
-          const strItem = String(item ?? '').trim().toLowerCase();
-          const cleanItem = strItem.replace(/class/gi, '').trim();
-          if (cleanItem === cleanVal) return true;
-          const d1 = cleanItem.match(/\d+/)?.[0];
-          const d2 = cleanVal.match(/\d+/)?.[0];
-          return !!(d1 && d2 && d1 === d2);
-        });
-      };
+      return sel.some(item => {
+        const strItem = String(item ?? '').trim().toLowerCase();
+        const cleanItem = strItem.replace(/class/gi, '').trim();
+        if (cleanItem === cleanVal) return true;
+        const d1 = cleanItem.match(/\d+/)?.[0];
+        const d2 = cleanVal.match(/\d+/)?.[0];
+        return !!(d1 && d2 && d1 === d2);
+      });
+    };
 
-      const matchesStatus = (sel, s) => {
-        if (!sel || sel.length === 0) return true;
-        if (sel.includes('__NONE__')) return false;
+    const matchesStatus = (sel, s) => {
+      if (!sel || sel.length === 0) return true;
+      if (sel.includes('__NONE__')) return false;
 
-        const roll = String(s.classRollNo || s['Class Roll No'] || s.rollNo || '').trim();
-        const hasRollNo = roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
-        const rawStat = String(s.status || s.Status || '').trim().toLowerCase();
+      const roll = String(s.classRollNo || s['Class Roll No'] || s.rollNo || '').trim();
+      const hasRollNo = roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
+      const rawStat = String(s.status || s.Status || '').trim().toLowerCase();
 
-        let effStatus = 'Submitted';
-        if (hasRollNo) {
-          effStatus = 'Approved';
-        } else if (rawStat.includes('reject') || rawStat.includes('rejt')) {
-          effStatus = 'Rejected';
-        } else if (rawStat.includes('draft')) {
-          effStatus = 'Draft';
-        }
+      let effStatus = 'Submitted';
+      if (hasRollNo) {
+        effStatus = 'Approved';
+      } else if (rawStat.includes('reject') || rawStat.includes('rejt')) {
+        effStatus = 'Rejected';
+      } else if (rawStat.includes('draft')) {
+        effStatus = 'Draft';
+      }
 
-        return sel.some(item => {
-          const strItem = String(item ?? '').trim().toLowerCase();
-          if (strItem === 'approved') return effStatus === 'Approved';
-          if (strItem === 'submitted') return effStatus === 'Submitted';
-          if (strItem === 'draft') return effStatus === 'Draft';
-          if (strItem === 'rejected') return effStatus === 'Rejected';
-          return strItem === effStatus.toLowerCase();
-        });
-      };
+      return sel.some(item => {
+        const strItem = String(item ?? '').trim().toLowerCase();
+        if (strItem === 'approved') return effStatus === 'Approved';
+        if (strItem === 'submitted') return effStatus === 'Submitted';
+        if (strItem === 'draft') return effStatus === 'Draft';
+        if (strItem === 'rejected') return effStatus === 'Rejected';
+        return strItem === effStatus.toLowerCase();
+      });
+    };
+
+    const scoredList = [];
+
+    targetDataset.forEach(s => {
+      const searchRes = evaluateGoogleSearch(s, activeQuery);
+      if (!searchRes.matches) return;
 
       const matchesSessionVal = matchesExact(selectedSessions, s.session);
       const matchesClassVal = matchesClass(selectedClasses, s.class);
@@ -4483,8 +5166,21 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const matchesCategoryVal = matchesExact(selectedCategories, s.category);
       const matchesStatusVal = matchesStatus(selectedStatuses, s);
 
-      return matchesSearch && matchesSessionVal && matchesClassVal && matchesGenderVal && matchesStreamVal && matchesCategoryVal && matchesStatusVal;
+      if (matchesSessionVal && matchesClassVal && matchesGenderVal && matchesStreamVal && matchesCategoryVal && matchesStatusVal) {
+        scoredList.push({
+          student: s,
+          relevanceScore: searchRes.score
+        });
+      }
     });
+
+    // If search query is active, sort by Google Relevance Score descending
+    if (activeQuery !== '') {
+      scoredList.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      return scoredList.map(item => item.student);
+    }
+
+    const list = scoredList.map(item => item.student);
 
     // ─── NUMERICAL & HIERARCHICAL MULTI-FIELD SORTING LOGIC ───
     const parseNum = (val) => {
@@ -4526,6 +5222,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
 
       if (sortBy === 'formNo') {
+        const isBlankA = a.formNo === '—' || a.formNo === '' || a.formNo === 'N/A' || !a.formNo;
+        const isBlankB = b.formNo === '—' || b.formNo === '' || b.formNo === 'N/A' || !b.formNo;
+
+        // When sorting descending (newest first), place active unnumbered drafts at the top
+        if (sortOrder === 'desc') {
+          if (isBlankA && !isBlankB) return -1;
+          if (!isBlankA && isBlankB) return 1;
+          if (isBlankA && isBlankB) {
+            const tsA = getDocTimestamp(a);
+            const tsB = getDocTimestamp(b);
+            return tsB - tsA;
+          }
+        }
+
         const numA = parseNum(a.formNo);
         const numB = parseNum(b.formNo);
         if (numA !== numB) return (numA - numB) * factor;
@@ -4552,16 +5262,32 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
 
       if (sortBy === 'onlineSubmDate') {
-        const parseDateVal = (st) => {
-          const raw = st.onlineSubmDate || st['Online Subm. Date'] || st.createdAt || st.timestamp || st.admDate || st['Adm. Date'] || '';
-          if (!raw || raw === '—') return 0;
-          const parsed = new Date(raw).getTime();
-          return isNaN(parsed) ? 0 : parsed;
-        };
-        const dateA = parseDateVal(a);
-        const dateB = parseDateVal(b);
-        if (dateA !== dateB) return (dateA - dateB) * factor;
-        return (parseNum(b.formNo) - parseNum(a.formNo));
+        const isBlankA = a.formNo === '—' || a.formNo === '' || a.formNo === 'N/A' || !a.formNo;
+        const isBlankB = b.formNo === '—' || b.formNo === '' || b.formNo === 'N/A' || !b.formNo;
+
+        // When sorting descending, keep active unnumbered drafts at the top
+        if (sortOrder === 'desc') {
+          if (isBlankA && !isBlankB) return -1;
+          if (!isBlankA && isBlankB) return 1;
+        }
+
+        const dateA = getDocTimestamp(a);
+        const dateB = getDocTimestamp(b);
+        if (dateA !== 0 && dateB !== 0 && dateA !== dateB) {
+          return (dateA - dateB) * factor;
+        }
+        if (dateA !== 0 && dateB === 0) {
+          return sortOrder === 'desc' ? -1 : 1;
+        }
+        if (dateA === 0 && dateB !== 0) {
+          return sortOrder === 'desc' ? 1 : -1;
+        }
+
+        // Secondary tiebreaker to numerical form number
+        const numA = parseNum(a.formNo);
+        const numB = parseNum(b.formNo);
+        if (numA !== numB) return (numA - numB) * factor;
+        return String(a.formNo || '').localeCompare(String(b.formNo || '')) * factor;
       }
 
       return 0;
@@ -4851,7 +5577,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   // Export Filtered Table to CSV/Excel
   const handleExportCSV = () => {
     if (filteredStudents.length === 0) return;
-    const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (S)', 'Mobile (P)'];
+    const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'Aadhaar No.', "Father's Aadhaar", 'PEN No.', 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (S)', 'Mobile (P)'];
 
     const cleanVal = (val) => {
       if (!val || val === '—' || val === 'N/A' || val === 'undefined' || val === 'null' || val === '-') return '';
@@ -4869,6 +5595,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       `"${cleanVal(s.studentName)}"`,
       `"${cleanVal(s.fatherName)}"`,
       `"${cleanVal(s.motherName)}"`,
+      `"${cleanVal(s.aadhar)}"`,
+      `"${cleanVal(s.fatherAadhar)}"`,
+      `"${cleanVal(s.penNo)}"`,
       `"${cleanVal(s.dob)}"`,
       `"${cleanVal(s.village)}"`,
       `"${cleanVal(s.gender)}"`,
@@ -5018,21 +5747,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           try {
             const docRef = doc(db, 'admissions', String(s.id));
             await updateDoc(docRef, {
-              'Student Photo': compressed,
-              'photo_id': compressed,
-              'photoUrl': compressed
+              photo_id: compressed,
+              'Student Photo': deleteField(),
+              photoUrl: deleteField(),
+              photoId: deleteField(),
+              photo: deleteField()
             });
           } catch (e) {
             console.warn('Firestore update note:', e);
           }
         }
 
-        await appsScriptApi.saveApplication({
-          ...s,
-          'Student Photo': compressed,
-          'photo_id': compressed,
-          'photoUrl': compressed
-        });
+        const canonicalStudent = { ...s, photo_id: compressed };
+        ['Student Photo', 'photoUrl', 'photoId', 'photo'].forEach(key => delete canonicalStudent[key]);
+        await appsScriptApi.saveApplication(canonicalStudent);
 
         successCount++;
       }
@@ -5090,18 +5818,18 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           {/* Left Sub-Group: Search Bar, Desktop Filters Dropdown, and Total Records Counter */}
           <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
             {/* Search Input Bar (Expands aggressively on Mobile & Desktop) */}
-            <div className="relative flex-1 min-w-[100px] sm:min-w-[140px] sm:max-w-[210px]">
-              <Search size={12} className="absolute left-2 top-1.5 text-slate-400 pointer-events-none" />
+            <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search Reg, Name, Roll..."
+                placeholder="Google Search: Name, Form #, Reg #, Roll, Mobile, Class, Village..."
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-6 pr-5 py-0.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs"
+                className="w-full pl-7 pr-6 py-1 sm:py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-1.5 top-1 text-slate-500 hover:text-slate-700 p-0.5">
-                  <X size={10} />
+                <button onClick={() => setSearchTerm('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-0.5 cursor-pointer">
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -5151,10 +5879,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               <button
                 type="button"
                 onClick={() => {
-                  const hasCachedMaster = (masterRecords && masterRecords.length > 0) ||
-                    (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0);
-
-                  if (hasCachedMaster) {
+                  if (masterRecords.length > 0 || window._hssMasterRegistersCache?.length > 0) {
                     if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
                       setMasterRecords(window._hssMasterRegistersCache);
                     }
@@ -5173,6 +5898,18 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 <span className={`text-[9px] sm:text-[10px] font-mono font-bold ${viewScope === 'all' ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`}>
                   ({viewScope === 'all' ? filteredStudents.length : allStudents.length})
                 </span>
+                {masterRecords.length > 0 && viewScope === 'all' && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowMasterFetchConfirm(true);
+                    }}
+                    title="Customize Archive Classes & Sessions Filter"
+                    className="p-0.5 ml-0.5 hover:bg-amber-800 rounded text-amber-200 hover:text-white"
+                  >
+                    <Sliders size={10} />
+                  </span>
+                )}
               </button>
 
               <button
@@ -5206,11 +5943,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
               <button
                 type="button"
-                onClick={() => setIsToolsOpen(!isToolsOpen)}
+                onClick={() => {
+                  const nextState = !isToolsOpen;
+                  setIsToolsOpen(nextState);
+                  if (nextState) handleMarkToolsSeen();
+                }}
                 title="Administrative Tools Suite"
-                className="p-1.5 rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
+                className="relative p-1.5 rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
               >
                 <Wrench size={14} />
+                {hasUnseenToolsUpdate && (
+                  <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono shadow-sm animate-pulse">
+                    NEW
+                  </span>
+                )}
               </button>
 
               <AdminToolsDropdown
@@ -5218,9 +5964,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 setIsOpen={setIsToolsOpen}
                 activeTab="reports"
                 setActiveTab={setActiveTab}
+                user={user}
                 onOpenAnalytics={() => setShowAnalyticsModal(true)}
                 onOpenDirectEntry={() => setShowDirectIngestionModal(true)}
                 onOpenBulkTools={() => setShowToolsModal(true)}
+                onOpenRecycleBin={() => setShowRecycleBinModal(true)}
                 enableQuickCellEdit={enableQuickCellEdit}
                 setEnableQuickCellEdit={setEnableQuickCellEdit}
                 align="right"
@@ -5294,6 +6042,24 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </div>
             )}
 
+            {/* Extreme Right Toolbar Actions: Recycle Bin 🗑️ (positioned right before Settings) + Table Settings Dropdown */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowRecycleBinModal(true);
+                handleMarkRecycleBinSeen();
+              }}
+              title="90-Day Application Recycle Bin & Restoration"
+              className="relative p-1.5 rounded-xl flex items-center justify-center transition-all cursor-pointer bg-amber-700 hover:bg-amber-600 text-white shadow-sm font-extrabold text-xs"
+            >
+              <Trash2 size={14} />
+              {unreadRecycleBinCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono shadow-sm animate-bounce">
+                  {unreadRecycleBinCount}
+                </span>
+              )}
+            </button>
+
             {/* Table Settings Dropdown */}
             <MoreActionsDropdown
               density={density}
@@ -5302,6 +6068,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               onPrint={handlePrintRegister}
               onExportCSV={handleExportCSV}
               onSync={onSync || (() => loadReportsData(true))}
+              onOpenRecycleBin={() => setShowRecycleBinModal(true)}
               loading={loading}
             />
           </div>
@@ -5314,7 +6081,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr className="overflow-visible">
                 {orderedVisibleColumns.map((col, idx) => {
-                  const widthPx = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
+                  const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
+                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : configuredWidth;
                   const stickyClasses = col.isSticky
                     ? 'sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700'
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
@@ -5382,7 +6150,9 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                     _visibleCols: visibleCols,
                     _setPreviewPhotoModal: setPreviewPhotoModal,
                     _setSelectedApp: setSelectedApp,
-                    _onRefresh: () => loadReportsData(true),
+                    _onRefresh: () => loadReportsData(false),
+                    _onDeleteRecord: handleRecordDeleted,
+                    _onTriggerDelete: (st) => setDeletingStudentTarget(st),
                     _handleCopyCell: handleCopyCell,
                     _copiedCellId: copiedCellId,
                   };
@@ -5395,7 +6165,8 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                         const cellId = `${s.id || s.sno || idx}_${col.key}`;
                         const isCopied = copiedCellId === cellId;
                         const isRowCopied = copiedCellId === `row_${s.id || s.sno}`;
-                        const widthPx = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
+                        const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
+                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : configuredWidth;
 
                         const stickyBg = col.isSticky
                           ? ` sticky left-0 z-10 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
@@ -5435,7 +6206,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                             )}
 
                             {/* Horizontal edit/copy/clear action capsule placed at absolute bottom-right wall of td */}
-                            {col.key !== 'mobile' && col.key !== 'sno' && ((val && val !== '—') || (enableQuickCellEdit && !restrictedCols[col.key])) && (
+                            {!col.isComposite && col.key !== 'mobile' && col.key !== 'sno' && ((val && val !== '—') || (enableQuickCellEdit && !restrictedCols[col.key])) && (
                               <div className="opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0.5 bottom-0.5 z-20 flex flex-row items-center gap-0.5 p-0.5 rounded-md bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-2xs">
                                 {/* Edit/Add Icon — Only active when Quick Cell Edit Hover is checked */}
                                 {enableQuickCellEdit && !restrictedCols[col.key] && (
@@ -5648,8 +6419,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                       category: "👤 Personal Details",
                       columns: [
                         { key: 'studentName', label: "Student's Name" },
-                        { key: 'fatherName', label: "Father's Name" },
-                        { key: 'motherName', label: "Mother's Name" },
+                        { key: 'fatherName', label: 'Parentage (Father & Mother)' },
                         { key: 'dob', label: 'DoB' },
                         { key: 'dobWords', label: 'DoB (words)' },
                         { key: 'gender', label: 'Gender' },
@@ -5660,7 +6430,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                         { key: 'bloodType', label: 'Blood Type' },
                         { key: 'height', label: 'Height (cm)' },
                         { key: 'weight', label: 'Weight (kg)' },
-                        { key: 'aadhar', label: 'Aadhaar No.' },
+                        { key: 'aadhar', label: 'Aadhaar / PEN' },
                         { key: 'apaarId', label: 'APAAR ID' },
                         { key: 'socialCategory', label: 'Social Category' },
                         { key: 'socioEconomicCategory', label: 'Socio-economic Category' },
@@ -5701,7 +6471,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                         { key: 'boardRegNo', label: 'Board Reg. No.' },
                         { key: 'photoId', label: 'Photo' },
                         { key: 'boardName', label: 'Board Name' },
-                        { key: 'penNo', label: 'PEN No.' },
                         { key: 'onlineSubmDate', label: 'Online Subm. Date' },
                         { key: 'admDate', label: 'Adm. Date' },
                       ]
@@ -6018,7 +6787,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                         </th>
                         <th className="p-2.5">Form / Roll No.</th>
                         <th className="p-2.5">Student's Name</th>
-                        <th className="p-2.5">Father's Name</th>
+                        <th className="p-2.5">Parentage</th>
                         <th className="p-2.5">Class (Stream)</th>
                         <th className="p-2.5 text-center">Status</th>
                       </tr>
@@ -6056,7 +6825,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                               {st["Student's Name"] || st["Student's Name (as per school records)"] || st.studentName || st.name || '—'}
                             </td>
                             <td className="p-2.5 text-slate-600 dark:text-slate-400 font-extrabold">
-                              {st["Father's Name"] || st["Father's/Guardian's Name (as per school records)"] || st.fatherName || '—'}
+                              <div className="grid gap-1 leading-tight">
+                                <div title="Father's name">{st["Father's Name"] || st["Father's/Guardian's Name (as per school records)"] || st.fatherName || '—'}</div>
+                                <div className="border-t border-slate-200/70 pt-1 dark:border-slate-700/70" title="Mother's name">{st["Mother's Name"] || st["Mother's Name (as per school records)"] || st.motherName || '—'}</div>
+                              </div>
                             </td>
                             <td className="p-2.5 font-extrabold text-teal-700 dark:text-teal-400">
                               {st["Admission sought for class"] || st.class || '11th'} ({st.stream || st["Stream for Class 11th"] || 'General'})
@@ -6639,78 +7411,159 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </div>
               <button
                 type="button"
+                disabled={isSavingQuickEdit}
                 onClick={() => setQuickEditCell(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer disabled:opacity-40"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-2">
-              <div className="text-[11px] text-slate-500 font-extrabold">
-                Student: <span className="text-slate-900 dark:text-white font-black">{quickEditCell.student.studentName}</span> (Form #{quickEditCell.student.formNo})
+            <div className="space-y-2.5">
+              <div className="text-[11px] text-slate-500 font-extrabold flex items-center justify-between">
+                <span>Student: <strong className="text-slate-900 dark:text-white font-black">{quickEditCell.student.studentName || 'Student'}</strong></span>
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  Form #{quickEditCell.student.formNo || quickEditCell.student['Form Number'] || '—'}
+                </span>
               </div>
 
-              {quickEditCell.column.key === 'gender' ? (
-                <select
-                  autoFocus
-                  defaultValue={quickEditCell.currentValue || 'Male'}
-                  id="quickEditInput"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              ) : quickEditCell.column.key === 'category' ? (
-                <select
-                  autoFocus
-                  defaultValue={quickEditCell.currentValue || 'General'}
-                  id="quickEditInput"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                >
-                  <option value="General">General</option>
-                  <option value="RBA">RBA</option>
-                  <option value="ST">ST</option>
-                  <option value="SC">SC</option>
-                  <option value="OBC">OBC</option>
-                  <option value="EWS">EWS</option>
-                </select>
-              ) : quickEditCell.column.key === 'status' ? (
-                <select
-                  autoFocus
-                  defaultValue={quickEditCell.currentValue || 'Submitted'}
-                  id="quickEditInput"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                >
-                  <option value="Submitted">Submitted (SUBM)</option>
-                  <option value="Approved">Approved (APPR)</option>
-                  <option value="Provisional">Provisional</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
+              {/* Progress & Stage Animation View when Saving */}
+              {isSavingQuickEdit ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 space-y-2.5 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {quickEditProgress >= 100 ? (
+                        <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 animate-bounce" />
+                      ) : (
+                        <Loader2 size={16} className="text-amber-600 dark:text-amber-400 animate-spin" />
+                      )}
+                      <span className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[190px]">
+                        {quickEditStage || 'Syncing changes...'}
+                      </span>
+                    </div>
+                    <span className="font-mono font-black text-xs text-amber-700 dark:text-amber-300">
+                      {quickEditProgress}%
+                    </span>
+                  </div>
+
+                  {/* Progress Bar Track */}
+                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ease-out ${
+                        quickEditProgress >= 100
+                          ? 'bg-emerald-500'
+                          : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600'
+                      }`}
+                      style={{ width: `${quickEditProgress}%` }}
+                    />
+                  </div>
+
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                    <span>Firestore live write & cache update</span>
+                    <span>Admin Audit Logged</span>
+                  </div>
+                </div>
               ) : (
-                <input
-                  type="text"
-                  autoFocus
-                  defaultValue={quickEditCell.currentValue}
-                  id="quickEditInput"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const val = e.target.value;
-                      handleSaveQuickCellEdit(quickEditCell.student, quickEditCell.column.key, val);
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs font-mono"
-                />
+                <>
+                  {quickEditCell.column.key === 'gender' ? (
+                    <select
+                      autoFocus
+                      defaultValue={quickEditCell.currentValue || 'Male'}
+                      id="quickEditInput"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  ) : quickEditCell.column.key === 'category' ? (
+                    <select
+                      autoFocus
+                      defaultValue={quickEditCell.currentValue || 'General'}
+                      id="quickEditInput"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    >
+                      <option value="General">General</option>
+                      <option value="RBA">RBA</option>
+                      <option value="ST">ST</option>
+                      <option value="SC">SC</option>
+                      <option value="OBC">OBC</option>
+                      <option value="EWS">EWS</option>
+                    </select>
+                  ) : quickEditCell.column.key === 'status' ? (
+                    <select
+                      autoFocus
+                      defaultValue={quickEditCell.currentValue || 'Submitted'}
+                      id="quickEditInput"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    >
+                      <option value="Submitted">Submitted (SUBM)</option>
+                      <option value="Approved">Approved (APPR)</option>
+                      <option value="Provisional">Provisional</option>
+                      <option value="Draft">Draft</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      autoFocus
+                      defaultValue={quickEditCell.currentValue}
+                      id="quickEditInput"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = e.target.value;
+                          handleSaveQuickCellEdit(quickEditCell.student, quickEditCell.column.key, val);
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs font-mono"
+                    />
+                  )}
+
+                  {/* Audit Reason Toggle & Selector */}
+                  <div className="pt-1 space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickEditReason(!showQuickEditReason)}
+                      className="text-[11px] font-black text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileText size={12} />
+                      <span>{showQuickEditReason ? 'Hide Audit Log Details' : 'Add Audit Log Reason (Optional)'}</span>
+                    </button>
+
+                    {showQuickEditReason && (
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 animate-fadeIn">
+                        <select
+                          value={quickEditReasonCategory}
+                          onChange={(e) => setQuickEditReasonCategory(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[11px] text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="Routine Data Update & Correction">📋 Routine Data Update & Correction</option>
+                          <option value="Student Request / Grievance Resolution">✏️ Student Request / Grievance Resolution</option>
+                          <option value="Official Record Verification">📄 Official Record Verification</option>
+                          <option value="Administrative Audit & Cleanup">⚙️ Administrative Audit & Cleanup</option>
+                          <option value="Custom Justification">✍️ Custom Justification...</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          placeholder="Custom note (e.g. As per Principal directive)..."
+                          value={quickEditCustomReason}
+                          onChange={(e) => setQuickEditCustomReason(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-[11px] text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
+                disabled={isSavingQuickEdit}
                 onClick={() => setQuickEditCell(null)}
-                className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40"
               >
                 Cancel
               </button>
@@ -6724,8 +7577,17 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 }}
                 className="px-4 py-2 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                {isSavingQuickEdit ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-                <span>Save & Sync</span>
+                {isSavingQuickEdit ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Syncing...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={13} />
+                    <span>Save & Sync</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -6746,31 +7608,159 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         students={allStudents.length > 0 ? allStudents : [...currentAdmissions, ...masterRecords]}
       />
 
-      {/* Historical Archives Fetch Confirmation Modal */}
+      {/* Historical Archives Fetch Confirmation Modal with Multi-Select Checkboxes */}
       {showMasterFetchConfirm && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[10050] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-amber-500/50 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-scaleUp">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center mx-auto">
-              <Database size={28} className="animate-pulse" />
-            </div>
-
-            <div className="text-center space-y-1.5">
-              <h3 className="font-black text-lg sm:text-xl text-slate-900 dark:text-white">
-                Fetch Full Historical Archive Database?
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-bold leading-relaxed">
-                You are currently viewing active session admissions (~573 records). Fetching full historical archives will retrieve <strong>9,700+ student records</strong> (2020–2025) from the central school database.
-              </p>
-            </div>
-
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/50 rounded-2xl border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 font-bold space-y-1">
-              <div className="flex items-center gap-1.5 font-black text-amber-700 dark:text-amber-300">
-                <Zap size={13} /> Database Performance &amp; Bandwidth Optimization:
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[10050] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-amber-500/50 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-3.5 animate-scaleUp my-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Database size={24} className="animate-pulse" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white leading-tight">
+                    Load Historical Archives Database
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                    Active session (~573 records) &bull; Central archive (9,700+ records)
+                  </p>
+                </div>
               </div>
-              <div>Historical data will be cached locally for 30 days. Subsequent visits will load in 0ms without consuming server network bandwidth.</div>
+
+              <button
+                type="button"
+                onClick={() => setShowMasterFetchConfirm(false)}
+                className="p-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-md transition-transform hover:scale-110 cursor-pointer shrink-0"
+                title="Close Modal"
+              >
+                <X size={18} strokeWidth={3} />
+              </button>
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
+              Select which <strong>Classes</strong> and <strong>Academic Sessions</strong> you want to load from the database. Use the checkboxes and quick selectors below:
+            </p>
+
+            {/* Class Multi-Select Section */}
+            <div className="bg-slate-50 dark:bg-slate-950/70 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-black text-xs text-slate-800 dark:text-slate-200">
+                  <BookOpen size={13} className="text-amber-600 dark:text-amber-400" />
+                  <span>Select Classes</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300">
+                    {isAllClassesModalSelected ? 'All Classes' : `${selectedModalClasses.length} of ${modalAvailableClasses.length}`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllModalClasses}
+                    className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllModalClasses}
+                    className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {modalAvailableClasses.map((cls) => {
+                  const checked = selectedModalClasses.includes(cls);
+                  return (
+                    <button
+                      key={cls}
+                      type="button"
+                      onClick={() => handleToggleModalClass(cls)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                        checked
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/60 text-amber-900 dark:text-amber-200 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      {checked ? (
+                        <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      ) : (
+                        <Square size={14} className="text-slate-400 dark:text-slate-600 shrink-0" />
+                      )}
+                      <span className="truncate">Class {cls}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Session Multi-Select Section */}
+            <div className="bg-slate-50 dark:bg-slate-950/70 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-black text-xs text-slate-800 dark:text-slate-200">
+                  <CalendarCheck size={13} className="text-amber-600 dark:text-amber-400" />
+                  <span>Select Academic Sessions</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300">
+                    {isAllSessionsModalSelected ? 'All Sessions' : `${selectedModalSessions.length} of ${modalAvailableSessions.length}`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllModalSessions}
+                    className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllModalSessions}
+                    className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-40 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1.5 pr-1 custom-scrollbar">
+                {modalAvailableSessions.map((sess) => {
+                  const checked = selectedModalSessions.includes(sess);
+                  return (
+                    <button
+                      key={sess}
+                      type="button"
+                      onClick={() => handleToggleModalSession(sess)}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border text-left ${
+                        checked
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/60 text-amber-900 dark:text-amber-200 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      {checked ? (
+                        <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      ) : (
+                        <Square size={14} className="text-slate-400 dark:text-slate-600 shrink-0" />
+                      )}
+                      <span className="truncate flex-1">{sess}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Performance Hint */}
+            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 rounded-2xl border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 font-bold space-y-0.5">
+              <div className="flex items-center gap-1.5 font-black text-amber-700 dark:text-amber-300">
+                <Zap size={13} /> Database Optimization:
+              </div>
+              <div className="text-[10px] text-amber-800/90 dark:text-amber-300/90">
+                Historical records are cached locally for 30 days. Subsequent visits load in 0ms.
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setShowMasterFetchConfirm(false)}
@@ -6783,23 +7773,94 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                 disabled={isFetchingMaster}
                 onClick={async () => {
                   setShowMasterFetchConfirm(false);
+                  setIsFetchingData(true);
+                  setFetchProgress(40);
+
+                  const hasCached = (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0) ||
+                    (masterRecords && masterRecords.length > 0);
+
+                  if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
+                    setMasterRecords(window._hssMasterRegistersCache);
+                  }
+
                   setViewScope('all');
-                  await fetchHistoricalMasterRegisters(true);
+                  setCurrentPage(1);
+
+                  // Apply selected classes
+                  const targetClasses = isAllClassesModalSelected
+                    ? []
+                    : (isNoClassesModalSelected ? ['__NONE__'] : selectedModalClasses);
+                  setSelectedClasses(targetClasses);
+
+                  // Apply selected sessions
+                  const targetSessions = isAllSessionsModalSelected
+                    ? []
+                    : (isNoSessionsModalSelected ? ['__NONE__'] : selectedModalSessions);
+                  setSelectedSessions(targetSessions);
+
+                  if (!hasCached || masterRecords.length === 0) {
+                    await loadReportsData(true);
+                  } else {
+                    setFetchProgress(100);
+                    setTimeout(() => {
+                      setIsFetchingData(false);
+                      setFetchProgress(0);
+                    }, 250);
+                  }
+
+                  const classSummary = isAllClassesModalSelected ? 'All Classes' : selectedModalClasses.join(', ');
+                  const sessSummary = isAllSessionsModalSelected ? 'All Sessions' : selectedModalSessions.slice(0, 2).join(', ') + (selectedModalSessions.length > 2 ? '...' : '');
+                  setToast({
+                    message: `Historical Archive: Filtered by ${classSummary} & ${sessSummary}`,
+                    type: 'success'
+                  });
+                  setTimeout(() => setToast(null), 3500);
                 }}
                 className="flex-1 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 {isFetchingMaster ? <Loader2 size={13} className="animate-spin" /> : <Database size={13} />}
-                <span>Fetch All Records</span>
+                <span>
+                  {(masterRecords?.length > 0 || window._hssMasterRegistersCache?.length > 0)
+                    ? 'Apply Filters & View All'
+                    : 'Fetch & Apply Filters'}
+                </span>
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* 2-Stage Application Deletion Modal */}
+      <DeleteApplicationModal
+        isOpen={!!deletingStudentTarget}
+        onClose={() => setDeletingStudentTarget(null)}
+        student={deletingStudentTarget}
+        masterRecords={masterRecords}
+        currentAdmissions={currentAdmissions}
+        userEmail={user?.email || 'Admin'}
+        onDeleteSuccess={(deletedRecords) => {
+          if (Array.isArray(deletedRecords)) {
+            deletedRecords.forEach(rec => handleRecordDeleted(rec));
+          }
+          // Force cache invalidation so stale deleted records don't reload
+          loadReportsData(true);
+        }}
+      />
+
+      {/* 90-Day Recycle Bin & Restoration Modal */}
+      <RecycleBinModal
+        isOpen={showRecycleBinModal}
+        onClose={() => setShowRecycleBinModal(false)}
+        onRestoreSuccess={() => {
+          loadReportsData(true);
+        }}
+      />
+
       {/* Reusable Custom Confirmation Modal */}
       {confirmModalConfig && (
         <ConfirmDialogModal
           {...confirmModalConfig}
+          loading={isSavingEdit || isSavingQuickEdit}
           onClose={() => setConfirmModalConfig(null)}
         />
       )}

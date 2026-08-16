@@ -2,7 +2,7 @@ import { db } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
- * Log Admin Action into Firestore 'adminActivityLogs' and 'activityLogs'
+ * Log Admin Action into the canonical Firestore 'activityLogs' collection.
  * Tracks: actionType (delete/update/bulk_import/manual_entry/export/download/photo_upload/cell_clear)
  * who performed it, when, details, predefined reason, custom reason, and metadata.
  */
@@ -39,12 +39,8 @@ export async function logAdminActivity({
       sessionStorage.setItem('hss_recent_admin_logs', JSON.stringify(recentLogs.slice(0, 100)));
     } catch (_) {}
 
-    // Log to adminActivityLogs collection in Firestore
-    try {
-      await addDoc(collection(db, 'adminActivityLogs'), logEntry);
-    } catch (_) {}
-    
-    // Mirror to activityLogs collection
+    // Keep one canonical audit record. The previous mirror doubled writes and
+    // storage while no screen consumed adminActivityLogs.
     try {
       await addDoc(collection(db, 'activityLogs'), logEntry);
     } catch (_) {}

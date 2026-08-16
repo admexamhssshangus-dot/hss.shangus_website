@@ -27,7 +27,8 @@ export const PRACTICAL_SUBJECT_DEFS = [
   { code: 'PH', name: 'Physics', keywords: ['physics', 'ph'] },
   { code: 'CH', name: 'Chemistry', keywords: ['chemistry', 'ch'] },
   { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
-  { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo'] },
+  { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
+  { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
   { code: 'MA', name: 'Mathematics', keywords: ['mathematics', 'math', 'maths', 'ma'] },
   { code: 'UR', name: 'Urdu', keywords: ['urdu', 'ur'] },
   { code: 'ED', name: 'Education', keywords: ['education', 'ed'] },
@@ -35,8 +36,12 @@ export const PRACTICAL_SUBJECT_DEFS = [
   { code: 'PS', name: 'Political Science', keywords: ['political science', 'pol sc', 'ps'] },
   { code: 'EC', name: 'Economics', keywords: ['economics', 'ec'] },
   { code: 'ES', name: 'Environmental Science', keywords: ['environmental science', 'evs', 'es'] },
-  { code: 'PD', name: 'Physical Education', keywords: ['physical education', 'phy edu', 'pd'] }
-];export function getStudentExamRoll(st) {
+  { code: 'PD', name: 'Physical Education', keywords: ['physical education', 'phy edu', 'pd'] },
+  { code: 'HTC', name: 'Healthcare', keywords: ['healthcare', 'health care', 'htc'] },
+  { code: 'ITE', name: 'IT and ITES', keywords: ['it and ites', 'it&ites', 'ite', 'information technology'] }
+];
+
+export function getStudentExamRoll(st) {
   if (!st) return '';
   const rollKeys = [
     'examRollNo', 'Exam Roll No.', 'Exam Roll No', 'Exam Roll',
@@ -69,27 +74,55 @@ export function getStudentRegNo(st) {
 }
 
 export function findStudentMarkRecord(subDoc, student) {
-  if (!subDoc || !subDoc.records || !Array.isArray(subDoc.records)) return null;
+  if (!subDoc || !subDoc.records || !Array.isArray(subDoc.records) || !student) return null;
 
-  const stReg = getStudentRegNo(student).toUpperCase();
-  const stRoll = getStudentExamRoll(student).toUpperCase();
-  const stName = String(student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || '').trim().toLowerCase();
+  // STRICT SESSION ISOLATION: A practical submission for 2024-25 must NEVER map to a 2025-26 student!
+  const subSess = String(subDoc.sessionText || subDoc.SessionText || subDoc.session || subDoc.Session || '').toLowerCase();
+  const stSess = String(student.Session || student.session || (student._source === 'masterRegisters' ? '2024-25 (Oct-Nov)' : '2025-26')).toLowerCase();
+
+  // If student is in current 2025-26 session, reject historical 2024-25 / 2023-24 submissions
+  if (stSess.includes('2025') && !stSess.includes('2024-25')) {
+    if (subSess.includes('2024') || subSess.includes('2023')) return null;
+  }
+  // If student is from historical 2024-25 session, reject 2025-26 submissions
+  if (stSess.includes('2024') && (subSess.includes('2025-26') || subSess.includes('2026'))) {
+    return null;
+  }
+
+  const stBoardReg = String(
+    student['Board Reg. No.'] || student['Board Registration Number'] || student.boardRegNo ||
+    student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || ''
+  ).trim().toUpperCase();
+  const stExam = String(student['Exam R.No. (Current)'] || student.examRollNo || student['Exam Roll No'] || student['Exam Roll No.'] || '').trim().toUpperCase();
+  const stClassRoll = String(
+    student['Class R.No.'] || student['Class Roll No'] || student['Class Roll No.'] || student.classRollNo || student.rollNo || ''
+  ).trim();
+  const stName = String(
+    student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || ''
+  ).trim().toLowerCase();
 
   return subDoc.records.find(r => {
-    const rReg = String(r.regNo || r['Registration No.'] || r['Board Registration Number'] || r.registrationNo || '').trim().toUpperCase();
-    const rRoll = String(r.rollNo || r.examRollNo || r.ClassRollNo || '').trim().toUpperCase();
+    const rBoardReg = String(r.boardRegNo || r['Board Reg. No.'] || r.regNo || r['Registration No.'] || '').trim().toUpperCase();
+    const rExam     = String(r.examRollNo || '').trim().toUpperCase();
+    const rClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.sNo || '').trim();
     const rName = String(r.name || r.studentName || '').trim().toLowerCase();
 
-    // 1. Match by Registration Number (Primary identifier for class and session)
-    if (stReg && rReg && stReg === rReg) return true;
-    if (stReg && rRoll && stReg === rRoll) return true;
+    // 1. Board Registration No (Global unique key)
+    if (stBoardReg && rBoardReg && stBoardReg === rBoardReg) return true;
 
-    // 2. Match by Exam Roll Number
-    if (stRoll && rRoll && stRoll === rRoll) return true;
-    if (stRoll && rReg && stRoll === rReg) return true;
+    // 2. Exam Roll No (Session-unique key)
+    if (stExam && rExam && stExam === rExam) return true;
 
-    // 3. Fallback: Match by Name
-    if (stName && rName && stName === rName) return true;
+    // 3. Class Roll No + Name verification
+    if (stClassRoll && rClassRoll && stClassRoll === rClassRoll) {
+      if (stName && rName) {
+        return stName === rName || stName.includes(rName) || rName.includes(stName);
+      }
+      if (student._source === 'masterRegisters' || stSess.includes('2024')) return true;
+    }
+
+    // 4. Exact full name match
+    if (stName && rName && stName.length > 4 && stName === rName) return true;
 
     return false;
   });
@@ -401,16 +434,57 @@ export function printConsolidatedAwardRoll({
   // Build subject gist count for Page 1 Forwarding Cover Letter (Screenshot 4)
   const gistList = activeSubs.map((sub, idx) => {
     let count = 0;
-    students.forEach(st => {
-      const stSubs = String(st['Subjects to be taken in Class 11th'] || st['Subjects'] || st.subjects || '').toLowerCase();
-      const hasSub = sub.keywords.some(kw => stSubs.includes(kw));
-      if (hasSub) count++;
-    });
 
-    // Fallback count from submissions if student subject array is not present
-    if (count === 0) {
-      const subDoc = submissions.find(s => String(s.subjectCode || s.subject || '').toUpperCase() === sub.code);
-      count = subDoc?.records?.length || 0;
+    if (sub.code === 'EN') {
+      // General English is compulsory for ALL examinees in the class!
+      count = students.length;
+    } else {
+      students.forEach(st => {
+        const clsName = String(className).toLowerCase();
+        const stStream = String(st.stream || st.Stream || st['Stream'] || '').toLowerCase();
+        const stSubs = String(
+          (clsName.includes('12') ? st['Subjects to be taken in Class 12th'] : st['Subjects to be taken in Class 11th']) || 
+          st['Subjects'] || 
+          st['Subject Combination'] || 
+          st['streamSubjects'] || 
+          st.subjects || 
+          ''
+        ).toLowerCase();
+
+        let hasSub = false;
+
+        // Physics & Chemistry are compulsory for ALL Science students!
+        if (sub.code === 'PH' || sub.code === 'CH') {
+          if (stStream.includes('science') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) {
+            hasSub = true;
+          }
+        } else if (sub.code === 'BO' || sub.code === 'ZO') {
+          if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) {
+            hasSub = true;
+          }
+        } else {
+          hasSub = sub.keywords.some(kw => {
+            const regex = new RegExp(`\\b${kw}\\b`, 'i');
+            return regex.test(stSubs) || stSubs.includes(kw);
+          });
+        }
+
+        if (hasSub) count++;
+      });
+
+      // Fallback count from submissions strictly FOR THIS CLASS if student subject string is empty
+      if (count === 0 && submissions && submissions.length > 0) {
+        const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
+        const subDoc = submissions.find(s => {
+          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+          if (!matchClass) return false;
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+          return codeStr === sub.code || codeStr.includes(sub.code);
+        });
+        if (subDoc && subDoc.records) {
+          count = subDoc.records.length;
+        }
+      }
     }
 
     return {
@@ -510,17 +584,84 @@ export function printConsolidatedAwardRoll({
   `;
 
   // Build rows for each student
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass12 ? '12' : '11';
+
   students.forEach((st, idx) => {
-    const rollNo = getStudentExamRoll(st) || getStudentRegNo(st) || `20100${2000 + idx}`;
-    const stSubsStr = String(st['Subjects to be taken in Class 11th'] || st['Subjects'] || st.subjects || '').toLowerCase();
+    const rollNo = String(st['Class Roll No'] || st.rollNo || st.classRollNo || st['Class R.No.'] || (idx + 1)).trim();
+    const stSubsStr = String(
+      st['Subs'] ||
+      st['subs'] ||
+      (isClass12 ? st['Subjects to be taken in Class 12th'] : st['Subjects to be taken in Class 11th']) ||
+      st['Subjects'] ||
+      st['Subject Combination'] ||
+      st.subjects ||
+      ''
+    ).toLowerCase();
+    const stStream = String(
+      st['Stream'] ||
+      st['stream'] ||
+      (isClass12 ? st['Stream for Class 12th'] : st['Stream for Class 11th']) ||
+      ''
+    ).toLowerCase();
 
     let rowHashTotal = 0;
 
     const cellHtmls = activeSubs.map(sub => {
-      const isEnrolled = sub.keywords.some(kw => stSubsStr.includes(kw));
+      let isEnrolled = false;
+      if (sub.code === 'EN') isEnrolled = true;
+      else if (sub.code === 'PH' || sub.code === 'CH') {
+        isEnrolled = stStream.includes('science') || stSubsStr.includes('physics') || stSubsStr.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubsStr);
+      } else if (sub.code === 'BO' || sub.code === 'ZO') {
+        isEnrolled = stSubsStr.includes('botany') || stSubsStr.includes('zoology') || stSubsStr.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubsStr);
+      } else {
+        isEnrolled = sub.keywords.some(kw => {
+          if (kw.length <= 3) return new RegExp(`\\b${kw}\\b`, 'i').test(stSubsStr);
+          return stSubsStr.includes(kw);
+        });
+      }
 
-      // Find mark from teacher submission using registration number / exam roll / name matching engine
-      const subDoc = submissions.find(s => String(s.subjectCode || s.subject || '').toUpperCase() === sub.code);
+      // Find mark from teacher submission strictly matching this class, subject & evaluation type (internal vs external)
+      if (sub.code === 'BI') {
+        const boDoc = submissions.find(s => {
+          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+          if (!matchClass) return false;
+          const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+          if (sType !== (isExternal ? 'external' : 'internal')) return false;
+          const codeStr = String(s.subjectCode || s.subject || '').toUpperCase();
+          return codeStr === 'BO' || codeStr.includes('BO');
+        });
+        const zoDoc = submissions.find(s => {
+          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+          if (!matchClass) return false;
+          const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+          if (sType !== (isExternal ? 'external' : 'internal')) return false;
+          const codeStr = String(s.subjectCode || s.subject || '').toUpperCase();
+          return codeStr === 'ZO' || codeStr.includes('ZO');
+        });
+        const boRec = findStudentMarkRecord(boDoc, st);
+        const zoRec = findStudentMarkRecord(zoDoc, st);
+        const boVal = parseInt(boRec?.totalMarks ?? boRec?.practicalMarks ?? '', 10);
+        const zoVal = parseInt(zoRec?.totalMarks ?? zoRec?.practicalMarks ?? '', 10);
+        if (!isNaN(boVal) || !isNaN(zoVal)) {
+          const biTot = (isNaN(boVal) ? 0 : boVal) + (isNaN(zoVal) ? 0 : zoVal);
+          rowHashTotal += biTot;
+          return `<td class="mark-val">${biTot}</td>`;
+        }
+      }
+
+      const subDoc = submissions.find(s => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+        if (!matchClass) return false;
+
+        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+        const targetType = isExternal ? 'external' : 'internal';
+        if (sType !== targetType) return false;
+
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code);
+      });
+
       const rec = findStudentMarkRecord(subDoc, st);
 
       if (rec) {
@@ -535,11 +676,9 @@ export function printConsolidatedAwardRoll({
       }
 
       if (isEnrolled) {
-        // Enrolled but not yet submitted
         return `<td class="mark-val">—</td>`;
       }
 
-      // Non-enrolled subject
       return `<td class="no-sub">x</td>`;
     }).join('');
 
@@ -607,15 +746,16 @@ export function printConsolidatedAwardRoll({
 /**
  * 4. Print Attendance Sheet for Selected Students
  */
-export function printAttendanceSheet({ className = '11th', session = 'Annual Regular 2025', students = [] }) {
+export function printAttendanceSheet({ className = '11th', session = 'Annual Regular 2025', students = [], isExternal = false }) {
   if (!students || students.length === 0) return false;
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const examType = isExternal ? 'EXTERNAL PRACTICAL' : 'INTERNAL ASSESSMENT';
 
   let html = `
     <div class="award-page">
       <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: bold; margin: 0;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">PRACTICAL EXAMINATIONS ATTENDANCE SHEET — ${hseText}</h2>
+        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">${examType} ATTENDANCE SHEET — ${hseText}</h2>
         <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
       </div>
 
@@ -666,9 +806,10 @@ export function printAttendanceSheet({ className = '11th', session = 'Annual Reg
 /**
  * 5. Print Fail / Absent Student List
  */
-export function printFailList({ className = '11th', session = 'Annual Regular 2025', students = [], submissions = [], selectedSubjectCodes = null }) {
+export function printFailList({ className = '11th', session = 'Annual Regular 2025', students = [], submissions = [], selectedSubjectCodes = null, isExternal = false }) {
   if (!students || students.length === 0) return false;
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const examType = isExternal ? 'External Practical' : 'Internal Assessment';
 
   const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
@@ -682,8 +823,18 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
 
     activeSubs.forEach(sub => {
-      const subDoc = submissions.find(s => String(s.subjectCode || s.subject || '').toUpperCase() === sub.code);
-      const rec = subDoc?.records?.find(r => String(r.rollNo || r.examRollNo || '').trim() === String(rollNo).trim());
+      const subDoc = submissions.find(s => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(className.toLowerCase().replace(/[^0-9]/g, ''));
+        if (!matchClass) return false;
+
+        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+        const targetType = isExternal ? 'external' : 'internal';
+        if (sType !== targetType) return false;
+
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code);
+      });
+      const rec = findStudentMarkRecord(subDoc, st);
       if (rec) {
         const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim().toUpperCase();
         if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT' || rawMark === 'FAIL') {
@@ -697,7 +848,7 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
     <div class="award-page">
       <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #cc0000; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: bold; margin: 0; color: #cc0000;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">ABSENTEE / FAIL STUDENTS LIST — ${hseText}</h2>
+        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">ABSENTEE / FAIL STUDENTS LIST (${examType}) — ${hseText}</h2>
         <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
       </div>
 

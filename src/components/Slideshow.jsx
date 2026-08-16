@@ -140,7 +140,7 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
               <img
                 src={s.image}
                 alt={s.title || "Govt HSS Shangus"}
-                fetchpriority="high"
+                fetchPriority="high"
                 decoding="async"
                 className="w-full h-full object-cover opacity-0 pointer-events-none"
               />
@@ -154,26 +154,26 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-1.5 absolute bottom-3 right-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 pointer-events-auto z-20">
+        <div className="flex items-center gap-1.5 absolute bottom-3 right-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 md:bottom-20 pointer-events-auto z-20">
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
             className="bg-black/60 text-white rounded-full border border-white shadow-lg hover:bg-black/70 text-[13px] sm:text-[18px] flex items-center justify-center w-[20px] h-[20px] sm:w-[26px] sm:h-[26px]"
           >
-            ‹
+            <span aria-hidden="true">‹</span><span className="sr-only">Previous slide</span>
           </button>
           <button
             aria-label="next"
             onClick={() => setIndex((i) => (i + 1) % slides.length)}
             className="bg-black/60 text-white rounded-full border border-white shadow-lg hover:bg-black/70 text-[13px] sm:text-[18px] flex items-center justify-center w-[20px] h-[20px] sm:w-[26px] sm:h-[26px]"
           >
-            ›
+            <span aria-hidden="true">›</span><span className="sr-only">Next slide</span>
           </button>
         </div>
       </div>
 
       {/* Left caption (matches screenshot) */}
-      <div className="absolute left-3 right-auto bottom-3 sm:bottom-6 sm:left-6 text-left text-white z-20 pointer-events-none max-w-[calc(100%-92px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
+      <div className="absolute left-3 right-auto bottom-3 sm:bottom-6 md:bottom-20 sm:left-6 text-left text-white z-20 pointer-events-none max-w-[calc(100%-92px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
         {slides[index].title && (
           <h3 className="text-[10px] sm:text-sm font-bold text-teal-300 leading-none m-0 p-0 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.85)] pl-0.5">{slides[index].title}</h3>
         )}

@@ -7,25 +7,93 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { generateVerificationSignature, getStudentRollVal } from './idCardRenderer';
 import { createQrSvgDataUri } from './qrSvgGenerator';
+import { getStudentPhotoUrl } from './imageCompressor';
+
+function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
+  const cls = String(targetClass || '');
+  const strm = String(stream || '');
+  if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
+    return ["English", "Mathematics", "Science", "Social Science"];
+  }
+  if (strm === 'Humanities' || strm === 'Arts') {
+    return ["General English"];
+  }
+  if (strm === 'Commerce') {
+    return ["General English", "Accountancy", "Business Studies"];
+  }
+  return ["General English", "Physics", "Chemistry"];
+}
+
+function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream = 'Science') {
+  const compulsory = getCompulsorySubjects(targetClass, stream);
+  const chosenArray = typeof rawSubjectsString === 'string'
+    ? rawSubjectsString.split(', ').map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawSubjectsString) ? rawSubjectsString : []);
+  
+  const allSubjects = [...new Set([...compulsory, ...chosenArray])];
+  return allSubjects.join(', ');
+}
+
+function parseRawDate(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) return raw;
+  if (typeof raw.toDate === 'function') return raw.toDate();
+  if (typeof raw.seconds === 'number') return new Date(raw.seconds * 1000);
+  if (typeof raw._seconds === 'number') return new Date(raw._seconds * 1000);
+  if (typeof raw === 'string' || typeof raw === 'number') {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+function formatDobDDMMYYYY(dobRaw) {
+  if (!dobRaw) return 'N/A';
+  const str = String(dobRaw).trim();
+
+  // If ISO YYYY-MM-DD (e.g. 2003-03-18 or 1991-03-02)
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y}`;
+  }
+
+  // If already DD-MM-YYYY (e.g. 02-03-1991)
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmyMatch) {
+    const [, d, m, y] = dmyMatch;
+    return `${d.padStart(2, '0')}-${m.padStart(2, '0')}-${y}`;
+  }
+
+  // If DD-MMM-YYYY (e.g. 02-Mar-1991)
+  const monthMap = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+  const dmmmMatch = str.match(/^(\d{1,2})[-/]([a-zA-Z]{3})[-/](\d{4})$/);
+  if (dmmmMatch) {
+    const [, d, mStr, y] = dmmmMatch;
+    const mNum = monthMap[mStr.toLowerCase()] || '01';
+    return `${d.padStart(2, '0')}-${mNum}-${y}`;
+  }
+
+  const parsed = parseRawDate(dobRaw);
+  if (parsed && !isNaN(parsed.getTime())) {
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = parsed.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+
+  return str;
+}
 
 function formatDateTimeDDMMMYYYY(rawDate) {
-  if (!rawDate || rawDate === 'N/A' || rawDate === '—') {
-    const d = new Date();
-    const day = String(d.getDate()).padStart(2, '0');
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const month = monthNames[d.getMonth()];
-    const year = d.getFullYear();
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const strHours = String(hours).padStart(2, '0');
-    return `${day}-${month}-${year}, ${strHours}:${minutes} ${ampm}`;
+  if (!rawDate) return '—';
+  const d = parseRawDate(rawDate);
+  if (!d) {
+    const s = String(rawDate);
+    if (s.includes('Timestamp(') || s.includes('seconds=')) return '—';
+    return s;
   }
   try {
-    const d = new Date(rawDate);
-    if (isNaN(d.getTime())) return String(rawDate);
     const day = String(d.getDate()).padStart(2, '0');
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const month = monthNames[d.getMonth()];
@@ -33,25 +101,24 @@ function formatDateTimeDDMMMYYYY(rawDate) {
     let hours = d.getHours();
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
+    hours = hours % 12 || 12;
     const strHours = String(hours).padStart(2, '0');
     return `${day}-${month}-${year}, ${strHours}:${minutes} ${ampm}`;
   } catch (e) {
-    return String(rawDate);
+    return '—';
   }
 }
 
 /**
- * Computes the current Indian academic session (e.g. "2026-27") so the PDF never shows
- * a stale hardcoded session once the school year rolls over.
+ * Computes the current Indian academic session (e.g. "2025-26") so the PDF never shows
+ * a stale hardcoded session. Rolls over around October in J&K Kashmir Valley.
  */
 function getCurrentAcademicSession() {
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth(); // 0 = Jan
-  // J&K schools typically start the academic session around March.
-  if (month >= 2) {
+  const month = now.getMonth(); // 0 = Jan, 9 = Oct
+  // Session rolls over around October (Month index >= 9).
+  if (month >= 9) {
     return `${year}-${String(year + 1).slice(-2)}`;
   }
   return `${year - 1}-${String(year).slice(-2)}`;
@@ -87,7 +154,8 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const fatherName = String(studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || studentData['fatherName'] || studentData['parentName'] || 'N/A').toUpperCase();
   const fatherOccupation = studentData["Father's/Guardian's Occupation"] || studentData["Father's Occupation"] || studentData["Father Occupation"] || studentData['fatherOccupation'] || 'N/A';
   const motherName = String(studentData["Mother's Name (as per school records)"] || studentData["Mother's Name"] || studentData['motherName'] || 'N/A').toUpperCase();
-  const dob = studentData["DoB (as per school records)"] || studentData["DoB"] || studentData['dob'] || 'N/A';
+  const rawDob = studentData["DoB (as per school records)"] || studentData["DoB"] || studentData['dob'] || 'N/A';
+  const dob = formatDobDDMMYYYY(rawDob);
   const gender = studentData["Gender"] || studentData['gender'] || 'N/A';
   const mobile = studentData["Mobile No. (with working WhatsApp)"] || studentData["Mobile No."] || studentData['mobile'] || 'N/A';
   const parentMobile = studentData["Parent's Mobile No. (must be working)"] || studentData["Father's/Guardian's Contact No."] || studentData["Parent Contact"] || studentData['parentMobile'] || studentData['parentContact'] || 'N/A';
@@ -139,13 +207,15 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const stream12th = studentData["Stream opted in Class 11th"] || studentData["Stream Studied in Class 11th"] || studentData["Stream & Subjects for Class 12th"] || studentData["Stream for Class 12th"];
   const stream11th = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"];
   const stream = (is12th ? (stream12th || stream11th) : stream11th) || studentData["Stream"] || studentData['stream'] || 'General';
-  const subjects = studentData["Subjects to be taken in Class 11th"] || studentData["Subjects Studied in Class 11th"] || studentData["Subjects to be taken in Class 10th"] || studentData["Subjects Studied in Class 10th"] || studentData["Subs"] || studentData["Subjects"] || studentData['subjects'] || 'N/A';
-  const photoUrl = studentData["Student Photo"] || studentData["photo_id"] || studentData["photoUrl"] || studentData["photo"] || '/logo.png';
+  const rawSubjects = studentData["Subjects to be taken in Class 11th"] || studentData["Subjects Studied in Class 11th"] || studentData["Subjects to be taken in Class 10th"] || studentData["Subjects Studied in Class 10th"] || studentData["Subs"] || studentData["Subjects"] || studentData['subjects'] || '';
+  const subjects = formatAllSubjects(rawSubjects, classSought, stream) || 'N/A';
+  const photoUrl = getStudentPhotoUrl(studentData, '/logo.png');
   const rollNo = studentData["Class Roll No"] || studentData["rollNo"] || studentData["Class R.No."] || '—';
   const admNo = studentData["Admission Number"] || studentData["admNo"] || studentData["Adm No."] || '—';
   const section = studentData["Section"] || studentData['section'] || '—';
   const session = studentData["Session"] || studentData['session'] || getCurrentAcademicSession();
   const aadhaar = studentData["Aadhar No."] || studentData['aadhar'] || studentData['aadhaar'] || 'N/A';
+  const fatherAadhaar = studentData["Father's Aadhar No."] || studentData["Father's Aadhaar No."] || studentData['fatherAadhar'] || 'N/A';
 
   // Previous Academic History (Single Clean Row) — dynamically resolved against the class actually
   // preceding the class sought, instead of always preferring 10th-class data.
@@ -255,8 +325,8 @@ export function buildStudentFormHtml(studentData, options = {}) {
                 <td class="val">${parentMobile}</td>
               </tr>
               <tr>
-                <td class="lbl blue-lbl">Aadhaar Number:</td>
-                <td class="val">${aadhaar}</td>
+                <td class="lbl blue-lbl">Student / Father Aadhaar:</td>
+                <td class="val">${aadhaar} / ${fatherAadhaar}</td>
                 <td class="lbl blue-lbl">Mother Tongue / Religion:</td>
                 <td class="val">${motherTongue} / ${religion}</td>
               </tr>
@@ -272,7 +342,16 @@ export function buildStudentFormHtml(studentData, options = {}) {
           <!-- Student Passport Photo Column (Right) -->
           <div class="photo-col">
             <div class="photo-box">
-              <img src="${photoUrl}" alt="Student Photo" onerror="this.src='/logo.png';" />
+              ${photoUrl && photoUrl !== '/logo.png' ? `
+                <img src="${photoUrl}" alt="Student Photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                <div class="photo-placeholder-box" style="display:none;">
+                  <span>AFFIX RECENT<br/>PASSPORT SIZE<br/>PHOTOGRAPH</span>
+                </div>
+              ` : `
+                <div class="photo-placeholder-box">
+                  <span>AFFIX RECENT<br/>PASSPORT SIZE<br/>PHOTOGRAPH</span>
+                </div>
+              `}
             </div>
           </div>
         </div>
@@ -469,7 +548,16 @@ export function buildStudentFormHtml(studentData, options = {}) {
               <td class="val bold-txt">${name}</td>
               <td rowspan="5" class="photo-cell">
                 <div class="photo-frame-library">
-                  <img src="${photoUrl}" alt="Photo" onerror="this.src='/logo.png';" />
+                  ${photoUrl && photoUrl !== '/logo.png' ? `
+                    <img src="${photoUrl}" alt="Photo" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                    <div class="photo-placeholder-box" style="display:none;">
+                      <span>AFFIX RECENT<br/>PHOTO</span>
+                    </div>
+                  ` : `
+                    <div class="photo-placeholder-box">
+                      <span>AFFIX RECENT<br/>PHOTO</span>
+                    </div>
+                  `}
                 </div>
               </td>
             </tr>
@@ -752,11 +840,29 @@ function wrapInPrintDocument(bodyHtml, titleStr = 'Student_Admission_Forms') {
         .qr-img { width: 80px; height: 80px; object-fit: contain; }
         .qr-lbl { font-size: 6.8px; font-weight: 900; color: #0f766e; text-transform: uppercase; letter-spacing: 0.3px; border-top: 1px dashed #cbd5e1; width: 100%; padding-top: 2px; }
         .details-left { flex: 1; }
-        .photo-col { width: 96px; text-align: center; flex-shrink: 0; }
-        .photo-box { width: 92px; height: 115px; border: 2px solid #0f766e; border-radius: 4px; overflow: hidden; background: #f8fafc; }
-        .photo-box img { width: 100%; height: 100%; object-fit: cover; }
-        .photo-frame-library { width: 90px; height: 110px; border: 1.5px solid #0f766e; overflow: hidden; margin: 0 auto; }
-        .photo-frame-library img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-box { width: 92px; height: 115px; border: 2px solid #0f766e; border-radius: 4px; overflow: hidden; background: #f8fafc; position: relative; }
+        .photo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .photo-frame-library { width: 90px; height: 110px; border: 1.5px solid #0f766e; overflow: hidden; margin: 0 auto; background: #f8fafc; position: relative; }
+        .photo-frame-library img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .photo-placeholder-box {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 6px 4px;
+          box-sizing: border-box;
+          text-align: center;
+          background: #f8fafc;
+          border: 1.5px dashed #94a3b8;
+          color: #64748b;
+          font-size: 7.5px;
+          font-weight: 900;
+          line-height: 1.25;
+          letter-spacing: 0.2px;
+          font-family: Arial, sans-serif;
+        }
 
         .section-heading {
           background: #f1f5f9;
@@ -1021,16 +1127,8 @@ function printHtmlViaIframe(htmlContent) {
     triggered = true;
     const doc = iframe.contentWindow.document;
     const images = Array.from(doc.images || []);
-    // Pre-warm: force reload any incomplete images
-    images.forEach(img => {
-      if (!img.complete || img.naturalWidth === 0) {
-        const src = img.src;
-        img.src = '';
-        img.src = src;
-      }
-    });
-    const waitForImages = (attempts = 60) => {
-      const allLoaded = images.length === 0 || images.every(img => img.complete && img.naturalWidth > 0);
+    const waitForImages = (attempts = 80) => {
+      const allLoaded = images.length === 0 || images.every(img => img.complete && (img.naturalWidth > 0 || img.style.display === 'none'));
       if (allLoaded || attempts <= 0) {
         try {
           iframe.contentWindow.focus();
@@ -1068,6 +1166,15 @@ function printHtmlViaIframe(htmlContent) {
  */
 export function generateStudentAdmissionPdf(studentData, options = {}) {
   if (!studentData) return;
+  const isProvisional = studentData['Admission Type (Class 11th)'] === 'Provisional' ||
+    studentData['Admission Type (Class 12th)'] === 'Provisional' ||
+    studentData['Admission Type'] === 'Provisional' ||
+    Boolean(studentData.isProvisional);
+
+  if (isProvisional && options.forceFullForm !== true) {
+    return generateProvisionalAdmissionPdf(studentData);
+  }
+
   const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || 'Form';
   const rawName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['name'] || 'Student';
   const cleanName = String(rawName).trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -1089,6 +1196,319 @@ export function generateStudentAdmissionPdf(studentData, options = {}) {
       document.title = originalTitle;
     } catch (e) {}
   }, 4000);
+}
+
+/**
+ * Build compact Provisional Admission Slip HTML — one A4 page,
+ * only essential fields, with a prominent PROVISIONAL watermark/badge.
+ */
+export function buildProvisionalFormHtml(studentData) {
+  if (!studentData) return '';
+
+  const formNo = studentData['Form Number'] || studentData['FormNo'] || 'N/A';
+  const name = String(studentData["Student's Name (as per school records)"] || studentData['name'] || 'N/A').toUpperCase();
+  const fatherName = String(studentData["Father's/Guardian's Name (as per school records)"] || studentData['fatherName'] || 'N/A').toUpperCase();
+  const motherName = String(studentData["Mother's Name (as per school records)"] || studentData['motherName'] || 'N/A').toUpperCase();
+  const dob = studentData["DoB (as per school records)"] || studentData['dob'] || 'N/A';
+  const gender = studentData['Gender'] || studentData['gender'] || 'N/A';
+  const mobile = studentData["Mobile No. (with working WhatsApp)"] || studentData['mobile'] || 'N/A';
+  const parentMobile = studentData["Parent's Mobile No. (must be working)"] || studentData['parentMobile'] || 'N/A';
+  const email = studentData['Email Address'] || studentData['email'] || '—';
+  const houseNo = studentData['House No.'] || studentData['houseNo'] || 'N/A';
+  const village = studentData["Name of your village"] || studentData['village'] || 'N/A';
+  const block = studentData['Block'] || studentData['block'] || 'N/A';
+  const tehsil = studentData['Tehsil'] || studentData['tehsil'] || 'N/A';
+  const district = studentData['District'] || studentData['district'] || 'N/A';
+  const stateUt = studentData['State/UT'] || studentData['State'] || studentData['state'] || 'N/A';
+  const pinCode = studentData['PIN code'] || studentData['pincode'] || 'N/A';
+  const aadhaar = studentData['Aadhar No.'] || studentData['aadhar'] || 'N/A';
+  const fatherAadhaar = studentData["Father's Aadhar No."] || studentData["Father's Aadhaar No."] || studentData['fatherAadhar'] || 'N/A';
+  const fatherOcc = studentData["Father's/Guardian's Occupation"] || studentData['occupation'] || 'N/A';
+
+  const classSought = studentData['Admission sought for class'] || studentData['class'] || '11th';
+  const classNumber = String(classSought).match(/(9|10|11|12)/)?.[1] || '11';
+  const previousClass = classNumber === '12' ? '11th' : classNumber === '11' ? '10th' : classNumber === '10' ? '9th' : '8th';
+  const stream = classNumber === '9' || classNumber === '10'
+    ? 'General'
+    : studentData['Stream for Class 11th'] || studentData['Stream opted in Class 11th'] || studentData['Stream'] || studentData['stream'] || 'N/A';
+  const session = studentData['Session'] || studentData['session'] || getCurrentAcademicSession();
+  const photoUrl = getStudentPhotoUrl(studentData, '/logo.png');
+  const rawSubjects = studentData['Subjects to be taken in Class 9th']
+    || studentData['Subjects to be taken in Class 10th']
+    || studentData['Subjects to be taken in Class 11th']
+    || studentData['Stream & Subjects for Class 12th']
+    || studentData['chosenSubjects']
+    || '';
+  const subjects = formatAllSubjects(rawSubjects, classSought, stream) || '—';
+
+  const provisionReason11 = studentData['Reason for Provisional (Class 11th)'] || studentData['Reason for Provisional Admission (Class 11th)'] || '—';
+  const provisionReason12 = studentData['Reason for Provisional (Class 12th)'] || studentData['Reason for Provisional Admission (Class 12th)'] || '—';
+  const provisionReason = provisionReason11 !== '—' ? provisionReason11 : (provisionReason12 !== '—' ? provisionReason12 : 'Result Awaited');
+  const reappear10 = studentData['Subjects to Reappear (Class 10th)'] || '';
+  const reappear11 = studentData['Subjects to Reappear (Class 11th)'] || '';
+  const reappearSubs = reappear10 || reappear11 || 'None';
+
+  const rawSubmDate = studentData['submittedAt'] || studentData['Submission Date'] || studentData['created_at'];
+  const formattedSubmDate = formatDateTimeDDMMMYYYY(rawSubmDate);
+
+  const regNo = studentData[`Board Registration No. (Class ${previousClass})`]
+    || (previousClass === '8th' ? studentData['DIET Registration No.'] : '')
+    || studentData['boardRegNo']
+    || 'N/A';
+  const rollVal = studentData[`Exam Roll Number of Class ${previousClass}`] || studentData['rollNo'] || 'N/A';
+  const prevSession = studentData[`Year of Appearing (Class ${previousClass})`]
+    || studentData[`Year of Passing Class ${previousClass}`]
+    || 'N/A';
+  const schoolName = studentData[`Name of Previous School (Class ${previousClass})`]
+    || studentData['Name of Previous School']
+    || studentData['Name of your previous school']
+    || 'N/A';
+
+  // Generate cryptographically signed verification URL QR Code for Provisional Form
+  const cleanFNo = String(formNo).replace(/[^0-9]/g, '') || formNo;
+  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+  const sig = generateVerificationSignature(regNo, rollVal, cleanFNo);
+  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regNo)}&roll=${encodeURIComponent(rollVal)}&fNo=${encodeURIComponent(cleanFNo)}&sig=${encodeURIComponent(sig)}`;
+  const qrCodeUrl = createQrSvgDataUri(verifyUrl, 160) || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(verifyUrl)}`;
+
+  return `
+    <!-- PROVISIONAL ADMISSION SLIP — COMPACT SINGLE PAGE -->
+    <div class="print-page prov-page" style="padding:16px 22px; font-family:'Times New Roman', Times, serif; color:#000; font-size:10pt; line-height:1.2; box-sizing:border-box; background:#fff; position:relative;">
+      
+      <!-- Single Clean Watermark Logo (No Duplicate Text Overlap) -->
+      <div style="position:absolute; top:48%; left:50%; transform:translate(-50%,-50%); opacity:0.06; pointer-events:none; z-index:0; text-align:center;">
+        <img src="/logo.png" style="width:360px; height:auto;" />
+      </div>
+
+      <!-- Header with Seal (Left), School Details (Center), and Verification QR Code (Right) -->
+      <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #881337; padding-bottom:6px; margin-bottom:8px; position:relative; z-index:1;">
+        <div style="width:65px; flex-shrink:0;">
+          <img src="/logo.png" style="width:60px; height:60px; object-fit:contain;" onerror="this.style.visibility='hidden';" />
+        </div>
+        <div style="text-align:center; flex:1;">
+          <h1 style="margin:0; font-size:16.5pt; font-weight:bold; color:#881337; text-transform:uppercase; letter-spacing:0.5px;">Govt. Higher Secondary School Shangus</h1>
+          <p style="margin:2px 0 0 0; font-size:9.5pt; font-weight:bold; color:#1e293b;">Anantnag Kashmir-192201</p>
+          <p style="margin:1px 0 0 0; font-size:8.5pt; color:#475569;">Board Reg. No.: <strong>010061</strong> | UDISE code: <strong>01061400618</strong></p>
+        </div>
+        <div style="width:65px; text-align:center; flex-shrink:0;">
+          <div style="border:1px solid #cbd5e1; padding:2px; background:#fff; border-radius:4px; display:inline-block;">
+            <img src="${qrCodeUrl}" style="width:52px; height:52px; display:block;" alt="Verification QR Code" />
+          </div>
+          <span style="display:block; font-size:6pt; font-weight:bold; color:#881337; margin-top:2px; font-family:sans-serif; letter-spacing:0.3px;">SCAN TO VERIFY</span>
+        </div>
+      </div>
+
+      <div style="margin:-1px 0 7px; padding:4px 8px; border:1.5px solid #d97706; background:#fffbeb; color:#92400e; text-align:center; font:800 9pt Arial,sans-serif; letter-spacing:.35px; position:relative; z-index:1;">
+        PROVISIONAL ADMISSION — SUBJECT TO RESULT, ELIGIBILITY &amp; DOCUMENT VERIFICATION
+      </div>
+
+      <!-- Top Administrative Office Grid Box -->
+      <table style="width:100%; border-collapse:collapse; margin-bottom:8px; font-size:9pt; background:#fff1f2; border:1.5px solid #be123c; border-radius:4px; position:relative; z-index:1;">
+        <tr>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337; width:15%;">Form No.:</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#991b1b; width:35%; font-size:10pt;">${formNo}</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337; width:20%;">Online subm. date:</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#0f766e; width:30%;">${formattedSubmDate}</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Class admitted to:</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#475569;">Class ${classSought} (${stream})</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Roll No.:</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#94a3b8;">[ Office Use ]</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Adm. No. (Date):</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#94a3b8;">[ Office Use ]</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Section:</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#94a3b8;">[ Office Use ]</td>
+        </tr>
+      </table>
+
+      <!-- Session & Title Row with Passport Photo -->
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; position:relative; z-index:1;">
+        <div style="flex:1;">
+          <div style="font-size:11pt; font-weight:bold; color:#dc2626; margin-bottom:2px;">Session: <span style="color:#000;">${session}</span></div>
+          <h2 style="margin:0; font-size:15pt; font-weight:bold; color:#15803d; font-family:sans-serif;">Admission/Registration</h2>
+          <h3 style="margin:2px 0 0 0; font-size:11pt; font-weight:bold; color:#1d4ed8;">Application Form <span style="color:#b91c1c;">(Provisional_${provisionReason})</span></h3>
+        </div>
+        <div style="width:82px; height:100px; border:1.5px solid #334155; padding:2px; background:#fff; text-align:center; flex-shrink:0; box-sizing:border-box;">
+          ${photoUrl && photoUrl !== '/logo.png' ? `
+            <img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+            <div style="display:none; width:100%; height:100%; border:1px dashed #94a3b8; background:#f8fafc; color:#64748b; font-size:7.5px; font-weight:bold; align-items:center; justify-content:center; text-align:center; box-sizing:border-box;">
+              AFFIX PHOTO
+            </div>
+          ` : `
+            <div style="display:flex; width:100%; height:100%; border:1px dashed #94a3b8; background:#f8fafc; color:#64748b; font-size:7.5px; font-weight:bold; align-items:center; justify-content:center; text-align:center; box-sizing:border-box;">
+              AFFIX PHOTO
+            </div>
+          `}
+        </div>
+      </div>
+
+      <!-- Section 1: Personal Details -->
+      <div style="font-weight:bold; color:#991b1b; border-bottom:1.5px solid #991b1b; padding-bottom:2px; margin-bottom:3px; font-size:9.5pt; text-transform:uppercase; position:relative; z-index:1;">Personal Details</div>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:6px; font-size:9pt; border:1px solid #cbd5e1; position:relative; z-index:1;">
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a; width:22%;">Student's Name:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; width:28%;">${name}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a; width:22%;">Date of Birth:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; width:28%;">${dob}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Father's/Guardian's Name:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold;">${fatherName}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Father's/Guardian's Occupation:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${fatherOcc}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Mother's Name:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${motherName}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Gender:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold;">${gender}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Mobile No. <span style="font-size:7.5pt; font-weight:normal;">(WhatsApp)</span>:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#0f766e;">${mobile}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Parent's Contact:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${parentMobile}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Student Aadhaar:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${aadhaar}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Father's Aadhaar:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${fatherAadhaar}</td>
+        </tr>
+      </table>
+
+      <!-- Section 2: Address -->
+      <div style="font-weight:bold; color:#991b1b; border-bottom:1.5px solid #991b1b; padding-bottom:2px; margin-bottom:3px; font-size:9.5pt; text-transform:uppercase; position:relative; z-index:1;">Address</div>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:6px; font-size:9pt; border:1px solid #cbd5e1; position:relative; z-index:1;">
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a; width:22%;">House No.:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; width:28%;">${houseNo}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a; width:22%;">Village/Town/City:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; width:28%;" colspan="3">${village}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Block / Tehsil:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${block} / ${tehsil}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">District / State:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;" colspan="3">${district} / ${stateUt}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">PIN Code:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${pinCode}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">E-mail:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;" colspan="3">${email}</td>
+        </tr>
+      </table>
+
+      <!-- Section 3: Academic Details -->
+      <div style="font-weight:bold; color:#991b1b; border-bottom:1.5px solid #991b1b; padding-bottom:2px; margin-bottom:3px; font-size:9.5pt; text-transform:uppercase; position:relative; z-index:1;">Academic Details</div>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:6px; font-size:9pt; border:1px solid #cbd5e1; position:relative; z-index:1;">
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a; width:22%;">Board Reg. No.:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; width:28%;">${regNo}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a; width:22%;">Prev. Year Exam Roll No.:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; width:28%;">${rollVal}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Prev. Session:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;">${prevSession}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Subjects Offered:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#0369a1;">${subjects}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Class (Prov.):</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#047857;">Class ${classSought}</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Stream (Prov.):</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#047857;">${stream}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#b91c1c;">Subject/s in which to reappear:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#b91c1c;" colspan="3">${reappearSubs}</td>
+        </tr>
+        <tr>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1; font-weight:bold; color:#1e3a8a;">Name of the Previous School:</td>
+          <td style="padding:2.5px 5px; border:1px solid #cbd5e1;" colspan="3">${schoolName}</td>
+        </tr>
+      </table>
+
+      <!-- Declaration Section -->
+      <div style="margin-top:6px; border:1px solid #cbd5e1; padding:6px 10px; background:#f8fafc; font-size:8.5pt; position:relative; z-index:1;">
+        <div style="font-weight:bold; color:#1e293b; margin-bottom:2px;">Declaration by the Student:</div>
+        <p style="margin:0 0 2px 0; font-style:italic; color:#334155;">
+          I, <strong>${name}</strong>, solemnly declare the following:
+        </p>
+        <ul style="margin:0; padding-left:16px; color:#475569; line-height:1.3;">
+          <li>I seek provisional admission until my previous class exam results are released. Failure to pass will invalidate this admission.</li>
+          <li>I have carefully reviewed all details in this admission form.</li>
+          <li>All information provided in this form is true, correct, and complete to the best of my knowledge.</li>
+        </ul>
+        <div style="text-align:right; margin-top:10px; font-weight:bold; color:#0f172a;">
+          Sig. of Student ________________________
+        </div>
+      </div>
+
+      <!-- Signatures Footer Row -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:22px; font-size:9.5pt; font-weight:bold; color:#1e293b; position:relative; z-index:1;">
+        <div>Sig. of I/C Exam</div>
+        <div>Checked by</div>
+        <div style="color:#881337;">Principal</div>
+      </div>
+
+      <!-- Bottom Tag -->
+      <div style="margin-top:12px; border-top:1px solid #be123c; padding-top:2px; font-size:8pt; color:#64748b; font-family:monospace; position:relative; z-index:1;">
+        Adm.${session}-HSS.Shangus · Provisional · Page 1/1
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Generate and print a compact Provisional Admission Slip PDF (single page, amber-themed).
+ */
+export function generateProvisionalAdmissionPdf(studentData) {
+  if (!studentData) return;
+  const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || 'Form';
+  const rawName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['name'] || 'Student';
+  const cleanName = String(rawName).trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+  const docTitle = `Provisional_Admission_Slip_${formNo}_${cleanName}`;
+
+  const htmlBody = buildProvisionalFormHtml(studentData);
+  const provCss = `
+    @page { size: A4 portrait; margin: 7mm; }
+    .prov-page {
+      width: 196mm !important;
+      min-height: 277mm !important;
+      max-height: 277mm !important;
+      overflow: hidden !important;
+      page-break-after: avoid !important;
+      page-break-inside: avoid !important;
+      border-color: #d97706 !important;
+      outline-color: #f59e0b !important;
+    }
+    .prov-title-bar { background: linear-gradient(90deg, #d97706, #b45309) !important; font-size: 11px !important; }
+    .prov-watermark {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%) rotate(-35deg);
+      font-size: 64px; font-weight: 900;
+      color: rgba(217,119,6,0.08);
+      pointer-events: none; z-index: 5;
+      white-space: nowrap; letter-spacing: 4px;
+      font-family: Arial, sans-serif;
+    }
+  `;
+
+  const fullDocument = wrapInPrintDocument(htmlBody, docTitle).replace(
+    '</style>',
+    provCss + '</style>'
+  );
+
+  const originalTitle = document.title;
+  try { document.title = docTitle; } catch (e) {}
+  printHtmlViaIframe(fullDocument);
+  setTimeout(() => { try { document.title = originalTitle; } catch (e) {} }, 4000);
 }
 
 function showPdfProgressModal(title = 'Generating PDF Document', message = 'Formatting pages and preparing download...') {
@@ -1295,7 +1715,7 @@ export function generateGkTestAdmitCardPdf(regData = {}) {
   const examCenter = regData.center || 'Govt. Higher Secondary School Shangus';
   const examDate = regData.examDate || 'Sunday, 17th May 2026';
   const examTime = regData.examTime || '11:00 AM – 01:00 PM';
-  const photoUrl = regData.photoUrl || '/logo.png';
+  const photoUrl = getStudentPhotoUrl(regData, '/logo.png');
 
   const htmlContent = `
     <!DOCTYPE html>

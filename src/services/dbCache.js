@@ -6,7 +6,7 @@
 // while avoiding unnecessary database reads when cache is fresh.
 // =================================================================
 
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 
 const CACHE_PREFIX = 'hss_cache_';
@@ -14,6 +14,7 @@ const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins —
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
+const MEMORY_ONLY_COLLECTIONS = new Set(['admissions', 'masterRegisters', 'users']);
 
 // In-memory cache for instant zero-latency cross-tab access
 const memoryCache = new Map();
@@ -38,11 +39,29 @@ export function clearAllMemoryCache() {
     localStorage.removeItem('hss_cache_masterRegisters_v2');
     localStorage.removeItem('hss_cache_masterRegisters_v2_c0');
     localStorage.removeItem('hss_cache_masterRegisters_v2_c1');
+    sessionStorage.removeItem(`${CACHE_PREFIX}admissions`);
+    localStorage.removeItem(`${CACHE_PREFIX}admissions`);
+    localStorage.removeItem(PHOTO_CACHE_KEY);
   } catch (_) {}
 }
 
 // Automatically wipe memory cache when user logs out
 if (typeof window !== 'undefined') {
+  try {
+    clearAllMemoryCache();
+    ['admissions', 'users'].forEach(name => {
+      sessionStorage.removeItem(`${CACHE_PREFIX}${name}`);
+      localStorage.removeItem(`${CACHE_PREFIX}${name}`);
+      localStorage.removeItem(`${CACHE_PREFIX}${name}_ts`);
+    });
+    localStorage.removeItem(PHOTO_CACHE_KEY);
+    if (!localStorage.getItem('hss_photo_cache_v3_migrated')) {
+      sessionStorage.removeItem('hss_cache_admissions');
+      localStorage.removeItem('hss_cache_admissions');
+      localStorage.setItem('hss_photo_cache_v3_migrated', 'true');
+    }
+  } catch (_) {}
+
   window.addEventListener('hss-auth-changed', (e) => {
     if (e?.detail?.loggedIn === false) {
       clearAllMemoryCache();
@@ -62,6 +81,7 @@ export function getCachedCollectionSync(collectionName) {
   if (memoryCache.has(collectionName)) {
     return memoryCache.get(collectionName);
   }
+  if (MEMORY_ONLY_COLLECTIONS.has(collectionName)) return null;
   try {
     const cacheKey = `${CACHE_PREFIX}${collectionName}`;
     let cachedData = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
@@ -79,6 +99,24 @@ export function getCachedCollectionSync(collectionName) {
     if (cachedData) {
       const parsed = JSON.parse(cachedData);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        try {
+          const photoCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+          parsed.forEach(item => {
+            if (!item || typeof item !== 'object') return;
+            const hasPhoto = item.photo_id || item['Student Photo'] || item.photoUrl || item.photoId;
+            if (!hasPhoto) {
+              const keys = [item.id, item['Form Number'], item['Form No.'], item.formNo, item['Board Registration Number']].filter(Boolean);
+              for (const k of keys) {
+                const p = photoCache[String(k).trim()];
+                if (p) {
+                  item.photo_id = p;
+                  item['Student Photo'] = p;
+                  break;
+                }
+              }
+            }
+          });
+        } catch (_) {}
         memoryCache.set(collectionName, parsed);
         if (collectionName === 'masterRegisters') {
           window._hssMasterRegistersCache = parsed;
@@ -109,39 +147,46 @@ export function setCachedCollectionData(collectionName, list) {
   if (collectionName === 'masterRegisters') {
     window._hssMasterRegistersCache = list;
   }
+  // Admissions, user profiles and master registers contain PII. Keep these
+  // only in memory for the active authenticated session.
+  if (MEMORY_ONLY_COLLECTIONS.has(collectionName)) return;
 
   // ── Photo URL extraction: save photo URLs SEPARATELY before stripping ──
   const PHOTO_FIELDS = [
-    'Student Photo', 'Student Photograph', 'Student Photo URL',
-    'Photo', 'photo_id', 'photoId', 'photoUrl', 'photo'
+    'photo_id', 'photoId', 'Student Photo', 'Student Photograph', 'Student Photo URL',
+    'Photo', 'photoUrl', 'photo'
   ];
   try {
     const existingPhotoCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
     list.forEach(item => {
       if (!item || typeof item !== 'object') return;
-      const docId = item.id || item['Form Number'] || item['Board Registration Number'];
+      const docId = item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'];
       if (!docId) return;
       for (const field of PHOTO_FIELDS) {
         const val = item[field];
-        if (val && typeof val === 'string' && val.length > 5 && (val.startsWith('data:') ? val.length < 50000 : true)) {
+        if (val && typeof val === 'string' && val.length > 5) {
           existingPhotoCache[String(docId)] = val;
+          if (item['Form Number']) existingPhotoCache[String(item['Form Number']).trim()] = val;
+          if (item['Form No.']) existingPhotoCache[String(item['Form No.']).trim()] = val;
+          if (item.formNo) existingPhotoCache[String(item.formNo).trim()] = val;
+          if (item.id) existingPhotoCache[String(item.id).trim()] = val;
           break;
         }
       }
     });
     const photoStr = JSON.stringify(existingPhotoCache);
-    if (photoStr.length < 3500000) {
+    if (photoStr.length < 4500000) {
       localStorage.setItem(PHOTO_CACHE_KEY, photoStr);
     }
   } catch (_) {}
 
-  // Strip large blobs
+  // Strip ONLY massive uncompressed blobs (>45KB) while keeping standard compressed thumbnails (<45KB)
   const liteList = list.map(item => {
     if (!item || typeof item !== 'object') return item;
     const clean = {};
     Object.keys(item).forEach(k => {
       const v = item[k];
-      if (typeof v === 'string' && (v.startsWith('data:') || v.length > 5000)) return;
+      if (typeof v === 'string' && v.length > 45000) return;
       clean[k] = v;
     });
     return clean;
@@ -207,6 +252,50 @@ export async function getCachedCollection(collectionName, forceRefresh = false, 
 }
 
 /**
+ * Real-time Firestore Collection Subscription.
+ * Listens for live updates, filters out deleted docs, synchronizes the memory cache,
+ * and calls onUpdate with the live list.
+ *
+ * @param {string} collectionName - Name of the collection (e.g. 'admissions')
+ * @param {function} onUpdate - Callback called with fresh list on any change
+ * @param {function} [onError] - Optional error callback
+ * @returns {function} unsubscribe function
+ */
+export function subscribeToCollection(collectionName, onUpdate, onError) {
+  try {
+    const collRef = collection(db, collectionName);
+    const unsubscribe = onSnapshot(collRef, (snapshot) => {
+      const list = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (
+          data.Status === 'Deleted' ||
+          data.status === 'Deleted' ||
+          data._deleted === true
+        ) return;
+        list.push({ id: docSnap.id, ...data });
+      });
+      setCachedCollectionData(collectionName, list);
+      if (onUpdate && typeof onUpdate === 'function') {
+        onUpdate(list);
+      }
+    }, (err) => {
+      console.warn(`[dbCache] Realtime listener error for ${collectionName}:`, err);
+      if (onError && typeof onError === 'function') {
+        onError(err);
+      }
+    });
+    return unsubscribe;
+  } catch (err) {
+    console.warn(`[dbCache] Failed to attach realtime listener for ${collectionName}:`, err);
+    if (onError && typeof onError === 'function') {
+      onError(err);
+    }
+    return () => {};
+  }
+}
+
+/**
  * Silently revalidate collection data in the background and trigger callback if changed.
  */
 async function revalidateBackground(collectionName, existingData, onBackgroundUpdate) {
@@ -233,12 +322,21 @@ async function revalidateBackground(collectionName, existingData, onBackgroundUp
 
 /**
  * Directly fetch fresh documents from Firestore.
+ * Filters out soft-deleted records (Status === 'Deleted' or _deleted === true)
+ * so they never appear in the UI even if Firebase still has residual copies.
  */
 async function fetchFreshFromFirestore(collectionName) {
   const querySnapshot = await getDocs(collection(db, collectionName));
   const list = [];
   querySnapshot.forEach((doc) => {
-    list.push({ id: doc.id, ...doc.data() });
+    const data = doc.data();
+    // Skip any document explicitly marked as deleted
+    if (
+      data.Status === 'Deleted' ||
+      data.status === 'Deleted' ||
+      data._deleted === true
+    ) return;
+    list.push({ id: doc.id, ...data });
   });
   return list;
 }
@@ -269,7 +367,21 @@ export function invalidateCache(collectionName) {
  */
 export function updateCachedItem(collectionName, itemId, updatedFields) {
   if (!collectionName || !itemId) return [];
-  const current = getCachedCollectionSync(collectionName) || [];
+  let current = getCachedCollectionSync(collectionName) || [];
+
+  // Safeguard: if memory cache is uninitialized or incomplete, attempt reading raw localStorage first
+  if (current.length <= 1) {
+    try {
+      const raw = localStorage.getItem(`${CACHE_PREFIX}${collectionName}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > current.length) {
+          current = parsed;
+        }
+      }
+    } catch (_) {}
+  }
+
   const targetIdStr = String(itemId).trim();
   const normalizedTargetId = targetIdStr.replace(/[\/\s]/g, '_').toLowerCase();
 
@@ -307,12 +419,12 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
 export function savePhotoUrlToCache(docId, photoUrl) {
   if (!docId || !photoUrl || typeof photoUrl !== 'string') return;
   if (photoUrl === '/logo.png') return;
-  if (photoUrl.startsWith('data:') && photoUrl.length > 50000) return; // Skip uncompressed huge base64
+  if (photoUrl.startsWith('data:') && photoUrl.length > 250000) return; // Skip uncompressed huge multi-megabyte base64
   try {
     const existing = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
     existing[String(docId)] = photoUrl;
     const str = JSON.stringify(existing);
-    if (str.length < 3500000) {
+    if (str.length < 4500000) {
       localStorage.setItem(PHOTO_CACHE_KEY, str);
     }
   } catch (_) {}

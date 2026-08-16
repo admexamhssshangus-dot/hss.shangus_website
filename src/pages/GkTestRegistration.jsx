@@ -501,14 +501,8 @@ export default function GkTestRegistration() {
     try {
       await ensureAuth();
       let finalExamNo = generateExamNumber();
-      // Ensure uniqueness
-      let unique = false;
-      while (!unique) {
-        const snap = await getDocs(
-          query(collection(db, 'omr_registrations'), where('examNumber', '==', finalExamNo), limit(1))
-        );
-        if (snap.empty) { unique = true; } else { finalExamNo = generateExamNumber(); }
-      }
+      // Firestore permits create but denies update for candidates, so an
+      // unlikely ID collision fails atomically instead of overwriting data.
 
       const payload = isManual ? {
         examNumber: finalExamNo,
@@ -524,6 +518,7 @@ export default function GkTestRegistration() {
         isManualEntry: true,
         submittedAt: serverTimestamp(),
         status: 'registered',
+        ownerUid: auth.currentUser.uid,
       } : {
         examNumber: finalExamNo,
         boardRegNo: student.boardRegNo || '',
@@ -538,6 +533,7 @@ export default function GkTestRegistration() {
         isManualEntry: false,
         submittedAt: serverTimestamp(),
         status: 'registered',
+        ownerUid: auth.currentUser.uid,
       };
 
       await setDoc(doc(db, 'omr_registrations', finalExamNo), payload);

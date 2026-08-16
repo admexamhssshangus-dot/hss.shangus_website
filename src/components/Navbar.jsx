@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { Phone, Mail, X, Menu, Lock, Unlock, LogOut, User, ShieldCheck } from 'lucide-react';
+import { Phone, Mail, X, Menu, Lock, LogOut, User } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { db, auth } from '../firebase';
@@ -41,7 +41,6 @@ export default function Navbar() {
   // Mobile menu open
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dynamicLinks, setDynamicLinks] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -51,7 +50,6 @@ export default function Navbar() {
     const session = sessionManager.getSession();
     if (session && session.user && (session.user.role || session.user.email)) {
       setCurrentUser(session.user);
-      setIsAdmin(session.user.role === 'Admin' || session.user.role === 'SuperAdmin');
       return;
     }
 
@@ -66,7 +64,6 @@ export default function Navbar() {
       const adminEmail = storedAdmin?.email || sessionStorage.getItem('adminEmail') || 'adm.exam.hss.shangus@gmail.com';
       const adminName = storedAdmin?.name || storedAdmin?.displayName || 'Admin';
       setCurrentUser({ name: adminName, role: 'SuperAdmin', email: adminEmail });
-      setIsAdmin(true);
       return;
     }
 
@@ -75,7 +72,6 @@ export default function Navbar() {
     // signed in after our custom session is cleared (e.g. clearSession() + signOut
     // are async). The Navbar must reflect the portal session, not Firebase state.
     setCurrentUser(null);
-    setIsAdmin(false);
   };
 
   useEffect(() => {
@@ -113,7 +109,6 @@ export default function Navbar() {
       setIsLoggingOut(false);
       setShowLogoutModal(false);
       setCurrentUser(null);
-      setIsAdmin(false);
       setMobileOpen(false);
       navigate('/portal/login');
     }
@@ -244,13 +239,82 @@ export default function Navbar() {
     return () => window.removeEventListener('resize', updateHeaderHeight);
   }, [mobileOpen, isVisible]);
 
+  const profileInputRef = useRef(null);
+  const [profilePhoto, setProfilePhoto] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const emailKey = currentUser?.email || 'default';
+    return localStorage.getItem(`hss_admin_photo_${emailKey}`) || currentUser?.photoURL || null;
+  });
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      const saved = localStorage.getItem(`hss_admin_photo_${currentUser.email}`);
+      if (saved) setProfilePhoto(saved);
+      else if (currentUser.photoURL) setProfilePhoto(currentUser.photoURL);
+    }
+  }, [currentUser]);
+
+  const handleProfilePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 140;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.75;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length * (3 / 4) > 10 * 1024 && quality > 0.1) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        const finalSizeBytes = Math.round(dataUrl.length * (3 / 4));
+        if (finalSizeBytes > 10 * 1024) {
+          alert('Selected photo is too large even after compression. Please choose a smaller image (max 10KB).');
+          return;
+        }
+
+        const storageKey = `hss_admin_photo_${currentUser?.email || 'default'}`;
+        try {
+          localStorage.setItem(storageKey, dataUrl);
+        } catch (err) {
+          // ignore
+        }
+        setProfilePhoto(dataUrl);
+      };
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <>
       <header ref={headerRef} className={`w-full shadow-md z-40 fixed top-0 left-0 right-0 bg-white transition-all duration-200 ease-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}
-          <div className="bg-slate-900 text-slate-300 text-[10px] lg:text-xs py-1.5 px-4 hidden md:flex justify-between items-center border-b border-slate-700 flex-wrap gap-y-1">
+          <div className="bg-slate-900 text-slate-300 text-[10px] lg:text-[11px] py-1 px-4 hidden md:flex justify-between items-center border-b border-slate-700 flex-wrap gap-y-1">
             <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
               <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> Principal:&nbsp;<a href="tel:+917006912918" className="hover:text-teal-400 transition-colors font-medium">+91-7006912918</a></span>
               <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> VP:&nbsp;<a href="tel:+919682641216" className="hover:text-teal-400 transition-colors font-medium">+91-9682641216</a></span>
@@ -272,81 +336,89 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* ROW 2: Logo and School Name */}
-          <div className="max-w-7xl mx-auto px-4 py-1 md:py-3 flex items-center justify-between">
-            <Link to="/" className="flex items-center">
-              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-12 md:w-12 mr-3 object-contain" />
-              <div>
-                <h1 className="text-[14.4px] md:text-xl font-bold text-teal-800 tracking-tight leading-tight font-title">
+          {/* ROW 2: Logo and School Name (Edge-to-Edge Right Extreme Alignment) */}
+          <div className="w-full px-4 md:px-6 py-1 md:py-1.5 flex items-center justify-between gap-4">
+            <Link to="/" className="flex items-center min-w-0 shrink">
+              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-10 md:w-10 mr-3 object-contain" />
+              <div className="min-w-0">
+                <div className="truncate text-[14.4px] md:text-lg font-bold text-teal-800 tracking-tight leading-tight font-title" aria-label="Govt. Higher Secondary School Shangus">
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
                   <span className="inline md:hidden">Govt. Hr. Sec. School Shangus</span>
-                </h1>
-                <p className="text-[10.6px] md:text-[14.4px] text-slate-500 not-italic mt-0 font-slogan">nurturing minds, shaping futures</p>
+                </div>
+                <p className="text-[10.6px] md:text-xs text-slate-500 not-italic mt-0 font-slogan">nurturing minds, shaping futures</p>
               </div>
             </Link>
 
-            {/* Desktop Actions: Avatar & Logout Badge in Upper White Header (ROW 2) when Logged In */}
+            {/* Desktop Actions: Ultra-Modern Glassmorphic Admin Profile Card (Right Extreme) */}
             {currentUser && (
-              <div className="hidden md:flex items-center gap-3">
-                <div
-                  className="flex items-center gap-2 p-1 rounded-2xl border shadow-sm transition-colors duration-200"
-                  style={{
-                    backgroundColor: 'var(--bg-card, #ffffff)',
-                    borderColor: 'var(--border-ui, #cbd5e1)',
-                  }}
-                >
+              <div className="hidden md:flex items-center gap-2 ml-auto shrink-0">
+                <input
+                  type="file"
+                  ref={profileInputRef}
+                  onChange={handleProfilePhotoChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                <div className="flex max-w-[42vw] items-center gap-1.5 rounded-2xl bg-slate-900/95 border border-emerald-500/40 p-1.5 shadow-xl backdrop-blur-xl text-white transition-all duration-300 hover:shadow-emerald-500/20 hover:border-emerald-400/60">
+                  <button
+                    type="button"
+                    onClick={() => profileInputRef.current?.click()}
+                    className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-emerald-400/50 bg-emerald-500/20 text-emerald-300 font-black shadow-sm transition-transform hover:scale-105 focus-visible:scale-105"
+                    title="Upload or change profile photo (maximum 10 KB)"
+                    aria-label="Upload or change profile photo"
+                  >
+                    {profilePhoto ? (
+                      <img src={profilePhoto} alt="" className="h-full w-full rounded-lg object-cover" />
+                    ) : (
+                      <User size={16} className="stroke-[2.5]" aria-hidden="true" />
+                    )}
+                    {isAwayFromDashboard && (
+                      <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5" aria-hidden="true">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-slate-900 bg-amber-500" />
+                      </span>
+                    )}
+                  </button>
+
                   <Link
                     to={getDashboardPath(currentUser.role)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-extrabold text-xs shadow-sm transition-all duration-200 text-white ${
-                      isAwayFromDashboard ? 'ring-2 ring-amber-400/80 shadow-xs' : ''
-                    }`}
-                    style={{
-                      backgroundColor: 'var(--teal-accent, #00674F)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--teal-accent-hover, #004d3b)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--teal-accent, #00674F)';
-                    }}
-                    title={`Dashboard (${currentUser.role}) — Click to return to active workspace`}
+                    className="group min-w-0 flex-1 rounded-xl px-1.5 py-1 transition-all duration-200 hover:bg-white/10"
+                    title={`Return to Dashboard workspace (${currentUser.role})`}
                   >
-                    <div className="relative flex items-center justify-center">
-                      <User size={14} className="stroke-[2.5]" />
-                      {isAwayFromDashboard && (
-                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400 border border-slate-900 shadow-2xs"></span>
+                    <div className="flex min-w-0 flex-col text-left leading-tight">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="max-w-24 truncate font-black text-xs tracking-tight text-white transition-colors group-hover:text-emerald-300">
+                          {currentUser.name ? currentUser.name.split(' ')[0] : 'Sheikh'}
                         </span>
-                      )}
+                        <span className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-500/20 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-300 shadow-2xs">
+                          {currentUser.role === 'SuperAdmin' ? 'ADMIN' : currentUser.role}
+                        </span>
+                      </div>
+                      <span className="mt-0.5 max-w-[7rem] truncate font-mono text-[9px] font-bold tracking-tighter text-slate-300 lg:max-w-[10rem] xl:max-w-[12rem]">
+                        {currentUser.email || 'ghssshangus74@gmail.com'}
+                      </span>
                     </div>
-                    <span className="tracking-tight">{currentUser.name ? currentUser.name.split(' ')[0] : 'Dashboard'}</span>
-                    <span className="text-[10px] font-bold opacity-90 bg-black/20 px-1.5 py-0.2 rounded-md">
-                      ({currentUser.role === 'SuperAdmin' ? 'Admin' : currentUser.role})
-                    </span>
                   </Link>
 
                   <button
                     type="button"
                     onClick={handleGlobalLogout}
-                    className="p-1.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center justify-center"
-                    style={{
-                      borderColor: 'var(--border-ui, #cbd5e1)',
-                      color: 'var(--text-muted, #64748b)',
-                    }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#dc2626';
+                      e.currentTarget.style.backgroundColor = '#e11d48';
+                      e.currentTarget.style.borderColor = '#f43f5e';
                       e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.borderColor = '#dc2626';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--text-muted, #64748b)';
-                      e.currentTarget.style.borderColor = 'var(--border-ui, #cbd5e1)';
+                      e.currentTarget.style.backgroundColor = '';
+                      e.currentTarget.style.borderColor = '';
+                      e.currentTarget.style.color = '';
                     }}
+                    className="group/btn flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-800/90 text-slate-300 shadow-xs transition-all duration-200 hover:!border-rose-500 hover:!bg-rose-600 hover:!text-white"
                     title="Sign Out of Session"
+                    aria-label="Sign out of session"
                   >
-                    <LogOut size={15} className="stroke-[2.5]" />
+                    <LogOut size={13} className="stroke-[2.5] group-hover/btn:scale-110 transition-transform" />
                   </button>
                 </div>
               </div>
@@ -357,7 +429,7 @@ export default function Navbar() {
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}
-                className="p-1.5 rounded-lg text-slate-800 bg-slate-100 border border-slate-200 shadow-sm relative"
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-800 bg-slate-100 border border-slate-200 shadow-sm relative"
               >
                 {mobileOpen ? <X size={18} /> : <Menu size={18} />}
                 {currentUser && (
@@ -411,22 +483,6 @@ export default function Navbar() {
 
 
 
-              {/* Admin Lock Portal Button at Far Right Extreme (Desktop Only) */}
-              <div className="hidden md:flex absolute -right-2 sm:right-0 lg:-right-4 items-center h-full py-0.5 z-20">
-                <Link
-                  to="/admin/portal"
-                  onClick={() => window.scrollTo(0, 0)}
-                  title={isAdmin ? "Admin Dashboard (Active Session)" : "Administrative Portal"}
-                  className="p-1.5 rounded-md flex items-center justify-center transition-all duration-200 cursor-pointer opacity-25 hover:opacity-100 hover:scale-110 text-slate-400 hover:text-white"
-                  aria-label="Admin Portal"
-                >
-                  {isAdmin ? (
-                    <Unlock size={14} className="stroke-[2.5] text-emerald-400" />
-                  ) : (
-                    <Lock size={14} className="stroke-[2.5] text-slate-400" />
-                  )}
-                </Link>
-              </div>
             </nav>
           </div>
 
@@ -436,16 +492,16 @@ export default function Navbar() {
               <div className="px-4 py-3">
                 {/* Menu items */}
                 <div className="space-y-1.5">
-                  <Link to="/" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Home</Link>
-                  <Link to="/about" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
-                  <Link to="/academics" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
-                  <Link to="/admissions" onClick={() => setMobileOpen(false)} className="block font-semibold px-3 py-1.5 rounded" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
+                  <Link to="/" onClick={() => setMobileOpen(false)} className="mobile-menu-primary-link flex items-center font-semibold px-3 py-2 rounded-lg" style={isActive('/') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Home</Link>
+                  <Link to="/about" onClick={() => setMobileOpen(false)} className="mobile-menu-primary-link flex items-center font-semibold px-3 py-2 rounded-lg" style={isActive('/about') ? { backgroundColor: '#961c14', color: 'white' } : {}}>About Us</Link>
+                  <Link to="/academics" onClick={() => setMobileOpen(false)} className="mobile-menu-primary-link flex items-center font-semibold px-3 py-2 rounded-lg" style={isActive('/academics') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Academics</Link>
+                  <Link to="/admissions" onClick={() => setMobileOpen(false)} className="mobile-menu-primary-link flex items-center font-semibold px-3 py-2 rounded-lg" style={isActive('/admissions') ? { backgroundColor: '#961c14', color: 'white' } : {}}>Admissions</Link>
                   {dynamicLinks.map((link) => (
                      <Link
                        key={link.id}
                        to={`/${link.id}`}
                        onClick={() => setMobileOpen(false)}
-                       className="block font-semibold px-3 py-1.5 rounded"
+                       className="mobile-menu-primary-link flex items-center font-semibold px-3 py-2 rounded-lg"
                        style={isActive(`/${link.id}`) ? { backgroundColor: '#961c14', color: 'white' } : {}}
                      >
                        {link.title}
@@ -506,40 +562,39 @@ export default function Navbar() {
                 </div>
                 <div className="pt-3">
                   {currentUser ? (
-                    <div className="rounded-xl border p-2.5 flex items-center justify-between gap-3 shadow-md" style={{ backgroundColor: '#1e293b', borderColor: '#334155' }}>
+                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 p-2 shadow-md">
                       <Link
                         to={getDashboardPath(currentUser.role)}
                         onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-2 overflow-hidden group"
+                        className="group flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-xl p-1 hover:bg-white/5"
                       >
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 shadow-xs" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
-                          {(currentUser.name || currentUser.email || 'U')[0].toUpperCase()}
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-400/40 bg-emerald-500/20 text-xs font-black text-emerald-300 shadow-xs">
+                          {profilePhoto ? (
+                            <img src={profilePhoto} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            (currentUser.name || currentUser.email || 'U')[0].toUpperCase()
+                          )}
                         </div>
-                        <span className="text-xs font-black text-white group-hover:text-teal-300 transition-colors truncate">
-                          {currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email || '').split('@')[0]}
-                          <span className="text-[8px] font-extrabold text-teal-400 ml-1">
-                            ({currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')})
+                        <div className="flex min-w-0 flex-1 flex-col truncate text-left leading-tight">
+                          <span className="flex min-w-0 items-center gap-1.5 truncate text-xs font-black text-white transition-colors group-hover:text-emerald-300">
+                            <span className="truncate">{currentUser.name ? currentUser.name.split(' ')[0] : 'Sheikh'}</span>
+                            <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-950/80 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-emerald-400">
+                              {currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')}
+                            </span>
                           </span>
-                        </span>
+                          <span className="truncate font-mono text-[9px] font-bold text-emerald-200/80">
+                            {currentUser.email || 'ghssshangus74@gmail.com'}
+                          </span>
+                        </div>
                       </Link>
                       <button
+                        type="button"
                         onClick={handleGlobalLogout}
-                        className="px-2.5 py-1 text-[10px] font-black rounded-lg transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
-                        style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-200 shadow-xs transition-colors hover:border-rose-500 hover:bg-rose-600 hover:text-white"
                         title="Sign Out"
-                        onMouseEnter={e => {
-                          e.currentTarget.style.backgroundColor = '#dc2626';
-                          e.currentTarget.style.color = '#ffffff';
-                          e.currentTarget.style.borderColor = '#dc2626';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.backgroundColor = '#ffffff';
-                          e.currentTarget.style.color = '#000000';
-                          e.currentTarget.style.borderColor = '#cbd5e1';
-                        }}
+                        aria-label="Sign out of session"
                       >
-                        <LogOut size={11} className="stroke-[2.5]" />
-                        <span>Logout</span>
+                        <LogOut size={15} className="stroke-[2.5]" aria-hidden="true" />
                       </button>
                     </div>
                   ) : (
