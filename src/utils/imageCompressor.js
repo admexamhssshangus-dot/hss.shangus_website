@@ -159,10 +159,62 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
   const isValidPhotoStr = (v) => {
     if (!v || typeof v !== 'string') return false;
     const t = v.trim();
-    return t.length > 5 && t !== '—' && t !== 'N/A' && t !== 'null' && t !== 'undefined';
+    return t.length > 20 && t !== '—' && t !== 'N/A' && t !== 'null' && t !== 'undefined' && t !== '/logo.png';
   };
 
-  // Check all known field aliases — prioritize resolved photoId and unstripped fields
+  const cleanReg = (val) => {
+    if (!val) return '';
+    let s = String(val).trim();
+    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+      try {
+        if (typeof window !== 'undefined' && window.BigInt) {
+          s = window.BigInt(Math.floor(Number(val))).toString();
+        } else {
+          s = Number(val).toLocaleString('fullwide', { useGrouping: false });
+        }
+      } catch (_) {}
+    }
+    return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
+  };
+
+  const rawBoardReg = 
+    st.boardRegNo ||
+    st.regNo ||
+    st['Board Registration No. (Class 10th)'] ||
+    st['Board Registration No. (Class 11th)'] ||
+    st['Board Registration No.'] ||
+    st['Board Registration Number'] ||
+    st['Board Reg. No.'] ||
+    st['Board Reg No'] ||
+    st['REG. NO.'] ||
+    st['Registration No.'] ||
+    '';
+
+  const cleanedBoardReg = cleanReg(rawBoardReg);
+
+  // 1. PRIMARY PRIORITY: Central photo map keyed by Board Registration Number
+  if (typeof window !== 'undefined' && cleanedBoardReg) {
+    try {
+      const memoryMap = window._hss_central_photo_map || {};
+      const cache1 = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
+      const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
+      const regCandidates = [
+        cleanedBoardReg,
+        `photo_${cleanedBoardReg}`,
+        `reg_${cleanedBoardReg}`,
+        cleanedBoardReg.toLowerCase()
+      ];
+      for (const rKey of regCandidates) {
+        const p = memoryMap[rKey] || cache1[rKey] || cache2[rKey];
+        if (isValidPhotoStr(p)) {
+          const formatted = formatPhotoDisplayUrl(p);
+          if (formatted) return formatted;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. SECONDARY PRIORITY: Direct photo fields on current student record
   const photoCandidates = [
     st.photoId,
     st['photoId'],
@@ -193,33 +245,47 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     }
   }
 
-  // Try checking localStorage photo cache for candidate IDs
-  if (typeof window !== 'undefined' && window.localStorage) {
+  // 3. TERTIARY PRIORITY: Other candidate IDs in cache (Form No, DocId, Name)
+  if (typeof window !== 'undefined') {
     try {
+      const memoryMap = window._hss_central_photo_map || {};
       const cache1 = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
       const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
-      const cache = { ...cache2, ...cache1 };
+      const cache = { ...cache2, ...cache1, ...memoryMap };
 
       const candidateIds = [
         st.id,
         st.docId,
-        st._id,
+        st._docId,
         st['Form Number'],
         st['Form No.'],
         st['FormNo'],
         st.formNo,
         st.form_no,
-        st['Board Registration Number'],
-        st.boardRegNo,
-        st.regNo,
         st['Class Roll No'],
+        st['Class Roll No.'],
+        st['Class R.No.'],
         st.classRollNo,
         st.rollNo
       ].filter(Boolean);
 
+      const sName = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim().toLowerCase();
+      if (sName && sName !== 'student' && sName !== '—') {
+        candidateIds.push(sName);
+        candidateIds.push(sName.replace(/[^a-z0-9]/g, ''));
+      }
+
       for (const cId of candidateIds) {
         const cleanId = String(cId).trim();
-        const cached = cache[cleanId] || cache[cleanId.replace(/[^0-9]/g, '')];
+        const cached = 
+          cache[cleanId] || 
+          cache[cleanId.toLowerCase()] || 
+          cache[`photo_${cleanId}`] ||
+          cache[`reg_${cleanId}`] ||
+          cache[cleanId.replace(/[^0-9]/g, '')] || 
+          cache[`photo_${cleanId.replace(/[^0-9]/g, '')}`] ||
+          cache[cleanId.replace(/[^a-z0-9]/g, '')];
+
         if (isValidPhotoStr(cached)) {
           const cachedFormatted = formatPhotoDisplayUrl(cached);
           if (cachedFormatted) return cachedFormatted;

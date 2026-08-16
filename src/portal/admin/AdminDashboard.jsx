@@ -17,7 +17,7 @@ import ModernLoader from '../../components/ModernLoader';
 import AdminToolsDropdown from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache } from '../../services/dbCache';
 
 const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
 
@@ -94,6 +94,10 @@ export default function AdminDashboard() {
 
   // Trigger confirm modal before logging out
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
+
+  useEffect(() => {
+    preloadStudentPhotosCache().catch(() => {});
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event) {

@@ -568,8 +568,17 @@ async function legacySaveApplication(payload) {
   // New admissions must NOT be written here.
 
   try {
-    const { updateCachedItem } = require('./dbCache');
+    const { updateCachedItem, syncStudentPhotoOnRegUpdate } = require('./dbCache');
     updateCachedItem('admissions', sanitizedDocId, payloadData);
+    const reg = data['Board Registration Number'] || data['Board Registration No.'] || data['Board Registration No. (Class 10th)'] || data['Board Registration No. (Class 11th)'] || data.boardRegNo || data.regNo;
+    const photo = data.photo_id || data['Student Photo'] || data.photoUrl || data.photo;
+    if (reg && photo && typeof syncStudentPhotoOnRegUpdate === 'function') {
+      syncStudentPhotoOnRegUpdate({
+        newReg: reg,
+        student: payloadData,
+        photoData: photo
+      }).catch(() => {});
+    }
   } catch (e) {}
 
   // Non-blocking Apps Script background sync

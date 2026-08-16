@@ -27,7 +27,7 @@ import {
   getStudentStreamVal,
   generateVerificationQrUrl
 } from '../../utils/idCardRenderer';
-import { compressImageFile } from '../../utils/imageCompressor';
+import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import { getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -160,6 +160,10 @@ function resolveStudentPhoto(student, allStudentsList = []) {
     const cachedUrl = getPhotoUrlFromCache(String(docId));
     if (cachedUrl) return formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
   }
+
+  // 4. Try centralized photo map in RAM
+  const centralResolved = getStudentPhotoUrl(student);
+  if (centralResolved && centralResolved !== '/logo.png' && centralResolved !== '—') return centralResolved;
 
   return '/logo.png';
 }

@@ -6,8 +6,9 @@
 // while avoiding unnecessary database reads when cache is fresh.
 // =================================================================
 
-import { collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { getStudentPhotoUrl } from '../utils/imageCompressor';
 
 const CACHE_PREFIX = 'hss_cache_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
@@ -444,3 +445,284 @@ export function getPhotoUrlFromCache(docId) {
     return null;
   }
 }
+
+/**
+ * Preload centralized student photos from 'studentPhotos' collection into local memory photo map.
+ */
+export async function preloadStudentPhotosCache() {
+  if (typeof window === 'undefined') return {};
+  try {
+    if (window._hss_central_photo_map && Object.keys(window._hss_central_photo_map).length > 200) {
+      return window._hss_central_photo_map;
+    }
+    const photosSnap = await getDocs(collection(db, 'studentPhotos'));
+    const photoMap = window._hss_central_photo_map || {};
+    photosSnap.forEach(docSnap => {
+      const d = docSnap.data();
+      const p = d.photo_id || d.photoData || d.photo || d.photoUrl;
+      if (p && typeof p === 'string' && p.trim().length > 20) {
+        const photoVal = p.trim();
+        if (d.regNo) {
+          const r = String(d.regNo).trim();
+          photoMap[r] = photoVal;
+          photoMap[r.toLowerCase()] = photoVal;
+          photoMap[r.replace(/[^0-9]/g, '')] = photoVal;
+          photoMap[`reg_${r}`] = photoVal;
+        }
+        if (d.boardRegNo) {
+          const br = String(d.boardRegNo).trim();
+          photoMap[br] = photoVal;
+          photoMap[br.toLowerCase()] = photoVal;
+          photoMap[br.replace(/[^0-9]/g, '')] = photoVal;
+          photoMap[`reg_${br}`] = photoVal;
+        }
+        if (d.studentName) {
+          const sName = String(d.studentName).trim().toLowerCase();
+          photoMap[sName] = photoVal;
+          photoMap[sName.replace(/[^a-z0-9]/g, '')] = photoVal;
+        }
+        if (d.formNo) {
+          const f = String(d.formNo).trim();
+          photoMap[f] = photoVal;
+          photoMap[f.toLowerCase()] = photoVal;
+        }
+        photoMap[docSnap.id] = photoVal;
+        photoMap[docSnap.id.replace(/^photo_/, '')] = photoVal;
+      }
+    });
+
+    window._hss_central_photo_map = photoMap;
+
+    // Dispatch custom event to notify all active views/reports that photos are ready in RAM
+    window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { count: Object.keys(photoMap).length } }));
+
+    return photoMap;
+  } catch (e) {
+    console.warn('Could not preload student photos cache:', e);
+    return window._hss_central_photo_map || {};
+  }
+}
+
+const _activePhotoPromises = new Map();
+
+/**
+ * Fetch a single student's photo on-demand from Firestore 'studentPhotos' collection.
+ * Uses in-memory caching and promise de-duplication so each photo is fetched only once.
+ */
+export async function fetchStudentPhotoOnDemand(student) {
+  if (!student) return '';
+
+  // 1. Check in-memory synchronous photo map first
+  const existing = getStudentPhotoUrl(student);
+  if (existing && existing !== '/logo.png' && existing !== '—') return existing;
+
+  // 2. Extract candidate Board Reg No & Document IDs
+  const cleanReg = (val) => {
+    if (!val) return '';
+    let s = String(val).trim();
+    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+      try {
+        if (typeof window !== 'undefined' && window.BigInt) {
+          s = window.BigInt(Math.floor(Number(val))).toString();
+        } else {
+          s = Number(val).toLocaleString('fullwide', { useGrouping: false });
+        }
+      } catch (_) {}
+    }
+    return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
+  };
+
+  const rawBoardReg =
+    student.boardRegNo ||
+    student.regNo ||
+    student['Board Registration No. (Class 10th)'] ||
+    student['Board Registration No. (Class 11th)'] ||
+    student['Board Registration No.'] ||
+    student['Board Registration Number'] ||
+    student['Board Reg. No.'] ||
+    student['Board Reg No'] ||
+    student['REG. NO.'] ||
+    '';
+
+  const reg = cleanReg(rawBoardReg);
+  const docCandidates = [];
+  if (reg) {
+    docCandidates.push(`photo_${reg}`);
+    docCandidates.push(reg);
+  }
+  if (student.docId) docCandidates.push(String(student.docId).trim());
+  if (student.id) docCandidates.push(String(student.id).trim());
+
+  const cacheKey = reg || student.docId || student.id || String(student.studentName || '').toLowerCase();
+  if (!cacheKey) return '';
+
+  if (_activePhotoPromises.has(cacheKey)) {
+    return _activePhotoPromises.get(cacheKey);
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      for (const targetDocId of docCandidates) {
+        if (!targetDocId) continue;
+        const snap = await getDoc(doc(db, 'studentPhotos', targetDocId));
+        if (snap.exists()) {
+          const d = snap.data();
+          const p = (d.photo_id || d.photoData || d.photo || d.photoUrl || '').trim();
+          if (p && p.length > 20) {
+            if (typeof window !== 'undefined') {
+              window._hss_central_photo_map = window._hss_central_photo_map || {};
+              window._hss_central_photo_map[targetDocId] = p;
+              if (reg) {
+                window._hss_central_photo_map[reg] = p;
+                window._hss_central_photo_map[`photo_${reg}`] = p;
+              }
+              if (student.studentName) {
+                window._hss_central_photo_map[String(student.studentName).trim().toLowerCase()] = p;
+              }
+            }
+            return p;
+          }
+        }
+      }
+      // Negative cache so we don't query Firestore repeatedly
+      if (typeof window !== 'undefined') {
+        window._hss_central_photo_map = window._hss_central_photo_map || {};
+        window._hss_central_photo_map[cacheKey] = '—';
+      }
+      return '';
+    } catch (e) {
+      console.warn(`Could not fetch on-demand photo for ${cacheKey}:`, e);
+      return '';
+    } finally {
+      _activePhotoPromises.delete(cacheKey);
+    }
+  })();
+
+  _activePhotoPromises.set(cacheKey, fetchPromise);
+  return fetchPromise;
+}
+
+/**
+ * Automatically synchronizes a student's photo across Firestore `studentPhotos`
+ * when their Board Registration Number or photo is created or updated (by admin or student).
+ */
+export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', student = {}, photoData = '' } = {}) {
+  try {
+    const cleanReg = (val) => {
+      if (!val) return '';
+      let s = String(val).trim();
+      if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+        try {
+          if (typeof window !== 'undefined' && window.BigInt) {
+            s = window.BigInt(Math.floor(Number(val))).toString();
+          } else {
+            s = Number(val).toLocaleString('fullwide', { useGrouping: false });
+          }
+        } catch (_) {}
+      }
+      return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
+    };
+
+    const targetNewReg = cleanReg(
+      newReg || 
+      student?.boardRegNo || 
+      student?.regNo || 
+      student?.['Board Registration Number'] || 
+      student?.['Board Registration No.'] ||
+      student?.['Board Registration No. (Class 10th)'] ||
+      student?.['Board Registration No. (Class 11th)'] ||
+      student?.['REG. NO.']
+    );
+
+    const targetOldReg = cleanReg(oldReg);
+    let photoUrl = '';
+
+    // If targetNewReg already has a photo in studentPhotos, preserve the authentic photo of targetNewReg
+    if (targetNewReg && (!photoData || typeof photoData !== 'string' || photoData.trim().length <= 20)) {
+      try {
+        const newSnap = await getDoc(doc(db, 'studentPhotos', `photo_${targetNewReg}`));
+        if (newSnap.exists()) {
+          const nd = newSnap.data();
+          const existingP = (nd.photo_id || nd.photoData || nd.photo || '').trim();
+          if (existingP && existingP.length > 20) {
+            photoUrl = existingP;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Resolve photo string (from argument, student record, or memory cache)
+    if (!photoUrl || photoUrl === '/logo.png' || photoUrl.length < 20) {
+      photoUrl = (typeof photoData === 'string' && photoData.trim().length > 20)
+        ? photoData.trim()
+        : (getStudentPhotoUrl(student) || '');
+    }
+
+    // If photo is still missing, check if oldReg document has it in Firestore
+    if ((!photoUrl || photoUrl === '/logo.png') && targetOldReg) {
+      try {
+        const oldSnap = await getDoc(doc(db, 'studentPhotos', `photo_${targetOldReg}`));
+        if (oldSnap.exists()) {
+          const od = oldSnap.data();
+          photoUrl = (od.photo_id || od.photoData || od.photo || '').trim();
+        }
+      } catch (_) {}
+    }
+
+    if (!photoUrl || photoUrl === '/logo.png' || photoUrl.length < 20) {
+      return false;
+    }
+
+    const sName = student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || student?.name || '';
+    const sClass = student?.class || student?.['Class'] || '';
+    const sSession = student?.session || student?.['Session'] || '';
+
+    // 1. Write or update new studentPhotos document with the new Board Registration No
+    if (targetNewReg) {
+      const docPayload = {
+        photo_id: photoUrl,
+        regNo: targetNewReg,
+        boardRegNo: targetNewReg,
+        studentName: sName,
+        selectedClass: sClass,
+        selectedSession: sSession,
+        updatedAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'studentPhotos', `photo_${targetNewReg}`), docPayload, { merge: true });
+
+      // Update RAM cache immediately
+      if (typeof window !== 'undefined') {
+        window._hss_central_photo_map = window._hss_central_photo_map || {};
+        window._hss_central_photo_map[targetNewReg] = photoUrl;
+        window._hss_central_photo_map[`photo_${targetNewReg}`] = photoUrl;
+        if (sName) {
+          window._hss_central_photo_map[String(sName).trim().toLowerCase()] = photoUrl;
+        }
+      }
+    }
+
+    // 2. Clean up obsolete old registration doc if it changed
+    if (targetOldReg && targetNewReg && targetOldReg !== targetNewReg) {
+      try {
+        await deleteDoc(doc(db, 'studentPhotos', `photo_${targetOldReg}`));
+        if (typeof window !== 'undefined' && window._hss_central_photo_map) {
+          delete window._hss_central_photo_map[targetOldReg];
+          delete window._hss_central_photo_map[`photo_${targetOldReg}`];
+        }
+      } catch (_) {}
+    }
+
+    // Dispatch global event so all components reactively refresh photos
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { updatedReg: targetNewReg } }));
+    }
+
+    return true;
+  } catch (e) {
+    console.warn('syncStudentPhotoOnRegUpdate note:', e);
+    return false;
+  }
+}
+
+

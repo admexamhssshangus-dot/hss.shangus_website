@@ -1,10 +1,96 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, RefreshCw, Trash2, Printer, ShieldAlert, CheckCircle2, UserCheck, FileText, Filter, AlertTriangle, Eye, X, Calendar, Clock, Save, Lock, Unlock } from 'lucide-react';
+import { Search, RefreshCw, Trash2, Printer, ShieldAlert, CheckCircle2, UserCheck, FileText, Filter, AlertTriangle, Eye, X, Calendar, Clock, Save, Lock, Unlock, Download, Award, BookOpen, Sparkles, Sliders, ChevronDown, ChevronUp } from 'lucide-react';
 import { collection, getDocs, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { generateGkTestAdmitCardPdf } from '../../utils/pdfGenerator';
 
-function PrintableAdmitCardModal({ registration, onClose }) {
+const EXAM_PRESETS = [
+  {
+    id: 'gk',
+    label: '🏆 General Knowledge & Talent Search',
+    examTitle: 'All Kashmir GK Talent Search & Competitive Examination 2026',
+    examType: 'General Knowledge & Talent Search',
+    duration: '120 Minutes',
+    maxMarks: 100,
+    instructions: [
+      'Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.',
+      'Reporting time at the examination center is 30 minutes prior to commencement of the test.',
+      'Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.',
+      'Use blue or black ballpoint pen only for writing responses on the answer sheet.'
+    ]
+  },
+  {
+    id: 'science',
+    label: '🔬 Science Olympiad & Innovation Challenge',
+    examTitle: 'Annual Science Olympiad & Innovation Challenge 2026',
+    examType: 'Science Olympiad',
+    duration: '90 Minutes',
+    maxMarks: 100,
+    instructions: [
+      'Bring your printed Admit Card and school ID card to the examination venue.',
+      'Test comprises Multiple Choice Questions (MCQ) covering Physics, Chemistry, Biology & Environmental Science.',
+      'Rough work must be done only on the designated pages of the question booklet.',
+      'Mobile phones, digital watches, and calculators are strictly prohibited.'
+    ]
+  },
+  {
+    id: 'math',
+    label: '📐 Mathematics & Logical Reasoning Talent Search',
+    examTitle: 'State Mathematics & Logical Reasoning Talent Search 2026',
+    examType: 'Mathematics Talent Search',
+    duration: '120 Minutes',
+    maxMarks: 100,
+    instructions: [
+      'Admit Card and geometrical instruments box (without papers) are permitted.',
+      'Questions evaluate conceptual clarity, numerical aptitude, and analytical reasoning.',
+      'Use blue or black ballpoint pen only on the OMR sheet.',
+      'Calculators and electronic communication devices are completely banned.'
+    ]
+  },
+  {
+    id: 'nmms',
+    label: '🎓 National Means-cum-Merit Scholarship (NMMS)',
+    examTitle: 'NMMS Mock & Scholarship Selection Examination 2026',
+    examType: 'National Scholarship (NMMS)',
+    duration: '180 Minutes',
+    maxMarks: 180,
+    instructions: [
+      'Paper consists of MAT (Mental Ability Test) and SAT (Scholastic Aptitude Test).',
+      'Candidate must be seated in the examination hall 30 minutes before the scheduled time.',
+      'Fill OMR circles completely and firmly with blue/black ballpoint pen.',
+      'No negative marking applies unless otherwise indicated on the question paper.'
+    ]
+  },
+  {
+    id: 'ntse',
+    label: '🌟 National Talent Search Examination (NTSE)',
+    examTitle: 'NTSE State Level Talent Search Mock Examination 2026',
+    examType: 'National Talent Search (NTSE)',
+    duration: '120 Minutes',
+    maxMarks: 100,
+    instructions: [
+      'Admit Card and Identity Proof are strictly mandatory for entry.',
+      'Follow all instructions given by the center superintendent and hall invigilators.',
+      'Any malpractice or possession of prohibited gadgets will result in immediate disqualification.',
+      'Ensure exam roll number is correctly shaded on the OMR sheet.'
+    ]
+  },
+  {
+    id: 'aptitude',
+    label: '💼 Career Aptitude & Entrance Mock Test',
+    examTitle: 'Higher Secondary Career Aptitude & Entrance Mock Test 2026',
+    examType: 'Career Aptitude Test',
+    duration: '120 Minutes',
+    maxMarks: 100,
+    instructions: [
+      'Designed to assess student aptitude for higher education streams and competitive exams.',
+      'Please bring this printed Admit Card and a valid school photo identity card.',
+      'Report to the allotted room 30 minutes prior to exam commencement.'
+    ]
+  }
+];
+
+function PrintableAdmitCardModal({ registration, examConfig, onClose }) {
   if (!registration) return null;
 
   const handleDirectPrint = () => {
@@ -12,7 +98,14 @@ function PrintableAdmitCardModal({ registration, onClose }) {
   };
 
   const handleDownloadPdf = () => {
-    generateGkTestAdmitCardPdf(registration);
+    generateGkTestAdmitCardPdf({
+      ...registration,
+      examTitle: examConfig.examTitle,
+      examDate: examConfig.examDate,
+      examTime: examConfig.examTime,
+      examCenter: examConfig.examCenter,
+      instructions: examConfig.instructions
+    });
   };
 
   const student = registration;
@@ -37,7 +130,7 @@ function PrintableAdmitCardModal({ registration, onClose }) {
             </h2>
             <p className="text-xs font-bold text-slate-600">Anantnag, Jammu & Kashmir — 192201</p>
             <div className="inline-block bg-teal-800 text-white text-xs font-black px-4 py-1 rounded-full uppercase tracking-widest mt-2">
-              General Knowledge Quiz - 2026 Admit Card
+              {examConfig.examTitle || 'Competitive Examination Admit Card'}
             </div>
           </div>
 
@@ -92,7 +185,7 @@ function PrintableAdmitCardModal({ registration, onClose }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">Academic Session</span>
-                  <span className="font-bold text-slate-800">{student.session || '2025-26'}</span>
+                  <span className="font-bold text-slate-800">{student.session || examConfig.academicSession || '2025-26'}</span>
                 </div>
               </div>
             </div>
@@ -100,20 +193,24 @@ function PrintableAdmitCardModal({ registration, onClose }) {
 
           {/* Exam Schedule & Venue */}
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs grid grid-cols-2 gap-2 text-teal-900 font-semibold">
-            <div>📅 <strong>Date of Test:</strong> Monday, 10 August 2026</div>
-            <div>⏰ <strong>Reporting Time:</strong> 09:00 AM</div>
-            <div>📍 <strong>Venue:</strong> Main Hall, HSS Shangus</div>
-            <div>📝 <strong>Format:</strong> 60 Questions (MCQ / OMR)</div>
+            <div>📅 <strong>Date of Test:</strong> {examConfig.examDate || 'Sunday, 30th August 2026'}</div>
+            <div>⏰ <strong>Exam Timing:</strong> {examConfig.examTime || '11:00 AM – 01:00 PM'}</div>
+            <div>📍 <strong>Venue / Center:</strong> {examConfig.examCenter || 'Govt. Higher Secondary School Shangus'}</div>
+            <div>📝 <strong>Duration / Max:</strong> {examConfig.duration || '120 Min'} ({examConfig.maxMarks || 100} Marks)</div>
           </div>
 
           {/* Instructions */}
           <div className="text-[10px] text-slate-600 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
             <p className="font-bold text-slate-800 uppercase">Important Candidate Instructions:</p>
             <ul className="list-disc list-inside space-y-0.5">
-              <li>Bring this Admit Card and your school Identity Card on the examination day.</li>
-              <li>Use blue/black ballpoint pen only for filling OMR bubbles. Do not use gel pens.</li>
-              <li>Carefully fill your 7-digit Exam Roll Number on the OMR answer sheet.</li>
-              <li>Mobile phones and electronic gadgets are strictly prohibited inside the hall.</li>
+              {(examConfig.instructions || [
+                'Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.',
+                'Reporting time at the examination center is 30 minutes prior to commencement of the test.',
+                'Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.',
+                'Use blue or black ballpoint pen only for writing responses on the answer sheet.'
+              ]).map((inst, idx) => (
+                <li key={idx}>{inst}</li>
+              ))}
             </ul>
           </div>
 
@@ -121,7 +218,7 @@ function PrintableAdmitCardModal({ registration, onClose }) {
           <div className="pt-6 grid grid-cols-3 gap-4 text-center text-[10px] font-bold text-slate-700">
             <div className="border-t border-slate-400 pt-1">Candidate's Signature</div>
             <div className="border-t border-slate-400 pt-1">Invigilator's Signature</div>
-            <div className="border-t border-slate-400 pt-1">Convener / Principal Seal</div>
+            <div className="border-t border-slate-400 pt-1">Controller of Examinations</div>
           </div>
         </div>
 
@@ -160,12 +257,31 @@ export default function AdminGkTestManager() {
   const [revokingDoc, setRevokingDoc] = useState(null);
   const [revokeSuccessInfo, setRevokeSuccessInfo] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false);
 
-  // Settings State
-  const [deadlineConfig, setDeadlineConfig] = useState({
-    registrationDeadline: '2026-08-08T23:59',
+  // Generalized Competitive Exam Settings State
+  const [examConfig, setExamConfig] = useState({
+    examTitle: 'All Kashmir GK Talent Search & Competitive Examination 2026',
+    examType: 'General Knowledge & Talent Search',
+    academicSession: '2025-26',
     isOpen: true,
+    registrationDeadline: '2026-08-25T23:59',
+    examDate: 'Sunday, 30th August 2026',
+    examTime: '11:00 AM – 01:00 PM',
+    reportingTime: '10:30 AM',
+    examCenter: 'Govt. Higher Secondary School Shangus',
+    eligibleClasses: ['9th', '10th', '11th', '12th'],
+    maxMarks: 100,
+    duration: '120 Minutes',
+    instructions: [
+      'Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.',
+      'Reporting time at the examination center is 30 minutes prior to commencement of the test.',
+      'Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.',
+      'Use blue or black ballpoint pen only for writing responses on the answer sheet.'
+    ]
   });
+
+  const [instructionsText, setInstructionsText] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState('');
 
@@ -175,27 +291,68 @@ export default function AdminGkTestManager() {
       const snap = await getDoc(doc(db, 'gktest_settings', 'config'));
       if (snap.exists()) {
         const d = snap.data();
-        setDeadlineConfig({
-          registrationDeadline: d.registrationDeadline || '2026-08-08T23:59',
+        const loaded = {
+          examTitle: d.examTitle || 'All Kashmir GK Talent Search & Competitive Examination 2026',
+          examType: d.examType || 'General Knowledge & Talent Search',
+          academicSession: d.academicSession || '2025-26',
           isOpen: d.isOpen !== false,
-        });
+          registrationDeadline: d.registrationDeadline || '2026-08-25T23:59',
+          examDate: d.examDate || 'Sunday, 30th August 2026',
+          examTime: d.examTime || '11:00 AM – 01:00 PM',
+          reportingTime: d.reportingTime || '10:30 AM',
+          examCenter: d.examCenter || 'Govt. Higher Secondary School Shangus',
+          eligibleClasses: Array.isArray(d.eligibleClasses) ? d.eligibleClasses : ['9th', '10th', '11th', '12th'],
+          maxMarks: d.maxMarks || 100,
+          duration: d.duration || '120 Minutes',
+          instructions: Array.isArray(d.instructions) && d.instructions.length > 0 ? d.instructions : [
+            'Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.',
+            'Reporting time at the examination center is 30 minutes prior to commencement of the test.',
+            'Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.',
+            'Use blue or black ballpoint pen only for writing responses on the answer sheet.'
+          ]
+        };
+        setExamConfig(loaded);
+        setInstructionsText(loaded.instructions.join('\n'));
       }
     } catch (e) {
       console.warn('Failed to load gktest_settings:', e);
     }
   }, []);
 
+  // Apply Preset
+  const handleApplyPreset = (presetId) => {
+    const preset = EXAM_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    setExamConfig(prev => ({
+      ...prev,
+      examTitle: preset.examTitle,
+      examType: preset.examType,
+      duration: preset.duration,
+      maxMarks: preset.maxMarks,
+      instructions: preset.instructions
+    }));
+    setInstructionsText(preset.instructions.join('\n'));
+  };
+
   // Save Settings
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     setSettingsMsg('');
     try {
-      await setDoc(doc(db, 'gktest_settings', 'config'), {
-        registrationDeadline: deadlineConfig.registrationDeadline,
-        isOpen: deadlineConfig.isOpen,
+      const parsedInstructions = instructionsText
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const payload = {
+        ...examConfig,
+        instructions: parsedInstructions.length > 0 ? parsedInstructions : examConfig.instructions,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
-      setSettingsMsg('Registration deadline & status saved successfully!');
+      };
+
+      await setDoc(doc(db, 'gktest_settings', 'config'), payload, { merge: true });
+      setExamConfig(payload);
+      setSettingsMsg('Competitive exam configuration saved successfully!');
       setTimeout(() => setSettingsMsg(''), 4000);
     } catch (err) {
       console.error('Error saving settings:', err);
@@ -211,7 +368,6 @@ export default function AdminGkTestManager() {
     try {
       const snap = await getDocs(collection(db, 'omr_registrations'));
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Sort by submittedAt descending if available, or examNumber
       list.sort((a, b) => {
         const timeA = a.submittedAt?.seconds || 0;
         const timeB = b.submittedAt?.seconds || 0;
@@ -251,42 +407,71 @@ export default function AdminGkTestManager() {
     }
   };
 
-  // Filtered registrations
+  // Export to CSV
+  const handleExportCsv = () => {
+    if (registrations.length === 0) {
+      alert('No candidates to export.');
+      return;
+    }
+    const headers = ['Exam Roll No', 'Candidate Name', "Father's Name", 'Class', 'Class Roll No', 'Reg / Form No', 'Mobile', 'Type', 'Registration Date'];
+    const rows = registrations.map(r => [
+      `"${r.examNumber || r.id}"`,
+      `"${r.name || ''}"`,
+      `"${r.fatherName || ''}"`,
+      `"${r.className || ''}"`,
+      `"${r.classRollNo || ''}"`,
+      `"${r.boardRegNo || r.formNo || ''}"`,
+      `"${r.mobile || ''}"`,
+      `"${r.isManualEntry ? 'Manual' : 'Matched'}"`,
+      `"${r.submittedAt?.seconds ? new Date(r.submittedAt.seconds * 1000).toLocaleDateString() : ''}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `${(examConfig.examType || 'Competitive_Exam').replace(/\s+/g, '_')}_Candidates_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Filtered List
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return registrations.filter(r => {
-      const matchesSearch = !q || (
-        (r.name || '').toLowerCase().includes(q) ||
-        (r.fatherName || '').toLowerCase().includes(q) ||
-        (r.examNumber || r.id || '').toLowerCase().includes(q) ||
-        (r.boardRegNo || '').toLowerCase().includes(q) ||
-        (r.formNo || '').toLowerCase().includes(q) ||
-        (r.className || '').toLowerCase().includes(q) ||
-        (r.classRollNo || '').toLowerCase().includes(q)
-      );
+      // Search
+      const q = search.toLowerCase().trim();
+      const matchQuery = !q ||
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.fatherName && r.fatherName.toLowerCase().includes(q)) ||
+        (r.examNumber && String(r.examNumber).toLowerCase().includes(q)) ||
+        (r.boardRegNo && String(r.boardRegNo).toLowerCase().includes(q)) ||
+        (r.formNo && String(r.formNo).toLowerCase().includes(q)) ||
+        (r.mobile && String(r.mobile).includes(q));
 
-      const matchesClass = selectedClass === 'ALL' || (
-        selectedClass === 'MANUAL' ? r.isManualEntry :
-        (r.className || '').toLowerCase().includes(selectedClass.toLowerCase())
-      );
+      // Class Filter
+      let matchClass = true;
+      if (selectedClass === 'MANUAL') {
+        matchClass = !!r.isManualEntry;
+      } else if (selectedClass !== 'ALL') {
+        matchClass = (r.className || '').toLowerCase().includes(selectedClass.toLowerCase());
+      }
 
-      return matchesSearch && matchesClass;
+      return matchQuery && matchClass;
     });
   }, [registrations, search, selectedClass]);
 
-  // Stats calculation
+  // Counts
   const totalCount = registrations.length;
+  const matchedCount = registrations.filter(r => !r.isManualEntry).length;
   const manualCount = registrations.filter(r => r.isManualEntry).length;
-  const matchedCount = totalCount - manualCount;
 
-  // Deadline calculations
   const isDeadlinePassed = useMemo(() => {
-    if (!deadlineConfig.registrationDeadline) return false;
-    const dt = new Date(deadlineConfig.registrationDeadline);
+    if (!examConfig.registrationDeadline) return false;
+    const dt = new Date(examConfig.registrationDeadline);
     return !isNaN(dt.getTime()) && Date.now() > dt.getTime();
-  }, [deadlineConfig.registrationDeadline]);
+  }, [examConfig.registrationDeadline]);
 
-  const effectiveStatus = deadlineConfig.isOpen && !isDeadlinePassed;
+  const effectiveStatus = examConfig.isOpen && !isDeadlinePassed;
 
   return (
     <div className="space-y-6">
@@ -295,38 +480,48 @@ export default function AdminGkTestManager() {
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 bg-teal-500/20 backdrop-blur-md border border-teal-400/30 rounded-full px-3 py-1 text-xs font-bold text-teal-200 mb-2">
-              <ShieldAlert size={14} className="text-yellow-400" />
-              <span>Admin Management Panel</span>
+              <Award size={14} className="text-yellow-400" />
+              <span>Competitive Exams & Talent Search Engine</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-              General Knowledge Quiz 2026 Registrations
+              {examConfig.examTitle}
             </h2>
             <p className="text-teal-200 text-xs sm:text-sm mt-1 max-w-xl">
-              Manage student test registrations, set closing deadline, view & print admit cards, or revoke applications.
+              Manage competitive tests, science/math olympiads, scholarship entrance exams, customize exam schedules, and issue admit cards.
             </p>
           </div>
 
-          <button
-            onClick={fetchRegistrations}
-            disabled={loading}
-            className="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            <span>Refresh Candidates</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleExportCsv}
+              disabled={registrations.length === 0}
+              className="px-4 py-2.5 rounded-xl bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
+            </button>
+            <button
+              onClick={fetchRegistrations}
+              disabled={loading}
+              className="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <span>Refresh Candidates</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Registration Deadline & Portal Control Card */}
+      {/* Comprehensive Exam Configuration Panel */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center justify-center font-black">
-              <Clock size={20} />
+            <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300 flex items-center justify-center font-black">
+              <Sliders size={20} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white">Registration Deadline & Portal Control</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Set deadline date/time to show on student registration page and automatically close new registrations.</p>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">Exam Parameters & Registration Settings</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Configure exam title, type, date, venue, instructions, and registration deadline.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -334,48 +529,160 @@ export default function AdminGkTestManager() {
               {effectiveStatus ? <Unlock size={13} /> : <Lock size={13} />}
               {effectiveStatus ? 'Portal OPEN' : isDeadlinePassed ? 'Closed (Deadline Passed)' : 'Portal CLOSED'}
             </span>
+            <button
+              onClick={() => setIsConfigExpanded(prev => !prev)}
+              className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+            >
+              {isConfigExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
-          {/* Status Toggle */}
-          <div className="sm:col-span-3 space-y-1.5">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Registration Switch</label>
+        {/* Quick Exam Presets */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+            <Sparkles size={13} className="text-amber-500" /> Exam Templates:
+          </span>
+          {EXAM_PRESETS.map(preset => (
             <button
+              key={preset.id}
               type="button"
-              onClick={() => setDeadlineConfig(prev => ({ ...prev, isOpen: !prev.isOpen }))}
-              className={`w-full py-2.5 px-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${deadlineConfig.isOpen ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300' : 'bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'}`}
+              onClick={() => handleApplyPreset(preset.id)}
+              className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${examConfig.examType === preset.examType
+                ? 'bg-teal-50 border-teal-400 text-teal-800 dark:bg-teal-950 dark:border-teal-700 dark:text-teal-300 shadow-xs'
+                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'}`}
             >
-              {deadlineConfig.isOpen ? <Unlock size={14} /> : <Lock size={14} />}
-              <span>{deadlineConfig.isOpen ? 'Allow Registrations' : 'Force Close Portal'}</span>
+              {preset.label}
             </button>
-          </div>
+          ))}
+        </div>
 
-          {/* Date Picker */}
+        {/* Basic Fields Always Visible */}
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end pt-1">
           <div className="sm:col-span-6 space-y-1.5">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-              <Calendar size={13} /> Closing Date & Time (Deadline)
-            </label>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Title / Competition Name</label>
             <input
-              type="datetime-local"
-              value={deadlineConfig.registrationDeadline}
-              onChange={e => setDeadlineConfig(prev => ({ ...prev, registrationDeadline: e.target.value }))}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500 outline-none"
+              type="text"
+              value={examConfig.examTitle}
+              onChange={e => setExamConfig(prev => ({ ...prev, examTitle: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
             />
           </div>
 
-          {/* Save Button */}
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-3 space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+              <Calendar size={13} /> Registration Deadline
+            </label>
+            <input
+              type="datetime-local"
+              value={examConfig.registrationDeadline}
+              onChange={e => setExamConfig(prev => ({ ...prev, registrationDeadline: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500 outline-none"
+            />
+          </div>
+
+          <div className="sm:col-span-3 space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Portal Open Switch</label>
             <button
               type="button"
-              onClick={handleSaveSettings}
-              disabled={savingSettings}
-              className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-black shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              onClick={() => setExamConfig(prev => ({ ...prev, isOpen: !prev.isOpen }))}
+              className={`w-full py-2 px-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${examConfig.isOpen ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300' : 'bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'}`}
             >
-              <Save size={14} />
-              <span>{savingSettings ? 'Saving...' : 'Save Deadline'}</span>
+              {examConfig.isOpen ? <Unlock size={14} /> : <Lock size={14} />}
+              <span>{examConfig.isOpen ? 'Allow Registrations' : 'Force Closed'}</span>
             </button>
           </div>
+        </div>
+
+        {/* Detailed Config Options (Expanded) */}
+        {isConfigExpanded && (
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-4">
+            <div className="sm:col-span-4 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Category / Type</label>
+              <input
+                type="text"
+                value={examConfig.examType}
+                onChange={e => setExamConfig(prev => ({ ...prev, examType: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-4 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Date</label>
+              <input
+                type="text"
+                value={examConfig.examDate}
+                onChange={e => setExamConfig(prev => ({ ...prev, examDate: e.target.value }))}
+                placeholder="e.g. Sunday, 30th August 2026"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-4 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Timing</label>
+              <input
+                type="text"
+                value={examConfig.examTime}
+                onChange={e => setExamConfig(prev => ({ ...prev, examTime: e.target.value }))}
+                placeholder="e.g. 11:00 AM – 01:00 PM"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-6 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Venue / Center</label>
+              <input
+                type="text"
+                value={examConfig.examCenter}
+                onChange={e => setExamConfig(prev => ({ ...prev, examCenter: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-3 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Duration</label>
+              <input
+                type="text"
+                value={examConfig.duration}
+                onChange={e => setExamConfig(prev => ({ ...prev, duration: e.target.value }))}
+                placeholder="e.g. 120 Minutes"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-3 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Max Marks</label>
+              <input
+                type="number"
+                value={examConfig.maxMarks}
+                onChange={e => setExamConfig(prev => ({ ...prev, maxMarks: parseInt(e.target.value, 10) || 100 }))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-12 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Candidate Instructions (1 per line)</label>
+              <textarea
+                rows={3}
+                value={instructionsText}
+                onChange={e => setInstructionsText(e.target.value)}
+                placeholder="Enter bulleted instructions to print on student admit cards..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 outline-none resize-y"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={savingSettings}
+            className="py-2.5 px-6 rounded-xl bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white text-xs font-black shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <Save size={14} />
+            <span>{savingSettings ? 'Saving Settings...' : 'Save & Publish Exam Settings'}</span>
+          </button>
         </div>
 
         {settingsMsg && (
@@ -458,7 +765,7 @@ export default function AdminGkTestManager() {
         {loading ? (
           <div className="py-16 text-center text-slate-500 space-y-3">
             <div className="w-8 h-8 border-3 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs font-bold">Loading OMR Test Candidates...</p>
+            <p className="text-xs font-bold">Loading Test Candidates...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-slate-400 space-y-2">
@@ -582,7 +889,7 @@ export default function AdminGkTestManager() {
                 <p><strong>Class:</strong> {revokingDoc.className}</p>
               </div>
               <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">
-                ⚠️ Warning: This will permanently delete their application for the GK Test 2026. This candidate can register fresh afterwards.
+                ⚠️ Warning: This will permanently delete their application. The candidate can register fresh afterwards.
               </p>
             </div>
 
@@ -597,7 +904,7 @@ export default function AdminGkTestManager() {
               <button
                 onClick={handleConfirmRevoke}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isDeleting ? (
                   <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Revoking...</>
@@ -635,6 +942,7 @@ export default function AdminGkTestManager() {
       {selectedDocForPrint && (
         <PrintableAdmitCardModal
           registration={selectedDocForPrint}
+          examConfig={examConfig}
           onClose={() => setSelectedDocForPrint(null)}
         />
       )}
