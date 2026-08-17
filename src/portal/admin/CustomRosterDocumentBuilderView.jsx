@@ -6,7 +6,7 @@
 // Right Side (Dedicated scrollable canvas): Sticky live letterhead preview & 1-click exports
 // =================================================================
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Printer, FileText, FileSpreadsheet, Download, Plus, Minus, Trash2,
   Sliders, CheckSquare, Square, Eye, Layers, Sparkles,
@@ -21,6 +21,8 @@ import {
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl } from '../../utils/imageCompressor';
+import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
+import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 
 // Standard Database Columns Grouped by Category (Primary core fields vs Advanced extended fields)
 const DB_COLUMN_GROUPS = [
@@ -382,6 +384,33 @@ export function extractMotherName(st) {
   return '—';
 }
 
+export const cleanRegNoVal = (val) => {
+  if (val === null || val === undefined) return '';
+  let s = String(val).trim();
+  if (!s || /^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) return '';
+
+  if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+    try {
+      const num = Number(s);
+      if (!isNaN(num) && num > 0 && typeof window !== 'undefined' && typeof window.BigInt === 'function') {
+        s = window.BigInt(Math.round(num)).toString();
+      } else {
+        const match = s.match(/^([+-]?\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+        if (match) {
+          let intPart = match[1];
+          let decPart = match[2] || '';
+          let exponent = parseInt(match[3], 10);
+          if (exponent > 0) {
+            s = decPart.length <= exponent ? intPart + decPart + '0'.repeat(exponent - decPart.length) : intPart + decPart.slice(0, exponent) + '.' + decPart.slice(exponent);
+          }
+        }
+      }
+    } catch (_) { }
+  }
+
+  return s.replace(/\.0+$/, '');
+};
+
 export function extractBoardRegNo(st) {
   if (!st) return '—';
   const explicitKeys = [
@@ -415,19 +444,22 @@ export function extractBoardRegNo(st) {
 
   for (const k of explicitKeys) {
     if (st[k] !== undefined && st[k] !== null) {
-      const val = String(st[k]).trim();
-      if (val && !/^(—|N\/A|null|undefined|-|\.)$/i.test(val)) {
-        return val;
+      const cleaned = cleanRegNoVal(st[k]);
+      if (cleaned && cleaned !== '—') {
+        return cleaned;
       }
     }
   }
 
   // Dynamic fallback scan for any field containing registration info
   for (const [k, v] of Object.entries(st)) {
-    if (v && typeof v === 'string' && v.trim() && !/^(—|N\/A|null|undefined|-|\.)$/i.test(v.trim())) {
+    if (v !== undefined && v !== null) {
       const lowerKey = k.toLowerCase();
       if ((lowerKey.includes('reg') && lowerKey.includes('no')) || lowerKey.includes('registration')) {
-        return v.trim();
+        const cleaned = cleanRegNoVal(v);
+        if (cleaned && cleaned !== '—') {
+          return cleaned;
+        }
       }
     }
   }
@@ -1556,9 +1588,87 @@ export default function CustomRosterDocumentBuilderView({
     return activeTableColumns.reduce((acc, c) => acc + (Number(c.widthPct) || 10), 0);
   }, [activeTableColumns]);
 
+  // Master registers cache for resolving genuine Board Reg Nos, authentic photos, and Adm Nos
+  const [masterRecords, setMasterRecords] = useState(() => {
+    return getCachedCollectionSync('masterRegisters') || (typeof window !== 'undefined' ? window._hssMasterRegistersCache : null) || [];
+  });
+
+  useEffect(() => {
+    getCachedCollection('masterRegisters').then(list => {
+      if (list && Array.isArray(list) && list.length > 0) {
+        setMasterRecords(list);
+      }
+    }).catch(() => {});
+    getStudentRegIndex().catch(() => {});
+  }, []);
+
+  // Map master identity keys (Form No, Name+Father, valid Reg)
+  const masterMatchMap = useMemo(() => {
+    const map = new Map();
+    if (!masterRecords || masterRecords.length === 0) return map;
+
+    masterRecords.forEach(m => {
+      const fNo = extractFormNo(m);
+      const reg = extractBoardRegNo(m);
+      const sName = extractStudentName(m).toLowerCase().trim();
+      const fName = extractFatherName(m).toLowerCase().trim();
+
+      if (fNo && fNo !== '—') map.set(`form_${fNo.toLowerCase()}`, m);
+      if (reg && reg !== '—' && !/0{5,}$/.test(reg)) map.set(`reg_${reg.toLowerCase()}`, m);
+      if (sName && sName !== 'student' && fName && fName !== '—') {
+        map.set(`name_${sName}_${fName.slice(0, 8)}`, m);
+      }
+    });
+
+    return map;
+  }, [masterRecords]);
+
+  // Reconcile raw student with master records
+  const resolveStudentMaster = useCallback((st) => {
+    if (!st) return st;
+    const fNo = extractFormNo(st);
+    const sName = extractStudentName(st).toLowerCase().trim();
+    const fName = extractFatherName(st).toLowerCase().trim();
+    const rawReg = extractBoardRegNo(st);
+
+    let match = null;
+    // 1. Try form number
+    if (fNo && fNo !== '—') {
+      match = masterMatchMap.get(`form_${fNo.toLowerCase()}`);
+    }
+    // 2. Try Name + Father combination
+    if (!match && sName && sName !== 'student' && fName && fName !== '—') {
+      match = masterMatchMap.get(`name_${sName}_${fName.slice(0, 8)}`);
+    }
+    // 3. Try Reg No (only if candidate student name is compatible)
+    if (!match && rawReg && rawReg !== '—' && !/0{5,}$/.test(rawReg)) {
+      const cand = masterMatchMap.get(`reg_${rawReg.toLowerCase()}`);
+      if (cand) {
+        const candName = extractStudentName(cand).toLowerCase().trim();
+        if (candName.includes(sName) || sName.includes(candName)) {
+          match = cand;
+        }
+      }
+    }
+
+    if (match) {
+      const matchReg = extractBoardRegNo(match);
+      const matchAdm = extractAdmNo(match);
+      return {
+        ...match,
+        ...st,
+        boardRegNo: (matchReg && matchReg !== '—') ? matchReg : (rawReg || '—'),
+        admNo: (matchAdm && matchAdm !== '—') ? matchAdm : extractAdmNo(st)
+      };
+    }
+
+    return st;
+  }, [masterMatchMap]);
+
   // Normalize Student Data for Table View & Exports with Column Sorting
   const processedRows = useMemo(() => {
-    const rawRows = filteredStudents.map((st, idx) => {
+    const rawRows = filteredStudents.map((rawSt, idx) => {
+      const st = resolveStudentMaster(rawSt);
       const row = {};
       const fName = extractFatherName(st);
       const mName = extractMotherName(st);
@@ -1660,7 +1770,7 @@ export default function CustomRosterDocumentBuilderView({
       ...r,
       sno: i + 1
     }));
-  }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig]);
+  }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster]);
 
   // Metadata Badges for Header
   const metaBadges = [

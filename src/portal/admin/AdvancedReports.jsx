@@ -68,12 +68,141 @@ export function normalizeSessionVal(sess) {
   return str;
 }
 
+// ─── Global Helper to resolve authentic student stream without 'Same as in class 11th' ───
+export function resolveStudentStream(st, masterMatch = null) {
+  if (!st && !masterMatch) return 'General';
+
+  // 1. Check direct stream fields
+  const candidates = [
+    st?.['Stream for Class 11th'],
+    st?.['Stream opted in Class 11th'],
+    st?.['Stream & Subjects for Class 12th'],
+    st?.['Stream / Faculty'],
+    st?.stream,
+    st?.Stream,
+    masterMatch?.['Stream'],
+    masterMatch?.stream,
+    masterMatch?.['Stream for Class 11th'],
+    masterMatch?.['Stream opted in Class 11th']
+  ];
+
+  for (const cand of candidates) {
+    if (cand && typeof cand === 'string') {
+      const trimmed = cand.trim();
+      const lower = trimmed.toLowerCase();
+      if (lower && !lower.includes('same as') && lower !== '—' && lower !== 'n/a' && lower !== 'null' && lower !== 'undefined' && lower !== '-') {
+        if (lower.includes('sci') || lower.includes('med')) return 'Science';
+        if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
+        if (lower.includes('com')) return 'Commerce';
+        if (lower.includes('gen')) return 'General';
+        return trimmed;
+      }
+    }
+  }
+
+  // 2. If Class 9th or 10th -> General
+  const cls = String(st?.['Admission sought for class'] || st?.['Class'] || st?.class || masterMatch?.Class || '').toLowerCase();
+  if (cls.includes('9') || cls.includes('10')) {
+    return 'General';
+  }
+
+  // 3. Infer canonically from subjects (even if form says "Same as in class 11th")
+  const rawSubjs = (
+    String(st?.subs || '') + ' ' +
+    String(st?.Subjects || '') + ' ' +
+    String(st?.['Subjects to be taken in Class 11th'] || '') + ' ' +
+    String(st?.['Subjects to be taken in Class 12th'] || '') + ' ' +
+    String(st?.['Subjects Studied in Class 11th'] || '') + ' ' +
+    String(st?.selectedSubjects || '') + ' ' +
+    String(st?.Subjects1 || '') + ' ' +
+    String(st?.Subjects2 || '') + ' ' +
+    String(st?.Subjects3 || '') + ' ' +
+    String(st?.Subjects4 || '') + ' ' +
+    String(st?.Subjects5 || '') + ' ' +
+    String(st?.Subject6 || '') + ' ' +
+    String(masterMatch?.subs || '') + ' ' +
+    String(masterMatch?.Subjects || '')
+  ).toLowerCase();
+
+  if (
+    rawSubjs.includes('physics') || rawSubjs.includes('chemistry') || rawSubjs.includes('biology') ||
+    rawSubjs.includes('botany') || rawSubjs.includes('zoology') || rawSubjs.includes('mathematics') ||
+    rawSubjs.includes('computer') || rawSubjs.includes('information tech') || rawSubjs.includes('biotech') ||
+    rawSubjs.includes('environmental science') || rawSubjs.includes('evs')
+  ) {
+    return 'Science';
+  }
+
+  if (
+    rawSubjs.includes('political') || rawSubjs.includes('history') || rawSubjs.includes('education') ||
+    rawSubjs.includes('sociology') || rawSubjs.includes('economics') || rawSubjs.includes('urdu') ||
+    rawSubjs.includes('kashmiri') || rawSubjs.includes('arabic') || rawSubjs.includes('geography') ||
+    rawSubjs.includes('islamic') || rawSubjs.includes('philosophy') || rawSubjs.includes('psychology')
+  ) {
+    return 'Humanities';
+  }
+
+  if (
+    rawSubjs.includes('accountancy') || rawSubjs.includes('business studies') || rawSubjs.includes('commerce')
+  ) {
+    return 'Commerce';
+  }
+
+  if (cls.includes('11') || cls.includes('12')) {
+    return 'Humanities';
+  }
+
+  return 'General';
+}
+
 // ─── Global Helper for safe Firestore document mutation handling IDs with slashes ───
 export async function updateStudentDocument(student, updates) {
   if (!student || !updates) return false;
   const formNo = String(student['Form No.'] || student.formNo || student['Form Number'] || '').replace(/^'/, '').trim();
   const rawId = String(student.docId || student._docId || student.id || '').trim();
   
+  // Clean and synchronize all Registration Number aliases
+  const rawUpdatedReg = 
+    updates.boardRegNo ||
+    updates['Board Registration Number'] ||
+    updates['Board Registration No.'] ||
+    updates['Board Registration No. (Class 10th)'] ||
+    updates['Board Registration No. (Class 11th)'] ||
+    updates['Registration No. (allotted by JKBOSE)'] ||
+    updates.regNo ||
+    updates['REG. NO.'] ||
+    updates['Registration No.'] ||
+    updates['Registration No'];
+
+  const oldReg = cleanRegNoVal(
+    student?.boardRegNo ||
+    student?.['Board Registration Number'] ||
+    student?.['Board Registration No.'] ||
+    student?.['Board Registration No. (Class 10th)'] ||
+    student?.['Board Registration No. (Class 11th)'] ||
+    student?.['Registration No. (allotted by JKBOSE)'] ||
+    student?.regNo ||
+    student?.['REG. NO.'] ||
+    student?.['Registration No.'] ||
+    ''
+  );
+
+  let newReg = '';
+  if (rawUpdatedReg !== undefined && rawUpdatedReg !== null) {
+    newReg = cleanRegNoVal(rawUpdatedReg);
+    if (newReg && newReg !== '—') {
+      updates.boardRegNo = newReg;
+      updates.regNo = newReg;
+      updates['Board Registration Number'] = newReg;
+      updates['Board Registration No.'] = newReg;
+      updates['Board Registration No. (Class 10th)'] = newReg;
+      updates['Board Registration No. (Class 11th)'] = newReg;
+      updates['Registration No. (allotted by JKBOSE)'] = newReg;
+      updates['REG. NO.'] = newReg;
+      updates['Registration No.'] = newReg;
+    }
+  }
+
   const idCandidates = Array.from(new Set([
     rawId,
     student._docId,
@@ -125,13 +254,11 @@ export async function updateStudentDocument(student, updates) {
   });
 
   // Automatically synchronize centralized student photo when registration number or photo updates
-  if (updates && (updates.boardRegNo || updates.regNo || updates['Board Registration No.'] || updates['Board Registration Number'] || updates.photo_id || updates.photoUrl)) {
-    const oldReg = student?.boardRegNo || student?.regNo || student?.['Board Registration No.'] || '';
-    const newReg = updates?.boardRegNo || updates?.regNo || updates?.['Board Registration No.'] || updates?.['Board Registration Number'] || oldReg;
+  if (newReg || updates.photo_id || updates.photoUrl) {
     const photoData = updates?.photo_id || updates?.photoUrl || '';
     syncStudentPhotoOnRegUpdate({
-      oldReg,
-      newReg,
+      oldReg: oldReg || newReg,
+      newReg: newReg || oldReg,
       student: { ...student, ...updates },
       photoData
     }).catch(() => {});
@@ -155,6 +282,11 @@ export async function deleteStudentDocument(student) {
 function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange, align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const [localSelected, setLocalSelected] = useState(selected);
+
+  useEffect(() => {
+    setLocalSelected(selected);
+  }, [selected]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -167,19 +299,19 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const isAllSelected = selected.length === 0;
-  const isNoneSelected = selected.includes('__NONE__');
+  const isAllSelected = localSelected.length === 0;
+  const isNoneSelected = localSelected.includes('__NONE__');
 
   const toggleOption = (opt) => {
     let next;
-    if (selected.includes('__NONE__')) {
+    if (localSelected.includes('__NONE__')) {
       next = [opt];
-    } else if (selected.length === 0) {
+    } else if (localSelected.length === 0) {
       next = options.filter((item) => item !== opt);
-    } else if (selected.includes(opt)) {
-      next = selected.filter((item) => item !== opt);
+    } else if (localSelected.includes(opt)) {
+      next = localSelected.filter((item) => item !== opt);
     } else {
-      next = [...selected, opt];
+      next = [...localSelected, opt];
     }
 
     if (next.length === 0) {
@@ -187,24 +319,33 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     } else if (next.length === options.length) {
       next = [];
     }
-    onChange(next);
+    setLocalSelected(next);
+    React.startTransition(() => {
+      onChange(next);
+    });
   };
 
   const handleSelectAll = () => {
-    onChange([]);
+    setLocalSelected([]);
+    React.startTransition(() => {
+      onChange([]);
+    });
   };
 
   const handleDeselectAll = () => {
-    onChange(['__NONE__']);
+    setLocalSelected(['__NONE__']);
+    React.startTransition(() => {
+      onChange(['__NONE__']);
+    });
   };
 
   const displayText = isAllSelected
     ? `All ${label}`
     : isNoneSelected
       ? `No ${label}`
-      : selected.length === 1
-        ? selected[0]
-        : `${label} (${selected.length})`;
+      : localSelected.length === 1
+        ? localSelected[0]
+        : `${label} (${localSelected.length})`;
 
   return (
     <div className="relative w-full text-left" ref={dropdownRef}>
@@ -4578,30 +4719,32 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       if (!rec) return '—';
 
       // 1. Array or String Subject fields across classes & forms
-      const subjectArrayOrStr =
-        rec['Subjects to be taken in Class 11th'] ||
-        rec['Subjects to be taken in Class 12th'] ||
-        rec['Subjects to be taken in Class 10th'] ||
-        rec['Subjects to be taken in Class 9th'] ||
-        rec['Subjects to be taken in Class 8th'] ||
-        rec['Subjects Studied in Class 11th'] ||
-        rec['Subjects Studied in Class 9th'] ||
-        rec['Subjects Studied in Class 8th'] ||
-        rec['Stream & Subjects for Class 12th'] ||
-        rec['Subjects Studied in Class 10th'] ||
-        rec['selectedSubjects'] ||
-        rec['Subjects'] ||
-        rec['subjects'] ||
-        rec['Subs'] ||
-        rec['subs'];
+      const rawCandidates = [
+        rec['Subjects to be taken in Class 12th'],
+        rec['Subjects to be taken in Class 11th'],
+        rec['Subjects to be taken in Class 10th'],
+        rec['Subjects to be taken in Class 9th'],
+        rec['Subjects to be taken in Class 8th'],
+        rec['Subjects Studied in Class 11th'],
+        rec['Subjects Studied in Class 9th'],
+        rec['Subjects Studied in Class 8th'],
+        rec['Subjects Studied in Class 10th'],
+        rec['selectedSubjects'],
+        rec['Subjects'],
+        rec['subjects'],
+        rec['Subs'],
+        rec['subs'],
+        rec['Stream & Subjects for Class 12th']
+      ];
 
-      if (Array.isArray(subjectArrayOrStr) && subjectArrayOrStr.length > 0) {
-        const cleaned = subjectArrayOrStr.filter(s => s && String(s).trim() !== '—').map(s => String(s).trim());
-        if (cleaned.length > 0) return cleaned.join(', ');
-      }
-
-      if (typeof subjectArrayOrStr === 'string' && subjectArrayOrStr.trim() && subjectArrayOrStr.trim() !== '—') {
-        return subjectArrayOrStr.trim();
+      for (const item of rawCandidates) {
+        if (!item) continue;
+        if (Array.isArray(item) && item.length > 0) {
+          const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
+          if (cleaned.length > 0) return cleaned.join(', ');
+        } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
+          return item.trim();
+        }
       }
 
       // 2. Individual subjects1..6 fields (Subjects1, Subjects2, Subjects3, etc.)
@@ -5058,7 +5201,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       const sVillage = a['Name of your village'] || a['Village/Town'] || 'Shangus';
       const sGender = a['Gender'] || '—';
       const sCategory = a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General';
-      const sStream = a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream & Subjects for Class 12th'] || a['Stream'] || '';
+      const sStream = resolveStudentStream(a, masterMatch);
       const sSubs = formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec);
       const sMobile = a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—';
       const sAadhar = a['Aadhar No.'] || a.aadhar || '—';
@@ -5244,7 +5387,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         const hVillage = h['Village/Town'] || h['Residence'] || '—';
         const hGender = h['Gender'] || '—';
         const hCategory = h['Cat._JKBOSE'] || h['Category'] || 'General';
-        const hStream = h['Stream'] || '';
+        const hStream = resolveStudentStream(h);
         const hSubs = formatStudentSubjects(h);
         const hMobile = h["Student's Contact"] || h['Mobile'] || '—';
         const hAadhar = h['Aadhar No.'] || h.aadhar || '—';

@@ -167,10 +167,19 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     let s = String(val).trim();
     if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
       try {
-        if (typeof window !== 'undefined' && window.BigInt) {
-          s = window.BigInt(Math.floor(Number(val))).toString();
+        const num = Number(s);
+        if (!isNaN(num) && num > 0 && typeof window !== 'undefined' && typeof window.BigInt === 'function') {
+          s = window.BigInt(Math.round(num)).toString();
         } else {
-          s = Number(val).toLocaleString('fullwide', { useGrouping: false });
+          const match = s.match(/^([+-]?\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+          if (match) {
+            let intPart = match[1];
+            let decPart = match[2] || '';
+            let exponent = parseInt(match[3], 10);
+            if (exponent > 0) {
+              s = decPart.length <= exponent ? intPart + decPart + '0'.repeat(exponent - decPart.length) : intPart + decPart.slice(0, exponent) + '.' + decPart.slice(exponent);
+            }
+          }
         }
       } catch (_) {}
     }
@@ -182,12 +191,15 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     st.regNo ||
     st['Board Registration No. (Class 10th)'] ||
     st['Board Registration No. (Class 11th)'] ||
+    st['Board Registration No. (Class 12th)'] ||
+    st['Registration No. (allotted by JKBOSE)'] ||
     st['Board Registration No.'] ||
     st['Board Registration Number'] ||
     st['Board Reg. No.'] ||
     st['Board Reg No'] ||
     st['REG. NO.'] ||
     st['Registration No.'] ||
+    st['Registration No'] ||
     '';
 
   const cleanedBoardReg = cleanReg(rawBoardReg);
@@ -245,7 +257,7 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     }
   }
 
-  // 3. TERTIARY PRIORITY: Other candidate IDs in cache (Form No, DocId, Name)
+  // 3. TERTIARY PRIORITY: Unique identifier keys in cache (Form No, DocId, Application ID)
   if (typeof window !== 'undefined') {
     try {
       const memoryMap = window._hss_central_photo_map || {};
@@ -253,39 +265,55 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
       const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
       const cache = { ...cache2, ...cache1, ...memoryMap };
 
-      const candidateIds = [
-        st.id,
-        st.docId,
-        st._docId,
-        st['Form Number'],
-        st['Form No.'],
-        st['FormNo'],
-        st.formNo,
-        st.form_no,
-        st['Class Roll No'],
-        st['Class Roll No.'],
-        st['Class R.No.'],
-        st.classRollNo,
-        st.rollNo
+      const fNo = String(st['Form Number'] || st['Form No.'] || st['FormNo'] || st.formNo || st.form_no || st['Application ID'] || st.appId || '').replace(/^'/, '').trim();
+      const rawId = String(st.docId || st._docId || st.id || '').trim();
+
+      const uniqueCandidateIds = [
+        fNo,
+        fNo ? `form_${fNo}` : '',
+        fNo ? `photo_${fNo}` : '',
+        fNo ? `adm_${fNo}` : '',
+        fNo ? `active_${fNo}` : '',
+        fNo ? `hist_${fNo}` : '',
+        rawId,
+        rawId ? `photo_${rawId}` : '',
+        rawId.replace(/^active_/, ''),
+        rawId.replace(/^hist_/, ''),
+        rawId.replace(/^adm_/, '')
       ].filter(Boolean);
 
-      const sName = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim().toLowerCase();
-      if (sName && sName !== 'student' && sName !== '—') {
-        candidateIds.push(sName);
-        candidateIds.push(sName.replace(/[^a-z0-9]/g, ''));
-      }
-
-      for (const cId of candidateIds) {
-        const cleanId = String(cId).trim();
+      for (const uId of uniqueCandidateIds) {
+        const cleanId = String(uId).trim();
         const cached = 
           cache[cleanId] || 
           cache[cleanId.toLowerCase()] || 
           cache[`photo_${cleanId}`] ||
           cache[`reg_${cleanId}`] ||
           cache[cleanId.replace(/[^0-9]/g, '')] || 
-          cache[`photo_${cleanId.replace(/[^0-9]/g, '')}`] ||
-          cache[cleanId.replace(/[^a-z0-9]/g, '')];
+          cache[`photo_${cleanId.replace(/[^0-9]/g, '')}`];
 
+        if (isValidPhotoStr(cached)) {
+          const cachedFormatted = formatPhotoDisplayUrl(cached);
+          if (cachedFormatted) return cachedFormatted;
+        }
+      }
+
+      // 4. QUATERNARY PRIORITY: Specific name + parent key compound matching (to prevent single name collisions)
+      const sName = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim().toLowerCase();
+      const fName = String(st["Father's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim().toLowerCase();
+
+      if (sName && sName !== 'student' && sName !== '—' && fName && fName !== '—') {
+        const compoundKey = `${sName}_${fName}`.replace(/[^a-z0-9_]/g, '');
+        const cached = cache[compoundKey] || cache[`photo_${compoundKey}`];
+        if (isValidPhotoStr(cached)) {
+          const cachedFormatted = formatPhotoDisplayUrl(cached);
+          if (cachedFormatted) return cachedFormatted;
+        }
+      }
+
+      // Fallback single name lookup
+      if (sName && sName !== 'student' && sName !== '—') {
+        const cached = cache[sName] || cache[sName.replace(/[^a-z0-9]/g, '')];
         if (isValidPhotoStr(cached)) {
           const cachedFormatted = formatPhotoDisplayUrl(cached);
           if (cachedFormatted) return cachedFormatted;
