@@ -1638,7 +1638,7 @@ function CsvImportModal({ onClose, onSuccess }) {
     if (res.success) {
       onSuccess();
     } else {
-      setErrorMsg(res.error || 'Failed to import documents to Firestore.');
+      setErrorMsg(res.error || 'Failed to import documents to cloud database.');
     }
   };
 

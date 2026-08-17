@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award } from 'lucide-react';
+import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import RollNoAssignment from './RollNoAssignment';
@@ -105,6 +105,8 @@ export default function AdminDashboard() {
     } catch (_) {}
   }, []);
 
+  const [isStudioSetupOpen, setIsStudioSetupOpen] = useState(false);
+
   const [counts, setCounts] = useState(() => {
     const initialCachedApps = getCachedCollectionSync('admissions');
     const masterCount = getInitialMasterCount();
@@ -178,15 +180,25 @@ export default function AdminDashboard() {
 
   // Real-time live synchronization for admissions (0ms updates when students submit, edit, or withdraw)
   useEffect(() => {
-    const unsubscribe = subscribeToCollection('admissions', (liveList) => {
-      if (liveList && Array.isArray(liveList)) {
-        setApplications(liveList);
-        setLoading(false);
-      }
-    }, (err) => {
-      console.warn('Realtime listener fallback to SWR query:', err);
+    if (typeof subscribeToCollection !== 'function') {
       loadAdminData(true);
-    });
+      return;
+    }
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = subscribeToCollection('admissions', (liveList) => {
+        if (liveList && Array.isArray(liveList)) {
+          setApplications(liveList);
+          setLoading(false);
+        }
+      }, (err) => {
+        console.warn('Realtime listener fallback to SWR query:', err);
+        loadAdminData(true);
+      });
+    } catch (err) {
+      console.warn('subscribeToCollection initialization note:', err);
+      loadAdminData(true);
+    }
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
@@ -308,47 +320,67 @@ export default function AdminDashboard() {
 
                 {/* Center Slot: Official Documents Studio Sub-Tabs (In Between on Desktop, Full Row on Mobile) */}
                 {(activeTab === 'docStudio' || activeTab === 'customRoster' || activeTab === 'officialLetter') && (
-                  <div className="w-full md:w-auto order-3 md:order-2 inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 text-[10.5px] sm:text-[11px] font-black shadow-2xs mx-auto justify-between sm:justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setDocStudioSubTab('roster')}
-                      className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                        docStudioSubTab === 'roster'
-                          ? 'bg-amber-600 text-white shadow-xs font-black'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
-                      }`}
-                    >
-                      <FileSpreadsheet size={12} className="shrink-0" />
-                      <span className="hidden sm:inline">Student Roster & Registers</span>
-                      <span className="sm:hidden text-[10px]">Roster</span>
-                    </button>
+                  <div className="w-full md:w-auto order-3 md:order-2 inline-flex items-center gap-1.5 mx-auto justify-between sm:justify-center">
+                    <div className="inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 text-[10.5px] sm:text-[11px] font-black shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setDocStudioSubTab('roster')}
+                        className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
+                          docStudioSubTab === 'roster'
+                            ? 'bg-amber-600 text-white shadow-xs font-black'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                        }`}
+                      >
+                        <FileSpreadsheet size={12} className="shrink-0" />
+                        <span className="hidden sm:inline">Student Roster & Registers</span>
+                        <span className="sm:hidden text-[10px]">Roster</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setDocStudioSubTab('letter')}
-                      className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                        docStudioSubTab === 'letter'
-                          ? 'bg-rose-700 text-white shadow-xs font-black'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
-                      }`}
-                    >
-                      <FileText size={12} className="shrink-0" />
-                      <span className="hidden sm:inline">Official Letterhead Writer</span>
-                      <span className="sm:hidden text-[10px]">Letterhead</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setDocStudioSubTab('letter')}
+                        className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
+                          docStudioSubTab === 'letter'
+                            ? 'bg-rose-700 text-white shadow-xs font-black'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                        }`}
+                      >
+                        <FileText size={12} className="shrink-0" />
+                        <span className="hidden sm:inline">Official Letterhead Writer</span>
+                        <span className="sm:hidden text-[10px]">Letterhead</span>
+                      </button>
 
+                      <button
+                        type="button"
+                        onClick={() => setDocStudioSubTab('certStudio')}
+                        className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
+                          docStudioSubTab === 'certStudio' || docStudioSubTab === 'certificate'
+                            ? 'bg-gradient-to-r from-teal-700 to-indigo-700 text-white shadow-xs font-black'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                        }`}
+                      >
+                        <Award size={12} className="shrink-0" />
+                        <span className="hidden sm:inline">Student Bonafides & Certificates</span>
+                        <span className="sm:hidden text-[10px]">Certificates</span>
+                      </button>
+                    </div>
+
+                    {/* Setup / Configuration Button (Positioned here per user request) */}
                     <button
                       type="button"
-                      onClick={() => setDocStudioSubTab('certStudio')}
-                      className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                        docStudioSubTab === 'certStudio' || docStudioSubTab === 'certificate'
-                          ? 'bg-gradient-to-r from-teal-700 to-indigo-700 text-white shadow-xs font-black'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
+                      onClick={() => {
+                        setIsStudioSetupOpen(prev => !prev);
+                        window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup'));
+                      }}
+                      className={`h-7 sm:h-7.5 px-2.5 rounded-lg border font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 shrink-0 ${
+                        isStudioSetupOpen
+                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
+                      title="Configure Official Letterhead, Signatories, Ref No & Margins"
                     >
-                      <Award size={12} className="shrink-0" />
-                      <span className="hidden sm:inline">Student Bonafides & Certificates</span>
-                      <span className="sm:hidden text-[10px]">Certificates</span>
+                      <Sliders size={12} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
+                      <span>Setup</span>
                     </button>
                   </div>
                 )}
@@ -465,6 +497,8 @@ export default function AdminDashboard() {
                       initialSubTab={docStudioSubTab}
                       activeSubTab={docStudioSubTab}
                       onSwitchSubTab={setDocStudioSubTab}
+                      showSettingsDrawer={isStudioSetupOpen}
+                      onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
                       onClose={() => setActiveTab('reports')}
                     />
                   )}

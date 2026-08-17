@@ -339,3 +339,5 @@ export const cleanStudentPhotoPayload = (payload) => {
 
   return cleaned;
 };
+
+export const resolveStudentPhoto = getStudentPhotoUrl;

@@ -2514,7 +2514,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         setNotices((prev) => prev.filter((_, i) => i !== idx));
         if (editingNoticeIdx === idx) setEditingNoticeIdx(null);
         setCustomPrompt(null);
-        setSaveSuccess('Notice moved to Recycle Bin (Trash). Click "Apply & Save" to update Firestore.');
+        setSaveSuccess('Notice moved to Recycle Bin (Trash). Click "Apply & Save" to update cloud database.');
         setTimeout(() => setSaveSuccess(''), 5000);
       },
       onCancel: () => setCustomPrompt(null)
@@ -2826,7 +2826,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       setTimeout(() => setSaveSuccess(''), 2000);
     } catch (err) {
       console.error("Failed to upload block image:", err);
-      showAlert("Failed to upload image to Firebase Storage.", "Upload Error");
+      showAlert("Failed to upload image to cloud storage.", "Upload Error");
     } finally {
       setCmsSaving(false);
       e.target.value = '';
@@ -2854,7 +2854,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       setTimeout(() => setSaveSuccess(''), 2000);
     } catch (err) {
       console.error("Failed to upload gallery image:", err);
-      showAlert("Failed to upload image to Firebase Storage.", "Upload Error");
+      showAlert("Failed to upload image to cloud storage.", "Upload Error");
     } finally {
       setCmsSaving(false);
       e.target.value = '';
@@ -2962,7 +2962,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         setSlides((prev) => prev.filter((_, i) => i !== idx));
         if (editingSlideIdx === idx) setEditingSlideIdx(null);
         setCustomPrompt(null);
-        setSaveSuccess('Slide moved to Recycle Bin (Trash). Click "Apply & Save" to update Firestore.');
+        setSaveSuccess('Slide moved to Recycle Bin (Trash). Click "Apply & Save" to update cloud database.');
         setTimeout(() => setSaveSuccess(''), 5000);
       },
       onCancel: () => setCustomPrompt(null)
@@ -3247,7 +3247,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     }
 
     setRecycleBin(prev => prev.filter(t => t.id !== trashItemId));
-    setSaveSuccess(`Restored "${item.title}" successfully. Click "Apply & Save" to update Firestore.`);
+    setSaveSuccess(`Restored "${item.title}" successfully. Click "Apply & Save" to update cloud database.`);
     setTimeout(() => setSaveSuccess(''), 5000);
   };
 
@@ -3257,7 +3257,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
     setCustomPrompt({
       title: 'Permanently Delete Item',
-      message: `Are you sure you want to PERMANENTLY delete "${item.title}"? This item will be completely purged from Firebase and CANNOT be recovered.`,
+      message: `Are you sure you want to PERMANENTLY delete "${item.title}"? This item will be completely purged from the cloud database and CANNOT be recovered.`,
       type: 'confirm',
       confirmText: 'Permanently Delete',
       cancelText: 'Cancel',
@@ -4275,7 +4275,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     setSaveProgress(5);
     setSaveStages([
       { id: 'auth', label: 'Verifying Admin Authority', status: 'loading', details: 'Verifying credentials...' },
-      { id: 'firebase', label: 'Pushing changes live to Firebase', status: 'pending', details: '' },
+      { id: 'cloud', label: 'Pushing changes live to Cloud Database', status: 'pending', details: '' },
       { id: 'local_storage', label: 'Updating local cache', status: 'pending', details: '' },
       { id: 'files', label: 'Syncing local config files', status: 'pending', details: '' },
       { id: 'deployment', label: 'Confirming live content source', status: 'pending', details: '' },
@@ -4313,13 +4313,13 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       }
 
       updateStage('auth', 'success', `Authorized as ${user.email}`, 25);
-      updateStage('firebase', 'loading', 'Uploading settings, notices, faculty and slideshow...', 35);
+      updateStage('cloud', 'loading', 'Uploading settings, notices, faculty and slideshow...', 35);
 
-      // 2. Firebase upload stage
+      // 2. Cloud database upload stage
       await saveToFirebase({ settings, noticesText, faculty, slides, recycleBin });
-      fileSyncStatus = 'Saved to Firebase (live)';
+      fileSyncStatus = 'Saved to Cloud Database (live)';
 
-      updateStage('firebase', 'success', 'All configuration collections pushed to Cloud Firestore.', 55);
+      updateStage('cloud', 'success', 'All configuration collections pushed to Cloud Database.', 55);
       updateStage('local_storage', 'loading', 'Updating localStorage data preview...', 60);
 
       // 3. Local Storage stage
@@ -4400,12 +4400,12 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
       const fileResultStr = fileWriteResults.length > 0 ? fileWriteResults.join(', ') : 'No directory handles or local server active';
       updateStage('files', 'success', fileResultStr, 85);
-      updateStage('deployment', 'success', 'Firestore is the live CMS source; no secondary remote writer is required.', 100);
+      updateStage('deployment', 'success', 'Cloud Database is the live CMS source; no secondary remote writer is required.', 100);
 
       setSavePopupResult({
         success: true,
         title: 'Synchronized Successfully!',
-        message: `Cloud content is updated in Firestore and the local preview cache is refreshed. Target sync result: ${fileSyncStatus}.`
+        message: `Cloud content is updated in Cloud Database and the local preview cache is refreshed. Target sync result: ${fileSyncStatus}.`
       });
     } catch (err) {
       console.error('Save sync failed:', err);
@@ -4516,7 +4516,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
             if (hasAdmins) setAdmins(backupData.admins);
             if (hasSlides) setSlides(backupData.slides);
 
-            setSaveSuccess('Backup successfully loaded into console preview. Click "Apply & Save" in the top header to push these changes live to Firebase (live) and local files.');
+            setSaveSuccess('Backup successfully loaded into console preview. Click "Apply & Save" in the top header to push these changes live to Cloud Database (live) and local files.');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         });
@@ -6076,7 +6076,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
           </div>}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {!embeddedUser && (firebaseUser ? (
-              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-900/40 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5" title={embeddedUser ? 'Protected by the unified Firebase admin session' : `Signed in to Firebase as ${firebaseUser.email}`}>
+              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-900/40 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5" title={embeddedUser ? 'Protected by authenticated admin session' : `Signed in securely as ${firebaseUser.email}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {embeddedUser ? 'Unified Session' : 'Sync Active'}
               </span>
@@ -9820,7 +9820,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                               type="button"
                               onClick={() => handlePermanentDeleteTrashItem(item.id)}
                               className="px-2.5 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 hover:text-red-200 font-bold text-xs transition-all flex items-center gap-1 border border-red-500/20"
-                              title="Permanently purge from Firebase database"
+                              title="Permanently purge from cloud database"
                             >
                               <Trash2 size={13} />
                               Purge

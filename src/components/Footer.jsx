@@ -409,7 +409,7 @@ export default function Footer() {
                     </h4>
                   </div>
                   <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
-                    {['React', 'Next.js', 'Vite', 'Firebase', 'Python', 'Tailwind CSS', 'Node.js', 'PostgreSQL'].map((tech) => (
+                    {['React', 'Next.js', 'Vite', 'Cloud Architecture', 'Python', 'Tailwind CSS', 'Node.js', 'PostgreSQL'].map((tech) => (
                       <span key={tech} className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
                         {tech}
                       </span>

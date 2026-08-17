@@ -3,12 +3,15 @@
 // Dynamic Student Auto-Complete, DOB-to-Words Engine, Template Builder & Multi-Format Exports
 // =================================================================
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Award, FileSpreadsheet, FileText, Printer, Download, Save,
   Search, Check, Sparkles, UserCheck, Sliders, RefreshCw, X,
-  Plus, PlusCircle, ChevronDown, Edit3, Trash2, BookmarkPlus, Eye, Image as ImageIcon,
-  User, CheckCircle2, History, RotateCcw, AlertCircle
+  Plus, PlusCircle, ChevronDown, Edit3, Trash2, BookmarkPlus, Eye, EyeOff, Image as ImageIcon,
+  User, CheckCircle2, History, RotateCcw, AlertCircle, Info, AlertTriangle,
+  Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  List, ListOrdered, Table as TableIcon, Undo, Redo, RemoveFormatting, Palette, Minus,
+  Bot, Key, Wand2, Shield, ExternalLink, Calendar
 } from 'lucide-react';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
@@ -17,7 +20,30 @@ import {
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
-import { getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache } from '../../services/dbCache';
+import StudentResultEditorModal from './StudentResultEditorModal';
+import ResultIngestionModal from './ResultIngestionModal';
+import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
+import ConfirmModal from '../components/ConfirmModal';
+import { normalizeResultStatus, calculateDivision } from '../../utils/jkboseResultManager';
+import {
+  getCachedCollectionSync,
+  getCachedCollection,
+  getPhotoUrlFromCache,
+  preloadCentralStudentPhotos,
+  resolveStudentPhoto,
+  fetchStudentPhotoOnDemand,
+  fetchAllMatchingStudentPhotos
+} from '../../services/dbCache';
+import {
+  AVAILABLE_GEMINI_MODELS,
+  getStoredGeminiKeys,
+  saveGeminiKeys,
+  fetchCloudGeminiKeys,
+  saveCloudGeminiKeys,
+  getPreferredGeminiModel,
+  savePreferredGeminiModel,
+  generateCertificateWithGemini
+} from '../../services/geminiLetterService';
 import {
   extractStudentName,
   extractFatherName,
@@ -35,13 +61,15 @@ import {
   extractMobile
 } from './CustomRosterDocumentBuilderView';
 import { db } from '../../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import {
   fetchCloudDocTemplates,
   saveCloudDocTemplate,
   setCloudDefaultTemplate,
   deleteCloudDocTemplate
 } from '../../services/docTemplateService';
+import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
+import DocumentHistoryModal from './DocumentHistoryModal';
 
 export default function StudentCertificateStudioView({
   allStudents = [],
@@ -49,12 +77,23 @@ export default function StudentCertificateStudioView({
   activeSubTab = 'certStudio',
   onSwitchSubTab,
   onSwitchToRoster,
-  onSwitchToLetter
+  onSwitchToLetter,
+  showSettingsDrawerProp,
+  onToggleSettingsDrawer
 }) {
   // ─── Data Sources: Active Admissions + Multi-Collection Master Registers ───
   const [liveStudentsList, setLiveStudentsList] = useState([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
+  const [photosVersion, setPhotosVersion] = useState(0);
+
+  // Listen to background central photo loading events
+  useEffect(() => {
+    preloadCentralStudentPhotos().catch(() => {});
+    const onPhotosLoaded = () => setPhotosVersion(v => v + 1);
+    window.addEventListener('hss-photos-loaded', onPhotosLoaded);
+    return () => window.removeEventListener('hss-photos-loaded', onPhotosLoaded);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -62,6 +101,11 @@ export default function StudentCertificateStudioView({
     const fetchAllData = async () => {
       setIsLoadingStudents(true);
       const rawRecords = [];
+
+      // Preload central photos from studentPhotos collection in Firestore
+      try {
+        await preloadCentralStudentPhotos();
+      } catch (_) {}
 
       // 1. Ingest allStudents prop from parent dashboard if present
       if (Array.isArray(allStudents) && allStudents.length > 0) {
@@ -149,7 +193,7 @@ export default function StudentCertificateStudioView({
       const village = extractVillage(st);
       const address = village && village !== '—' ? `${village}, Shangus, Anantnag (J&K)` : 'Shangus, Anantnag — 192201 (J&K)';
       const mobile = extractMobile(st);
-      const photo = getPhotoUrlFromCache(regNo || formNo) || st['passport_photo'] || st['Student Photo'] || st['Photo'] || st['photoUrl'] || null;
+      const photo = resolveStudentPhoto(st) || getPhotoUrlFromCache(regNo || formNo) || st['passport_photo'] || st['Student Photo'] || st['Photo'] || st['photoUrl'] || null;
       
       const sessionLower = (session || '').toLowerCase();
       const isPast = st._srcCollection === 'masterRegisters' ||
@@ -206,7 +250,7 @@ export default function StudentCertificateStudioView({
     });
 
     return list;
-  }, [liveStudentsList]);
+  }, [liveStudentsList, photosVersion]);
 
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -264,7 +308,9 @@ export default function StudentCertificateStudioView({
   const [session, setSession] = useState('2026-27');
   const [address, setAddress] = useState('Shangus, Anantnag — 192201 (J&K)');
   const [gender, setGender] = useState('M');
+  const [withdrawalDate, setWithdrawalDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [studentPhotoUrl, setStudentPhotoUrl] = useState(null);
+  const [isFetchingPhoto, setIsFetchingPhoto] = useState(false);
 
   // ─── Custom Dynamic Fields (Add/Remove/Edit values on the fly) ───
   const [customFields, setCustomFields] = useState([]);
@@ -273,7 +319,16 @@ export default function StudentCertificateStudioView({
   const [newCustomFieldValue, setNewCustomFieldValue] = useState('');
 
   // Derived DOB in figures & words
-  const parsedDob = useMemo(() => dobToWords(dobRaw), [dobRaw]);
+  const parsedDob = useMemo(() => {
+    try {
+      if (typeof dobToWords === 'function') {
+        return dobToWords(dobRaw);
+      }
+    } catch (e) {
+      console.warn('dobToWords execution error:', e);
+    }
+    return { figures: dobRaw || '—', words: '—', standard: dobRaw || '—' };
+  }, [dobRaw]);
 
   // Certificate Header & Options State
   const [officeTitle, setOfficeTitle] = useState('OFFICE OF THE PRINCIPAL');
@@ -284,10 +339,24 @@ export default function StudentCertificateStudioView({
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB'));
   const [showPhoto, setShowPhoto] = useState(false);
   const [watermark, setWatermark] = useState(true);
+  const [includeSalutations, setIncludeSalutations] = useState(true);
   const [signatoryLeft, setSignatoryLeft] = useState('Incharge Admissions & Exam');
+  const [signatoryCenter, setSignatoryCenter] = useState('Checked By');
   const [signatoryRight, setSignatoryRight] = useState('Principal');
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
-  const signatories = useMemo(() => [signatoryLeft, signatoryRight].filter(Boolean), [signatoryLeft, signatoryRight]);
+
+  // Sync external Setup toggle from Top Sub-Nav bar
+  useEffect(() => {
+    if (showSettingsDrawerProp !== undefined) {
+      setShowSettingsDrawer(showSettingsDrawerProp);
+    }
+  }, [showSettingsDrawerProp]);
+
+  useEffect(() => {
+    const handleToggle = () => setShowSettingsDrawer(prev => !prev);
+    window.addEventListener('hss-toggle-studio-setup', handleToggle);
+    return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
+  }, []);
 
   // ─── Templates State (Built-in + Custom) ───
   const [defaultTemplateId, setDefaultTemplateId] = useState(() => {
@@ -306,6 +375,8 @@ export default function StudentCertificateStudioView({
   });
   const [templateBody, setTemplateBody] = useState(BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
   const [customCanvasHtml, setCustomCanvasHtml] = useState(null);
+  const [templateToDelete, setTemplateToDelete] = useState(null);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
   const [customTemplates, setCustomTemplates] = useState(() => {
     try {
       const saved = localStorage.getItem('hss_custom_certificate_templates');
@@ -321,11 +392,100 @@ export default function StudentCertificateStudioView({
 
   const [templateFilterTab, setTemplateFilterTab] = useState('all'); // 'all' | 'builtin' | 'custom'
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [templateSaveMode, setTemplateSaveMode] = useState('update'); // 'update' | 'new'
   const [makeTemplateDefault, setMakeTemplateDefault] = useState(true);
   const [newTplName, setNewTplName] = useState('');
   const [newTplCategory, setNewTplCategory] = useState('Bonafide & Age Certificates');
-  const [saveSuccessToast, setSaveSuccessToast] = useState(false);
+
+  // ─── JKBOSE Result Hub & TC/DC Dual Copy State ───
+  const [showResultEditorModal, setShowResultEditorModal] = useState(false);
+  const [showResultIngestionModal, setShowResultIngestionModal] = useState(false);
+  const [showBulkGeneratorModal, setShowBulkGeneratorModal] = useState(false);
+  const [isDualCopy, setIsDualCopy] = useState(true);
+
+  // TC/DC Active check: Only show Result Hub and Bulk TC Generator when TC/DC is selected
+  const isTcDcActive = useMemo(() => {
+    if (selectedTemplateId?.startsWith('tc_dc')) return true;
+    const currentTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId);
+    return Boolean(currentTpl?.isTcDc || currentTpl?.category?.includes('TC/DC') || currentTpl?.category?.toLowerCase().includes('transfer'));
+  }, [selectedTemplateId, customTemplates]);
+
+  const signatories = useMemo(() => {
+    if (isTcDcActive) {
+      return [signatoryLeft || 'I/c Admissions', signatoryCenter || 'Checked By', signatoryRight || 'Principal'];
+    }
+    return [signatoryLeft || 'Incharge Admissions & Exam', signatoryRight || 'Principal'].filter(Boolean);
+  }, [isTcDcActive, signatoryLeft, signatoryCenter, signatoryRight]);
+
+  const [toast, setToast] = useState(null); // { message: string, type: 'success' | 'error' | 'info' | 'warning' }
+  const toastTimeoutRef = useRef(null);
+  const showToast = useCallback((message, type = 'success', duration = 3500) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, duration);
+  }, []);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [dockSide, setDockSide] = useState(() => {
+    try {
+      return localStorage.getItem('hss_cert_dock_side') || 'right';
+    } catch {
+      return 'right';
+    }
+  });
+
+  // ─── Gemini AI Assistant State ───
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [showAskGeminiMenu, setShowAskGeminiMenu] = useState(false);
+  const [aiMode, setAiMode] = useState('draft'); // 'draft' | 'humanize' | 'formalize' | 'shorten'
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTone, setAiTone] = useState('Formal School');
+  const [aiModel, setAiModel] = useState(() => getPreferredGeminiModel());
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiGeneratedHtml, setAiGeneratedHtml] = useState('');
+  const [aiError, setAiError] = useState('');
+  const [aiSuccessKeyIndex, setAiSuccessKeyIndex] = useState(null);
+  const [geminiKeys, setGeminiKeys] = useState(() => getStoredGeminiKeys());
+  const [showKeysConfig, setShowKeysConfig] = useState(false);
+  const [keysInputText, setKeysInputText] = useState('');
+  const [aiInsertedToast, setAiInsertedToast] = useState(false);
+  const askGeminiMenuRef = useRef(null);
+
+  // Sync Gemini keys from cloud database on startup
+  useEffect(() => {
+    fetchCloudGeminiKeys().then(keys => {
+      if (Array.isArray(keys) && keys.length > 0) {
+        setGeminiKeys(keys);
+        setKeysInputText(keys.join('\n'));
+      }
+    });
+  }, []);
+
+  // Click outside to close Ask Gemini menu
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (askGeminiMenuRef.current && !askGeminiMenuRef.current.contains(e.target)) {
+        setShowAskGeminiMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Combined and deduplicated templates list (Cloud custom overrides take priority over built-ins)
+  const allTemplatesList = useMemo(() => {
+    const map = new Map();
+    BUILTIN_CERTIFICATE_TEMPLATES.forEach(t => map.set(t.id, t));
+    customTemplates.forEach(t => map.set(t.id, t));
+    return Array.from(map.values());
+  }, [customTemplates]);
+
+  const displayedTemplates = useMemo(() => {
+    if (templateFilterTab === 'custom') return customTemplates;
+    if (templateFilterTab === 'builtin') return BUILTIN_CERTIFICATE_TEMPLATES;
+    return allTemplatesList;
+  }, [templateFilterTab, customTemplates, allTemplatesList]);
 
   // Initialize Certificate Templates from Firebase Cloud
   useEffect(() => {
@@ -348,7 +508,19 @@ export default function StudentCertificateStudioView({
           setSelectedTemplateId(found.id);
           setTemplateBody(found.bodyHtml);
           if (found.certificateTitle) setCertificateTitle(found.certificateTitle);
+          if (found.officeTitle) setOfficeTitle(found.officeTitle);
+          if (found.institutionName) setInstitutionName(found.institutionName);
+          if (found.institutionAddress) setInstitutionAddress(found.institutionAddress);
+          if (found.signatoryLeft !== undefined) setSignatoryLeft(found.signatoryLeft);
+          if (found.signatoryRight !== undefined) setSignatoryRight(found.signatoryRight);
+          if (found.watermark !== undefined) setWatermark(found.watermark);
+          if (found.includeSalutations !== undefined) setIncludeSalutations(found.includeSalutations);
           if (found.showPhoto !== undefined) setShowPhoto(found.showPhoto);
+          if (found.refPrefix) {
+            setRefNo(`${found.refPrefix}/${rollNo || regNo || '01'}/${new Date().getFullYear()}`);
+          } else if (found.refNo) {
+            setRefNo(found.refNo);
+          }
         }
       } catch (err) {
         console.warn('Note: Could not sync cloud certificate templates:', err);
@@ -409,8 +581,120 @@ export default function StudentCertificateStudioView({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // ─── Select Student Handler (Auto-Fills Fields & Instantly Re-Interpolates Canvas) ───
-  const handleSelectStudent = (st) => {
+  // ─── Real-time Database Photo Resolution Engine ───
+  const fetchAndResolveStudentPhoto = useCallback(async (targetStudent = null) => {
+    const st = targetStudent || selectedStudent || {
+      name: studentName,
+      father: fatherName,
+      regNo,
+      rollNo,
+      cls: className,
+      session,
+      raw: selectedStudent?.raw || null
+    };
+
+    if (!st) return null;
+
+    setIsFetchingPhoto(true);
+
+    try {
+      // 1. Instant check in memory / localStorage photo cache
+      const fastPhoto = resolveStudentPhoto(st.raw || st) || getPhotoUrlFromCache(st.regNo || regNo || st.rollNo || rollNo) || st.photo;
+      if (fastPhoto && typeof fastPhoto === 'string' && fastPhoto.length > 20 && fastPhoto !== '/logo.png') {
+        setStudentPhotoUrl(fastPhoto);
+        setIsFetchingPhoto(false);
+        return fastPhoto;
+      }
+
+      // 2. Fetch on-demand from centralized Firestore studentPhotos cache
+      const onDemandPhoto = await fetchStudentPhotoOnDemand(st.raw || st);
+      if (onDemandPhoto && typeof onDemandPhoto === 'string' && onDemandPhoto.length > 20 && onDemandPhoto !== '/logo.png') {
+        setStudentPhotoUrl(onDemandPhoto);
+        setIsFetchingPhoto(false);
+        return onDemandPhoto;
+      }
+
+      // 3. Fallback to comprehensive cross-session matching
+      const allMatches = await fetchAllMatchingStudentPhotos(st.raw || st);
+      if (allMatches && allMatches.length > 0 && allMatches[0].url) {
+        setStudentPhotoUrl(allMatches[0].url);
+        setIsFetchingPhoto(false);
+        return allMatches[0].url;
+      }
+
+      // 4. Query Firestore studentPhotos directly for key permutations
+      const rawReg = (st.regNo || regNo || '').replace(/[^a-zA-Z0-9]/g, '');
+      const rawRoll = (st.rollNo || rollNo || '').replace(/[^a-zA-Z0-9]/g, '');
+      const candidateKeys = [
+        rawReg ? `photo_${rawReg}` : null,
+        rawReg || null,
+        rawRoll ? `photo_${rawRoll}` : null,
+        rawRoll || null,
+        st.id ? `photo_${st.id}` : null,
+        st.id || null
+      ].filter(Boolean);
+
+      for (const cKey of candidateKeys) {
+        try {
+          const snap = await getDoc(doc(db, 'studentPhotos', cKey));
+          if (snap.exists()) {
+            const data = snap.data();
+            const p = (data.photo_id || data.photoData || data.photo || data.photoUrl || '').trim();
+            if (p && p.length > 20 && p !== '/logo.png') {
+              setStudentPhotoUrl(p);
+              if (typeof window !== 'undefined') {
+                window._hss_central_photo_map = window._hss_central_photo_map || {};
+                window._hss_central_photo_map[cKey] = p;
+                if (rawReg) window._hss_central_photo_map[rawReg] = p;
+              }
+              setIsFetchingPhoto(false);
+              return p;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 5. Cross-reference student in memory unified directory for attached photo
+      const cleanTargetName = String(st.name || studentName || '').trim().toLowerCase();
+      const cleanTargetFather = String(st.father || fatherName || '').trim().toLowerCase();
+      if (cleanTargetName && Array.isArray(unifiedStudentDirectory)) {
+        const candidateInPool = unifiedStudentDirectory.find(s => {
+          const nm = String(s.name || '').trim().toLowerCase();
+          const fn = String(s.father || '').trim().toLowerCase();
+          return (nm === cleanTargetName && (!cleanTargetFather || fn.includes(cleanTargetFather) || cleanTargetFather.includes(fn))) ||
+            (rawReg && String(s.regNo || '').replace(/[^a-zA-Z0-9]/g, '') === rawReg) ||
+            (rawRoll && String(s.rollNo || '').trim() === rawRoll);
+        });
+
+        if (candidateInPool) {
+          const p = resolveStudentPhoto(candidateInPool.raw || candidateInPool) || candidateInPool.photo;
+          if (p && p.length > 20 && p !== '/logo.png') {
+            setStudentPhotoUrl(p);
+            setIsFetchingPhoto(false);
+            return p;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching student photo from database:', err);
+    } finally {
+      setIsFetchingPhoto(false);
+    }
+    return null;
+  }, [selectedStudent, studentName, fatherName, regNo, rollNo, className, session, unifiedStudentDirectory]);
+
+  // ─── Toggle Student Photo with Instant Database Fetch ───
+  const handleTogglePhoto = async (forcedVal = null) => {
+    const nextVal = forcedVal !== null ? forcedVal : !showPhoto;
+    setShowPhoto(nextVal);
+    if (nextVal) {
+      // Immediately fetch this student's photo from database!
+      await fetchAndResolveStudentPhoto();
+    }
+  };
+
+  // ─── Select Student Handler (Auto-Fills Fields & Instantly Resolves DB Photo) ───
+  const handleSelectStudent = async (st) => {
     setSelectedStudent(st);
     setIsSearchDropdownOpen(false);
     setStudentSearchQuery(`${st.name} (${st.rollNo || st.regNo || st.cls})`);
@@ -418,7 +702,21 @@ export default function StudentCertificateStudioView({
     // Reset canvas override so the new student data is cleanly interpolated from template tokens
     setCustomCanvasHtml(null);
 
-    const activeTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
+    const raw = st.raw || st;
+    const currResult = raw['Result (Current)'] || raw.currResult || 'Passed';
+    const isPassed = normalizeResultStatus(currResult) === 'Passed';
+
+    let activeTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
+
+    // If a TC/DC template is active, automatically select the Qualified or Re-appear template variant
+    if (activeTpl.isTcDc || selectedTemplateId.startsWith('tc_dc_')) {
+      const targetId = isPassed ? 'tc_dc_qualified' : 'tc_dc_reappear';
+      const foundTarget = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === targetId) || activeTpl;
+      setSelectedTemplateId(foundTarget.id);
+      activeTpl = foundTarget;
+      if (foundTarget.certificateTitle) setCertificateTitle(foundTarget.certificateTitle);
+    }
+
     setTemplateBody(activeTpl.bodyHtml);
 
     setStudentName(st.name || '');
@@ -432,7 +730,12 @@ export default function StudentCertificateStudioView({
     setSession(st.session || '2026-27');
     setAddress(st.address || 'Shangus, Anantnag');
     setGender(st.gender || 'M');
-    setStudentPhotoUrl(st.photo || null);
+    
+    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
+    setWithdrawalDate(rawWd);
+    
+    // Immediately fetch & resolve student photo from database
+    await fetchAndResolveStudentPhoto(st);
 
     // Auto-update Ref No
     const prefix = activeTpl.refPrefix || 'HSS/SHG/Bonafide';
@@ -445,11 +748,77 @@ export default function StudentCertificateStudioView({
     setTemplateBody(tpl.bodyHtml);
     setCustomCanvasHtml(null);
     if (tpl.certificateTitle) setCertificateTitle(tpl.certificateTitle);
-    if (tpl.showPhoto !== undefined) setShowPhoto(tpl.showPhoto);
+    if (tpl.officeTitle) setOfficeTitle(tpl.officeTitle);
+    if (tpl.institutionName) setInstitutionName(tpl.institutionName);
+    if (tpl.institutionAddress) setInstitutionAddress(tpl.institutionAddress);
+    if (tpl.signatoryLeft !== undefined) setSignatoryLeft(tpl.signatoryLeft);
+    if (tpl.signatoryRight !== undefined) setSignatoryRight(tpl.signatoryRight);
+    if (tpl.watermark !== undefined) setWatermark(tpl.watermark);
+    if (tpl.includeSalutations !== undefined) setIncludeSalutations(tpl.includeSalutations);
+    if (tpl.showPhoto !== undefined) {
+      setShowPhoto(tpl.showPhoto);
+      if (tpl.showPhoto && !studentPhotoUrl) {
+        fetchAndResolveStudentPhoto();
+      }
+    }
     if (tpl.refPrefix) {
       setRefNo(`${tpl.refPrefix}/${rollNo || regNo || '01'}/${new Date().getFullYear()}`);
+    } else if (tpl.refNo) {
+      setRefNo(tpl.refNo);
     }
   };
+
+  // ─── 1-Click Salutation Title Toggle (Instant DOM & Template Sync) ───
+  const handleToggleSalutations = (next) => {
+    setIncludeSalutations(next);
+
+    const newHtml = interpolateCertificateTemplate(templateBody || activeDisplayHtml, {
+      studentName,
+      fatherName,
+      motherName,
+      className,
+      stream,
+      rollNo,
+      regNo,
+      dobFigures: parsedDob.figures,
+      dobWords: parsedDob.words,
+      session,
+      address,
+      gender,
+      refNo,
+      date: dateStr,
+      includeSalutations: next,
+      customFields
+    });
+
+    if (editorRef.current) {
+      if (!next) {
+        let domHtml = editorRef.current.innerHTML;
+        domHtml = domHtml.replace(/<(strong|b|em|span)([^>]*)>\s*(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+/gi, '<$1$2>');
+        domHtml = domHtml.replace(/\b(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+([A-Z])/g, '$1');
+        domHtml = domHtml.replace(/\{GENDER_TITLE\}\s*/gi, '');
+        domHtml = domHtml.replace(/\{FATHER_TITLE\}\s*/gi, '');
+        domHtml = domHtml.replace(/\{MOTHER_TITLE\}\s*/gi, '');
+        editorRef.current.innerHTML = domHtml;
+        setCustomCanvasHtml(domHtml);
+      } else {
+        editorRef.current.innerHTML = newHtml;
+        setCustomCanvasHtml(newHtml);
+      }
+      pushSnapshot();
+    } else {
+      setCustomCanvasHtml(null);
+    }
+
+    showToast(next ? 'Titles (Mr. / Ms. / Mrs.) enabled.' : 'Titles (Mr. / Ms. / Mrs.) hidden.', 'info', 2000);
+  };
+
+  // ─── Auto-fetch database photo when Photo is ON ───
+  useEffect(() => {
+    if (showPhoto && !studentPhotoUrl && !isFetchingPhoto) {
+      fetchAndResolveStudentPhoto();
+    }
+  }, [showPhoto, studentPhotoUrl, isFetchingPhoto, fetchAndResolveStudentPhoto]);
 
   // ─── Insert Placeholder Chip ───
   const insertToken = (token) => {
@@ -459,6 +828,25 @@ export default function StudentCertificateStudioView({
 
   // ─── Live Interpolated Preview Content ───
   const interpolatedPreviewHtml = useMemo(() => {
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const currResult = raw['Result (Current)'] || raw.currResult || 'Passed';
+    const currMarksReapp = String(raw['Marks/Reapp (Current)'] || raw.currMarksReapp || '');
+    const numMatch = currMarksReapp.match(/(\d+)(?:\s*\/\s*(\d+))?/);
+    const marksObt = numMatch ? numMatch[1] : (currMarksReapp || '—');
+    const maxM = numMatch ? (numMatch[2] || '500') : '500';
+    const currDiv = raw['Div/Distinc (Current)'] || raw.currDiv || (numMatch ? calculateDivision(numMatch[1], maxM).division : 'Distinction');
+    const currExamMode = raw['Exam Mode (Current)'] || raw.currExamMode || 'Annual Regular 2025 (Oct.-Nov.)';
+    const currExamRoll = raw['Exam R.No. (Current)'] || raw.currExamRoll || rollNo || '—';
+    const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
+    const ccDcNo = raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—';
+    const admDate = raw['Adm. Date'] || raw.admissionDate || '—';
+    const admNo = raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—';
+    const village = raw['Village/Town'] || raw.village || raw.address || address || 'Shangus';
+    const tehsil = raw['Tehsil'] || raw.tehsil || 'Anantnag';
+    const district = raw['District'] || raw.district || 'Anantnag';
+
+    const normalizedResult = normalizeResultStatus(currResult);
+
     return interpolateCertificateTemplate(templateBody, {
       studentName,
       fatherName,
@@ -474,9 +862,27 @@ export default function StudentCertificateStudioView({
       gender,
       refNo,
       date: dateStr,
-      customFields
+      includeSalutations,
+      customFields,
+      // TC / DC tokens
+      examName: `Class ${className || '12th'} Examination`,
+      examRollNo: currExamRoll,
+      examSession: currExamMode,
+      resultStatus: normalizedResult === 'Passed' ? 'Pass' : (normalizedResult === 'Reap' ? 'Re-appear' : 'Did Not Qualify'),
+      divisionDistinction: currDiv,
+      marksObtained: marksObt,
+      maxMarks: maxM,
+      reappSubjects: currMarksReapp || '—',
+      admissionDate: admDate,
+      admissionNo: admNo,
+      withdrawalDate: effectiveWd,
+      conductStatus: 'Satisfactory',
+      village,
+      tehsil,
+      district,
+      certificateNo: ccDcNo
     });
-  }, [templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, customFields]);
+  }, [templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, includeSalutations, customFields, selectedStudent, withdrawalDate]);
 
   // Active rendered HTML (Canvas override or cleanly interpolated preview)
   const activeDisplayHtml = customCanvasHtml !== null ? customCanvasHtml : interpolatedPreviewHtml;
@@ -487,58 +893,128 @@ export default function StudentCertificateStudioView({
     setDefaultTemplateId(templateId);
     try {
       await setCloudDefaultTemplate(templateId, 'certificate');
+      showToast('✓ Set as default certificate template!', 'success');
     } catch (err) {
       console.warn('Set default error:', err);
+      showToast(`Default template set locally (${err.message})`, 'info');
     }
   };
 
-  // ─── Save Custom Template (Cloud Firestore + LocalStorage) ───
+  // ─── Save Custom / Update Existing Template (Cloud + LocalStorage) ───
   const handleSaveCustomTemplate = async (e) => {
-    e.preventDefault();
-    if (!newTplName.trim()) return;
+    e?.preventDefault();
+    const isUpdating = templateSaveMode === 'update';
+    const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
 
-    const newTpl = {
-      id: `custom_cert_${Date.now()}`,
-      name: newTplName.trim(),
-      category: newTplCategory || 'Custom Certificates',
-      certificateTitle: certificateTitle || 'CERTIFICATE',
-      bodyHtml: templateBody,
+    if (!isUpdating && !newTplName.trim()) {
+      showToast('Please enter a template name.', 'warning');
+      return;
+    }
+
+    const currentHtml = editorRef.current ? editorRef.current.innerHTML : (templateBody || activeDisplayHtml);
+
+    const targetTpl = {
+      id: isUpdating ? selectedTemplateId : `custom_cert_${Date.now()}`,
+      name: isUpdating ? (activeTpl.name || 'Bonafide Certificate') : newTplName.trim(),
+      category: isUpdating ? (activeTpl.category || 'Bonafide & Age Certificates') : (newTplCategory || 'Custom Certificates'),
+      certificateTitle: certificateTitle || 'BONAFIDE CERTIFICATE',
+      officeTitle: officeTitle || 'OFFICE OF THE PRINCIPAL',
+      institutionName: institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+      institutionAddress: institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)',
+      refNo: refNo || '',
+      refPrefix: activeTpl.refPrefix || '',
+      signatoryLeft: signatoryLeft || '',
+      signatoryRight: signatoryRight || '',
+      bodyHtml: currentHtml,
       showPhoto,
       watermark,
+      includeSalutations,
       isCustom: true
     };
 
     try {
       await saveCloudDocTemplate({
         type: 'certificate',
-        template: newTpl,
-        makeDefault: makeTemplateDefault
+        template: targetTpl,
+        makeDefault: isUpdating ? (selectedTemplateId === defaultTemplateId || makeTemplateDefault) : makeTemplateDefault
       });
 
-      const updated = [newTpl, ...customTemplates.filter(t => t.id !== newTpl.id)];
+      const updated = [targetTpl, ...customTemplates.filter(t => t.id !== targetTpl.id)];
       setCustomTemplates(updated);
-      setSelectedTemplateId(newTpl.id);
-      if (makeTemplateDefault) {
-        setDefaultTemplateId(newTpl.id);
+      setSelectedTemplateId(targetTpl.id);
+      setTemplateBody(currentHtml);
+      if (makeTemplateDefault || (isUpdating && selectedTemplateId === defaultTemplateId)) {
+        setDefaultTemplateId(targetTpl.id);
       }
       setShowSaveTemplateModal(false);
       setNewTplName('');
-      setSaveSuccessToast(true);
-      setTimeout(() => setSaveSuccessToast(false), 2500);
+      showToast(`☁️ Template "${targetTpl.name}" successfully saved to Cloud Database!`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Template saved locally (Cloud sync note: ' + err.message + ')');
+      showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
     }
   };
 
-  // ─── Delete Custom Template (Cloud Firestore + LocalStorage) ───
-  const handleDeleteCustomTemplate = async (id, e) => {
-    e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this custom template?')) return;
+  // ─── 1-Click Quick Update of Active Template ───
+  const handleQuickUpdateTemplate = async () => {
+    const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
+    const currentHtml = editorRef.current ? editorRef.current.innerHTML : (templateBody || activeDisplayHtml);
+
+    const targetTpl = {
+      id: selectedTemplateId,
+      name: activeTpl.name || 'Bonafide Certificate',
+      category: activeTpl.category || 'Bonafide & Age Certificates',
+      certificateTitle: certificateTitle || 'BONAFIDE CERTIFICATE',
+      officeTitle: officeTitle || 'OFFICE OF THE PRINCIPAL',
+      institutionName: institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+      institutionAddress: institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)',
+      refNo: refNo || '',
+      refPrefix: activeTpl.refPrefix || '',
+      signatoryLeft: signatoryLeft || '',
+      signatoryRight: signatoryRight || '',
+      bodyHtml: currentHtml,
+      showPhoto,
+      watermark,
+      includeSalutations,
+      isCustom: true
+    };
+
+    try {
+      await saveCloudDocTemplate({
+        type: 'certificate',
+        template: targetTpl,
+        makeDefault: selectedTemplateId === defaultTemplateId
+      });
+
+      const updated = [targetTpl, ...customTemplates.filter(t => t.id !== targetTpl.id)];
+      setCustomTemplates(updated);
+      setTemplateBody(currentHtml);
+      showToast(`☁️ Template "${targetTpl.name}" successfully overwritten and saved in Cloud!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
+    }
+  };
+
+  // ─── Delete Custom Template (With Warning & Cloud Confirmation Modal) ───
+  const handleDeleteCustomTemplate = (target, e) => {
+    if (e) e.stopPropagation();
+    const tpl = typeof target === 'object' ? target : customTemplates.find(t => t.id === target);
+    if (!tpl) return;
+    setTemplateToDelete(tpl);
+  };
+
+  const handleConfirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    const id = templateToDelete.id;
+    const name = templateToDelete.name;
+    setIsDeletingTemplate(true);
     try {
       await deleteCloudDocTemplate(id, 'certificate');
+      showToast(`🗑️ Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
     } catch (err) {
       console.warn(err);
+      showToast(`Template "${name}" deleted locally.`, 'info');
     }
     const updated = customTemplates.filter(t => t.id !== id);
     setCustomTemplates(updated);
@@ -548,6 +1024,8 @@ export default function StudentCertificateStudioView({
     if (defaultTemplateId === id) {
       setDefaultTemplateId('bonafide_dob');
     }
+    setIsDeletingTemplate(false);
+    setTemplateToDelete(null);
   };
 
   // ─── Preset Firestore Student Fields & Auto-Pick Handlers ───
@@ -664,6 +1142,9 @@ export default function StudentCertificateStudioView({
     setGender(st.gender || 'M');
     setDobRaw(st.dob || '');
     setAddress(st.address || '');
+    const raw = st.raw || st;
+    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
+    setWithdrawalDate(rawWd);
     setCustomCanvasHtml(null);
 
     // Also refresh values for any active custom Firestore fields
@@ -679,33 +1160,531 @@ export default function StudentCertificateStudioView({
 
   // ─── Direct In-Place Canvas Editor & Right-Click Context Menu State ───
   const editorRef = useRef(null);
+  const historyRef = useRef([]);
+  const historyIndexRef = useRef(-1);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [showColorMenu, setShowColorMenu] = useState(false);
+  const [showTableMenu, setShowTableMenu] = useState(false);
+  const colorMenuRef = useRef(null);
+  const tableMenuRef = useRef(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [savedRange, setSavedRange] = useState(null);
+  const savedRangeRef = useRef(null);
   const [showInsertFieldDropdown, setShowInsertFieldDropdown] = useState(false);
   const insertFieldDropdownRef = useRef(null);
+
+  const [activeFormats, setActiveFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strikeThrough: false,
+    h1: false,
+    h2: false,
+    p: false,
+    justifyLeft: false,
+    justifyCenter: false,
+    justifyRight: false,
+    justifyFull: false,
+    insertUnorderedList: false,
+    insertOrderedList: false
+  });
+
+  const checkActiveFormats = () => {
+    if (typeof window === 'undefined' || !editorRef.current) return;
+    try {
+      const sel = window.getSelection();
+      let isH1 = false;
+      let isH2 = false;
+      let isP = false;
+
+      if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+        let node = sel.getRangeAt(0).commonAncestorContainer;
+        if (node.nodeType === 3) node = node.parentNode;
+        const blockParent = node?.closest('h1, h2, h3, h4, h5, h6, p, blockquote, div');
+        const tag = blockParent?.tagName?.toLowerCase();
+        if (tag === 'h1') isH1 = true;
+        else if (tag === 'h2') isH2 = true;
+        else if (tag === 'p' || tag === 'div' || !tag) isP = true;
+      }
+
+      setActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strikeThrough: document.queryCommandState('strikeThrough'),
+        h1: isH1,
+        h2: isH2,
+        p: isP,
+        justifyLeft: document.queryCommandState('justifyLeft'),
+        justifyCenter: document.queryCommandState('justifyCenter'),
+        justifyRight: document.queryCommandState('justifyRight'),
+        justifyFull: document.queryCommandState('justifyFull'),
+        insertUnorderedList: document.queryCommandState('insertUnorderedList'),
+        insertOrderedList: document.queryCommandState('insertOrderedList')
+      });
+    } catch {}
+  };
+
+  const saveCurrentSelection = () => {
+    if (typeof window !== 'undefined' && window.getSelection) {
+      const sel = window.getSelection();
+      if (sel.rangeCount > 0 && editorRef.current && editorRef.current.contains(sel.anchorNode)) {
+        savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+        setSavedRange(savedRangeRef.current);
+      }
+    }
+  };
+
+  // ── Table Context & Manipulation State ──
+  const [activeTableContext, setActiveTableContext] = useState(null);
+  const lastActiveTableRef = useRef(null);
+
+  const getSelectedTableElements = () => {
+    const sel = window.getSelection();
+    let node = sel && sel.rangeCount > 0 ? sel.anchorNode : null;
+    let td = null;
+    let tr = null;
+    let table = null;
+    let colIndex = 0;
+    let rowIndex = 0;
+
+    while (node && node !== editorRef.current) {
+      if (node.nodeName === 'TD' || node.nodeName === 'TH') {
+        td = node;
+      }
+      if (node.nodeName === 'TR') {
+        tr = node;
+      }
+      if (node.nodeName === 'TABLE') {
+        table = node;
+        break;
+      }
+      node = node.parentNode;
+    }
+
+    if (table && tr && td) {
+      colIndex = Array.from(tr.children).indexOf(td);
+      const allRows = Array.from(table.querySelectorAll('tr'));
+      rowIndex = allRows.indexOf(tr);
+      lastActiveTableRef.current = { td, tr, table, colIndex, rowIndex };
+      return { td, tr, table, colIndex, rowIndex };
+    }
+
+    if (lastActiveTableRef.current && editorRef.current && editorRef.current.contains(lastActiveTableRef.current.table)) {
+      return lastActiveTableRef.current;
+    }
+
+    if (editorRef.current) {
+      const firstTable = editorRef.current.querySelector('table');
+      if (firstTable) {
+        const allTrs = Array.from(firstTable.querySelectorAll('tr'));
+        const lastTr = allTrs[allTrs.length - 1] || null;
+        const lastTd = lastTr ? lastTr.children[lastTr.children.length - 1] : null;
+        return {
+          td: lastTd,
+          tr: lastTr,
+          table: firstTable,
+          colIndex: lastTr ? lastTr.children.length - 1 : 0,
+          rowIndex: allTrs.length - 1
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const checkTableContext = () => {
+    const ctx = getSelectedTableElements();
+    if (ctx && ctx.table) {
+      const allTrs = Array.from(ctx.table.querySelectorAll('tr'));
+      setActiveTableContext({
+        colIndex: ctx.colIndex,
+        rowIndex: ctx.rowIndex,
+        totalCols: ctx.tr ? ctx.tr.children.length : 0,
+        totalRows: allTrs.length,
+        hasTable: true
+      });
+    } else {
+      if (editorRef.current && editorRef.current.querySelector('table')) {
+        const table = editorRef.current.querySelector('table');
+        const allTrs = Array.from(table.querySelectorAll('tr'));
+        setActiveTableContext({
+          colIndex: 0,
+          rowIndex: 0,
+          totalCols: table.querySelector('tr')?.children.length || 0,
+          totalRows: allTrs.length,
+          hasTable: true
+        });
+      } else {
+        setActiveTableContext(null);
+      }
+    }
+  };
+
+  const pushSnapshot = () => {
+    if (!editorRef.current) return;
+    const currentHtml = editorRef.current.innerHTML;
+    if (historyIndexRef.current >= 0 && historyRef.current[historyIndexRef.current] === currentHtml) {
+      return;
+    }
+    const newStack = historyRef.current.slice(0, historyIndexRef.current + 1);
+    newStack.push(currentHtml);
+    if (newStack.length > 50) newStack.shift();
+    historyRef.current = newStack;
+    historyIndexRef.current = newStack.length - 1;
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+  };
+
+  const handleUndo = () => {
+    if (!editorRef.current || historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    editorRef.current.innerHTML = historyRef.current[historyIndexRef.current];
+    setCustomCanvasHtml(historyRef.current[historyIndexRef.current]);
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+    editorRef.current.focus();
+  };
+
+  const handleRedo = () => {
+    if (!editorRef.current || historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    editorRef.current.innerHTML = historyRef.current[historyIndexRef.current];
+    setCustomCanvasHtml(historyRef.current[historyIndexRef.current]);
+    setCanUndo(historyIndexRef.current > 0);
+    setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
+    editorRef.current.focus();
+  };
+
+  const executeFormat = (command, value = null) => {
+    if (!editorRef.current) return;
+    pushSnapshot();
+    editorRef.current.focus();
+
+    try {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    const sel = window.getSelection();
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel) {
+      try {
+        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
+          sel.removeAllRanges();
+          sel.addRange(activeRange);
+        }
+      } catch {}
+    }
+
+    try {
+      if (command === 'formatBlock') {
+        const targetClean = (value || 'p').replace(/[<>]/g, '').toLowerCase();
+        let currentBlock = null;
+        if (sel && sel.rangeCount > 0) {
+          let node = sel.getRangeAt(0).commonAncestorContainer;
+          if (node.nodeType === 3) node = node.parentNode;
+          currentBlock = node?.closest('h1, h2, h3, h4, h5, h6, p, blockquote, div');
+        }
+
+        const currentTag = currentBlock?.tagName?.toLowerCase() || 'p';
+        const isSameTag = currentTag === targetClean;
+
+        // If clicking the active heading again, toggle off to normal paragraph '<p>'
+        const newTag = (isSameTag && targetClean !== 'p') ? 'p' : targetClean;
+
+        let success = document.execCommand('formatBlock', false, `<${newTag}>`);
+        if (!success) {
+          success = document.execCommand('formatBlock', false, newTag);
+        }
+
+        if (currentBlock && currentBlock.isConnected && currentBlock !== editorRef.current) {
+          if (currentBlock.tagName.toLowerCase() !== newTag) {
+            const newElem = document.createElement(newTag);
+            newElem.innerHTML = currentBlock.innerHTML;
+            currentBlock.parentNode.replaceChild(newElem, currentBlock);
+            const r = document.createRange();
+            r.selectNodeContents(newElem);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        }
+      } else {
+        document.execCommand(command, false, value);
+      }
+    } catch (err) {
+      console.warn('Formatting command error:', err);
+    }
+    if (editorRef.current) {
+      setCustomCanvasHtml(editorRef.current.innerHTML);
+    }
+    saveCurrentSelection();
+    setTimeout(() => {
+      pushSnapshot();
+      checkTableContext();
+      checkActiveFormats();
+    }, 50);
+  };
+
+  // Instantaneous Text Color Application with CSS styling & smart selection recovery
+  const applyTextColor = (color) => {
+    if (!editorRef.current) return;
+    pushSnapshot();
+    editorRef.current.focus();
+
+    // 1. Enable CSS inline styles so color overrides all parent CSS classes immediately
+    try {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    // 2. Restore saved selection if shifted or blurred
+    const sel = window.getSelection();
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel) {
+      try {
+        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
+          sel.removeAllRanges();
+          sel.addRange(activeRange);
+        }
+      } catch {}
+    }
+
+    // 3. If selection is collapsed inside text, auto-expand to word under cursor
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (range.collapsed && editorRef.current.contains(range.startContainer)) {
+        const node = range.startContainer;
+        if (node.nodeType === 3) {
+          const text = node.nodeValue || '';
+          let start = range.startOffset;
+          let end = range.startOffset;
+          while (start > 0 && !/\s/.test(text[start - 1])) start--;
+          while (end < text.length && !/\s/.test(text[end])) end++;
+          if (start < end) {
+            const wordRange = document.createRange();
+            wordRange.setStart(node, start);
+            wordRange.setEnd(node, end);
+            sel.removeAllRanges();
+            sel.addRange(wordRange);
+          }
+        }
+      }
+    }
+
+    // 4. Apply text color command
+    try {
+      const ok = document.execCommand('foreColor', false, color);
+      if (!ok) {
+        document.execCommand('styleWithCSS', false, false);
+        document.execCommand('foreColor', false, color);
+      }
+    } catch (err) {
+      console.warn('Text color command error:', err);
+    }
+
+    // 5. Update canvas state immediately
+    if (editorRef.current) {
+      setCustomCanvasHtml(editorRef.current.innerHTML);
+    }
+    saveCurrentSelection();
+    setTimeout(() => {
+      pushSnapshot();
+      checkTableContext();
+    }, 50);
+    showToast(`Color applied (${color})`, 'info', 1500);
+  };
+
+  const insertTable = (rows = 2, cols = 3) => {
+    let tableHtml = `<table style="width:100%; border-collapse:collapse; margin:10px 0;"><thead><tr style="background-color:#f1f5f9;">`;
+    for (let c = 1; c <= cols; c++) {
+      tableHtml += `<th style="border:1px solid #64748b; padding:4px 6px; text-align:left; font-weight:bold; font-size:11px;">Header ${c}</th>`;
+    }
+    tableHtml += `</tr></thead><tbody>`;
+    for (let r = 1; r <= rows; r++) {
+      tableHtml += `<tr>`;
+      for (let c = 1; c <= cols; c++) {
+        tableHtml += `<td style="border:1px solid #94a3b8; padding:4px 6px; font-size:11px;">—</td>`;
+      }
+      tableHtml += `</tr>`;
+    }
+    tableHtml += `</tbody></table><p></p>`;
+
+    pushSnapshot();
+    executeFormat('insertHTML', tableHtml);
+    setTimeout(() => {
+      pushSnapshot();
+      checkTableContext();
+    }, 50);
+    setShowTableMenu(false);
+  };
+
+  const insertTableRow = (above = false) => {
+    const ctx = getSelectedTableElements();
+    if (!ctx || !ctx.table) {
+      insertTable(2, 3);
+      return;
+    }
+    pushSnapshot();
+    const allRows = Array.from(ctx.table.querySelectorAll('tr'));
+    if (allRows.length === 0) return;
+
+    const colCount = allRows[0]?.children.length || 3;
+    const newTr = document.createElement('tr');
+    for (let i = 0; i < colCount; i++) {
+      const td = document.createElement('td');
+      td.style.border = '1px solid #94a3b8';
+      td.style.padding = '4px 6px';
+      td.style.fontSize = '11px';
+      td.innerHTML = '—';
+      newTr.appendChild(td);
+    }
+
+    const targetRow = ctx.tr || allRows[allRows.length - 1];
+    if (targetRow && targetRow.parentNode) {
+      if (above && targetRow.parentNode.tagName !== 'THEAD') {
+        targetRow.parentNode.insertBefore(newTr, targetRow);
+      } else {
+        targetRow.parentNode.insertBefore(newTr, targetRow.nextSibling);
+      }
+    } else {
+      const tbody = ctx.table.querySelector('tbody') || ctx.table;
+      tbody.appendChild(newTr);
+    }
+
+    lastActiveTableRef.current = { td: newTr.children[0], tr: newTr, table: ctx.table, colIndex: 0, rowIndex: allRows.length };
+    pushSnapshot();
+    checkTableContext();
+    if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
+    setShowTableMenu(false);
+  };
+
+  const deleteTableRow = () => {
+    const ctx = getSelectedTableElements();
+    if (!ctx || !ctx.table) return;
+
+    pushSnapshot();
+    const allRows = Array.from(ctx.table.querySelectorAll('tr'));
+    if (allRows.length <= 1) {
+      ctx.table.remove();
+      lastActiveTableRef.current = null;
+    } else {
+      const targetRow = ctx.tr || allRows[allRows.length - 1];
+      if (targetRow) {
+        targetRow.remove();
+      }
+    }
+
+    pushSnapshot();
+    checkTableContext();
+    if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
+    setShowTableMenu(false);
+  };
+
+  const insertTableColumn = (left = false) => {
+    const ctx = getSelectedTableElements();
+    if (!ctx || !ctx.table) {
+      insertTable(2, 3);
+      return;
+    }
+    pushSnapshot();
+    const allRows = ctx.table.querySelectorAll('tr');
+    if (allRows.length === 0) return;
+
+    const targetColIdx = (ctx.colIndex !== undefined && ctx.colIndex >= 0)
+      ? ctx.colIndex
+      : (ctx.tr && ctx.td ? Array.from(ctx.tr.children).indexOf(ctx.td) : (allRows[0].children.length - 1));
+
+    allRows.forEach((row, rIdx) => {
+      const isHeader = row.parentNode?.tagName === 'THEAD' || row.querySelector('th') || rIdx === 0;
+      const newCell = document.createElement(isHeader ? 'th' : 'td');
+      newCell.style.border = isHeader ? '1px solid #64748b' : '1px solid #94a3b8';
+      newCell.style.padding = '4px 6px';
+      newCell.style.fontSize = '11px';
+      newCell.innerHTML = isHeader ? `Header ${row.children.length + 1}` : `—`;
+
+      const targetCell = row.children[targetColIdx];
+      if (targetCell) {
+        if (left) {
+          row.insertBefore(newCell, targetCell);
+        } else {
+          row.insertBefore(newCell, targetCell.nextSibling);
+        }
+      } else {
+        row.appendChild(newCell);
+      }
+    });
+
+    pushSnapshot();
+    checkTableContext();
+    if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
+    setShowTableMenu(false);
+  };
+
+  const deleteTableColumn = () => {
+    const ctx = getSelectedTableElements();
+    if (!ctx || !ctx.table) return;
+
+    pushSnapshot();
+    const allRows = ctx.table.querySelectorAll('tr');
+    if (allRows.length === 0) return;
+
+    const colIndex = (ctx.colIndex !== undefined && ctx.colIndex >= 0)
+      ? ctx.colIndex
+      : (ctx.tr && ctx.td ? Array.from(ctx.tr.children).indexOf(ctx.td) : (allRows[0].children.length - 1));
+
+    allRows.forEach(row => {
+      if (row.children[colIndex]) {
+        row.children[colIndex].remove();
+      }
+    });
+
+    if (allRows[0] && allRows[0].children.length === 0) {
+      ctx.table.remove();
+      lastActiveTableRef.current = null;
+    }
+
+    pushSnapshot();
+    checkTableContext();
+    if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
+    setShowTableMenu(false);
+  };
+
+  const deleteEntireTable = () => {
+    const ctx = getSelectedTableElements();
+    if (ctx && ctx.table) {
+      pushSnapshot();
+      ctx.table.remove();
+      lastActiveTableRef.current = null;
+      pushSnapshot();
+      checkTableContext();
+      if (editorRef.current) setCustomCanvasHtml(editorRef.current.innerHTML);
+    }
+    setShowTableMenu(false);
+  };
+
+  const insertHorizontalRule = () => {
+    executeFormat('insertHorizontalRule');
+  };
 
   // Sync interpolated content into editorRef whenever active content changes
   useEffect(() => {
     if (editorRef.current && document.activeElement !== editorRef.current) {
       editorRef.current.innerHTML = activeDisplayHtml;
+      pushSnapshot();
     }
   }, [activeDisplayHtml]);
 
   const handleEditorInput = () => {
     if (editorRef.current) {
       setCustomCanvasHtml(editorRef.current.innerHTML);
+      pushSnapshot();
     }
   };
 
   const handleContextMenu = (e) => {
     e.preventDefault();
-    if (window.getSelection) {
-      const sel = window.getSelection();
-      if (sel.rangeCount > 0) {
-        setSavedRange(sel.getRangeAt(0));
-      }
-    }
+    saveCurrentSelection();
     const menuWidth = 280;
     const menuHeight = 440;
     const x = Math.max(10, Math.min(e.clientX, window.innerWidth - menuWidth - 10));
@@ -720,39 +1699,443 @@ export default function StudentCertificateStudioView({
       if (insertFieldDropdownRef.current && !insertFieldDropdownRef.current.contains(e.target)) {
         setShowInsertFieldDropdown(false);
       }
+      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target)) {
+        setShowColorMenu(false);
+      }
+      if (tableMenuRef.current && !tableMenuRef.current.contains(e.target)) {
+        setShowTableMenu(false);
+      }
     };
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setShowContextMenu(false);
         setShowInsertFieldDropdown(false);
+        setShowColorMenu(false);
+        setShowTableMenu(false);
       }
     };
+    const onSelectionChange = () => {
+      if (typeof window !== 'undefined' && window.getSelection && editorRef.current) {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+          setSavedRange(savedRangeRef.current);
+        }
+      }
+    };
+
     window.addEventListener('click', handleGlobalClick);
     window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('selectionchange', onSelectionChange);
     return () => {
       window.removeEventListener('click', handleGlobalClick);
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('selectionchange', onSelectionChange);
     };
   }, []);
 
-  const handleInsertPlaceholder = (textToInsert) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      if (savedRange && window.getSelection) {
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(savedRange);
+  // Helper to determine if editor cursor is at start of sentence
+  const isCursorAtStartOfSentence = () => {
+    try {
+      const activeRange = savedRangeRef.current || savedRange;
+      if (!activeRange || !editorRef.current) return false;
+      const preRange = document.createRange();
+      preRange.selectNodeContents(editorRef.current);
+      preRange.setEnd(activeRange.startContainer, activeRange.startOffset);
+      const preText = preRange.toString().trimEnd();
+      if (!preText || preText.length === 0) return true;
+      const lastChar = preText[preText.length - 1];
+      if (lastChar === '.' || lastChar === '!' || lastChar === '?' || lastChar === '\n' || lastChar === ':') {
+        if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Shri|Smt)\.$/i.test(preText)) return false;
+        return true;
       }
-      document.execCommand('insertText', false, textToInsert);
-      setCustomCanvasHtml(editorRef.current.innerHTML);
+      return false;
+    } catch {
+      return false;
     }
+  };
+
+  // Helper to resolve any placeholder token or template string to its active rendered value
+  const resolveTokenOrText = (rawTokenOrText) => {
+    if (!rawTokenOrText) return '';
+    const str = String(rawTokenOrText);
+    const isFemale = String(gender).toUpperCase().startsWith('F') || String(gender).toUpperCase() === 'FEMALE';
+    const studentTitle = includeSalutations ? (isFemale ? 'Ms.' : 'Mr.') : '';
+    const studentTitleYoung = includeSalutations ? (isFemale ? 'Miss' : 'Master') : '';
+    const fatherTitle = includeSalutations ? 'Mr.' : '';
+    const motherTitle = includeSalutations ? 'Mrs.' : '';
+
+    const isStart = isCursorAtStartOfSentence();
+    const pronounHeShe = isStart ? (isFemale ? 'She' : 'He') : (isFemale ? 'she' : 'he');
+    const pronounHisHer = isStart ? (isFemale ? 'Her' : 'His') : (isFemale ? 'her' : 'his');
+    const pronounHimHer = isStart ? (isFemale ? 'Her' : 'Him') : (isFemale ? 'her' : 'him');
+    const pronounSonDaughter = isStart ? (isFemale ? 'Daughter' : 'Son') : (isFemale ? 'daughter' : 'son');
+    const pronounSonOfDaughterOf = isStart ? (isFemale ? 'Daughter of' : 'Son of') : (isFemale ? 'daughter of' : 'son of');
+    const pronounHimselfHerself = isStart ? (isFemale ? 'Herself' : 'Himself') : (isFemale ? 'herself' : 'himself');
+
+    // Direct token mapping
+    const tokenMap = {
+      '{STUDENT_NAME}': studentName || '—',
+      '{FATHER_NAME}': fatherName || '—',
+      '{MOTHER_NAME}': motherName || '—',
+      '{CLASS}': className || '11th',
+      '{STREAM}': stream || 'Medical',
+      '{ROLL_NO}': rollNo || '—',
+      '{REG_NO}': regNo || '—',
+      '{DOB_FIGURES}': parsedDob.figures || '—',
+      '{DOB_WORDS}': parsedDob.words || '—',
+      '{SESSION}': session || '2026-27',
+      '{ADDRESS}': address || 'Shangus, Anantnag',
+      '{REF_NO}': refNo || '—',
+      '{DATE}': dateStr || new Date().toLocaleDateString('en-GB'),
+      '{GENDER_TITLE}': studentTitle,
+      '{TITLE}': studentTitle,
+      '{TITLE_YOUNG}': studentTitleYoung,
+      '{FATHER_TITLE}': fatherTitle,
+      '{MOTHER_TITLE}': motherTitle,
+      '{GENDER}': isFemale ? 'Female' : 'Male',
+      '{PRONOUN_SON_DAUGHTER}': pronounSonDaughter,
+      '{PRONOUN_Son_Daughter}': isFemale ? 'Daughter' : 'Son',
+      '{PRONOUN_SON_DAUGHTER_CAP}': isFemale ? 'Daughter' : 'Son',
+      '{PRONOUN_SON_DAUGHTER_LOW}': isFemale ? 'daughter' : 'son',
+      '{SON_DAUGHTER}': pronounSonDaughter,
+      '{SON_DAUGHTER_CAP}': isFemale ? 'Daughter' : 'Son',
+      '{SON_DAUGHTER_LOW}': isFemale ? 'daughter' : 'son',
+      '{PRONOUN_SO_DO}': isFemale ? 'D/o' : 'S/o',
+      '{SO_DO}': isFemale ? 'D/o' : 'S/o',
+      '{S_O_D_O}': isFemale ? 'D/o' : 'S/o',
+      '{PRONOUN_SON_OF_DAUGHTER_OF}': pronounSonOfDaughterOf,
+      '{PRONOUN_Son_Of_Daughter_Of}': isFemale ? 'Daughter of' : 'Son of',
+      '{SON_OF_DAUGHTER_OF}': pronounSonOfDaughterOf,
+      '{PRONOUN_HE_SHE}': pronounHeShe,
+      '{PRONOUN_he_she}': isFemale ? 'she' : 'he',
+      '{PRONOUN_HE_SHE_CAP}': isFemale ? 'She' : 'He',
+      '{PRONOUN_HE_SHE_LOW}': isFemale ? 'she' : 'he',
+      '{HE_SHE}': pronounHeShe,
+      '{he_she}': isFemale ? 'she' : 'he',
+      '{HE_SHE_CAP}': isFemale ? 'She' : 'He',
+      '{HE_SHE_LOW}': isFemale ? 'she' : 'he',
+      '{PRONOUN_HIS_HER}': pronounHisHer,
+      '{PRONOUN_his_her}': isFemale ? 'her' : 'his',
+      '{PRONOUN_HIS_HER_CAP}': isFemale ? 'Her' : 'His',
+      '{PRONOUN_HIS_HER_LOW}': isFemale ? 'her' : 'his',
+      '{HIS_HER}': pronounHisHer,
+      '{his_her}': isFemale ? 'her' : 'his',
+      '{HIS_HER_CAP}': isFemale ? 'Her' : 'His',
+      '{HIS_HER_LOW}': isFemale ? 'her' : 'his',
+      '{PRONOUN_HIM_HER}': pronounHimHer,
+      '{PRONOUN_him_her}': isFemale ? 'her' : 'him',
+      '{PRONOUN_HIM_HER_CAP}': isFemale ? 'Her' : 'Him',
+      '{PRONOUN_HIM_HER_LOW}': isFemale ? 'her' : 'him',
+      '{HIM_HER}': pronounHimHer,
+      '{him_her}': isFemale ? 'her' : 'him',
+      '{PRONOUN_HIMSELF_HERSELF}': pronounHimselfHerself,
+      '{PRONOUN_himself_herself}': isFemale ? 'herself' : 'himself'
+    };
+
+    if (tokenMap[str.toUpperCase()]) {
+      return tokenMap[str.toUpperCase()];
+    }
+
+    if (tokenMap[str]) {
+      return tokenMap[str];
+    }
+
+    // If it contains multiple tokens, interpolate cleanly
+    if (str.includes('{') && str.includes('}')) {
+      return interpolateCertificateTemplate(str, {
+        studentName,
+        fatherName,
+        motherName,
+        className,
+        stream,
+        rollNo,
+        regNo,
+        dobFigures: parsedDob.figures,
+        dobWords: parsedDob.words,
+        session,
+        address,
+        gender,
+        refNo,
+        date: dateStr,
+        includeSalutations,
+        customFields
+      });
+    }
+
+    return str;
+  };
+
+  const handleInsertPlaceholder = (rawTokenOrText) => {
+    if (!editorRef.current) return;
+    const textToInsert = resolveTokenOrText(rawTokenOrText);
+    pushSnapshot();
+    editorRef.current.focus();
+
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && window.getSelection) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(activeRange);
+    }
+
+    let inserted = false;
+    try {
+      inserted = document.execCommand('insertText', false, textToInsert);
+    } catch (err) {
+      console.warn('execCommand insertText error:', err);
+    }
+
+    if (!inserted) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const textNode = document.createTextNode(textToInsert);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        savedRangeRef.current = range.cloneRange();
+        setSavedRange(savedRangeRef.current);
+      } else {
+        const span = document.createElement('span');
+        span.textContent = ` ${textToInsert}`;
+        editorRef.current.appendChild(span);
+      }
+    } else {
+      if (window.getSelection && window.getSelection().rangeCount > 0) {
+        savedRangeRef.current = window.getSelection().getRangeAt(0).cloneRange();
+        setSavedRange(savedRangeRef.current);
+      }
+    }
+
+    // Auto-clean any un-interpolated curly bracket tokens that might have been typed or inserted
+    if (editorRef.current.innerHTML.includes('{') && editorRef.current.innerHTML.includes('}')) {
+      const cleanedHtml = interpolateCertificateTemplate(editorRef.current.innerHTML, {
+        studentName,
+        fatherName,
+        motherName,
+        className,
+        stream,
+        rollNo,
+        regNo,
+        dobFigures: parsedDob.figures,
+        dobWords: parsedDob.words,
+        session,
+        address,
+        gender,
+        refNo,
+        date: dateStr,
+        customFields
+      });
+      if (cleanedHtml !== editorRef.current.innerHTML) {
+        editorRef.current.innerHTML = cleanedHtml;
+      }
+    }
+
+    setCustomCanvasHtml(editorRef.current.innerHTML);
+    setTimeout(pushSnapshot, 50);
     setShowContextMenu(false);
     setShowInsertFieldDropdown(false);
+  };
+
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // ─── Cloud History Save Handler ───
+  const handleSaveToCloud = async () => {
+    const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
+    const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
+    try {
+      await saveGeneratedDocToHistory({
+        docType: 'bonafide',
+        title: certificateTitle || 'BONAFIDE CERTIFICATE',
+        refNo: refNo || '',
+        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+        recipientOrStudent: studentName || 'Student',
+        studentDetails: {
+          name: studentName,
+          father: fatherName,
+          mother: motherName,
+          cls: className,
+          stream,
+          rollNo,
+          regNo,
+          dob: dobRaw,
+          session,
+          gender,
+          address
+        },
+        bodyHtml: currentHtml,
+        actionType: 'Saved to Cloud',
+        templateId: selectedTemplateId,
+        templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Bonafide',
+        extraData: {
+          officeTitle,
+          institutionName,
+          institutionAddress,
+          studentPhotoUrl: effectivePhoto,
+          showPhoto,
+          watermark,
+          signatories
+        }
+      });
+      showToast('✓ Certificate successfully archived in Cloud History!', 'success');
+    } catch (err) {
+      console.error('History save error:', err);
+      showToast(`Could not save document to cloud history: ${err.message}`, 'error');
+    }
+  };
+
+  // ─── Load Draft from History Handler ───
+  const handleLoadDraftFromHistory = (rec) => {
+    if (!rec) return;
+    if (rec.title) setCertificateTitle(rec.title);
+    if (rec.refNo) setRefNo(rec.refNo);
+    if (rec.dateStr) setDateStr(rec.dateStr);
+    if (rec.studentDetails) {
+      if (rec.studentDetails.name) setStudentName(rec.studentDetails.name);
+      if (rec.studentDetails.father) setFatherName(rec.studentDetails.father);
+      if (rec.studentDetails.mother) setMotherName(rec.studentDetails.mother);
+      if (rec.studentDetails.cls) setClassName(rec.studentDetails.cls);
+      if (rec.studentDetails.stream) setStream(rec.studentDetails.stream);
+      if (rec.studentDetails.rollNo) setRollNo(rec.studentDetails.rollNo);
+      if (rec.studentDetails.regNo) setRegNo(rec.studentDetails.regNo);
+      if (rec.studentDetails.dob) setDobRaw(rec.studentDetails.dob);
+      if (rec.studentDetails.session) setSession(rec.studentDetails.session);
+      if (rec.studentDetails.gender) setGender(rec.studentDetails.gender);
+      if (rec.studentDetails.address) setAddress(rec.studentDetails.address);
+    }
+    if (rec.extraData?.studentPhotoUrl) {
+      setStudentPhotoUrl(rec.extraData.studentPhotoUrl);
+    }
+    if (rec.extraData?.showPhoto !== undefined) {
+      setShowPhoto(rec.extraData.showPhoto);
+    }
+    if (rec.bodyHtml) {
+      setCustomCanvasHtml(rec.bodyHtml);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = rec.bodyHtml;
+      }
+    }
+    showToast('Certificate draft loaded from history archive.', 'info');
+  };
+
+  // ─── Gemini AI Handlers ───
+  const handleOpenAiModal = (mode = 'draft') => {
+    setAiMode(mode);
+    setAiGeneratedHtml('');
+    setAiError('');
+    setAiSuccessKeyIndex(null);
+    if (mode === 'humanize' || mode === 'formalize' || mode === 'shorten') {
+      setAiPrompt('');
+    }
+    const currentKeys = getStoredGeminiKeys();
+    setGeminiKeys(currentKeys);
+    setKeysInputText(currentKeys.join('\n'));
+    setShowAiModal(true);
+  };
+
+  const handleSaveKeys = async () => {
+    const lines = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+    const saved = await saveCloudGeminiKeys(lines);
+    setGeminiKeys(saved);
+    setShowKeysConfig(false);
+    setAiError('');
+    showToast(`✓ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
+  };
+
+  const handleGenerateAi = async () => {
+    if (geminiKeys.length === 0) {
+      setShowKeysConfig(true);
+      setAiError('Please add at least one Gemini API key before generating.');
+      return;
+    }
+
+    setIsGeneratingAi(true);
+    setAiError('');
+    setAiGeneratedHtml('');
+    setAiSuccessKeyIndex(null);
+
+    try {
+      const currentContent = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
+      const result = await generateCertificateWithGemini({
+        prompt: aiPrompt,
+        currentContent,
+        certificateTitle,
+        studentDetails: {
+          name: studentName,
+          father: fatherName,
+          mother: motherName,
+          cls: className,
+          stream,
+          rollNo,
+          regNo,
+          dob: dobRaw,
+          dobWords: parsedDob.words,
+          session,
+          address,
+          gender
+        },
+        mode: aiMode,
+        tone: aiTone,
+        model: aiModel,
+        customKeys: geminiKeys
+      });
+
+      setAiGeneratedHtml(result.html);
+      setAiSuccessKeyIndex(result.usedKeyIndex);
+      savePreferredGeminiModel(aiModel);
+    } catch (err) {
+      console.error(err);
+      setAiError(err.message || 'Failed to generate certificate with Gemini AI.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const handleApplyAiContent = (action = 'replace') => {
+    if (!aiGeneratedHtml) return;
+    pushSnapshot();
+
+    if (action === 'replace') {
+      setCustomCanvasHtml(aiGeneratedHtml);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = aiGeneratedHtml;
+      }
+    } else if (action === 'append') {
+      const current = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
+      const merged = `${current}<br/>${aiGeneratedHtml}`;
+      setCustomCanvasHtml(merged);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = merged;
+      }
+    } else if (action === 'insert') {
+      executeFormat('insertHTML', aiGeneratedHtml);
+    }
+
+    setTimeout(pushSnapshot, 50);
+    showToast('✨ AI-generated certificate content applied to canvas!', 'success');
+    setShowAiModal(false);
   };
 
   // ─── Export Handlers ───
   const handlePrint = () => {
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
+    const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
+    const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId);
+    const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId.startsWith('tc_dc_'));
+
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const metaDetails = {
+      certificateNo: raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—',
+      admissionDate: raw['Adm. Date'] || raw.admissionDate || '—',
+      admissionNo: raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—',
+      regNo: regNo || '—'
+    };
+
+    showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
     printStudentCertificate({
       officeTitle,
       institutionName,
@@ -761,17 +2144,66 @@ export default function StudentCertificateStudioView({
       refNo,
       dateStr,
       bodyHtml: currentHtml,
-      studentPhotoUrl,
+      studentPhotoUrl: effectivePhoto,
       showPhoto,
       watermark,
-      signatories
+      signatories,
+      isDualCopy: isDualCopy && isTcDcActive,
+      metaDetails
     });
+
+    // Auto-log to Firestore history
+    saveGeneratedDocToHistory({
+      docType: 'bonafide',
+      title: certificateTitle || 'BONAFIDE CERTIFICATE',
+      refNo: refNo || '',
+      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+      recipientOrStudent: studentName || 'Student',
+      studentDetails: {
+        name: studentName,
+        father: fatherName,
+        mother: motherName,
+        cls: className,
+        stream,
+        rollNo,
+        regNo,
+        dob: dobRaw,
+        session,
+        gender,
+        address
+      },
+      bodyHtml: currentHtml,
+      actionType: 'Printed / Saved PDF',
+      templateId: selectedTemplateId,
+      templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Bonafide',
+      extraData: {
+        officeTitle,
+        institutionName,
+        institutionAddress,
+        studentPhotoUrl: effectivePhoto,
+        showPhoto,
+        watermark,
+        signatories
+      }
+    }).catch(e => console.warn('History auto-log note:', e));
   };
 
   const handleExportDocx = async () => {
     setIsExportingDocx(true);
+    const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
+    const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
+    const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId);
+    const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId.startsWith('tc_dc_'));
+
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const metaDetails = {
+      certificateNo: raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—',
+      admissionDate: raw['Adm. Date'] || raw.admissionDate || '—',
+      admissionNo: raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—',
+      regNo: regNo || '—'
+    };
+
     try {
-      const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
       await generateStudentCertificateDocx({
         officeTitle,
         institutionName,
@@ -780,340 +2212,91 @@ export default function StudentCertificateStudioView({
         refNo,
         dateStr,
         bodyHtml: currentHtml,
-        signatories
+        signatories,
+        isDualCopy: isDualCopy && isTcDcActive,
+        metaDetails
       });
+
+      showToast('📥 Word document (.docx) successfully exported!', 'success');
+
+      // Auto-log to Firestore history
+      saveGeneratedDocToHistory({
+        docType: 'bonafide',
+        title: certificateTitle || 'BONAFIDE CERTIFICATE',
+        refNo: refNo || '',
+        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+        recipientOrStudent: studentName || 'Student',
+        studentDetails: {
+          name: studentName,
+          father: fatherName,
+          mother: motherName,
+          cls: className,
+          stream,
+          rollNo,
+          regNo,
+          dob: dobRaw,
+          session,
+          gender,
+          address
+        },
+        bodyHtml: currentHtml,
+        actionType: 'Downloaded (.docx)',
+        templateId: selectedTemplateId,
+        templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Bonafide',
+        extraData: {
+          officeTitle,
+          institutionName,
+          institutionAddress,
+          studentPhotoUrl: effectivePhoto,
+          showPhoto,
+          watermark,
+          signatories
+        }
+      }).catch(e => console.warn('History auto-log note:', e));
     } catch (err) {
       console.error('Word export error:', err);
-      alert('Failed to generate Word document.');
+      showToast(`Failed to generate Word document: ${err.message}`, 'error');
     } finally {
       setIsExportingDocx(false);
     }
   };
 
-  const allTemplatesList = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES];
-  const displayedTemplates = templateFilterTab === 'custom'
-    ? customTemplates
-    : templateFilterTab === 'builtin'
-      ? BUILTIN_CERTIFICATE_TEMPLATES
-      : allTemplatesList;
-
   return (
     <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
-      
-      {/* ── UNIFIED MASTER ACTION & SUB-TAB TOOLBAR (ALL ON 1 ROW) ── */}
-      <div className="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2">
-        
-        {/* Left Side: Active Tool Title & Indexed Count Badge */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <Award size={14} className="text-teal-600" />
-            <span>Student Bonafides & Certificates Studio</span>
-          </span>
 
-          <span className="font-mono font-black text-[10px] px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700 hidden sm:inline">
-            {unifiedStudentDirectory.length} Students Indexed
-          </span>
-        </div>
-
-        {/* Right Side: 1-Click Export Actions Toolbar */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          
-          {/* ── Insert Student Field Dropdown Button (Left of Letterhead & Setup) ── */}
-          <div className="relative inline-block" ref={insertFieldDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowInsertFieldDropdown(!showInsertFieldDropdown)}
-              className="px-2.5 py-1 rounded-lg border font-black text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all bg-teal-50 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 border-teal-300 dark:border-teal-800 hover:bg-teal-100"
-              title="Insert student database fields or tags at cursor"
-            >
-              <PlusCircle size={11} className="text-teal-600 dark:text-teal-400" />
-              <span>Insert Field</span>
-              <ChevronDown size={11} className="text-teal-600 dark:text-teal-400" />
-            </button>
-
-            {showInsertFieldDropdown && (
-              <div className="absolute right-0 sm:left-0 top-full mt-1 w-72 bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700 rounded-xl shadow-2xl z-[999999] p-1.5 space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 max-h-[75vh] overflow-y-auto">
-                <div className="px-1.5 py-1 flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
-                    <PlusCircle size={10} className="text-teal-600" />
-                    <span>Insert Student Field</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
-                    className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 hover:bg-teal-100 text-[9px] font-extrabold border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer"
-                    title="Edit or add temporary dynamic field values"
-                  >
-                    <Sliders size={9} />
-                    <span>✏️ Edit Values</span>
-                  </button>
-                </div>
-
-                {/* Group 1: Student & Parents */}
-                <div className="pt-1 space-y-0.5">
-                  <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Student & Parents</div>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(studentName ? studentName : '{STUDENT_NAME}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Student Name</span>
-                    <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{studentName || '{STUDENT_NAME}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(fatherName ? fatherName : '{FATHER_NAME}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Father's Name</span>
-                    <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{fatherName || '{FATHER_NAME}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(motherName ? motherName : '{MOTHER_NAME}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Mother's Name</span>
-                    <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{motherName || '{MOTHER_NAME}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(gender === 'F' ? 'Ms.' : 'Mr.')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Gender Title</span>
-                    <span className="text-[9px] text-slate-400">{gender === 'F' ? 'Ms.' : 'Mr.'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(gender === 'F' ? 'daughter' : 'son')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Son / Daughter</span>
-                    <span className="text-[9px] text-slate-400">{gender === 'F' ? 'daughter' : 'son'}</span>
-                  </button>
-                </div>
-
-                {/* Group 2: Academic & Registration */}
-                <div className="pt-1 space-y-0.5">
-                  <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Class & Roll / Reg</div>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(className || '{CLASS}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Class</span>
-                    <span className="text-[9px] text-slate-400">{className || '{CLASS}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(stream || '{STREAM}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Stream</span>
-                    <span className="text-[9px] text-slate-400">{stream || '{STREAM}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(rollNo || '{ROLL_NO}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Class Roll No</span>
-                    <span className="text-[9px] text-slate-400">{rollNo || '{ROLL_NO}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(regNo || '{REG_NO}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Registration No</span>
-                    <span className="text-[9px] text-slate-400">{regNo || '{REG_NO}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(session || '{SESSION}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Academic Session</span>
-                    <span className="text-[9px] text-slate-400">{session || '{SESSION}'}</span>
-                  </button>
-                </div>
-
-                {/* Group 3: DOB & Address */}
-                <div className="pt-1 space-y-0.5">
-                  <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Record Dates</div>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(parsedDob.figures || '{DOB_FIGURES}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>DOB (in Figures)</span>
-                    <span className="text-[9px] text-slate-400">{parsedDob.figures || '{DOB_FIGURES}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(parsedDob.words || '{DOB_WORDS}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>DOB (in Words)</span>
-                    <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob.words || '{DOB_WORDS}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(address || '{ADDRESS}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Permanent Address</span>
-                    <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{address || '{ADDRESS}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(dateStr || '{DATE}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Certificate Date</span>
-                    <span className="text-[9px] text-slate-400">{dateStr || '{DATE}'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder(refNo || '{REF_NO}')}
-                    className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                  >
-                    <span>Reference No</span>
-                    <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{refNo || '{REF_NO}'}</span>
-                  </button>
-                </div>
-
-                {/* Group 4: Firestore Database Fields */}
-                <div className="pt-1 space-y-0.5">
-                  <div className="px-2 text-[8.5px] font-bold text-teal-700 dark:text-teal-400 uppercase flex items-center justify-between">
-                    <span>Firestore DB Fields</span>
-                    <span className="text-[7.5px] text-slate-400 font-normal">From Record</span>
-                  </div>
-                  {FIRESTORE_PRESET_FIELDS.slice(0, 8).map((preset) => {
-                    const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => handleInsertPlaceholder(studentVal || `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`)}
-                        className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
-                      >
-                        <span className="truncate">{preset.label}</span>
-                        <span className="text-[9px] text-slate-400 truncate max-w-[120px] font-mono">
-                          {studentVal || `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Group 5: Custom Dynamic Fields (Add / Remove) */}
-                {customFields.length > 0 && (
-                  <div className="pt-1 space-y-0.5">
-                    <div className="px-2 text-[8.5px] font-bold text-amber-600 dark:text-amber-400 uppercase">Custom Added Fields</div>
-                    {customFields.map((cf) => (
-                      <div key={cf.id} className="flex items-center justify-between group px-1 rounded-md hover:bg-amber-50 dark:hover:bg-amber-950/40">
-                        <button
-                          type="button"
-                          onClick={() => handleInsertPlaceholder(cf.value || `{${cf.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`)}
-                          className="flex-1 py-1 text-left font-bold flex items-center justify-between cursor-pointer"
-                        >
-                          <span className="truncate">{cf.label}</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[100px] ml-1">{cf.value || '—'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCustomField(cf.id)}
-                          className="text-slate-300 hover:text-rose-600 p-0.5 ml-1 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"
-                          title="Delete this custom field"
-                        >
-                          <Trash2 size={9} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Bottom Quick Manager Link */}
-                <div className="pt-1.5 pb-0.5">
-                  <button
-                    type="button"
-                    onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
-                    className="w-full py-1 px-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all"
-                  >
-                    <PlusCircle size={10} />
-                    <span>➕ Manage / Edit Custom & DB Fields</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Certificate Letterhead & Setup Toggle */}
+      {/* Unified Global Floating Toast Notification */}
+      {toast && (
+        <div
+          style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999999 }}
+          className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-2.5 font-sans font-bold text-xs animate-in fade-in slide-in-from-bottom-4 duration-200 backdrop-blur-md ${
+            toast.type === 'error'
+              ? 'bg-rose-950/95 text-rose-100 border-rose-700/80 shadow-rose-950/60'
+              : toast.type === 'info'
+              ? 'bg-sky-950/95 text-sky-100 border-sky-700/80 shadow-sky-950/60'
+              : toast.type === 'warning'
+              ? 'bg-amber-950/95 text-amber-100 border-amber-700/80 shadow-amber-950/60'
+              : 'bg-emerald-950/95 text-emerald-100 border-emerald-700/80 shadow-emerald-950/60'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={16} className="text-rose-400 shrink-0" />
+          ) : toast.type === 'info' ? (
+            <Info size={16} className="text-sky-400 shrink-0" />
+          ) : toast.type === 'warning' ? (
+            <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          )}
+          <span className="leading-snug">{toast.message}</span>
           <button
             type="button"
-            onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-            className={`px-2.5 py-1 rounded-lg border font-extrabold text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all ${
-              showSettingsDrawer
-                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-400 dark:border-amber-700'
-                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
-            }`}
-            title="Configure Official Letterhead, Ref No, Date & Signatories"
+            onClick={() => setToast(null)}
+            className="ml-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
-            <Sliders size={11} className="text-amber-600 dark:text-amber-400" />
-            <span>Letterhead & Setup</span>
-          </button>
-
-          {/* Student Photo Visibility Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setShowPhoto(!showPhoto)}
-            className={`px-2.5 py-1 rounded-lg border font-black text-[10.5px] flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all ${
-              showPhoto
-                ? 'bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-200 border-teal-400 dark:border-teal-700'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:text-slate-900 dark:hover:text-white'
-            }`}
-            title="Toggle Student Photo Box on Certificate (Disabled by default)"
-          >
-            <span>{showPhoto ? '📷 Photo Box: ON' : '📷 Photo Box: OFF'}</span>
-          </button>
-
-          {/* Save Template Button */}
-          <button
-            type="button"
-            onClick={() => setShowSaveTemplateModal(true)}
-            className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-extrabold text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
-            title="Save current certificate format as reusable template"
-          >
-            <BookmarkPlus size={11} className="text-emerald-600 dark:text-emerald-400" />
-            <span>Save Template</span>
-          </button>
-
-          {/* Word (.docx) Export */}
-          <button
-            type="button"
-            disabled={isExportingDocx}
-            onClick={handleExportDocx}
-            className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
-            title="Download editable Word Document (.docx)"
-          >
-            {isExportingDocx ? <RefreshCw size={11} className="animate-spin" /> : <FileText size={11} />}
-            <span>Word (.docx)</span>
-          </button>
-
-          {/* Print / Save PDF */}
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="px-3 py-1 rounded-lg bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer transition-all active:scale-95"
-            title="Print or Save Certificate as PDF"
-          >
-            <Printer size={11} />
-            <span>Print / Save PDF</span>
+            <X size={13} />
           </button>
         </div>
-      </div>
+      )}
 
       {/* ════════ COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER ════════ */}
       {showSettingsDrawer && (
@@ -1199,9 +2382,23 @@ export default function StudentCertificateStudioView({
               />
             </div>
 
-            {/* Signatory 2 (Right) */}
+            {/* Signatory 2 (Center - for TC/DC) */}
+            {isTcDcActive && (
+              <div>
+                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 2 (Center - Checked By)</label>
+                <input
+                  type="text"
+                  value={signatoryCenter}
+                  onChange={(e) => setSignatoryCenter(e.target.value)}
+                  placeholder="Checked By"
+                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+                />
+              </div>
+            )}
+
+            {/* Signatory 3 (Right) */}
             <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 2 (Right)</label>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">{isTcDcActive ? 'Signatory 3 (Right - Principal)' : 'Signatory 2 (Right - Principal)'}</label>
               <input
                 type="text"
                 value={signatoryRight}
@@ -1212,7 +2409,7 @@ export default function StudentCertificateStudioView({
             </div>
 
             {/* Watermark Background & Options */}
-            <div className="flex items-center gap-4 pt-3">
+            <div className="flex items-center gap-4 pt-3 flex-wrap">
               <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold">
                 <input
                   type="checkbox"
@@ -1227,10 +2424,22 @@ export default function StudentCertificateStudioView({
                 <input
                   type="checkbox"
                   checked={showPhoto}
-                  onChange={(e) => setShowPhoto(e.target.checked)}
+                  onChange={(e) => handleTogglePhoto(e.target.checked)}
                   className="rounded text-teal-600"
                 />
                 <span>Photo Box</span>
+              </label>
+
+              <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold" title="Toggle to hide or show Mr., Mrs., Ms. titles on certificates">
+                <input
+                  type="checkbox"
+                  checked={includeSalutations}
+                  onChange={(e) => handleToggleSalutations(e.target.checked)}
+                  className="rounded text-teal-600"
+                />
+                <span className={includeSalutations ? 'text-teal-700 dark:text-teal-300' : 'text-slate-400 line-through'}>
+                  Mr. / Mrs. Titles
+                </span>
               </label>
             </div>
           </div>
@@ -1243,11 +2452,11 @@ export default function StudentCertificateStudioView({
         {/* ════════ LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE ════════ */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2 text-xs overflow-hidden"
+          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-hidden flex flex-col min-h-[620px] max-h-[calc(100vh-95px)]"
         >
           
           {/* SECTION 1: INSTANT STUDENT AUTO-COMPLETE SEARCH BAR & COHORT FILTERS */}
-          <div className="space-y-1.5 pb-2 border-b border-slate-200 dark:border-slate-800 relative">
+          <div className="space-y-1.5 pb-2 border-b border-slate-200 dark:border-slate-800 relative shrink-0">
             <div className="flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1">
                 <Search size={11} className="text-teal-600 dark:text-teal-400" />
@@ -1259,29 +2468,55 @@ export default function StudentCertificateStudioView({
               </span>
             </div>
 
-            {/* Quick Cohort Filter Chips */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar text-[9px]">
-              {[
-                { id: 'ALL', label: `All (${unifiedStudentDirectory.length})` },
-                { id: '12th', label: `12th (${unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})` },
-                { id: '11th', label: `11th (${unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})` },
-                { id: '10th', label: `10th (${unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})` },
-                { id: '9th', label: `9th (${unifiedStudentDirectory.filter(s => s.cls.includes('9')).length})` },
-                { id: 'past', label: `Master Reg (${unifiedStudentDirectory.filter(s => s.sourceType === 'past').length})` }
-              ].map(chip => (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setActiveCohortFilter(chip.id)}
-                  className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap cursor-pointer transition-all border ${
-                    activeCohortFilter === chip.id
-                      ? 'bg-teal-700 text-white border-teal-800 shadow-2xs'
-                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
+            {/* Quick Cohort Filter Chips & Result Ingestion Action */}
+            <div className="flex items-center justify-between gap-1 overflow-x-auto pb-0.5 no-scrollbar text-[9px]">
+              <div className="flex items-center gap-1">
+                {[
+                  { id: 'ALL', label: `All (${unifiedStudentDirectory.length})` },
+                  { id: '12th', label: `12th (${unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})` },
+                  { id: '11th', label: `11th (${unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})` },
+                  { id: '10th', label: `10th (${unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})` },
+                  { id: 'past', label: `Master Reg` }
+                ].map(chip => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setActiveCohortFilter(chip.id)}
+                    className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap cursor-pointer transition-all border ${
+                      activeCohortFilter === chip.id
+                        ? 'bg-teal-700 text-white border-teal-800 shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* TC/DC Specific Tools (Result Hub & Bulk Generator) - Shown ONLY when TC/DC template is selected */}
+              {isTcDcActive && (
+                <div className="flex items-center gap-1 shrink-0 animate-fadeIn">
+                  <button
+                    type="button"
+                    onClick={() => setShowResultIngestionModal(true)}
+                    className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-all active:scale-95"
+                    title="Open JKBOSE Exam Result Ingestion Hub (Excel / AI PDF Gazette)"
+                  >
+                    <Sparkles size={10} />
+                    <span>Result Hub & AI Import</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkGeneratorModal(true)}
+                    className="px-2 py-0.5 rounded-md bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-all active:scale-95"
+                    title="Open Bulk TC / Discharge Certificate Hub (Batch Print 2-Page copies)"
+                  >
+                    <FileSpreadsheet size={10} />
+                    <span>Bulk TC Generator</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="relative">
@@ -1294,7 +2529,7 @@ export default function StudentCertificateStudioView({
                   setIsSearchDropdownOpen(true);
                 }}
                 placeholder="Search by Name, Roll No, Reg No, Father, Mobile..."
-                className="w-full pl-7 pr-7 py-1.5 rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50/40 dark:bg-teal-950/30 font-bold text-xs shadow-2xs focus:ring-1 focus:ring-teal-500 focus:outline-none placeholder:text-slate-400"
+                className="w-full pl-7 pr-7 py-1.5 rounded-xl border border-teal-300 dark:border-teal-700 bg-teal-50/40 dark:bg-teal-950/30 font-bold text-xs shadow-2xs focus:ring-1 focus:ring-teal-500 focus:outline-none placeholder:text-slate-400"
               />
               <Search size={12} className="absolute left-2 top-2.5 text-teal-600 dark:text-teal-400" />
               {studentSearchQuery && (
@@ -1310,6 +2545,90 @@ export default function StudentCertificateStudioView({
                 </button>
               )}
             </div>
+
+            {/* Active Selected Student Badge (Quick Preview & Quick Actions) */}
+            {selectedStudent && (
+              <div className="space-y-1.5 animate-fadeIn">
+                <div className="p-2 rounded-xl bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200/90 dark:border-teal-800 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {studentPhotoUrl ? (
+                      <img src={studentPhotoUrl} alt={studentName} className="w-7 h-7 rounded-full object-cover border border-teal-300 shrink-0 shadow-2xs" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-teal-700 text-white flex items-center justify-center text-[10px] font-black shrink-0 shadow-2xs">
+                        {studentName ? studentName.charAt(0) : 'S'}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-black text-[11px] text-teal-950 dark:text-teal-200 truncate flex items-center gap-1">
+                        <span className="truncate">{studentName}</span>
+                        <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-teal-200/70 dark:bg-teal-900 text-teal-900 dark:text-teal-200 font-bold shrink-0">
+                          {className} ({stream})
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-teal-800 dark:text-teal-400 truncate">
+                        {fatherName && <span>F: <strong>{fatherName}</strong> | </span>}
+                        <span>Roll: <strong>{rollNo}</strong> | Reg: <strong>{regNo}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowResultEditorModal(true)}
+                      className="px-1.5 py-0.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 hover:bg-indigo-200 text-indigo-800 dark:text-indigo-200 font-bold text-[9px] cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800"
+                      title="Edit JKBOSE Exam Result, Marks, Re-appear, and TC Details"
+                    >
+                      <Award size={10} />
+                      <span>Result/TC</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowFieldManagerModal(true)}
+                      className="px-1.5 py-0.5 rounded-lg bg-teal-100/80 dark:bg-teal-900/60 hover:bg-teal-200 text-teal-800 dark:text-teal-200 font-bold text-[9px] cursor-pointer flex items-center gap-1"
+                      title="Edit or override student details"
+                    >
+                      <Edit3 size={10} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStudent(null);
+                        setStudentSearchQuery('');
+                      }}
+                      className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950 text-slate-400 hover:text-rose-600 cursor-pointer"
+                      title="Clear selected student"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Inline Result / Withdrawal Date Input when TC/DC is Active */}
+                {isTcDcActive && (
+                  <div className="p-2 rounded-xl bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 flex items-center justify-between gap-2 animate-fadeIn">
+                    <div className="flex items-center gap-1.5 text-[10.5px] font-black text-amber-900 dark:text-amber-200">
+                      <Calendar size={12} className="text-amber-600 dark:text-amber-400" />
+                      <span>Withdrawal / Result Date:</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={withdrawalDate}
+                      onChange={(e) => {
+                        setWithdrawalDate(e.target.value);
+                        setCustomCanvasHtml(null);
+                      }}
+                      placeholder="YYYY-MM-DD"
+                      className="px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-xs w-32 focus:ring-1 focus:ring-amber-500 outline-none text-center"
+                      title="Enter or update Result / Withdrawal Date"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Dropdown Auto-Complete Results */}
             {isSearchDropdownOpen && (
@@ -1363,12 +2682,12 @@ export default function StudentCertificateStudioView({
             )}
           </div>
 
-          {/* SECTION 2: TEMPLATE SELECTOR & PRESETS */}
-          <div className="space-y-1 pb-2 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-500">
+          {/* SECTION 2: TEMPLATE SELECTOR & PRESETS (Extends downwards to use full left-pane height) */}
+          <div className="space-y-2 flex-1 flex flex-col min-h-0 pt-1">
+            <div className="flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-500 shrink-0">
               <span className="flex items-center gap-1">
                 <Sparkles size={11} className="text-amber-600" />
-                <span>2. Certificate Template</span>
+                <span>2. Certificate Templates ({displayedTemplates.length})</span>
               </span>
               
               {/* Template Filter Pills */}
@@ -1399,7 +2718,8 @@ export default function StudentCertificateStudioView({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-36 overflow-y-auto p-0.5">
+            {/* Expansive Compact Template Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 overflow-y-auto p-1 flex-1 max-h-[calc(100vh-280px)] content-start items-start auto-rows-max rounded-xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80">
               {displayedTemplates.map((tpl) => {
                 const isSelected = selectedTemplateId === tpl.id;
                 const isDefault = defaultTemplateId === tpl.id;
@@ -1407,64 +2727,55 @@ export default function StudentCertificateStudioView({
                   <div
                     key={tpl.id}
                     onClick={() => handleSelectTemplate(tpl)}
-                    className={`p-1.5 rounded-lg border text-left cursor-pointer transition-all flex items-start justify-between gap-1 group ${
+                    className={`p-1.5 rounded-lg border text-left cursor-pointer transition-all flex flex-col gap-0.5 group relative h-auto ${
                       isSelected
-                        ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-500 dark:border-teal-600 shadow-2xs'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-300'
+                        ? 'bg-teal-50/90 dark:bg-teal-950/70 border-teal-600 dark:border-teal-500 shadow-2xs ring-1 ring-teal-500/40'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-300 hover:bg-slate-50 dark:hover:bg-slate-850'
                     }`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-black text-[10px] text-slate-900 dark:text-white truncate flex items-center gap-1">
-                        {isSelected && <CheckCircle2 size={10} className="text-teal-600 dark:text-teal-400 shrink-0" />}
-                        <span className="truncate">{tpl.name}</span>
-                        {isDefault && (
-                          <span className="px-1 py-0.2 rounded text-[7px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shrink-0">
-                            ⭐ Default
-                          </span>
-                        )}
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="font-black text-[9px] text-slate-900 dark:text-white leading-tight flex items-start gap-1 flex-1 min-w-0">
+                        {isSelected && <CheckCircle2 size={10} className="text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />}
+                        <span className="line-clamp-2">{tpl.name}</span>
                       </div>
-                      <div className="text-[8.5px] text-slate-400 truncate mt-0.2">
-                        {tpl.category}
-                      </div>
+                      {isDefault && (
+                        <span className="px-1 py-0.2 rounded text-[7px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shrink-0">
+                          ⭐ Default
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      {!isDefault && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleSetDefaultTemplate(tpl.id, e)}
-                          className="opacity-0 group-hover:opacity-100 text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/80 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800 transition-opacity"
-                          title="Set as default certificate template"
-                        >
-                          Set Default
-                        </button>
-                      )}
-                      {tpl.isCustom && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteCustomTemplate(tpl.id, e)}
-                          title="Delete custom template"
-                          className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
-                        >
-                          <Trash2 size={10} />
-                        </button>
-                      )}
+                    <div className="flex items-center justify-between gap-1 text-[7.5px] mt-0.5">
+                      <span className="text-slate-400 dark:text-slate-500 truncate flex-1 font-medium">
+                        {tpl.category}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {!isDefault && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleSetDefaultTemplate(tpl.id, e)}
+                            className="opacity-0 group-hover:opacity-100 text-[7px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800 transition-opacity cursor-pointer"
+                            title="Set as default certificate template"
+                          >
+                            Set Default
+                          </button>
+                        )}
+                        {tpl.isCustom && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
+                            title="Delete custom template"
+                            className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                          >
+                            <Trash2 size={9} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-
-          {/* Direct In-Place Editing Helper Tip Card */}
-          <div className="p-2.5 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 text-teal-950 dark:text-teal-200 text-xs space-y-1 mt-2">
-            <div className="font-black text-[10.5px] flex items-center gap-1.5 text-teal-800 dark:text-teal-300">
-              <Sparkles size={12} className="text-teal-600 shrink-0" />
-              <span>Direct In-Place Canvas Editing</span>
-            </div>
-            <p className="text-[9.5px] text-slate-600 dark:text-slate-400 leading-snug m-0">
-              Click anywhere on the certificate canvas to edit the text directly in real-time. <strong>Right-click</strong> anywhere inside the body text to insert student details or placeholders at your cursor!
-            </p>
           </div>
 
         </div>
@@ -1482,21 +2793,876 @@ export default function StudentCertificateStudioView({
           <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
         </div>
 
-        {/* ════════ RIGHT HALF: STICKY LIVE A4 CERTIFICATE PREVIEW ════════ */}
+        {/* ════════ RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK ════════ */}
         <div
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
-          className="w-full lg:flex-1 sticky top-3 self-start pl-0 lg:pl-1 min-w-0"
+          className="w-full lg:flex-1 pl-0 lg:pl-1 min-w-0"
         >
-          {/* Editor Mode Hint */}
-          <div className="flex items-center justify-between text-[10px] text-slate-500 pb-1">
-            <span className="font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
-              <span>✍️ Click body text to edit directly • Right-click to insert student placeholders</span>
-            </span>
-            <span className="font-mono text-[9px] text-slate-400">A4 Portrait Standard</span>
-          </div>
+          {/* Main preview container hosting the Vertical Floating Dock + A4 Canvas */}
+          <div className={`flex flex-col lg:flex-row items-start justify-center lg:justify-end gap-2.5 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
 
-          {/* A4 Paper Sheet Canvas Container */}
-          <div className="bg-white text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] rounded-xl p-4 sm:p-6 shadow-md max-h-[calc(100vh-95px)] overflow-y-auto relative flex flex-col justify-between min-h-[620px]">
+            {/* ── VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side) ── */}
+            <div className="w-full lg:w-auto lg:sticky lg:top-2 z-30 shrink-0">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md flex flex-wrap lg:grid lg:grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
+
+                {/* ── Row 1: Primary Actions (Print, Word, Save) ── */}
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="w-7 h-7 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-90"
+                  title="Print or Save Certificate as PDF"
+                >
+                  <Printer size={13} />
+                </button>
+
+                {/* Word (.docx) Export */}
+                <button
+                  type="button"
+                  disabled={isExportingDocx}
+                  onClick={handleExportDocx}
+                  className="w-7 h-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-xs cursor-pointer disabled:opacity-50 transition-all active:scale-90"
+                  title="Download editable Word Document (.docx)"
+                >
+                  {isExportingDocx ? <RefreshCw size={12} className="animate-spin" /> : <FileText size={13} />}
+                </button>
+
+                {/* History / Archive button in Row 1 */}
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(true)}
+                  className="w-7 h-7 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
+                  title="Browse past generated / printed documents archive"
+                >
+                  <History size={13} />
+                </button>
+
+                {/* ── Row 2: Overwrite, Insert Fields & Gemini AI ── */}
+                <button
+                  type="button"
+                  onClick={handleQuickUpdateTemplate}
+                  className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                  title="Save & Overwrite active template in Cloud"
+                >
+                  <Save size={13} />
+                </button>
+
+                {/* Insert Student Field Dropdown (Popout) */}
+                <div className="relative" ref={insertFieldDropdownRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setShowInsertFieldDropdown(!showInsertFieldDropdown);
+                      setShowAskGeminiMenu(false);
+                    }}
+                    className="w-7 h-7 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 flex items-center justify-center cursor-pointer transition-all active:scale-90"
+                    title="Insert student database fields at cursor"
+                  >
+                    <PlusCircle size={13} />
+                  </button>
+
+                  {showInsertFieldDropdown && (
+                    <div className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-2 space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 max-h-[75vh] overflow-y-auto`}>
+                      <div className="px-1.5 py-1 flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
+                          <PlusCircle size={10} className="text-teal-600" />
+                          <span>Insert Student Field</span>
+                        </div>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
+                          className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-teal-700 dark:text-teal-300 hover:bg-slate-200 text-[9px] font-extrabold border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
+                          title="Edit or add temporary dynamic field values"
+                        >
+                          <Sliders size={9} />
+                          <span>✏️ Edit Values</span>
+                        </button>
+                      </div>
+
+                      {/* Group 1: Student & Parents */}
+                      <div className="pt-1 space-y-0.5">
+                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Student & Parents</div>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(studentName || '{STUDENT_NAME}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Student Name</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{studentName || '{STUDENT_NAME}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(fatherName || '{FATHER_NAME}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Father's Name</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{fatherName || '{FATHER_NAME}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(motherName || '{MOTHER_NAME}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Mother's Name</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{motherName || '{MOTHER_NAME}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{GENDER_TITLE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Student Title (Mr./Ms.)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? (gender === 'F' ? 'Ms.' : 'Mr.') : 'Hidden'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{FATHER_TITLE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Father Title (Mr.)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? 'Mr.' : 'Hidden'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{MOTHER_TITLE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Mother Title (Mrs.)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? 'Mrs.' : 'Hidden'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{PRONOUN_SON_DAUGHTER}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Son / Daughter</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'daughter' : 'son'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{PRONOUN_SO_DO}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Relation (S/o / D/o)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'D/o' : 'S/o'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{PRONOUN_HIS_HER}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Possessive (His / Her)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'Her' : 'His'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{PRONOUN_HE_SHE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Pronoun (He / She)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'She' : 'He'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder('{PRONOUN_HIM_HER}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Object (him / her)</span>
+                          <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'her' : 'him'}</span>
+                        </button>
+                      </div>
+
+                      {/* Group 2: Academic Credentials */}
+                      <div className="pt-1 space-y-0.5">
+                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">Class & Roll / Reg</div>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(className || '{CLASS}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Class</span>
+                          <span className="text-[9px] text-slate-400">{className || '{CLASS}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(stream || '{STREAM}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Stream</span>
+                          <span className="text-[9px] text-slate-400">{stream || '{STREAM}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(rollNo || '{ROLL_NO}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Class Roll No</span>
+                          <span className="text-[9px] text-slate-400 font-mono">{rollNo || '{ROLL_NO}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(regNo || '{REG_NO}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Registration No</span>
+                          <span className="text-[9px] text-slate-400 font-mono">{regNo || '{REG_NO}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(session || '{SESSION}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Academic Session</span>
+                          <span className="text-[9px] text-slate-400">{session || '{SESSION}'}</span>
+                        </button>
+                      </div>
+
+                      {/* Group 3: DOB & Address */}
+                      <div className="pt-1 space-y-0.5">
+                        <div className="px-2 text-[8.5px] font-bold text-slate-400 uppercase">DOB & Address</div>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(parsedDob.formatted || '{DOB_FIGURES}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>DOB (DD-MM-YYYY)</span>
+                          <span className="text-[9px] text-slate-400">{parsedDob.formatted || '{DOB_FIGURES}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(parsedDob.inWords || '{DOB_WORDS}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>DOB (in Words)</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob.inWords || '{DOB_WORDS}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(address || '{ADDRESS}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Permanent Address</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{address || '{ADDRESS}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(dateStr || '{DATE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Certificate Date</span>
+                          <span className="text-[9px] text-slate-400">{dateStr || '{DATE}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(refNo || '{REF_NO}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Reference No</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{refNo || '{REF_NO}'}</span>
+                        </button>
+                      </div>
+
+                      {/* Group 4: Student Database Fields */}
+                      <div className="pt-1 space-y-0.5">
+                        <div className="px-2 text-[8.5px] font-bold text-teal-700 dark:text-teal-400 uppercase flex items-center justify-between">
+                          <span>Database Fields</span>
+                          <span className="text-[7.5px] text-slate-400 font-normal">From Record</span>
+                        </div>
+                        {FIRESTORE_PRESET_FIELDS.slice(0, 8).map((preset) => {
+                          const studentVal = findValueInStudentRaw(selectedStudent, preset.keys);
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { handleInsertPlaceholder(studentVal || `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`); setShowInsertFieldDropdown(false); }}
+                              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                            >
+                              <span className="truncate">{preset.label}</span>
+                              <span className="text-[9px] text-slate-400 truncate max-w-[120px] font-mono">
+                                {studentVal || `{${preset.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Bottom Quick Manager Link */}
+                      <div className="pt-1.5 pb-0.5">
+                        <button
+                          type="button"
+                          onClick={() => { setShowInsertFieldDropdown(false); setShowFieldManagerModal(true); }}
+                          className="w-full py-1 px-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all"
+                        >
+                          <PlusCircle size={10} />
+                          <span>➕ Manage / Edit Custom & DB Fields</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Purple Gemini AI Assistant Button */}
+                <div className="relative" ref={askGeminiMenuRef}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAskGeminiMenu(prev => !prev);
+                      setShowInsertFieldDropdown(false);
+                    }}
+                    className="w-7 h-7 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-90"
+                    title="Gemini AI Certificate Assistant (Draft, Polish, Formalize)"
+                  >
+                    <Sparkles size={13} className="text-amber-200" />
+                  </button>
+
+                  {showAskGeminiMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[999999] p-1.5 space-y-1 text-xs font-bold animate-fadeIn`}
+                    >
+                      <div className="px-2 py-1 text-[8.5px] font-black uppercase text-purple-600 dark:text-purple-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Sparkles size={10} className="text-purple-600" />
+                          <span>Gemini AI Assistant</span>
+                        </span>
+                        <span className="text-[7.5px] font-mono text-slate-400 font-bold">{geminiKeys.length} keys</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiModal('draft'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <Bot size={11} className="text-purple-600" />
+                        <span>✍️ Draft Certificate with AI</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiModal('humanize'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <Sparkles size={11} className="text-purple-600" />
+                        <span>🪄 Polish & Humanize</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiModal('formalize'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <FileText size={11} className="text-indigo-600" />
+                        <span>📜 Formalize Terms</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiModal('shorten'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <span className="text-amber-600 text-xs">✂️</span>
+                        <span>✂️ Shorten Wording</span>
+                      </button>
+                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => { setShowKeysConfig(true); setShowAiModal(true); setShowAskGeminiMenu(false); }}
+                          className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-between text-[9.5px]"
+                        >
+                          <span className="flex items-center gap-1">
+                            <Key size={9} />
+                            <span>API Key Pool</span>
+                          </span>
+                          <span className="font-mono text-[8px] bg-slate-100 dark:bg-slate-800 px-1 rounded">{geminiKeys.length} Keys</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Row 3: BookmarkPlus, Photo & Undo ── */}
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplateModal(true)}
+                  className="w-7 h-7 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
+                  title="Save Certificate format as reusable template"
+                >
+                  <BookmarkPlus size={13} />
+                </button>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 3: Photo, Undo & Redo ── */}
+                <button
+                  type="button"
+                  onClick={() => handleTogglePhoto()}
+                  className={`w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer transition-all border ${
+                    showPhoto
+                      ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                  title={`Student Photo: ${showPhoto ? 'ON (Click to hide)' : 'OFF (Click to show & fetch from DB)'}`}
+                >
+                  {isFetchingPhoto ? (
+                    <RefreshCw size={12} className="animate-spin text-teal-600" />
+                  ) : (
+                    <ImageIcon size={13} className={showPhoto ? 'text-teal-600' : 'text-slate-400'} />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
+                  disabled={!canUndo}
+                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-20 flex items-center justify-center cursor-pointer transition-colors"
+                  title="Undo (Ctrl+Z)"
+                >
+                  <Undo size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
+                  disabled={!canRedo}
+                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-20 flex items-center justify-center cursor-pointer transition-colors"
+                  title="Redo (Ctrl+Y)"
+                >
+                  <Redo size={12} />
+                </button>
+
+                {/* ── Row 4: Headings & Paragraph ── */}
+                <button
+                  type="button"
+                  title="Heading 1 (Click to apply, click again to revert to body text)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('formatBlock', '<h1>')}
+                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.h1
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs font-black'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  H1
+                </button>
+
+                <button
+                  type="button"
+                  title="Heading 2 (Click to apply, click again to revert to body text)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('formatBlock', '<h2>')}
+                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.h2
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs font-black'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  H2
+                </button>
+
+                <button
+                  type="button"
+                  title="Normal Body Paragraph (¶)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('formatBlock', '<p>')}
+                  className={`w-7 h-7 rounded-lg font-bold text-[10px] flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.p
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  ¶
+                </button>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 5: Character Styles (Bold, Italic, Underline) ── */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('bold')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.bold
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-black'
+                  }`}
+                  title="Bold (Ctrl+B)"
+                >
+                  <Bold size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('italic')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.italic
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold'
+                  }`}
+                  title="Italic (Ctrl+I)"
+                >
+                  <Italic size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('underline')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.underline
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold'
+                  }`}
+                  title="Underline (Ctrl+U)"
+                >
+                  <Underline size={12} />
+                </button>
+
+                {/* ── Row 6: Strike, Color & Divider Line ── */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('strikeThrough')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.strikeThrough
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                  title="Strikethrough"
+                >
+                  <Strikethrough size={12} />
+                </button>
+
+                {/* Color Palette Popout */}
+                <div className="relative" ref={colorMenuRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      saveCurrentSelection();
+                    }}
+                    onClick={() => {
+                      saveCurrentSelection();
+                      setShowColorMenu(!showColorMenu);
+                    }}
+                    className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer"
+                    title="Text Color Palette"
+                  >
+                    <Palette size={12} className="text-amber-600" />
+                  </button>
+                  {showColorMenu && (
+                    <div 
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 z-50 flex items-center gap-1.5 animate-fadeIn`}
+                    >
+                      {[
+                        { label: 'Black', color: '#0f172a' },
+                        { label: 'Maroon', color: '#800000' },
+                        { label: 'Navy Blue', color: '#0a192f' },
+                        { label: 'Forest Green', color: '#065f46' },
+                        { label: 'Slate Gray', color: '#475569' },
+                        { label: 'Crimson', color: '#dc2626' }
+                      ].map(c => (
+                        <button
+                          key={c.color}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            applyTextColor(c.color);
+                            setShowColorMenu(false);
+                          }}
+                          className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={insertHorizontalRule}
+                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+                  title="Insert Divider Line"
+                >
+                  <Minus size={12} />
+                </button>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 7: Alignments Left, Center & Right ── */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyLeft')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyLeft
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title="Align Left"
+                >
+                  <AlignLeft size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyCenter')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyCenter
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title="Align Center"
+                >
+                  <AlignCenter size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyRight')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyRight
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title="Align Right"
+                >
+                  <AlignRight size={12} />
+                </button>
+
+                {/* ── Row 8: Justify & Lists ── */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyFull')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyFull
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title="Justify Text"
+                >
+                  <AlignJustify size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('insertUnorderedList')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.insertUnorderedList
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title="Bulleted List"
+                >
+                  <List size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('insertOrderedList')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.insertOrderedList
+                      ? 'bg-teal-100 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title="Numbered List"
+                >
+                  <ListOrdered size={12} />
+                </button>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 9: Table, Clear Format & Switcher ── */}
+                {/* Table Tool Popout */}
+                <div className="relative" ref={tableMenuRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      checkTableContext();
+                      setShowTableMenu(prev => !prev);
+                      setShowColorMenu(false);
+                    }}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer ${
+                      activeTableContext || (editorRef.current && editorRef.current.querySelector('table'))
+                        ? 'bg-teal-50 dark:bg-teal-950 text-teal-700 border border-teal-300'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                    title="Table Tools & Column / Row Controls"
+                  >
+                    <TableIcon size={12} />
+                  </button>
+
+                  {showTableMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 z-50 w-52 space-y-1.5 text-xs animate-fadeIn font-bold`}
+                    >
+                      {(activeTableContext || (editorRef.current && editorRef.current.querySelector('table'))) ? (
+                        <>
+                          <div className="px-2 py-0.5 text-[9px] font-black uppercase text-teal-600 dark:text-teal-400 border-b border-slate-100 dark:border-slate-800">
+                            Table Controls
+                          </div>
+                          <div className="grid grid-cols-2 gap-1">
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableColumn(false); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                            >
+                              + Col Right
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableColumn(true); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                            >
+                              + Col Left
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { deleteTableColumn(); setShowTableMenu(false); }}
+                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                          >
+                            - Delete Col
+                          </button>
+                          <div className="grid grid-cols-2 gap-1">
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableRow(false); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                            >
+                              + Row Below
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableRow(true); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold border border-teal-200"
+                            >
+                              + Row Above
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { deleteTableRow(); setShowTableMenu(false); }}
+                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                          >
+                            - Delete Row
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
+                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
+                          >
+                            🗑 Delete Table
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="px-2 py-1 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                            Insert Table Preset
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { insertTable(2, 2); setShowTableMenu(false); }}
+                            className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
+                          >
+                            <span>2 × 2 Table</span>
+                            <span className="text-[9px] text-slate-400 font-mono">4 cells</span>
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { insertTable(2, 3); setShowTableMenu(false); }}
+                            className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
+                          >
+                            <span>2 × 3 Table</span>
+                            <span className="text-[9px] text-slate-400 font-mono">6 cells</span>
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
+                            className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
+                          >
+                            <span>3 × 3 Table</span>
+                            <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('removeFormat')}
+                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+                  title="Clear Formatting"
+                >
+                  <RemoveFormatting size={12} />
+                </button>
+
+                {/* Dock Side Switcher (Spanning 2 columns) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextSide = dockSide === 'left' ? 'right' : 'left';
+                    setDockSide(nextSide);
+                    try { localStorage.setItem('hss_cert_dock_side', nextSide); } catch {}
+                  }}
+                  className="col-span-2 w-full h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors text-[9px] font-bold font-mono hidden lg:flex"
+                  title={dockSide === 'left' ? 'Move Dock to Right side of Canvas' : 'Move Dock to Left side of Canvas'}
+                >
+                  {dockSide === 'left' ? '👉 Right' : '👈 Left'}
+                </button>
+
+              </div>
+            </div>
+
+            {/* ════════ A4 PAPER LIVE VIEWPORT & EDITOR ════════ */}
+            <div className="flex-1 w-full max-w-[840px] min-w-0">
+              <div className="bg-white text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] rounded-xl p-4 sm:p-6 shadow-md max-h-[calc(100vh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[620px]">
             
             {/* Watermark Background */}
             {watermark && (
@@ -1552,19 +3718,66 @@ export default function StudentCertificateStudioView({
                   ref={editorRef}
                   contentEditable={true}
                   suppressContentEditableWarning={true}
-                  onInput={handleEditorInput}
+                  onInput={(e) => {
+                    handleEditorInput(e);
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onKeyUp={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onMouseUp={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onClick={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onFocus={() => {
+                    saveCurrentSelection();
+                    checkTableContext();
+                    checkActiveFormats();
+                  }}
+                  onSelect={() => {
+                    saveCurrentSelection();
+                    checkActiveFormats();
+                  }}
                   onContextMenu={handleContextMenu}
-                  className="flex-1 text-[11px] leading-relaxed text-justify font-serif text-slate-800 space-y-2 focus:outline-none p-1.5 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
+                  className="doc-studio-wysiwyg-body flex-1 text-[11px] leading-relaxed text-justify font-serif text-slate-800 space-y-2 focus:outline-none p-1.5 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
                   title="Click to edit text directly • Right-click anywhere to insert student details or placeholders"
                 />
 
                 {showPhoto && (
-                  <div className="w-24 h-28 border border-[#800000] p-1 bg-white shadow-xs rounded flex flex-col items-center justify-center shrink-0 text-center">
-                    {studentPhotoUrl ? (
-                      <img src={studentPhotoUrl} alt={studentName} className="w-full h-full object-cover rounded" />
+                  <div 
+                    onClick={() => { if (!studentPhotoUrl && !isFetchingPhoto) fetchAndResolveStudentPhoto(); }}
+                    className={`w-24 h-28 border border-[#800000] p-1 bg-white shadow-xs rounded flex flex-col items-center justify-center shrink-0 text-center relative overflow-hidden transition-all ${
+                      !studentPhotoUrl ? 'cursor-pointer hover:border-teal-600 hover:bg-teal-50/30 group' : ''
+                    }`}
+                    title={studentPhotoUrl ? "Student Photo (verified from database)" : "Click to fetch student photo from database"}
+                  >
+                    {isFetchingPhoto ? (
+                      <div className="flex flex-col items-center justify-center gap-1.5 p-1 animate-fadeIn">
+                        <RefreshCw size={16} className="animate-spin text-teal-600" />
+                        <span className="text-[7.5px] font-black text-teal-700 uppercase tracking-tighter">Fetching DB Photo...</span>
+                      </div>
+                    ) : studentPhotoUrl ? (
+                      <img
+                        src={studentPhotoUrl}
+                        alt={studentName}
+                        className="w-full h-full object-cover rounded shadow-2xs"
+                        onError={() => setStudentPhotoUrl(null)}
+                      />
                     ) : (
-                      <div className="text-[8px] font-bold text-slate-400 uppercase leading-tight">
-                        Affix Student Photo
+                      <div className="text-[8px] font-bold text-slate-400 uppercase leading-tight flex flex-col items-center justify-center gap-1 p-1">
+                        <ImageIcon size={16} className="text-slate-300 group-hover:text-teal-600 transition-colors" />
+                        <span>Affix Student Photo</span>
+                        <span className="text-[7px] text-teal-600 underline font-mono">Fetch DB Photo</span>
                       </div>
                     )}
                   </div>
@@ -1573,27 +3786,63 @@ export default function StudentCertificateStudioView({
             </div>
 
             {/* Footer Verification & Signatories */}
-            <div className="relative z-10 pt-6 mt-4 border-t border-slate-200">
-              <div className="flex items-end justify-between">
-                
-                {/* Signatory 1: Incharge Admissions */}
-                <div className="w-36 text-center">
-                  <div className="border-b-2 border-slate-800 mb-1"></div>
-                  <div className="font-black text-[9.5px] uppercase tracking-tight">{signatories[0] || 'Incharge Admissions & Exam'}</div>
-                  <div className="text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+            <div className="relative z-10 pt-4 mt-10 border-t border-slate-200">
+              <div className="flex items-end justify-between px-2">
+                {/* Signatory 1: Incharge Admissions & Exam */}
+                <div className="w-28 sm:w-36 text-center">
+                  <div className="border-b-2 border-[#800000] mb-1"></div>
+                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[0] || 'Incharge Admissions & Exam'}</div>
+                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
                 </div>
 
-                {/* Signatory 2: Principal */}
-                <div className="w-36 text-center">
-                  <div className="border-b-2 border-slate-800 mb-1"></div>
-                  <div className="font-black text-[9.5px] uppercase tracking-tight">{signatories[1] || 'Principal'}</div>
-                  <div className="text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                {/* Signatory 2: Checked By (Shown for TC/DC or when 3 signatories exist) */}
+                {signatories.length > 2 && (
+                  <div className="w-28 sm:w-36 text-center">
+                    <div className="border-b-2 border-slate-800 mb-1"></div>
+                    <div className="font-black text-[9.5px] uppercase tracking-tight text-slate-800">{signatories[1] || 'Checked By'}</div>
+                    <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
+                  </div>
+                )}
+
+                {/* Signatory 3: Principal */}
+                <div className="w-28 sm:w-36 text-center">
+                  <div className="border-b-2 border-[#800000] mb-1"></div>
+                  <div className="font-black text-[9.5px] uppercase tracking-tight text-[#800000]">{signatories[signatories.length - 1] || 'Principal'}</div>
+                  <div className="text-[7.5px] sm:text-[8px] text-slate-500 font-bold">Govt. HSS Shangus</div>
                 </div>
               </div>
+
+              {/* Interactive Preview of Office Copy Receipt Box when TC/DC is Active */}
+              {isTcDcActive && isDualCopy && (
+                <div className="relative mt-8 pt-2">
+                  <div className="absolute top-0 left-4 bg-slate-100 border border-slate-300 text-rose-600 font-black text-[8px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs z-10">
+                    Receipt by Student (Page 2 Office Copy)
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 font-sans shadow-2xs">
+                    <div className="text-[9.5px] font-bold text-slate-800">
+                      Received <strong>‘Discharge cum Character Certificate’</strong> in Original
+                    </div>
+                    <div className="flex justify-between items-end gap-6 text-[9px] mt-6">
+                      <div className="flex items-end gap-2 flex-1">
+                        <span className="font-bold text-slate-700">today on</span>
+                        <div className="flex-1 border-b-2 border-slate-600"></div>
+                      </div>
+                      <div className="flex items-end gap-2 flex-[1.4]">
+                        <span className="font-bold text-slate-700">Signature</span>
+                        <div className="flex-1 border-b-2 border-slate-600"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
         </div>
+
+      </div>
+
+      </div>
 
       </div>
 
@@ -1642,11 +3891,74 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => handleInsertPlaceholder(gender === 'F' ? 'Ms.' : 'Mr.')}
+              onClick={() => handleInsertPlaceholder('{GENDER_TITLE}')}
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
-              <span>Gender Title</span>
-              <span className="text-[9px] text-slate-400">{gender === 'F' ? 'Ms.' : 'Mr.'}</span>
+              <span>Student Title (Mr./Ms.)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? (gender === 'F' ? 'Ms.' : 'Mr.') : 'Hidden'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{FATHER_TITLE}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Father Title (Mr.)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? 'Mr.' : 'Hidden'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{MOTHER_TITLE}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Mother Title (Mrs.)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{includeSalutations ? 'Mrs.' : 'Hidden'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{PRONOUN_SON_DAUGHTER}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Son / Daughter</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'daughter' : 'son'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{PRONOUN_SO_DO}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Relation (S/o / D/o)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'D/o' : 'S/o'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{PRONOUN_HIS_HER}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Possessive (His / Her)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'Her' : 'His'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{PRONOUN_HE_SHE}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Pronoun (He / She)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'She' : 'He'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder('{PRONOUN_HIM_HER}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Object (him / her)</span>
+              <span className="text-[9px] text-teal-600 dark:text-teal-400 font-mono">{gender === 'F' ? 'her' : 'him'}</span>
             </button>
           </div>
 
@@ -1759,86 +4071,146 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* ── Sub-Modal: Save Custom Template ── */}
-      {showSaveTemplateModal && (
-        <div className="fixed inset-0 z-[999999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5 m-0">
-                <BookmarkPlus size={15} className="text-emerald-600" />
-                <span>Save Custom Certificate Template</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowSaveTemplateModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveCustomTemplate} className="space-y-2 text-xs">
-              <div>
-                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Template Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newTplName}
-                  onChange={(e) => setNewTplName(e.target.value)}
-                  placeholder="e.g. Merit Bonafide / Sports Character Certificate"
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Category</label>
-                <select
-                  value={newTplCategory}
-                  onChange={(e) => setNewTplCategory(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-                >
-                  <option value="Bonafide & Age Certificates">Bonafide & Age Certificates</option>
-                  <option value="Character & Conduct Certificates">Character & Conduct Certificates</option>
-                  <option value="Admission & Enrollment">Admission & Enrollment</option>
-                  <option value="Transfer & Migration">Transfer & Migration</option>
-                  <option value="Sports & Extra-Curricular">Sports & Extra-Curricular</option>
-                  <option value="Custom Certificates">Custom Certificates</option>
-                </select>
-              </div>
-
-              {/* Set as Default Checkbox */}
-              <label className="flex items-center gap-2.5 p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={makeTemplateDefault}
-                  onChange={(e) => setMakeTemplateDefault(e.target.checked)}
-                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer shrink-0"
-                />
-                <div className="text-xs">
-                  <span className="font-black text-amber-950 dark:text-amber-200 block">⭐ Make Default Active Template</span>
-                  <span className="text-[10px] text-amber-800 dark:text-amber-400 block">Auto-loads on startup and saves directly to Firebase Cloud.</span>
+      {/* ── Sub-Modal: Save / Update Custom Certificate Template ── */}
+      {showSaveTemplateModal && (() => {
+        const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
+        return (
+          <div className="fixed inset-0 z-[999999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-teal-300 dark:border-teal-900/80 p-4 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-xl bg-teal-600 text-white shadow-md">
+                    <BookmarkPlus size={16} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white m-0">
+                      Save / Update Certificate Template
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-medium m-0">
+                      Overwrite current template or create a new reusable certificate format.
+                    </p>
+                  </div>
                 </div>
-              </label>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowSaveTemplateModal(false)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer shadow-md"
-                >
-                  Save Template
+                  <X size={16} />
                 </button>
               </div>
-            </form>
+
+              {/* Segmented Mode Selector: Update Current vs Save New */}
+              <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setTemplateSaveMode('update')}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    templateSaveMode === 'update'
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <RefreshCw size={11} className={templateSaveMode === 'update' ? 'animate-spin-slow' : ''} />
+                  <span>Update Current ({activeTpl.name.split(' ')[0]}...)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTemplateSaveMode('new')}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    templateSaveMode === 'new'
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <PlusCircle size={11} />
+                  <span>Save as New</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCustomTemplate} className="space-y-3 text-xs">
+                {templateSaveMode === 'update' ? (
+                  <div className="p-3 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-300 dark:border-teal-800/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-teal-900 dark:text-teal-200 text-xs">
+                        Target: {activeTpl.name}
+                      </span>
+                      <span className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/60">
+                        {activeTpl.category || 'Bonafide Certificates'}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-teal-800 dark:text-teal-300 leading-relaxed m-0">
+                      This will overwrite this template in the cloud database with your current text, layout, and signatories. Future student certificates loaded with this template will immediately use your updated wording.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Template Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={newTplName}
+                        onChange={(e) => setNewTplName(e.target.value)}
+                        placeholder="e.g. Merit Bonafide / Sports Character Certificate"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Category</label>
+                      <select
+                        value={newTplCategory}
+                        onChange={(e) => setNewTplCategory(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                      >
+                        <option value="Bonafide & Age Certificates">Bonafide & Age Certificates</option>
+                        <option value="Character & Conduct Certificates">Character & Conduct Certificates</option>
+                        <option value="Admission & Enrollment">Admission & Enrollment</option>
+                        <option value="Transfer & Migration">Transfer & Migration</option>
+                        <option value="Sports & Extra-Curricular">Sports & Extra-Curricular</option>
+                        <option value="Custom Certificates">Custom Certificates</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* Set as Default Checkbox */}
+                <label className="flex items-center gap-2.5 p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={makeTemplateDefault}
+                    onChange={(e) => setMakeTemplateDefault(e.target.checked)}
+                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 accent-teal-600 cursor-pointer shrink-0"
+                  />
+                  <div className="text-xs">
+                    <span className="font-black text-amber-950 dark:text-amber-200 block">⭐ Make Default Active Template</span>
+                    <span className="text-[10px] text-amber-800 dark:text-amber-400 block">Auto-loads on studio launch and saves directly to Cloud Database.</span>
+                  </div>
+                </label>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveTemplateModal(false)}
+                    className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Save size={13} />
+                    <span>{templateSaveMode === 'update' ? 'Overwrite & Update Template' : 'Save New Template'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ════════ EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL ════════ */}
       {showFieldManagerModal && (
@@ -1874,26 +4246,46 @@ export default function StudentCertificateStudioView({
 
             {/* Standard Student Fields Grid */}
             <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider flex items-center justify-between">
+              <div className="text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider flex items-center justify-between flex-wrap gap-1.5">
                 <span className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-600"></span>
                   <span>1. Standard Student Fields</span>
                 </span>
-                {selectedStudent && (
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={handleResetFieldsToStudent}
-                    className="text-[9.5px] font-extrabold text-teal-600 hover:text-teal-800 dark:text-teal-400 flex items-center gap-1 cursor-pointer bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800"
+                    onClick={() => handleToggleSalutations(!includeSalutations)}
+                    className={`text-[9.5px] font-extrabold flex items-center gap-1 cursor-pointer px-2 py-0.5 rounded-md border transition-all ${
+                      includeSalutations
+                        ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-800 text-teal-800 dark:text-teal-300'
+                        : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500 line-through'
+                    }`}
+                    title="Toggle to show or hide Mr. / Ms. / Mrs. prefixes on the certificate"
                   >
-                    <RefreshCw size={9} />
-                    <span>Reset to Student Record</span>
+                    {includeSalutations ? <Eye size={10} className="text-teal-600 dark:text-teal-400" /> : <EyeOff size={10} className="text-slate-400" />}
+                    <span>{includeSalutations ? 'Mr./Mrs. Titles: ON' : 'Mr./Mrs. Titles: OFF'}</span>
                   </button>
-                )}
+                  {selectedStudent && (
+                    <button
+                      type="button"
+                      onClick={handleResetFieldsToStudent}
+                      className="text-[9.5px] font-extrabold text-teal-600 hover:text-teal-800 dark:text-teal-400 flex items-center gap-1 cursor-pointer bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800"
+                    >
+                      <RefreshCw size={9} />
+                      <span>Reset</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                 <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-400 mb-1">Student Name</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[9px] font-extrabold uppercase text-slate-400">Student Name</label>
+                    <span className="text-[8.5px] font-mono text-teal-600 dark:text-teal-400 font-bold">
+                      {includeSalutations ? (gender === 'F' ? 'Ms.' : 'Mr.') : 'No Title'}
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={studentName}
@@ -1902,7 +4294,12 @@ export default function StudentCertificateStudioView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-400 mb-1">Father's Name</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[9px] font-extrabold uppercase text-slate-400">Father's Name</label>
+                    <span className="text-[8.5px] font-mono text-teal-600 dark:text-teal-400 font-bold">
+                      {includeSalutations ? 'Mr.' : 'No Title'}
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={fatherName}
@@ -1911,7 +4308,12 @@ export default function StudentCertificateStudioView({
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-400 mb-1">Mother's Name</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[9px] font-extrabold uppercase text-slate-400">Mother's Name</label>
+                    <span className="text-[8.5px] font-mono text-teal-600 dark:text-teal-400 font-bold">
+                      {includeSalutations ? 'Mrs.' : 'No Title'}
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={motherName}
@@ -1994,6 +4396,16 @@ export default function StudentCertificateStudioView({
                     className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 font-bold text-xs text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all"
                   />
                 </div>
+                <div>
+                  <label className="block text-[9px] font-extrabold uppercase text-amber-600 dark:text-amber-400 mb-1">Withdrawal / Result Date</label>
+                  <input
+                    type="text"
+                    value={withdrawalDate}
+                    onChange={(e) => { setWithdrawalDate(e.target.value); setCustomCanvasHtml(null); }}
+                    placeholder="YYYY-MM-DD or DD/MM/YYYY"
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/40 font-bold text-xs text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none transition-all"
+                  />
+                </div>
               </div>
 
               {/* DOB Words Live Result Pill */}
@@ -2007,22 +4419,22 @@ export default function StudentCertificateStudioView({
               </div>
             </div>
 
-            {/* Custom Dynamic Fields Section (Add / Remove & Pick from Firestore) */}
+            {/* Custom Dynamic Fields Section (Add / Remove & Pick from Database) */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider flex items-center gap-1.5">
                   <Sparkles size={12} />
-                  <span>2. Custom & Firestore Database Fields</span>
+                  <span>2. Custom & Database Fields</span>
                 </div>
                 <span className="text-[9.5px] font-bold text-slate-400">
                   {customFields.length} custom fields active
                 </span>
               </div>
 
-              {/* Firestore Standard Quick-Pick Badges */}
+              {/* Standard Database Quick-Pick Badges */}
               <div className="p-3 rounded-2xl bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60 space-y-2">
                 <div className="flex items-center justify-between text-[9px] font-black uppercase text-teal-800 dark:text-teal-300">
-                  <span>Pick from Firestore Database Fields</span>
+                  <span>Pick from Database Fields</span>
                   <span className="text-[8.5px] font-normal text-slate-500">Auto-filled from selected student record</span>
                 </div>
 
@@ -2056,10 +4468,10 @@ export default function StudentCertificateStudioView({
                   })}
                 </div>
 
-                {/* Extra Raw Firestore Fields Dropdown */}
+                {/* Extra Raw Record Fields Dropdown */}
                 {availableRawFirestoreFields.length > 0 && (
                   <div className="pt-2 flex items-center gap-2 border-t border-teal-200/50 dark:border-teal-800/40">
-                    <span className="text-[9px] font-extrabold text-slate-500 whitespace-nowrap">More from Firestore Doc:</span>
+                    <span className="text-[9px] font-extrabold text-slate-500 whitespace-nowrap">More from Student Record:</span>
                     <select
                       onChange={(e) => {
                         if (!e.target.value) return;
@@ -2070,7 +4482,7 @@ export default function StudentCertificateStudioView({
                       defaultValue=""
                       className="flex-1 px-2.5 py-1 rounded-xl border border-teal-300 dark:border-teal-700 bg-white dark:bg-slate-900 font-bold text-xs text-teal-900 dark:text-teal-200"
                     >
-                      <option value="" disabled>-- Select raw Firestore attribute --</option>
+                      <option value="" disabled>-- Select attribute from student record --</option>
                       {availableRawFirestoreFields.map((f) => (
                         <option key={f.key} value={f.key}>
                           {f.label}: {f.value}
@@ -2085,7 +4497,7 @@ export default function StudentCertificateStudioView({
               {customFields.length > 0 && (
                 <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                   <div className="px-1 text-[8.5px] font-black uppercase text-slate-400 tracking-wider">
-                    Active Custom & Firestore Fields (Editable)
+                    Active Custom & Database Fields (Editable)
                   </div>
                   {customFields.map((cf) => {
                     const tokenName = `{${cf.label.toUpperCase().replace(/[^A-Z0-9]/g, '_')}}`;
@@ -2163,6 +4575,319 @@ export default function StudentCertificateStudioView({
           </div>
         </div>
       )}
+
+      {/* ════════ GEMINI AI CERTIFICATE ASSISTANT MODAL ════════ */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/80 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs text-slate-900 dark:text-slate-100">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-purple-100 dark:border-purple-900/60 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 text-white flex items-center justify-center shadow-md">
+                  <Sparkles size={16} className="text-amber-200" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-purple-950 dark:text-purple-200 m-0">
+                    Gemini AI Certificate Assistant
+                  </h3>
+                  <p className="text-[10px] text-slate-400 m-0">
+                    Draft, humanize, formalize, and optimize student certificates with Gemini AI
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowKeysConfig(prev => !prev)}
+                  className={`px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 cursor-pointer transition-all ${
+                    geminiKeys.length === 0
+                      ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                      : 'bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                  }`}
+                  title="Configure Gemini API Keys"
+                >
+                  <Key size={11} />
+                  <span>{geminiKeys.length === 0 ? '⚠️ Add API Key' : `${geminiKeys.length} Keys`}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAiModal(false)}
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* API Keys Configuration Drawer */}
+            {showKeysConfig && (
+              <div className="p-3 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-2 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <label className="font-black text-[10.5px] text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                    <Key size={12} className="text-amber-600" />
+                    <span>Gemini API Key Pool (Multi-Key Failover):</span>
+                  </label>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-amber-800 dark:text-amber-300 font-extrabold hover:underline flex items-center gap-0.5"
+                  >
+                    <span>Get Free Gemini Key</span>
+                    <ExternalLink size={10} />
+                  </a>
+                </div>
+                <textarea
+                  rows={2}
+                  value={keysInputText}
+                  onChange={(e) => setKeysInputText(e.target.value)}
+                  placeholder="Paste your Gemini API keys here (one per line or comma-separated)"
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[9.5px] font-bold text-amber-800 dark:text-amber-300">
+                    {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSaveKeys}
+                    className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs"
+                  >
+                    ✓ Save Keys to Cloud DB
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mode Selector Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+              {[
+                { id: 'draft', label: '✍️ Draft Certificate' },
+                { id: 'humanize', label: '🪄 Polish & Humanize' },
+                { id: 'formalize', label: '📜 Formalize Terms' },
+                { id: 'shorten', label: '✂️ Shorten Wording' }
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { setAiMode(m.id); setAiGeneratedHtml(''); setAiError(''); }}
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-black whitespace-nowrap cursor-pointer transition-all border ${
+                    aiMode === m.id
+                      ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Prompt Input & Quick Suggestion Chips */}
+            <div className="space-y-1.5">
+              <textarea
+                rows={4}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder={
+                  aiMode === 'draft'
+                    ? 'What should this certificate certify? (e.g. Certify student passed Class 11th with distinction and displayed exemplary conduct)'
+                    : 'Additional refinement notes or specific requirements (optional)'
+                }
+                className="w-full px-3 py-2 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 resize-y min-h-[90px]"
+              />
+
+              {/* Quick Suggestion Chips */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                {[
+                  'Bonafide for Scholarship Application',
+                  'Exemplary Character & Conduct',
+                  'Provisional Passing Certificate with Distinction',
+                  'Migration / Transfer Certificate NOC',
+                  'Sports & Co-curricular Merit Achievement'
+                ].map((sug, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setAiPrompt(sug)}
+                    className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 hover:text-purple-700 text-slate-600 dark:text-slate-300 text-[9px] font-bold border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer transition-colors"
+                  >
+                    + {sug}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Model & Tone Selectors */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Gemini AI Model</label>
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                >
+                  {AVAILABLE_GEMINI_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Certificate Tone</label>
+                <select
+                  value={aiTone}
+                  onChange={(e) => setAiTone(e.target.value)}
+                  className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                >
+                  <option value="Formal School">Formal Academic (Standard)</option>
+                  <option value="Dignified & Prestigious">Dignified & Commendatory</option>
+                  <option value="Meritorious">Meritorious & High Praise</option>
+                  <option value="Standard Official">Standard Official</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Generate Action Button */}
+            <button
+              type="button"
+              disabled={isGeneratingAi}
+              onClick={handleGenerateAi}
+              className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all active:scale-98"
+            >
+              {isGeneratingAi ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>Drafting Certificate with Gemini AI...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} className="text-amber-200" />
+                  <span>{aiMode === 'draft' ? 'Generate Certificate Text' : 'Refine Certificate Wording'}</span>
+                </>
+              )}
+            </button>
+
+            {/* Error Banner */}
+            {aiError && (
+              <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
+                <AlertCircle size={14} className="shrink-0 text-rose-600" />
+                <span>{aiError}</span>
+              </div>
+            )}
+
+            {/* Generated Result Preview Card */}
+            {aiGeneratedHtml && (
+              <div className="space-y-2 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 size={13} />
+                    <span>Certificate Draft Ready</span>
+                    {aiSuccessKeyIndex !== null && (
+                      <span className="text-slate-400 font-normal">
+                        (Key #{aiSuccessKeyIndex + 1})
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                <div
+                  className="p-3 rounded-2xl border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs max-h-48 overflow-y-auto leading-relaxed shadow-inner font-serif"
+                  dangerouslySetInnerHTML={{ __html: aiGeneratedHtml }}
+                />
+
+                {/* Real-time Insert Actions */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyAiContent('replace')}
+                    className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
+                  >
+                    <Sparkles size={12} />
+                    <span>Replace Body</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyAiContent('insert')}
+                    className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
+                  >
+                    <Plus size={12} />
+                    <span>Insert at Cursor</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyAiContent('append')}
+                    className="w-full py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-black text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
+                  >
+                    <span>Append to End</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ════════ CLOUD DOCUMENT HISTORY & ARCHIVE MODAL ════════ */}
+      <DocumentHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        defaultFilter="bonafide"
+        onLoadAsDraft={handleLoadDraftFromHistory}
+      />
+
+      {/* ════════ STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL ════════ */}
+      <StudentResultEditorModal
+        isOpen={showResultEditorModal}
+        onClose={() => setShowResultEditorModal(false)}
+        student={selectedStudent}
+        onSaveSuccess={(updatedSt) => {
+          setSelectedStudent(updatedSt);
+          showToast('✓ Student exam result & TC records updated!', 'success');
+        }}
+        showToast={showToast}
+      />
+
+      {/* ════════ JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL ════════ */}
+      <ResultIngestionModal
+        isOpen={showResultIngestionModal}
+        onClose={() => setShowResultIngestionModal(false)}
+        allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
+        onIngestSuccess={() => {
+          showToast('🎉 Ingestion complete! Master register synchronized.', 'success');
+        }}
+        showToast={showToast}
+      />
+
+      {/* ════════ BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL ════════ */}
+      <BulkCertificateGeneratorModal
+        isOpen={showBulkGeneratorModal}
+        onClose={() => setShowBulkGeneratorModal(false)}
+        allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
+        officeTitle={officeTitle}
+        institutionName={institutionName}
+        institutionAddress={institutionAddress}
+        signatories={[signatoryLeft || 'I/c Admissions', 'Checked By', signatoryRight || 'Principal']}
+        showToast={showToast}
+      />
+
+      {/* ════════ CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL ════════ */}
+      <ConfirmModal
+        isOpen={Boolean(templateToDelete)}
+        onClose={() => { if (!isDeletingTemplate) setTemplateToDelete(null); }}
+        onConfirm={handleConfirmDeleteTemplate}
+        title="Delete Custom Template?"
+        message={`⚠️ WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
+        confirmText="Yes, Delete Permanently"
+        cancelText="Cancel / Keep Template"
+        type="danger"
+        loading={isDeletingTemplate}
+      />
 
     </div>
   );

@@ -14,6 +14,7 @@ import {
   AlignmentType,
   BorderStyle
 } from 'docx';
+import { convertHtmlToDocxElements } from './htmlDocxConverter';
 
 /**
  * Trigger browser file download from Blob.
@@ -274,13 +275,6 @@ export function printOfficialLetter({
         ` : ''}
 
       </div>
-
-      <script>
-        window.onload = function() {
-          window.focus();
-          window.print();
-        };
-      </script>
     </body>
     </html>
   `;
@@ -318,6 +312,7 @@ export function printOfficialLetter({
 
 /**
  * Generate and download a formatted Microsoft Word (.docx) document.
+ * Fully parses HTML tables, paragraphs, lists, bold, italics, alignments, and fonts.
  */
 export async function generateOfficialLetterDocx({
   officeTitle = 'OFFICE OF THE PRINCIPAL',
@@ -326,24 +321,20 @@ export async function generateOfficialLetterDocx({
   refNo = 'HSS/SHG/',
   dateStr = '',
   bodyText = '',
+  bodyHtml = '',
   signatoryDesignation = 'Principal',
   signatoryInstitution = 'Govt. Hr Sec. School Shangus',
   copyToText = ''
 }) {
   const finalDate = dateStr || new Date().toLocaleDateString('en-GB');
 
-  // Convert plain/formatted text lines into docx Paragraphs
-  const bodyParagraphs = (bodyText || '').split('\n').map(line => {
-    return new Paragraph({
-      spacing: { after: 120, line: 276 },
-      children: [
-        new TextRun({
-          text: line || ' ',
-          size: 24, // 12pt
-          font: 'Calibri'
-        })
-      ]
-    });
+  // Convert HTML or plain text into native docx elements (Tables, Paragraphs, TextRuns)
+  const contentToConvert = bodyHtml || (bodyText ? `<p>${bodyText.replace(/\n/g, '<br/>')}</p>` : '');
+  const bodyDocxElements = convertHtmlToDocxElements(contentToConvert, {
+    defaultFont: 'Calibri',
+    defaultSize: 24, // 12pt
+    defaultAlign: 'left',
+    lineSpacing: 280
   });
 
   const doc = new Document({
@@ -445,8 +436,8 @@ export async function generateOfficialLetterDocx({
           ]
         }),
 
-        // Body Content
-        ...bodyParagraphs,
+        // Body Content (Full HTML with native tables, paragraphs, text styles, lists)
+        ...bodyDocxElements,
 
         // Signature Spacing & Block
         new Paragraph({ spacing: { before: 400, after: 40 } }),
@@ -483,11 +474,14 @@ export async function generateOfficialLetterDocx({
               new TextRun({ text: 'Copy to the:', bold: true, size: 19, color: '0F172A', font: 'Calibri' })
             ]
           }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: copyToText, size: 19, color: '475569', font: 'Calibri' })
-            ]
-          })
+          ...copyToText.split('\n').map(line => 
+            new Paragraph({
+              spacing: { after: 20 },
+              children: [
+                new TextRun({ text: line, size: 19, color: '475569', font: 'Calibri' })
+              ]
+            })
+          )
         ] : [])
       ]
     }]

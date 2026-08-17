@@ -2072,7 +2072,7 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
                         Workflow Preview Ready: {parsedWorkflowRows.length} Rows Parsed ({parsedWorkflowRows.filter(r => r.photoFile).length} Photos Matched)
                       </div>
                       <div className="text-[10px] text-slate-500 font-bold">
-                        CSV: {csvFile?.name} • Target Database: admissions (Cloud Firestore)
+                        CSV: {csvFile?.name} • Target Database: Admissions Records (Cloud Database)
                       </div>
                     </div>
                   </div>

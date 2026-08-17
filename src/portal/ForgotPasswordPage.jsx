@@ -114,7 +114,7 @@ export default function ForgotPasswordPage() {
                   Check your inbox
                 </p>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  If an account exists, Firebase sent a reset link to <strong className="text-teal-600">{maskEmailAddress(email)}</strong>.
+                  If an account exists, a secure reset link has been sent to <strong className="text-teal-600">{maskEmailAddress(email)}</strong>.
                   Check your inbox and spam folder, then choose a new password.
                 </p>
               </div>

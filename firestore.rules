@@ -353,19 +353,19 @@ service cloud.firestore {
         'masterRegisters', 'registerdata', 'examConfig', 'adminPracticalsSettings',
         'systemSettings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings'
+        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ];
       allow create, update: if isAdmin() && collectionName in [
         'masterRegisters', 'registerdata', 'examConfig', 'adminPracticalsSettings',
         'systemSettings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings'
+        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ] && validStaffDocument(request.resource.data);
       allow delete: if isAdmin() && collectionName in [
         'masterRegisters', 'registerdata', 'examConfig', 'adminPracticalsSettings',
         'systemSettings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings'
+        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ];
     }
 

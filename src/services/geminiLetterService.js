@@ -2,8 +2,12 @@
 // HSS SHANGUS — Gemini AI Institutional Letter Drafting & Key Pool
 // =================================================================
 
+import { db } from './firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 const STORAGE_KEY_GEMINI_KEYS = 'hss_gemini_api_keys';
 const STORAGE_KEY_GEMINI_MODEL = 'hss_gemini_preferred_model';
+const SETTINGS_DOC_GEMINI = 'geminiApiConfig';
 
 export const AVAILABLE_GEMINI_MODELS = [
   { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended - Ultra Fast & Latest Reasoning)', tier: 'Latest Generation' },
@@ -49,6 +53,48 @@ export function saveGeminiKeys(keys) {
     console.error('Error saving Gemini keys:', e);
     return [];
   }
+}
+
+/**
+ * Fetch Gemini API keys from Cloud Firestore with localStorage fallback and sync.
+ * @returns {Promise<Array<string>>}
+ */
+export async function fetchCloudGeminiKeys() {
+  const localKeys = getStoredGeminiKeys();
+  try {
+    const configRef = doc(db, 'systemSettings', SETTINGS_DOC_GEMINI);
+    const snap = await getDoc(configRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (Array.isArray(data.apiKeys) && data.apiKeys.length > 0) {
+        const merged = Array.from(new Set([...data.apiKeys, ...localKeys])).filter(Boolean);
+        saveGeminiKeys(merged);
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not sync Gemini keys from Cloud DB:', err);
+  }
+  return localKeys;
+}
+
+/**
+ * Save Gemini API keys to Cloud Firestore and sync to localStorage.
+ * @param {Array<string>} keys
+ * @returns {Promise<Array<string>>}
+ */
+export async function saveCloudGeminiKeys(keys) {
+  const cleaned = saveGeminiKeys(keys);
+  try {
+    const configRef = doc(db, 'systemSettings', SETTINGS_DOC_GEMINI);
+    await setDoc(configRef, {
+      apiKeys: cleaned,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Could not persist Gemini keys to Cloud DB:', err);
+  }
+  return cleaned;
 }
 
 /**
@@ -246,6 +292,167 @@ Structure:
       lastError = err;
       if (i < keys.length - 1) {
         console.warn(`Failed with Key #${i + 1} (${err.message}). Trying Key #${i + 2}...`);
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error('All provided Gemini API keys failed or exhausted their quota.');
+}
+
+/**
+ * Specialized Gemini AI Assistant for Student Bonafides & Official Certificates.
+ * Automatically injects standard school certificate templates and placeholders.
+ */
+export async function generateCertificateWithGemini({
+  prompt = '',
+  currentContent = '',
+  studentDetails = {},
+  certificateTitle = 'BONAFIDE CERTIFICATE',
+  mode = 'draft',
+  tone = 'Formal School',
+  model = null,
+  customKeys = null
+}) {
+  const keys = customKeys && customKeys.length > 0 ? customKeys : getStoredGeminiKeys();
+
+  if (!keys || keys.length === 0) {
+    throw new Error('NO_API_KEY: Please add at least one Gemini API key in the AI Assistant settings.');
+  }
+
+  const selectedModel = model || getPreferredGeminiModel();
+
+  const systemInstruction = `
+You are an expert School Registrar and Document Specialist for "Government Higher Secondary School Shangus, Anantnag, Kashmir (J&K)".
+Your task is to draft or refine official Student Certificates (e.g. Bonafide Certificate, Character & Conduct Certificate, Provisional Passing Certificate, Transfer / Migration Certificate, Sports & Merit Certificate, Fee Exemption, Recommendation, and Custom Certificates).
+
+Rules:
+1. Return ONLY clean, valid HTML markup (e.g. <p>, <strong>, <u>, <em>, <ol>, <ul>, <table>).
+2. DO NOT include <html>, <head>, <body>, markdown code fences (\`\`\`html or \`\`\`), or commentary.
+3. Use respectful, prestigious, and official academic language.
+4. Do NOT re-generate the school letterhead or signatures (the software handles top headers and bottom signatory blocks automatically).
+5. Ensure dynamic placeholders like {STUDENT_NAME}, {FATHER_NAME}, {MOTHER_NAME}, {CLASS}, {STREAM}, {ROLL_NO}, {REG_NO}, {DOB_FIGURES}, {DOB_WORDS}, {SESSION}, {ADDRESS} are used seamlessly so the template remains dynamic, or interpolate directly if requested.
+6. Standard certificate body typically starts with: "This is to certify that Mr. / Ms. <strong>{STUDENT_NAME}</strong> S/o / D/o <strong>{FATHER_NAME}</strong> ...".
+`.trim();
+
+  let userMessage = '';
+
+  if (mode === 'humanize') {
+    userMessage = `
+Please polish, humanize, and elevate the following student certificate text for "${certificateTitle}".
+Tone: ${tone}.
+Make the wording clear, dignified, and authoritative while preserving placeholders like {STUDENT_NAME}, {FATHER_NAME}, {CLASS}, etc.
+
+Existing Text:
+${currentContent}
+
+Additional notes: ${prompt || 'Enhance academic phrasing and flow.'}
+    `.trim();
+  } else if (mode === 'formalize') {
+    userMessage = `
+Formalize the following certificate wording into strict, impeccable institutional phrasing for Govt. Higher Secondary School Shangus:
+
+Current text:
+${currentContent || prompt}
+    `.trim();
+  } else if (mode === 'shorten') {
+    userMessage = `
+Condense the following certificate text to be concise, crisp, and standard 1-2 paragraph certificate format:
+
+Current text:
+${currentContent}
+    `.trim();
+  } else {
+    // Draft mode
+    userMessage = `
+Draft a comprehensive, official body for "${certificateTitle}" for a student at Govt. Higher Secondary School Shangus.
+Prompt/Specific requirements: ${prompt || certificateTitle}
+Tone: ${tone}
+
+Use dynamic placeholders:
+- {STUDENT_NAME}
+- {FATHER_NAME}
+- {MOTHER_NAME} (if applicable)
+- {CLASS}
+- {STREAM}
+- {ROLL_NO}
+- {REG_NO}
+- {DOB_FIGURES}
+- {DOB_WORDS}
+- {SESSION}
+- {ADDRESS}
+    `.trim();
+  }
+
+  let lastError = null;
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${encodeURIComponent(key)}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: systemInstruction }]
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: userMessage }]
+            }
+          ],
+          generationConfig: {
+            temperature: mode === 'humanize' ? 0.6 : 0.4,
+            maxOutputTokens: 2000
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errMsg = errorData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+
+        const isQuotaOrKeyIssue =
+          response.status === 429 ||
+          response.status === 403 ||
+          response.status === 400 ||
+          errMsg.toLowerCase().includes('quota') ||
+          errMsg.toLowerCase().includes('exhausted') ||
+          errMsg.toLowerCase().includes('api_key_invalid');
+
+        if (isQuotaOrKeyIssue && i < keys.length - 1) {
+          console.warn(`Gemini API Key #${i + 1} quota/error (${errMsg}). Switching to Key #${i + 2}...`);
+          lastError = new Error(`Key #${i + 1} error: ${errMsg}`);
+          continue;
+        }
+
+        throw new Error(errMsg);
+      }
+
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (!rawText.trim()) {
+        throw new Error('Gemini API returned an empty response.');
+      }
+
+      let cleanHtml = rawText
+        .replace(/^```html\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      return {
+        html: cleanHtml,
+        usedKeyIndex: i,
+        model: selectedModel
+      };
+    } catch (err) {
+      lastError = err;
+      if (i < keys.length - 1) {
         continue;
       }
     }

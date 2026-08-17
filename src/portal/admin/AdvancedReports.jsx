@@ -1372,7 +1372,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     setDialogConfig({
       type: 'confirm',
       title: 'Approve Erasure & Wipe Sensitive Data',
-      message: `Approve online erasure for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'})?\n\nThis will completely wipe out sensitive details (photograph, bank info, Aadhaar) from Firebase, recycle Form #${student?.formNo || '—'}, and retain minimal reference metadata for audit logs.`,
+      message: `Approve online erasure for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'})?\n\nThis will completely wipe out sensitive details (photograph, bank info, Aadhaar) from cloud database, recycle Form #${student?.formNo || '—'}, and retain minimal reference metadata for audit logs.`,
       icon: ShieldAlert,
       iconColor: 'text-rose-600 dark:text-rose-400',
       btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
@@ -1991,17 +1991,41 @@ function OnDemandStudentPhotoCell({ student, val }) {
     }
 
     // Do NOT fetch or track photos for historical archives — only active admissions
-    if (student?._isCurrentScope === false) {
+    if (student?._isCurrentScope === false || student?.isHistorical || student?._isHistorical) {
       setPhotoUrl('');
       return;
     }
 
-    // Fetch on-demand only for students currently active/visible on screen
-    fetchStudentPhotoOnDemand(student).then((res) => {
-      if (isMounted && res && res !== '/logo.png' && res !== '—') {
-        setPhotoUrl(res);
-      }
-    }).catch(() => {});
+    // Lazy load photo on scroll into viewport via IntersectionObserver
+    if (typeof window !== 'undefined' && 'IntersectionObserver' in window && cellRef.current) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && isMounted) {
+            observer.disconnect();
+            fetchStudentPhotoOnDemand(student).then((res) => {
+              if (isMounted && res && res !== '/logo.png' && res !== '—') {
+                setPhotoUrl(res);
+              }
+            }).catch(() => {});
+          }
+        });
+      }, {
+        rootMargin: '120px' // Preload 120px before scrolling into direct view
+      });
+
+      observer.observe(cellRef.current);
+      return () => {
+        isMounted = false;
+        observer.disconnect();
+      };
+    } else {
+      // Fallback if IntersectionObserver not supported
+      fetchStudentPhotoOnDemand(student).then((res) => {
+        if (isMounted && res && res !== '/logo.png' && res !== '—') {
+          setPhotoUrl(res);
+        }
+      }).catch(() => {});
+    }
 
     return () => { isMounted = false; };
   }, [studentKey]);
@@ -4972,11 +4996,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       : currentAdmissions;
 
     allRawDocs.forEach(rec => {
+      const isHist = rec.isHistorical || rec._isHistorical || rec._isCurrentScope === false;
       const keys = getIdentityKeys(rec);
       const rawAdm = extractRawAdmNo(rec);
       const cleanedAdm = cleanAdmNoVal(rawAdm);
       const rollVal = extractClassRoll(rec);
-      const photoVal = extractPhotoVal(rec);
+      const photoVal = !isHist ? extractPhotoVal(rec) : '';
       const recName = getStudentName(rec);
 
       const recCls = normalizeClassVal(rec['Admission sought for class'] || rec['Class']);
@@ -4994,7 +5019,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         if (rawOldAdm) oldAdmNoByIdentity.get(k).add(rawOldAdm);
 
         // ─── Photo indexing: Only track active admission photos ───
-        if (photoVal && !rec.isHistorical && !rec._isHistorical) {
+        if (photoVal && !isHist) {
           const group = classPhotoGroup(recCls);
           const regKey = extractRegNoClean(rec);
           const admKey = cleanedAdm;
@@ -5423,7 +5448,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           status: h['Status'] || 'Approved',
           stream: hStream,
           subs: hSubs,
-          photoId: extractPhotoVal(h) || getStudentPhotoUrl(h) || '',
+          photoId: '',
           mobile: hMobile,
           aadhar: hAadhar,
           fatherAadhar: h["Father's Aadhar No."] || h["Father's Aadhaar No."] || h.fatherAadhar || '—',
@@ -5487,7 +5512,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
           withdrawalDate: h['Date of withdrawl'] || '—',
           currCcDc: h['No. & Date of CC/DC Issued (This Institution)'] || '—',
           remarks: h['Remarks'] || '—',
-          photoId: extractPhotoVal(h) || '',
           pdfUrl: h['PDF_URL'] || '—',
           readmission: h['readmission'] || '—',
           apaarId: h['APAAR ID'] || '—',
@@ -5851,9 +5875,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     return list;
   }, [targetDataset, deferredSearchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder]);
 
-  // Paginated Students
+  // Paginated Students (with 500 row safety cap if 'All' is chosen on massive datasets)
   const paginatedStudents = useMemo(() => {
-    if (pageSize === 'All') return filteredStudents;
+    if (pageSize === 'All') {
+      if (filteredStudents.length > 500) {
+        return filteredStudents.slice(0, 500);
+      }
+      return filteredStudents;
+    }
     const size = parseInt(pageSize, 10) || 50;
     const start = (currentPage - 1) * size;
     return filteredStudents.slice(start, start + size);
@@ -6070,7 +6099,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       await batch.commit();
 
       setToast({
-        message: `⚡ High-Speed Firestore Update Complete! Assigned IDs to ${assignedCount + inheritedCount + customCount} students.`,
+        message: `⚡ High-Speed Database Update Complete! Assigned IDs to ${assignedCount + inheritedCount + customCount} students.`,
         type: 'success'
       });
 
@@ -8313,24 +8342,25 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   const hasCached = (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0) ||
                     (masterRecords && masterRecords.length > 0);
 
-                  if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
-                    setMasterRecords(window._hssMasterRegistersCache);
-                  }
-
-                  setViewScope('all');
-                  setCurrentPage(1);
-
                   // Apply selected classes
                   const targetClasses = isAllClassesModalSelected
                     ? []
                     : (isNoClassesModalSelected ? ['__NONE__'] : selectedModalClasses);
-                  setSelectedClasses(targetClasses);
 
                   // Apply selected sessions
                   const targetSessions = isAllSessionsModalSelected
                     ? []
                     : (isNoSessionsModalSelected ? ['__NONE__'] : selectedModalSessions);
-                  setSelectedSessions(targetSessions);
+
+                  React.startTransition(() => {
+                    if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
+                      setMasterRecords(window._hssMasterRegistersCache);
+                    }
+                    setViewScope('all');
+                    setCurrentPage(1);
+                    setSelectedClasses(targetClasses);
+                    setSelectedSessions(targetSessions);
+                  });
 
                   if (!hasCached || masterRecords.length === 0) {
                     await loadReportsData(true);

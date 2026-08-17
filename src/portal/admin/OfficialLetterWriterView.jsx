@@ -10,8 +10,9 @@ import {
   AlignRight, AlignJustify, List, ListOrdered, Table as TableIcon,
   Heading1, Heading2, Sliders, ChevronDown, Check, Copy, Undo, Redo,
   CornerDownLeft, PlusCircle, Trash2, ArrowLeft, RefreshCw, Bot,
-  Key, Wand2, Shield, AlertCircle, ExternalLink, X, FileEdit, Plus,
-  BookmarkPlus, FolderPlus, Award
+  Key, Wand2, Shield, AlertCircle, ExternalLink, X, FileEdit, Plus, Minus,
+  BookmarkPlus, FolderPlus, Award, History, RemoveFormatting, Palette, CheckCircle2,
+  Info, AlertTriangle
 } from 'lucide-react';
 import {
   printOfficialLetter,
@@ -21,6 +22,8 @@ import {
   AVAILABLE_GEMINI_MODELS,
   getStoredGeminiKeys,
   saveGeminiKeys,
+  fetchCloudGeminiKeys,
+  saveCloudGeminiKeys,
   getPreferredGeminiModel,
   savePreferredGeminiModel,
   generateLetterWithGemini
@@ -31,6 +34,9 @@ import {
   setCloudDefaultTemplate,
   deleteCloudDocTemplate
 } from '../../services/docTemplateService';
+import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
+import DocumentHistoryModal from './DocumentHistoryModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 // Built-in Institutional Letter Templates for HSS Shangus
 const BUILTIN_LETTER_TEMPLATES = [
@@ -175,7 +181,13 @@ const AI_PROMPT_SUGGESTIONS = [
   'NOC and Character Certificate covering letter for higher studies admission'
 ];
 
-export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSwitchToRoster }) {
+export default function OfficialLetterWriterView({
+  onClose,
+  onSwitchSubTab,
+  onSwitchToRoster,
+  showSettingsDrawerProp,
+  onToggleSettingsDrawer
+}) {
   // Letter Header State
   const [officeTitle, setOfficeTitle] = useState('OFFICE OF THE PRINCIPAL');
   const [institutionName, setInstitutionName] = useState('GOVT. HIGHER SECONDARY SCHOOL SHANGUS');
@@ -207,8 +219,30 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
   const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [savedDraftsCount, setSavedDraftsCount] = useState(0);
+  const [dockSide, setDockSide] = useState(() => {
+    try {
+      return localStorage.getItem('hss_letter_dock_side') || 'right';
+    } catch {
+      return 'right';
+    }
+  });
+
+  // Sync external Setup toggle from Top Sub-Nav bar
+  useEffect(() => {
+    if (showSettingsDrawerProp !== undefined) {
+      setShowSettingsDrawer(showSettingsDrawerProp);
+    }
+  }, [showSettingsDrawerProp]);
+
+  useEffect(() => {
+    const handleToggle = () => setShowSettingsDrawer(prev => !prev);
+    window.addEventListener('hss-toggle-studio-setup', handleToggle);
+    return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
+  }, []);
 
   // ─── Reusable Custom Templates State ───
+  const [templateToDelete, setTemplateToDelete] = useState(null);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
   const [customTemplates, setCustomTemplates] = useState(() => {
     try {
       const saved = localStorage.getItem('hss_custom_letter_templates');
@@ -222,22 +256,98 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     return [];
   });
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [templateSaveMode, setTemplateSaveMode] = useState('update'); // 'update' | 'new'
   const [makeTemplateDefault, setMakeTemplateDefault] = useState(true);
   const [newTplName, setNewTplName] = useState('');
   const [newTplCategory, setNewTplCategory] = useState('Official Orders & Notices');
   const [newTplDesc, setNewTplDesc] = useState('');
   const [templateFilterTab, setTemplateFilterTab] = useState('all'); // 'all' | 'custom' | 'builtin'
+  const [activeTableContext, setActiveTableContext] = useState(null);
+  const lastActiveTableRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const [savedRange, setSavedRange] = useState(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [toast, setToast] = useState(null); // { message: string, type: 'success' | 'error' | 'info' | 'warning' }
+  const toastTimeoutRef = useRef(null);
+
+  const [activeFormats, setActiveFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strikeThrough: false,
+    h1: false,
+    h2: false,
+    p: false,
+    justifyLeft: false,
+    justifyCenter: false,
+    justifyRight: false,
+    justifyFull: false,
+    insertUnorderedList: false,
+    insertOrderedList: false
+  });
+
+  const checkActiveFormats = () => {
+    if (typeof window === 'undefined' || !editorRef.current) return;
+    try {
+      const sel = window.getSelection();
+      let isH1 = false;
+      let isH2 = false;
+      let isP = false;
+
+      if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+        let node = sel.getRangeAt(0).commonAncestorContainer;
+        if (node.nodeType === 3) node = node.parentNode;
+        const blockParent = node?.closest('h1, h2, h3, h4, h5, h6, p, blockquote, div');
+        const tag = blockParent?.tagName?.toLowerCase();
+        if (tag === 'h1') isH1 = true;
+        else if (tag === 'h2') isH2 = true;
+        else if (tag === 'p' || tag === 'div' || !tag) isP = true;
+      }
+
+      setActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strikeThrough: document.queryCommandState('strikeThrough'),
+        h1: isH1,
+        h2: isH2,
+        p: isP,
+        justifyLeft: document.queryCommandState('justifyLeft'),
+        justifyCenter: document.queryCommandState('justifyCenter'),
+        justifyRight: document.queryCommandState('justifyRight'),
+        justifyFull: document.queryCommandState('justifyFull'),
+        insertUnorderedList: document.queryCommandState('insertUnorderedList'),
+        insertOrderedList: document.queryCommandState('insertOrderedList')
+      });
+    } catch {}
+  };
+
+  const saveCurrentSelection = () => {
+    if (typeof window !== 'undefined' && window.getSelection) {
+      const sel = window.getSelection();
+      if (sel.rangeCount > 0 && editorRef.current && editorRef.current.contains(sel.anchorNode)) {
+        savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+        setSavedRange(savedRangeRef.current);
+      }
+    }
+  };
+  const showToast = (message, type = 'success', duration = 3500) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, duration);
+  };
 
   // ─── Gemini AI Assistant State & Multi-Key Pool ───
   const [activeLeftTab, setActiveLeftTab] = useState('templates'); // 'templates' | 'ai'
-  const [aiInsertedToast, setAiInsertedToast] = useState(false);
   const [aiMode, setAiMode] = useState('draft'); // 'draft' | 'humanize' | 'formalize' | 'shorten' | 'expand'
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiTone, setAiTone] = useState('Formal Government');
   const [aiModel, setAiModel] = useState(() => getPreferredGeminiModel());
   const [geminiKeys, setGeminiKeys] = useState(() => getStoredGeminiKeys());
   const [keysInputText, setKeysInputText] = useState(() => getStoredGeminiKeys().join('\n'));
-  const [showKeysConfig, setShowKeysConfig] = useState(() => getStoredGeminiKeys().length === 0);
+  const [showKeysConfig, setShowKeysConfig] = useState(false); // Hidden by default
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiGeneratedHtml, setAiGeneratedHtml] = useState('');
   const [aiError, setAiError] = useState('');
@@ -302,6 +412,16 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
   const [canRedo, setCanRedo] = useState(false);
   const [showTableMenu, setShowTableMenu] = useState(false);
   const tableMenuRef = useRef(null);
+  const [showAiMenu, setShowAiMenu] = useState(false);
+  const aiMenuRef = useRef(null);
+  const [showDocMenu, setShowDocMenu] = useState(false);
+  const docMenuRef = useRef(null);
+  const [showColorMenu, setShowColorMenu] = useState(false);
+  const colorMenuRef = useRef(null);
+  const [showQuickInsertMenu, setShowQuickInsertMenu] = useState(false);
+  const quickInsertMenuRef = useRef(null);
+  const [showAskGeminiMenu, setShowAskGeminiMenu] = useState(false);
+  const askGeminiMenuRef = useRef(null);
 
   const updateHistoryButtons = () => {
     setCanUndo(historyIndexRef.current > 0);
@@ -364,16 +484,38 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     }
   };
 
-  // Close table dropdown on outside click
+  // Close menus on outside click
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (tableMenuRef.current && !tableMenuRef.current.contains(e.target)) {
         setShowTableMenu(false);
       }
+      if (aiMenuRef.current && !aiMenuRef.current.contains(e.target)) {
+        setShowAiMenu(false);
+      }
+      if (docMenuRef.current && !docMenuRef.current.contains(e.target)) {
+        setShowDocMenu(false);
+      }
+      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target)) {
+        setShowColorMenu(false);
+      }
+      if (quickInsertMenuRef.current && !quickInsertMenuRef.current.contains(e.target)) {
+        setShowQuickInsertMenu(false);
+      }
+      if (askGeminiMenuRef.current && !askGeminiMenuRef.current.contains(e.target)) {
+        setShowAskGeminiMenu(false);
+      }
     };
-    window.addEventListener('mousedown', handleOutsideClick);
-    return () => window.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
+
+  const handleOpenAiStudio = (mode = 'draft') => {
+    setActiveLeftTab('ai');
+    setAiMode(mode);
+    setShowAiMenu(false);
+    setShowAskGeminiMenu(false);
+  };
 
   // Initialize editor with cloud templates, default template & first snapshot
   useEffect(() => {
@@ -395,13 +537,30 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
 
         if (targetTpl && editorRef.current) {
           setSelectedTemplateId(targetTpl.id);
+          if (targetTpl.officeTitle) setOfficeTitle(targetTpl.officeTitle);
+          if (targetTpl.institutionName) setInstitutionName(targetTpl.institutionName);
+          if (targetTpl.institutionAddress) setInstitutionAddress(targetTpl.institutionAddress);
           if (targetTpl.refNo) setRefNo(targetTpl.refNo);
+          if (targetTpl.signatoryName !== undefined) setSignatoryName(targetTpl.signatoryName);
+          if (targetTpl.signatoryDesignation !== undefined) setSignatoryDesignation(targetTpl.signatoryDesignation);
+          if (targetTpl.signatoryInstitution !== undefined) setSignatoryInstitution(targetTpl.signatoryInstitution);
+          if (targetTpl.pageMargin !== undefined) setPageMargin(targetTpl.pageMargin);
+          if (targetTpl.headerLayout !== undefined) setHeaderLayout(targetTpl.headerLayout);
           if (targetTpl.copyTo !== undefined) setCopyToText(targetTpl.copyTo || '');
           editorRef.current.innerHTML = targetTpl.bodyHtml;
           historyRef.current = [targetTpl.bodyHtml];
           historyIndexRef.current = 0;
           updateHistoryButtons();
         }
+
+        // Fetch Cloud Gemini Keys
+        fetchCloudGeminiKeys().then(keys => {
+          if (!isMounted) return;
+          if (keys && keys.length > 0) {
+            setGeminiKeys(keys);
+            setKeysInputText(keys.join('\n'));
+          }
+        }).catch(err => console.warn('Could not sync cloud Gemini keys:', err));
       } catch (err) {
         console.warn('Note: Could not sync cloud templates:', err);
       }
@@ -416,33 +575,228 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     if (!editorRef.current) return;
     pushSnapshot();
     editorRef.current.focus();
-    document.execCommand(command, false, value);
-    setTimeout(pushSnapshot, 50);
+
+    try {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    const sel = window.getSelection();
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel) {
+      try {
+        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
+          sel.removeAllRanges();
+          sel.addRange(activeRange);
+        }
+      } catch {}
+    }
+
+    try {
+      if (command === 'formatBlock') {
+        const targetClean = (value || 'p').replace(/[<>]/g, '').toLowerCase();
+        let currentBlock = null;
+        if (sel && sel.rangeCount > 0) {
+          let node = sel.getRangeAt(0).commonAncestorContainer;
+          if (node.nodeType === 3) node = node.parentNode;
+          currentBlock = node?.closest('h1, h2, h3, h4, h5, h6, p, blockquote, div');
+        }
+
+        const currentTag = currentBlock?.tagName?.toLowerCase() || 'p';
+        const isSameTag = currentTag === targetClean;
+
+        // If clicking the active heading again, toggle off to normal paragraph '<p>'
+        const newTag = (isSameTag && targetClean !== 'p') ? 'p' : targetClean;
+
+        let success = document.execCommand('formatBlock', false, `<${newTag}>`);
+        if (!success) {
+          success = document.execCommand('formatBlock', false, newTag);
+        }
+
+        if (currentBlock && currentBlock.isConnected && currentBlock !== editorRef.current) {
+          if (currentBlock.tagName.toLowerCase() !== newTag) {
+            const newElem = document.createElement(newTag);
+            newElem.innerHTML = currentBlock.innerHTML;
+            currentBlock.parentNode.replaceChild(newElem, currentBlock);
+            const r = document.createRange();
+            r.selectNodeContents(newElem);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        }
+      } else {
+        document.execCommand(command, false, value);
+      }
+    } catch (err) {
+      console.warn('Formatting command error:', err);
+    }
+    saveCurrentSelection();
+    setTimeout(() => {
+      pushSnapshot();
+      checkTableContext();
+      checkActiveFormats();
+    }, 50);
   };
 
-  // Helper to find closest table elements
-  const getSelectedTableElements = () => {
+  // Instantaneous Text Color Application with CSS styling & smart selection recovery
+  const applyTextColor = (color) => {
+    if (!editorRef.current) return;
+    pushSnapshot();
+    editorRef.current.focus();
+
+    // 1. Enable CSS inline styles so color overrides all parent CSS classes immediately
+    try {
+      document.execCommand('styleWithCSS', false, true);
+    } catch {}
+
+    // 2. Restore saved selection if shifted or blurred
     const sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return null;
-    let node = sel.getRangeAt(0).commonAncestorContainer;
-    if (node.nodeType === 3) node = node.parentNode;
-    const td = node?.closest('td, th');
-    const tr = node?.closest('tr');
-    const table = node?.closest('table');
-    return { td, tr, table };
+    const activeRange = savedRangeRef.current || savedRange;
+    if (activeRange && sel) {
+      try {
+        if (sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) {
+          sel.removeAllRanges();
+          sel.addRange(activeRange);
+        }
+      } catch {}
+    }
+
+    // 3. If selection is collapsed inside text, auto-expand to word under cursor
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (range.collapsed && editorRef.current.contains(range.startContainer)) {
+        const node = range.startContainer;
+        if (node.nodeType === 3) {
+          const text = node.nodeValue || '';
+          let start = range.startOffset;
+          let end = range.startOffset;
+          while (start > 0 && !/\s/.test(text[start - 1])) start--;
+          while (end < text.length && !/\s/.test(text[end])) end++;
+          if (start < end) {
+            const wordRange = document.createRange();
+            wordRange.setStart(node, start);
+            wordRange.setEnd(node, end);
+            sel.removeAllRanges();
+            sel.addRange(wordRange);
+          }
+        }
+      }
+    }
+
+    // 4. Apply text color command
+    try {
+      const ok = document.execCommand('foreColor', false, color);
+      if (!ok) {
+        document.execCommand('styleWithCSS', false, false);
+        document.execCommand('foreColor', false, color);
+      }
+    } catch (err) {
+      console.warn('Text color command error:', err);
+    }
+
+    saveCurrentSelection();
+    setTimeout(() => {
+      pushSnapshot();
+      checkTableContext();
+    }, 50);
+    showToast(`Color applied (${color})`, 'info', 1500);
+  };
+
+  // Helper to find closest table elements (with persistent fallback cache)
+  const getSelectedTableElements = () => {
+    // 1. Try active live selection
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      let node = sel.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      const td = node?.closest('td, th');
+      const tr = node?.closest('tr');
+      const table = node?.closest('table');
+      if (td && tr && table) {
+        const colIndex = Array.from(tr.children).indexOf(td);
+        const allTrs = Array.from(table.querySelectorAll('tr'));
+        const rowIndex = allTrs.indexOf(tr);
+        lastActiveTableRef.current = { td, tr, table, colIndex, rowIndex };
+        return { td, tr, table, colIndex, rowIndex };
+      }
+      if (table) {
+        const firstTr = table.querySelector('tr');
+        const firstTd = firstTr?.querySelector('td, th');
+        return { td: firstTd, tr: firstTr, table, colIndex: 0, rowIndex: 0 };
+      }
+    }
+
+    // 2. Fall back to cached last active table elements if valid and still connected to DOM
+    if (lastActiveTableRef.current && lastActiveTableRef.current.table?.isConnected) {
+      const { td, tr, table } = lastActiveTableRef.current;
+      const validTable = table.isConnected ? table : editorRef.current?.querySelector('table');
+      if (validTable) {
+        const validTr = tr?.isConnected ? tr : validTable.querySelector('tr');
+        const validTd = td?.isConnected ? td : validTr?.querySelector('td, th');
+        const colIndex = validTr ? Array.from(validTr.children).indexOf(validTd) : 0;
+        const rowIndex = validTr ? Array.from(validTable.querySelectorAll('tr')).indexOf(validTr) : 0;
+        return { td: validTd, tr: validTr, table: validTable, colIndex: Math.max(0, colIndex), rowIndex: Math.max(0, rowIndex) };
+      }
+    }
+
+    // 3. Fall back to first table inside editor if present
+    if (editorRef.current) {
+      const table = editorRef.current.querySelector('table');
+      if (table) {
+        const firstTr = table.querySelector('tr');
+        const firstTd = firstTr?.querySelector('td, th');
+        return { td: firstTd, tr: firstTr, table, colIndex: 0, rowIndex: 0 };
+      }
+    }
+
+    return null;
+  };
+
+  // Inspect and update active table context state
+  const checkTableContext = () => {
+    const ctx = getSelectedTableElements();
+    if (ctx && ctx.table) {
+      const allTrs = Array.from(ctx.table.querySelectorAll('tr'));
+      const colIndex = ctx.colIndex !== undefined ? ctx.colIndex : (ctx.tr && ctx.td ? Array.from(ctx.tr.children).indexOf(ctx.td) : 0);
+      const rowIndex = ctx.rowIndex !== undefined ? ctx.rowIndex : (ctx.tr ? allTrs.indexOf(ctx.tr) : 0);
+      const totalCols = ctx.tr ? ctx.tr.children.length : (ctx.table.querySelector('tr')?.children.length || 0);
+      const totalRows = allTrs.length;
+
+      setActiveTableContext({
+        colIndex: Math.max(0, colIndex),
+        rowIndex: Math.max(0, rowIndex),
+        totalCols,
+        totalRows,
+        hasTable: true
+      });
+    } else {
+      const hasAnyTable = !!editorRef.current?.querySelector('table');
+      if (hasAnyTable) {
+        const table = editorRef.current.querySelector('table');
+        const allTrs = Array.from(table.querySelectorAll('tr'));
+        setActiveTableContext({
+          colIndex: 0,
+          rowIndex: 0,
+          totalCols: table.querySelector('tr')?.children.length || 0,
+          totalRows: allTrs.length,
+          hasTable: true
+        });
+      } else {
+        setActiveTableContext(null);
+      }
+    }
   };
 
   // ── Table Manipulation Functions ──
   const insertTable = (rows = 2, cols = 4) => {
-    let tableHtml = `<table style="width:100%; border-collapse:collapse; margin:10px 0;"><thead><tr style="background-color:#f1f5f9;">`;
+    let tableHtml = `<table style="width:100%; border-collapse:collapse; margin:12px 0;"><thead><tr style="background-color:#f1f5f9;">`;
     for (let c = 1; c <= cols; c++) {
-      tableHtml += `<th style="border:1px solid #475569; padding:5px; text-align:left;">Header ${c}</th>`;
+      tableHtml += `<th style="border:1px solid #475569; padding:6px 8px; text-align:left; font-weight:700; font-size:12px;">Header ${c}</th>`;
     }
     tableHtml += `</tr></thead><tbody>`;
     for (let r = 1; r <= rows; r++) {
       tableHtml += `<tr>`;
       for (let c = 1; c <= cols; c++) {
-        tableHtml += `<td style="border:1px solid #94a3b8; padding:5px;">—</td>`;
+        tableHtml += `<td style="border:1px solid #94a3b8; padding:6px 8px; font-size:12px;">—</td>`;
       }
       tableHtml += `</tr>`;
     }
@@ -450,67 +804,96 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
 
     pushSnapshot();
     executeFormat('insertHTML', tableHtml);
-    setTimeout(pushSnapshot, 50);
+    setTimeout(() => {
+      pushSnapshot();
+      checkTableContext();
+    }, 50);
     setShowTableMenu(false);
   };
 
   const insertTableRow = (above = false) => {
     const ctx = getSelectedTableElements();
-    if (!ctx || !ctx.tr) {
-      alert('Please place your cursor inside any table cell to add a row.');
+    if (!ctx || !ctx.table) {
+      insertTable(2, 4);
       return;
     }
     pushSnapshot();
-    const cellCount = ctx.tr.children.length;
+    const allRows = Array.from(ctx.table.querySelectorAll('tr'));
+    if (allRows.length === 0) return;
+
+    const colCount = allRows[0]?.children.length || 4;
     const newTr = document.createElement('tr');
-    for (let i = 0; i < cellCount; i++) {
+    for (let i = 0; i < colCount; i++) {
       const td = document.createElement('td');
       td.style.border = '1px solid #94a3b8';
-      td.style.padding = '5px';
+      td.style.padding = '6px 8px';
+      td.style.fontSize = '12px';
       td.innerHTML = '—';
       newTr.appendChild(td);
     }
-    if (above) {
-      ctx.tr.parentNode.insertBefore(newTr, ctx.tr);
+
+    const targetRow = ctx.tr || allRows[allRows.length - 1];
+    if (targetRow && targetRow.parentNode) {
+      if (above && targetRow.parentNode.tagName !== 'THEAD') {
+        targetRow.parentNode.insertBefore(newTr, targetRow);
+      } else {
+        targetRow.parentNode.insertBefore(newTr, targetRow.nextSibling);
+      }
     } else {
-      ctx.tr.parentNode.insertBefore(newTr, ctx.tr.nextSibling);
+      const tbody = ctx.table.querySelector('tbody') || ctx.table;
+      tbody.appendChild(newTr);
     }
+
+    lastActiveTableRef.current = { td: newTr.children[0], tr: newTr, table: ctx.table, colIndex: 0, rowIndex: allRows.length };
     pushSnapshot();
+    checkTableContext();
     setShowTableMenu(false);
   };
 
   const deleteTableRow = () => {
     const ctx = getSelectedTableElements();
-    if (!ctx || !ctx.tr) {
-      alert('Please place your cursor inside a table row to delete it.');
-      return;
-    }
+    if (!ctx || !ctx.table) return;
+
     pushSnapshot();
-    const tbody = ctx.tr.parentNode;
-    ctx.tr.remove();
-    if (tbody && tbody.children.length === 0) {
-      if (ctx.table) ctx.table.remove();
+    const allRows = Array.from(ctx.table.querySelectorAll('tr'));
+    if (allRows.length <= 1) {
+      ctx.table.remove();
+      lastActiveTableRef.current = null;
+    } else {
+      const targetRow = ctx.tr || allRows[allRows.length - 1];
+      if (targetRow) {
+        targetRow.remove();
+      }
     }
+
     pushSnapshot();
+    checkTableContext();
     setShowTableMenu(false);
   };
 
   const insertTableColumn = (left = false) => {
     const ctx = getSelectedTableElements();
-    if (!ctx || !ctx.td || !ctx.table) {
-      alert('Please place your cursor inside a table cell to add a column.');
+    if (!ctx || !ctx.table) {
+      insertTable(2, 4);
       return;
     }
     pushSnapshot();
-    const colIndex = Array.from(ctx.tr.children).indexOf(ctx.td);
     const allRows = ctx.table.querySelectorAll('tr');
-    allRows.forEach((row) => {
-      const isHeader = row.parentNode.tagName === 'THEAD' || row.querySelector('th');
+    if (allRows.length === 0) return;
+
+    const targetColIdx = (ctx.colIndex !== undefined && ctx.colIndex >= 0)
+      ? ctx.colIndex
+      : (ctx.tr && ctx.td ? Array.from(ctx.tr.children).indexOf(ctx.td) : (allRows[0].children.length - 1));
+
+    allRows.forEach((row, rIdx) => {
+      const isHeader = row.parentNode?.tagName === 'THEAD' || row.querySelector('th') || rIdx === 0;
       const newCell = document.createElement(isHeader ? 'th' : 'td');
       newCell.style.border = isHeader ? '1px solid #475569' : '1px solid #94a3b8';
-      newCell.style.padding = '5px';
-      newCell.innerHTML = isHeader ? `Col` : `—`;
-      const targetCell = row.children[colIndex];
+      newCell.style.padding = '6px 8px';
+      newCell.style.fontSize = '12px';
+      newCell.innerHTML = isHeader ? `Header ${row.children.length + 1}` : `—`;
+
+      const targetCell = row.children[targetColIdx];
       if (targetCell) {
         if (left) {
           row.insertBefore(newCell, targetCell);
@@ -521,48 +904,73 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
         row.appendChild(newCell);
       }
     });
+
     pushSnapshot();
+    checkTableContext();
     setShowTableMenu(false);
   };
 
   const deleteTableColumn = () => {
     const ctx = getSelectedTableElements();
-    if (!ctx || !ctx.td || !ctx.table) {
-      alert('Please place your cursor inside a table cell to delete its column.');
-      return;
-    }
+    if (!ctx || !ctx.table) return;
+
     pushSnapshot();
-    const colIndex = Array.from(ctx.tr.children).indexOf(ctx.td);
     const allRows = ctx.table.querySelectorAll('tr');
+    if (allRows.length === 0) return;
+
+    const colIndex = (ctx.colIndex !== undefined && ctx.colIndex >= 0)
+      ? ctx.colIndex
+      : (ctx.tr && ctx.td ? Array.from(ctx.tr.children).indexOf(ctx.td) : (allRows[0].children.length - 1));
+
     allRows.forEach(row => {
       if (row.children[colIndex]) {
         row.children[colIndex].remove();
       }
     });
-    if (ctx.tr.children.length === 0) {
+
+    // If table has no remaining columns, remove it
+    if (allRows[0] && allRows[0].children.length === 0) {
       ctx.table.remove();
+      lastActiveTableRef.current = null;
     }
+
     pushSnapshot();
+    checkTableContext();
     setShowTableMenu(false);
   };
 
   const deleteEntireTable = () => {
     const ctx = getSelectedTableElements();
-    if (!ctx || !ctx.table) {
-      alert('Please place your cursor inside a table to delete it.');
-      return;
+    if (ctx && ctx.table) {
+      pushSnapshot();
+      ctx.table.remove();
+      lastActiveTableRef.current = null;
+      pushSnapshot();
+      checkTableContext();
+      setShowTableMenu(false);
+    } else if (editorRef.current?.querySelector('table')) {
+      pushSnapshot();
+      editorRef.current.querySelector('table').remove();
+      lastActiveTableRef.current = null;
+      pushSnapshot();
+      checkTableContext();
+      setShowTableMenu(false);
     }
-    pushSnapshot();
-    ctx.table.remove();
-    pushSnapshot();
-    setShowTableMenu(false);
   };
 
   // Load Template (Builtin or Custom)
   const handleSelectTemplate = (tpl) => {
     pushSnapshot();
     setSelectedTemplateId(tpl.id);
+    if (tpl.officeTitle) setOfficeTitle(tpl.officeTitle);
+    if (tpl.institutionName) setInstitutionName(tpl.institutionName);
+    if (tpl.institutionAddress) setInstitutionAddress(tpl.institutionAddress);
     if (tpl.refNo) setRefNo(tpl.refNo);
+    if (tpl.signatoryName !== undefined) setSignatoryName(tpl.signatoryName);
+    if (tpl.signatoryDesignation !== undefined) setSignatoryDesignation(tpl.signatoryDesignation);
+    if (tpl.signatoryInstitution !== undefined) setSignatoryInstitution(tpl.signatoryInstitution);
+    if (tpl.pageMargin !== undefined) setPageMargin(tpl.pageMargin);
+    if (tpl.headerLayout !== undefined) setHeaderLayout(tpl.headerLayout);
     if (tpl.copyTo !== undefined) setCopyToText(tpl.copyTo || '');
     if (editorRef.current) {
       editorRef.current.innerHTML = tpl.bodyHtml;
@@ -576,26 +984,40 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     setDefaultTemplateId(templateId);
     try {
       await setCloudDefaultTemplate(templateId, 'letter');
+      showToast('✓ Set as default letter template!', 'success');
     } catch (err) {
       console.warn('Set default warning:', err);
+      showToast(`Default set locally (${err.message})`, 'info');
     }
   };
 
   // Save Custom Template Handler (Firebase Cloud + LocalStorage)
   const handleSaveCustomTemplate = async (e) => {
     e?.preventDefault();
-    if (!newTplName.trim()) {
-      alert('Please enter a template name.');
-      return;
-    }
     if (!editorRef.current) return;
 
+    const isUpdating = templateSaveMode === 'update';
+    const activeTpl = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId) || BUILTIN_LETTER_TEMPLATES[0];
+
+    if (!isUpdating && !newTplName.trim()) {
+      showToast('Please enter a template name.', 'warning');
+      return;
+    }
+
     const templateData = {
-      id: 'tpl_custom_' + Date.now(),
-      name: newTplName.trim(),
-      category: newTplCategory.trim() || 'General',
-      desc: newTplDesc.trim() || 'Custom template saved by administrator',
+      id: isUpdating ? selectedTemplateId : ('tpl_custom_' + Date.now()),
+      name: isUpdating ? (activeTpl.name || 'Official Letter') : newTplName.trim(),
+      category: isUpdating ? (activeTpl.category || 'Official Orders & Notices') : (newTplCategory.trim() || 'General'),
+      desc: isUpdating ? (activeTpl.desc || 'Updated letter template') : (newTplDesc.trim() || 'Custom template saved by administrator'),
+      officeTitle: officeTitle || 'OFFICE OF THE PRINCIPAL',
+      institutionName: institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+      institutionAddress: institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)',
       refNo: refNo || 'HSS/SHG/',
+      signatoryName: signatoryName || '',
+      signatoryDesignation: signatoryDesignation || 'Principal',
+      signatoryInstitution: signatoryInstitution || 'Govt. Hr Sec. School Shangus',
+      pageMargin: pageMargin || '0.5in',
+      headerLayout: headerLayout || 'logo_right',
       bodyHtml: editorRef.current.innerHTML,
       copyTo: copyToText || '',
       isCustom: true
@@ -605,33 +1027,81 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
       await saveCloudDocTemplate({
         type: 'letter',
         template: templateData,
-        makeDefault: makeTemplateDefault
+        makeDefault: isUpdating ? (selectedTemplateId === defaultTemplateId || makeTemplateDefault) : makeTemplateDefault
       });
 
       const updated = [templateData, ...customTemplates.filter(t => t.id !== templateData.id)];
       setCustomTemplates(updated);
       setSelectedTemplateId(templateData.id);
-      if (makeTemplateDefault) {
+      if (makeTemplateDefault || (isUpdating && selectedTemplateId === defaultTemplateId)) {
         setDefaultTemplateId(templateData.id);
       }
       setShowSaveTemplateModal(false);
       setNewTplName('');
       setNewTplDesc('');
-      alert(`✓ Template "${templateData.name}" successfully saved to Firebase Cloud and set as ${makeTemplateDefault ? 'Default' : 'Saved'}!`);
+      showToast(`☁️ Template "${templateData.name}" successfully saved to Cloud Database!`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Template saved locally (Cloud sync note: ' + err.message + ')');
+      showToast(`Template saved locally (Cloud sync note: ${err.message})`, 'warning');
     }
   };
 
-  // Delete Custom Template Handler (Firebase Cloud + LocalStorage)
-  const handleDeleteCustomTemplate = async (id, e) => {
-    e?.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this custom template?')) return;
+  // ─── Quick 1-Click Update of Active Template ───
+  const handleQuickUpdateTemplate = async () => {
+    if (!editorRef.current) return;
+    const activeTpl = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId) || BUILTIN_LETTER_TEMPLATES[0];
+    const templateData = {
+      id: selectedTemplateId,
+      name: activeTpl.name || 'Official Letter',
+      category: activeTpl.category || 'Official Orders & Notices',
+      desc: activeTpl.desc || 'Updated template',
+      officeTitle: officeTitle || 'OFFICE OF THE PRINCIPAL',
+      institutionName: institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
+      institutionAddress: institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)',
+      refNo: refNo || 'HSS/SHG/',
+      signatoryName: signatoryName || '',
+      signatoryDesignation: signatoryDesignation || 'Principal',
+      signatoryInstitution: signatoryInstitution || 'Govt. Hr Sec. School Shangus',
+      pageMargin: pageMargin || '0.5in',
+      headerLayout: headerLayout || 'logo_right',
+      bodyHtml: editorRef.current.innerHTML,
+      copyTo: copyToText || '',
+      isCustom: true
+    };
+    try {
+      await saveCloudDocTemplate({
+        type: 'letter',
+        template: templateData,
+        makeDefault: selectedTemplateId === defaultTemplateId
+      });
+      const updated = [templateData, ...customTemplates.filter(t => t.id !== templateData.id)];
+      setCustomTemplates(updated);
+      showToast(`☁️ Template "${templateData.name}" successfully updated & overwritten in Cloud!`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
+    }
+  };
+
+  // Delete Custom Template Handler (With Warning & Confirmation Modal)
+  const handleDeleteCustomTemplate = (target, e) => {
+    if (e) e.stopPropagation();
+    const tpl = typeof target === 'object' ? target : customTemplates.find(t => t.id === target);
+    if (!tpl) return;
+    setTemplateToDelete(tpl);
+  };
+
+  const handleConfirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    const id = templateToDelete.id;
+    const name = templateToDelete.name;
+    setIsDeletingTemplate(true);
     try {
       await deleteCloudDocTemplate(id, 'letter');
+      showToast(`🗑️ Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
     } catch (err) {
       console.warn(err);
+      showToast(`Template "${name}" deleted locally.`, 'info');
     }
     const updated = customTemplates.filter(t => t.id !== id);
     setCustomTemplates(updated);
@@ -641,6 +1111,8 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     if (defaultTemplateId === id) {
       setDefaultTemplateId('fee_notification');
     }
+    setIsDeletingTemplate(false);
+    setTemplateToDelete(null);
   };
 
   const insertSubjectLine = () => {
@@ -684,22 +1156,78 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
       existing.unshift(draftData);
       localStorage.setItem('hss_official_letter_drafts', JSON.stringify(existing.slice(0, 10)));
       setSavedDraftsCount(existing.length);
-      alert('Official letter draft successfully saved locally!');
+      showToast('✓ Official letter draft successfully saved locally!', 'success');
     } catch (e) {
       console.error(e);
+      showToast('Could not save draft locally.', 'error');
     }
   };
 
-  // Print Letter
+  // ─── Cloud History Save Handler ───
+  const handleSaveToCloud = async () => {
+    if (!editorRef.current) return;
+    const bodyHtml = editorRef.current.innerHTML;
+    const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+    try {
+      await saveGeneratedDocToHistory({
+        docType: 'letter',
+        title: tplName,
+        refNo: refNo || '',
+        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+        recipientOrStudent: signatoryInstitution || institutionName || '',
+        bodyHtml,
+        actionType: 'Saved to Cloud',
+        templateId: selectedTemplateId,
+        templateName: tplName,
+        extraData: {
+          officeTitle,
+          institutionName,
+          institutionAddress,
+          signatoryName,
+          signatoryDesignation,
+          signatoryInstitution,
+          copyToText,
+          pageMargin,
+          headerLayout
+        }
+      });
+      showToast('✓ Official letter successfully archived in Cloud History!', 'success');
+    } catch (err) {
+      console.error('History save error:', err);
+      showToast(`Could not save letter to cloud history: ${err.message}`, 'error');
+    }
+  };
+
+  // ─── Load Draft from History Handler ───
+  const handleLoadDraftFromHistory = (rec) => {
+    if (!rec) return;
+    if (rec.refNo) setRefNo(rec.refNo);
+    if (rec.dateStr) setDateStr(rec.dateStr);
+    if (rec.extraData?.copyToText !== undefined) setCopyToText(rec.extraData.copyToText);
+    if (rec.extraData?.signatoryName) setSignatoryName(rec.extraData.signatoryName);
+    if (rec.extraData?.signatoryDesignation) setSignatoryDesignation(rec.extraData.signatoryDesignation);
+    if (rec.bodyHtml && editorRef.current) {
+      editorRef.current.innerHTML = rec.bodyHtml;
+      pushSnapshot();
+    }
+    showToast('Official letter draft loaded from history archive.', 'info');
+  };
+
+  // Print Letter (with auto cloud history logging)
   const handlePrint = () => {
     if (!editorRef.current) return;
+    const bodyHtml = editorRef.current.innerHTML;
+    const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+
+    showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
+
     printOfficialLetter({
       officeTitle,
       institutionName,
       institutionAddress,
       refNo,
       dateStr,
-      bodyHtml: editorRef.current.innerHTML,
+      bodyHtml,
       signatoryName,
       signatoryDesignation,
       signatoryInstitution,
@@ -707,12 +1235,38 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
       pageMargin,
       headerLayout
     });
+
+    // Auto-log to Firestore history
+    saveGeneratedDocToHistory({
+      docType: 'letter',
+      title: tplName,
+      refNo: refNo || '',
+      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+      recipientOrStudent: signatoryInstitution || institutionName || '',
+      bodyHtml,
+      actionType: 'Printed / Saved PDF',
+      templateId: selectedTemplateId,
+      templateName: tplName,
+      extraData: {
+        officeTitle,
+        institutionName,
+        institutionAddress,
+        signatoryName,
+        signatoryDesignation,
+        signatoryInstitution,
+        copyToText,
+        pageMargin,
+        headerLayout
+      }
+    }).catch(e => console.warn('History auto-log note:', e));
   };
 
-  // Export to Word (.docx)
+  // Export to Word (.docx) (with auto cloud history logging)
   const handleExportDocx = async () => {
     if (!editorRef.current) return;
     setIsExportingDocx(true);
+    const bodyHtml = editorRef.current.innerHTML;
+    const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
     try {
       const textContent = editorRef.current.innerText || '';
       await generateOfficialLetterDocx({
@@ -722,13 +1276,40 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
         refNo,
         dateStr,
         bodyText: textContent,
+        bodyHtml: bodyHtml,
         signatoryDesignation,
         signatoryInstitution,
         copyToText
       });
+
+      showToast('📥 Word document (.docx) successfully exported!', 'success');
+
+      // Auto-log to Firestore history
+      saveGeneratedDocToHistory({
+        docType: 'letter',
+        title: tplName,
+        refNo: refNo || '',
+        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+        recipientOrStudent: signatoryInstitution || institutionName || '',
+        bodyHtml,
+        actionType: 'Downloaded (.docx)',
+        templateId: selectedTemplateId,
+        templateName: tplName,
+        extraData: {
+          officeTitle,
+          institutionName,
+          institutionAddress,
+          signatoryName,
+          signatoryDesignation,
+          signatoryInstitution,
+          copyToText,
+          pageMargin,
+          headerLayout
+        }
+      });
     } catch (err) {
       console.error(err);
-      alert('Error generating DOCX document: ' + err.message);
+      showToast(`Error generating DOCX document: ${err.message}`, 'error');
     } finally {
       setIsExportingDocx(false);
     }
@@ -752,12 +1333,13 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     }
   };
 
-  const handleSaveKeys = () => {
+  const handleSaveKeys = async () => {
     const lines = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
-    const saved = saveGeminiKeys(lines);
+    const saved = await saveCloudGeminiKeys(lines);
     setGeminiKeys(saved);
     setShowKeysConfig(false);
     setAiError('');
+    showToast(`✓ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
   };
 
   const handleGenerateAi = async () => {
@@ -807,8 +1389,7 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
     }
 
     setTimeout(pushSnapshot, 50);
-    setAiInsertedToast(true);
-    setTimeout(() => setAiInsertedToast(false), 3000);
+    showToast('✨ AI-generated draft applied to letter canvas!', 'success');
   };
 
   // Filtered Templates List
@@ -826,120 +1407,120 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
   return (
     <div className="space-y-2 text-slate-800 dark:text-slate-100 animate-fadeIn">
 
-      {/* ════════ COLLAPSIBLE LETTERHEAD & REFERENCE CONFIG DRAWER ════════ */}
+      {/* ════════ COLLAPSIBLE LETTERHEAD & REFERENCE CONFIG DRAWER (ALL ON 1 ROW) ════════ */}
       {showSettingsDrawer && (
-        <div className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-900/60 rounded-xl p-3 shadow-sm space-y-2 animate-fadeIn text-xs">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
-            <h3 className="font-black text-[11px] text-amber-900 dark:text-amber-200 uppercase tracking-wider flex items-center gap-1.5 m-0">
-              <Sliders size={12} />
+        <div className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-900/60 rounded-xl p-2 shadow-xs space-y-1.5 animate-fadeIn text-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
+            <h3 className="font-black text-[10.5px] text-amber-900 dark:text-amber-200 uppercase tracking-wider flex items-center gap-1 m-0">
+              <Sliders size={11} />
               <span>Official Letterhead & Reference Configuration</span>
             </h3>
-            <span className="text-[9.5px] text-slate-500">Auto-filled on print and Word document</span>
+            <span className="text-[9px] text-slate-400">All fields auto-align onto document & Word export</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+          <div className="flex flex-wrap items-end gap-2 text-xs w-full">
             
             {/* Office Title */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Office Header</label>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Office Header</label>
               <input
                 type="text"
                 value={officeTitle}
                 onChange={(e) => setOfficeTitle(e.target.value)}
                 placeholder="OFFICE OF THE PRINCIPAL"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-black text-xs text-rose-800 dark:text-rose-300"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-black text-xs text-rose-800 dark:text-rose-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Ref No */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Reference Number</label>
+            <div className="flex-1 min-w-[190px]">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Reference No.</label>
               <input
                 type="text"
                 value={refNo}
                 onChange={(e) => setRefNo(e.target.value)}
-                placeholder="e.g. HSS/SHG/Fee-Dist/10th/April"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                placeholder="e.g. HSS/SHG/2026/..."
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Date */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Letter Date</label>
+            <div className="w-28 shrink-0">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Letter Date</label>
               <input
                 type="text"
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
-                placeholder="e.g. 16/08/2026 or April 2026-27"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                placeholder="DD/MM/YYYY"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
-            {/* Page Margin */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Print Page Margins</label>
-              <select
-                value={pageMargin}
-                onChange={(e) => setPageMargin(e.target.value)}
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-              >
-                <option value="0.5in">0.5 inch (Default - Official Standard)</option>
-                <option value="0.4in">0.4 inch (Compact)</option>
-                <option value="0.3in">0.3 inch (Narrow)</option>
-                <option value="0.75in">0.75 inch (Medium)</option>
-                <option value="1.0in">1.0 inch (Wide)</option>
-              </select>
-            </div>
-
-            {/* Header Layout Alignment */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Header Layout</label>
-              <select
-                value={headerLayout}
-                onChange={(e) => setHeaderLayout(e.target.value)}
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-              >
-                <option value="logo_right">Logo on Right (Recommended)</option>
-                <option value="logo_center">Centered Header</option>
-                <option value="logo_left">Logo on Left</option>
-              </select>
-            </div>
-
             {/* Signatory Designation */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory Designation</label>
+            <div className="w-32 shrink-0">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Signatory</label>
               <input
                 type="text"
                 value={signatoryDesignation}
                 onChange={(e) => setSignatoryDesignation(e.target.value)}
                 placeholder="Principal"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Signatory Institution */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory Institution</label>
+            <div className="flex-1 min-w-[220px]">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Institution</label>
               <input
                 type="text"
                 value={signatoryInstitution}
                 onChange={(e) => setSignatoryInstitution(e.target.value)}
                 placeholder="Govt. Hr Sec. School Shangus"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-blue-900 dark:text-blue-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
-            {/* Copy To block */}
-            <div className="sm:col-span-2">
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">
-                Copy To / Dispatch Notes <span className="text-slate-400 lowercase font-normal">(leave blank to hide)</span>
+            {/* Header Layout Alignment */}
+            <div className="w-28 shrink-0">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Layout</label>
+              <select
+                value={headerLayout}
+                onChange={(e) => setHeaderLayout(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+              >
+                <option value="logo_right">Logo Right</option>
+                <option value="logo_center">Centered</option>
+                <option value="logo_left">Logo Left</option>
+              </select>
+            </div>
+
+            {/* Page Margin */}
+            <div className="w-24 shrink-0">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Margins</label>
+              <select
+                value={pageMargin}
+                onChange={(e) => setPageMargin(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+              >
+                <option value="0.5in">0.5" Std</option>
+                <option value="0.4in">0.4" Tight</option>
+                <option value="0.3in">0.3" Min</option>
+                <option value="0.75in">0.75" Med</option>
+                <option value="1.0in">1.0" Wide</option>
+              </select>
+            </div>
+
+            {/* Copy To / Dispatch block (Multi-line Textarea supporting Enter) */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">
+                Copy To / Dispatch <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={1}
                 value={copyToText}
                 onChange={(e) => setCopyToText(e.target.value)}
-                placeholder="Leave blank to hide completely, or enter e.g. 1. Worthy CEO Anantnag for info"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+                placeholder="1. CEO Anantnag&#10;2. Accounts Officer"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs resize-y min-h-[31px] focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
           </div>
@@ -1074,7 +1655,7 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
               {/* Prompt Input */}
               <div className="space-y-1">
                 <textarea
-                  rows={2}
+                  rows={5}
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder={
@@ -1082,7 +1663,7 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
                       ? 'What should this letter say? (e.g. Schedule for admission fee submission by April 30th)'
                       : 'Additional refinement notes (optional)'
                   }
-                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-medium text-xs text-slate-900 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y min-h-[110px]"
                 />
 
                 {/* Prompt Presets */}
@@ -1246,8 +1827,8 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
                   </button>
                 </div>
 
-                {/* Template Cards List (Compact View) */}
-                <div className="space-y-1 max-h-[170px] overflow-y-auto pr-0.5">
+                {/* Template Cards List (Spacious View) */}
+                <div className="space-y-1.5 max-h-[calc(100vh-280px)] min-h-[380px] overflow-y-auto pr-0.5">
                   {displayedTemplates.map((tpl) => {
                     const isDefault = defaultTemplateId === tpl.id;
                     return (
@@ -1287,7 +1868,7 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={(e) => handleDeleteCustomTemplate(tpl.id, e)}
+                                  onClick={(e) => handleDeleteCustomTemplate(tpl, e)}
                                   className="text-slate-400 hover:text-rose-600 cursor-pointer p-0.5"
                                   title="Delete custom template"
                                 >
@@ -1311,59 +1892,58 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
                 </div>
               </div>
 
-              {/* Quick Inserts & AI Writing Helpers (Single Consolidated Card) */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-2xs space-y-1.5">
-                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500 block">
-                  Quick Inserts & AI Tools
-                </span>
-                <div className="grid grid-cols-2 gap-1 text-[9.5px] font-bold">
+              {/* Quick Inserts Footer */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-2xs">
+                <div className="relative" ref={quickInsertMenuRef}>
                   <button
                     type="button"
-                    onClick={insertSubjectLine}
-                    className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-left cursor-pointer truncate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowQuickInsertMenu(prev => !prev);
+                    }}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-bold text-[10.5px] flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
                   >
-                    + Subject Line
+                    <span className="flex items-center gap-1.5">
+                      <Plus size={12} className="text-rose-600 font-black" />
+                      <span>Quick Insert (Subject / Ref / Divider)</span>
+                    </span>
+                    <ChevronDown size={11} className="text-slate-400" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={insertReferenceLine}
-                    className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-left cursor-pointer truncate"
-                  >
-                    + Reference Line
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => executeFormat('insertHorizontalRule')}
-                    className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-left cursor-pointer truncate"
-                  >
-                    + Divider Line
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAiModal('humanize')}
-                    className="px-2 py-1 rounded-md bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 text-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800 text-left cursor-pointer truncate flex items-center gap-1"
-                    title="Humanize current text"
-                  >
-                    <Sparkles size={9} className="text-purple-600 shrink-0" />
-                    <span>🪄 Humanize</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAiModal('formalize')}
-                    className="px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 text-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 text-left cursor-pointer truncate flex items-center gap-1"
-                    title="Formal government tone"
-                  >
-                    <FileEdit size={9} className="text-indigo-600 shrink-0" />
-                    <span>📜 Formalize</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAiModal('shorten')}
-                    className="px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800 text-left cursor-pointer truncate"
-                    title="Make body concise"
-                  >
-                    <span>✂️ Shorten</span>
-                  </button>
+
+                  {showQuickInsertMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute left-0 bottom-full mb-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-1.5 space-y-1 text-xs font-bold animate-fadeIn"
+                    >
+                      <div className="px-2 py-0.5 text-[8.5px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                        Quick Document Inserts
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { insertSubjectLine(); setShowQuickInsertMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <span className="text-rose-600 font-black text-xs">+</span>
+                        <span>Subject Line</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { insertReferenceLine(); setShowQuickInsertMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <span className="text-rose-600 font-black text-xs">+</span>
+                        <span>Reference Line</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { executeFormat('insertHorizontalRule'); setShowQuickInsertMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      >
+                        <Minus size={11} className="text-slate-500" />
+                        <span>Divider Line</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -1376,7 +1956,7 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
           onMouseDown={handleSplitterMouseDown}
           title="Drag horizontally to adjust workspace split width (Double-click to reset)"
           onDoubleClick={() => {
-            setLeftSplitPct(28);
+          setLeftSplitPct(28);
             try { localStorage.setItem('hss_letter_split_pct', '28'); } catch {}
           }}
           className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-rose-400/20 active:bg-rose-600/30 group transition-colors z-20 shrink-0 mx-0.5"
@@ -1389,356 +1969,554 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 space-y-1.5 pl-0 lg:pl-1 min-w-0"
         >
-          
-          {/* ════════ COMBINED WORD PROCESSOR FORMATTING TOOLBAR & ACTIONS (ALL ON 1 ROW) ════════ */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2 py-1 shadow-2xs flex items-center justify-between gap-1 flex-wrap sticky top-2 z-30">
+
+          {/* ════════ WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER ════════ */}
+          <div className={`flex flex-col lg:flex-row items-start justify-center lg:justify-end gap-2.5 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
             
-            {/* Left Side: Rich Text Formatting Controls */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {/* History Undo / Redo */}
-              <button
-                type="button"
-                title="Undo (Ctrl+Z)"
-                disabled={!canUndo}
-                onClick={handleUndo}
-                className={`p-1 rounded cursor-pointer transition-opacity ${
-                  canUndo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'
-                }`}
-              >
-                <Undo size={13} />
-              </button>
-              <button
-                type="button"
-                title="Redo (Ctrl+Y)"
-                disabled={!canRedo}
-                onClick={handleRedo}
-                className={`p-1 rounded cursor-pointer transition-opacity ${
-                  canRedo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'
-                }`}
-              >
-                <Redo size={13} />
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5"></div>
-
-              {/* Headings */}
-              <button
-                type="button"
-                title="Heading 1"
-                onClick={() => executeFormat('formatBlock', '<h1>')}
-                className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[10.5px] cursor-pointer"
-              >
-                H1
-              </button>
-              <button
-                type="button"
-                title="Heading 2"
-                onClick={() => executeFormat('formatBlock', '<h2>')}
-                className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-[10.5px] cursor-pointer"
-              >
-                H2
-              </button>
-              <button
-                type="button"
-                title="Normal Paragraph"
-                onClick={() => executeFormat('formatBlock', '<p>')}
-                className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10.5px] cursor-pointer"
-              >
-                Body
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5"></div>
-
-              {/* Basic Formatting */}
-              <button
-                type="button"
-                title="Bold (Ctrl+B)"
-                onClick={() => executeFormat('bold')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer font-bold"
-              >
-                <Bold size={13} />
-              </button>
-              <button
-                type="button"
-                title="Italic (Ctrl+I)"
-                onClick={() => executeFormat('italic')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <Italic size={13} />
-              </button>
-              <button
-                type="button"
-                title="Underline (Ctrl+U)"
-                onClick={() => executeFormat('underline')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <Underline size={13} />
-              </button>
-              <button
-                type="button"
-                title="Strikethrough"
-                onClick={() => executeFormat('strikethrough')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <Strikethrough size={13} />
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5"></div>
-
-              {/* Alignments */}
-              <button
-                type="button"
-                title="Align Left"
-                onClick={() => executeFormat('justifyLeft')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <AlignLeft size={13} />
-              </button>
-              <button
-                type="button"
-                title="Align Center"
-                onClick={() => executeFormat('justifyCenter')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <AlignCenter size={13} />
-              </button>
-              <button
-                type="button"
-                title="Align Right"
-                onClick={() => executeFormat('justifyRight')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <AlignRight size={13} />
-              </button>
-              <button
-                type="button"
-                title="Justify"
-                onClick={() => executeFormat('justifyFull')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <AlignJustify size={13} />
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5"></div>
-
-              {/* Lists */}
-              <button
-                type="button"
-                title="Bulleted List"
-                onClick={() => executeFormat('insertUnorderedList')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <List size={13} />
-              </button>
-              <button
-                type="button"
-                title="Numbered List"
-                onClick={() => executeFormat('insertOrderedList')}
-                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <ListOrdered size={13} />
-              </button>
-
-              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-0.5"></div>
-
-              {/* Interactive Table Tools Dropdown */}
-              <div className="relative inline-block" ref={tableMenuRef}>
+            {/* ════════ VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side) ════════ */}
+            <div className="w-full lg:w-auto lg:sticky lg:top-2 z-30 shrink-0">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md flex flex-wrap lg:grid lg:grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
+                
+                {/* ── Row 1: Primary Actions (Print, Word, Save) ── */}
                 <button
                   type="button"
-                  title="Table Tools & Column / Row Controls"
-                  onClick={() => setShowTableMenu(!showTableMenu)}
-                  className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[10.5px] flex items-center gap-1 cursor-pointer bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700"
+                  onClick={handlePrint}
+                  className="w-7 h-7 rounded-xl bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 hover:to-amber-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                  title="Print or Save Official Letter as PDF"
                 >
-                  <TableIcon size={12} className="text-indigo-600 dark:text-indigo-400" />
-                  <span>Table</span>
-                  <ChevronDown size={11} className="text-slate-500" />
+                  <Printer size={13} />
                 </button>
 
-                {showTableMenu && (
-                  <div className="absolute left-0 top-full mt-1 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-1 space-y-0.5 text-xs font-bold animate-fadeIn">
-                    <div className="px-2 py-1 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                      Table Operations
+                <button
+                  type="button"
+                  disabled={isExportingDocx}
+                  onClick={handleExportDocx}
+                  className="w-7 h-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-xs cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
+                  title="Download editable Word Document (.docx)"
+                >
+                  {isExportingDocx ? <RefreshCw size={12} className="animate-spin" /> : <FileText size={13} />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleQuickUpdateTemplate}
+                  className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60 flex items-center justify-center shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0"
+                  title="Save & Overwrite active template in Cloud"
+                >
+                  <Save size={13} />
+                </button>
+
+                {/* ── Row 2: Template, Archive & Gemini AI ── */}
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplateModal(true)}
+                  className="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all shrink-0"
+                  title="Save or overwrite as template"
+                >
+                  <BookmarkPlus size={13} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(true)}
+                  className="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center cursor-pointer transition-all shrink-0"
+                  title="Browse history & archived documents"
+                >
+                  <History size={13} />
+                </button>
+
+                {/* Gemini AI Drafter Dropdown */}
+                <div className="relative" ref={askGeminiMenuRef}>
+                  <button
+                    type="button"
+                    title="Gemini AI Letter Drafting & Humanize Tools"
+                    onClick={() => setShowAskGeminiMenu(!showAskGeminiMenu)}
+                    className="w-7 h-7 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-95 shrink-0"
+                  >
+                    <Sparkles size={13} className="animate-pulse" />
+                  </button>
+
+                  {showAskGeminiMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute z-50 ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-2xl shadow-2xl p-1.5 w-60 space-y-1 animate-fadeIn`}
+                    >
+                      <div className="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span>Gemini AI Assistant</span>
+                        <span className="text-[8px] bg-purple-100 dark:bg-purple-950 text-purple-700 px-1 py-0.5 rounded font-mono">v2.5</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiStudio('humanize'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
+                      >
+                        <Sparkles size={12} className="text-purple-600" />
+                        <span>🪄 Humanize & Polish</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiStudio('formalize'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
+                      >
+                        <FileEdit size={12} className="text-indigo-600" />
+                        <span>📜 Formal Institutional</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiStudio('shorten'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
+                      >
+                        <span className="text-amber-600 text-xs">✂️</span>
+                        <span>✂️ Shorten & Summarize</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { handleOpenAiStudio('draft'); setShowAskGeminiMenu(false); }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold border-t border-slate-100 dark:border-slate-800"
+                      >
+                        <Bot size={12} className="text-purple-600" />
+                        <span>✍️ Draft New from Prompt</span>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => insertTable(2, 4)}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                  )}
+                </div>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 3: History & Block Formats (Undo, Redo, Paragraph) ── */}
+                <button
+                  type="button"
+                  title="Undo (Ctrl+Z)"
+                  disabled={!canUndo}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+                    canUndo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'
+                  }`}
+                >
+                  <Undo size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Redo (Ctrl+Y)"
+                  disabled={!canRedo}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+                    canRedo ? 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 opacity-40 cursor-not-allowed'
+                  }`}
+                >
+                  <Redo size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Normal Body Paragraph (¶)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('formatBlock', '<p>')}
+                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.p
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  ¶
+                </button>
+
+                {/* ── Row 4: Headings & Color (H1, H2, Color) ── */}
+                <button
+                  type="button"
+                  title="Heading 1 (Click to apply, click again to revert to body text)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('formatBlock', '<h1>')}
+                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.h1
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs font-black'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
+                  }`}
+                >
+                  H1
+                </button>
+
+                <button
+                  type="button"
+                  title="Heading 2 (Click to apply, click again to revert to body text)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('formatBlock', '<h2>')}
+                  className={`w-7 h-7 rounded-lg font-black text-[10px] flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.h2
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs font-black'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
+                  }`}
+                >
+                  H2
+                </button>
+
+                {/* Color Palette Popout */}
+                <div className="relative" ref={colorMenuRef}>
+                  <button
+                    type="button"
+                    title="Text Color Palette"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      saveCurrentSelection();
+                    }}
+                    onClick={() => {
+                      saveCurrentSelection();
+                      setShowColorMenu(!showColorMenu);
+                    }}
+                    className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                  >
+                    <Palette size={12} className="text-amber-600" />
+                  </button>
+
+                  {showColorMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute z-50 ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-2 flex items-center gap-1.5 animate-fadeIn`}
                     >
-                      <PlusCircle size={12} className="text-indigo-600" />
-                      <span>Insert 4×2 Table</span>
-                    </button>
-                    <div className="w-full border-t border-slate-100 dark:border-slate-800 my-0.5"></div>
-                    <button
-                      type="button"
-                      onClick={() => insertTableRow(false)}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                      {[
+                        { label: 'Black', color: '#0f172a' },
+                        { label: 'Maroon', color: '#800000' },
+                        { label: 'Navy Blue', color: '#0a192f' },
+                        { label: 'Forest Green', color: '#065f46' },
+                        { label: 'Slate Gray', color: '#475569' },
+                        { label: 'Crimson', color: '#dc2626' }
+                      ].map(c => (
+                        <button
+                          key={c.color}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            applyTextColor(c.color);
+                            setShowColorMenu(false);
+                          }}
+                          className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 5: Character Styles (Bold, Italic, Underline) ── */}
+                <button
+                  type="button"
+                  title="Bold (Ctrl+B)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('bold')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.bold
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                  }`}
+                >
+                  <Bold size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Italic (Ctrl+I)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('italic')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.italic
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                  }`}
+                >
+                  <Italic size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Underline (Ctrl+U)"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('underline')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.underline
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100'
+                  }`}
+                >
+                  <Underline size={12} />
+                </button>
+
+                {/* ── Row 6: Strike, Divider & Clear Format ── */}
+                <button
+                  type="button"
+                  title="Strikethrough"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('strikethrough')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.strikeThrough
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <Strikethrough size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Insert Horizontal Divider Line"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('insertHorizontalRule')}
+                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer"
+                >
+                  <Minus size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Clear Text Formatting"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('removeFormat')}
+                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+                >
+                  <RemoveFormatting size={12} />
+                </button>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 7: Alignments (Left, Center, Right) ── */}
+                <button
+                  type="button"
+                  title="Align Left"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyLeft')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyLeft
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <AlignLeft size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Align Center"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyCenter')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyCenter
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <AlignCenter size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Align Right"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyRight')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyRight
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <AlignRight size={12} />
+                </button>
+
+                {/* ── Row 8: Justify, Bullet List, Numbered List ── */}
+                <button
+                  type="button"
+                  title="Justify"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('justifyFull')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.justifyFull
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <AlignJustify size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Bulleted List"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('insertUnorderedList')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.insertUnorderedList
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <List size={12} />
+                </button>
+
+                <button
+                  type="button"
+                  title="Numbered List"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => executeFormat('insertOrderedList')}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                    activeFormats.insertOrderedList
+                      ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <ListOrdered size={12} />
+                </button>
+
+                <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
+
+                {/* ── Row 9: Table & Switcher ── */}
+                <div className="relative" ref={tableMenuRef}>
+                  <button
+                    type="button"
+                    title="Insert or Edit Table"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { checkTableContext(); setShowTableMenu(!showTableMenu); }}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+                      activeTableContext ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <TableIcon size={12} />
+                  </button>
+
+                  {showTableMenu && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute z-50 ${dockSide === 'right' ? 'right-full mr-2 top-0' : 'left-full ml-2 top-0'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 w-52 space-y-1.5 animate-fadeIn`}
                     >
-                      <CornerDownLeft size={12} className="text-emerald-600" />
-                      <span>Add Row Below</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertTableRow(true)}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                    >
-                      <CornerDownLeft size={12} className="text-emerald-600 rotate-180" />
-                      <span>Add Row Above</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={deleteTableRow}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                    >
-                      <Trash2 size={12} />
-                      <span>Delete Current Row</span>
-                    </button>
-                    <div className="w-full border-t border-slate-100 dark:border-slate-800 my-0.5"></div>
-                    <button
-                      type="button"
-                      onClick={() => insertTableColumn(false)}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                    >
-                      <Plus size={12} className="text-blue-600" />
-                      <span>Add Column Right</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertTableColumn(true)}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                    >
-                      <Plus size={12} className="text-blue-600" />
-                      <span>Add Column Left</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={deleteTableColumn}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
-                    >
-                      <Trash2 size={12} />
-                      <span>Delete Current Column</span>
-                    </button>
-                    <div className="w-full border-t border-slate-100 dark:border-slate-800 my-0.5"></div>
-                    <button
-                      type="button"
-                      onClick={deleteEntireTable}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-black"
-                    >
-                      <Trash2 size={12} />
-                      <span>Delete Entire Table</span>
-                    </button>
-                  </div>
-                )}
+                      {activeTableContext ? (
+                        <>
+                          <div className="px-2 py-1 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <span>Table Context</span>
+                            <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded font-mono">EDIT</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1">
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableColumn(false); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                            >
+                              + Col Right
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableColumn(true); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                            >
+                              + Col Left
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { deleteTableColumn(); setShowTableMenu(false); }}
+                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                          >
+                            - Delete Col
+                          </button>
+                          <div className="grid grid-cols-2 gap-1">
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableRow(false); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                            >
+                              + Row Below
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { insertTableRow(true); setShowTableMenu(false); }}
+                              className="text-left px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200"
+                            >
+                              + Row Above
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { deleteTableRow(); setShowTableMenu(false); }}
+                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 text-[10px] border border-rose-100"
+                          >
+                            - Delete Row
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
+                            className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
+                          >
+                            🗑 Remove Table
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="px-2 py-1 text-[9px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                            Insert Table Preset
+                          </div>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { insertTable(2, 4); setShowTableMenu(false); }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] font-bold flex items-center justify-between"
+                          >
+                            <span>4 × 2 Fee Table</span>
+                            <span className="text-[9px] text-slate-400 font-mono">Standard</span>
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
+                            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] font-bold flex items-center justify-between"
+                          >
+                            <span>3 × 3 Grid Table</span>
+                            <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dock Side Switcher (Spanning 2 columns) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextSide = dockSide === 'left' ? 'right' : 'left';
+                    setDockSide(nextSide);
+                    try { localStorage.setItem('hss_letter_dock_side', nextSide); } catch {}
+                  }}
+                  className="col-span-2 w-full h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors text-[9px] font-bold font-mono hidden lg:flex"
+                  title={dockSide === 'left' ? 'Move Dock to Right side of Canvas' : 'Move Dock to Left side of Canvas'}
+                >
+                  {dockSide === 'left' ? '👉 Right' : '👈 Left'}
+                </button>
+
               </div>
-
-              {/* Quick AI Action in Toolbar */}
-              <button
-                type="button"
-                onClick={() => handleOpenAiModal('humanize')}
-                className="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 font-black text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs"
-                title="Enhance & humanize current letter text with Gemini"
-              >
-                <Wand2 size={11} className="text-purple-600" />
-                <span>AI Polish</span>
-              </button>
-
-              {/* Clear Formatting */}
-              <button
-                type="button"
-                title="Remove Formatting"
-                onClick={() => executeFormat('removeFormat')}
-                className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 font-bold text-[10px] cursor-pointer"
-              >
-                Clear
-              </button>
             </div>
 
-            {/* Right Side: Primary Actions & AI (Same Row) */}
-            <div className="flex items-center gap-1.5 flex-wrap ml-auto">
-              
-              {/* Gemini AI Assistant Button */}
-              <button
-                type="button"
-                onClick={() => handleOpenAiModal('draft')}
-                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-[10.5px] flex items-center gap-1 cursor-pointer shadow-xs transition-all active:scale-95 border border-purple-400/40"
-                title="Draft or humanize letter with latest Gemini models"
-              >
-                <Sparkles size={11} className="text-amber-200 animate-pulse" />
-                <span>✨ Gemini AI</span>
-              </button>
-
-              {/* Toggle Header & Reference Config Drawer */}
-              <button
-                type="button"
-                onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-                className={`px-2.5 py-1 rounded-lg border font-extrabold text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all ${
-                  showSettingsDrawer
-                    ? 'bg-amber-600 text-white border-amber-700'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-amber-50'
-                }`}
-              >
-                <Sliders size={11} />
-                <span>Letterhead Details</span>
-              </button>
-
-              {/* Save Template */}
-              <button
-                type="button"
-                onClick={() => setShowSaveTemplateModal(true)}
-                className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-extrabold text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
-                title="Save current letter as a reusable template"
-              >
-                <BookmarkPlus size={11} className="text-emerald-600 dark:text-emerald-400" />
-                <span>Save Template</span>
-              </button>
-
-              {/* Export to Word (.docx) */}
-              <button
-                type="button"
-                disabled={isExportingDocx}
-                onClick={handleExportDocx}
-                className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-[10.5px] flex items-center gap-1 cursor-pointer shadow-xs disabled:opacity-50 transition-all"
-                title="Download Word Document (.docx)"
-              >
-                <Download size={11} />
-                <span>{isExportingDocx ? 'Generating...' : 'Word (.docx)'}</span>
-              </button>
-
-              {/* Print / Save PDF */}
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="px-3 py-1 rounded-lg bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 hover:to-amber-600 text-white font-black text-[10.5px] flex items-center gap-1 cursor-pointer shadow-xs transition-all active:scale-95"
-                title="Print or Save as PDF"
-              >
-                <Printer size={11} />
-                <span>Print / Save PDF</span>
-              </button>
-            </div>
-
-          </div>
-
-          {/* Real-time Draft Insertion Notification Alert */}
-          {aiInsertedToast && (
-            <div className="p-2 rounded-xl bg-emerald-600 text-white font-black text-xs text-center shadow-md animate-fadeIn flex items-center justify-center gap-1.5">
-              <Check size={14} className="text-emerald-200" />
-              <span>✓ Draft successfully inserted into letter canvas in real-time!</span>
-            </div>
-          )}
-
-          {/* ════════ A4 PAPER LIVE VIEWPORT & EDITOR ════════ */}
-          {/* Note: Compact min-height and natural document flow so Principal sits close to letter body */}
-          <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm max-w-[780px] mx-auto min-h-[420px] flex flex-col justify-start">
-            
-            {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) */}
-            <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
-              <img
-                src="/logo192.png"
-                alt="School Seal"
-                style={{ width: '48px', height: '48px', maxWidth: '48px', maxHeight: '48px', objectFit: 'contain' }}
-                className="w-12 h-12 object-contain mx-auto mb-1.5 drop-shadow-xs"
-                onError={(e) => { e.target.src = '/logo.png'; e.target.onerror = null; }}
-              />
-              <h3 className="text-[11px] sm:text-xs font-black text-[#800000] uppercase tracking-[1.5px] m-0">
+            {/* ════════ A4 PAPER LIVE VIEWPORT & EDITOR ════════ */}
+            <div className="flex-1 w-full max-w-[840px] min-w-0">
+              <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start">
+                
+                {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) */}
+                <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
+                  <img
+                    src="/logo192.png"
+                    alt="School Seal"
+                    style={{ width: '48px', height: '48px', maxWidth: '48px', maxHeight: '48px', objectFit: 'contain' }}
+                    className="w-12 h-12 object-contain mx-auto mb-1.5 drop-shadow-xs"
+                    onError={(e) => { e.target.src = '/logo.png'; e.target.onerror = null; }}
+                  />
+                  <h3 className="text-[11px] sm:text-xs font-black text-[#800000] uppercase tracking-[1.5px] m-0">
                 {officeTitle || 'OFFICE OF THE PRINCIPAL'}
               </h3>
               <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
@@ -1767,9 +2545,38 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
                 ref={editorRef}
                 contentEditable={true}
                 suppressContentEditableWarning={true}
-                onInput={handleEditorInput}
+                onInput={(e) => {
+                  handleEditorInput(e);
+                  saveCurrentSelection();
+                  checkTableContext();
+                  checkActiveFormats();
+                }}
                 onKeyDown={handleEditorKeyDown}
-                className="outline-none focus:ring-1 focus:ring-amber-400 rounded-lg p-2 min-h-[160px] text-[13px] leading-relaxed text-slate-900"
+                onKeyUp={() => {
+                  saveCurrentSelection();
+                  checkTableContext();
+                  checkActiveFormats();
+                }}
+                onClick={() => {
+                  saveCurrentSelection();
+                  checkTableContext();
+                  checkActiveFormats();
+                }}
+                onMouseUp={() => {
+                  saveCurrentSelection();
+                  checkTableContext();
+                  checkActiveFormats();
+                }}
+                onFocus={() => {
+                  saveCurrentSelection();
+                  checkTableContext();
+                  checkActiveFormats();
+                }}
+                onSelect={() => {
+                  saveCurrentSelection();
+                  checkActiveFormats();
+                }}
+                className="official-letter-wysiwyg-content outline-none focus:ring-1 focus:ring-amber-400 rounded-lg p-2 min-h-[160px] text-[13px] leading-relaxed text-slate-900"
                 style={{ textAlign: 'justify' }}
               />
             </div>
@@ -1806,108 +2613,217 @@ export default function OfficialLetterWriterView({ onClose, onSwitchSubTab, onSw
 
       </div>
 
-      {/* ════════ SAVE AS REUSABLE TEMPLATE MODAL ════════ */}
-      {showSaveTemplateModal && (
-        <div className="fixed inset-0 z-[999999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-emerald-300 dark:border-emerald-900/80 p-5 space-y-4 animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-md">
-                  <BookmarkPlus size={18} />
+      </div>
+
+      </div>
+
+      {/* ════════ SAVE / UPDATE REUSABLE TEMPLATE MODAL ════════ */}
+      {showSaveTemplateModal && (() => {
+        const activeTpl = allTemplates.find(t => t.id === selectedTemplateId) || BUILTIN_LETTER_TEMPLATES[0];
+        return (
+          <div className="fixed inset-0 z-[999999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-emerald-300 dark:border-emerald-900/80 p-5 space-y-3.5 animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-md">
+                    <BookmarkPlus size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white m-0">
+                      Save / Update Letter Template
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-medium m-0">
+                      Overwrite current template or create a new reusable document preset.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white m-0">
-                    Save as Reusable Template
-                  </h3>
-                  <p className="text-[10px] text-slate-500 font-medium m-0">
-                    Give this letter a title & category to recognize and reuse it anytime.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSaveTemplateModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveCustomTemplate} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
-                  Template Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTplName}
-                  onChange={(e) => setNewTplName(e.target.value)}
-                  placeholder="e.g. JKBOSE Registration Return Covering Letter"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
-                  Category / Group
-                </label>
-                <input
-                  type="text"
-                  value={newTplCategory}
-                  onChange={(e) => setNewTplCategory(e.target.value)}
-                  placeholder="e.g. Admissions & Exams / General Circulars"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
-                  Short Description (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={newTplDesc}
-                  onChange={(e) => setNewTplDesc(e.target.value)}
-                  placeholder="Brief note to help recognize this template in the future..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
-                />
-              </div>
-
-              {/* Set as Default Checkbox */}
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={makeTemplateDefault}
-                  onChange={(e) => setMakeTemplateDefault(e.target.checked)}
-                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer shrink-0"
-                />
-                <div className="text-xs">
-                  <span className="font-black text-amber-950 dark:text-amber-200 block">⭐ Make Default Active Template</span>
-                  <span className="text-[10px] text-amber-800 dark:text-amber-400 block">Auto-loads on studio launch and saves directly to Firebase Cloud.</span>
-                </div>
-              </label>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowSaveTemplateModal(false)}
-                  className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs cursor-pointer hover:bg-slate-100"
+                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center gap-1"
-                >
-                  <Save size={13} />
-                  <span>Save Template</span>
+                  <X size={18} />
                 </button>
               </div>
-            </form>
+
+              {/* Segmented Mode Selector: Update Current vs Save New */}
+              <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setTemplateSaveMode('update')}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    templateSaveMode === 'update'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <RefreshCw size={11} className={templateSaveMode === 'update' ? 'animate-spin-slow' : ''} />
+                  <span>Update Current ({activeTpl.name.split(' ')[0]}...)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTemplateSaveMode('new')}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    templateSaveMode === 'new'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <PlusCircle size={11} />
+                  <span>Save as New</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCustomTemplate} className="space-y-3 text-xs">
+                {templateSaveMode === 'update' ? (
+                  <div className="p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-emerald-900 dark:text-emerald-200 text-xs">
+                        Target: {activeTpl.name}
+                      </span>
+                      <span className="text-[9.5px] font-bold text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60">
+                        {activeTpl.category || 'Official Orders'}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-emerald-800 dark:text-emerald-300 leading-relaxed m-0">
+                      This will overwrite this template in the cloud database with your current text, formatting, and layout. All future letters generated with this template will immediately load your changes.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
+                        Template Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newTplName}
+                        onChange={(e) => setNewTplName(e.target.value)}
+                        placeholder="e.g. JKBOSE Registration Return Covering Letter"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
+                        Category / Group
+                      </label>
+                      <input
+                        type="text"
+                        value={newTplCategory}
+                        onChange={(e) => setNewTplCategory(e.target.value)}
+                        placeholder="e.g. Admissions & Exams / General Circulars"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
+                        Short Description (Optional)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={newTplDesc}
+                        onChange={(e) => setNewTplDesc(e.target.value)}
+                        placeholder="Brief note to help recognize this template in the future..."
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Set as Default Checkbox */}
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={makeTemplateDefault}
+                    onChange={(e) => setMakeTemplateDefault(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer shrink-0"
+                  />
+                  <div className="text-xs">
+                    <span className="font-black text-amber-950 dark:text-amber-200 block">⭐ Make Default Active Template</span>
+                    <span className="text-[10px] text-amber-800 dark:text-amber-400 block">Auto-loads on studio launch and saves directly to Cloud Database.</span>
+                  </div>
+                </label>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveTemplateModal(false)}
+                    className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs cursor-pointer hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Save size={13} />
+                    <span>{templateSaveMode === 'update' ? 'Overwrite & Update Template' : 'Save New Template'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
+        );
+      })()}
+
+      {/* Unified Global Floating Toast Notification */}
+      {toast && (
+        <div
+          style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999999 }}
+          className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-2.5 font-sans font-bold text-xs animate-in fade-in slide-in-from-bottom-4 duration-200 backdrop-blur-md ${
+            toast.type === 'error'
+              ? 'bg-rose-950/95 text-rose-100 border-rose-700/80 shadow-rose-950/60'
+              : toast.type === 'info'
+              ? 'bg-sky-950/95 text-sky-100 border-sky-700/80 shadow-sky-950/60'
+              : toast.type === 'warning'
+              ? 'bg-amber-950/95 text-amber-100 border-amber-700/80 shadow-amber-950/60'
+              : 'bg-emerald-950/95 text-emerald-100 border-emerald-700/80 shadow-emerald-950/60'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={16} className="text-rose-400 shrink-0" />
+          ) : toast.type === 'info' ? (
+            <Info size={16} className="text-sky-400 shrink-0" />
+          ) : toast.type === 'warning' ? (
+            <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          )}
+          <span className="leading-snug">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <X size={13} />
+          </button>
         </div>
       )}
+
+      {/* ════════ CLOUD DOCUMENT HISTORY & ARCHIVE MODAL ════════ */}
+      <DocumentHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        defaultFilter="letter"
+        onLoadAsDraft={handleLoadDraftFromHistory}
+      />
+
+      {/* ════════ CUSTOM LETTER TEMPLATE DELETE CONFIRMATION & WARNING MODAL ════════ */}
+      <ConfirmModal
+        isOpen={Boolean(templateToDelete)}
+        onClose={() => { if (!isDeletingTemplate) setTemplateToDelete(null); }}
+        onConfirm={handleConfirmDeleteTemplate}
+        title="Delete Custom Template?"
+        message={`⚠️ WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
+        confirmText="Yes, Delete Permanently"
+        cancelText="Cancel / Keep Template"
+        type="danger"
+        loading={isDeletingTemplate}
+      />
 
     </div>
   );

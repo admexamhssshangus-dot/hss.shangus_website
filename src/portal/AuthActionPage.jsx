@@ -116,7 +116,7 @@ export default function AuthActionPage() {
 
   return (
     <div className="portal-auth-page w-full flex-1 flex items-center justify-center px-4 py-6 sm:px-6 sm:py-10" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
-      <SEO title={`${title} | HSS Shangus Portal`} description="Secure Firebase account action for the HSS Shangus portal." path="/portal/auth/action" />
+      <SEO title={`${title} | HSS Shangus Portal`} description="Secure account action for the HSS Shangus portal." path="/portal/auth/action" />
       <main className="w-full max-w-md overflow-hidden rounded-3xl border bg-white shadow-xl" style={{ borderColor: 'var(--border-ui, #e2e8f0)', backgroundColor: 'var(--bg-card, #fff)' }}>
         <div className="h-1.5 bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
         <div className="p-5 sm:p-8">
@@ -132,28 +132,34 @@ export default function AuthActionPage() {
             {accountEmail && <p className="mt-2 text-xs text-slate-400">Account: <strong className="text-slate-600">{maskEmail(accountEmail)}</strong></p>}
           </div>
 
-          {isChecking && <p role="status" className="text-center text-sm text-slate-500">Validating this one-time Firebase link…</p>}
+          {isChecking && <p role="status" className="text-center text-sm text-slate-500">Validating this one-time secure link…</p>}
 
           {(status === 'reset-ready' || status === 'submitting') && (
             <form onSubmit={handlePasswordReset} className="space-y-4">
               {message && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{message}</div>}
               <div>
-                <label htmlFor="new-password" className="mb-1.5 block text-xs font-bold text-slate-700">New password</label>
-                <div className="relative">
-                  <KeyRound size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
-                  <input id="new-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)} disabled={status === 'submitting'} required
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-11 text-sm font-semibold outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20" />
-                  <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-3 rounded-lg p-1 text-slate-400 hover:text-teal-600">
-                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
+                <label htmlFor="auth-action-password" className="mb-1 block text-xs font-bold text-slate-600">New Password</label>
+                <input
+                  id="auth-action-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 12 characters"
+                  className="w-full rounded-2xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                  required
+                />
               </div>
               <div>
-                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-bold text-slate-700">Confirm new password</label>
-                <input id="confirm-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)} disabled={status === 'submitting'} required
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20" />
+                <label htmlFor="auth-action-confirm-password" className="mb-1 block text-xs font-bold text-slate-600">Confirm Password</label>
+                <input
+                  id="auth-action-confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter password"
+                  className="w-full rounded-2xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                  required
+                />
               </div>
               <ul className="grid grid-cols-2 gap-2 text-[11px] font-semibold">
                 <PasswordRequirement met={passwordChecks.length}>12+ characters</PasswordRequirement>
@@ -161,27 +167,30 @@ export default function AuthActionPage() {
                 <PasswordRequirement met={passwordChecks.lower}>Lowercase letter</PasswordRequirement>
                 <PasswordRequirement met={passwordChecks.number}>Number</PasswordRequirement>
               </ul>
-              <button type="submit" disabled={status === 'submitting'} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 py-3.5 text-xs font-black text-white shadow-lg transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-60">
-                {status === 'submitting' ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-                {status === 'submitting' ? 'Updating securely…' : 'Update Password'}
+              <button
+                type="submit"
+                disabled={status === 'submitting'}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 py-3 text-xs font-black text-white shadow-lg shadow-teal-500/25 hover:bg-teal-500 disabled:opacity-50"
+              >
+                {status === 'submitting' ? <Loader2 size={15} className="animate-spin" /> : <LockKeyhole size={15} />}
+                <span>{status === 'submitting' ? 'Updating Password…' : 'Save New Password'}</span>
               </button>
             </form>
           )}
 
           {status === 'invalid' && (
             <div className="space-y-4 text-center">
-              <p className="text-sm leading-relaxed text-slate-500">For security, reset links are one-time use and expire. Request a fresh link, then open only the newest email.</p>
-              <Link to="/portal/forgot-password" className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 py-3.5 text-xs font-black text-white shadow-lg hover:bg-teal-500">
-                <RefreshCw size={15} /> Request a New Link
+              <p className="text-xs text-slate-500">{message || 'This secure link is invalid or has expired.'}</p>
+              <Link to="/portal/forgot-password" className="inline-flex items-center gap-1.5 rounded-2xl bg-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow hover:bg-teal-500">
+                Request New Link
               </Link>
-              <Link to="/portal/login" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-teal-600"><ArrowLeft size={14} /> Back to Login</Link>
             </div>
           )}
 
           {isSuccess && (
-            <div className="space-y-4 text-center" role="status">
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-800">
-                {status === 'reset-complete' && 'Your new password is active. All older reset links are now invalid.'}
+            <div className="space-y-4 text-center">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs font-medium text-emerald-800">
+                {status === 'reset-complete' && 'Your password has been updated successfully. Sign in with your new password.'}
                 {status === 'verified' && 'Your email is verified. Staff and administrator permissions can now be used securely.'}
                 {status === 'recovered' && 'Your account email has been restored. Reset your password if you did not request the earlier change.'}
               </div>
@@ -192,7 +201,7 @@ export default function AuthActionPage() {
           )}
 
           <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-4 text-[10px] font-semibold text-slate-400">
-            <ShieldCheck size={13} className="text-teal-500" /> Protected by Firebase Authentication
+            <ShieldCheck size={13} className="text-teal-500" /> Protected by Encrypted Cloud Authentication
           </div>
         </div>
       </main>

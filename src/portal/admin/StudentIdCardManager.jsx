@@ -2659,7 +2659,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                 {isSavingSealConfig ? (
                   <>
                     <RefreshCw size={14} className="animate-spin" />
-                    <span>Saving to Firestore...</span>
+                    <span>Saving to Cloud Database...</span>
                   </>
                 ) : sealSavedSuccess ? (
                   <>

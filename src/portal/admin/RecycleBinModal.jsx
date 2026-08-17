@@ -128,12 +128,12 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
         setConfirmModalConfig(null);
         setActionProgress({
           title: `Permanently Purging "${sName}"`,
-          subtitle: `Form #${fNo} • Wiping all cloud records from Firebase`,
+          subtitle: `Form #${fNo} • Wiping all cloud records from database`,
           percent: 25,
           step: 1,
           steps: [
             'Verifying administrator audit authorization',
-            'Deleting Firestore document and stored references',
+            'Deleting database record and stored references',
             'Updating audit logs & refreshing workspace'
           ]
         });
@@ -177,7 +177,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
         setConfirmModalConfig(null);
         setActionProgress({
           title: `Bulk Purging ${count} Records`,
-          subtitle: 'Permanently wiping selected student documents from Firebase',
+          subtitle: 'Permanently wiping selected student records from database',
           percent: 10,
           step: 1,
           steps: [
@@ -477,7 +477,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                               disabled={purgingId === item.trashId}
                               onClick={() => handlePurge(item)}
                               className="p-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer"
-                              title="Permanently Purge Record (Nothing Left in Firebase)"
+                              title="Permanently Purge Record (Completely Removed)"
                             >
                               <Trash2 size={13} />
                             </button>
