@@ -446,7 +446,7 @@ export default function AdminMessages() {
     // 1. Delete from Firestore if db is active and msg has a Firestore id
     if (db && msg.id) {
       if (!firebaseUser) {
-        alert("You must sign in with Google (Firebase) to delete messages from the live database.");
+        alert("You must be authenticated as an administrator to delete messages from the live database.");
         return;
       }
       try {

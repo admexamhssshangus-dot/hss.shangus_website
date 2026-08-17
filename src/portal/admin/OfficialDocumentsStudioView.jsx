@@ -13,6 +13,8 @@ export default function OfficialDocumentsStudioView({
   initialSubTab = 'roster',
   activeSubTab: controlledActiveSubTab,
   onSwitchSubTab: controlledOnSwitchSubTab,
+  showSettingsDrawer,
+  onToggleSettingsDrawer,
   onClose
 }) {
   const [internalActiveSubTab, setInternalActiveSubTab] = useState(initialSubTab);
@@ -43,6 +45,8 @@ export default function OfficialDocumentsStudioView({
           onClose={onClose}
           activeSubTab={activeSubTab}
           onSwitchSubTab={setActiveSubTab}
+          showSettingsDrawerProp={showSettingsDrawer}
+          onToggleSettingsDrawer={onToggleSettingsDrawer}
         />
       )}
 
@@ -52,6 +56,8 @@ export default function OfficialDocumentsStudioView({
           onClose={onClose}
           activeSubTab={activeSubTab}
           onSwitchSubTab={setActiveSubTab}
+          showSettingsDrawerProp={showSettingsDrawer}
+          onToggleSettingsDrawer={onToggleSettingsDrawer}
         />
       )}
     </div>

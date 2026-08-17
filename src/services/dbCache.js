@@ -287,7 +287,7 @@ export function subscribeToCollection(collectionName, onUpdate, onError) {
         onError(err);
       }
     });
-    return unsubscribe;
+    return typeof unsubscribe === 'function' ? unsubscribe : () => {};
   } catch (err) {
     console.warn(`[dbCache] Failed to attach realtime listener for ${collectionName}:`, err);
     if (onError && typeof onError === 'function') {
@@ -512,6 +512,96 @@ export async function preloadStudentPhotosCache() {
     console.warn('Could not preload student photos cache:', e);
     return window._hss_central_photo_map || {};
   }
+}
+
+export { preloadStudentPhotosCache as preloadCentralStudentPhotos };
+
+/**
+ * Robust synchronous photo resolver cross-referencing all fields, in-memory central photo map, and localStorage.
+ */
+export function resolveStudentPhoto(student, fallback = null) {
+  if (!student) return fallback;
+
+  // 1. Direct photo on student object
+  const directPhoto =
+    student.photo_id ||
+    student.photoId ||
+    student.photoUrl ||
+    student.photo ||
+    student['passport_photo'] ||
+    student['Student Photo'] ||
+    student['Student Photograph'] ||
+    student['Photo'] ||
+    student['Student Photo URL'] ||
+    '';
+  if (directPhoto && typeof directPhoto === 'string' && directPhoto.trim().length > 15 && directPhoto !== '/logo.png') {
+    return directPhoto.trim();
+  }
+
+  // 2. Cross-reference window._hss_central_photo_map (loaded from Firestore 'studentPhotos')
+  const photoMap = typeof window !== 'undefined' ? (window._hss_central_photo_map || {}) : {};
+
+  const cleanVal = (val) => {
+    if (!val) return '';
+    let s = String(val).trim();
+    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+      try {
+        if (typeof window !== 'undefined' && window.BigInt) {
+          s = window.BigInt(Math.floor(Number(val))).toString();
+        }
+      } catch (_) {}
+    }
+    return s.replace(/\.0+$/, '').trim();
+  };
+
+  const reg = cleanVal(
+    student.boardRegNo ||
+    student.regNo ||
+    student['Board Registration Number'] ||
+    student['Board Registration No.'] ||
+    student['Board Reg. No.'] ||
+    student['Board Reg No'] ||
+    student['REG. NO.'] ||
+    ''
+  );
+
+  const formNo = cleanVal(student.formNo || student['Form Number'] || student['Form No.'] || student.id || '');
+  const docId = cleanVal(student.docId || student.id || '');
+  const sName = cleanVal(student.name || student.studentName || student["Student's Name"] || '').toLowerCase();
+  const fName = cleanVal(student.father || student.fatherName || student["Father's Name"] || '').toLowerCase();
+
+  const candidates = [
+    reg,
+    reg.toLowerCase(),
+    reg.replace(/[^0-9]/g, ''),
+    `reg_${reg}`,
+    `photo_${reg}`,
+    formNo,
+    formNo.toLowerCase(),
+    `photo_${formNo}`,
+    docId,
+    `photo_${docId}`,
+    docId.replace(/^photo_/, ''),
+    sName,
+    sName.replace(/[^a-z0-9]/g, ''),
+    `${sName}_${fName}`.replace(/[^a-z0-9]/g, '')
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (photoMap[c] && typeof photoMap[c] === 'string' && photoMap[c].length > 15) {
+      return photoMap[c];
+    }
+  }
+
+  // 3. Check localStorage photo cache
+  try {
+    const localCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    for (const c of candidates) {
+      if (localCache[c]) return localCache[c];
+    }
+  } catch (_) {}
+
+  return fallback;
 }
 
 const _activePhotoPromises = new Map();
@@ -856,8 +946,9 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
     const sName = student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || student?.name || '';
     const sClass = student?.class || student?.['Class'] || '';
     const sSession = student?.session || student?.['Session'] || '';
+    const sFormNo = String(student?.formNo || student?.['Form Number'] || student?.['Form No.'] || '').replace(/^'/, '').trim();
 
-    // 1. Write or update new studentPhotos document with the new Board Registration No and preserve history
+    // 1. Write or update new studentPhotos document with the Board Registration No or Form No and preserve history
     if (targetNewReg) {
       let existingHistory = [];
       try {
@@ -882,6 +973,7 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
         photo_id: photoUrl,
         regNo: targetNewReg,
         boardRegNo: targetNewReg,
+        formNo: sFormNo,
         studentName: sName,
         selectedClass: sClass,
         selectedSession: sSession,
@@ -896,6 +988,33 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
         window._hss_central_photo_map = window._hss_central_photo_map || {};
         window._hss_central_photo_map[targetNewReg] = photoUrl;
         window._hss_central_photo_map[`photo_${targetNewReg}`] = photoUrl;
+        if (sFormNo) {
+          window._hss_central_photo_map[sFormNo] = photoUrl;
+          window._hss_central_photo_map[`form_${sFormNo}`] = photoUrl;
+          window._hss_central_photo_map[`photo_form_${sFormNo}`] = photoUrl;
+        }
+        if (sName) {
+          window._hss_central_photo_map[String(sName).trim().toLowerCase()] = photoUrl;
+        }
+      }
+    } else if (sFormNo) {
+      // For students without a Board Registration number yet (e.g. 9th class or Drafts)
+      const docPayload = {
+        photo_id: photoUrl,
+        formNo: sFormNo,
+        studentName: sName,
+        selectedClass: sClass,
+        selectedSession: sSession,
+        updatedAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'studentPhotos', `photo_form_${sFormNo}`), docPayload, { merge: true });
+
+      if (typeof window !== 'undefined') {
+        window._hss_central_photo_map = window._hss_central_photo_map || {};
+        window._hss_central_photo_map[sFormNo] = photoUrl;
+        window._hss_central_photo_map[`form_${sFormNo}`] = photoUrl;
+        window._hss_central_photo_map[`photo_form_${sFormNo}`] = photoUrl;
         if (sName) {
           window._hss_central_photo_map[String(sName).trim().toLowerCase()] = photoUrl;
         }
@@ -915,7 +1034,7 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
 
     // Dispatch global event so all components reactively refresh photos
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { updatedReg: targetNewReg } }));
+      window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { updatedReg: targetNewReg || sFormNo } }));
     }
 
     return true;

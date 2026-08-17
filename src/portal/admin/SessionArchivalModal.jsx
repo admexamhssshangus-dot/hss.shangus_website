@@ -241,7 +241,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                 Annual Session Lifecycle & Rollover Manager
               </h2>
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                100% Native Firestore Pipeline • Preview & Safety Analysis before Archiving
+                Cloud Database Pipeline • Preview & Safety Analysis before Archiving
               </p>
             </div>
           </div>

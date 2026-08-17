@@ -212,7 +212,7 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
 
       setAlert({ 
         type: 'success', 
-        text: `Saved Class Roll Numbers for ${modifiedStudents.length} students in Firestore!` 
+        text: `Saved Class Roll Numbers for ${modifiedStudents.length} students in Cloud Database!` 
       });
 
       if (onRefresh) onRefresh(true);
@@ -544,10 +544,10 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
         <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
           {stats.changed > 0 ? (
             <span className="text-purple-600 dark:text-purple-400 font-black">
-              ● {stats.changed} roll number modifications ready to save to Firestore
+              ● {stats.changed} roll number modifications ready to save to Cloud Database
             </span>
           ) : (
-            'All roll numbers in sync with Firestore'
+            'All roll numbers in sync with Cloud Database'
           )}
         </span>
 
