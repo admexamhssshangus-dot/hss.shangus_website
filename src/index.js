@@ -4,6 +4,24 @@ import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App';
 
+// Handle transient IndexedDB closure / hidden tab events gracefully
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    const msg = event?.reason?.message || String(event?.reason || '');
+    if (msg.includes('Database is closing') || msg.includes('database is closing') || msg.includes('Database is hidden')) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+  window.addEventListener('error', (event) => {
+    const msg = event?.message || '';
+    if (msg.includes('Database is closing') || msg.includes('Database is hidden')) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
