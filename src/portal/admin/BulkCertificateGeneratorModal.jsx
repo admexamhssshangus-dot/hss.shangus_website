@@ -3,18 +3,27 @@
 // Multi-Class / Session Filtering, Sequential Numbering, Dual-Page Batch Exports
 // =================================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X, Award, Printer, Search,
-  FileSpreadsheet, AlertCircle
+  FileSpreadsheet, AlertCircle, RefreshCw, Database
 } from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
   dobToWords,
   interpolateCertificateTemplate,
   printBatchStudentCertificates
 } from '../../utils/certificateExportUtils';
-import { normalizeResultStatus, calculateDivision } from '../../utils/jkboseResultManager';
+import {
+  normalizeResultStatus,
+  calculateDivision,
+  extractStudentResultMarks,
+  extractStudentAdmissionNumber,
+  extractStudentAdmissionDate
+} from '../../utils/jkboseResultManager';
 import {
   extractStudentName,
   extractFatherName,
@@ -30,7 +39,6 @@ import {
   extractVillage,
   extractMobile
 } from './CustomRosterDocumentBuilderView';
-import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import * as XLSX from 'xlsx';
 
 export default function BulkCertificateGeneratorModal({
@@ -43,6 +51,56 @@ export default function BulkCertificateGeneratorModal({
   signatories = ['I/c Admissions', 'Checked By', 'Principal'],
   showToast = () => {}
 }) {
+  // ─── Real-Time Firestore Master Registers Pipeline (Zero LocalStorage) ───
+  const [masterHistoricalRecords, setMasterHistoricalRecords] = useState([]);
+  const [isLoadingHistorical, setIsLoadingHistorical] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setIsLoadingHistorical(true);
+    let isMounted = true;
+
+    const unsubscribe = onSnapshot(
+      collection(db, 'masterRegisters'),
+      (snapshot) => {
+        if (!isMounted) return;
+        const docs = [];
+        snapshot.forEach((docSnap) => {
+          docs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        const flatList = unpackMasterRegisterStudents(docs);
+        setMasterHistoricalRecords(flatList);
+        setIsLoadingHistorical(false);
+      },
+      (error) => {
+        console.warn('masterRegisters snapshot error in Bulk TC Hub:', error);
+        if (isMounted) setIsLoadingHistorical(false);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [isOpen]);
+
+  // Combined real-time student pool: Preloaded Admissions + Live Master Registers
+  const combinedStudentPool = useMemo(() => {
+    const map = new Map();
+    // 1. Unpacked historical master records (6,105 records across 22 sessions)
+    masterHistoricalRecords.forEach(st => {
+      if (st && st.id) map.set(st.id, st);
+    });
+    // 2. Active session admissions records (take precedence for active session)
+    allStudents.forEach(st => {
+      if (st) {
+        const id = st.id || st.formNo || st['Form Number'] || st['Adm. No.'] || Math.random();
+        map.set(id, st);
+      }
+    });
+    return Array.from(map.values());
+  }, [allStudents, masterHistoricalRecords]);
+
   // ─── Filter Controls State ───
   const [selectedClass, setSelectedClass] = useState('12th');
   const [selectedSession, setSelectedSession] = useState('ALL');
@@ -56,6 +114,7 @@ export default function BulkCertificateGeneratorModal({
   const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
   const [withdrawalDateOverride, setWithdrawalDateOverride] = useState('14-01-2026');
   const [examSessionOverride, setExamSessionOverride] = useState('Annual Regular 2025 (Oct.-Nov.)');
+  const [pageMargin, setPageMargin] = useState(0.3);
 
   const handleLastCertNoChange = (val) => {
     setLastIssuedCertNo(val);
@@ -76,29 +135,75 @@ export default function BulkCertificateGeneratorModal({
   // ─── Multi-Selection State ───
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
 
-  // Extract distinct Sessions & Classes from students dataset
+  // Extract all distinct Sessions from live combined student pool in reverse chronological order
   const availableSessions = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(st => {
+    const sessionMap = new Map();
+    combinedStudentPool.forEach(st => {
       const s = extractSession(st);
-      if (s && s !== '—') set.add(s);
+      if (s && s !== '—' && s.trim()) {
+        sessionMap.set(s.trim(), (sessionMap.get(s.trim()) || 0) + 1);
+      }
     });
-    return Array.from(set).sort();
-  }, [allStudents]);
+    const sorted = Array.from(sessionMap.keys()).sort((a, b) => {
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
+    return sorted.map(s => ({
+      value: s,
+      label: `${s} (${sessionMap.get(s)} Students)`
+    }));
+  }, [combinedStudentPool]);
 
-  // Extract distinct Streams from actual student records
+  // Extract distinct Classes from live combined student pool
+  const availableClasses = useMemo(() => {
+    const classMap = new Map();
+    combinedStudentPool.forEach(st => {
+      const c = extractClass(st);
+      if (c && c !== '—' && c.trim()) {
+        classMap.set(c.trim(), (classMap.get(c.trim()) || 0) + 1);
+      }
+    });
+    const order = ['12th', '11th', '10th', '9th'];
+    const sorted = Array.from(classMap.keys()).sort((a, b) => {
+      const ia = order.findIndex(o => a.toLowerCase().includes(o));
+      const ib = order.findIndex(o => b.toLowerCase().includes(o));
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    return sorted.map(c => ({
+      value: c,
+      label: `Class ${c} (${classMap.get(c)})`
+    }));
+  }, [combinedStudentPool]);
+
+  // Extract distinct Streams from live combined student pool
   const availableStreams = useMemo(() => {
-    const set = new Set();
-    allStudents.forEach(st => {
+    const streamMap = new Map();
+    combinedStudentPool.forEach(st => {
       const s = extractStream(st);
-      if (s && s !== '—' && s.trim()) set.add(s.trim());
+      if (s && s !== '—' && s.trim()) {
+        streamMap.set(s.trim(), (streamMap.get(s.trim()) || 0) + 1);
+      }
     });
-    return Array.from(set).sort();
-  }, [allStudents]);
+    const order = ['Medical', 'Non-Medical', 'Arts', 'Commerce', 'Humanities', 'Science', 'General'];
+    const sorted = Array.from(streamMap.keys()).sort((a, b) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    return sorted.map(s => ({
+      value: s,
+      label: `${s} (${streamMap.get(s)})`
+    }));
+  }, [combinedStudentPool]);
 
-  // Standardized student normalized rows
+  // Standardized student normalized rows from real-time pool
   const normalizedStudents = useMemo(() => {
-    return allStudents.map(st => {
+    return combinedStudentPool.map(st => {
       const raw = st.raw || st;
       const id = st.id || st._id || raw.id || `${raw['Adm. No.'] || raw.formNo || Math.random()}`;
       const name = extractStudentName(st);
@@ -109,23 +214,29 @@ export default function BulkCertificateGeneratorModal({
       const session = extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
-      const admNo = extractAdmNo(st) || raw['Adm. No.'] || raw.admissionNo || raw.formNo || '';
-      const admDate = raw['Adm. Date'] || raw.admissionDate || raw.dateOfAdmission || '03-07-2024';
+      const admNo = extractStudentAdmissionNumber(raw) || extractAdmNo(st) || rollNo || '—';
+      const admDate = extractStudentAdmissionDate(raw) || '01-07-2024';
       const dobRaw = extractDob(st) || '2007-08-15';
       const gender = (extractGender(st) || 'M').toUpperCase().startsWith('F') ? 'F' : 'M';
       const village = extractVillage(st) || 'Shangus';
       const mobile = extractMobile(st) || '';
 
       // Exam Result fields
-      const examRollNo = raw.examRollNo || raw['Exam Roll No'] || raw['Roll No (12th)'] || rollNo || '—';
-      const resultCurrent = raw.resultCurrent || raw.result || raw['Result'] || raw['Status'] || '';
-      const normRes = normalizeResultStatus(resultCurrent);
-      const isPassed = normRes.status === 'Passed';
-      const isReap = normRes.status === 'Re-appear';
-      const marksObtained = raw.marksObtained || raw.marks || raw['Marks'] || (isPassed ? '488' : '—');
-      const maxMarks = raw.maxMarks || '500';
-      const division = isPassed ? (raw.division || calculateDivision(marksObtained, maxMarks) || 'Distinction') : '';
-      const reappSubjects = isReap ? (normRes.reappSubjects || raw.reappSubjects || 'PH, CH') : '';
+      const resInfo = extractStudentResultMarks(raw);
+      const examRollNo = resInfo.examRoll || '—';
+      const isPassed = resInfo.isPassed;
+      const isReap = resInfo.isReap;
+      const isFailed = resInfo.isFailed;
+      const hasResult = resInfo.hasResult;
+      const marksObtained = resInfo.marksObtained || '';
+      const maxMarks = resInfo.maxMarks || '500';
+      const division = resInfo.division || '';
+      const reappSubjects = resInfo.reappSubjects || '';
+
+      let resultStatus = 'Awaiting Result';
+      if (isPassed) resultStatus = 'Passed';
+      else if (isReap) resultStatus = 'Re-appear';
+      else if (isFailed) resultStatus = 'Failed';
 
       return {
         id,
@@ -145,15 +256,18 @@ export default function BulkCertificateGeneratorModal({
         village,
         mobile,
         examRollNo,
-        resultStatus: normRes.status,
+        resultStatus,
         division,
         marksObtained,
         maxMarks,
         reappSubjects,
-        hasResult: Boolean(resultCurrent && resultCurrent !== '—')
+        hasResult,
+        isPassed,
+        isReap,
+        isFailed
       };
     });
-  }, [allStudents]);
+  }, [combinedStudentPool]);
 
   // Filtered students based on active dropdowns
   const filteredStudents = useMemo(() => {
@@ -174,6 +288,8 @@ export default function BulkCertificateGeneratorModal({
         if (st.resultStatus !== 'Re-appear') return false;
       } else if (selectedResultStatus === 'Failed') {
         if (st.resultStatus !== 'Failed') return false;
+      } else if (selectedResultStatus === 'awaiting') {
+        if (st.resultStatus !== 'Awaiting Result') return false;
       } else if (selectedResultStatus === 'hasResult') {
         if (!st.hasResult) return false;
       }
@@ -193,6 +309,33 @@ export default function BulkCertificateGeneratorModal({
       return true;
     });
   }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, searchQuery]);
+
+  // Pre-compute cert number map: O(n) single pass instead of O(n²) per-row
+  const certNumberMap = useMemo(() => {
+    const base = parseInt(startCertNo, 10) || 1368;
+    const map = new Map();
+    let seq = 0;
+    filteredStudents.forEach((st, idx) => {
+      if (selectedStudentIds.has(st.id)) {
+        map.set(st.id, base + seq);
+        seq++;
+      } else {
+        map.set(st.id, base + idx);
+      }
+    });
+    return map;
+  }, [filteredStudents, selectedStudentIds, startCertNo]);
+
+  // Pre-compute result status counts in a single pass instead of 3x O(n) in render
+  const resultStats = useMemo(() => {
+    let passed = 0, reappear = 0, awaiting = 0;
+    filteredStudents.forEach(s => {
+      if (s.resultStatus === 'Passed') passed++;
+      else if (s.resultStatus === 'Re-appear') reappear++;
+      else if (s.resultStatus === 'Awaiting Result') awaiting++;
+    });
+    return { passed, reappear, awaiting };
+  }, [filteredStudents]);
 
   // Bulk Selection Handlers
   const handleToggleSelectAll = () => {
@@ -250,13 +393,13 @@ export default function BulkCertificateGeneratorModal({
         refNo: certNo,
         date: issueDate,
         examName: `Class ${st.className} Examination`,
-        examRollNo: st.examRollNo,
+        examRollNo: st.examRollNo || '—',
         examSession: examSessionOverride || st.session,
-        resultStatus: isPassed ? 'Pass' : 'Re-appear',
-        divisionDistinction: st.division || 'Distinction',
-        marksObtained: st.marksObtained || '488',
+        resultStatus: isPassed ? 'Pass' : (st.isReap ? 'Re-appear' : (st.hasResult ? 'Did Not Qualify' : '—')),
+        divisionDistinction: st.division || (isPassed ? 'Distinction' : '—'),
+        marksObtained: st.marksObtained || (isPassed ? '—' : ''),
         maxMarks: st.maxMarks || '500',
-        reappSubjects: st.reappSubjects || 'PH, CH',
+        reappSubjects: st.reappSubjects || '',
         conductStatus: 'Satisfactory',
         admissionDate: st.admDate,
         admissionNo: st.admNo,
@@ -295,25 +438,17 @@ export default function BulkCertificateGeneratorModal({
       dateStr: issueDate,
       signatories,
       watermark: true,
-      showPhoto: false
+      showPhoto: false,
+      pageMargin,
+      headerGap: 0.50,
+      titleMetaGap: 0,
+      metaBodyGap: 0.50,
+      paraSpacing: 8,
+      bodyLineHeight: 1.85,
+      bodyDateGap: 12,
+      dateSigGap: 0.50,
+      sigReceiptGap: 12
     });
-
-    // Auto-log batch issuance to History
-    saveGeneratedDocToHistory({
-      docType: 'tc_dc',
-      title: `Bulk TC/DC Batch (${packages.length} Students)`,
-      refNo: `${packages[0].certNo} - ${packages[packages.length - 1].certNo}`,
-      dateStr: issueDate,
-      recipientOrStudent: `Batch of ${packages.length} students (Class ${selectedClass})`,
-      actionType: 'Bulk Batch Print (2-Page per student)',
-      extraData: {
-        studentCount: packages.length,
-        class: selectedClass,
-        session: selectedSession,
-        startCertNo,
-        endCertNo: packages[packages.length - 1].certNo
-      }
-    }).catch(e => console.warn('History bulk log note:', e));
   };
 
   // ─── Action 2: Export Registry Spreadsheet (.xlsx) ───
@@ -374,6 +509,19 @@ export default function BulkCertificateGeneratorModal({
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   Dual-Page Batch Engine
                 </span>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 text-slate-300 border border-slate-700/80 flex items-center gap-1">
+                  {isLoadingHistorical ? (
+                    <>
+                      <RefreshCw size={9} className="animate-spin text-teal-400" />
+                      <span>Syncing Realtime...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>{combinedStudentPool.length} Live Records</span>
+                    </>
+                  )}
+                </span>
               </div>
               <p className="text-xs text-slate-300 font-medium">
                 Multi-Class & Session Filtering • Auto Sequential Numbering • 2-Page Sequential Batch Prints
@@ -409,6 +557,9 @@ export default function BulkCertificateGeneratorModal({
                 <option value="10th">Class 10th</option>
                 <option value="9th">Class 9th</option>
                 <option value="ALL">All Classes</option>
+                {availableClasses.filter(c => !['12th', '11th', '10th', '9th'].includes(c.value)).map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
               </select>
             </div>
 
@@ -420,9 +571,9 @@ export default function BulkCertificateGeneratorModal({
                 onChange={(e) => setSelectedSession(e.target.value)}
                 className="w-full h-8 px-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white focus:ring-1 focus:ring-teal-500 cursor-pointer"
               >
-                <option value="ALL">All Sessions</option>
+                <option value="ALL">All Sessions ({combinedStudentPool.length})</option>
                 {availableSessions.map(s => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </div>
@@ -437,7 +588,7 @@ export default function BulkCertificateGeneratorModal({
               >
                 <option value="ALL">All Streams</option>
                 {availableStreams.map(s => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </div>
@@ -454,6 +605,7 @@ export default function BulkCertificateGeneratorModal({
                 <option value="Passed">Passed Only</option>
                 <option value="Reap">Re-appear Only</option>
                 <option value="Failed">Failed Only</option>
+                <option value="awaiting">Awaiting Result / In-Course</option>
                 <option value="hasResult">With Result Data</option>
               </select>
             </div>
@@ -544,6 +696,27 @@ export default function BulkCertificateGeneratorModal({
                 placeholder="Annual Regular 2025"
               />
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Page Margin
+                </label>
+                <span className="font-mono font-black text-[10px] text-teal-700 dark:text-teal-400">
+                  {Number(pageMargin).toFixed(2)}"
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="0.5"
+                step="0.05"
+                value={pageMargin}
+                onChange={(e) => setPageMargin(parseFloat(e.target.value))}
+                className="w-full h-7 accent-teal-600 cursor-pointer"
+                title="Adjust certificate page margins (0.1 inch to 0.5 inch, default 0.3 inch)"
+              />
+            </div>
           </div>
 
           {/* Sequential Range Info Banner */}
@@ -585,10 +758,13 @@ export default function BulkCertificateGeneratorModal({
 
           <div className="flex items-center gap-1.5 text-[10px] font-bold">
             <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-              {filteredStudents.filter(s => s.resultStatus === 'Passed').length} Passed
+              {resultStats.passed} Passed
             </span>
             <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-              {filteredStudents.filter(s => s.resultStatus === 'Re-appear').length} Re-appear
+              {resultStats.reappear} Re-appear
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+              {resultStats.awaiting} Awaiting / In-Course
             </span>
           </div>
         </div>
@@ -625,11 +801,7 @@ export default function BulkCertificateGeneratorModal({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
                   {filteredStudents.map((st, idx) => {
                     const isChecked = selectedStudentIds.has(st.id);
-                    const selectedList = filteredStudents.filter(s => selectedStudentIds.has(s.id));
-                    const selectedIdx = selectedList.findIndex(s => s.id === st.id);
-                    const calculatedCertNo = isChecked 
-                      ? (parseInt(startCertNo, 10) || 1368) + selectedIdx 
-                      : (parseInt(startCertNo, 10) || 1368) + idx;
+                    const calculatedCertNo = certNumberMap.get(st.id) || ((parseInt(startCertNo, 10) || 1368) + idx);
 
                     return (
                       <tr
@@ -677,21 +849,25 @@ export default function BulkCertificateGeneratorModal({
                           <div className="text-[9.5px] text-slate-400">Adm: {st.admNo}</div>
                         </td>
                         <td className="p-2 font-mono text-[10.5px]">
-                          <div>{st.examRollNo}</div>
+                          <div>{st.examRollNo && st.examRollNo !== '—' ? st.examRollNo : '—'}</div>
                           <div className="text-[9.5px] text-slate-400 truncate max-w-[120px]">{st.session}</div>
                         </td>
                         <td className="p-2">
                           {st.resultStatus === 'Passed' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-1">
-                              <span>✓ Pass ({st.division} • {st.marksObtained}/{st.maxMarks})</span>
+                              <span>✓ Pass ({st.division ? `${st.division} • ` : ''}{st.marksObtained ? `${st.marksObtained}/${st.maxMarks}` : 'Passed'})</span>
                             </span>
                           ) : st.resultStatus === 'Re-appear' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1">
                               <span>⚠ Reap ({st.reappSubjects || 'Re-appear'})</span>
                             </span>
+                          ) : st.resultStatus === 'Failed' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700 inline-flex items-center gap-1">
+                              <span>✕ Failed</span>
+                            </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500">
-                              {st.resultStatus || 'No Exam Record'}
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                              ⏳ Awaiting Result / In-Course
                             </span>
                           )}
                         </td>

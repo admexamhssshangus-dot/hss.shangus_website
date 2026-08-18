@@ -12,13 +12,15 @@ import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import DeleteApplicationModal from './DeleteApplicationModal';
 import RecycleBinModal from './RecycleBinModal';
+import AdminToolsDropdown from './AdminToolsDropdown';
 import { moveToRecycleBin, getRecycleBinItems } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
 import ModernLoader from '../../components/ModernLoader';
-import AdminToolsDropdown from './AdminToolsDropdown';
-import { recycleDeletedFormNumber, getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
-import { getStudentRegIndex, lookupStudentByRegSync, updateStudentInRegIndex, rebuildStudentRegIndex } from '../../services/studentIndexService';
+import { parseSearchQuery, executeGlobalSearch, buildLocalSearchIndex, cleanSearchAdm, cleanSearchReg, cleanSearchMobile } from '../../services/searchIndexService';
+import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber } from '../../services/formNumberService';
+import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
+import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -411,7 +413,6 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
 
 // ─── Unified Filters Group Dropdown (Grouped Classes, Gender, Stream, Status, Session) ───
 function UnifiedFiltersGroupDropdown({
-  viewScope,
   availableSessions,
   selectedSessions,
   setSelectedSessions,
@@ -452,7 +453,7 @@ function UnifiedFiltersGroupDropdown({
     (selectedGenders.length > 0 && !selectedGenders.includes('__NONE__') ? 1 : 0) +
     (selectedStreams.length > 0 && !selectedStreams.includes('__NONE__') ? 1 : 0) +
     (selectedStatuses.length > 0 && !selectedStatuses.includes('__NONE__') ? 1 : 0) +
-    (viewScope === 'all' && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__') ? 1 : 0);
+    (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__') ? 1 : 0);
 
   const clearAllFilters = () => {
     setSelectedClasses([]);
@@ -503,7 +504,7 @@ function UnifiedFiltersGroupDropdown({
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 w-full">
-            {viewScope === 'all' && (
+            {availableSessions.length > 1 && (
               <MultiSelectCheckboxDropdown
                 label="Sessions"
                 options={availableSessions}
@@ -589,6 +590,7 @@ function MoreActionsDropdown({
   onExportCSV,
   onSync,
   onOpenRecycleBin,
+  unreadRecycleBinCount = 0,
   loading,
   align = 'right'
 }) {
@@ -612,9 +614,14 @@ function MoreActionsDropdown({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         title="More Actions & Display Settings"
-        className="p-1.5 rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs"
+        className="relative p-1.5 rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs"
       >
         <Settings size={15} />
+        {unreadRecycleBinCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono shadow-sm animate-bounce">
+            {unreadRecycleBinCount}
+          </span>
+        )}
       </button>
 
       {isOpen && (
@@ -661,6 +668,24 @@ function MoreActionsDropdown({
             <Columns size={13} />
             <span>Manage Table Columns (Cols)</span>
           </button>
+
+          {onOpenRecycleBin && (
+            <button
+              type="button"
+              onClick={() => { onOpenRecycleBin(); setIsOpen(false); }}
+              className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center justify-between text-amber-800 dark:text-amber-300 font-extrabold cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Trash2 size={13} className="text-amber-600 dark:text-amber-400" />
+                <span>90-Day Recycle Bin</span>
+              </span>
+              {unreadRecycleBinCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono">
+                  {unreadRecycleBinCount}
+                </span>
+              )}
+            </button>
+          )}
 
           <div className="px-2 py-1 border-t border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-black tracking-wider text-slate-400 mt-1">
             Export & Print
@@ -2191,8 +2216,12 @@ function OnDemandStudentPhotoCell({ student, val }) {
           <div className="relative w-full h-44 bg-slate-950 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center mb-2">
             {displayPhoto && displayPhoto !== '/logo.png' && displayPhoto !== '—' ? (
               <img
-                src={displayPhoto}
+                src={formatPhotoDisplayUrl(displayPhoto) || displayPhoto}
                 alt={sName}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.style.display = 'none';
+                }}
                 className="w-full h-full object-contain"
               />
             ) : (
@@ -2219,12 +2248,13 @@ function OnDemandStudentPhotoCell({ student, val }) {
 
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
                 {matchingPhotos.map((item, idx) => {
-                  const isSelected = (selectedPreviewUrl || photoUrl) === item.url;
+                  const formattedItemUrl = formatPhotoDisplayUrl(item.url) || item.url;
+                  const isSelected = (selectedPreviewUrl || photoUrl) === item.url || (selectedPreviewUrl || photoUrl) === formattedItemUrl;
                   return (
                     <button
                       key={item.id || idx}
                       type="button"
-                      onClick={() => setSelectedPreviewUrl(item.url)}
+                      onClick={() => setSelectedPreviewUrl(formattedItemUrl)}
                       className={`relative shrink-0 w-10 h-12 rounded-lg overflow-hidden border-2 transition-all p-0.5 bg-white dark:bg-slate-900 ${
                         isSelected 
                           ? 'border-blue-500 ring-2 ring-blue-500/20' 
@@ -2232,7 +2262,15 @@ function OnDemandStudentPhotoCell({ student, val }) {
                       }`}
                       title={item.title}
                     >
-                      <img src={item.url} alt="" className="w-full h-full object-cover rounded" />
+                      <img 
+                        src={formattedItemUrl} 
+                        alt="" 
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.style.opacity = '0.3';
+                        }}
+                        className="w-full h-full object-cover rounded" 
+                      />
                       {item.isCurrent && (
                         <div className="absolute bottom-0 inset-x-0 bg-teal-600 text-white text-[7px] font-bold text-center">
                           ACTIVE
@@ -3595,7 +3633,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
   );
 }
 
-export default function AdvancedReports({ setActiveTab, viewScope = 'active', setViewScope, setCounts, user, onLogout, onSync, stats, initialData = [], onRecordDeleted }) {
+export default function AdvancedReports({ setActiveTab, setCounts, user, onLogout, onSync, stats, initialData = [], onRecordDeleted }) {
   // Clear legacy cache keys on initial render to prevent stale dataset from sticking in sessionStorage
   useEffect(() => {
     try {
@@ -3611,26 +3649,10 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     ? initialData
     : (getCachedCollectionSync('admissions') || []);
 
-  const syncCachedMaster = (() => {
-    try {
-      const cached = sessionStorage.getItem('hss_cache_masterRegisters_v2') || localStorage.getItem('hss_cache_masterRegisters_v2');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  })();
-
-  const [loading, setLoading] = useState(syncCachedAdmissions.length === 0 && syncCachedMaster.length === 0);
+  const [loading, setLoading] = useState(syncCachedAdmissions.length === 0);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [fetchProgress, setFetchProgress] = useState(0);
-  const [masterRecords, setMasterRecords] = useState(syncCachedMaster);
   const [currentAdmissions, setCurrentAdmissions] = useState(syncCachedAdmissions);
-  const [showMasterFetchConfirm, setShowMasterFetchConfirm] = useState(false);
-  const [masterFetchClasses, setMasterFetchClasses] = useState([]);
-  const [masterFetchSessions, setMasterFetchSessions] = useState([]);
-  const [isFetchingMaster, setIsFetchingMaster] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -3756,23 +3778,13 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
         } catch (e) { }
       }
 
-      if (editingStudent._isCurrentScope) {
-        setCurrentAdmissions(prev => prev.map(st => {
-          const stFNo = String(st['Form Number'] || st['FormNo'] || st.formNo || '').replace(/^'/, '').trim();
-          if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
-            return { ...st, ...payload };
-          }
-          return st;
-        }));
-      } else {
-        setMasterRecords(prev => prev.map(st => {
-          const stFNo = String(st['Form No.'] || st['Form Number'] || st.formNo || '').replace(/^'/, '').trim();
-          if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
-            return { ...st, ...payload };
-          }
-          return st;
-        }));
-      }
+      setCurrentAdmissions(prev => prev.map(st => {
+        const stFNo = String(st['Form Number'] || st['FormNo'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim();
+        if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
+          return { ...st, ...payload };
+        }
+        return st;
+      }));
 
       // Log activity
       const studentName = updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || 'Student';
@@ -3903,21 +3915,12 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       setQuickEditProgress(75);
       setQuickEditStage('Updating local registers cache & table view...');
 
-      if (student._isCurrentScope) {
-        setCurrentAdmissions(prev => prev.map(st => {
-          if ((cleanFNo && String(st['Form Number'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-            return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
-          }
-          return st;
-        }));
-      } else {
-        setMasterRecords(prev => prev.map(st => {
-          if ((cleanFNo && String(st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-            return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
-          }
-          return st;
-        }));
-      }
+      setCurrentAdmissions(prev => prev.map(st => {
+        if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
+          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
+        }
+        return st;
+      }));
 
       setQuickEditProgress(90);
       setQuickEditStage('Logging administrative activity audit trail...');
@@ -4013,6 +4016,20 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   // Filter States (All filters default to [] so all records are visible by default)
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
+  const [showSearchHelp, setShowSearchHelp] = useState(false);
+  const searchHelpRef = useRef(null);
+
+  useEffect(() => {
+    if (!showSearchHelp) return;
+    function handleClickOutside(event) {
+      if (searchHelpRef.current && !searchHelpRef.current.contains(event.target)) {
+        setShowSearchHelp(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSearchHelp]);
+
   const [selectedSessions, setSelectedSessions] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [selectedGenders, setSelectedGenders] = useState([]);
@@ -4291,7 +4308,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
   const handleDirectRecordAdded = (newRecord) => {
     setCurrentAdmissions(prev => [newRecord, ...prev]);
-    setMasterRecords(prev => [newRecord, ...prev]);
     setToast({ message: `⚡ Direct Record Ingested for "${newRecord.studentName}"!`, type: 'success' });
     setTimeout(() => setToast(null), 3000);
   };
@@ -4328,7 +4344,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
     // 1. Immediately remove from React state (0ms instant UI update)
     setCurrentAdmissions(prev => prev.filter(s => !isMatch(s)));
-    setMasterRecords(prev => prev.filter(s => !isMatch(s)));
 
     // 2. Remove from global window memory cache
     if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
@@ -4412,11 +4427,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
           updateCachedItem('admissions', docId, payload);
 
-          if (student._isCurrentScope) {
-            setCurrentAdmissions(prev => prev.map(st => st.id === student.id ? { ...st, [colKey]: '', [targetFieldName]: '' } : st));
-          } else {
-            setMasterRecords(prev => prev.map(st => st.id === student.id ? { ...st, [colKey]: '', [targetFieldName]: '' } : st));
-          }
+          setCurrentAdmissions(prev => prev.map(st => st.id === student.id ? { ...st, [colKey]: '', [targetFieldName]: '' } : st));
 
           setToast({ message: `🧹 Cleared ${colLabel} field for ${nameDisplay}`, type: 'success' });
           setTimeout(() => setToast(null), 3000);
@@ -4449,18 +4460,66 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
   const [photoMatchResults, setPhotoMatchResults] = useState([]);
   const [batchSyncingPhotos, setBatchSyncingPhotos] = useState(false);
 
-  // Fetch Master Registers & Current Admissions with instant cache + silent background sync
+  // Helper to flatten chunked or flat masterRegisters records into uniform objects
+  const flattenAndFormatMasterRegisters = (rawList = []) => {
+    if (!Array.isArray(rawList)) return [];
+    const flat = [];
+    rawList.forEach((doc, docIdx) => {
+      if (!doc || typeof doc !== 'object') return;
+      const chunk = doc.items || doc.students || doc.records || doc.data;
+      if (Array.isArray(chunk) && chunk.length > 0) {
+        const parentSession = doc.Session || doc.session || doc['Academic Session'] || doc.groupKey?.split('_')[0] || doc.id?.split('_')[0] || '';
+        const parentClass = doc.class || doc.Class || doc.className || doc['Class'] || doc.groupKey?.split('_')[1] || '';
+        const parentStream = doc.stream || doc.Stream || doc['Stream'] || doc.groupKey?.split('_')[2] || '';
+
+        chunk.forEach((item, itemIdx) => {
+          if (item && typeof item === 'object') {
+            if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
+            flat.push({
+              ...item,
+              id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${doc.id}_${itemIdx}`,
+              Session: item.Session || item.session || item['Academic Session'] || parentSession || '2024-25',
+              session: item.session || item.Session || item['Academic Session'] || parentSession || '2024-25',
+              Class: item.Class || item.class || item['Class'] || parentClass || '11th',
+              class: item.class || item.Class || item['Class'] || parentClass || '11th',
+              Stream: item.Stream || item.stream || item['Stream'] || parentStream || 'General',
+              stream: item.stream || item.Stream || item['Stream'] || parentStream || 'General',
+              _source: 'masterRegisters',
+              _srcCollection: 'masterRegisters',
+              _isHistorical: true,
+              _isCurrentScope: false
+            });
+          }
+        });
+      } else {
+        if (doc.Status === 'Deleted' || doc.status === 'Deleted' || doc._deleted === true) return;
+        flat.push({
+          ...doc,
+          _source: 'masterRegisters',
+          _srcCollection: 'masterRegisters',
+          _isHistorical: true,
+          _isCurrentScope: false
+        });
+      }
+    });
+    return flat;
+  };
+
+  // Historical Master Registers State (for instant global search across all school history)
+  const [masterHistoricalRecords, setMasterHistoricalRecords] = useState(() => {
+    const cached = getCachedCollectionSync('masterRegisters');
+    return Array.isArray(cached) && cached.length > 0 ? flattenAndFormatMasterRegisters(cached) : [];
+  });
+
+  // Fetch Current Admissions with instant cache + silent background sync & search indexing
   const loadReportsData = async (forceRefresh = false) => {
     setIsFetchingData(true);
-    setFetchProgress(20);
-    let hasCache = false;
+    setFetchProgress(30);
 
     // ── ADMISSIONS: On forceRefresh (e.g. after deletion), fetch from Firebase directly ──
-    // Otherwise use cached data to avoid unnecessary Firestore reads.
     let activeList;
     if (forceRefresh) {
       try {
-        // Force fresh Firestore fetch — bypasses stale cache that may still include deleted records
         const freshFromFirestore = await getCachedCollection('admissions', true);
         activeList = Array.isArray(freshFromFirestore) && freshFromFirestore.length > 0
           ? freshFromFirestore
@@ -4496,219 +4555,43 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       }
     }
 
-    // Fallback: if still empty, try legacy combined cache (hss_reports_cache_v6)
-    if (!activeList || activeList.length === 0) {
-      try {
-        const legacyRaw = sessionStorage.getItem('hss_reports_cache_v6') || localStorage.getItem('hss_reports_cache_v6');
-        if (legacyRaw) {
-          const parsed = JSON.parse(legacyRaw);
-          if (parsed.activeList?.length > 0) {
-            activeList = parsed.activeList;
-          }
-        }
-      } catch (_) {}
-    }
-
     if (activeList && activeList.length > 0) {
       setCurrentAdmissions(activeList);
-      if (setCounts) {
-        const cachedMasterLen = masterRecords.length > 0 ? masterRecords.length : syncCachedMaster.length;
-        setCounts({
-          active: activeList.length,
-          total: activeList.length + cachedMasterLen
-        });
-      }
-      setLoading(false);
-    }
-
-    // ── MASTER REGISTERS: 30-Day Monthly Cache TTL ──
-    const MASTER_CACHE_KEY = 'hss_cache_masterRegisters_v2';
-    const MASTER_CACHE_TS_KEY = 'hss_cache_masterRegisters_v2_ts';
-    const MASTER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days (1 Month) — Historical archives rarely change
-
-    if (forceRefresh) {
-      try {
-        sessionStorage.removeItem(MASTER_CACHE_KEY);
-        localStorage.removeItem(MASTER_CACHE_KEY);
-        sessionStorage.removeItem(MASTER_CACHE_TS_KEY);
-        localStorage.removeItem(MASTER_CACHE_TS_KEY);
-        // Also wipe legacy combined cache
-        sessionStorage.removeItem('hss_reports_cache_v6');
-        localStorage.removeItem('hss_reports_cache_v6');
-        sessionStorage.removeItem('hss_reports_cache_time_v2');
-        localStorage.removeItem('hss_reports_cache_time_v2');
-      } catch (_) { }
-    }
-
-    let historicalList = [];
-
-    // 1. Try loading masterRegisters from in-memory singleton
-    if (!forceRefresh) {
-      if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
-        historicalList = window._hssMasterRegistersCache;
-        hasCache = true;
-      }
-
-      if (hasCache) {
-        setMasterRecords(historicalList);
-        const resolvedActive = (activeList && activeList.length > 0)
-          ? activeList
-          : (currentAdmissions?.length > 0 ? currentAdmissions : syncCachedAdmissions);
-        if (resolvedActive.length > 0) {
-          setCurrentAdmissions(resolvedActive);
-        }
-        if (setCounts) {
-          setCounts({
-            active: resolvedActive.length,
-            total: resolvedActive.length + historicalList.length
-          });
-        }
-        setFetchProgress(100);
-        setLoading(false);
-        setIsFetchingData(false);
-        return;
-      }
-    }
-
-    // 2. Default Mode (Active Only): If masterRegisters is not in memory and forceRefresh is false,
-    // Keep initial page load instantaneous with only active admissions
-    if (!hasCache && !forceRefresh) {
-      setCurrentAdmissions(activeList);
-      setMasterRecords([]);
       if (setCounts) {
         setCounts({
           active: activeList.length,
           total: activeList.length
         });
       }
-      setLoading(false);
-      setIsFetchingData(false);
-      setFetchProgress(0);
-      return;
+      // Build in-memory fast search index for immediate ranked matching
+      buildLocalSearchIndex(activeList, masterHistoricalRecords);
     }
 
-    // 3. Explicit Background Fetch for Historical Records
-    await fetchHistoricalMasterRegisters(forceRefresh);
-  };
-
-  // Dedicated Background Non-Blocking Historical Archives Fetcher
-  const fetchHistoricalMasterRegisters = async (force = false) => {
-    // 1. Instant Fast Path: If already cached in memory, use immediately with 0ms delay
-    if (!force && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
-      setMasterRecords(window._hssMasterRegistersCache);
-      if (setCounts) {
-        setCounts({
-          active: currentAdmissions.length,
-          total: currentAdmissions.length + window._hssMasterRegistersCache.length
-        });
+    // Silent background load of historical master registers for instant global search across all sessions
+    const loadMasterRegistersSilently = async () => {
+      try {
+        let masterList = getCachedCollectionSync('masterRegisters');
+        if (!masterList || masterList.length === 0 || forceRefresh) {
+          masterList = await getCachedCollection('masterRegisters', forceRefresh);
+        }
+        if (Array.isArray(masterList) && masterList.length > 0) {
+          const flat = flattenAndFormatMasterRegisters(masterList);
+          setMasterHistoricalRecords(flat);
+          buildLocalSearchIndex(activeList || currentAdmissions, flat);
+        }
+      } catch (err) {
+        console.warn('Silent masterRegisters background fetch note:', err);
       }
-      setIsFetchingMaster(false);
-      setIsFetchingData(false);
-      setFetchProgress(0);
-      return;
-    }
-
-    setIsFetchingData(true);
-    setIsFetchingMaster(true);
-    setFetchProgress(20);
-
-    const activeFilterDesc = (selectedModalSessions.length > 0 && selectedModalSessions.length < modalAvailableSessions.length)
-      ? selectedModalSessions.slice(0, 3).join(', ') + (selectedModalSessions.length > 3 ? '...' : '')
-      : 'historical archives';
-
-    setToast({
-      message: `⏳ Loading ${activeFilterDesc} in background...`,
-      type: 'info'
-    });
-
-    const stripPhotos = (obj) => {
-      if (!obj || typeof obj !== 'object') return obj;
-      const clean = {};
-      Object.keys(obj).forEach(k => {
-        const v = obj[k];
-        if (typeof v === 'string' && (v.startsWith('data:') || v.length > 800)) return;
-        clean[k] = v;
-      });
-      return clean;
     };
+    loadMasterRegistersSilently();
 
-    let historicalList = [];
-    try {
-      setFetchProgress(40);
-      await new Promise(r => setTimeout(r, 10)); // Yield to browser to keep UI smooth
-
-      // Resilient Network Fetch with 6-second Circuit Breaker
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore request timed out (6s)')), 6000)
-      );
-
-      const masterSnap = await Promise.race([
-        getDocs(collection(db, 'masterRegisters')),
-        timeoutPromise
-      ]);
-
-      if (!masterSnap.empty) {
-        setFetchProgress(70);
-        await new Promise(r => setTimeout(r, 10)); // Yield again for smooth render
-
-        masterSnap.docs.forEach(docSnap => {
-          const data = docSnap.data();
-          if (data.items && Array.isArray(data.items)) {
-            const parsedItems = data.items.map(it => ({
-              Session: it['Session'] || data.groupKey?.split('_')[0] || docSnap.id.split('_')[0] || 'Historical',
-              ...stripPhotos(it)
-            }));
-            historicalList = historicalList.concat(parsedItems);
-          } else if (Array.isArray(data)) {
-            historicalList = historicalList.concat(data.map(stripPhotos));
-          } else if (data.data && Array.isArray(data.data)) {
-            historicalList = historicalList.concat(data.data.map(stripPhotos));
-          } else {
-            historicalList.push(stripPhotos(data));
-          }
-        });
-      }
-      setFetchProgress(90);
-      await new Promise(r => setTimeout(r, 10));
-
-      // Save to window singleton for instantaneous subsequent switches
-      window._hssMasterRegistersCache = historicalList;
-      setMasterRecords(historicalList);
-
-      if (setCounts) {
-        setCounts({
-          active: currentAdmissions.length,
-          total: currentAdmissions.length + historicalList.length
-        });
-      }
-
-      setToast({
-        message: `✅ Master records loaded successfully (${historicalList.length.toLocaleString()} total archive records)!`,
-        type: 'success'
-      });
-      setTimeout(() => setToast(null), 3500);
-    } catch (err) {
-      console.warn('Historical masterRegisters fetch note:', err);
-      // If network timed out, fallback to existing memory cache if available
-      if (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0) {
-        setMasterRecords(window._hssMasterRegistersCache);
-      }
-      setToast({
-        message: '⚠️ Historical fetch completed with cached/partial data.',
-        type: 'info'
-      });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      setFetchProgress(100);
-      setIsFetchingMaster(false);
-      setIsFetchingData(false);
-      setTimeout(() => setFetchProgress(0), 300);
-    }
+    setFetchProgress(100);
+    setLoading(false);
+    setIsFetchingData(false);
+    setTimeout(() => setFetchProgress(0), 250);
   };
 
   useEffect(() => {
-    // loadReportsData ONLY fetches masterRegisters from Firestore.
-    // Admissions are sourced from initialData prop / dbCache — zero duplicate reads.
     loadReportsData();
     getStudentRegIndex().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4720,20 +4603,21 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       getRecycleBinItems().then(recycleBinList => {
         const filtered = filterActiveAgainstRecycleBin(initialData, recycleBinList);
         setCurrentAdmissions(filtered);
+        buildLocalSearchIndex(filtered, []);
         if (setCounts) {
-          const histLen = (masterRecords && masterRecords.length > 0) ? masterRecords.length : syncCachedMaster.length;
           setCounts(prev => ({
             ...prev,
             active: filtered.length,
-            total: filtered.length + histLen
+            total: filtered.length
           }));
         }
       }).catch(() => {
         const filtered = filterActiveAgainstRecycleBin(initialData, []);
         setCurrentAdmissions(filtered);
+        buildLocalSearchIndex(filtered, []);
       });
     }
-  }, [initialData, masterRecords?.length, syncCachedMaster.length, setCounts]);
+  }, [initialData, setCounts]);
 
   // Combined Dataset
   const allStudents = useMemo(() => {
@@ -4991,9 +4875,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     };
 
     // PASS 1: Scan records to index identities, adm numbers, photo URLs, and assigned roll numbers
-    const allRawDocs = (viewScope === 'all' && masterRecords && masterRecords.length > 0)
-      ? [...masterRecords, ...currentAdmissions]
-      : currentAdmissions;
+    const allRawDocs = [...currentAdmissions, ...masterHistoricalRecords];
 
     allRawDocs.forEach(rec => {
       const isHist = rec.isHistorical || rec._isHistorical || rec._isCurrentScope === false;
@@ -5327,200 +5209,79 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       });
     });
 
-    // Index active admission form numbers and class roll numbers for deduplication
-    const activeFormSet = new Set();
-    const activeClassRollSet = new Set();
-    const activeRegSet = new Set();
-    const activeAdmSet = new Set();
+    // Process Historical Master Registers records (for global search, historical archives & earlier sessions)
+    masterHistoricalRecords.forEach((m, idx) => {
+      const cleanFNo = String(m['Form Number'] || m['Form No.'] || m.formNo || '').replace(/^'/, '').replace(/^(N\/A|—)$/i, '').trim();
+      const rawReg = extractRegNo(m);
+      const rawRoll = extractClassRoll(m);
+      const finalAdmNo = resolveAdmNo(m) || cleanAdmNoVal(m['Admission No.'] || m['Adm. No.'] || m.admNo) || '—';
+      const targetClass = normalizeClassVal(m['Admission sought for class'] || m['Class'] || m.class || '11th');
+      const targetSession = normalizeSessionVal(m['Session'] || m.session || '2024-25');
 
-    currentAdmissions.forEach((a) => {
-      const cls = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
-      const sess = normalizeSessionVal(a['Session'] || '2025-26');
-      const fNo = extractStudentFormNo(a);
-      if (fNo && fNo !== '—') activeFormSet.add(`${cls}_${sess}_${fNo}`.toLowerCase());
+      const sName = m["Student's Name (as per school records)"] || m["Student's Name"] || m['Student Name'] || m['Name of Student'] || m['Account Name'] || m.studentName || m.name || 'Student';
+      const fName = m["Father's/Guardian's Name (as per school records)"] || m["Father's Name"] || m['Father Name'] || m.fatherName || '—';
+      const mName = m["Mother's Name (as per school records)"] || m["Mother's Name"] || m['Mother Name'] || m.motherName || '—';
+      const sDob = formatDobToDisplay(m["DoB (figures)"] || m["DoB (as per school records)"] || m['DoB (figures)'] || m['dob'] || '—');
+      const sVillage = m['Permanent Address'] || m['Name of your village'] || m['Village/Town'] || m['Address'] || m.village || 'Shangus';
+      const sGender = m['Gender'] || m.gender || '—';
+      const sCategory = m['Cat._JKBOSE'] || m['Category'] || m['Social Category'] || m.category || 'General';
+      const sStream = resolveStudentStream(m, null);
+      const sSubs = formatStudentSubjects(m);
+      const sMobile = m['Mobile No. (with working WhatsApp)'] || m["Student's Contact"] || m['Account Mobile'] || m.mobile || '—';
+      const sAadhar = m['Aadhar No.'] || m.aadhar || '—';
+      const sPen = m['PEN No.'] || m.penNo || '—';
 
-      const roll = extractClassRoll(a);
-      if (roll && roll !== '—') {
-        activeClassRollSet.add(`${cls}_${sess}_${roll}`.toLowerCase());
-      }
+      const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${rawRoll} ${rawReg} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory}`.toLowerCase();
 
-      const reg = extractRegNoClean(a);
-      if (reg && reg !== '—') {
-        activeRegSet.add(`${cls}_${sess}_${reg}`.toLowerCase());
-        activeRegSet.add(`${sess}_${reg}`.toLowerCase());
-        activeRegSet.add(`reg_${reg}`.toLowerCase());
-      }
-
-      const rawAdm = extractRawAdmNo(a);
-      const cleanAdm = cleanAdmNoVal(rawAdm);
-      if (cleanAdm && cleanAdm !== '—') {
-        activeAdmSet.add(`${cls}_${sess}_clean_${cleanAdm}`.toLowerCase());
-        activeAdmSet.add(`${sess}_clean_${cleanAdm}`.toLowerCase());
-      }
+      combined.push({
+        ...m,
+        _isCurrentScope: false,
+        _isHistorical: true,
+        _source: 'masterRegisters',
+        _searchBlob: searchBlob,
+        _ts: getDocTimestamp(m),
+        _formNum: parseNum(cleanFNo),
+        _rollNum: parseNum(rawRoll),
+        _admNum: parseNum(finalAdmNo),
+        _nameLower: sName.toLowerCase(),
+        _regLower: rawReg.toLowerCase(),
+        id: m.id || `hist_${idx}_${cleanFNo || rawReg || idx}`,
+        docId: m.docId || m._docId || m.id || `hist_${idx}`,
+        sno: currentAdmissions.length + idx + 1,
+        formNo: cleanFNo || '—',
+        classRollNo: rawRoll || '—',
+        'Class Roll No': rawRoll || '—',
+        'Class Roll No.': rawRoll || '—',
+        'RL. NO.': rawRoll || '—',
+        'RL. NO': rawRoll || '—',
+        admNo: finalAdmNo,
+        class: targetClass,
+        session: targetSession,
+        boardRegNo: rawReg || '—',
+        studentName: sName,
+        fatherName: fName,
+        motherName: mName,
+        dob: sDob,
+        village: sVillage,
+        gender: sGender,
+        category: sCategory,
+        status: m['Status'] || m.status || 'Approved',
+        stream: sStream,
+        subs: sSubs,
+        photoId: extractPhotoVal(m) || '',
+        mobile: sMobile,
+        aadhar: sAadhar,
+        penNo: sPen,
+        prevSchool: m['Previous School'] || m['Name of the Institution last attended'] || '—',
+        currResult: m['Result (Current)'] || m.result || '—',
+        currMarksReapp: m['Marks/Reapp (Current)'] || m.marks || '—',
+        withdrawalDate: m['Date of withdrawl'] || m.withdrawalDate || '—',
+        apaarId: m['APAAR ID'] || '—'
+      });
     });
 
-    // Process historical master registers only when viewScope is 'all'
-    if (viewScope === 'all' && masterRecords && masterRecords.length > 0) {
-      masterRecords.forEach((h, idx) => {
-        const hStatus = String(h['Status'] || h['status'] || '').trim().toLowerCase();
-        if (hStatus === 'deleted' || h._deleted === true || hStatus === 'archived') return;
-        const cls = normalizeClassVal(h['Class'] || '11th');
-        const sess = normalizeSessionVal(h['Session'] || '2025-26');
-
-        // Fast Pre-Filter: Skip records not matching active selected sessions or classes immediately (<0.1ms)
-        if (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
-          const rawSess = String(h['Session'] || h.session || '').trim();
-          const matchesSess = selectedSessions.some(s => rawSess.toLowerCase().includes(s.toLowerCase()) || sess.toLowerCase().includes(s.toLowerCase()));
-          if (!matchesSess) return;
-        }
-
-        if (selectedClasses.length > 0 && !selectedClasses.includes('__NONE__')) {
-          const rawCls = normalizeClassVal(h['Class'] || h.className || h.class || '');
-          const matchesCls = selectedClasses.some(c => rawCls.toLowerCase().includes(c.toLowerCase()) || cls.toLowerCase().includes(c.toLowerCase()));
-          if (!matchesCls) return;
-        }
-
-        const cleanFNo = extractStudentFormNo(h);
-
-        if (cleanFNo && cleanFNo !== '—' && activeFormSet.has(`${cls}_${sess}_${cleanFNo}`.toLowerCase())) {
-          return;
-        }
-
-        const roll = extractClassRoll(h);
-        if (cls && sess && roll && activeClassRollSet.has(`${cls}_${sess}_${roll}`.toLowerCase())) {
-          return;
-        }
-
-        const reg = extractRegNoClean(h);
-        if (reg && reg !== '—' && (activeRegSet.has(`${cls}_${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`${sess}_${reg}`.toLowerCase()) || activeRegSet.has(`reg_${reg}`.toLowerCase()))) {
-          return;
-        }
-
-        const rawAdm = extractRawAdmNo(h);
-        const cleanAdm = cleanAdmNoVal(rawAdm);
-        if (cleanAdm && cleanAdm !== '—' && (activeAdmSet.has(`${cls}_${sess}_clean_${cleanAdm}`.toLowerCase()) || activeAdmSet.has(`${sess}_clean_${cleanAdm}`.toLowerCase()))) {
-          return;
-        }
-
-        const hAdmNo = resolveAdmNo(h);
-        const hRollNo = extractClassRoll(h);
-        const hRegNo = extractRegNo(h);
-        const hName = h["Student's Name"] || h['Name'] || '—';
-        const hFName = h["Father's Name"] || '—';
-        const hMName = h["Mother's Name"] || '—';
-        const hDob = formatDobToDisplay(h['DoB (figures)'] || h['DoB'] || h['dob'] || '—');
-        const hVillage = h['Village/Town'] || h['Residence'] || '—';
-        const hGender = h['Gender'] || '—';
-        const hCategory = h['Cat._JKBOSE'] || h['Category'] || 'General';
-        const hStream = resolveStudentStream(h);
-        const hSubs = formatStudentSubjects(h);
-        const hMobile = h["Student's Contact"] || h['Mobile'] || '—';
-        const hAadhar = h['Aadhar No.'] || h.aadhar || '—';
-        const hPen = h['PEN No.'] || '—';
-
-        const searchBlob = `${hName} ${hFName} ${hMName} ${cleanFNo} ${hRollNo} ${hRegNo} ${hAdmNo} ${cls} ${sess} ${hStream} ${hSubs} ${hMobile} ${hVillage} ${hDob} ${hPen} ${hAadhar} ${hCategory}`.toLowerCase();
-
-        combined.push({
-          ...h,
-          _isCurrentScope: false,
-          _searchBlob: searchBlob,
-          _ts: getDocTimestamp(h),
-          _formNum: parseNum(cleanFNo),
-          _rollNum: parseNum(hRollNo),
-          _admNum: parseNum(hAdmNo),
-          _nameLower: hName.toLowerCase(),
-          _regLower: hRegNo.toLowerCase(),
-          id: `hist_${idx}`,
-          sno: combined.length + 1,
-          formNo: cleanFNo,
-          classRollNo: hRollNo,
-          admNo: hAdmNo,
-          class: h['Class'] || '—',
-          session: h['Session'] || '—',
-          boardRegNo: hRegNo,
-          studentName: hName,
-          fatherName: hFName,
-          motherName: hMName,
-          dob: hDob,
-          village: hVillage,
-          gender: hGender,
-          category: hCategory,
-          status: h['Status'] || 'Approved',
-          stream: hStream,
-          subs: hSubs,
-          photoId: '',
-          mobile: hMobile,
-          aadhar: hAadhar,
-          fatherAadhar: h["Father's Aadhar No."] || h["Father's Aadhaar No."] || h.fatherAadhar || '—',
-          bankAccount: h['Bank Account Number'] || '—',
-          bankName: h['Bank Name'] || '—',
-          ifsc: h['IFSC Code'] || '—',
-
-          onlineSubmDate: formatOnlineSubmDate(
-            h['Online Subm. Date'] || 
-            h.onlineSubmDate || 
-            h.submittedAt || 
-            h.submissionDate || 
-            h.createdAt || 
-            h.updatedAt || 
-            h['Adm. Date'] || 
-            h.admDate || 
-            '—'
-          ),
-          admDate: h['Adm. Date'] || '—',
-          boardName: h['Board Name'] || '—',
-          dobWords: h['DoB (words)'] || '—',
-          block: h['Block'] || '—',
-          tehsil: h['Tehsil'] || '—',
-          district: h['District'] || '—',
-          pinCode: h['PIN code'] || '—',
-          state: h['State/UT'] || '—',
-          residence: h['Residence (Village, District)'] || '—',
-          religion: h['Religion'] || '—',
-          disabilityStatus: h['Disability Status'] || '—',
-          disabilityType: h['Disability Type'] || '—',
-          subjects1: h['Subjects1'] || '—',
-          subjects2: h['Subjects2'] || '—',
-          subjects3: h['Subjects3'] || '—',
-          subjects4: h['Subjects4'] || '—',
-          subjects5: h['Subjects5'] || '—',
-          subjects6: h['Subject6'] || '—',
-          email1: h['email1'] || '—',
-          email2: h['email2'] || '—',
-          parentContact: h["Parent's Contact"] || h["Parent's Mobile No. (must be working)"] || h["Parent's Mobile No."] || h["Father's Mobile No."] || h["parentContact"] || '—',
-          bloodType: h['Blood Type'] || '—',
-          height: h['Height (cm)'] || '—',
-          weight: h['Weight (kg)'] || '—',
-          socialCategory: h['Social category'] || '—',
-          socioEconomicCategory: h['Socio-economic category'] || '—',
-          houseNo: h['House No.'] || '—',
-          vocationalPercentage: h['Vocational %age'] || '—',
-          prevComplexHead: h['Previous Complex Head'] || '—',
-          penNo: hPen,
-          prevSchool: h['Previous School'] || '—',
-          prevCcDc: h['CC/DC No. & Date (Prev. insitution)'] || '—',
-          prevExamMode: h['Exam Mode (Prev.)'] || '—',
-          prevExamRollNo: h['Exam R.No. (Prev.)'] || '—',
-          prevMarksObt: h['Marks Obt. (Prev.)'] || '—',
-          prevMaxMarks: h['Max. Marks (Prev.)'] || '—',
-          prevPercentage: h['%age (Prev.)'] || '—',
-          prevDivision: h['Div/Distinc (Prev.)'] || '—',
-          currExamMode: h['Exam Mode (Current)'] || '—',
-          currExamRollNo: h['Exam R.No. (Current)'] || '—',
-          currResult: h['Result (Current)'] || '—',
-          currMarksReapp: h['Marks/Reapp (Current)'] || '—',
-          withdrawalDate: h['Date of withdrawl'] || '—',
-          currCcDc: h['No. & Date of CC/DC Issued (This Institution)'] || '—',
-          remarks: h['Remarks'] || '—',
-          pdfUrl: h['PDF_URL'] || '—',
-          readmission: h['readmission'] || '—',
-          apaarId: h['APAAR ID'] || '—',
-        });
-      });
-    }
-
     return combined;
-  }, [currentAdmissions, masterRecords, viewScope, selectedSessions, selectedClasses]);
+  }, [currentAdmissions, masterHistoricalRecords]);
 
   // Dynamic Dropdown Lists extracted in a single fast pass directly from database records
   const {
@@ -5574,142 +5335,96 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     };
   }, [allStudents]);
 
-  // Dynamic Options for Modal Class & Session Multi-Select Filters
-  const modalAvailableClasses = useMemo(() => {
-    const set = new Set();
-    availableClasses.forEach(c => { if (c && c !== '—') set.add(c); });
-    ['11th', '12th', '10th', '9th'].forEach(c => set.add(c));
-    return Array.from(set).sort((a, b) => {
-      const numA = parseInt(a, 10) || 0;
-      const numB = parseInt(b, 10) || 0;
-      return numB - numA; // 12th, 11th, 10th, 9th
-    });
-  }, [availableClasses]);
-
-  const modalAvailableSessions = useMemo(() => {
-    const set = new Set();
-    availableSessions.forEach(s => { if (s && s !== '—') set.add(s); });
-    [
-      '2026 APR/BIAN',
-      '2025 APR/BIAN',
-      '2025-26',
-      '2024-25 (Oct-Nov)',
-      '2024-25 (Mar-Apr)',
-      '2024-25',
-      '2023-24',
-      '2022-23',
-      '2021-22',
-      '2020-21',
-      '2019-20',
-      '2018-19',
-      '2017-18',
-      '2016-17',
-      '2015-16',
-      '2014-15',
-      '2013-14',
-      '2012-13',
-      '2011-12',
-      '2010-11',
-      '2009-10',
-      '2008-09',
-      '2007-08',
-      '2006-07'
-    ].forEach(s => set.add(s));
-    const list = Array.from(set);
-    list.sort((a, b) => {
-      const aIsBian = /bian|bi-annual|apr/i.test(a);
-      const bIsBian = /bian|bi-annual|apr/i.test(b);
-      if (aIsBian && !bIsBian) return 1;
-      if (!aIsBian && bIsBian) return -1;
-      return b.localeCompare(a, undefined, { numeric: true });
-    });
-    return list;
-  }, [availableSessions]);
-
-  const selectedModalClasses = useMemo(() => {
-    if (masterFetchClasses.length === 0) return modalAvailableClasses;
-    if (masterFetchClasses.includes('__NONE__')) return [];
-    return masterFetchClasses;
-  }, [masterFetchClasses, modalAvailableClasses]);
-
-  const selectedModalSessions = useMemo(() => {
-    if (masterFetchSessions.length === 0) return modalAvailableSessions.slice(0, 6);
-    if (masterFetchSessions.includes('__NONE__')) return [];
-    return masterFetchSessions;
-  }, [masterFetchSessions, modalAvailableSessions]);
-
-  const isAllClassesModalSelected = selectedModalClasses.length === modalAvailableClasses.length;
-  const isAllSessionsModalSelected = selectedModalSessions.length === modalAvailableSessions.length;
-  const isNoClassesModalSelected = selectedModalClasses.length === 0;
-  const isNoSessionsModalSelected = selectedModalSessions.length === 0;
-
-  const handleSelectAllModalClasses = () => setMasterFetchClasses([]);
-  const handleDeselectAllModalClasses = () => setMasterFetchClasses(['__NONE__']);
-
-  const handleToggleModalClass = (cls) => {
-    if (isAllClassesModalSelected) {
-      setMasterFetchClasses(modalAvailableClasses.filter(c => c !== cls));
-    } else if (isNoClassesModalSelected) {
-      setMasterFetchClasses([cls]);
-    } else if (selectedModalClasses.includes(cls)) {
-      const next = selectedModalClasses.filter(c => c !== cls);
-      setMasterFetchClasses(next.length === 0 ? ['__NONE__'] : next);
-    } else {
-      const next = [...selectedModalClasses, cls];
-      setMasterFetchClasses(next.length === modalAvailableClasses.length ? [] : next);
+  // Target dataset: when search query is active or user explicitly chooses specific/historical sessions,
+  // search across all records (active + historical); when empty default view, show active admissions for 0ms speed.
+  const targetDataset = useMemo(() => {
+    const activeQuery = deferredSearchTerm.trim();
+    if (activeQuery !== '') {
+      return allStudents;
     }
-  };
-
-  const handleSelectAllModalSessions = () => setMasterFetchSessions(modalAvailableSessions);
-  const handleDeselectAllModalSessions = () => setMasterFetchSessions(['__NONE__']);
-
-  const handleToggleModalSession = (sess) => {
-    const current = selectedModalSessions;
-    if (current.includes(sess)) {
-      const next = current.filter(s => s !== sess);
-      setMasterFetchSessions(next.length === 0 ? ['__NONE__'] : next);
-    } else {
-      const next = [...current, sess];
-      setMasterFetchSessions(next.length === modalAvailableSessions.length ? modalAvailableSessions : next);
+    if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
+      return allStudents;
     }
-  };
-
-  // Target dataset directly references allStudents (already scoped by viewScope)
-  const targetDataset = allStudents;
+    // Default view: only active admissions for 0ms cold-start rendering
+    return allStudents.filter(s => s._isCurrentScope === true);
+  }, [allStudents, deferredSearchTerm, selectedSessions]);
 
   // ─── Google-like Intelligent Search & Relevance Engine ───
   const evaluateGoogleSearch = useCallback((s, query) => {
     if (!query || !query.trim()) return { matches: true, score: 0 };
 
-    const rawTokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const parsed = parseSearchQuery(query);
+    if (parsed.isPattern) {
+      const val = parsed.patternVal.toLowerCase();
+      if (parsed.patternType === 'admNo') {
+        const sAdm = String(s.admNo || '').toLowerCase();
+        const sRawAdm = cleanSearchAdm(s.admNo);
+        if (sAdm === val || sRawAdm === cleanSearchAdm(val)) return { matches: true, score: 3500 };
+        if (sAdm.includes(val)) return { matches: true, score: 2200 };
+        return { matches: false, score: 0 };
+      }
+      if (parsed.patternType === 'boardRegNo') {
+        const sReg = cleanSearchReg(s.boardRegNo);
+        const targetReg = cleanSearchReg(val);
+        if (sReg === targetReg) return { matches: true, score: 3500 };
+        if (sReg.includes(targetReg)) return { matches: true, score: 2200 };
+        return { matches: false, score: 0 };
+      }
+      if (parsed.patternType === 'formNo') {
+        const sFNo = String(s.formNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const targetFNo = val.replace(/[^a-z0-9]/g, '');
+        if (sFNo === targetFNo) return { matches: true, score: 3500 };
+        if (sFNo.includes(targetFNo)) return { matches: true, score: 2200 };
+        return { matches: false, score: 0 };
+      }
+      if (parsed.patternType === 'classRollNo') {
+        const sRoll = String(s.classRollNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const targetRoll = val.replace(/[^a-z0-9]/g, '');
+        if (sRoll === targetRoll) return { matches: true, score: 3500 };
+        if (sRoll.includes(targetRoll)) return { matches: true, score: 2200 };
+        return { matches: false, score: 0 };
+      }
+      if (parsed.patternType === 'mobile') {
+        const sMob = cleanSearchMobile(s.mobile || s.parentContact);
+        const targetMob = cleanSearchMobile(val);
+        if (sMob === targetMob) return { matches: true, score: 3500 };
+        if (sMob.includes(targetMob)) return { matches: true, score: 2200 };
+        return { matches: false, score: 0 };
+      }
+    }
+
+    const rawTokens = parsed.rawTokens;
     if (rawTokens.length === 0) return { matches: true, score: 0 };
 
-    const blob = s._searchBlob || '';
+    const blob = `${s._searchBlob || ''} ${s.motherName || ''} ${s.parentContact || ''} ${s.fatherName || ''} ${s.village || ''} ${s.admNo || ''} ${s.boardRegNo || ''} ${s.formNo || ''} ${s.classRollNo || ''} ${s.mobile || ''}`.toLowerCase();
     let score = 0;
 
     for (const token of rawTokens) {
-      const inBlob = blob.includes(token);
-      if (!inBlob) {
+      if (!blob.includes(token)) {
         return { matches: false, score: 0 };
       }
 
       // Relevance score boosting
-      if (s.formNo === token || String(s._formNum) === token) score += 2000;
+      if (s.formNo === token || String(s._formNum) === token) score += 2500;
       else if (String(s.formNo || '').includes(token)) score += 800;
 
-      if (s.boardRegNo === token) score += 1500;
-      else if (String(s.boardRegNo || '').includes(token)) score += 600;
+      if (String(s.admNo || '').toLowerCase() === token) score += 2200;
+      else if (String(s.admNo || '').toLowerCase().includes(token)) score += 800;
 
-      if (s.classRollNo === token || String(s._rollNum) === token) score += 1200;
-      else if (String(s.classRollNo || '').includes(token)) score += 500;
+      if (s.boardRegNo === token) score += 2000;
+      else if (String(s.boardRegNo || '').includes(token)) score += 700;
 
-      if (String(s.mobile || '').includes(token)) score += 1000;
+      if (s.classRollNo === token || String(s._rollNum) === token) score += 1500;
+      else if (String(s.classRollNo || '').includes(token)) score += 600;
 
-      if (s._nameLower === token) score += 1000;
-      else if (s._nameLower.startsWith(token)) score += 600;
-      else if (s._nameLower.includes(token)) score += 300;
+      if (String(s.mobile || '').includes(token) || String(s.parentContact || '').includes(token)) score += 1200;
 
-      if (String(s.fatherName || '').toLowerCase().includes(token)) score += 200;
+      if (s._nameLower === token) score += 1200;
+      else if (s._nameLower?.startsWith(token)) score += 700;
+      else if (s._nameLower?.includes(token)) score += 350;
+
+      if (String(s.fatherName || '').toLowerCase().includes(token)) score += 400;
+      if (String(s.motherName || '').toLowerCase().includes(token)) score += 400;
       if (String(s.subs || '').toLowerCase().includes(token) || String(s.stream || '').toLowerCase().includes(token)) score += 100;
       if (String(s.village || '').toLowerCase().includes(token)) score += 80;
     }
@@ -5980,23 +5695,16 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const regKey = extractRegNoClean(st);
     if (!regKey) return null;
 
-    const matches = masterRecords.filter(m => {
-      const mReg = extractRegNoClean(m);
-      const mAdm = resolveAdmNo(m) || cleanAdmNoVal(m['Adm. No.'] || m.admNo);
-      return mReg && mReg === regKey && mAdm && mAdm !== '—';
-    });
-
-    if (matches.length > 0) {
-      const m = matches[0];
-      const adm = resolveAdmNo(m) || cleanAdmNoVal(m['Adm. No.'] || m.admNo);
+    const indexed = lookupStudentByRegSync(regKey);
+    if (indexed && indexed.admNo && indexed.admNo !== '—') {
       return {
-        admNo: adm,
-        class: m.class || m['Class'] || 'Previous',
-        session: m.session || m['Session'] || ''
+        admNo: cleanAdmNoVal(indexed.admNo),
+        class: indexed.class || 'Previous',
+        session: indexed.session || ''
       };
     }
     return null;
-  }, [masterRecords]);
+  }, []);
 
   // Candidate students matching session filter, class scope & missing filter across all database records
   const candidateAssignStudents = useMemo(() => {
@@ -6364,7 +6072,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Missing_Photos_${viewScope}_${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `Missing_Photos_Admissions_${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -6387,27 +6095,95 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
 
           {/* Left Sub-Group: Search Bar, Desktop Filters Dropdown, and Total Records Counter */}
           <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
-            {/* Search Input Bar (Expands aggressively on Mobile & Desktop) */}
-            <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]">
+            {/* Search Input Bar with Shortcut Tooltip Popover */}
+            <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]" ref={searchHelpRef}>
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Google Search: Name, Form #, Reg #, Roll, Mobile, Class, Village..."
+                placeholder="Search Name, Father, Mother, Mob, adm4347, reg..."
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-7 pr-6 py-1 sm:py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
+                className="w-full pl-7 pr-12 py-1 sm:py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
               />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-0.5 cursor-pointer">
-                  <X size={12} />
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                {searchTerm ? (
+                  <button onClick={() => setSearchTerm('')} className="text-slate-500 hover:text-slate-700 p-0.5 cursor-pointer">
+                    <X size={12} />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setShowSearchHelp(prev => !prev)}
+                  title="Search shortcuts & keyword guide"
+                  className={`p-1 rounded-md transition-all cursor-pointer ${showSearchHelp ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300' : 'text-slate-400 hover:text-amber-600'}`}
+                >
+                  <Sparkles size={12} />
                 </button>
+              </div>
+
+              {/* Interactive Search Shortcuts Tooltip / Guide Popover */}
+              {showSearchHelp && (
+                <div className="absolute left-0 top-full mt-1 w-72 sm:w-80 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 text-[11px] space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                    <span className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      <Sparkles size={12} className="text-amber-500" />
+                      Global Search Shortcuts
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSearchHelp(false)}
+                      className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1 text-[10px] sm:text-[11px]">
+                    <div
+                      onClick={() => { setSearchTerm('adm'); setShowSearchHelp(false); }}
+                      className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Admission No:</span>
+                      <code className="font-mono font-bold text-amber-600 dark:text-amber-400">adm4347</code>
+                    </div>
+                    <div
+                      onClick={() => { setSearchTerm('reg'); setShowSearchHelp(false); }}
+                      className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Board Reg No:</span>
+                      <code className="font-mono font-bold text-blue-600 dark:text-blue-400">reg23...</code>
+                    </div>
+                    <div
+                      onClick={() => { setSearchTerm('form'); setShowSearchHelp(false); }}
+                      className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Form Number:</span>
+                      <code className="font-mono font-bold text-emerald-600 dark:text-emerald-400">form123</code>
+                    </div>
+                    <div
+                      onClick={() => { setSearchTerm('roll'); setShowSearchHelp(false); }}
+                      className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Class Roll No:</span>
+                      <code className="font-mono font-bold text-purple-600 dark:text-purple-400">roll12</code>
+                    </div>
+                    <div
+                      onClick={() => { setSearchTerm('mob'); setShowSearchHelp(false); }}
+                      className="p-1 rounded bg-slate-50 dark:bg-slate-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Mobile / Contact:</span>
+                      <code className="font-mono font-bold text-rose-600 dark:text-rose-400">mob9906...</code>
+                    </div>
+                  </div>
+                  <div className="text-[9px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1">
+                    🔍 Or type any student name, father name, mother name, village, class, or stream.
+                  </div>
+                </div>
               )}
             </div>
 
             {/* Desktop Filters Dropdown (Shown ONLY on Desktop >= sm right next to Search Bar) */}
             <div className="hidden sm:block flex-shrink-0">
               <UnifiedFiltersGroupDropdown
-                viewScope={viewScope}
                 availableSessions={availableSessions}
                 selectedSessions={selectedSessions}
                 setSelectedSessions={setSelectedSessions}
@@ -6431,59 +6207,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               />
             </div>
 
-            {/* Total Records Counter & Scope Swapper (POSITIONED DIRECTLY TO THE RIGHT OF FILTERS BUTTON) */}
-            <div className="relative overflow-hidden flex items-center p-0.5 rounded-lg border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => { setViewScope('active'); setCurrentPage(1); }}
-                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'active'
-                  ? 'bg-emerald-700 text-white shadow-2xs font-black'
-                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
-                  }`}
-              >
-                <span className="text-[10px] sm:text-xs font-black">Active</span>
-                <span className={`text-[9px] sm:text-[10px] font-mono font-bold ${viewScope === 'active' ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`}>
-                  ({viewScope === 'active' ? filteredStudents.length : currentAdmissions.length})
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMasterFetchConfirm(true);
-                }}
-                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md transition-all cursor-pointer flex items-center gap-0.5 sm:gap-1 ${viewScope === 'all'
-                  ? 'bg-amber-700 text-white shadow-2xs font-black'
-                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 font-extrabold'
-                  }`}
-              >
-                <span className="text-[10px] sm:text-xs font-black">All</span>
-                <span className={`text-[9px] sm:text-[10px] font-mono font-bold ${viewScope === 'all' ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`}>
-                  ({viewScope === 'all' ? filteredStudents.length : allStudents.length})
-                </span>
-                {masterRecords.length > 0 && viewScope === 'all' && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMasterFetchConfirm(true);
-                    }}
-                    title="Customize Archive Classes & Sessions Filter"
-                    className="p-0.5 ml-0.5 hover:bg-amber-800 rounded text-amber-200 hover:text-white"
-                  >
-                    <Sliders size={10} />
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowAnalyticsModal(true)}
-                title="Analytics & Statistical Reports Suite"
-                className="p-1 sm:p-1.5 rounded-lg transition-all cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm flex items-center justify-center ml-1"
-              >
-                <BarChart2 size={13} />
-              </button>
-
-              {/* Red Progress Bar strictly at the bottom border of this specific Active/All pill box */}
+            {/* Total Records Counter Badge */}
+            <div className="relative overflow-hidden flex items-center px-2 py-1 rounded-lg border text-[10px] sm:text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100">
+              <span className="text-emerald-700 dark:text-emerald-400 font-black">📋 Records:</span>
+              <span className="font-mono font-black text-slate-900 dark:text-slate-50">{filteredStudents.length}</span>
+              {/* Red Progress Bar strictly at the bottom border */}
               {(isFetchingData || loading || fetchProgress > 0) && (
                 <div className="absolute left-0 right-0 bottom-0 h-0.5 sm:h-1 bg-red-100 dark:bg-rose-950/40 overflow-hidden pointer-events-none transition-all">
                   <div
@@ -6541,7 +6269,6 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
             {/* Mobile Filters Dropdown (Shown ONLY on Mobile < sm right next to Wrench Tools) */}
             <div className="block sm:hidden flex-shrink-0">
               <UnifiedFiltersGroupDropdown
-                viewScope={viewScope}
                 availableSessions={availableSessions}
                 selectedSessions={selectedSessions}
                 setSelectedSessions={setSelectedSessions}
@@ -6605,25 +6332,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
               </div>
             )}
 
-            {/* Extreme Right Toolbar Actions: Recycle Bin 🗑️ (positioned right before Settings) + Table Settings Dropdown */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowRecycleBinModal(true);
-                handleMarkRecycleBinSeen();
-              }}
-              title="90-Day Application Recycle Bin & Restoration"
-              className="relative p-1.5 rounded-xl flex items-center justify-center transition-all cursor-pointer bg-amber-700 hover:bg-amber-600 text-white shadow-sm font-extrabold text-xs"
-            >
-              <Trash2 size={14} />
-              {unreadRecycleBinCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono shadow-sm animate-bounce">
-                  {unreadRecycleBinCount}
-                </span>
-              )}
-            </button>
-
-            {/* Table Settings Dropdown */}
+            {/* Table Settings Dropdown (Includes Layout, Columns, Density, Export, Print, Sync, and 90-Day Recycle Bin) */}
             <MoreActionsDropdown
               density={density}
               setDensity={setDensity}
@@ -6744,6 +6453,11 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                             {col.key === 'sno' ? (
                               <div className="flex flex-col items-center justify-center text-center py-0.5 min-w-0 w-full">
                                 <span className="font-mono font-black text-amber-800 dark:text-amber-300 text-xs sm:text-[13px]">{dynamicSNo}</span>
+                                {s._isHistorical ? (
+                                  <span className="text-[8px] font-black leading-none px-1 py-px rounded bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800/60 mt-0.5 select-none" title="Source: Master Registers (Historical)">REG</span>
+                                ) : (
+                                  <span className="text-[8px] font-black leading-none px-1 py-px rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 mt-0.5 select-none" title="Source: Active Admissions">ADM</span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -7743,7 +7457,7 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
                   <div className="font-extrabold text-teal-700 dark:text-teal-400">Ledger Summary:</div>
                   <ul className="list-disc list-inside space-y-1 text-slate-700 dark:text-slate-300 font-bold">
                     <li>Selected Records: <strong>{filteredStudents.length}</strong></li>
-                    <li>Active Register Scope: <strong>{viewScope === 'all' ? 'All Records' : 'Active Applications'}</strong></li>
+                    <li>Active Register Scope: <strong>Active Admissions Register</strong></li>
                     <li>Columns Included: <strong>Full 72 Register Schema Fields</strong></li>
                   </ul>
                 </div>
@@ -8168,238 +7882,14 @@ export default function AdvancedReports({ setActiveTab, viewScope = 'active', se
       <AnalyticsSuiteModal
         isOpen={showAnalyticsModal}
         onClose={() => setShowAnalyticsModal(false)}
-        students={allStudents.length > 0 ? allStudents : [...currentAdmissions, ...masterRecords]}
+        students={allStudents.length > 0 ? allStudents : currentAdmissions}
       />
-
-      {/* Historical Archives Fetch Confirmation Modal with Multi-Select Checkboxes */}
-      {showMasterFetchConfirm && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[10050] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-amber-500/50 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-3.5 animate-scaleUp my-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center shrink-0">
-                  <Database size={24} className="animate-pulse" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white leading-tight">
-                    Load Historical Archives Database
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
-                    Active session (~573 records) &bull; Central archive (9,700+ records)
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowMasterFetchConfirm(false)}
-                className="p-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-md transition-transform hover:scale-110 cursor-pointer shrink-0"
-                title="Close Modal"
-              >
-                <X size={18} strokeWidth={3} />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
-              Select which <strong>Classes</strong> and <strong>Academic Sessions</strong> you want to load from the database. Use the checkboxes and quick selectors below:
-            </p>
-
-            {/* Class Multi-Select Section */}
-            <div className="bg-slate-50 dark:bg-slate-950/70 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-black text-xs text-slate-800 dark:text-slate-200">
-                  <BookOpen size={13} className="text-amber-600 dark:text-amber-400" />
-                  <span>Select Classes</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300">
-                    {isAllClassesModalSelected ? 'All Classes' : `${selectedModalClasses.length} of ${modalAvailableClasses.length}`}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={handleSelectAllModalClasses}
-                    className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeselectAllModalClasses}
-                    className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
-                  >
-                    Deselect All
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                {modalAvailableClasses.map((cls) => {
-                  const checked = selectedModalClasses.includes(cls);
-                  return (
-                    <button
-                      key={cls}
-                      type="button"
-                      onClick={() => handleToggleModalClass(cls)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${
-                        checked
-                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/60 text-amber-900 dark:text-amber-200 shadow-xs'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:border-slate-300'
-                      }`}
-                    >
-                      {checked ? (
-                        <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                      ) : (
-                        <Square size={14} className="text-slate-400 dark:text-slate-600 shrink-0" />
-                      )}
-                      <span className="truncate">Class {cls}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Session Multi-Select Section */}
-            <div className="bg-slate-50 dark:bg-slate-950/70 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-black text-xs text-slate-800 dark:text-slate-200">
-                  <CalendarCheck size={13} className="text-amber-600 dark:text-amber-400" />
-                  <span>Select Academic Sessions</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300">
-                    {isAllSessionsModalSelected ? 'All Sessions' : `${selectedModalSessions.length} of ${modalAvailableSessions.length}`}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={handleSelectAllModalSessions}
-                    className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeselectAllModalSessions}
-                    className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
-                  >
-                    Deselect All
-                  </button>
-                </div>
-              </div>
-
-              <div className="max-h-40 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1.5 pr-1 custom-scrollbar">
-                {modalAvailableSessions.map((sess) => {
-                  const checked = selectedModalSessions.includes(sess);
-                  return (
-                    <button
-                      key={sess}
-                      type="button"
-                      onClick={() => handleToggleModalSession(sess)}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border text-left ${
-                        checked
-                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/60 text-amber-900 dark:text-amber-200 shadow-xs'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:border-slate-300'
-                      }`}
-                    >
-                      {checked ? (
-                        <CheckSquare size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                      ) : (
-                        <Square size={14} className="text-slate-400 dark:text-slate-600 shrink-0" />
-                      )}
-                      <span className="truncate flex-1">{sess}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Performance Hint */}
-            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 rounded-2xl border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 font-bold space-y-0.5">
-              <div className="flex items-center gap-1.5 font-black text-amber-700 dark:text-amber-300">
-                <Zap size={13} /> Database Optimization:
-              </div>
-              <div className="text-[10px] text-amber-800/90 dark:text-amber-300/90">
-                Historical records are cached locally for 30 days. Subsequent visits load in 0ms.
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowMasterFetchConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Cancel (Stay on Active)
-              </button>
-              <button
-                type="button"
-                disabled={isFetchingMaster}
-                onClick={async () => {
-                  setShowMasterFetchConfirm(false);
-                  setIsFetchingData(true);
-                  setFetchProgress(40);
-
-                  const hasCached = (window._hssMasterRegistersCache && window._hssMasterRegistersCache.length > 0) ||
-                    (masterRecords && masterRecords.length > 0);
-
-                  // Apply selected classes
-                  const targetClasses = isAllClassesModalSelected
-                    ? []
-                    : (isNoClassesModalSelected ? ['__NONE__'] : selectedModalClasses);
-
-                  // Apply selected sessions
-                  const targetSessions = isAllSessionsModalSelected
-                    ? []
-                    : (isNoSessionsModalSelected ? ['__NONE__'] : selectedModalSessions);
-
-                  React.startTransition(() => {
-                    if (masterRecords.length === 0 && window._hssMasterRegistersCache?.length > 0) {
-                      setMasterRecords(window._hssMasterRegistersCache);
-                    }
-                    setViewScope('all');
-                    setCurrentPage(1);
-                    setSelectedClasses(targetClasses);
-                    setSelectedSessions(targetSessions);
-                  });
-
-                  if (!hasCached || masterRecords.length === 0) {
-                    await loadReportsData(true);
-                  } else {
-                    setFetchProgress(100);
-                    setTimeout(() => {
-                      setIsFetchingData(false);
-                      setFetchProgress(0);
-                    }, 250);
-                  }
-
-                  const classSummary = isAllClassesModalSelected ? 'All Classes' : selectedModalClasses.join(', ');
-                  const sessSummary = isAllSessionsModalSelected ? 'All Sessions' : selectedModalSessions.slice(0, 2).join(', ') + (selectedModalSessions.length > 2 ? '...' : '');
-                  setToast({
-                    message: `Historical Archive: Filtered by ${classSummary} & ${sessSummary}`,
-                    type: 'success'
-                  });
-                  setTimeout(() => setToast(null), 3500);
-                }}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {isFetchingMaster ? <Loader2 size={13} className="animate-spin" /> : <Database size={13} />}
-                <span>
-                  {(masterRecords?.length > 0 || window._hssMasterRegistersCache?.length > 0)
-                    ? 'Apply Filters & View All'
-                    : 'Fetch & Apply Filters'}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 2-Stage Application Deletion Modal */}
       <DeleteApplicationModal
         isOpen={!!deletingStudentTarget}
         onClose={() => setDeletingStudentTarget(null)}
         student={deletingStudentTarget}
-        masterRecords={masterRecords}
         currentAdmissions={currentAdmissions}
         userEmail={user?.email || 'Admin'}
         onDeleteSuccess={(deletedRecords) => {

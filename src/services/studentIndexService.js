@@ -9,8 +9,8 @@
 import { db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-const INDEX_COLLECTION = 'system_indexes';
-const INDEX_DOC_ID = 'student_reg_index';
+const INDEX_COLLECTION = 'systemSettings';
+const INDEX_DOC_ID = 'studentRegIndex';
 const CACHE_KEY = 'hss_student_reg_index_cache';
 
 let memoryIndexCache = null;

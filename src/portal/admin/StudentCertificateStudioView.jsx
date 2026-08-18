@@ -24,7 +24,13 @@ import StudentResultEditorModal from './StudentResultEditorModal';
 import ResultIngestionModal from './ResultIngestionModal';
 import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { normalizeResultStatus, calculateDivision } from '../../utils/jkboseResultManager';
+import {
+  normalizeResultStatus,
+  calculateDivision,
+  extractStudentResultMarks,
+  extractStudentAdmissionNumber,
+  extractStudentAdmissionDate
+} from '../../utils/jkboseResultManager';
 import {
   getCachedCollectionSync,
   getCachedCollection,
@@ -81,100 +87,22 @@ export default function StudentCertificateStudioView({
   showSettingsDrawerProp,
   onToggleSettingsDrawer
 }) {
-  // ─── Data Sources: Active Admissions + Multi-Collection Master Registers ───
-  const [liveStudentsList, setLiveStudentsList] = useState([]);
-  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session ───
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
   const [photosVersion, setPhotosVersion] = useState(0);
 
-  // Listen to background central photo loading events
-  useEffect(() => {
-    preloadCentralStudentPhotos().catch(() => {});
-    const onPhotosLoaded = () => setPhotosVersion(v => v + 1);
-    window.addEventListener('hss-photos-loaded', onPhotosLoaded);
-    return () => window.removeEventListener('hss-photos-loaded', onPhotosLoaded);
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchAllData = async () => {
-      setIsLoadingStudents(true);
-      const rawRecords = [];
-
-      // Preload central photos from studentPhotos collection in Firestore
-      try {
-        await preloadCentralStudentPhotos();
-      } catch (_) {}
-
-      // 1. Ingest allStudents prop from parent dashboard if present
-      if (Array.isArray(allStudents) && allStudents.length > 0) {
-        rawRecords.push(...allStudents.map(st => ({ ...st, _srcCollection: 'admissions' })));
-      }
-
-      // 2. Ingest in-memory singleton cache if available
-      if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
-        rawRecords.push(...window._hssMasterRegistersCache.map(st => ({ ...st, _srcCollection: 'masterRegisters' })));
-      }
-
-      // 3. Load from dbCache sync if available
-      try {
-        const cachedAdm = getCachedCollectionSync('admissions');
-        if (Array.isArray(cachedAdm) && cachedAdm.length > 0) {
-          rawRecords.push(...cachedAdm.map(st => ({ ...st, _srcCollection: 'admissions' })));
-        }
-        const cachedMaster = getCachedCollectionSync('masterRegisters');
-        if (Array.isArray(cachedMaster) && cachedMaster.length > 0) {
-          rawRecords.push(...cachedMaster.map(st => ({ ...st, _srcCollection: 'masterRegisters' })));
-        }
-      } catch (err) {
-        console.warn('Cache sync read note:', err);
-      }
-
-      // 4. Query Firestore collections directly (admissions, students, masterRegisters, registerdata, legacyStudents)
-      const colls = ['admissions', 'students', 'masterRegisters', 'registerdata', 'legacyStudents'];
-      for (const collName of colls) {
-        try {
-          const snap = await getDocs(collection(db, collName));
-          snap.forEach(d => {
-            const data = d.data();
-            const chunkItems = data.items || data.students || data.data || data.records;
-            if (Array.isArray(chunkItems)) {
-              // Unpack chunked archival documents from masterRegisters / registerdata
-              chunkItems.forEach(item => {
-                if (item && typeof item === 'object') {
-                  rawRecords.push({
-                    ...item,
-                    id: item.id || item['Form Number'] || item['Form No.'] || item['Board Registration Number'] || `${d.id}_${Math.random()}`,
-                    _srcCollection: collName
-                  });
-                }
-              });
-            } else {
-              rawRecords.push({ id: d.id, ...data, _srcCollection: collName });
-            }
-          });
-        } catch (err) {
-          console.warn(`Firestore read ${collName} note:`, err);
-        }
-      }
-
-      if (isMounted) {
-        setLiveStudentsList(rawRecords);
-        setIsLoadingStudents(false);
-      }
-    };
-
-    fetchAllData();
-    return () => { isMounted = false; };
+  // Direct reference to students list passed from parent (0ms latency, zero re-renders loop)
+  const liveStudentsList = useMemo(() => {
+    return Array.isArray(allStudents) ? allStudents : [];
   }, [allStudents]);
+  const isLoadingStudents = false;
 
-  // Combined searchable student directory with Canonical Database Field Extractors
+  // Combined searchable student directory with fast canonical single-pass mapping
   const unifiedStudentDirectory = useMemo(() => {
     const list = [];
     const seenKeys = new Set();
 
-    liveStudentsList.forEach(st => {
+    (liveStudentsList || []).forEach(st => {
       if (!st) return;
       const name = extractStudentName(st);
       if (!name || name === '—' || /^(null|undefined|—)$/i.test(name)) return;
@@ -189,16 +117,14 @@ export default function StudentCertificateStudioView({
       const session = extractSession(st) || '2026-27';
       const dob = extractDob(st) || '';
       const rawGender = extractGender(st);
-      const gender = rawGender.toLowerCase().startsWith('f') ? 'F' : 'M';
+      const gender = (rawGender || 'M').toUpperCase().startsWith('F') ? 'F' : 'M';
       const village = extractVillage(st);
       const address = village && village !== '—' ? `${village}, Shangus, Anantnag (J&K)` : 'Shangus, Anantnag — 192201 (J&K)';
       const mobile = extractMobile(st);
-      const photo = resolveStudentPhoto(st) || getPhotoUrlFromCache(regNo || formNo) || st['passport_photo'] || st['Student Photo'] || st['Photo'] || st['photoUrl'] || null;
-      
+      const directPhoto = st.photo_id || st.photoId || st.photoUrl || st.photo || st['passport_photo'] || st['Student Photo'] || st['Photo'] || null;
+
       const sessionLower = (session || '').toLowerCase();
       const isPast = st._srcCollection === 'masterRegisters' ||
-        st._srcCollection === 'registerdata' ||
-        st._srcCollection === 'legacyStudents' ||
         sessionLower.includes('legacy') ||
         sessionLower.includes('arch') ||
         sessionLower.includes('2024') ||
@@ -211,18 +137,7 @@ export default function StudentCertificateStudioView({
         sessionLower.includes('ex-') ||
         sessionLower.includes('past');
 
-      // ── Strict Filter: For present session students, only show assigned class roll nos / approved ones ──
-      if (!isPast) {
-        const hasAssignedRoll = Boolean(rollNo && rollNo !== '—' && !/^(n\/?a|none|null|undefined|—|-)$/i.test(String(rollNo).trim()));
-        const isApproved = /^(approved|admitted|confirmed|upgrade|active)$/i.test(String(st.Status || st.status || '').trim()) ||
-          String(st.Status || st.status || '').toLowerCase().includes('approv');
-
-        if (!hasAssignedRoll && !isApproved) {
-          return; // Skip unassigned / unapproved applicants from present session
-        }
-      }
-
-      const dedupeKey = `${(regNo && regNo !== '—' ? regNo : '')}_${(rollNo && rollNo !== '—' ? rollNo : '')}_${(formNo && formNo !== '—' ? formNo : '')}_${name.toLowerCase()}_${father.toLowerCase()}`;
+      const dedupeKey = `${(regNo && regNo !== '—' ? regNo : '')}_${(rollNo && rollNo !== '—' ? rollNo : '')}_${(formNo && formNo !== '—' ? formNo : '')}_${name.toLowerCase()}`;
       
       if (!seenKeys.has(dedupeKey)) {
         seenKeys.add(dedupeKey);
@@ -243,14 +158,14 @@ export default function StudentCertificateStudioView({
           gender,
           address,
           mobile: mobile !== '—' ? mobile : '',
-          photo,
+          photo: directPhoto,
           raw: st
         });
       }
     });
 
     return list;
-  }, [liveStudentsList, photosVersion]);
+  }, [liveStudentsList]);
 
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -311,6 +226,17 @@ export default function StudentCertificateStudioView({
   const [withdrawalDate, setWithdrawalDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [studentPhotoUrl, setStudentPhotoUrl] = useState(null);
   const [isFetchingPhoto, setIsFetchingPhoto] = useState(false);
+
+  // ─── TC / DC Result & Marks Override States ───
+  const [tcMarksObtained, setTcMarksObtained] = useState('');
+  const [tcMaxMarks, setTcMaxMarks] = useState('500');
+  const [tcDivision, setTcDivision] = useState('Distinction');
+  const [tcExamRoll, setTcExamRoll] = useState('');
+  const [tcExamMode, setTcExamMode] = useState('Annual Regular 2025 (Oct.-Nov.)');
+  const [tcResultStatus, setTcResultStatus] = useState('Passed');
+  const [tcReappSubjects, setTcReappSubjects] = useState('');
+  const [admissionNo, setAdmissionNo] = useState('1101');
+  const [admissionDate, setAdmissionDate] = useState('01-07-2024');
 
   // ─── Custom Dynamic Fields (Add/Remove/Edit values on the fly) ───
   const [customFields, setCustomFields] = useState([]);
@@ -402,6 +328,15 @@ export default function StudentCertificateStudioView({
   const [showResultIngestionModal, setShowResultIngestionModal] = useState(false);
   const [showBulkGeneratorModal, setShowBulkGeneratorModal] = useState(false);
   const [isDualCopy, setIsDualCopy] = useState(true);
+  const [pageMargin, setPageMargin] = useState(0.3);
+  const [headerGap, setHeaderGap] = useState(0.50); // Default 0.5 inch vertical space between Section 1 & Section 2
+  const [titleMetaGap, setTitleMetaGap] = useState(0); // Tightly coupled Title and Cert No.
+  const [metaBodyGap, setMetaBodyGap] = useState(0.50); // Default 0.5 inch vertical space between Section 2 & Section 3
+  const [paraSpacing, setParaSpacing] = useState(8);
+  const [bodyLineHeight, setBodyLineHeight] = useState(1.85);
+  const [bodyDateGap, setBodyDateGap] = useState(12);
+  const [dateSigGap, setDateSigGap] = useState(1.0); // Fixed 1 inch vertical space between Section 3 (body/dates) & Section 4 (signatories)
+  const [sigReceiptGap, setSigReceiptGap] = useState(12);
 
   // TC/DC Active check: Only show Result Hub and Bulk TC Generator when TC/DC is selected
   const isTcDcActive = useMemo(() => {
@@ -703,14 +638,22 @@ export default function StudentCertificateStudioView({
     setCustomCanvasHtml(null);
 
     const raw = st.raw || st;
-    const currResult = raw['Result (Current)'] || raw.currResult || 'Passed';
-    const isPassed = normalizeResultStatus(currResult) === 'Passed';
+    const resInfo = extractStudentResultMarks(raw);
+    const isPassed = resInfo.isPassed;
+
+    setTcMarksObtained(resInfo.marksObtained);
+    setTcMaxMarks(resInfo.maxMarks);
+    setTcDivision(resInfo.division);
+    setTcExamRoll(resInfo.examRoll || '');
+    setTcExamMode(resInfo.examMode);
+    setTcResultStatus(resInfo.resultStatus);
+    setTcReappSubjects(resInfo.reappSubjects);
 
     let activeTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
 
     // If a TC/DC template is active, automatically select the Qualified or Re-appear template variant
     if (activeTpl.isTcDc || selectedTemplateId.startsWith('tc_dc_')) {
-      const targetId = isPassed ? 'tc_dc_qualified' : 'tc_dc_reappear';
+      const targetId = isPassed ? 'tc_dc_qualified' : (resInfo.isReap ? 'tc_dc_reappear' : 'tc_dc_qualified');
       const foundTarget = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === targetId) || activeTpl;
       setSelectedTemplateId(foundTarget.id);
       activeTpl = foundTarget;
@@ -733,6 +676,11 @@ export default function StudentCertificateStudioView({
     
     const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
     setWithdrawalDate(rawWd);
+
+    const admNoResolved = extractStudentAdmissionNumber(raw) || st.rollNo || '—';
+    const admDateResolved = extractStudentAdmissionDate(raw) || '01-07-2024';
+    setAdmissionNo(admNoResolved);
+    setAdmissionDate(admDateResolved);
     
     // Immediately fetch & resolve student photo from database
     await fetchAndResolveStudentPhoto(st);
@@ -768,35 +716,37 @@ export default function StudentCertificateStudioView({
     }
   };
 
-  // ─── 1-Click Salutation Title Toggle (Instant DOM & Template Sync) ───
-  const handleToggleSalutations = (next) => {
+  // ─── Direct Inline Title (Salutation) Toggle ───
+  const handleToggleSalutations = (forceVal = null) => {
+    const next = forceVal !== null ? forceVal : !includeSalutations;
     setIncludeSalutations(next);
 
-    const newHtml = interpolateCertificateTemplate(templateBody || activeDisplayHtml, {
-      studentName,
-      fatherName,
-      motherName,
-      className,
-      stream,
-      rollNo,
-      regNo,
-      dobFigures: parsedDob.figures,
-      dobWords: parsedDob.words,
-      session,
-      address,
-      gender,
-      refNo,
-      date: dateStr,
-      includeSalutations: next,
-      customFields
-    });
-
     if (editorRef.current) {
+      const newHtml = interpolateCertificateTemplate(templateBody, {
+        studentName,
+        fatherName,
+        motherName,
+        className,
+        stream,
+        rollNo,
+        regNo,
+        dobFigures: parsedDob.figures,
+        dobWords: parsedDob.words,
+        session,
+        address,
+        gender,
+        refNo,
+        date: dateStr,
+        includeSalutations: next,
+        customFields
+      });
+
       if (!next) {
         let domHtml = editorRef.current.innerHTML;
-        domHtml = domHtml.replace(/<(strong|b|em|span)([^>]*)>\s*(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+/gi, '<$1$2>');
-        domHtml = domHtml.replace(/\b(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+([A-Z])/g, '$1');
+        domHtml = domHtml.replace(/(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+/gi, '');
         domHtml = domHtml.replace(/\{GENDER_TITLE\}\s*/gi, '');
+        domHtml = domHtml.replace(/\{TITLE\}\s*/gi, '');
+        domHtml = domHtml.replace(/\{TITLE_YOUNG\}\s*/gi, '');
         domHtml = domHtml.replace(/\{FATHER_TITLE\}\s*/gi, '');
         domHtml = domHtml.replace(/\{MOTHER_TITLE\}\s*/gi, '');
         editorRef.current.innerHTML = domHtml;
@@ -829,14 +779,17 @@ export default function StudentCertificateStudioView({
   // ─── Live Interpolated Preview Content ───
   const interpolatedPreviewHtml = useMemo(() => {
     const raw = selectedStudent?.raw || selectedStudent || {};
-    const currResult = raw['Result (Current)'] || raw.currResult || 'Passed';
-    const currMarksReapp = String(raw['Marks/Reapp (Current)'] || raw.currMarksReapp || '');
-    const numMatch = currMarksReapp.match(/(\d+)(?:\s*\/\s*(\d+))?/);
-    const marksObt = numMatch ? numMatch[1] : (currMarksReapp || '—');
-    const maxM = numMatch ? (numMatch[2] || '500') : '500';
-    const currDiv = raw['Div/Distinc (Current)'] || raw.currDiv || (numMatch ? calculateDivision(numMatch[1], maxM).division : 'Distinction');
-    const currExamMode = raw['Exam Mode (Current)'] || raw.currExamMode || 'Annual Regular 2025 (Oct.-Nov.)';
-    const currExamRoll = raw['Exam R.No. (Current)'] || raw.currExamRoll || rollNo || '—';
+    const resInfo = extractStudentResultMarks(raw);
+
+    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+    const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+    const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
+    const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
+    const effExamMode = tcExamMode || resInfo.examMode || 'Annual Regular 2025 (Oct.-Nov.)';
+    const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+    const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
+
     const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
     const ccDcNo = raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—';
     const admDate = raw['Adm. Date'] || raw.admissionDate || '—';
@@ -844,8 +797,6 @@ export default function StudentCertificateStudioView({
     const village = raw['Village/Town'] || raw.village || raw.address || address || 'Shangus';
     const tehsil = raw['Tehsil'] || raw.tehsil || 'Anantnag';
     const district = raw['District'] || raw.district || 'Anantnag';
-
-    const normalizedResult = normalizeResultStatus(currResult);
 
     return interpolateCertificateTemplate(templateBody, {
       studentName,
@@ -866,13 +817,13 @@ export default function StudentCertificateStudioView({
       customFields,
       // TC / DC tokens
       examName: `Class ${className || '12th'} Examination`,
-      examRollNo: currExamRoll,
-      examSession: currExamMode,
-      resultStatus: normalizedResult === 'Passed' ? 'Pass' : (normalizedResult === 'Reap' ? 'Re-appear' : 'Did Not Qualify'),
-      divisionDistinction: currDiv,
-      marksObtained: marksObt,
-      maxMarks: maxM,
-      reappSubjects: currMarksReapp || '—',
+      examRollNo: effExamRoll,
+      examSession: effExamMode,
+      resultStatus: isPassed ? 'Pass' : (effResultStatus === 'Reap' ? 'Re-appear' : 'Did Not Qualify'),
+      divisionDistinction: effDiv,
+      marksObtained: effMarksObt,
+      maxMarks: effMaxMarks,
+      reappSubjects: effReappSubjects,
       admissionDate: admDate,
       admissionNo: admNo,
       withdrawalDate: effectiveWd,
@@ -882,7 +833,10 @@ export default function StudentCertificateStudioView({
       district,
       certificateNo: ccDcNo
     });
-  }, [templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, includeSalutations, customFields, selectedStudent, withdrawalDate]);
+  }, [
+    templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, includeSalutations, customFields, selectedStudent, withdrawalDate,
+    tcMarksObtained, tcMaxMarks, tcDivision, tcExamRoll, tcExamMode, tcResultStatus, tcReappSubjects
+  ]);
 
   // Active rendered HTML (Canvas override or cleanly interpolated preview)
   const activeDisplayHtml = customCanvasHtml !== null ? customCanvasHtml : interpolatedPreviewHtml;
@@ -893,7 +847,7 @@ export default function StudentCertificateStudioView({
     setDefaultTemplateId(templateId);
     try {
       await setCloudDefaultTemplate(templateId, 'certificate');
-      showToast('✓ Set as default certificate template!', 'success');
+      showToast('âœ“ Set as default certificate template!', 'success');
     } catch (err) {
       console.warn('Set default error:', err);
       showToast(`Default template set locally (${err.message})`, 'info');
@@ -948,7 +902,7 @@ export default function StudentCertificateStudioView({
       }
       setShowSaveTemplateModal(false);
       setNewTplName('');
-      showToast(`☁️ Template "${targetTpl.name}" successfully saved to Cloud Database!`, 'success');
+      showToast(`â˜ï¸ Template "${targetTpl.name}" successfully saved to Cloud Database!`, 'success');
     } catch (err) {
       console.error(err);
       showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
@@ -989,7 +943,7 @@ export default function StudentCertificateStudioView({
       const updated = [targetTpl, ...customTemplates.filter(t => t.id !== targetTpl.id)];
       setCustomTemplates(updated);
       setTemplateBody(currentHtml);
-      showToast(`☁️ Template "${targetTpl.name}" successfully overwritten and saved in Cloud!`, 'success');
+      showToast(`â˜ï¸ Template "${targetTpl.name}" successfully overwritten and saved in Cloud!`, 'success');
     } catch (err) {
       console.error(err);
       showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
@@ -1011,7 +965,7 @@ export default function StudentCertificateStudioView({
     setIsDeletingTemplate(true);
     try {
       await deleteCloudDocTemplate(id, 'certificate');
-      showToast(`🗑️ Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
+      showToast(`ðŸ—‘ï¸ Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
     } catch (err) {
       console.warn(err);
       showToast(`Template "${name}" deleted locally.`, 'info');
@@ -1981,7 +1935,7 @@ export default function StudentCertificateStudioView({
           signatories
         }
       });
-      showToast('✓ Certificate successfully archived in Cloud History!', 'success');
+      showToast('âœ“ Certificate successfully archived in Cloud History!', 'success');
     } catch (err) {
       console.error('History save error:', err);
       showToast(`Could not save document to cloud history: ${err.message}`, 'error');
@@ -2043,7 +1997,7 @@ export default function StudentCertificateStudioView({
     setGeminiKeys(saved);
     setShowKeysConfig(false);
     setAiError('');
-    showToast(`✓ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
+    showToast(`âœ“ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
   };
 
   const handleGenerateAi = async () => {
@@ -2116,7 +2070,7 @@ export default function StudentCertificateStudioView({
     }
 
     setTimeout(pushSnapshot, 50);
-    showToast('✨ AI-generated certificate content applied to canvas!', 'success');
+    showToast('âœ¨ AI-generated certificate content applied to canvas!', 'success');
     setShowAiModal(false);
   };
 
@@ -2129,13 +2083,13 @@ export default function StudentCertificateStudioView({
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—',
-      admissionDate: raw['Adm. Date'] || raw.admissionDate || '—',
-      admissionNo: raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—',
+      certificateNo: refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—',
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '01-07-2024',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
       regNo: regNo || '—'
     };
 
-    showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
+    showToast('ðŸ–¨ï¸ Opening print dialog / PDF preview...', 'info', 2500);
     printStudentCertificate({
       officeTitle,
       institutionName,
@@ -2149,43 +2103,17 @@ export default function StudentCertificateStudioView({
       watermark,
       signatories,
       isDualCopy: isDualCopy && isTcDcActive,
-      metaDetails
+      metaDetails,
+      pageMargin,
+      headerGap,
+      titleMetaGap,
+      metaBodyGap,
+      paraSpacing,
+      bodyLineHeight,
+      bodyDateGap,
+      dateSigGap,
+      sigReceiptGap
     });
-
-    // Auto-log to Firestore history
-    saveGeneratedDocToHistory({
-      docType: 'bonafide',
-      title: certificateTitle || 'BONAFIDE CERTIFICATE',
-      refNo: refNo || '',
-      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-      recipientOrStudent: studentName || 'Student',
-      studentDetails: {
-        name: studentName,
-        father: fatherName,
-        mother: motherName,
-        cls: className,
-        stream,
-        rollNo,
-        regNo,
-        dob: dobRaw,
-        session,
-        gender,
-        address
-      },
-      bodyHtml: currentHtml,
-      actionType: 'Printed / Saved PDF',
-      templateId: selectedTemplateId,
-      templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Bonafide',
-      extraData: {
-        officeTitle,
-        institutionName,
-        institutionAddress,
-        studentPhotoUrl: effectivePhoto,
-        showPhoto,
-        watermark,
-        signatories
-      }
-    }).catch(e => console.warn('History auto-log note:', e));
   };
 
   const handleExportDocx = async () => {
@@ -2197,9 +2125,9 @@ export default function StudentCertificateStudioView({
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—',
-      admissionDate: raw['Adm. Date'] || raw.admissionDate || '—',
-      admissionNo: raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—',
+      certificateNo: refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—',
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '01-07-2024',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
       regNo: regNo || '—'
     };
 
@@ -2217,45 +2145,10 @@ export default function StudentCertificateStudioView({
         metaDetails
       });
 
-      showToast('📥 Word document (.docx) successfully exported!', 'success');
-
-      // Auto-log to Firestore history
-      saveGeneratedDocToHistory({
-        docType: 'bonafide',
-        title: certificateTitle || 'BONAFIDE CERTIFICATE',
-        refNo: refNo || '',
-        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-        recipientOrStudent: studentName || 'Student',
-        studentDetails: {
-          name: studentName,
-          father: fatherName,
-          mother: motherName,
-          cls: className,
-          stream,
-          rollNo,
-          regNo,
-          dob: dobRaw,
-          session,
-          gender,
-          address
-        },
-        bodyHtml: currentHtml,
-        actionType: 'Downloaded (.docx)',
-        templateId: selectedTemplateId,
-        templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Bonafide',
-        extraData: {
-          officeTitle,
-          institutionName,
-          institutionAddress,
-          studentPhotoUrl: effectivePhoto,
-          showPhoto,
-          watermark,
-          signatories
-        }
-      }).catch(e => console.warn('History auto-log note:', e));
+      showToast('ðŸ“¥ Word document (.docx) successfully exported!', 'success');
     } catch (err) {
-      console.error('Word export error:', err);
-      showToast(`Failed to generate Word document: ${err.message}`, 'error');
+      console.error('Docx export error:', err);
+      showToast('Could not generate Word document.', 'error');
     } finally {
       setIsExportingDocx(false);
     }
@@ -2298,15 +2191,18 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* ════════ COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER ════════ */}
+      {/* â•â•â•â•â•â•â•â• COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER â•â•â•â•â•â•â•â• */}
       {showSettingsDrawer && (
-        <div className="bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-900/60 rounded-xl p-3 shadow-sm space-y-2 animate-fadeIn text-xs">
+        <div 
+          className="rounded-xl p-3 shadow-2xs space-y-2 animate-fadeIn text-xs border"
+          style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
+        >
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
-            <h3 className="font-black text-[11px] text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1.5 m-0">
-              <Sliders size={12} />
+            <h3 className="font-black text-[10.5px] text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1.5 m-0">
+              <Sliders size={11} className="text-teal-600 dark:text-teal-400" />
               <span>Certificate Letterhead & Institutional Setup</span>
             </h3>
-            <span className="text-[9.5px] text-slate-500">Live preview & auto-applied on print/export</span>
+            <span className="text-[9px] font-bold text-slate-400">Live preview & auto-applied on print/export</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
@@ -2407,40 +2303,51 @@ export default function StudentCertificateStudioView({
                 className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
               />
             </div>
+          </div>
 
-            {/* Watermark Background & Options */}
-            <div className="flex items-center gap-4 pt-3 flex-wrap">
-              <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold">
-                <input
-                  type="checkbox"
-                  checked={watermark}
-                  onChange={(e) => setWatermark(e.target.checked)}
-                  className="rounded text-teal-600"
-                />
-                <span>Seal Watermark</span>
-              </label>
-
-              <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold">
-                <input
-                  type="checkbox"
-                  checked={showPhoto}
-                  onChange={(e) => handleTogglePhoto(e.target.checked)}
-                  className="rounded text-teal-600"
-                />
-                <span>Photo Box</span>
-              </label>
-
-              <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold" title="Toggle to hide or show Mr., Mrs., Ms. titles on certificates">
-                <input
-                  type="checkbox"
-                  checked={includeSalutations}
-                  onChange={(e) => handleToggleSalutations(e.target.checked)}
-                  className="rounded text-teal-600"
-                />
-                <span className={includeSalutations ? 'text-teal-700 dark:text-teal-300' : 'text-slate-400 line-through'}>
-                  Mr. / Mrs. Titles
+          {/* ─── OPTIONS TOGGLES & PRECISION SPACING CONTROLS (FULL-WIDTH) ─── */}
+          <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800 space-y-2.5 w-full">
+            
+            {/* Top Row: Certificate Feature Options & Toggles Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs w-full">
+              <div className="flex items-center gap-3.5 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400" />
+                  <span>Options:</span>
                 </span>
-              </label>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={watermark}
+                    onChange={(e) => setWatermark(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span>Seal Watermark</span>
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showPhoto}
+                    onChange={(e) => handleTogglePhoto(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span>Photo Box</span>
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors" title="Toggle to hide or show Mr., Mrs., Ms. titles on certificates">
+                  <input
+                    type="checkbox"
+                    checked={includeSalutations}
+                    onChange={(e) => handleToggleSalutations(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className={includeSalutations ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-400 line-through'}>
+                    Mr. / Mrs. Titles
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -2449,48 +2356,40 @@ export default function StudentCertificateStudioView({
       {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
       <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
         
-        {/* ════════ LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE ════════ */}
+        {/* â•â•â•â•â•â•â•â• LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE â•â•â•â•â•â•â•â• */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
           className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-hidden flex flex-col min-h-[620px] max-h-[calc(100vh-95px)]"
         >
           
-          {/* SECTION 1: INSTANT STUDENT AUTO-COMPLETE SEARCH BAR & COHORT FILTERS */}
+          {/* STUDENT AUTO-COMPLETE SEARCH BAR & COHORT FILTERS */}
           <div className="space-y-1.5 pb-2 border-b border-slate-200 dark:border-slate-800 relative shrink-0">
-            <div className="flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-500">
+            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1">
-                <Search size={11} className="text-teal-600 dark:text-teal-400" />
-                <span>1. Search & Select Student</span>
+                <Search size={10} className="text-teal-600 dark:text-teal-400" />
+                <span>Search & Select Student</span>
               </span>
               <span className="text-[9px] font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
                 {isLoadingStudents && <RefreshCw size={9} className="animate-spin text-teal-600" />}
-                <span>{unifiedStudentDirectory.length} Students Indexed</span>
+                <span>{unifiedStudentDirectory.length} Indexed</span>
               </span>
             </div>
 
-            {/* Quick Cohort Filter Chips & Result Ingestion Action */}
-            <div className="flex items-center justify-between gap-1 overflow-x-auto pb-0.5 no-scrollbar text-[9px]">
-              <div className="flex items-center gap-1">
-                {[
-                  { id: 'ALL', label: `All (${unifiedStudentDirectory.length})` },
-                  { id: '12th', label: `12th (${unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})` },
-                  { id: '11th', label: `11th (${unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})` },
-                  { id: '10th', label: `10th (${unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})` },
-                  { id: 'past', label: `Master Reg` }
-                ].map(chip => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    onClick={() => setActiveCohortFilter(chip.id)}
-                    className={`px-2 py-0.5 rounded-md font-bold whitespace-nowrap cursor-pointer transition-all border ${
-                      activeCohortFilter === chip.id
-                        ? 'bg-teal-700 text-white border-teal-800 shadow-2xs'
-                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
+            {/* Quick Cohort Filter Dropdown & TC Tools Action */}
+            <div className="flex items-center justify-between gap-1.5 pb-0.5 text-[9.5px]">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                <span className="text-slate-500 dark:text-slate-400 font-bold text-[9px] uppercase tracking-wider shrink-0">Cohort:</span>
+                <select
+                  value={activeCohortFilter}
+                  onChange={(e) => setActiveCohortFilter(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
+                >
+                  <option value="ALL">All Students ({unifiedStudentDirectory.length})</option>
+                  <option value="12th">Class 12th ({unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})</option>
+                  <option value="11th">Class 11th ({unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})</option>
+                  <option value="10th">Class 10th ({unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})</option>
+                  <option value="past">Master Register / Historical ({unifiedStudentDirectory.filter(s => s.sourceType === 'past').length})</option>
+                </select>
               </div>
 
               {/* TC/DC Specific Tools (Result Hub & Bulk Generator) - Shown ONLY when TC/DC template is selected */}
@@ -2499,21 +2398,21 @@ export default function StudentCertificateStudioView({
                   <button
                     type="button"
                     onClick={() => setShowResultIngestionModal(true)}
-                    className="px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-all active:scale-95"
+                    className="px-2 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-all active:scale-95"
                     title="Open JKBOSE Exam Result Ingestion Hub (Excel / AI PDF Gazette)"
                   >
                     <Sparkles size={10} />
-                    <span>Result Hub & AI Import</span>
+                    <span>Result Hub</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowBulkGeneratorModal(true)}
-                    className="px-2 py-0.5 rounded-md bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-all active:scale-95"
+                    className="px-2 py-1 rounded-lg bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shadow-2xs shrink-0 transition-all active:scale-95"
                     title="Open Bulk TC / Discharge Certificate Hub (Batch Print 2-Page copies)"
                   >
                     <FileSpreadsheet size={10} />
-                    <span>Bulk TC Generator</span>
+                    <span>Bulk TC</span>
                   </button>
                 </div>
               )}
@@ -2607,24 +2506,156 @@ export default function StudentCertificateStudioView({
                   </div>
                 </div>
 
-                {/* Quick Inline Result / Withdrawal Date Input when TC/DC is Active */}
+                {/* Quick Inline Result, Marks, Division & Withdrawal Date when TC/DC is Active */}
                 {isTcDcActive && (
-                  <div className="p-2 rounded-xl bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 flex items-center justify-between gap-2 animate-fadeIn">
-                    <div className="flex items-center gap-1.5 text-[10.5px] font-black text-amber-900 dark:text-amber-200">
-                      <Calendar size={12} className="text-amber-600 dark:text-amber-400" />
-                      <span>Withdrawal / Result Date:</span>
+                  <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 space-y-2 animate-fadeIn shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[10.5px] font-black text-amber-950 dark:text-amber-200">
+                        <Award size={12} className="text-amber-600 dark:text-amber-400" />
+                        <span>JKBOSE Result & Marks Data:</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowResultEditorModal(true)}
+                        className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-0.5"
+                      >
+                        <Edit3 size={9} />
+                        <span>Full Editor</span>
+                      </button>
                     </div>
-                    <input
-                      type="text"
-                      value={withdrawalDate}
-                      onChange={(e) => {
-                        setWithdrawalDate(e.target.value);
-                        setCustomCanvasHtml(null);
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      className="px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-xs w-32 focus:ring-1 focus:ring-amber-500 outline-none text-center"
-                      title="Enter or update Result / Withdrawal Date"
-                    />
+
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Exam Roll No</label>
+                        <input
+                          type="text"
+                          value={tcExamRoll}
+                          onChange={(e) => {
+                            setTcExamRoll(e.target.value);
+                            setCustomCanvasHtml(null);
+                          }}
+                          placeholder="e.g. 301003053"
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Status</label>
+                        <select
+                          value={tcResultStatus}
+                          onChange={(e) => {
+                            const nextStatus = e.target.value;
+                            setTcResultStatus(nextStatus);
+                            setCustomCanvasHtml(null);
+                            const isPass = nextStatus === 'Passed';
+                            const targetId = isPass ? 'tc_dc_qualified' : 'tc_dc_reappear';
+                            const foundTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === targetId);
+                            if (foundTpl) {
+                              setSelectedTemplateId(foundTpl.id);
+                              setTemplateBody(foundTpl.bodyHtml);
+                            }
+                          }}
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        >
+                          <option value="Passed">Passed (Qualified)</option>
+                          <option value="Reap">Re-appear</option>
+                          <option value="Did Not Qualify">Did Not Qualify</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Marks Obtained / Max</label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={tcMarksObtained}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTcMarksObtained(val);
+                              setCustomCanvasHtml(null);
+                              if (val && /^\d+$/.test(val)) {
+                                const auto = calculateDivision(val, tcMaxMarks || '500');
+                                if (auto?.division) setTcDivision(auto.division);
+                              }
+                            }}
+                            placeholder="e.g. 488"
+                            className="w-1/2 px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-black text-[11px] outline-none text-center focus:ring-1 focus:ring-amber-500"
+                          />
+                          <span className="text-slate-400 font-bold text-xs">/</span>
+                          <input
+                            type="text"
+                            value={tcMaxMarks}
+                            onChange={(e) => {
+                              setTcMaxMarks(e.target.value);
+                              setCustomCanvasHtml(null);
+                            }}
+                            placeholder="500"
+                            className="w-1/2 px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold text-[11px] outline-none text-center focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Division</label>
+                        <input
+                          type="text"
+                          value={tcDivision}
+                          onChange={(e) => {
+                            setTcDivision(e.target.value);
+                            setCustomCanvasHtml(null);
+                          }}
+                          placeholder="e.g. Distinction"
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Admission No.</label>
+                        <input
+                          type="text"
+                          value={admissionNo}
+                          onChange={(e) => {
+                            setAdmissionNo(e.target.value);
+                            setCustomCanvasHtml(null);
+                          }}
+                          placeholder="e.g. 1101"
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Date of Admission</label>
+                        <input
+                          type="text"
+                          value={admissionDate}
+                          onChange={(e) => {
+                            setAdmissionDate(e.target.value);
+                            setCustomCanvasHtml(null);
+                          }}
+                          placeholder="DD-MM-YYYY"
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-amber-900 dark:text-amber-300">
+                        <Calendar size={11} className="text-amber-600" />
+                        <span>Withdrawal Date:</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={withdrawalDate}
+                        onChange={(e) => {
+                          setWithdrawalDate(e.target.value);
+                          setCustomCanvasHtml(null);
+                        }}
+                        placeholder="DD-MM-YYYY or YYYY-MM-DD"
+                        className="px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] w-32 focus:ring-1 focus:ring-amber-500 outline-none text-center"
+                        title="Enter Withdrawal / Result Date"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -2682,12 +2713,12 @@ export default function StudentCertificateStudioView({
             )}
           </div>
 
-          {/* SECTION 2: TEMPLATE SELECTOR & PRESETS (Extends downwards to use full left-pane height) */}
+          {/* TEMPLATE SELECTOR & PRESETS */}
           <div className="space-y-2 flex-1 flex flex-col min-h-0 pt-1">
-            <div className="flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-500 shrink-0">
+            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 shrink-0">
               <span className="flex items-center gap-1">
-                <Sparkles size={11} className="text-amber-600" />
-                <span>2. Certificate Templates ({displayedTemplates.length})</span>
+                <Sparkles size={10} className="text-amber-600" />
+                <span>Certificate Templates ({displayedTemplates.length})</span>
               </span>
               
               {/* Template Filter Pills */}
@@ -2740,7 +2771,7 @@ export default function StudentCertificateStudioView({
                       </div>
                       {isDefault && (
                         <span className="px-1 py-0.2 rounded text-[7px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shrink-0">
-                          ⭐ Default
+                          â­ Default
                         </span>
                       )}
                     </div>
@@ -2793,7 +2824,7 @@ export default function StudentCertificateStudioView({
           <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
         </div>
 
-        {/* ════════ RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK ════════ */}
+        {/* â•â•â•â•â•â•â•â• RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK â•â•â•â•â•â•â•â• */}
         <div
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 pl-0 lg:pl-1 min-w-0"
@@ -2876,7 +2907,7 @@ export default function StudentCertificateStudioView({
                           title="Edit or add temporary dynamic field values"
                         >
                           <Sliders size={9} />
-                          <span>✏️ Edit Values</span>
+                          <span>âœï¸ Edit Values</span>
                         </button>
                       </div>
 
@@ -3117,7 +3148,7 @@ export default function StudentCertificateStudioView({
                           className="w-full py-1 px-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all"
                         >
                           <PlusCircle size={10} />
-                          <span>➕ Manage / Edit Custom & DB Fields</span>
+                          <span>âž• Manage / Edit Custom & DB Fields</span>
                         </button>
                       </div>
                     </div>
@@ -3157,7 +3188,7 @@ export default function StudentCertificateStudioView({
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
                         <Bot size={11} className="text-purple-600" />
-                        <span>✍️ Draft Certificate with AI</span>
+                        <span>âœï¸ Draft Certificate with AI</span>
                       </button>
                       <button
                         type="button"
@@ -3165,7 +3196,7 @@ export default function StudentCertificateStudioView({
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
                         <Sparkles size={11} className="text-purple-600" />
-                        <span>🪄 Polish & Humanize</span>
+                        <span>ðŸª„ Polish & Humanize</span>
                       </button>
                       <button
                         type="button"
@@ -3173,15 +3204,15 @@ export default function StudentCertificateStudioView({
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
                         <FileText size={11} className="text-indigo-600" />
-                        <span>📜 Formalize Terms</span>
+                        <span>ðŸ“œ Formalize Terms</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => { handleOpenAiModal('shorten'); setShowAskGeminiMenu(false); }}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
-                        <span className="text-amber-600 text-xs">✂️</span>
-                        <span>✂️ Shorten Wording</span>
+                        <span className="text-amber-600 text-xs">âœ‚ï¸</span>
+                        <span>âœ‚ï¸ Shorten Wording</span>
                       </button>
                       <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
                         <button
@@ -3283,7 +3314,7 @@ export default function StudentCertificateStudioView({
 
                 <button
                   type="button"
-                  title="Normal Body Paragraph (¶)"
+                  title="Normal Body Paragraph (Â¶)"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => executeFormat('formatBlock', '<p>')}
                   className={`w-7 h-7 rounded-lg font-bold text-[10px] flex items-center justify-center cursor-pointer transition-all ${
@@ -3292,7 +3323,7 @@ export default function StudentCertificateStudioView({
                       : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                   }`}
                 >
-                  ¶
+                  Â¶
                 </button>
 
                 <div className="col-span-3 w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5 hidden lg:block"></div>
@@ -3592,7 +3623,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
                             className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
                           >
-                            🗑 Delete Table
+                            ðŸ—‘ Delete Table
                           </button>
                         </>
                       ) : (
@@ -3606,7 +3637,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { insertTable(2, 2); setShowTableMenu(false); }}
                             className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
                           >
-                            <span>2 × 2 Table</span>
+                            <span>2 Ã— 2 Table</span>
                             <span className="text-[9px] text-slate-400 font-mono">4 cells</span>
                           </button>
                           <button
@@ -3615,7 +3646,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { insertTable(2, 3); setShowTableMenu(false); }}
                             className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
                           >
-                            <span>2 × 3 Table</span>
+                            <span>2 Ã— 3 Table</span>
                             <span className="text-[9px] text-slate-400 font-mono">6 cells</span>
                           </button>
                           <button
@@ -3624,7 +3655,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
                             className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
                           >
-                            <span>3 × 3 Table</span>
+                            <span>3 Ã— 3 Table</span>
                             <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
                           </button>
                         </>
@@ -3654,15 +3685,21 @@ export default function StudentCertificateStudioView({
                   className="col-span-2 w-full h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors text-[9px] font-bold font-mono hidden lg:flex"
                   title={dockSide === 'left' ? 'Move Dock to Right side of Canvas' : 'Move Dock to Left side of Canvas'}
                 >
-                  {dockSide === 'left' ? '👉 Right' : '👈 Left'}
+                  {dockSide === 'left' ? 'ðŸ‘‰ Right' : 'ðŸ‘ˆ Left'}
                 </button>
 
               </div>
             </div>
 
-            {/* ════════ A4 PAPER LIVE VIEWPORT & EDITOR ════════ */}
+            {/* â•â•â•â•â•â•â•â• A4 PAPER LIVE VIEWPORT & EDITOR â•â•â•â•â•â•â•â• */}
             <div className="flex-1 w-full max-w-[840px] min-w-0">
-              <div className="bg-white text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] rounded-xl p-4 sm:p-6 shadow-md max-h-[calc(100vh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[620px]">
+              <div
+                className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[calc(100vh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[620px]"
+                style={{
+                  backgroundColor: '#fdfbf7',
+                  backgroundImage: 'radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fbf9f4 60%, #f6f1e7 100%), repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.016) 0px, rgba(197, 160, 89, 0.016) 1.5px, transparent 1.5px, transparent 8px)'
+                }}
+              >
             
             {/* Watermark Background */}
             {watermark && (
@@ -3680,7 +3717,10 @@ export default function StudentCertificateStudioView({
             <div className="relative z-10 space-y-3">
               
               {/* Top Official Letterhead Header Banner (Matches Official Letterhead Writer) */}
-              <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
+              <div
+                style={{ marginBottom: `${headerGap}in` }}
+                className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl"
+              >
                 <img
                   src="/logo192.png"
                   alt="School Seal"
@@ -3699,25 +3739,74 @@ export default function StudentCertificateStudioView({
                 </p>
               </div>
 
-              {/* Ref & Date Row */}
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-800 border-b border-slate-300 pb-1 px-1">
-                <div>Ref No: <span className="font-mono font-black">{refNo}</span></div>
-                <div>Date: <span className="font-black">{dateStr}</span></div>
-              </div>
+              {/* Ref & Date Row (Hidden for Discharge / Transfer Certificate where structured metadata box is used) */}
+              {!isTcDcActive && (
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-800 border-b border-slate-300 pb-1 px-1 -mt-[0.25in] mb-[0.25in]">
+                  <div>Ref No: <span className="font-mono font-black">{refNo}</span></div>
+                  <div>Date: <span className="font-black">{dateStr}</span></div>
+                </div>
+              )}
 
-              {/* Certificate Title Banner */}
-              <div className="text-center py-1">
-                <span className="inline-block font-serif text-xs sm:text-sm font-black uppercase text-[#800000] tracking-widest px-4 py-0.5 border-y-2 border-[#800000] bg-[#fff9f5]">
+              {/* Certificate Title Banner — Kept Close Vertically */}
+              <div className="text-center pt-0 pb-0" style={{ marginTop: `${titleMetaGap}px`, marginBottom: `${titleMetaGap}px` }}>
+                <span className="inline-block font-serif text-xs sm:text-sm font-black uppercase text-[#800000] tracking-widest px-5 py-0.5 border-y-2 border-[#800000] bg-[#fff9f5] shadow-2xs">
                   {certificateTitle}
                 </span>
               </div>
 
+              {/* TC/DC Meta Details on Studio Canvas — Left 4-Line Metadata Box & Right QR Security Badge */}
+              {isTcDcActive && (
+                <div
+                  style={{ marginTop: `${titleMetaGap}px`, marginBottom: `${metaBodyGap}in` }}
+                  className="flex items-stretch justify-between gap-3 px-3.5 py-2 bg-slate-50 border-t border-t-slate-200 border-l-[3px] border-b-[1.5px] border-l-[#800000] border-b-[#800000] rounded text-[10px] font-sans shadow-2xs"
+                >
+                  {/* Left Column: 4 Metadata Lines */}
+                  <div className="flex flex-col gap-1.5 flex-1 justify-center">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-700 w-36 shrink-0">Certificate No.:</span>
+                      <span className="font-mono font-black text-red-600">{refNo || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-700 w-36 shrink-0">Registration No.:</span>
+                      <span className="font-mono font-black text-blue-700">{regNo || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-700 w-36 shrink-0">Admission No.:</span>
+                      <span className="font-mono font-black text-blue-700">{admissionNo || extractStudentAdmissionNumber(selectedStudent) || rollNo || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-700 w-36 shrink-0">Date of Admission:</span>
+                      <span className="font-mono font-black text-blue-700">{admissionDate || extractStudentAdmissionDate(selectedStudent) || '01-07-2024'}</span>
+                    </div>
+                  </div>
+
+                  {/* Right Column: QR Security Badge */}
+                  <div className="flex flex-col items-center justify-center px-2 py-1 bg-white border border-[#800000]/60 rounded-md shadow-2xs shrink-0 self-center">
+                    <div className="w-13 h-13 bg-slate-50 border border-dashed border-slate-300 rounded flex flex-col items-center justify-center text-[7px] font-mono text-slate-500 font-black">
+                      <span>[ QR CODE ]</span>
+                    </div>
+                    <span className="text-[6.5px] font-black tracking-wider text-[#800000] uppercase mt-1">SCAN TO VERIFY</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Injected Spacing Style Block for Live Canvas */}
+              <style>{`
+                .doc-studio-wysiwyg-body p {
+                  margin-bottom: ${paraSpacing}px !important;
+                }
+                .cert-footer-dates-row {
+                  margin-top: ${bodyDateGap}px !important;
+                }
+              `}</style>
+
               {/* Main Body with Direct Inline Editing & Context Menu */}
-              <div className="flex items-start gap-4 relative">
+              <div className="flex items-start gap-4 relative" style={{ marginTop: '0px' }}>
                 <div
                   ref={editorRef}
                   contentEditable={true}
                   suppressContentEditableWarning={true}
+                  style={{ lineHeight: bodyLineHeight }}
                   onInput={(e) => {
                     handleEditorInput(e);
                     saveCurrentSelection();
@@ -3749,8 +3838,8 @@ export default function StudentCertificateStudioView({
                     checkActiveFormats();
                   }}
                   onContextMenu={handleContextMenu}
-                  className="doc-studio-wysiwyg-body flex-1 text-[11px] leading-relaxed text-justify font-serif text-slate-800 space-y-2 focus:outline-none p-1.5 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
-                  title="Click to edit text directly • Right-click anywhere to insert student details or placeholders"
+                  className="doc-studio-wysiwyg-body flex-1 text-[11.5px] text-justify font-serif text-slate-900 space-y-2 focus:outline-none p-2 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
+                  title="Click to edit text directly â€¢ Right-click anywhere to insert student details or placeholders"
                 />
 
                 {showPhoto && (
@@ -3786,7 +3875,10 @@ export default function StudentCertificateStudioView({
             </div>
 
             {/* Footer Verification & Signatories */}
-            <div className="relative z-10 pt-4 mt-10 border-t border-slate-200">
+            <div
+              style={{ marginTop: '1.7in' }}
+              className="relative z-10 pt-0 border-t border-slate-200"
+            >
               <div className="flex items-end justify-between px-2">
                 {/* Signatory 1: Incharge Admissions & Exam */}
                 <div className="w-28 sm:w-36 text-center">
@@ -3814,22 +3906,24 @@ export default function StudentCertificateStudioView({
 
               {/* Interactive Preview of Office Copy Receipt Box when TC/DC is Active */}
               {isTcDcActive && isDualCopy && (
-                <div className="relative mt-8 pt-2">
-                  <div className="absolute top-0 left-4 bg-slate-100 border border-slate-300 text-rose-600 font-black text-[8px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs z-10">
-                    Receipt by Student (Page 2 Office Copy)
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 font-sans shadow-2xs">
-                    <div className="text-[9.5px] font-bold text-slate-800">
-                      Received <strong>‘Discharge cum Character Certificate’</strong> in Original
+                <div className="flex justify-center" style={{ marginTop: `${sigReceiptGap}px` }}>
+                  <div className="relative pt-2 w-fit max-w-[460px]">
+                    <div className="absolute top-0 left-4 bg-slate-100 border border-slate-300 text-rose-600 font-black text-[8px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs z-10">
+                      Receipt by Student (Page 2 Office Copy)
                     </div>
-                    <div className="flex justify-between items-end gap-6 text-[9px] mt-6">
-                      <div className="flex items-end gap-2 flex-1">
-                        <span className="font-bold text-slate-700">today on</span>
-                        <div className="flex-1 border-b-2 border-slate-600"></div>
+                    <div className="p-3 px-6 rounded-xl bg-amber-50/90 border border-amber-300 font-sans shadow-2xs text-center">
+                      <div className="text-[9.5px] font-bold text-slate-800">
+                        Received <strong>'Discharge cum Character Certificate'</strong> in Original
                       </div>
-                      <div className="flex items-end gap-2 flex-[1.4]">
-                        <span className="font-bold text-slate-700">Signature</span>
-                        <div className="flex-1 border-b-2 border-slate-600"></div>
+                      <div className="flex justify-center items-end gap-6 text-[9px] mt-4">
+                        <div className="flex items-end gap-2">
+                          <span className="font-bold text-slate-700 whitespace-nowrap">today on</span>
+                          <div className="w-24 border-b-2 border-slate-600"></div>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <span className="font-bold text-slate-700 whitespace-nowrap">Signature</span>
+                          <div className="w-32 border-b-2 border-slate-600"></div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4185,7 +4279,7 @@ export default function StudentCertificateStudioView({
                     className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 accent-teal-600 cursor-pointer shrink-0"
                   />
                   <div className="text-xs">
-                    <span className="font-black text-amber-950 dark:text-amber-200 block">⭐ Make Default Active Template</span>
+                    <span className="font-black text-amber-950 dark:text-amber-200 block">â­ Make Default Active Template</span>
                     <span className="text-[10px] text-amber-800 dark:text-amber-400 block">Auto-loads on studio launch and saves directly to Cloud Database.</span>
                   </div>
                 </label>
@@ -4212,7 +4306,7 @@ export default function StudentCertificateStudioView({
         );
       })()}
 
-      {/* ════════ EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL â•â•â•â•â•â•â•â• */}
       {showFieldManagerModal && (
         <div className="fixed inset-0 z-[999999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 max-h-[88vh] overflow-y-auto">
@@ -4455,7 +4549,7 @@ export default function StudentCertificateStudioView({
                         }`}
                         title={studentVal ? `Value: ${studentVal}` : 'Click to add field'}
                       >
-                        <span>{isAdded ? '✓' : '➕'} {preset.label}</span>
+                        <span>{isAdded ? 'âœ“' : 'âž•'} {preset.label}</span>
                         {studentVal && (
                           <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-mono truncate max-w-[90px] ${
                             isAdded ? 'bg-teal-800 text-teal-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
@@ -4557,7 +4651,7 @@ export default function StudentCertificateStudioView({
                   disabled={!newCustomFieldName.trim()}
                   className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-sm cursor-pointer disabled:opacity-50 shrink-0 transition-all"
                 >
-                  ➕ Add
+                  âž• Add
                 </button>
               </form>
             </div>
@@ -4569,14 +4663,14 @@ export default function StudentCertificateStudioView({
                 onClick={() => setShowFieldManagerModal(false)}
                 className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-black text-xs cursor-pointer shadow-md transition-all"
               >
-                ✓ Apply Overrides & Close
+                âœ“ Apply Overrides & Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ════════ GEMINI AI CERTIFICATE ASSISTANT MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• GEMINI AI CERTIFICATE ASSISTANT MODAL â•â•â•â•â•â•â•â• */}
       {showAiModal && (
         <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/80 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs text-slate-900 dark:text-slate-100">
@@ -4609,7 +4703,7 @@ export default function StudentCertificateStudioView({
                   title="Configure Gemini API Keys"
                 >
                   <Key size={11} />
-                  <span>{geminiKeys.length === 0 ? '⚠️ Add API Key' : `${geminiKeys.length} Keys`}</span>
+                  <span>{geminiKeys.length === 0 ? 'âš ï¸ Add API Key' : `${geminiKeys.length} Keys`}</span>
                 </button>
 
                 <button
@@ -4656,7 +4750,7 @@ export default function StudentCertificateStudioView({
                     onClick={handleSaveKeys}
                     className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs"
                   >
-                    ✓ Save Keys to Cloud DB
+                    âœ“ Save Keys to Cloud DB
                   </button>
                 </div>
               </div>
@@ -4665,10 +4759,10 @@ export default function StudentCertificateStudioView({
             {/* Mode Selector Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
               {[
-                { id: 'draft', label: '✍️ Draft Certificate' },
-                { id: 'humanize', label: '🪄 Polish & Humanize' },
-                { id: 'formalize', label: '📜 Formalize Terms' },
-                { id: 'shorten', label: '✂️ Shorten Wording' }
+                { id: 'draft', label: 'âœï¸ Draft Certificate' },
+                { id: 'humanize', label: 'ðŸª„ Polish & Humanize' },
+                { id: 'formalize', label: 'ðŸ“œ Formalize Terms' },
+                { id: 'shorten', label: 'âœ‚ï¸ Shorten Wording' }
               ].map((m) => (
                 <button
                   key={m.id}
@@ -4833,7 +4927,7 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* ════════ CLOUD DOCUMENT HISTORY & ARCHIVE MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• CLOUD DOCUMENT HISTORY & ARCHIVE MODAL â•â•â•â•â•â•â•â• */}
       <DocumentHistoryModal
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
@@ -4841,30 +4935,40 @@ export default function StudentCertificateStudioView({
         onLoadAsDraft={handleLoadDraftFromHistory}
       />
 
-      {/* ════════ STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL â•â•â•â•â•â•â•â• */}
       <StudentResultEditorModal
         isOpen={showResultEditorModal}
         onClose={() => setShowResultEditorModal(false)}
         student={selectedStudent}
         onSaveSuccess={(updatedSt) => {
           setSelectedStudent(updatedSt);
-          showToast('✓ Student exam result & TC records updated!', 'success');
+          const res = extractStudentResultMarks(updatedSt?.raw || updatedSt);
+          setTcMarksObtained(res.marksObtained);
+          setTcMaxMarks(res.maxMarks);
+          setTcDivision(res.division);
+          setTcExamRoll(res.examRoll || updatedSt?.rollNo || '');
+          setTcExamMode(res.examMode);
+          setTcResultStatus(res.resultStatus);
+          setTcReappSubjects(res.reappSubjects);
+          if (updatedSt?.withdrawalDate) setWithdrawalDate(updatedSt.withdrawalDate);
+          setCustomCanvasHtml(null);
+          showToast('âœ“ Student exam result & TC records updated!', 'success');
         }}
         showToast={showToast}
       />
 
-      {/* ════════ JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL â•â•â•â•â•â•â•â• */}
       <ResultIngestionModal
         isOpen={showResultIngestionModal}
         onClose={() => setShowResultIngestionModal(false)}
         allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
         onIngestSuccess={() => {
-          showToast('🎉 Ingestion complete! Master register synchronized.', 'success');
+          showToast('ðŸŽ‰ Ingestion complete! Master register synchronized.', 'success');
         }}
         showToast={showToast}
       />
 
-      {/* ════════ BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL â•â•â•â•â•â•â•â• */}
       <BulkCertificateGeneratorModal
         isOpen={showBulkGeneratorModal}
         onClose={() => setShowBulkGeneratorModal(false)}
@@ -4876,13 +4980,13 @@ export default function StudentCertificateStudioView({
         showToast={showToast}
       />
 
-      {/* ════════ CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL â•â•â•â•â•â•â•â• */}
       <ConfirmModal
         isOpen={Boolean(templateToDelete)}
         onClose={() => { if (!isDeletingTemplate) setTemplateToDelete(null); }}
         onConfirm={handleConfirmDeleteTemplate}
         title="Delete Custom Template?"
-        message={`⚠️ WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
+        message={`âš ï¸ WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
         confirmText="Yes, Delete Permanently"
         cancelText="Cancel / Keep Template"
         type="danger"

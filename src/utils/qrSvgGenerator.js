@@ -1,16 +1,27 @@
 /**
  * qrSvgGenerator.js — Real Standard Scannable QR SVG Generator
  * Govt. Higher Secondary School Shangus
- * Generates 100% standards-compliant scannable QR Code Data URIs offline in <0.5ms!
+ * Generates 100% standards-compliant scannable vector QR SVG offline in <0.5ms!
  */
 import QRCode from 'qrcode';
 
 const qrCache = new Map();
 
-export function createQrSvgDataUri(payloadText, size = 160) {
+/**
+ * Generates raw inline <svg> string for direct HTML embedding.
+ * Inlining SVG directly inside HTML avoids data-URI / <img> decoding delays in PDF & Print windows.
+ */
+export function createQrSvg(payloadText, options = {}) {
   if (!payloadText) return '';
 
-  const cacheKey = `${payloadText}_${size}`;
+  const {
+    margin = 1,
+    errorCorrectionLevel = 'M',
+    darkColor = '#0f172a',
+    lightColor = '#ffffff'
+  } = options;
+
+  const cacheKey = `svg_${payloadText}_${margin}_${errorCorrectionLevel}_${darkColor}`;
   if (qrCache.has(cacheKey)) {
     return qrCache.get(cacheKey);
   }
@@ -19,12 +30,11 @@ export function createQrSvgDataUri(payloadText, size = 160) {
     let svgString = '';
     QRCode.toString(payloadText, {
       type: 'svg',
-      width: size,
-      margin: 0,
-      errorCorrectionLevel: 'M',
+      margin,
+      errorCorrectionLevel,
       color: {
-        dark: '#0f172a',
-        light: '#ffffff'
+        dark: darkColor,
+        light: lightColor
       }
     }, (err, string) => {
       if (!err && string) {
@@ -33,13 +43,21 @@ export function createQrSvgDataUri(payloadText, size = 160) {
     });
 
     if (svgString) {
-      const uri = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
-      qrCache.set(cacheKey, uri);
-      return uri;
+      qrCache.set(cacheKey, svgString);
+      return svgString;
     }
   } catch (e) {
     console.warn('QR SVG generation error:', e);
   }
 
   return '';
+}
+
+/**
+ * Generates standard data URI if needed for <img> tags
+ */
+export function createQrSvgDataUri(payloadText, size = 200) {
+  const svg = createQrSvg(payloadText);
+  if (!svg) return '';
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

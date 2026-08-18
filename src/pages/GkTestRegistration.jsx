@@ -4,6 +4,7 @@ import {
   collection, getDocs, doc, setDoc, getDoc, updateDoc, query, where, limit, serverTimestamp, deleteField
 } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
+import { ShieldAlert, Lock, Shield } from 'lucide-react';
 import SEO from '../components/SEO';
 import { generateGkTestAdmitCardPdf } from '../utils/pdfGenerator';
 
@@ -142,12 +143,22 @@ function PhotoAvatar({ src, name }) {
     return fallback;
   }
   return (
-    <img
-      src={src}
-      alt={name}
-      className="w-24 h-28 object-cover rounded-xl border-2 border-teal-500 shadow-md"
-      onError={() => setImgError(true)}
-    />
+    <div className="relative w-24 h-28 rounded-xl overflow-hidden shadow-md select-none border-2 border-teal-500">
+      <img
+        src={src}
+        alt="Candidate Photograph"
+        className="w-full h-full object-cover pointer-events-none select-none"
+        draggable="false"
+        onError={() => setImgError(true)}
+      />
+      {/* 🛡️ Anti-Theft Image Shield Overlay */}
+      <div 
+        className="absolute inset-0 bg-transparent cursor-not-allowed select-none" 
+        title="Candidate Photo Protected by Govt HSS Shangus"
+        onContextMenu={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
+      />
+    </div>
   );
 }
 
@@ -177,6 +188,53 @@ export default function GkTestRegistration() {
   // Anti-scraping: rate limit searches per session
   const [rateLocked, setRateLocked] = useState(false);
   const [rateLockUntil, setRateLockUntil] = useState(0);
+  const [securityToast, setSecurityToast] = useState('');
+
+  // 🛡️ Security Lockdown: Block right-click, clipboard copy, and devtools shortcuts
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      setSecurityToast('🔒 Content Protected: Copying, saving images, and right-click are restricted for student data privacy.');
+      setTimeout(() => setSecurityToast(''), 3500);
+      return false;
+    };
+
+    const handleCopyCut = (e) => {
+      e.preventDefault();
+      setSecurityToast('🔒 Copying Restricted: Candidate credentials and exam transcripts are protected against copying.');
+      setTimeout(() => setSecurityToast(''), 3500);
+      return false;
+    };
+
+    const handleKeyDown = (e) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (
+        (ctrlKey && ['c', 'a', 'x', 'p', 's', 'u'].includes(e.key.toLowerCase())) ||
+        e.key === 'F12' ||
+        (ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSecurityToast('🔒 Security Notice: Keyboard shortcuts and source inspection are restricted on this exam terminal.');
+        setTimeout(() => setSecurityToast(''), 3500);
+        return false;
+      }
+    };
+
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('copy', handleCopyCut);
+    window.addEventListener('cut', handleCopyCut);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('copy', handleCopyCut);
+      window.removeEventListener('cut', handleCopyCut);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Registration Deadline Settings
   const [gkConfig, setGkConfig] = useState(null);
@@ -760,7 +818,22 @@ export default function GkTestRegistration() {
   }, [invPhoto, invStudent]);
 
   return (
-    <div className="flex-1 min-h-[calc(100vh-var(--site-header-height,64px))] flex flex-col justify-between" style={{ background: 'linear-gradient(135deg, #0f4c3a 0%, #0f766e 40%, #134e4a 100%)' }}>
+    <div 
+      className="flex-1 min-h-[calc(100vh-var(--site-header-height,64px))] flex flex-col justify-between select-none relative" 
+      style={{ 
+        background: 'linear-gradient(135deg, #0f4c3a 0%, #0f766e 40%, #134e4a 100%)',
+        userSelect: 'none',
+        WebkitUserSelect: 'none'
+      }}
+    >
+      {/* 🛡️ Anti-Theft Floating Security Alert Toast */}
+      {securityToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/95 border-2 border-red-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2 animate-bounce">
+          <ShieldAlert size={16} className="text-amber-400 shrink-0" />
+          <span>{securityToast}</span>
+        </div>
+      )}
+
       <SEO
         title={`${gkConfig?.examTitle || 'Competitive Exam Registration'} — Govt. HSS Shangus`}
         description={`Online registration portal for ${gkConfig?.examTitle || 'Competitive Examination'} at Govt. Higher Secondary School Shangus.`}

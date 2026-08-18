@@ -297,28 +297,6 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
           if (cachedFormatted) return cachedFormatted;
         }
       }
-
-      // 4. QUATERNARY PRIORITY: Specific name + parent key compound matching (to prevent single name collisions)
-      const sName = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim().toLowerCase();
-      const fName = String(st["Father's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim().toLowerCase();
-
-      if (sName && sName !== 'student' && sName !== '—' && fName && fName !== '—') {
-        const compoundKey = `${sName}_${fName}`.replace(/[^a-z0-9_]/g, '');
-        const cached = cache[compoundKey] || cache[`photo_${compoundKey}`];
-        if (isValidPhotoStr(cached)) {
-          const cachedFormatted = formatPhotoDisplayUrl(cached);
-          if (cachedFormatted) return cachedFormatted;
-        }
-      }
-
-      // Fallback single name lookup
-      if (sName && sName !== 'student' && sName !== '—') {
-        const cached = cache[sName] || cache[sName.replace(/[^a-z0-9]/g, '')];
-        if (isValidPhotoStr(cached)) {
-          const cachedFormatted = formatPhotoDisplayUrl(cached);
-          if (cachedFormatted) return cachedFormatted;
-        }
-      }
     } catch (_) {}
   }
 

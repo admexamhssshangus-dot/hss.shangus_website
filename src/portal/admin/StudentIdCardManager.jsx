@@ -143,15 +143,6 @@ function resolveStudentPhoto(student, allStudentsList = []) {
       const photo = formatPhotoDisplayUrl(extractRawPhoto(match));
       if (photo) return photo;
     }
-
-    if (name && name.length >= 3) {
-      const match = allStudentsList.find(s => {
-        const sn = String(s["Student's Name (as per school records)"] || s["Student's Name"] || s.studentName || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-        return sn === name;
-      });
-      const photo = formatPhotoDisplayUrl(extractRawPhoto(match));
-      if (photo) return photo;
-    }
   }
 
   // 3. Try dedicated photo URL mini-cache (persists even when main cache strips long strings)

@@ -62,31 +62,35 @@ export default function ResultIngestionModal({
 
   const fileInputRef = useRef(null);
 
-  // Filter students by selected class for template generation
+  // Filter students by selected class and session for template generation
   const classStudents = useMemo(() => {
     return allStudents.filter(s => {
-      const cls = String(s.selectedClass || s.raw?.['Class'] || '').trim();
-      return !selectedClass || cls.toLowerCase().includes(selectedClass.toLowerCase());
+      const cls = String(s.selectedClass || s.raw?.['Class'] || s.cls || '').trim();
+      const sess = String(s.selectedSession || s.raw?.['Session'] || s.session || '').trim();
+      const matchCls = !selectedClass || cls.toLowerCase().includes(selectedClass.toLowerCase());
+      const matchSess = !selectedSession || sess.toLowerCase().includes(selectedSession.toLowerCase()) || 
+        selectedSession.toLowerCase().includes(sess.toLowerCase());
+      return matchCls && matchSess;
     });
-  }, [allStudents, selectedClass]);
+  }, [allStudents, selectedClass, selectedSession]);
 
   // Handle Download Pre-filled Template
-  const handleDownloadTemplate = (format = 'xlsx') => {
-    generateResultImportTemplate(classStudents, selectedClass, selectedSession, format);
-    if (showToast) showToast(`📥 Downloaded ${format.toUpperCase()} template with ${classStudents.length} students!`, 'success');
+  const handleDownloadTemplate = () => {
+    generateResultImportTemplate(classStudents, selectedClass, selectedSession);
+    if (showToast) showToast(`📥 Downloaded Excel template with ${classStudents.length} students for Class ${selectedClass || 'All'} (${selectedSession})!`, 'success');
   };
 
-  // Handle File Upload (Excel / CSV)
+  // Handle File Upload (Excel)
   const handleExcelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
     setIsProcessing(true);
-    setProcessingStatusText('Reading and parsing Excel/CSV records...');
+    setProcessingStatusText(`Reading and parsing Excel records for Class ${selectedClass || 'All'} (${selectedSession})...`);
 
     try {
       const buffer = await file.arrayBuffer();
-      const result = parseAndValidateResultFile(buffer, allStudents);
+      const result = parseAndValidateResultFile(buffer, allStudents, selectedClass, selectedSession);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to parse file');
@@ -111,7 +115,7 @@ export default function ResultIngestionModal({
     if (!file) return;
     setSelectedFile(file);
     setIsProcessing(true);
-    setProcessingStatusText('Preparing document for Gemini AI analysis...');
+    setProcessingStatusText(`Preparing document for Gemini AI analysis (Class: ${selectedClass || 'All'}, Session: ${selectedSession})...`);
 
     try {
       const reader = new FileReader();
@@ -121,7 +125,9 @@ export default function ResultIngestionModal({
           base64Data,
           file.type || 'application/pdf',
           allStudents,
-          (status) => setProcessingStatusText(status)
+          (status) => setProcessingStatusText(status),
+          selectedClass,
+          selectedSession
         );
 
         if (!result.success) {
@@ -265,7 +271,7 @@ export default function ResultIngestionModal({
               }`}
             >
               <FileSpreadsheet size={15} />
-              <span>Pipeline A: Excel / CSV Import</span>
+              <span>Pipeline A: Excel Spreadsheet Import (.xlsx)</span>
             </button>
 
             <button
@@ -317,10 +323,10 @@ export default function ResultIngestionModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                      Standard Excel / CSV Result Ingestion
+                      Excel Result & Roll Number Ingestion (.xlsx)
                     </h4>
                     <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Download the pre-populated template with all active Class {selectedClass} students, enter JKBOSE roll numbers and result data, then upload it below.
+                      Download the pre-populated template with all active Class {selectedClass || 'All'} students (formatted as explicit Text cells to prevent scientific notation), fill in the result/roll fields, and upload below.
                     </p>
                   </div>
 
@@ -328,28 +334,19 @@ export default function ResultIngestionModal({
                     <button
                       type="button"
                       onClick={() => handleDownloadTemplate('xlsx')}
-                      className="px-4 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 font-bold flex items-center gap-2 cursor-pointer shadow-2xs transition-all active:scale-95"
+                      className="px-5 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-extrabold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs"
                     >
-                      <Download size={14} />
-                      <span>Download Excel Template (.xlsx)</span>
+                      <Download size={15} />
+                      <span>Download Excel Template (.xlsx — Text Formatted)</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadTemplate('csv')}
-                      className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                    >
-                      <Download size={14} />
-                      <span>Download CSV Template</span>
-                    </button>
-
-                    <label className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95">
-                      <Upload size={14} />
-                      <span>Upload Completed Result File</span>
+                    <label className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 text-xs">
+                      <Upload size={15} />
+                      <span>Upload Completed Excel File (.xlsx)</span>
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".xlsx,.xls,.csv"
+                        accept=".xlsx,.xls"
                         onChange={handleExcelUpload}
                         className="hidden"
                       />
@@ -500,13 +497,14 @@ export default function ResultIngestionModal({
                   <thead className="bg-slate-100 dark:bg-slate-800/80 sticky top-0 z-10 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                     <tr>
                       <th className="p-2 w-8 text-center">Sel</th>
-                      <th className="p-2">Match Status</th>
-                      <th className="p-2">Student Name</th>
-                      <th className="p-2">Exam Roll No</th>
-                      <th className="p-2">Result</th>
-                      <th className="p-2">Marks / Re-appear</th>
-                      <th className="p-2">Division</th>
-                      <th className="p-2">Withdrawal Date</th>
+                      <th className="p-2 w-28">Match Status</th>
+                      <th className="p-2">Student & Father's Name</th>
+                      <th className="p-2 w-28">Class & Stream</th>
+                      <th className="p-2 w-32">Session & Mode</th>
+                      <th className="p-2 w-28">Exam Roll No</th>
+                      <th className="p-2 w-24">Result</th>
+                      <th className="p-2 w-32">Marks / Re-appear</th>
+                      <th className="p-2 w-24">Division</th>
                       <th className="p-2 w-8 text-center">Act</th>
                     </tr>
                   </thead>
@@ -528,7 +526,7 @@ export default function ResultIngestionModal({
                             {isMatched ? (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9.5px]">
                                 <CheckCircle2 size={11} />
-                                <span>Form #{row.matchedStudent.formNo}</span>
+                                <span>Form #{row.matchedStudent.formNo || row.matchedStudent.id}</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold text-[9.5px]">
@@ -540,7 +538,16 @@ export default function ResultIngestionModal({
 
                           <td className="p-2">
                             <div className="font-bold text-slate-900 dark:text-slate-100">{row.studentName}</div>
-                            <div className="text-[9.5px] text-slate-400">{row.fatherName} &bull; Reg: {row.regNo || '—'}</div>
+                            <div className="text-[9.5px] text-slate-400">S/o {row.fatherName || '—'}</div>
+                          </td>
+
+                          <td className="p-2">
+                            <div className="font-bold text-slate-800 dark:text-slate-200">{row.className || '—'}</div>
+                            <div className="text-[9.5px] text-slate-500">{row.stream || '—'}</div>
+                          </td>
+
+                          <td className="p-2">
+                            <div className="font-mono text-[10px] text-slate-700 dark:text-slate-300">{row.examMode || 'Annual Regular'}</div>
                           </td>
 
                           <td className="p-2">
@@ -548,7 +555,8 @@ export default function ResultIngestionModal({
                               type="text"
                               value={row.examRollNo}
                               onChange={(e) => handleCellEdit(row.id, 'examRollNo', e.target.value)}
-                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-transparent hover:border-slate-300 focus:border-teal-500 font-bold font-mono text-[11px] outline-none"
+                              placeholder="e.g. 301003053"
+                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-bold font-mono text-[11px] outline-none"
                             />
                           </td>
 
@@ -576,7 +584,7 @@ export default function ResultIngestionModal({
                               value={row.marksReapp}
                               onChange={(e) => handleCellEdit(row.id, 'marksReapp', e.target.value)}
                               placeholder={row.resultStatus === 'Passed' ? '488 / 500' : 'PH CH BI'}
-                              className="w-28 px-1.5 py-0.5 rounded bg-transparent border border-transparent hover:border-slate-300 focus:border-teal-500 font-bold text-[11px] outline-none"
+                              className="w-28 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-bold text-[11px] outline-none"
                             />
                           </td>
 
@@ -585,17 +593,8 @@ export default function ResultIngestionModal({
                               type="text"
                               value={row.divDistinc}
                               onChange={(e) => handleCellEdit(row.id, 'divDistinc', e.target.value)}
-                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-transparent hover:border-slate-300 focus:border-teal-500 font-semibold text-[10px] outline-none"
-                            />
-                          </td>
-
-                          <td className="p-2">
-                            <input
-                              type="text"
-                              value={row.withdrawalDate}
-                              onChange={(e) => handleCellEdit(row.id, 'withdrawalDate', e.target.value)}
-                              placeholder="14-01-2026"
-                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-transparent hover:border-slate-300 focus:border-teal-500 font-mono text-[10px] outline-none"
+                              placeholder="Distinction"
+                              className="w-20 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-semibold text-[10px] outline-none"
                             />
                           </td>
 

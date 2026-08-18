@@ -30,6 +30,9 @@ function getInitialTab() {
     const urlTab = searchParams.get('tab');
     if (urlTab) return urlTab;
 
+    const subtab = searchParams.get('subtab');
+    if (subtab) return 'docStudio';
+
     const hash = window.location.hash.replace(/^#/, '');
     if (hash) return hash;
 
@@ -39,16 +42,7 @@ function getInitialTab() {
   return 'reports';
 }
 
-function getInitialMasterCount() {
-  try {
-    const raw = sessionStorage.getItem('hss_cache_masterRegisters_v2') || localStorage.getItem('hss_cache_masterRegisters_v2');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.length;
-    }
-  } catch (_) {}
-  return 0;
-}
+
 
 export default function AdminDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -63,6 +57,7 @@ export default function AdminDashboard() {
       const url = new URL(window.location.href);
       if (tab === 'reports') {
         url.searchParams.delete('tab');
+        url.searchParams.delete('subtab');
       } else {
         url.searchParams.set('tab', tab);
       }
@@ -109,13 +104,11 @@ export default function AdminDashboard() {
 
   const [counts, setCounts] = useState(() => {
     const initialCachedApps = getCachedCollectionSync('admissions');
-    const masterCount = getInitialMasterCount();
     return {
       active: initialCachedApps?.length || 0,
-      total: (initialCachedApps?.length || 0) + masterCount
+      total: initialCachedApps?.length || 0
     };
   });
-  const [viewScope, setViewScope] = useState('active');
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [showCustomRosterModal, setShowCustomRosterModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -464,8 +457,6 @@ export default function AdminDashboard() {
                   <div className={activeTab === 'reports' ? '' : 'hidden'}>
                     <AdvancedReports
                       setActiveTab={setActiveTab}
-                      viewScope={viewScope}
-                      setViewScope={setViewScope}
                       setCounts={setCounts}
                       user={user}
                       onLogout={handleLogoutRequest}

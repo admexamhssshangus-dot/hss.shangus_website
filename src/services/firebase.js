@@ -26,11 +26,11 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 initializeFirebaseAppCheck(app);
 
-// Export Auth with resilient IndexedDB -> LocalStorage fallback
+// Export Auth with resilient LocalStorage -> IndexedDB fallback (prevents Chromium "Database is closing/hidden" crashes)
 let authInstance;
 try {
   authInstance = initializeAuth(app, {
-    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    persistence: [browserLocalPersistence, indexedDBLocalPersistence],
     popupRedirectResolver: browserPopupRedirectResolver
   });
 } catch (e) {

@@ -1235,33 +1235,9 @@ export default function OfficialLetterWriterView({
       pageMargin,
       headerLayout
     });
-
-    // Auto-log to Firestore history
-    saveGeneratedDocToHistory({
-      docType: 'letter',
-      title: tplName,
-      refNo: refNo || '',
-      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-      recipientOrStudent: signatoryInstitution || institutionName || '',
-      bodyHtml,
-      actionType: 'Printed / Saved PDF',
-      templateId: selectedTemplateId,
-      templateName: tplName,
-      extraData: {
-        officeTitle,
-        institutionName,
-        institutionAddress,
-        signatoryName,
-        signatoryDesignation,
-        signatoryInstitution,
-        copyToText,
-        pageMargin,
-        headerLayout
-      }
-    }).catch(e => console.warn('History auto-log note:', e));
   };
 
-  // Export to Word (.docx) (with auto cloud history logging)
+  // Export to Word (.docx)
   const handleExportDocx = async () => {
     if (!editorRef.current) return;
     setIsExportingDocx(true);
@@ -1283,30 +1259,6 @@ export default function OfficialLetterWriterView({
       });
 
       showToast('📥 Word document (.docx) successfully exported!', 'success');
-
-      // Auto-log to Firestore history
-      saveGeneratedDocToHistory({
-        docType: 'letter',
-        title: tplName,
-        refNo: refNo || '',
-        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
-        recipientOrStudent: signatoryInstitution || institutionName || '',
-        bodyHtml,
-        actionType: 'Downloaded (.docx)',
-        templateId: selectedTemplateId,
-        templateName: tplName,
-        extraData: {
-          officeTitle,
-          institutionName,
-          institutionAddress,
-          signatoryName,
-          signatoryDesignation,
-          signatoryInstitution,
-          copyToText,
-          pageMargin,
-          headerLayout
-        }
-      });
     } catch (err) {
       console.error(err);
       showToast(`Error generating DOCX document: ${err.message}`, 'error');
@@ -1405,88 +1357,90 @@ export default function OfficialLetterWriterView({
       : allTemplates;
 
   return (
-    <div className="space-y-2 text-slate-800 dark:text-slate-100 animate-fadeIn">
+    <div className="space-y-1.5 text-slate-800 dark:text-slate-100 animate-fadeIn text-xs">
 
-      {/* ════════ COLLAPSIBLE LETTERHEAD & REFERENCE CONFIG DRAWER (ALL ON 1 ROW) ════════ */}
+      {/* ════════ COLLAPSIBLE LETTERHEAD & REFERENCE CONFIG DRAWER ════════ */}
       {showSettingsDrawer && (
-        <div className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-900/60 rounded-xl p-2 shadow-xs space-y-1.5 animate-fadeIn text-xs">
+        <div 
+          className="rounded-xl p-2.5 shadow-2xs space-y-1.5 animate-fadeIn text-xs border"
+          style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
-            <h3 className="font-black text-[10.5px] text-amber-900 dark:text-amber-200 uppercase tracking-wider flex items-center gap-1 m-0">
-              <Sliders size={11} />
-              <span>Official Letterhead & Reference Configuration</span>
+            <h3 className="font-black text-[10px] text-amber-900 dark:text-amber-200 uppercase tracking-wider flex items-center gap-1 m-0">
+              <Sliders size={11} className="text-amber-600 dark:text-amber-400" />
+              <span>Official Letterhead & Reference Setup</span>
             </h3>
-            <span className="text-[9px] text-slate-400">All fields auto-align onto document & Word export</span>
+            <span className="text-[9px] font-bold text-slate-400">All fields auto-align onto document & Word (.docx) export</span>
           </div>
 
-          <div className="flex flex-wrap items-end gap-2 text-xs w-full">
-            
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 text-xs w-full">
             {/* Office Title */}
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Office Header</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Office Header</label>
               <input
                 type="text"
                 value={officeTitle}
                 onChange={(e) => setOfficeTitle(e.target.value)}
                 placeholder="OFFICE OF THE PRINCIPAL"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-black text-xs text-rose-800 dark:text-rose-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-xs text-rose-800 dark:text-rose-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Ref No */}
-            <div className="flex-1 min-w-[190px]">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Reference No.</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Reference No.</label>
               <input
                 type="text"
                 value={refNo}
                 onChange={(e) => setRefNo(e.target.value)}
                 placeholder="e.g. HSS/SHG/2026/..."
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Date */}
-            <div className="w-28 shrink-0">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Letter Date</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Letter Date</label>
               <input
                 type="text"
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
                 placeholder="DD/MM/YYYY"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Signatory Designation */}
-            <div className="w-32 shrink-0">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Signatory</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Signatory Title</label>
               <input
                 type="text"
                 value={signatoryDesignation}
                 onChange={(e) => setSignatoryDesignation(e.target.value)}
                 placeholder="Principal"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Signatory Institution */}
-            <div className="flex-1 min-w-[220px]">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Institution</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Institution</label>
               <input
                 type="text"
                 value={signatoryInstitution}
                 onChange={(e) => setSignatoryInstitution(e.target.value)}
                 placeholder="Govt. Hr Sec. School Shangus"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-blue-900 dark:text-blue-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-blue-900 dark:text-blue-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Header Layout Alignment */}
-            <div className="w-28 shrink-0">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Layout</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Layout</label>
               <select
                 value={headerLayout}
                 onChange={(e) => setHeaderLayout(e.target.value)}
-                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               >
                 <option value="logo_right">Logo Right</option>
                 <option value="logo_center">Centered</option>
@@ -1495,12 +1449,12 @@ export default function OfficialLetterWriterView({
             </div>
 
             {/* Page Margin */}
-            <div className="w-24 shrink-0">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">Margins</label>
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">Margins</label>
               <select
                 value={pageMargin}
                 onChange={(e) => setPageMargin(e.target.value)}
-                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               >
                 <option value="0.5in">0.5" Std</option>
                 <option value="0.4in">0.4" Tight</option>
@@ -1510,17 +1464,17 @@ export default function OfficialLetterWriterView({
               </select>
             </div>
 
-            {/* Copy To / Dispatch block (Multi-line Textarea supporting Enter) */}
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-[8.5px] font-black uppercase text-slate-500 mb-0.5 tracking-wider">
+            {/* Copy To / Dispatch block */}
+            <div>
+              <label className="block text-[8.5px] font-black uppercase text-slate-400 mb-0.5 tracking-wider">
                 Copy To / Dispatch <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
-              <textarea
-                rows={1}
+              <input
+                type="text"
                 value={copyToText}
                 onChange={(e) => setCopyToText(e.target.value)}
-                placeholder="1. CEO Anantnag&#10;2. Accounts Officer"
-                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs resize-y min-h-[31px] focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                placeholder="1. CEO Anantnag, 2. Office copy"
+                className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
               />
             </div>
           </div>

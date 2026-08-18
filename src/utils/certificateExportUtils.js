@@ -16,7 +16,8 @@ import {
   Packer
 } from 'docx';
 import { convertHtmlToDocxElements } from './htmlDocxConverter';
-import { createQrSvgDataUri } from './qrSvgGenerator';
+import { createQrSvg } from './qrSvgGenerator';
+import { generateVerificationSignature, getStudentRollVal } from './idCardRenderer';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -203,8 +204,9 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     resultType: 'Passed',
     bodyHtml: `<p>This is certified that <strong>{STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_NAME}</strong> Mother's Name <strong>{MOTHER_NAME}</strong> R/o <strong>{VILLAGE}</strong> tehsil <strong>{TEHSIL}</strong> district <strong>{DISTRICT}</strong>, who appeared in <strong>{EXAM_NAME}</strong> conducted by the J&K Board of School Education (JKBOSE), Srinagar, through this school during the session <strong>{EXAM_SESSION}</strong> under examination roll number <strong>{EXAM_ROLL_NO}</strong>, has been declared <strong>{RESULT_STATUS}</strong> with <strong>{DIVISION_DISTINCTION}</strong> in the said examination, securing <strong>{MARKS_OBTAINED} / {MAX_MARKS}</strong> marks as per the preliminary result records of the JKBOSE.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
-<p>There are no outstanding dues against the student in this institution, and <strong>{PRONOUN_HIS_HER_LOW}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
-<p class="cert-footer-dates-row" style="margin-top: 24px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <strong>{DATE}</strong></span></p>`
+<p>There are no outstanding dues against the student in this institution.</p>
+<p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
+<p class="cert-footer-dates-row" style="margin-top: 24px; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
   },
   {
     id: 'tc_dc_reappear',
@@ -218,10 +220,38 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     resultType: 'Reap',
     bodyHtml: `<p>This is certified that <strong>{STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_NAME}</strong> Mother's Name <strong>{MOTHER_NAME}</strong> R/o <strong>{VILLAGE}</strong> tehsil <strong>{TEHSIL}</strong> district <strong>{DISTRICT}</strong>, who appeared in <strong>{EXAM_NAME}</strong> conducted by the J&K Board of School Education (JKBOSE), Srinagar, through this school during the session <strong>{EXAM_SESSION}</strong> under examination roll number <strong>{EXAM_ROLL_NO}</strong>, has been placed under <strong>{RESULT_STATUS}</strong> in subject(s) (<strong>{REAPP_SUBJECTS}</strong>) in the said examination as per the preliminary result records of the JKBOSE.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
-<p>There are no outstanding dues against the student in this institution, and <strong>{PRONOUN_HIS_HER_LOW}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
-<p class="cert-footer-dates-row" style="margin-top: 24px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <strong>{DATE}</strong></span></p>`
+<p>There are no outstanding dues against the student in this institution.</p>
+<p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
+<p class="cert-footer-dates-row" style="margin-top: 24px; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
   }
 ];
+
+/**
+ * Standardize any date input strictly to DD-MM-YYYY format
+ */
+export function formatToDDMMYYYY(dateInput) {
+  if (!dateInput || dateInput === '—' || dateInput === '-') return '—';
+  const s = String(dateInput).trim();
+  // If already dd-mm-yyyy or dd/mm/yyyy
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
+    const parts = s.split(/[-/]/);
+    return `${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[2]}`;
+  }
+  // If yyyy-mm-dd or yyyy/mm/dd
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) {
+    const parts = s.split(/[-/]/);
+    return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+  }
+  // Date object or parseable date string
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${d}-${m}-${y}`;
+  }
+  return s;
+}
 
 // ─── REPLACES PLACEHOLDERS IN HTML TEMPLATES ───
 export function interpolateCertificateTemplate(templateHtml, studentData = {}, options = {}) {
@@ -321,12 +351,37 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{STREAM\}/gi, stream || '—');
   result = result.replace(/\{ROLL_NO\}/gi, rollNo || '—');
   result = result.replace(/\{REG_NO\}/gi, regNo || '—');
-  result = result.replace(/\{DOB_FIGURES\}/gi, dobFigures || '—');
+  result = result.replace(/\{DOB_FIGURES\}/gi, formatToDDMMYYYY(dobFigures));
   result = result.replace(/\{DOB_WORDS\}/gi, dobWords || '—');
   result = result.replace(/\{SESSION\}/gi, session || '—');
   result = result.replace(/\{ADDRESS\}/gi, address || '—');
   result = result.replace(/\{REF_NO\}/gi, refNo || '—');
-  result = result.replace(/\{DATE\}/gi, date || '—');
+  result = result.replace(/\{DATE\}/gi, formatToDDMMYYYY(date));
+
+  // Robust marks resolution with fallbacks across all known schema keys
+  const candidateMarks = (marksObtained && marksObtained !== '—' && marksObtained !== 'null' && marksObtained !== 'undefined')
+    ? marksObtained
+    : (
+      studentData?.raw?.['Marks/Reapp (Current)'] ||
+      studentData?.raw?.marks_reapp_current ||
+      studentData?.raw?.currMarksReapp ||
+      studentData?.raw?.['Marks Obtained'] ||
+      studentData?.raw?.marksObtained ||
+      studentData?.raw?.marks ||
+      studentData?.raw?.['Marks'] ||
+      studentData?.raw?.['Total Marks Obtained in Class 12th'] ||
+      studentData?.raw?.['Total Marks Obtained'] ||
+      studentData?.['Marks/Reapp (Current)'] ||
+      studentData?.marks_reapp_current ||
+      studentData?.marksObtained ||
+      studentData?.['Marks Obtained'] ||
+      studentData?.marks ||
+      studentData?.['Marks'] ||
+      '—'
+    );
+  const parsedCandidateMatch = String(candidateMarks).match(/(\d+)(?:\s*\/\s*(\d+))?/);
+  const effectiveMarksObt = parsedCandidateMatch ? parsedCandidateMatch[1] : (candidateMarks || '—');
+  const effectiveMaxMarks = parsedCandidateMatch && parsedCandidateMatch[2] ? parsedCandidateMatch[2] : (maxMarks || '500');
 
   // TC / DC Token Replacements
   result = result.replace(/\{EXAM_NAME\}/gi, examName || 'Class 12th Examination');
@@ -334,12 +389,12 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{EXAM_SESSION\}/gi, examSession || session || '—');
   result = result.replace(/\{RESULT_STATUS\}/gi, resultStatus || 'Pass');
   result = result.replace(/\{(?:DIVISION_DISTINCTION|DIVISION|DISTINCTION)\}/gi, divisionDistinction || 'Distinction');
-  result = result.replace(/\{MARKS_OBTAINED\}/gi, marksObtained || '—');
-  result = result.replace(/\{MAX_MARKS\}/gi, maxMarks || '500');
+  result = result.replace(/\{MARKS_OBTAINED\}/gi, effectiveMarksObt);
+  result = result.replace(/\{MAX_MARKS\}/gi, effectiveMaxMarks);
   result = result.replace(/\{REAPP_SUBJECTS\}/gi, reappSubjects || '—');
-  result = result.replace(/\{ADMISSION_DATE\}/gi, admissionDate || '—');
+  result = result.replace(/\{ADMISSION_DATE\}/gi, formatToDDMMYYYY(admissionDate));
   result = result.replace(/\{ADMISSION_NO\}/gi, admissionNo || '—');
-  result = result.replace(/\{(?:WITHDRAWAL_DATE|RESULT_DATE)\}/gi, withdrawalDate || '—');
+  result = result.replace(/\{(?:WITHDRAWAL_DATE|RESULT_DATE)\}/gi, formatToDDMMYYYY(withdrawalDate));
   result = result.replace(/\{CONDUCT_STATUS\}/gi, conductStatus || 'Satisfactory');
   result = result.replace(/\{VILLAGE\}/gi, village || address || '—');
   result = result.replace(/\{TEHSIL\}/gi, tehsil || 'Anantnag');
@@ -497,20 +552,36 @@ export function printStudentCertificate({
   watermark = true,
   signatories = ['Incharge Admissions & Exam', 'Checked By', 'Principal'],
   isDualCopy = true,
-  metaDetails = {}
+  metaDetails = {},
+  pageMargin = 0.3,
+  headerGap = 0.50,
+  titleMetaGap = 0,
+  metaBodyGap = 0.50,
+  paraSpacing = 8,
+  bodyLineHeight = 1.85,
+  bodyDateGap = 12,
+  dateSigGap = 0.50,
+  sigReceiptGap = 12
 }) {
+  const marginInches = Math.min(Math.max(Number(pageMargin) || 0.3, 0.1), 0.5);
+  const marginDoubleInches = (marginInches * 2).toFixed(3);
+  const headerGapInches = Math.max(Number(headerGap) ?? 0.50, 0.0);
+  const titleMetaGapPx = Math.max(Number(titleMetaGap) ?? 0, 0);
+  const metaBodyGapInches = Math.max(Number(metaBodyGap) ?? 0.50, 0.0);
+  const paraSpacingPx = Math.max(Number(paraSpacing) ?? 8, 0);
+  const bodyLineHeightVal = Math.max(Number(bodyLineHeight) || 1.85, 1.2);
+  const bodyDateGapPx = Math.max(Number(bodyDateGap) ?? 12, 0);
+  const dateSigGapInches = Math.max(Number(dateSigGap) ?? 0.50, 0.05);
+  const sigReceiptGapPx = Math.max(Number(sigReceiptGap) ?? 12, 0);
   const logoSrc = '/logo192.png';
-  const qrPayload = [
-    `INSTITUTION: Govt Higher Secondary School Shangus`,
-    `DOCUMENT: ${certificateTitle}`,
-    `CERT NO: ${metaDetails.certificateNo || refNo || '—'}`,
-    `REG NO: ${metaDetails.regNo || '—'}`,
-    `ADM NO: ${metaDetails.admissionNo || '—'}`,
-    `ADM DATE: ${metaDetails.admissionDate || '—'}`,
-    `ISSUE DATE: ${dateStr || ''}`,
-    `STATUS: Official Validated Institutional Record (Govt HSS Shangus)`
-  ].join('\n');
-  const qrDataUri = createQrSvgDataUri(qrPayload, 160);
+  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+  const certId = metaDetails.certificateNo || refNo || 'SHG-2026';
+  const regId = metaDetails.regNo || '';
+  const admId = metaDetails.admissionNo || '';
+  const rollId = metaDetails.rollNo || '';
+  const sig = generateVerificationSignature(regId, rollId, admId, certId);
+  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regId)}&roll=${encodeURIComponent(rollId)}&fNo=${encodeURIComponent(admId)}&cert=${encodeURIComponent(certId)}&doc=${encodeURIComponent(certificateTitle)}&sig=${encodeURIComponent(sig)}`;
+  const qrSvg = createQrSvg(verifyUrl, { margin: 1, errorCorrectionLevel: 'M' });
 
   const renderSingleCopyPage = (isOfficeCopy = false) => `
     <div class="cert-page ${isOfficeCopy ? 'office-copy-page' : 'student-copy-page'}">
@@ -533,59 +604,61 @@ export function printStudentCertificate({
           </div>
         </div>
 
-        <!-- Standard School Header with Logo on Separate Top Line -->
-        <div class="school-header-standard-box">
-          <div class="school-seal-center-wrap">
-            <img src="${logoSrc}" class="school-seal-img" alt="School Emblem" />
-          </div>
-          <div class="school-header-top-sub">${officeTitle || 'OFFICE OF THE PRINCIPAL'}</div>
-          <div class="school-header-title">${institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}</div>
-          <div class="school-header-loc">${institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'}</div>
-        </div>
-
-        <!-- Certificate Title Banner -->
-        <div class="cert-title-badge-wrap">
-          <div class="cert-title-badge">${certificateTitle}</div>
-        </div>
-
-        <!-- Meta Details (Left) & Scannable QR Security Box (Right) -->
-        <div class="meta-and-qr-row">
-          <div class="meta-four-lines-box">
-            <div class="meta-single-line">
-              <span class="meta-single-label">Certificate No.:</span>
-              <span class="meta-single-val val-red">${metaDetails.certificateNo || refNo || '1276'}</span>
+        <div class="cert-main-flow">
+          <!-- Standard School Header with Logo on Separate Top Line -->
+          <div class="school-header-standard-box">
+            <div class="school-seal-center-wrap">
+              <img src="${logoSrc}" class="school-seal-img" alt="School Emblem" />
             </div>
-            <div class="meta-single-line">
-              <span class="meta-single-label">Registration No.:</span>
-              <span class="meta-single-val val-blue">${metaDetails.regNo || '—'}</span>
-            </div>
-            <div class="meta-single-line">
-              <span class="meta-single-label">Admission No.:</span>
-              <span class="meta-single-val val-blue">${metaDetails.admissionNo || '—'}</span>
-            </div>
-            <div class="meta-single-line">
-              <span class="meta-single-label">Date of Admission:</span>
-              <span class="meta-single-val val-blue">${metaDetails.admissionDate || '—'}</span>
-            </div>
+            <div class="school-header-top-sub">${officeTitle || 'OFFICE OF THE PRINCIPAL'}</div>
+            <div class="school-header-title">${institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}</div>
+            <div class="school-header-loc">${institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'}</div>
           </div>
 
-          <div class="cert-qr-security-box">
-            <img src="${qrDataUri}" class="cert-qr-img" alt="Official Verification QR" />
-            <div class="cert-qr-caption">SCAN TO VERIFY</div>
-          </div>
-        </div>
-
-        <!-- Body & Photo Layout -->
-        <div class="body-wrapper">
-          <div class="body-text-col">
-            ${bodyHtml}
+          <!-- Certificate Title Banner -->
+          <div class="cert-title-badge-wrap">
+            <div class="cert-title-badge">${certificateTitle}</div>
           </div>
 
-          ${showPhoto && studentPhotoUrl ? `
-            <div class="student-photo-frame">
-              <img src="${studentPhotoUrl}" class="student-photo-img" alt="Student Photo" />
+          <!-- Meta Details (Left) & Scannable QR Security Box (Right) -->
+          <div class="meta-and-qr-row">
+            <div class="meta-four-lines-box">
+              <div class="meta-single-line">
+                <span class="meta-single-label">Certificate No.:</span>
+                <span class="meta-single-val val-red">${metaDetails.certificateNo || refNo || '1276'}</span>
+              </div>
+              <div class="meta-single-line">
+                <span class="meta-single-label">Registration No.:</span>
+                <span class="meta-single-val val-blue">${metaDetails.regNo || '—'}</span>
+              </div>
+              <div class="meta-single-line">
+                <span class="meta-single-label">Admission No.:</span>
+                <span class="meta-single-val val-blue">${metaDetails.admissionNo || '—'}</span>
+              </div>
+              <div class="meta-single-line">
+                <span class="meta-single-label">Date of Admission:</span>
+                <span class="meta-single-val val-blue">${metaDetails.admissionDate || '—'}</span>
+              </div>
             </div>
-          ` : ''}
+
+            <div class="cert-qr-security-box">
+              ${qrSvg}
+              <div class="cert-qr-caption">SCAN TO VERIFY</div>
+            </div>
+          </div>
+
+          <!-- Body & Photo Layout -->
+          <div class="body-wrapper">
+            <div class="body-text-col">
+              ${bodyHtml}
+            </div>
+
+            ${showPhoto && studentPhotoUrl ? `
+              <div class="student-photo-frame">
+                <img src="${studentPhotoUrl}" class="student-photo-img" alt="Student Photo" />
+              </div>
+            ` : ''}
+          </div>
         </div>
 
         <!-- Bottom Signatures & Optional Receipt Slip -->
@@ -594,16 +667,19 @@ export function printStudentCertificate({
             <div class="sig-col">
               <div class="sig-dot-line"></div>
               <div class="sig-title-red">${signatories[0] || 'Incharge Admissions & Exam'}</div>
+              <div class="sig-sub-inst">Govt. HSS Shangus</div>
             </div>
 
             <div class="sig-col">
               <div class="sig-dot-line"></div>
               <div class="sig-title-dark">${signatories[1] || 'Checked By'}</div>
+              <div class="sig-sub-inst">Govt. HSS Shangus</div>
             </div>
 
             <div class="sig-col">
               <div class="sig-dot-line"></div>
               <div class="sig-title-red">${signatories[2] || 'Principal'}</div>
+              <div class="sig-sub-inst">Govt. HSS Shangus</div>
             </div>
           </div>
 
@@ -642,11 +718,11 @@ export function printStudentCertificate({
   <meta charset="utf-8">
   <title>${certificateTitle} — ${refNo}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
     @page {
       size: A4 portrait;
-      margin: 0.3in;
+      margin: ${marginInches}in;
     }
 
     * {
@@ -655,28 +731,34 @@ export function printStudentCertificate({
       print-color-adjust: exact !important;
     }
 
-    body {
+    html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
       background-color: #ffffff;
-      font-family: 'Merriweather', Georgia, serif;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
       color: #0f172a;
     }
 
     .cert-page {
-      width: 100%;
-      min-height: 272mm;
-      max-height: 285mm;
-      background: #ffffff;
+      width: calc(210mm - ${marginDoubleInches}in);
+      height: calc(297mm - ${marginDoubleInches}in);
+      min-height: calc(297mm - ${marginDoubleInches}in);
+      max-height: calc(297mm - ${marginDoubleInches}in);
+      box-sizing: border-box;
+      background-color: #fdfbf7;
+      background-image:
+        radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fbf9f4 60%, #f6f1e7 100%),
+        repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.016) 0px, rgba(197, 160, 89, 0.016) 1.5px, transparent 1.5px, transparent 8px);
       border: 2.5px solid #800000;
-      outline: 1px dotted #800000;
+      outline: 1px solid #c5a059;
       outline-offset: -5px;
-      padding: 6mm 10mm 8mm 10mm;
-      margin: 0 auto 20px auto;
+      padding: 5mm 7mm 5mm 7mm;
+      margin: 0 auto;
       position: relative;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
+      justify-content: space-between;
       page-break-after: always;
       break-after: page;
       page-break-inside: avoid;
@@ -686,14 +768,13 @@ export function printStudentCertificate({
     .cert-page:last-child {
       page-break-after: auto;
       break-after: auto;
-      margin-bottom: 0;
     }
 
     .header-top-meta-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: -2px 0 6px 0;
+      margin: -2px 0 1in 0;
       padding-bottom: 4px;
       border-bottom: 1px dashed #e2e8f0;
     }
@@ -795,19 +876,27 @@ export function printStudentCertificate({
       flex-direction: column;
       flex: 1;
       justify-content: flex-start;
+      height: 100%;
+    }
+
+    .cert-main-flow {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      width: 100%;
     }
 
     .school-header-standard-box {
       text-align: center;
-      margin-bottom: 8px;
-      padding-bottom: 2px;
+      margin-bottom: ${headerGapInches}in;
+      padding-bottom: 0px;
     }
 
     .school-seal-center-wrap {
       display: flex;
       justify-content: center;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .school-seal-img {
@@ -823,7 +912,7 @@ export function printStudentCertificate({
       color: #800000;
       letter-spacing: 0.8px;
       text-align: center;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
       text-transform: uppercase;
     }
 
@@ -842,26 +931,26 @@ export function printStudentCertificate({
       font-size: 8pt;
       font-weight: 600;
       color: #475569;
-      margin-top: 2px;
+      margin-top: 1px;
       text-align: center;
     }
 
     .cert-title-badge-wrap {
       text-align: center;
-      margin: 8px 0 10px 0;
+      margin: ${titleMetaGapPx}px 0 ${titleMetaGapPx}px 0;
     }
 
     .cert-title-badge {
       display: inline-block;
-      font-family: 'Inter', sans-serif;
-      font-size: 10pt;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      font-size: 9.5pt;
       font-weight: 900;
       color: #ffffff;
       background-color: #0284c7;
-      padding: 3px 24px;
+      padding: 2px 18px;
       border-radius: 4px;
       border: 1px solid #0369a1;
-      letter-spacing: 0.6px;
+      letter-spacing: 0.8px;
       text-transform: uppercase;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
@@ -870,8 +959,8 @@ export function printStudentCertificate({
       display: flex;
       align-items: stretch;
       justify-content: space-between;
-      gap: 12px;
-      margin: 8px 0 14px 0;
+      gap: 10px;
+      margin: ${titleMetaGapPx}px 0 ${metaBodyGapInches}in 0;
       width: 100%;
     }
 
@@ -880,33 +969,35 @@ export function printStudentCertificate({
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 3.5px;
+      gap: 5.5px;
       padding: 6px 14px;
       margin: 0;
       border-top: 1px dashed #cbd5e1;
       border-bottom: 1.5px solid #800000;
-      border-left: 2px solid #800000;
+      border-left: 2.5px solid #800000;
       background: #f8fafc;
       border-radius: 4px;
-      font-family: 'Inter', sans-serif;
-      font-size: 8pt;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      font-size: 8.2pt;
     }
 
     .meta-single-line {
       display: flex;
       align-items: baseline;
-      gap: 8px;
+      gap: 12px;
+      line-height: 1.35;
     }
 
     .meta-single-label {
       font-weight: 700;
       color: #334155;
-      min-width: 135px;
+      min-width: 140px;
     }
 
     .meta-single-val {
       font-weight: 800;
-      font-family: 'Inter', monospace;
+      font-family: 'Plus Jakarta Sans', 'Inter', monospace;
+      letter-spacing: 0.2px;
     }
 
     .val-red {
@@ -918,31 +1009,31 @@ export function printStudentCertificate({
     }
 
     .cert-qr-security-box {
-      width: 84px;
+      width: 82px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 5px;
+      padding: 4px 5px 3px 5px;
       background: #ffffff;
-      border: 1.5px solid #800000;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-      shrink-0;
+      border: 1.2px solid #800000;
+      border-radius: 5px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      flex-shrink: 0;
     }
 
-    .cert-qr-img {
-      width: 66px;
-      height: 66px;
+    .cert-qr-security-box svg {
+      width: 66px !important;
+      height: 66px !important;
       display: block;
     }
 
     .cert-qr-caption {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
       font-size: 5.5pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       text-align: center;
       margin-top: 2px;
       text-transform: uppercase;
@@ -953,19 +1044,21 @@ export function printStudentCertificate({
       display: flex;
       gap: 12px;
       align-items: flex-start;
-      margin: 10px 0 16px 0;
+      margin: 0px 0 0px 0;
     }
 
     .body-text-col {
       flex: 1;
-      font-size: 10pt;
-      line-height: 1.85;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
+      font-size: 10.5pt;
+      line-height: ${bodyLineHeightVal};
+      letter-spacing: 0.1px;
       text-align: justify;
-      color: #1e293b;
+      color: #0f172a;
     }
 
     .body-text-col p {
-      margin: 0 0 10px 0;
+      margin: 0 0 ${paraSpacingPx}px 0;
     }
 
     .body-text-col p:last-child {
@@ -973,19 +1066,36 @@ export function printStudentCertificate({
     }
 
     .cert-footer-dates-row {
-      margin-top: 24px !important;
-      margin-bottom: 6px !important;
+      margin-top: ${bodyDateGapPx}px !important;
+      margin-bottom: 0px !important;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-weight: 500;
+      font-weight: 600;
       color: #1e293b;
       font-size: 9.5pt;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
+    }
+
+    .date-issue-dashes {
+      display: inline-block;
+      width: 120px;
+      min-width: 120px;
+      border-bottom: 1.2px dotted #475569;
+      margin-left: 6px;
+      vertical-align: baseline;
+      height: 12px;
     }
 
     .body-text-col strong {
       color: #0a192f;
-      font-weight: 800;
+      font-weight: 700;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
+    }
+
+    .body-text-col em {
+      font-style: italic;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
     }
 
     .student-photo-frame {
@@ -1004,8 +1114,9 @@ export function printStudentCertificate({
     }
 
     .footer-block {
-      margin-top: 48px;
-      padding-top: 0px;
+      margin-top: 1.7in !important;
+      margin-bottom: 0px !important;
+      padding-top: 0px !important;
     }
 
     .signatures-dotted-row {
@@ -1023,7 +1134,7 @@ export function printStudentCertificate({
 
     .sig-dot-line {
       border-bottom: 1.5px dotted #800000;
-      height: 38px;
+      height: 0px;
       margin-bottom: 6px;
       width: 140px;
       margin-left: auto;
@@ -1044,25 +1155,36 @@ export function printStudentCertificate({
       color: #0f172a;
     }
 
+    .sig-sub-inst {
+      font-family: 'Inter', sans-serif;
+      font-size: 6.8pt;
+      font-weight: 700;
+      color: #64748b;
+      margin-top: 2px;
+      text-align: center;
+    }
+
     .student-receipt-wrapper {
       position: relative;
-      margin-top: 36px;
+      margin: ${sigReceiptGapPx}px auto 0 auto;
       padding-top: 8px;
+      width: fit-content;
+      max-width: 440px;
       page-break-inside: avoid;
     }
 
     .receipt-floating-pill {
       position: absolute;
       top: 0px;
-      left: 20px;
+      left: 16px;
       background: #f1f5f9;
-      border: 1.5px solid #cbd5e1;
+      border: 1.2px solid #cbd5e1;
       color: #dc2626;
       font-family: 'Inter', sans-serif;
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 800;
       letter-spacing: 0.3px;
-      padding: 1.5px 10px;
+      padding: 1px 8px;
       border-radius: 9999px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       z-index: 2;
@@ -1071,17 +1193,19 @@ export function printStudentCertificate({
     .student-receipt-inner-card {
       background: #fff8f0;
       border: 1.5px solid #d97706;
-      border-radius: 10px;
-      padding: 12px 18px 14px 18px;
+      border-radius: 8px;
+      padding: 8px 18px 10px 18px;
       font-family: 'Inter', sans-serif;
+      text-align: center;
       box-shadow: 0 1px 3px rgba(217, 119, 6, 0.06);
     }
 
     .receipt-statement-text {
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       color: #1e293b;
-      line-height: 1.4;
+      line-height: 1.3;
+      text-align: center;
     }
 
     .receipt-statement-text strong {
@@ -1092,52 +1216,63 @@ export function printStudentCertificate({
     .receipt-writing-row {
       display: flex;
       align-items: flex-end;
-      justify-content: space-between;
-      gap: 24px;
-      margin-top: 24px;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 14px;
     }
 
     .receipt-field-item {
       display: flex;
       align-items: flex-end;
-      gap: 6px;
-      flex: 1;
+      gap: 5px;
     }
 
     .sig-field-item {
-      flex: 1.4;
+      display: flex;
+      align-items: flex-end;
+      gap: 5px;
     }
 
     .field-prefix {
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 700;
       color: #334155;
       white-space: nowrap;
     }
 
     .field-underline {
-      flex: 1;
       border-bottom: 1.5px solid #475569;
       height: 1px;
-      min-width: 100px;
+      width: 90px;
     }
 
     .sig-underline {
-      min-width: 160px;
+      width: 135px;
     }
 
     @media print {
-      body {
+      html, body {
         background: transparent !important;
         margin: 0 !important;
         padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
       }
       .cert-page {
         margin: 0 !important;
         box-shadow: none !important;
         width: 100% !important;
         height: 100% !important;
-        min-height: 270mm !important;
+        min-height: calc(297mm - ${marginDoubleInches}in) !important;
+        max-height: calc(297mm - ${marginDoubleInches}in) !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .cert-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
       }
     }
   </style>
@@ -1196,22 +1331,39 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     dateStr = new Date().toLocaleDateString('en-GB'),
     signatories = ['Incharge Admissions & Exam', 'Checked By', 'Principal'],
     watermark = true,
-    showPhoto = false
+    showPhoto = false,
+    pageMargin = 0.3,
+    headerGap = 0.50,
+    titleMetaGap = 0,
+    metaBodyGap = 0.50,
+    paraSpacing = 8,
+    bodyLineHeight = 1.85,
+    bodyDateGap = 12,
+    dateSigGap = 0.50,
+    sigReceiptGap = 12
   } = commonOptions;
+
+  const marginInches = Math.min(Math.max(Number(pageMargin) || 0.3, 0.1), 0.5);
+  const marginDoubleInches = (marginInches * 2).toFixed(3);
+  const headerGapInches = Math.max(Number(headerGap) ?? 0.50, 0.0);
+  const titleMetaGapPx = Math.max(Number(titleMetaGap) ?? 0, 0);
+  const metaBodyGapInches = Math.max(Number(metaBodyGap) ?? 0.50, 0.0);
+  const paraSpacingPx = Math.max(Number(paraSpacing) ?? 8, 0);
+  const bodyLineHeightVal = Math.max(Number(bodyLineHeight) || 1.85, 1.2);
+  const bodyDateGapPx = Math.max(Number(bodyDateGap) ?? 12, 0);
+  const dateSigGapInches = Math.max(Number(dateSigGap) ?? 0.50, 0.05);
+  const sigReceiptGapPx = Math.max(Number(sigReceiptGap) ?? 12, 0);
 
   const allPagesHtml = studentsList.map((item, idx) => {
     const { student, bodyHtml, metaDetails = {} } = item;
-    const qrPayload = [
-      `INSTITUTION: Govt Higher Secondary School Shangus`,
-      `DOCUMENT: ${certificateTitle}`,
-      `STUDENT: ${student?.name || '—'}`,
-      `CERT NO: ${metaDetails.certificateNo || '—'}`,
-      `REG NO: ${metaDetails.regNo || '—'}`,
-      `ADM NO: ${metaDetails.admissionNo || '—'}`,
-      `ADM DATE: ${metaDetails.admissionDate || '—'}`,
-      `STATUS: Official Validated Institutional Record (Govt HSS Shangus)`
-    ].join('\n');
-    const qrDataUri = createQrSvgDataUri(qrPayload, 160);
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+    const certId = metaDetails.certificateNo || 'SHG-2026';
+    const regId = metaDetails.regNo || '';
+    const admId = metaDetails.admissionNo || '';
+    const rollId = metaDetails.rollNo || getStudentRollVal(student) || '';
+    const sig = generateVerificationSignature(regId, rollId, admId, certId);
+    const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regId)}&roll=${encodeURIComponent(rollId)}&fNo=${encodeURIComponent(admId)}&cert=${encodeURIComponent(certId)}&doc=${encodeURIComponent(certificateTitle)}&sig=${encodeURIComponent(sig)}`;
+    const qrSvg = createQrSvg(verifyUrl, { margin: 1, errorCorrectionLevel: 'M' });
     const photoUrl = showPhoto ? (student?.photo || null) : null;
 
     const renderBatchPage = (isOfficeCopy = false) => `
@@ -1233,56 +1385,58 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
             </div>
           </div>
 
-          <div class="school-header-standard-box">
-            <div class="school-seal-center-wrap">
-              <img src="${logoSrc}" class="school-seal-img" alt="School Emblem" />
-            </div>
-            <div class="school-header-top-sub">${officeTitle || 'OFFICE OF THE PRINCIPAL'}</div>
-            <div class="school-header-title">${institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}</div>
-            <div class="school-header-loc">${institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'}</div>
-          </div>
-
-          <div class="cert-title-badge-wrap">
-            <div class="cert-title-badge">${certificateTitle}</div>
-          </div>
-
-          <!-- Meta Details (Left) & Scannable QR Security Box (Right) -->
-          <div class="meta-and-qr-row">
-            <div class="meta-four-lines-box">
-              <div class="meta-single-line">
-                <span class="meta-single-label">Certificate No.:</span>
-                <span class="meta-single-val val-red">${metaDetails.certificateNo || '—'}</span>
+          <div class="cert-main-flow">
+            <div class="school-header-standard-box">
+              <div class="school-seal-center-wrap">
+                <img src="${logoSrc}" class="school-seal-img" alt="School Emblem" />
               </div>
-              <div class="meta-single-line">
-                <span class="meta-single-label">Registration No.:</span>
-                <span class="meta-single-val val-blue">${metaDetails.regNo || '—'}</span>
-              </div>
-              <div class="meta-single-line">
-                <span class="meta-single-label">Admission No.:</span>
-                <span class="meta-single-val val-blue">${metaDetails.admissionNo || '—'}</span>
-              </div>
-              <div class="meta-single-line">
-                <span class="meta-single-label">Date of Admission:</span>
-                <span class="meta-single-val val-blue">${metaDetails.admissionDate || '—'}</span>
-              </div>
+              <div class="school-header-top-sub">${officeTitle || 'OFFICE OF THE PRINCIPAL'}</div>
+              <div class="school-header-title">${institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}</div>
+              <div class="school-header-loc">${institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'}</div>
             </div>
 
-            <div class="cert-qr-security-box">
-              <img src="${qrDataUri}" class="cert-qr-img" alt="Official Verification QR" />
-              <div class="cert-qr-caption">SCAN TO VERIFY</div>
-            </div>
-          </div>
-
-          <div class="body-wrapper">
-            <div class="body-text-col">
-              ${bodyHtml}
+            <div class="cert-title-badge-wrap">
+              <div class="cert-title-badge">${certificateTitle}</div>
             </div>
 
-            ${photoUrl ? `
-              <div class="student-photo-frame">
-                <img src="${photoUrl}" class="student-photo-img" alt="Student Photo" />
+            <!-- Meta Details (Left) & Scannable QR Security Box (Right) -->
+            <div class="meta-and-qr-row">
+              <div class="meta-four-lines-box">
+                <div class="meta-single-line">
+                  <span class="meta-single-label">Certificate No.:</span>
+                  <span class="meta-single-val val-red">${metaDetails.certificateNo || '—'}</span>
+                </div>
+                <div class="meta-single-line">
+                  <span class="meta-single-label">Registration No.:</span>
+                  <span class="meta-single-val val-blue">${metaDetails.regNo || '—'}</span>
+                </div>
+                <div class="meta-single-line">
+                  <span class="meta-single-label">Admission No.:</span>
+                  <span class="meta-single-val val-blue">${metaDetails.admissionNo || '—'}</span>
+                </div>
+                <div class="meta-single-line">
+                  <span class="meta-single-label">Date of Admission:</span>
+                  <span class="meta-single-val val-blue">${metaDetails.admissionDate || '—'}</span>
+                </div>
               </div>
-            ` : ''}
+
+              <div class="cert-qr-security-box">
+                ${qrSvg}
+                <div class="cert-qr-caption">SCAN TO VERIFY</div>
+              </div>
+            </div>
+
+            <div class="body-wrapper">
+              <div class="body-text-col">
+                ${bodyHtml}
+              </div>
+
+              ${photoUrl ? `
+                <div class="student-photo-frame">
+                  <img src="${photoUrl}" class="student-photo-img" alt="Student Photo" />
+                </div>
+              ` : ''}
+            </div>
           </div>
 
           <div class="footer-block">
@@ -1290,16 +1444,19 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[0] || 'Incharge Admissions & Exam'}</div>
+                <div class="sig-sub-inst">Govt. HSS Shangus</div>
               </div>
 
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-dark">${signatories[1] || 'Checked By'}</div>
+                <div class="sig-sub-inst">Govt. HSS Shangus</div>
               </div>
 
               <div class="sig-col">
                 <div class="sig-dot-line"></div>
                 <div class="sig-title-red">${signatories[2] || 'Principal'}</div>
+                <div class="sig-sub-inst">Govt. HSS Shangus</div>
               </div>
             </div>
 
@@ -1342,11 +1499,11 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
   <meta charset="utf-8">
   <title>Batch Certificates (${studentsList.length} Students) — HSS Shangus</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
     @page {
       size: A4 portrait;
-      margin: 0.3in;
+      margin: ${marginInches}in;
     }
 
     * {
@@ -1355,28 +1512,34 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       print-color-adjust: exact !important;
     }
 
-    body {
+    html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
       background-color: #ffffff;
-      font-family: 'Merriweather', Georgia, serif;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
       color: #0f172a;
     }
 
     .cert-page {
-      width: 100%;
-      min-height: 272mm;
-      max-height: 285mm;
-      background: #ffffff;
+      width: calc(210mm - ${marginDoubleInches}in);
+      height: calc(297mm - ${marginDoubleInches}in);
+      min-height: calc(297mm - ${marginDoubleInches}in);
+      max-height: calc(297mm - ${marginDoubleInches}in);
+      box-sizing: border-box;
+      background-color: #fdfbf7;
+      background-image:
+        radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fbf9f4 60%, #f6f1e7 100%),
+        repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.016) 0px, rgba(197, 160, 89, 0.016) 1.5px, transparent 1.5px, transparent 8px);
       border: 2.5px solid #800000;
-      outline: 1px dotted #800000;
+      outline: 1px solid #c5a059;
       outline-offset: -5px;
-      padding: 6mm 10mm 8mm 10mm;
-      margin: 0 auto 20px auto;
+      padding: 5mm 7mm 5mm 7mm;
+      margin: 0 auto;
       position: relative;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
+      justify-content: space-between;
       page-break-after: always;
       break-after: page;
       page-break-inside: avoid;
@@ -1386,14 +1549,13 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     .cert-page:last-child {
       page-break-after: auto;
       break-after: auto;
-      margin-bottom: 0;
     }
 
     .header-top-meta-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: -2px 0 6px 0;
+      margin: -2px 0 1in 0;
       padding-bottom: 4px;
       border-bottom: 1px dashed #e2e8f0;
     }
@@ -1495,19 +1657,20 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       flex-direction: column;
       flex: 1;
       justify-content: flex-start;
+      height: 100%;
     }
 
     .school-header-standard-box {
       text-align: center;
-      margin-bottom: 8px;
-      padding-bottom: 2px;
+      margin-bottom: ${headerGapInches}in;
+      padding-bottom: 0px;
     }
 
     .school-seal-center-wrap {
       display: flex;
       justify-content: center;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .school-seal-img {
@@ -1523,7 +1686,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       color: #800000;
       letter-spacing: 0.8px;
       text-align: center;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
       text-transform: uppercase;
     }
 
@@ -1542,26 +1705,26 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       font-size: 8pt;
       font-weight: 600;
       color: #475569;
-      margin-top: 2px;
+      margin-top: 1px;
       text-align: center;
     }
 
     .cert-title-badge-wrap {
       text-align: center;
-      margin: 8px 0 10px 0;
+      margin: ${titleMetaGapPx}px 0 ${titleMetaGapPx}px 0;
     }
 
     .cert-title-badge {
       display: inline-block;
-      font-family: 'Inter', sans-serif;
-      font-size: 10pt;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      font-size: 9.5pt;
       font-weight: 900;
       color: #ffffff;
       background-color: #0284c7;
-      padding: 3px 24px;
+      padding: 2px 18px;
       border-radius: 4px;
       border: 1px solid #0369a1;
-      letter-spacing: 0.6px;
+      letter-spacing: 0.8px;
       text-transform: uppercase;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
@@ -1570,8 +1733,8 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       display: flex;
       align-items: stretch;
       justify-content: space-between;
-      gap: 12px;
-      margin: 8px 0 14px 0;
+      gap: 10px;
+      margin: ${titleMetaGapPx}px 0 ${metaBodyGapInches}in 0;
       width: 100%;
     }
 
@@ -1580,33 +1743,35 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 3.5px;
+      gap: 5.5px;
       padding: 6px 14px;
       margin: 0;
       border-top: 1px dashed #cbd5e1;
       border-bottom: 1.5px solid #800000;
-      border-left: 2px solid #800000;
+      border-left: 2.5px solid #800000;
       background: #f8fafc;
       border-radius: 4px;
-      font-family: 'Inter', sans-serif;
-      font-size: 8pt;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      font-size: 8.2pt;
     }
 
     .meta-single-line {
       display: flex;
       align-items: baseline;
-      gap: 8px;
+      gap: 12px;
+      line-height: 1.35;
     }
 
     .meta-single-label {
       font-weight: 700;
       color: #334155;
-      min-width: 135px;
+      min-width: 140px;
     }
 
     .meta-single-val {
       font-weight: 800;
-      font-family: 'Inter', monospace;
+      font-family: 'Plus Jakarta Sans', 'Inter', monospace;
+      letter-spacing: 0.2px;
     }
 
     .val-red {
@@ -1618,31 +1783,31 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-qr-security-box {
-      width: 84px;
+      width: 82px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 5px;
+      padding: 4px 5px 3px 5px;
       background: #ffffff;
-      border: 1.5px solid #800000;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-      shrink-0;
+      border: 1.2px solid #800000;
+      border-radius: 5px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      flex-shrink: 0;
     }
 
-    .cert-qr-img {
-      width: 66px;
-      height: 66px;
+    .cert-qr-security-box svg {
+      width: 66px !important;
+      height: 66px !important;
       display: block;
     }
 
     .cert-qr-caption {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
       font-size: 5.5pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       text-align: center;
       margin-top: 2px;
       text-transform: uppercase;
@@ -1653,19 +1818,21 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       display: flex;
       gap: 12px;
       align-items: flex-start;
-      margin: 10px 0 16px 0;
+      margin: 0px 0 0px 0;
     }
 
     .body-text-col {
       flex: 1;
-      font-size: 10pt;
-      line-height: 1.85;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
+      font-size: 10.5pt;
+      line-height: ${bodyLineHeightVal};
+      letter-spacing: 0.1px;
       text-align: justify;
-      color: #1e293b;
+      color: #0f172a;
     }
 
     .body-text-col p {
-      margin: 0 0 10px 0;
+      margin: 0 0 ${paraSpacingPx}px 0;
     }
 
     .body-text-col p:last-child {
@@ -1673,19 +1840,36 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-footer-dates-row {
-      margin-top: 24px !important;
-      margin-bottom: 6px !important;
+      margin-top: ${bodyDateGapPx}px !important;
+      margin-bottom: 0px !important;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-weight: 500;
+      font-weight: 600;
       color: #1e293b;
       font-size: 9.5pt;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
+    }
+
+    .date-issue-dashes {
+      display: inline-block;
+      width: 120px;
+      min-width: 120px;
+      border-bottom: 1.2px dotted #475569;
+      margin-left: 6px;
+      vertical-align: baseline;
+      height: 12px;
     }
 
     .body-text-col strong {
       color: #0a192f;
-      font-weight: 800;
+      font-weight: 700;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
+    }
+
+    .body-text-col em {
+      font-style: italic;
+      font-family: 'Lora', 'Merriweather', Georgia, serif;
     }
 
     .student-photo-frame {
@@ -1704,8 +1888,9 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .footer-block {
-      margin-top: 48px;
-      padding-top: 0px;
+      margin-top: 1.7in !important;
+      margin-bottom: 0px !important;
+      padding-top: 0px !important;
     }
 
     .signatures-dotted-row {
@@ -1723,7 +1908,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
 
     .sig-dot-line {
       border-bottom: 1.5px dotted #800000;
-      height: 38px;
+      height: 0px;
       margin-bottom: 6px;
       width: 140px;
       margin-left: auto;
@@ -1744,25 +1929,36 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       color: #0f172a;
     }
 
+    .sig-sub-inst {
+      font-family: 'Inter', sans-serif;
+      font-size: 6.8pt;
+      font-weight: 700;
+      color: #64748b;
+      margin-top: 2px;
+      text-align: center;
+    }
+
     .student-receipt-wrapper {
       position: relative;
-      margin-top: 36px;
+      margin: ${sigReceiptGapPx}px auto 0 auto;
       padding-top: 8px;
+      width: fit-content;
+      max-width: 440px;
       page-break-inside: avoid;
     }
 
     .receipt-floating-pill {
       position: absolute;
       top: 0px;
-      left: 20px;
+      left: 16px;
       background: #f1f5f9;
-      border: 1.5px solid #cbd5e1;
+      border: 1.2px solid #cbd5e1;
       color: #dc2626;
       font-family: 'Inter', sans-serif;
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 800;
       letter-spacing: 0.3px;
-      padding: 1.5px 10px;
+      padding: 1px 8px;
       border-radius: 9999px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       z-index: 2;
@@ -1771,17 +1967,19 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     .student-receipt-inner-card {
       background: #fff8f0;
       border: 1.5px solid #d97706;
-      border-radius: 10px;
-      padding: 12px 18px 14px 18px;
+      border-radius: 8px;
+      padding: 8px 18px 10px 18px;
       font-family: 'Inter', sans-serif;
+      text-align: center;
       box-shadow: 0 1px 3px rgba(217, 119, 6, 0.06);
     }
 
     .receipt-statement-text {
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       color: #1e293b;
-      line-height: 1.4;
+      line-height: 1.3;
+      text-align: center;
     }
 
     .receipt-statement-text strong {
@@ -1792,52 +1990,63 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     .receipt-writing-row {
       display: flex;
       align-items: flex-end;
-      justify-content: space-between;
-      gap: 24px;
-      margin-top: 24px;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 14px;
     }
 
     .receipt-field-item {
       display: flex;
       align-items: flex-end;
-      gap: 6px;
-      flex: 1;
+      gap: 5px;
     }
 
     .sig-field-item {
-      flex: 1.4;
+      display: flex;
+      align-items: flex-end;
+      gap: 5px;
     }
 
     .field-prefix {
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 700;
       color: #334155;
       white-space: nowrap;
     }
 
     .field-underline {
-      flex: 1;
       border-bottom: 1.5px solid #475569;
       height: 1px;
-      min-width: 100px;
+      width: 90px;
     }
 
     .sig-underline {
-      min-width: 160px;
+      width: 135px;
     }
 
     @media print {
-      body {
+      html, body {
         background: transparent !important;
         margin: 0 !important;
         padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
       }
       .cert-page {
         margin: 0 !important;
         box-shadow: none !important;
         width: 100% !important;
         height: 100% !important;
-        min-height: 270mm !important;
+        min-height: calc(297mm - ${marginDoubleInches}in) !important;
+        max-height: calc(297mm - ${marginDoubleInches}in) !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .cert-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
       }
     }
   </style>
