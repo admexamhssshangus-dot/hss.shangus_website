@@ -26,6 +26,7 @@ import { getCachedCollection, getCachedCollectionSync } from '../../services/dbC
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { toTitleCase } from '../../utils/textFormatting';
 
 // Standard Database Columns Grouped by Category (Primary core fields vs Advanced extended fields)
 const DB_COLUMN_GROUPS = [
@@ -54,48 +55,43 @@ const DB_COLUMN_GROUPS = [
     icon: BookOpen,
     columns: [
       { key: 'className', label: 'Class', defaultSelected: false, defaultWidthPct: 7, align: 'center', isPrimary: true },
-      { key: 'session', label: 'Session', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: true },
-      { key: 'stream', label: 'Stream', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
-      { key: 'subjects', label: 'Stream & Subjects', defaultSelected: true, defaultWidthPct: 22, align: 'left', isPrimary: true },
+      { key: 'session', label: 'Session', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: true },
+      { key: 'stream', label: 'Stream', defaultSelected: true, defaultWidthPct: 12, align: 'center', isPrimary: true },
+      { key: 'subjects', label: 'Stream & Subjects', defaultSelected: true, defaultWidthPct: 24, align: 'left', isPrimary: true },
       { key: 'status', label: 'Status', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
-      { key: 'admissionType', label: 'Adm. Type', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
-      { key: 'prevSchool', label: 'Prev. School', defaultSelected: false, defaultWidthPct: 16, align: 'left', isPrimary: false },
-      { key: 'prevMarks', label: 'Prev. Marks', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
-      { key: 'prevRollNo', label: 'Prev. Roll No.', defaultSelected: false, defaultWidthPct: 11, align: 'center', isPrimary: false },
-      { key: 'prevYear', label: 'Passing Year', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: false },
+      { key: 'admissionType', label: 'Admission Type', defaultSelected: false, defaultWidthPct: 10, align: 'left', isPrimary: false },
+      { key: 'prevSchool', label: 'Previous School', defaultSelected: false, defaultWidthPct: 18, align: 'left', isPrimary: false },
+      { key: 'prevMarks', label: '10th/11th Marks', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
+      { key: 'prevRollNo', label: 'Previous Roll No.', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
+      { key: 'prevYear', label: 'Passing Year', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
     ]
   },
   {
     category: 'Contact & IDs',
     icon: User,
     columns: [
-      { key: 'mobile', label: 'Mobile No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: true },
-      { key: 'village', label: 'Village / Address', defaultSelected: false, defaultWidthPct: 12, align: 'left', isPrimary: true },
-      { key: 'aadhaarNo', label: 'Aadhaar No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: true },
-      { key: 'category', label: 'Category', defaultSelected: false, defaultWidthPct: 9, align: 'center', isPrimary: true },
-      { key: 'parentMobile', label: 'Parent Mobile', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: false },
-      { key: 'email', label: 'Email Address', defaultSelected: false, defaultWidthPct: 16, align: 'left', isPrimary: false },
-      { key: 'tehsil', label: 'Tehsil / Block', defaultSelected: false, defaultWidthPct: 10, align: 'left', isPrimary: false },
+      { key: 'mobile', label: 'Mobile No.', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: true },
+      { key: 'parentMobile', label: "Parent's Mobile", defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
+      { key: 'email', label: 'Email', defaultSelected: false, defaultWidthPct: 14, align: 'left', isPrimary: false },
+      { key: 'village', label: 'Village / Address', defaultSelected: false, defaultWidthPct: 14, align: 'left', isPrimary: true },
+      { key: 'tehsil', label: 'Tehsil', defaultSelected: false, defaultWidthPct: 10, align: 'left', isPrimary: false },
       { key: 'district', label: 'District', defaultSelected: false, defaultWidthPct: 10, align: 'left', isPrimary: false },
       { key: 'pincode', label: 'PIN Code', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: false },
-    ]
-  },
-  {
-    category: 'IDs, Welfare & Banking',
-    icon: Layers,
-    columns: [
-      { key: 'pen', label: 'PEN / APAAR ID', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: false },
-      { key: 'socioCategory', label: 'Socio-Economic (Ration)', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
-      { key: 'disability', label: 'Disability (CWSN)', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
-      { key: 'bankAccount', label: 'Bank Account No.', defaultSelected: false, defaultWidthPct: 14, align: 'center', isPrimary: false },
-      { key: 'bankName', label: 'Bank Name', defaultSelected: false, defaultWidthPct: 12, align: 'left', isPrimary: false },
-      { key: 'ifsc', label: 'IFSC Code', defaultSelected: false, defaultWidthPct: 11, align: 'center', isPrimary: false },
+      { key: 'aadhaarNo', label: 'Aadhaar No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: true },
+      { key: 'pen', label: 'PEN No.', defaultSelected: false, defaultWidthPct: 12, align: 'center', isPrimary: false },
+      { key: 'category', label: 'Category', defaultSelected: false, defaultWidthPct: 8, align: 'center', isPrimary: true },
+      { key: 'socioCategory', label: 'Socio Category', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
+      { key: 'disability', label: 'Disability Status', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
+      { key: 'bankAccount', label: 'Bank Acc No.', defaultSelected: false, defaultWidthPct: 14, align: 'center', isPrimary: false },
+      { key: 'bankName', label: 'Bank Name', defaultSelected: false, defaultWidthPct: 14, align: 'left', isPrimary: false },
+      { key: 'ifsc', label: 'IFSC Code', defaultSelected: false, defaultWidthPct: 10, align: 'center', isPrimary: false },
     ]
   }
 ];
 
-// Flat list of all DB columns for quick lookup
-const ALL_DB_COLUMNS = DB_COLUMN_GROUPS.flatMap(g => g.columns);
+// Flat lookup of all registered standard database columns
+export const ALL_REGISTERED_COLUMNS = DB_COLUMN_GROUPS.flatMap(g => g.columns);
+export const ALL_DB_COLUMNS = ALL_REGISTERED_COLUMNS;
 
 // Default HSS Shangus Practical / Lab Chargeable Subjects
 export const DEFAULT_CHARGEABLE_SUBJECTS = [
@@ -353,7 +349,7 @@ export function extractStudentName(st) {
   ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -367,7 +363,7 @@ export function extractFatherName(st) {
   ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -381,7 +377,7 @@ export function extractMotherName(st) {
   ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -506,11 +502,33 @@ export function extractClass(st) {
 
 export function extractSession(st) {
   if (!st) return '';
-  const keys = ["Session", "session", "Academic Session", "academicSession"];
+  const keys = [
+    "Session", "session", "Academic Session", "academicSession", "academic_session",
+    "Session / Batch", "sessionBatch", "Batch", "batch",
+    "Passing Year", "passingYear", "Year", "year", "sessionTag", "academic_year"
+  ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      let val = String(st[k]).trim();
+      if (/^20\d{2}\s*[-/]\s*20\d{2}$/.test(val)) {
+        const parts = val.split(/[-/]/).map(p => p.trim());
+        val = `${parts[0]}-${parts[1].slice(-2)}`;
+      }
+      return val;
     }
+  }
+
+  // Check parentDocId or document ID or groupKey e.g. "2024-25_11th_Science" or "session_2024_25"
+  const docRef = String(st.groupKey || st._parentDocId || st.id || '').toLowerCase();
+  const yearMatch = docRef.match(/(202[0-9])[-_](202[0-9]|[0-9]{2})/);
+  if (yearMatch) {
+    const end = yearMatch[2].length === 4 ? yearMatch[2].slice(-2) : yearMatch[2];
+    return `${yearMatch[1]}-${end}`;
+  }
+
+  // Fallback for masterRegisters records without explicit session field
+  if (st._source === 'masterRegisters' || st._srcCollection === 'masterRegisters') {
+    return '2024-25';
   }
   return '';
 }
@@ -800,7 +818,7 @@ export function extractVillage(st) {
   ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -871,7 +889,7 @@ export function extractPrevSchool(st) {
   ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -957,7 +975,7 @@ export function extractTehsil(st) {
   const keys = ["Tehsil", "tehsil", "Block", "block"];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -968,7 +986,7 @@ export function extractDistrict(st) {
   const keys = ["District", "district"];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      return String(st[k]).trim();
+      return toTitleCase(String(st[k]).trim());
     }
   }
   return '—';
@@ -1056,25 +1074,26 @@ export function extractIfsc(st) {
 export default function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
+  activeSubTab,
   onSwitchSubTab,
-  onSwitchToLetterWriter
+  onSwitchToLetterWriter,
+  globalSession,
+  onSelectGlobalSession
 }) {
-  // ─── Dynamic Filter Options Derived from Database ───
-  const dynamicSessions = useMemo(() => {
-    const counts = {};
-    allStudents.forEach(st => {
-      const s = extractSession(st);
-      if (s && s !== '—') counts[s] = (counts[s] || 0) + 1;
-    });
-    const list = Object.keys(counts).sort().reverse();
-    return list.map(sess => ({ value: sess, label: `${sess} (${counts[sess]})` }));
+  useEffect(() => {
+    getStudentRegIndex().catch(() => {});
+  }, []);
+
+  // ─── Direct High-Performance Student Pool (0ms Latency, Zero Thread Freezing) ───
+  const unifiedStudentPool = useMemo(() => {
+    return Array.isArray(allStudents) ? allStudents : [];
   }, [allStudents]);
 
   // ─── Real Distinct Subjects Extracted Dynamically from Database Students ───
   const dynamicStudentSubjects = useMemo(() => {
     const map = new Map();
 
-    allStudents.forEach(st => {
+    unifiedStudentPool.forEach(st => {
       const raw = extractSubjects(st, false);
       if (!raw || raw === '—') return;
       const parts = raw.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
@@ -1100,27 +1119,15 @@ export default function CustomRosterDocumentBuilderView({
     });
 
     return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [allStudents]);
+  }, [unifiedStudentPool]);
 
-  // ─── Filter States (Default to Current Session '2025-26') ───
-  const [selectedSession, setSelectedSession] = useState('2025-26');
+  // ─── Filter States (Class, Stream, Gender, Status) ───
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [selectedGender, setSelectedGender] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [useAbbreviatedSubjects, setUseAbbreviatedSubjects] = useState(true);
   const [showMoreFields, setShowMoreFields] = useState(false);
-
-  // Auto-sync session to current active session when data loads
-  useEffect(() => {
-    if (dynamicSessions.length > 0) {
-      const hasCurrent = dynamicSessions.some(s => s.value === selectedSession);
-      if (!hasCurrent && selectedSession !== 'ALL') {
-        const found = dynamicSessions.find(s => s.value.includes('2025-26')) || dynamicSessions[0];
-        if (found) setSelectedSession(found.value);
-      }
-    }
-  }, [dynamicSessions, selectedSession]);
 
   // ─── Document Layout & Header States ───
   const [docTitle, setDocTitle] = useState('STUDENT RECORD & SIGNATURE SHEET');
@@ -1549,20 +1556,10 @@ export default function CustomRosterDocumentBuilderView({
     setDraggedColIdx(null);
   };
 
-  // ─── Base pool of students matching selected session ───
-  const sessionStudents = useMemo(() => {
-    if (!Array.isArray(allStudents)) return [];
-    if (selectedSession === 'ALL') return allStudents;
-    const norm = selectedSession.toLowerCase();
-    return allStudents.filter(st => {
-      const sess = extractSession(st).toLowerCase();
-      return sess.includes(norm);
-    });
-  }, [allStudents, selectedSession]);
-
+  // ─── Dynamic Classes Derived from Cohort Students ───
   const dynamicClasses = useMemo(() => {
     const counts = {};
-    sessionStudents.forEach(st => {
+    unifiedStudentPool.forEach(st => {
       const cls = extractClass(st);
       if (cls && cls !== '—') counts[cls] = (counts[cls] || 0) + 1;
     });
@@ -1574,15 +1571,17 @@ export default function CustomRosterDocumentBuilderView({
       return a.localeCompare(b);
     });
     return list.map(cls => ({ value: cls, label: `Class ${cls} (${counts[cls]})` }));
-  }, [sessionStudents]);
+  }, [unifiedStudentPool]);
+
+  const sessionClassStudents = useMemo(() => {
+    return selectedClass === 'ALL'
+      ? unifiedStudentPool
+      : unifiedStudentPool.filter(st => extractClass(st).toLowerCase().includes(selectedClass.toLowerCase()));
+  }, [unifiedStudentPool, selectedClass]);
 
   const dynamicStreams = useMemo(() => {
-    const pool = selectedClass === 'ALL'
-      ? sessionStudents
-      : sessionStudents.filter(st => extractClass(st).toLowerCase().includes(selectedClass.toLowerCase()));
-
     const counts = {};
-    pool.forEach(st => {
+    sessionClassStudents.forEach(st => {
       const stm = extractStream(st);
       if (stm && stm !== '—') counts[stm] = (counts[stm] || 0) + 1;
     });
@@ -1594,13 +1593,7 @@ export default function CustomRosterDocumentBuilderView({
       return a.localeCompare(b);
     });
     return list.map(stm => ({ value: stm, label: `${stm} (${counts[stm]})` }));
-  }, [sessionStudents, selectedClass]);
-
-  const sessionClassStudents = useMemo(() => {
-    return selectedClass === 'ALL'
-      ? sessionStudents
-      : sessionStudents.filter(st => extractClass(st).toLowerCase().includes(selectedClass.toLowerCase()));
-  }, [sessionStudents, selectedClass]);
+  }, [sessionClassStudents]);
 
   const sessionClassStreamStudents = useMemo(() => {
     return selectedStream === 'ALL'
@@ -1626,16 +1619,10 @@ export default function CustomRosterDocumentBuilderView({
 
   // ─── Filter Students ───
   const filteredStudents = useMemo(() => {
-    if (!Array.isArray(allStudents)) return [];
+    if (!Array.isArray(unifiedStudentPool)) return [];
 
-    return allStudents.filter(st => {
+    return unifiedStudentPool.filter(st => {
       if (!st) return false;
-
-      // Session
-      if (selectedSession !== 'ALL') {
-        const sess = extractSession(st).toLowerCase();
-        if (!sess.includes(selectedSession.toLowerCase())) return false;
-      }
 
       // Class
       if (selectedClass !== 'ALL') {
@@ -1665,7 +1652,7 @@ export default function CustomRosterDocumentBuilderView({
 
       return true;
     });
-  }, [allStudents, selectedSession, selectedClass, selectedStream, selectedGender, selectedStatus]);
+  }, [unifiedStudentPool, selectedClass, selectedStream, selectedGender, selectedStatus]);
 
   // Active Columns for Table
   const activeTableColumns = activeColumns;
@@ -1675,82 +1662,10 @@ export default function CustomRosterDocumentBuilderView({
     return activeTableColumns.reduce((acc, c) => acc + (Number(c.widthPct) || 10), 0);
   }, [activeTableColumns]);
 
-  // Master registers cache for resolving genuine Board Reg Nos, authentic photos, and Adm Nos
-  const [masterRecords, setMasterRecords] = useState(() => {
-    return getCachedCollectionSync('masterRegisters') || (typeof window !== 'undefined' ? window._hssMasterRegistersCache : null) || [];
-  });
-
-  useEffect(() => {
-    getCachedCollection('masterRegisters').then(list => {
-      if (list && Array.isArray(list) && list.length > 0) {
-        setMasterRecords(list);
-      }
-    }).catch(() => {});
-    getStudentRegIndex().catch(() => {});
-  }, []);
-
-  // Map master identity keys (Form No, Name+Father, valid Reg)
-  const masterMatchMap = useMemo(() => {
-    const map = new Map();
-    if (!masterRecords || masterRecords.length === 0) return map;
-
-    masterRecords.forEach(m => {
-      const fNo = extractFormNo(m);
-      const reg = extractBoardRegNo(m);
-      const sName = extractStudentName(m).toLowerCase().trim();
-      const fName = extractFatherName(m).toLowerCase().trim();
-
-      if (fNo && fNo !== '—') map.set(`form_${fNo.toLowerCase()}`, m);
-      if (reg && reg !== '—' && !/0{5,}$/.test(reg)) map.set(`reg_${reg.toLowerCase()}`, m);
-      if (sName && sName !== 'student' && fName && fName !== '—') {
-        map.set(`name_${sName}_${fName.slice(0, 8)}`, m);
-      }
-    });
-
-    return map;
-  }, [masterRecords]);
-
-  // Reconcile raw student with master records
+  // Direct student pass-through with no heavy O(N^2) reconcile
   const resolveStudentMaster = useCallback((st) => {
-    if (!st) return st;
-    const fNo = extractFormNo(st);
-    const sName = extractStudentName(st).toLowerCase().trim();
-    const fName = extractFatherName(st).toLowerCase().trim();
-    const rawReg = extractBoardRegNo(st);
-
-    let match = null;
-    // 1. Try form number
-    if (fNo && fNo !== '—') {
-      match = masterMatchMap.get(`form_${fNo.toLowerCase()}`);
-    }
-    // 2. Try Name + Father combination
-    if (!match && sName && sName !== 'student' && fName && fName !== '—') {
-      match = masterMatchMap.get(`name_${sName}_${fName.slice(0, 8)}`);
-    }
-    // 3. Try Reg No (only if candidate student name is compatible)
-    if (!match && rawReg && rawReg !== '—' && !/0{5,}$/.test(rawReg)) {
-      const cand = masterMatchMap.get(`reg_${rawReg.toLowerCase()}`);
-      if (cand) {
-        const candName = extractStudentName(cand).toLowerCase().trim();
-        if (candName.includes(sName) || sName.includes(candName)) {
-          match = cand;
-        }
-      }
-    }
-
-    if (match) {
-      const matchReg = extractBoardRegNo(match);
-      const matchAdm = extractAdmNo(match);
-      return {
-        ...match,
-        ...st,
-        boardRegNo: (matchReg && matchReg !== '—') ? matchReg : (rawReg || '—'),
-        admNo: (matchAdm && matchAdm !== '—') ? matchAdm : extractAdmNo(st)
-      };
-    }
-
-    return st;
-  }, [masterMatchMap]);
+    return st || {};
+  }, []);
 
   // Normalize Student Data for Table View & Exports with Column Sorting
   const processedRows = useMemo(() => {
@@ -1860,9 +1775,13 @@ export default function CustomRosterDocumentBuilderView({
   }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster]);
 
   // Metadata Badges for Header
+  const displaySession = globalSession && globalSession !== 'ALL'
+    ? `Session: ${globalSession}`
+    : (globalSession === 'ALL' ? 'All Sessions' : 'Session: 2025-26');
+
   const metaBadges = [
     selectedClass !== 'ALL' ? `Class: ${selectedClass}` : 'All Classes',
-    selectedSession !== 'ALL' ? `Session: ${selectedSession}` : 'All Sessions',
+    displaySession,
     selectedStream !== 'ALL' ? `Stream: ${selectedStream}` : null,
     `Total Students: ${filteredStudents.length}`,
     `Date: ${new Date().toLocaleDateString('en-GB')}`
@@ -1950,28 +1869,71 @@ export default function CustomRosterDocumentBuilderView({
   return (
     <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
       
-      {/* ── UNIFIED MASTER ACTION & SUB-TAB TOOLBAR (ALL ON 1 ROW) ── */}
-      <div className="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2">
-        
-        {/* Left Side: Active Tool Title & Student Count Badge */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <FileSpreadsheet size={14} className="text-amber-600" />
-            <span>Student Roster & Registers Studio</span>
-          </span>
+      {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
+      <div 
+        className="px-1.5 py-1 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold"
+        style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
+      >
+        {/* Left Side: Document Title & Quick Config */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
+          <div className="flex-1 min-w-[180px] max-w-[340px]">
+            <input
+              type="text"
+              value={docTitle}
+              onChange={(e) => setDocTitle(e.target.value)}
+              placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
+              className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
+            />
+          </div>
 
-          <span className="font-mono font-black text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-            {filteredStudents.length} Students Matched
-          </span>
+          {/* Orientation Toggle */}
+          <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
+            <button
+              type="button"
+              onClick={() => setOrientation('portrait')}
+              className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
+                orientation === 'portrait'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Portrait
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrientation('landscape')}
+              className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
+                orientation === 'landscape'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Landscape
+            </button>
+          </div>
+
+          {/* Row Height Preset */}
+          <select
+            value={selectedRowHeightIdx}
+            onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
+            className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold text-[10px] text-slate-800 dark:text-slate-200"
+          >
+            {ROW_HEIGHT_PRESETS.map((p, idx) => (
+              <option key={p.label} value={idx}>
+                {p.label}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {/* Right Side: 1-Click Export Actions Toolbar */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Right Side: Export Action Buttons */}
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap shrink-0 justify-end">
           <button
             type="button"
             onClick={handleExportExcel}
             disabled={processedRows.length === 0}
-            className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+            className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 transition-all"
+            title="Export Roster table to Microsoft Excel spreadsheet"
           >
             <FileSpreadsheet size={12} />
             <span>Excel (.xlsx)</span>
@@ -1981,7 +1943,8 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handleExportDocx}
             disabled={processedRows.length === 0 || isExporting}
-            className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+            className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 transition-all"
+            title="Export Roster table to Microsoft Word document"
           >
             {isExporting ? <RefreshCw size={11} className="animate-spin" /> : <FileText size={12} />}
             <span>Word (.docx)</span>
@@ -1991,10 +1954,11 @@ export default function CustomRosterDocumentBuilderView({
             type="button"
             onClick={handlePrint}
             disabled={processedRows.length === 0}
-            className="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50"
+            className="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+            title="Print Official Institutional Register / Save PDF"
           >
             <Printer size={12} />
-            <span>Print / Save PDF</span>
+            <span>Print / PDF</span>
           </button>
         </div>
       </div>
@@ -2005,110 +1969,30 @@ export default function CustomRosterDocumentBuilderView({
         {/* ════════ LEFT HALF: COMPACT UNIFIED CONTROL PALETTE ════════ */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2 text-xs overflow-hidden"
+          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-2.5 space-y-2 text-xs overflow-hidden"
         >
-          
-          {/* SECTION 1: DOCUMENT CONFIG IN A SINGLE MULTI-COLUMN ROW */}
+          {/* COHORT & DEMOGRAPHIC FILTERS */}
           <div className="space-y-1 pb-1.5 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-500">
+            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1">
-                <Settings2 size={11} className="text-teal-600 dark:text-teal-400" />
-                <span>1. Document Setup</span>
+                <Sliders size={10} className="text-amber-600 dark:text-amber-400" />
+                <span>Cohort Filters</span>
+              </span>
+              <span className="font-mono font-black text-[9px] text-emerald-600 dark:text-emerald-400">
+                {filteredStudents.length} of {unifiedStudentPool.length} Matched
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-1.5">
-              {/* Title */}
-              <div className="sm:col-span-6">
-                <input
-                  type="text"
-                  value={docTitle}
-                  onChange={(e) => setDocTitle(e.target.value)}
-                  placeholder="DOCUMENT TITLE (PRINTED ON LETTERHEAD)"
-                  className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-[10px] uppercase shadow-2xs"
-                />
-              </div>
-
-              {/* Orientation Toggle */}
-              <div className="sm:col-span-3 grid grid-cols-2 gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => setOrientation('portrait')}
-                  className={`py-1 rounded-lg font-black text-[9.5px] border cursor-pointer ${
-                    orientation === 'portrait'
-                      ? 'bg-indigo-600 text-white border-indigo-700'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                  }`}
-                >
-                  Portrait
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOrientation('landscape')}
-                  className={`py-1 rounded-lg font-black text-[9.5px] border cursor-pointer ${
-                    orientation === 'landscape'
-                      ? 'bg-indigo-600 text-white border-indigo-700'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                  }`}
-                >
-                  Landscape
-                </button>
-              </div>
-
-              {/* Row Height Select */}
-              <div className="sm:col-span-3">
-                <select
-                  value={selectedRowHeightIdx}
-                  onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
-                  className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[9.5px]"
-                >
-                  {ROW_HEIGHT_PRESETS.map((p, idx) => (
-                    <option key={p.label} value={idx}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 2: COMPACT 5-COLUMN COHORT & DEMOGRAPHIC FILTERS */}
-          <div className="space-y-1.5 pb-2 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between text-[10px] uppercase font-black tracking-wider text-slate-500">
-              <span className="flex items-center gap-1">
-                <Sliders size={11} className="text-amber-600 dark:text-amber-400" />
-                <span>2. Cohort & Demographic Filters</span>
-              </span>
-              <span className="font-mono font-black text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                {filteredStudents.length} Matched
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-              {/* Session */}
-              <div>
-                <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-tight mb-0.5">Session</label>
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10.5px]"
-                >
-                  <option value="ALL">All ({allStudents.length})</option>
-                  {dynamicSessions.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
               {/* Class */}
               <div>
-                <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-tight mb-0.5">Class</label>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Class</label>
                 <select
                   value={selectedClass}
                   onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10.5px]"
+                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
                 >
-                  <option value="ALL">All ({sessionStudents.length})</option>
+                  <option value="ALL">All ({unifiedStudentPool.length})</option>
                   {dynamicClasses.map((c) => (
                     <option key={c.value} value={c.value}>{c.label}</option>
                   ))}
@@ -2117,11 +2001,11 @@ export default function CustomRosterDocumentBuilderView({
 
               {/* Stream */}
               <div>
-                <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-tight mb-0.5">Stream</label>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Stream</label>
                 <select
                   value={selectedStream}
                   onChange={(e) => setSelectedStream(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10.5px]"
+                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
                 >
                   <option value="ALL">All ({sessionClassStudents.length})</option>
                   {dynamicStreams.map((stm) => (
@@ -2132,11 +2016,11 @@ export default function CustomRosterDocumentBuilderView({
 
               {/* Gender */}
               <div>
-                <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-tight mb-0.5">Gender</label>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Gender</label>
                 <select
                   value={selectedGender}
                   onChange={(e) => setSelectedGender(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10.5px]"
+                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
                 >
                   <option value="ALL">All ({sessionClassStreamStudents.length})</option>
                   <option value="M">Male (M)</option>
@@ -2146,11 +2030,11 @@ export default function CustomRosterDocumentBuilderView({
 
               {/* Form Status */}
               <div>
-                <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-tight mb-0.5">Status</label>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Status</label>
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10.5px]"
+                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
                 >
                   <option value="ALL">All ({sessionClassStreamStudents.length})</option>
                   {dynamicStatuses.map((st) => (
@@ -2161,16 +2045,16 @@ export default function CustomRosterDocumentBuilderView({
             </div>
           </div>
 
-          {/* SECTION 3: 3-COLUMN COMPACT DATABASE COLUMN MATRIX */}
+          {/* COLUMN CONFIGURATION MATRIX */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] uppercase font-black tracking-wider text-slate-500">
-              <span className="flex items-center gap-1">
-                <Layers size={11} className="text-indigo-600 dark:text-indigo-400" />
-                <span>3. Columns ({activeTableColumns.length} Active)</span>
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] uppercase font-black tracking-wider text-slate-500">
+              <span className="flex items-center gap-1 shrink-0">
+                <Layers size={10} className="text-indigo-600 dark:text-indigo-400" />
+                <span>Columns ({activeTableColumns.length} Active)</span>
               </span>
 
-              <div className="flex items-center gap-1.5">
-                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9px] font-extrabold">
+              <div className="flex flex-wrap items-center gap-1">
+                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[8.5px] font-extrabold">
                   <button
                     type="button"
                     onClick={() => setUseAbbreviatedSubjects(true)}
@@ -2200,23 +2084,23 @@ export default function CustomRosterDocumentBuilderView({
                 <button
                   type="button"
                   onClick={() => setShowMoreFields(prev => !prev)}
-                  className={`px-2 py-0.5 rounded font-black text-[9.5px] flex items-center gap-1 cursor-pointer transition-all border ${
+                  className={`px-1.5 py-0.5 rounded font-black text-[9px] flex items-center gap-0.5 cursor-pointer transition-all border ${
                     showMoreFields
                       ? 'bg-purple-600 text-white border-purple-700 shadow-2xs'
                       : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100'
                   }`}
                   title="Toggle all 33 database fields"
                 >
-                  <ChevronDown size={11} className={`transition-transform duration-200 ${showMoreFields ? 'rotate-180' : ''}`} />
-                  <span>{showMoreFields ? 'Less Fields' : '+ More Fields'}</span>
+                  <ChevronDown size={9} className={`transition-transform duration-200 ${showMoreFields ? 'rotate-180' : ''}`} />
+                  <span>{showMoreFields ? 'Less' : '+ More'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleOpenAddModal()}
-                  className="px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-black text-[9.5px] flex items-center gap-0.5 cursor-pointer shadow-xs"
+                  className="px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-black text-[9px] flex items-center gap-0.5 cursor-pointer shadow-xs"
                 >
-                  <Plus size={10} />
+                  <Plus size={9} />
                   <span>+ Custom</span>
                 </button>
 
@@ -2224,14 +2108,14 @@ export default function CustomRosterDocumentBuilderView({
                 <button
                   type="button"
                   onClick={handleSaveAsDefaultColumns}
-                  className={`px-2 py-0.5 rounded font-black text-[9.5px] flex items-center gap-1 cursor-pointer transition-all border shadow-2xs ${
+                  className={`px-1.5 py-0.5 rounded font-black text-[9px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs ${
                     saveDefaultToast
                       ? 'bg-emerald-600 text-white border-emerald-700'
                       : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
                   }`}
                   title="Save current column order, widths and custom formulas as your default layout"
                 >
-                  {saveDefaultToast ? <Check size={10} /> : <Save size={10} className="text-emerald-600 dark:text-emerald-400" />}
+                  {saveDefaultToast ? <Check size={9} /> : <Save size={9} className="text-emerald-600 dark:text-emerald-400" />}
                   <span>{saveDefaultToast ? 'Saved!' : 'Save Default'}</span>
                 </button>
 
@@ -2239,10 +2123,10 @@ export default function CustomRosterDocumentBuilderView({
                   <button
                     type="button"
                     onClick={handleResetToSystemDefault}
-                    className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[9px] border border-slate-300 dark:border-slate-700 cursor-pointer"
+                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8.5px] border border-slate-300 dark:border-slate-700 cursor-pointer"
                     title="Reset to system default column order"
                   >
-                    <RotateCcw size={9} />
+                    <RotateCcw size={8.5} />
                   </button>
                 )}
               </div>

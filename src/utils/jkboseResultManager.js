@@ -62,13 +62,278 @@ export function calculateDivision(marksObt, maxMarks = 500) {
  * Normalize Result string into standard standard taxonomy: 'Passed' | 'Reap' | 'Failed' | 'Discharged'
  */
 export function normalizeResultStatus(raw) {
-  if (!raw) return 'Passed';
+  if (!raw) return 'Awaiting Result';
   const s = String(raw).trim().toLowerCase();
-  if (s.includes('pass') || s.includes('qualif')) return 'Passed';
+  if (!s || s === '—' || s === '-' || s === 'n/a' || s === 'null' || s === 'undefined' || s === 'active' || s === 'admitted' || s === 'approved' || s === 'enrolled') {
+    return 'Awaiting Result';
+  }
+  if (s.includes('pass') || s.includes('qualif') || s.includes('distinc') || s.includes('promot')) return 'Passed';
   if (s.includes('reap') || s.includes('re-appear') || s.includes('compartment')) return 'Reap';
-  if (s.includes('fail') || s.includes('not qualif')) return 'Failed';
+  if (s.includes('fail') || s.includes('not qualif') || s.includes('did not')) return 'Failed';
   if (s.includes('discharg') || s.includes('withdraw') || s.includes('transfer')) return 'Discharged';
-  return 'Passed';
+  if (s.includes('await') || s.includes('appear') || s.includes('pursu') || s.includes('study') || s.includes('in-course')) return 'Awaiting Result';
+  return 'Awaiting Result';
+}
+
+/**
+ * Comprehensive Student Result & Marks Extractor.
+ * Extracts marks obtained, max marks, division, exam roll, exam mode, and status from any student object or raw record.
+ */
+export function extractStudentResultMarks(st) {
+  const raw = st?.raw || st || {};
+
+  // 1. Result Status - Check explicit board result fields
+  const rawStatus = raw['Result (Current)'] ||
+                    raw.currResult ||
+                    raw.resultCurrent ||
+                    raw.result_current ||
+                    raw.jkbose_result ||
+                    raw.exam_result ||
+                    raw['Exam Result'] ||
+                    raw['Result'] ||
+                    (raw.status && !['active', 'approved', 'admitted', 'enrolled', 'pending'].includes(String(raw.status).trim().toLowerCase()) ? raw.status : '') ||
+                    st?.resultStatus ||
+                    '';
+
+  // 2. Marks / Reapp Candidate Keys (Only checking valid result marks)
+  const rawMarks = raw['Marks/Reapp (Current)'] ??
+                   raw.marks_reapp_current ??
+                   raw.currMarksReapp ??
+                   raw['Marks Obtained'] ??
+                   raw.marksObtained ??
+                   raw['Marks/Reapp'] ??
+                   raw.result_marks ??
+                   raw['Total Marks Obtained in Class 12th'] ??
+                   raw['Total Marks in Class 12th'] ??
+                   raw.marks_12th ??
+                   st?.marksObtained ??
+                   '';
+
+  // 3. Genuine Board Exam Roll No (Never fallback to internal class roll numbers like 130, 118, 21)
+  const examRoll = raw['Exam R.No. (Current)'] ||
+                   raw.currExamRoll ||
+                   raw.exam_roll_no_current ||
+                   raw.examRollNo ||
+                   raw.exam_roll_no ||
+                   raw['Exam Roll No'] ||
+                   raw['Exam Roll No.'] ||
+                   raw['Exam R.No.'] ||
+                   raw['Board Roll No'] ||
+                   raw['Board Roll No.'] ||
+                   raw['JKBOSE Roll No'] ||
+                   raw['Roll No (12th)'] ||
+                   st?.examRollNo ||
+                   '';
+
+  // Determine if a genuine result exists in the database
+  const hasValidStatus = Boolean(rawStatus && !/^(active|approved|admitted|enrolled|—|-|n\/a|null|undefined)$/i.test(String(rawStatus).trim()));
+  const hasValidMarks = Boolean(rawMarks && !/^(—|-|n\/a|0)$/.test(String(rawMarks).trim()));
+  const hasResult = hasValidStatus || hasValidMarks;
+
+  const normStatus = hasResult ? normalizeResultStatus(rawStatus || (hasValidMarks ? 'Passed' : '')) : 'Awaiting Result';
+  const isPassed = normStatus === 'Passed';
+  const isReap = normStatus === 'Reap';
+  const isFailed = normStatus === 'Failed';
+
+  // 4. Marks Parsing
+  const marksStr = String(rawMarks || '').trim();
+  const numMatch = marksStr.match(/(\d+)(?:\s*\/\s*(\d+))?/);
+
+  const rawMax = raw.maxMarks || raw['Max Marks'] || raw['Total Max Marks in Class 12th'] || st?.maxMarks || '500';
+  const maxMarks = numMatch && numMatch[2] ? numMatch[2] : String(rawMax);
+
+  let marksObtained = '';
+  let reappSubjects = '';
+
+  if (hasResult) {
+    if (numMatch) {
+      marksObtained = numMatch[1];
+    } else if (/^\d+$/.test(marksStr)) {
+      marksObtained = marksStr;
+    } else if (isPassed) {
+      marksObtained = marksStr && !/^(pass|passed|promoted|—|-)$/i.test(marksStr) ? marksStr : '';
+    } else if (isReap) {
+      reappSubjects = marksStr;
+    }
+
+    // Check if result status itself has embedded marks e.g. "Pass (488/500)" or "488/500"
+    if (!marksObtained && rawStatus) {
+      const statusNumMatch = String(rawStatus).match(/(\d{2,3})(?:\s*\/\s*(\d{3}))?/);
+      if (statusNumMatch) {
+        marksObtained = statusNumMatch[1];
+      }
+    }
+
+    // Check percentage if marks still empty
+    if (!marksObtained) {
+      const pctCandidate = raw.percentage || raw['Percentage'] || raw['Marks %'] || raw['marks_percentage'] || '';
+      const pctMatch = String(pctCandidate).match(/(\d+(?:\.\d+)?)/);
+      if (pctMatch) {
+        const pctNum = parseFloat(pctMatch[1]);
+        if (pctNum > 0 && pctNum <= 100) {
+          const calculatedMarks = Math.round((pctNum / 100) * parseFloat(maxMarks || 500));
+          marksObtained = String(calculatedMarks);
+        }
+      }
+    }
+  }
+
+  // 5. Division / Distinction
+  let division = raw['Div/Distinc (Current)'] || raw.currDiv || raw.division || raw['Division'] || raw['Distinction'] || st?.division || '';
+  if (hasResult && !division && marksObtained) {
+    division = calculateDivision(marksObtained, maxMarks).division;
+  }
+
+  // 6. Exam Mode / Session
+  const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.exam_mode_current || raw.examMode || raw['Exam Mode'] || raw['Session'] || st?.session || '';
+
+  return {
+    hasResult: hasResult && (isPassed || isReap || isFailed),
+    marksObtained: hasResult ? marksObtained : '',
+    maxMarks: maxMarks || '500',
+    reappSubjects: reappSubjects || (isReap ? (raw.reappSubjects || '') : ''),
+    division: hasResult ? (division || (isPassed && marksObtained ? calculateDivision(marksObtained, maxMarks).division : '')) : '',
+    examRoll: String(examRoll || '').trim(),
+    examMode: String(examMode || '').trim(),
+    resultStatus: normStatus,
+    isPassed,
+    isReap,
+    isFailed
+  };
+}
+
+/**
+ * Comprehensive Admission Number Extractor.
+ * Handles all 30+ schema permutations across admissions, master registers, legacy imports, and form registrations.
+ */
+export function extractStudentAdmissionNumber(st) {
+  if (!st) return '';
+  const raw = st?.raw || st || {};
+
+  const candidates = [
+    raw['Admission Number'],
+    raw['Admission No.'],
+    raw['Admission No'],
+    raw['Adm. No.'],
+    raw['Adm. No'],
+    raw['Adm No.'],
+    raw['Adm No'],
+    raw['admNo'],
+    raw['admissionNo'],
+    raw['Adm_No'],
+    raw['Admission / Form No.'],
+    raw['Adm / Form No.'],
+    raw['Adm No (11th)'],
+    raw['Adm No (12th)'],
+    raw['Adm. No. (Class 11th)'],
+    raw['Adm. No. (Class 12th)'],
+    raw['Admission Number (Class 11th)'],
+    raw['Admission Number (Class 12th)'],
+    raw['Admission S.No.'],
+    raw['Adm. S.No.'],
+    raw['S.No.'],
+    raw['S.No'],
+    raw['Serial No'],
+    raw['Form Number'],
+    raw['Form No.'],
+    raw.formNo,
+    raw.form_number,
+    raw.form_no,
+    raw['Roll No.'],
+    raw['Class Roll No.'],
+    raw['Class Roll No'],
+    raw['Roll Number'],
+    raw.rollNo,
+    st?.admissionNo,
+    st?.admNo,
+    st?.rollNo,
+    st?.formNo,
+    raw.id
+  ];
+
+  for (const c of candidates) {
+    if (c !== undefined && c !== null) {
+      const s = String(c).trim();
+      if (s && !/^(—|-|n\/?a|null|undefined|none)$/i.test(s)) {
+        return s;
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Comprehensive Date of Admission Extractor.
+ * Handles all date formats (DD-MM-YYYY, YYYY-MM-DD, ISO timestamps, Firestore timestamps)
+ * across admissions, master registers, and legacy imports.
+ */
+export function extractStudentAdmissionDate(st) {
+  if (!st) return '';
+  const raw = st?.raw || st || {};
+
+  const candidates = [
+    raw['Date of Admission'],
+    raw['Date of admission'],
+    raw['date_of_admission'],
+    raw['Admission Date'],
+    raw['admission_date'],
+    raw['admissionDate'],
+    raw['Adm. Date'],
+    raw['Adm. Date.'],
+    raw['Adm Date.'],
+    raw['Adm Date'],
+    raw['adm_date'],
+    raw['admDate'],
+    raw['Date of Adm.'],
+    raw['Date of Adm'],
+    raw['Date of Admission (Class 11th)'],
+    raw['Date of Admission (Class 12th)'],
+    raw['DOA'],
+    raw['doa'],
+    raw['Date of Joining'],
+    raw['Enrolment Date'],
+    raw['Registration Date'],
+    raw.regDate,
+    raw['Created At'],
+    raw.createdAt,
+    st?.admissionDate,
+    st?.admDate
+  ];
+
+  for (const c of candidates) {
+    if (c !== undefined && c !== null) {
+      // If Firestore timestamp
+      if (typeof c === 'object' && c.seconds) {
+        try {
+          const d = new Date(c.seconds * 1000);
+          return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+        } catch (_) {}
+      }
+      const s = String(c).trim();
+      if (s && !/^(—|-|n\/?a|null|undefined|none)$/i.test(s)) {
+        // Normalize ISO YYYY-MM-DD to DD-MM-YYYY if needed
+        const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (isoMatch) {
+          return `${isoMatch[3].padStart(2, '0')}-${isoMatch[2].padStart(2, '0')}-${isoMatch[1]}`;
+        }
+        // Normalize DD/MM/YYYY to DD-MM-YYYY
+        const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (slashMatch) {
+          return `${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}-${slashMatch[3]}`;
+        }
+        return s;
+      }
+    }
+  }
+
+  // Smart fallback based on session (e.g. Session 2024-25 -> 01-07-2024, Session 2025-26 -> 01-07-2025)
+  const sess = String(raw.session || raw.Session || st?.session || '').trim();
+  const sessYearMatch = sess.match(/(20\d{2})/);
+  if (sessYearMatch) {
+    return `01-07-${sessYearMatch[1]}`;
+  }
+
+  return '01-07-2024';
 }
 
 /**
@@ -88,37 +353,26 @@ function downloadFileBlob(blob, filename) {
 /**
  * Generate and download an Excel / CSV pre-populated template for a class/session.
  */
-export function generateResultImportTemplate(studentsList = [], className = '12th', session = '2025-26', format = 'xlsx') {
-  const rows = (studentsList || []).map((s, idx) => {
+export function generateResultImportTemplate(studentsList = [], className = '12th', session = '2025-26') {
+  const rows = (studentsList || []).map((s) => {
     const raw = s.raw || s;
     return {
-      'S.No.': idx + 1,
-      'Form No.': s.formNo || raw['Form No.'] || raw.formNo || '',
-      'Class R.No.': s.classRollNo || raw['Class R.No.'] || raw.rollNo || '',
-      'Board Reg. No.': s.regNo || raw['Board Reg. No.'] || raw.regNo || '',
-      "Student's Name": s.name || raw["Student's Name"] || raw.name || '',
-      "Father's Name": s.fatherName || raw["Father's Name"] || raw.fatherName || '',
-      'Class': s.selectedClass || raw['Class'] || className || '',
-      'Stream': s.selectedStream || raw['Stream'] || '',
-      'Session': s.selectedSession || raw['Session'] || session || '',
-      'Exam Mode (Current)': raw['Exam Mode (Current)'] || raw.currExamMode || 'Annual Regular 2025 (Oct.-Nov.)',
-      'Exam R.No. (Current)': raw['Exam R.No. (Current)'] || raw.currExamRoll || '',
-      'Result (Current)': raw['Result (Current)'] || raw.currResult || 'Passed',
-      'Marks/Reapp (Current)': raw['Marks/Reapp (Current)'] || raw.currMarksReapp || '',
-      'Div/Distinc (Current)': raw['Div/Distinc (Current)'] || raw.currDiv || '',
-      'Date of withdrawl': raw['Date of withdrawl'] || raw.withdrawalDate || '',
-      'No. & Date of CC/DC Issued (This Institution)': raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '',
-      'Remarks': raw['Remarks'] || ''
+      "Student's Name": String(s.name || raw["Student's Name"] || raw.name || ''),
+      "Father's Name": String(s.fatherName || raw["Father's Name"] || raw.fatherName || ''),
+      'Class': String(s.selectedClass || raw['Class'] || className || ''),
+      'Stream': String(s.selectedStream || raw['Stream'] || ''),
+      'Session': String(s.selectedSession || raw['Session'] || session || ''),
+      'Exam Mode (Current)': String(raw['Exam Mode (Current)'] || raw.currExamMode || 'Annual Regular 2025 (Oct.-Nov.)'),
+      'Exam R.No. (Current)': String(raw['Exam R.No. (Current)'] || raw.currExamRoll || ''),
+      'Result (Current)': String(raw['Result (Current)'] || raw.currResult || 'Passed'),
+      'Marks/Reapp (Current)': String(raw['Marks/Reapp (Current)'] || raw.currMarksReapp || ''),
+      'Div/Distinc (Current)': String(raw['Div/Distinc (Current)'] || raw.currDiv || '')
     };
   });
 
   // If no students in list, create a sample template row
   if (rows.length === 0) {
     rows.push({
-      'S.No.': 1,
-      'Form No.': '4923',
-      'Class R.No.': '101',
-      'Board Reg. No.': '2201000001160003',
       "Student's Name": 'Zaidan Wani',
       "Father's Name": 'Bilal Ahmad Wani',
       'Class': className,
@@ -128,58 +382,55 @@ export function generateResultImportTemplate(studentsList = [], className = '12t
       'Exam R.No. (Current)': '301003053',
       'Result (Current)': 'Passed',
       'Marks/Reapp (Current)': '488 / 500',
-      'Div/Distinc (Current)': 'Distinction',
-      'Date of withdrawl': '14-01-2026',
-      'No. & Date of CC/DC Issued (This Institution)': '1276 dated 14-01-2026',
-      'Remarks': 'Sample entry'
+      'Div/Distinc (Current)': 'Distinction'
     });
   }
 
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = XLSX.utils.json_to_sheet(rows, { raw: false });
+
+  // Force ALL cells to explicit Text format ('@') to prevent scientific notation (e.g. 2.201E+15)
+  Object.keys(ws).forEach((cellKey) => {
+    if (cellKey.startsWith('!')) return;
+    const cell = ws[cellKey];
+    if (cell) {
+      cell.t = 's'; // Force string/text type
+      cell.v = String(cell.v || '');
+      cell.w = String(cell.v || '');
+      cell.z = '@'; // Explicit Text format code
+    }
+  });
 
   // Column width styling
   ws['!cols'] = [
-    { wch: 6 },  // S.No
-    { wch: 10 }, // Form No
-    { wch: 12 }, // Class R.No
-    { wch: 20 }, // Board Reg No
-    { wch: 24 }, // Student Name
-    { wch: 24 }, // Father Name
-    { wch: 8 },  // Class
-    { wch: 14 }, // Stream
-    { wch: 12 }, // Session
-    { wch: 30 }, // Exam Mode
-    { wch: 16 }, // Exam Roll No
-    { wch: 16 }, // Result
-    { wch: 22 }, // Marks / Reapp
-    { wch: 18 }, // Div / Distinc
-    { wch: 16 }, // Withdrawal Date
-    { wch: 30 }, // CC/DC No
-    { wch: 20 }  // Remarks
+    { wch: 26 }, // Student's Name
+    { wch: 26 }, // Father's Name
+    { wch: 10 }, // Class
+    { wch: 16 }, // Stream
+    { wch: 14 }, // Session
+    { wch: 32 }, // Exam Mode (Current)
+    { wch: 22 }, // Exam R.No. (Current)
+    { wch: 18 }, // Result (Current)
+    { wch: 24 }, // Marks/Reapp (Current)
+    { wch: 22 }  // Div/Distinc (Current)
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'JKBOSE_Results');
 
   const cleanClass = String(className).replace(/[^a-zA-Z0-9]/g, '');
   const cleanSession = String(session).replace(/[^a-zA-Z0-9]/g, '_');
-  const filename = `JKBOSE_Result_Template_Class_${cleanClass}_${cleanSession}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+  const filename = `JKBOSE_Result_Template_Class_${cleanClass}_${cleanSession}.xlsx`;
 
-  if (format === 'csv') {
-    const csvStr = XLSX.utils.sheet_to_csv(ws);
-    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
-    downloadFileBlob(blob, filename);
-  } else {
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    downloadFileBlob(blob, filename);
-  }
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadFileBlob(blob, filename);
 }
 
 /**
- * Match a raw record against the existing students list using multi-attribute lookup.
+ * Match a raw record against the existing students list using multi-attribute lookup
+ * with strict Class, Academic Session, Exam Roll No, and Name First-Word Token scoping.
  */
-export function matchStudentInDatabase(record, existingStudents = []) {
+export function matchStudentInDatabase(record, existingStudents = [], classScope = '', sessionScope = '') {
   if (!existingStudents || existingStudents.length === 0) return null;
 
   const targetForm = String(record.formNo || record['Form No.'] || '').trim().toLowerCase();
@@ -187,6 +438,33 @@ export function matchStudentInDatabase(record, existingStudents = []) {
   const targetExamRoll = String(record.examRollNo || record['Exam R.No. (Current)'] || '').trim().toLowerCase();
   const targetName = String(record.studentName || record["Student's Name"] || '').trim().toLowerCase();
   const targetFather = String(record.fatherName || record["Father's Name"] || '').trim().toLowerCase();
+  const targetClass = String(record.className || record['Class'] || classScope || '').trim().toLowerCase();
+  const targetSession = String(record.session || record['Session'] || record.examMode || sessionScope || '').trim().toLowerCase();
+
+  // Helper to extract first word or initials from name
+  const firstWord = (str) => String(str || '').trim().toLowerCase().split(/[\s,._-]+/)[0] || '';
+
+  // Helper to evaluate class match
+  const isClassMatch = (sCls) => {
+    if (!targetClass) return true;
+    const cleanSCls = String(sCls || '').toLowerCase();
+    return cleanSCls.includes(targetClass) || targetClass.includes(cleanSCls) ||
+      (targetClass.includes('12') && cleanSCls.includes('12')) ||
+      (targetClass.includes('11') && cleanSCls.includes('11')) ||
+      (targetClass.includes('10') && cleanSCls.includes('10'));
+  };
+
+  // Helper to evaluate session match
+  const isSessionMatch = (sSess) => {
+    if (!targetSession) return true;
+    const cleanSess = String(sSess || '').toLowerCase();
+    const targetYears = targetSession.match(/\b20\d\d\b/g) || [];
+    const sYears = cleanSess.match(/\b20\d\d\b/g) || [];
+    if (targetYears.length > 0 && sYears.length > 0) {
+      return targetYears.some(y => sYears.includes(y));
+    }
+    return cleanSess.includes(targetSession) || targetSession.includes(cleanSess);
+  };
 
   // 1. Exact Form No Match
   if (targetForm) {
@@ -203,45 +481,119 @@ export function matchStudentInDatabase(record, existingStudents = []) {
       const r = String(s.regNo || s.raw?.['Board Reg. No.'] || s.raw?.regNo || '').trim().toLowerCase();
       return r && r === targetReg;
     });
-    if (found) return { student: found, matchType: 'Board Reg No Match', confidence: 95 };
+    if (found) return { student: found, matchType: 'Board Reg No Match', confidence: 98 };
   }
 
-  // 3. Exact Exam Roll No Match
-  if (targetExamRoll && targetExamRoll.length > 5) {
-    const found = existingStudents.find(s => {
-      const e = String(s.raw?.['Exam R.No. (Current)'] || s.currExamRoll || '').trim().toLowerCase();
-      return e && e === targetExamRoll;
+  // 3. Exact Exam Roll No Match WITH Class & Session and First-Word Verification
+  // (Since roll numbers can repeat across different academic years/sessions, we verify the cohort)
+  if (targetExamRoll && targetExamRoll.length >= 4) {
+    const scopedMatches = existingStudents.filter(s => {
+      const sExamRoll = String(s.raw?.['Exam R.No. (Current)'] || s.currExamRoll || s.raw?.['Exam Roll No'] || '').trim().toLowerCase();
+      if (!sExamRoll || sExamRoll !== targetExamRoll) return false;
+      const sCls = s.selectedClass || s.cls || s.raw?.['Class'] || '';
+      const sSess = s.selectedSession || s.session || s.raw?.['Session'] || s.raw?.['Exam Mode (Current)'] || '';
+      return isClassMatch(sCls) && isSessionMatch(sSess);
     });
-    if (found) return { student: found, matchType: 'Exam Roll Match', confidence: 90 };
+
+    if (scopedMatches.length > 0) {
+      if (targetName) {
+        const targetFirst = firstWord(targetName);
+        const nameVerified = scopedMatches.find(s => {
+          const sName = String(s.name || s.raw?.["Student's Name"] || '').trim().toLowerCase();
+          return firstWord(sName) === targetFirst || sName.includes(targetFirst) || targetFirst.includes(firstWord(sName));
+        });
+        if (nameVerified) return { student: nameVerified, matchType: 'Exam Roll + Cohort + Name Match', confidence: 95 };
+      }
+      return { student: scopedMatches[0], matchType: 'Exam Roll & Cohort Match', confidence: 92 };
+    }
+
+    // Fallback: Check if exam roll matches across any student, but verify candidate name token
+    const generalMatches = existingStudents.filter(s => {
+      const sExamRoll = String(s.raw?.['Exam R.No. (Current)'] || s.currExamRoll || s.raw?.['Exam Roll No'] || '').trim().toLowerCase();
+      return sExamRoll && sExamRoll === targetExamRoll;
+    });
+
+    if (generalMatches.length > 0) {
+      if (targetName) {
+        const targetFirst = firstWord(targetName);
+        const nameVerified = generalMatches.find(s => {
+          const sName = String(s.name || s.raw?.["Student's Name"] || '').trim().toLowerCase();
+          return firstWord(sName) === targetFirst || sName.includes(targetFirst);
+        });
+        if (nameVerified) return { student: nameVerified, matchType: 'Exam Roll & Name Match', confidence: 88 };
+      }
+      if (generalMatches.length === 1) {
+        return { student: generalMatches[0], matchType: 'Exam Roll Match (Cross-Session)', confidence: 80 };
+      }
+    }
   }
 
-  // 4. Name + Father Name Match
-  if (targetName && targetName.length > 3) {
-    const found = existingStudents.find(s => {
+  // 4. Candidate Name First Word(s) + Father Name + Class + Session Match
+  // (Crucial for newly published gazettes where students do not have Exam Roll No stored in DB yet)
+  if (targetName && targetName.length >= 3) {
+    const targetFirst = firstWord(targetName);
+    const cohortPool = existingStudents.filter(s => {
+      const sCls = s.selectedClass || s.cls || s.raw?.['Class'] || '';
+      const sSess = s.selectedSession || s.session || s.raw?.['Session'] || '';
+      return isClassMatch(sCls) && isSessionMatch(sSess);
+    });
+
+    const poolToSearch = cohortPool.length > 0 ? cohortPool : existingStudents;
+
+    const found = poolToSearch.find(s => {
       const n = String(s.name || s.raw?.["Student's Name"] || '').trim().toLowerCase();
       const f = String(s.fatherName || s.raw?.["Father's Name"] || '').trim().toLowerCase();
       if (!n) return false;
-      const nameMatches = n === targetName || n.includes(targetName) || targetName.includes(n);
+
+      const sFirst = firstWord(n);
+      const firstWordMatches = sFirst === targetFirst || n.startsWith(targetFirst) || targetName.startsWith(sFirst);
+      
       if (targetFather && f) {
-        return nameMatches && (f === targetFather || f.includes(targetFather) || targetFather.includes(f));
+        const fatherFirst = firstWord(targetFather);
+        const fatherMatches = f.includes(fatherFirst) || targetFather.includes(firstWord(f));
+        return firstWordMatches && fatherMatches;
       }
-      return nameMatches;
+
+      return firstWordMatches && (n.includes(targetName) || targetName.includes(n));
     });
-    if (found) return { student: found, matchType: 'Name & Father Match', confidence: 80 };
+
+    if (found) {
+      return {
+        student: found,
+        matchType: `Name (${targetFirst.toUpperCase()}) & Cohort Match`,
+        confidence: 85
+      };
+    }
   }
 
   return null;
 }
 
+function cleanCellValue(val) {
+  if (val === undefined || val === null) return '';
+  const str = String(val).trim();
+  if (/^[0-9]+(\.[0-9]+)?[eE]\+[0-9]+$/.test(str)) {
+    try {
+      if (typeof window !== 'undefined' && typeof window.BigInt === 'function') {
+        return window.BigInt(Math.round(Number(str))).toString();
+      }
+      return Number(str).toLocaleString('fullwide', { useGrouping: false });
+    } catch (_) {
+      return Number(str).toLocaleString('fullwide', { useGrouping: false });
+    }
+  }
+  return str;
+}
+
 /**
- * Parse and validate an uploaded Excel / CSV file against guardrails.
+ * Parse and validate an uploaded Excel file against guardrails.
  */
-export function parseAndValidateResultFile(fileData, existingStudents = []) {
+export function parseAndValidateResultFile(fileData, existingStudents = [], classScope = '', sessionScope = '') {
   try {
-    const wb = XLSX.read(fileData, { type: 'array' });
+    const wb = XLSX.read(fileData, { type: 'array', cellText: true, raw: false });
     const firstSheetName = wb.SheetNames[0];
     const ws = wb.Sheets[firstSheetName];
-    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
     if (!rawRows || rawRows.length === 0) {
       throw new Error('The uploaded file is empty or could not be read.');
@@ -254,20 +606,20 @@ export function parseAndValidateResultFile(fileData, existingStudents = []) {
     let matchedCount = 0;
 
     rawRows.forEach((r, idx) => {
-      const formNo = String(r['Form No.'] || r['formNo'] || r['Form_No'] || '').trim();
-      const regNo = String(r['Board Reg. No.'] || r['regNo'] || r['Registration No'] || '').trim();
-      const studentName = String(r["Student's Name"] || r['studentName'] || r['Name'] || '').trim();
-      const fatherName = String(r["Father's Name"] || r['fatherName'] || '').trim();
-      const className = String(r['Class'] || r['class'] || '').trim();
-      const stream = String(r['Stream'] || r['stream'] || '').trim();
-      const examMode = String(r['Exam Mode (Current)'] || r['examMode'] || 'Annual Regular 2025 (Oct.-Nov.)').trim();
-      const examRollNo = String(r['Exam R.No. (Current)'] || r['examRoll'] || r['Roll No'] || '').trim();
+      const formNo = cleanCellValue(r['Form No.'] || r['formNo'] || r['Form_No'] || r['Adm No.'] || r['Adm No']);
+      const regNo = cleanCellValue(r['Board Reg. No.'] || r['regNo'] || r['Registration No'] || r['Reg. No.'] || r['RR No.']);
+      const studentName = cleanCellValue(r["Student's Name"] || r['studentName'] || r['Name'] || r['Name of Candidate'] || r['Student']);
+      const fatherName = cleanCellValue(r["Father's Name"] || r['fatherName'] || r['Father']);
+      const className = cleanCellValue(r['Class'] || r['class'] || classScope);
+      const stream = cleanCellValue(r['Stream'] || r['stream']);
+      const examMode = cleanCellValue(r['Exam Mode (Current)'] || r['examMode'] || r['Session'] || sessionScope || 'Annual Regular 2025 (Oct.-Nov.)');
+      const examRollNo = cleanCellValue(r['Exam R.No. (Current)'] || r['Exam R.No.'] || r['Exam Roll No'] || r['examRoll'] || r['Roll No'] || r['Exam Roll']);
       
-      const rawResult = String(r['Result (Current)'] || r['result'] || 'Passed').trim();
+      const rawResult = cleanCellValue(r['Result (Current)'] || r['result'] || r['Result'] || r['Pass/Reap/Fail'] || r['Passed'] || 'Passed');
       const resultStatus = normalizeResultStatus(rawResult);
 
-      let marksReapp = String(r['Marks/Reapp (Current)'] || r['marksReapp'] || r['Marks'] || '').trim();
-      let divDistinc = String(r['Div/Distinc (Current)'] || r['division'] || '').trim();
+      let marksReapp = cleanCellValue(r['Marks/Reapp (Current)'] || r['Marks/Reapp'] || r['marksReapp'] || r['Marks'] || r['Obt/Max'] || r['Marks Obt.']);
+      let divDistinc = String(r['Div/Distinc (Current)'] || r['Div/Distinction/Position'] || r['division'] || '').trim();
 
       // Guardrail Auto-calculation for marks & division
       if (resultStatus === 'Passed') {
@@ -291,21 +643,41 @@ export function parseAndValidateResultFile(fileData, existingStudents = []) {
         divDistinc = 'Failed';
       }
 
-      const withdrawalDate = String(r['Date of withdrawl'] || r['withdrawalDate'] || '').trim();
-      const ccDcNo = String(r['No. & Date of CC/DC Issued (This Institution)'] || r['ccDcNo'] || '').trim();
+      const withdrawalDate = String(
+        r['Date of withdrawl/result'] ||
+        r['Date of withdrawl'] ||
+        r['Date of withdrawal'] ||
+        r['withdrawalDate'] ||
+        r['Result Date'] ||
+        r['Withdrawal Date'] ||
+        r['Date withdrawl'] ||
+        ''
+      ).trim();
+
+      const ccDcNo = String(
+        r['No. & Date of CC/DC Issued (This Institution)'] ||
+        r['No. & Date of CC/DC Issued'] ||
+        r['CC/DC No. & Date'] ||
+        r['ccDcNo'] ||
+        r['Certf. No.'] ||
+        r['cc/dc s.no.'] ||
+        r['Certf No'] ||
+        ''
+      ).trim();
+
       const remarks = String(r['Remarks'] || r['remarks'] || '').trim();
 
-      // Database Match
+      // Database Match with Class & Session Scoping
       const matchResult = matchStudentInDatabase({
-        formNo, regNo, examRollNo, studentName, fatherName
-      }, existingStudents);
+        formNo, regNo, examRollNo, studentName, fatherName, className, session: examMode
+      }, existingStudents, classScope, sessionScope);
 
       if (matchResult) matchedCount++;
 
       processed.push({
-        id: formNo || `row_${idx + 1}`,
+        id: formNo || (matchResult ? (matchResult.student.formNo || matchResult.student.id) : `row_${idx + 1}`),
         sNo: idx + 1,
-        formNo: formNo || (matchResult ? matchResult.student.formNo : ''),
+        formNo: formNo || (matchResult ? (matchResult.student.formNo || matchResult.student.id) : ''),
         regNo: regNo || (matchResult ? matchResult.student.regNo : ''),
         studentName: studentName || (matchResult ? matchResult.student.name : '—'),
         fatherName: fatherName || (matchResult ? matchResult.student.fatherName : '—'),
@@ -348,9 +720,17 @@ export function parseAndValidateResultFile(fileData, existingStudents = []) {
 }
 
 /**
- * Analyze raw JKBOSE Result Gazette (PDF or Scanned Image) via Gemini AI Multimodal Vision.
+ * Analyze raw JKBOSE Result Gazette (PDF or Scanned Image) via Gemini AI Multimodal Vision
+ * with target Class, Academic Session, and first-word name token alignment.
  */
-export async function analyzeGazetteWithGemini(fileBase64, mimeType, existingStudents = [], progressCallback = null) {
+export async function analyzeGazetteWithGemini(
+  fileBase64,
+  mimeType,
+  existingStudents = [],
+  progressCallback = null,
+  selectedClass = '12th',
+  selectedSession = '2025-26'
+) {
   try {
     if (progressCallback) progressCallback('Fetching Gemini AI API credentials...');
     const keys = await fetchCloudGeminiKeys();
@@ -363,22 +743,29 @@ export async function analyzeGazetteWithGemini(fileBase64, mimeType, existingStu
     if (progressCallback) progressCallback(`Processing document with ${preferredModel}...`);
 
     const prompt = `You are a high-precision JKBOSE (Jammu & Kashmir Board of School Education) Result Gazette and Examination Result Parser.
-Analyze this attached examination result gazette / document image and extract all student result rows.
+Target Scope: Class ${selectedClass || '12th'} | Session: ${selectedSession || '2025-26'}.
+
+Analyze this attached examination result gazette / document image and extract all student result rows for this cohort.
+Note that JKBOSE result gazettes typically list:
+- "Exam Roll No" (7 to 9 digits, e.g. "301003053" or "101060027")
+- "Candidate Name" (either full name or first words / abbreviations like "ZAIDAN WANI" or "ZAIDAN")
+- "Registration Number" (if visible, e.g. "2201000001160003")
+- "Result / Marks / Re-appear Subjects" (e.g. "488", "Passed", "Reap GN PH CH", "Discharged")
 
 For each student found in the gazette, extract:
-1. "examRollNo": Examination roll number (e.g. "301003053", "101060027")
-2. "regNo": JKBOSE Registration number if visible (e.g. "2201000001160003")
-3. "studentName": Full name of the candidate
-4. "fatherName": Father's name if present
-5. "result": Result status strictly as one of: "Passed", "Reap", "Failed"
+1. "examRollNo": Examination roll number as clean text string.
+2. "studentName": Candidate name as printed in the gazette.
+3. "regNo": JKBOSE Registration number if visible.
+4. "fatherName": Father's name if present.
+5. "result": Result status strictly as one of: "Passed", "Reap", "Failed".
 6. "marksObtained": Numeric marks obtained if passed (e.g. 488, 392). null if not passed.
-7. "maxMarks": Total maximum marks (e.g. 500).
-8. "reappSubjects": If result is "Reap", list the subject abbreviations separated by space (e.g. "PH CH BI", "GN PH CH MH ITE"). null if passed.
+7. "maxMarks": Total maximum marks (default 500).
+8. "reappSubjects": If result is "Reap", list subject abbreviations separated by space (e.g. "PH CH BI", "GN MH"). null if passed.
 9. "division": Division or distinction if passed (e.g. "Distinction", "1st Division", "2nd Division", "3rd Division").
-10. "examMode": Examination session title if present (e.g. "Annual Regular 2025 (Oct.-Nov.)").
+10. "examMode": Examination session title if present (e.g. "Annual Regular ${selectedSession}").
 
 CRITICAL FORMAT REQUIREMENT:
-Respond ONLY with a valid JSON array of objects. Do not include markdown commentary, markdown fences, or extra text.
+Respond ONLY with a valid JSON array of objects without markdown fences.
 Example:
 [
   {
@@ -391,7 +778,7 @@ Example:
     "maxMarks": 500,
     "reappSubjects": null,
     "division": "Distinction",
-    "examMode": "Annual Regular 2025 (Oct.-Nov.)"
+    "examMode": "Annual Regular ${selectedSession}"
   }
 ]`;
 
@@ -411,47 +798,54 @@ Example:
             contents: [
               {
                 parts: [
+                  { text: prompt },
                   {
-                    inlineData: {
-                      mimeType: mimeType || 'application/pdf',
-                      data: fileBase64.replace(/^data:[^;]+;base64,/, '')
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: fileBase64.split(',')[1] || fileBase64
                     }
-                  },
-                  { text: prompt }
+                  }
                 ]
               }
             ],
             generationConfig: {
               temperature: 0.1,
-              responseMimeType: 'application/json'
+              topP: 0.95,
+              maxOutputTokens: 8192
             }
           })
         });
 
         if (!response.ok) {
-          const errBody = await response.json().catch(() => ({}));
-          throw new Error(errBody.error?.message || `HTTP error ${response.status}`);
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `HTTP ${response.status}`);
         }
 
         const data = await response.json();
         jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (jsonText) break;
-      } catch (e) {
-        console.warn(`Gemini key index ${i} failed:`, e);
-        lastError = e;
+        if (jsonText) break; // Success!
+      } catch (err) {
+        lastError = err;
+        console.warn(`Gemini Key #${i + 1} failed:`, err.message);
       }
     }
 
     if (!jsonText) {
-      throw lastError || new Error('Gemini AI could not extract content from the document.');
+      throw new Error(`Gemini AI analysis failed: ${lastError?.message || 'Empty response'}`);
     }
 
-    if (progressCallback) progressCallback('Matching AI extracted records against school database...');
-
     // Clean JSON response
-    const cleanJson = jsonText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-    const rawParsed = JSON.parse(cleanJson);
-    const list = Array.isArray(rawParsed) ? rawParsed : (rawParsed.results || rawParsed.students || []);
+    const cleanJson = jsonText
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    const parsedArray = JSON.parse(cleanJson);
+    if (!Array.isArray(parsedArray)) {
+      throw new Error('Gemini did not return a valid array of student result objects.');
+    }
+
+    if (progressCallback) progressCallback(`Extracted ${parsedArray.length} entries. Aligning with Class & Session roster...`);
 
     const processed = [];
     let passedCount = 0;
@@ -459,25 +853,28 @@ Example:
     let failedCount = 0;
     let matchedCount = 0;
 
-    list.forEach((item, idx) => {
-      const examRollNo = String(item.examRollNo || '').trim();
-      const regNo = String(item.regNo || '').trim();
-      const studentName = String(item.studentName || '').trim();
-      const fatherName = String(item.fatherName || '').trim();
+    parsedArray.forEach((item, idx) => {
+      const examRollNo = cleanCellValue(item.examRollNo);
+      const regNo = cleanCellValue(item.regNo);
+      const studentName = cleanCellValue(item.studentName);
+      const fatherName = cleanCellValue(item.fatherName);
       const resultStatus = normalizeResultStatus(item.result);
-      const examMode = String(item.examMode || 'Annual Regular 2025 (Oct.-Nov.)').trim();
+      const examMode = cleanCellValue(item.examMode) || `Annual Regular ${selectedSession}`;
 
       let marksReapp = '';
-      let divDistinc = item.division || '';
+      let divDistinc = '';
 
       if (resultStatus === 'Passed') {
         passedCount++;
-        const obt = item.marksObtained || '';
-        const max = item.maxMarks || 500;
-        marksReapp = obt ? `${obt} / ${max}` : '';
-        if (obt && (!divDistinc || divDistinc === '—')) {
+        const obt = parseInt(item.marksObtained, 10);
+        const max = parseInt(item.maxMarks, 10) || 500;
+        if (!isNaN(obt)) {
+          marksReapp = `${obt} / ${max}`;
           const { division } = calculateDivision(obt, max);
-          divDistinc = division;
+          divDistinc = item.division || division;
+        } else {
+          marksReapp = 'Passed';
+          divDistinc = item.division || '1st Division';
         }
       } else if (resultStatus === 'Reap') {
         reapCount++;
@@ -488,21 +885,21 @@ Example:
         divDistinc = 'Failed';
       }
 
-      // Match with database
+      // Match with database using Class, Session, Exam Roll, and First-Word Tokens
       const matchResult = matchStudentInDatabase({
-        regNo, examRollNo, studentName, fatherName
-      }, existingStudents);
+        regNo, examRollNo, studentName, fatherName, className: selectedClass, session: selectedSession
+      }, existingStudents, selectedClass, selectedSession);
 
       if (matchResult) matchedCount++;
 
       processed.push({
-        id: matchResult ? matchResult.student.formNo : `ai_row_${idx + 1}`,
+        id: matchResult ? (matchResult.student.formNo || matchResult.student.id) : `ai_row_${idx + 1}`,
         sNo: idx + 1,
-        formNo: matchResult ? matchResult.student.formNo : '',
+        formNo: matchResult ? (matchResult.student.formNo || matchResult.student.id) : '',
         regNo: regNo || (matchResult ? matchResult.student.regNo : ''),
         studentName: studentName || (matchResult ? matchResult.student.name : '—'),
         fatherName: fatherName || (matchResult ? matchResult.student.fatherName : '—'),
-        className: matchResult ? matchResult.student.selectedClass : '12th',
+        className: matchResult ? (matchResult.student.selectedClass || matchResult.student.cls) : (selectedClass || '12th'),
         stream: matchResult ? matchResult.student.selectedStream : '',
         examMode,
         examRollNo,
@@ -511,7 +908,7 @@ Example:
         divDistinc,
         withdrawalDate: '',
         ccDcNo: '',
-        remarks: 'Extracted via Gemini AI',
+        remarks: `Extracted via Gemini AI (${matchResult ? matchResult.matchType : 'Unmatched'})`,
         matchedStudent: matchResult ? matchResult.student : null,
         matchType: matchResult ? matchResult.matchType : 'Unmatched (New)',
         matchConfidence: matchResult ? matchResult.confidence : 0,

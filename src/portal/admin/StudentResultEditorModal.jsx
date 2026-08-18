@@ -22,7 +22,13 @@ import {
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { updateCachedItem } from '../../services/dbCache';
-import { JKBOSE_SUBJECT_CODES, calculateDivision, normalizeResultStatus } from '../../utils/jkboseResultManager';
+import {
+  JKBOSE_SUBJECT_CODES,
+  calculateDivision,
+  normalizeResultStatus,
+  extractStudentAdmissionNumber,
+  extractStudentAdmissionDate
+} from '../../utils/jkboseResultManager';
 
 export default function StudentResultEditorModal({
   isOpen,
@@ -44,6 +50,8 @@ export default function StudentResultEditorModal({
   const [customReappText, setCustomReappText] = useState('');
   const [withdrawalDate, setWithdrawalDate] = useState('');
   const [ccDcNo, setCcDcNo] = useState('');
+  const [admNo, setAdmNo] = useState('');
+  const [admDate, setAdmDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -81,6 +89,8 @@ export default function StudentResultEditorModal({
 
     setWithdrawalDate(r['Date of withdrawl'] || r.withdrawalDate || new Date().toISOString().slice(0, 10));
     setCcDcNo(r['No. & Date of CC/DC Issued (This Institution)'] || r.ccDcNo || '');
+    setAdmNo(extractStudentAdmissionNumber(r) || student.rollNo || '');
+    setAdmDate(extractStudentAdmissionDate(r) || '01-07-2024');
     setRemarks(r['Remarks'] || '');
   }, [student, raw]);
 
@@ -115,8 +125,11 @@ export default function StudentResultEditorModal({
     if (!student) return;
 
     const formNo = String(student.formNo || raw['Form No.'] || raw.formNo || '').trim();
-    if (!formNo) {
-      if (showToast) showToast('Missing Student Form No for record update.', 'error');
+    const regNo = String(student.regNo || raw['Board Reg. No.'] || raw.regNo || '').trim();
+    const docId = formNo || student.id || regNo;
+
+    if (!docId) {
+      if (showToast) showToast('Missing Student Identifier (Form No / Reg No) for record update.', 'error');
       return;
     }
 
@@ -143,21 +156,43 @@ export default function StudentResultEditorModal({
         currMarksReapp: finalMarksReapp,
         currDiv: division,
         'Date of withdrawl': withdrawalDate,
+        'Date of withdrawl/result': withdrawalDate,
         withdrawalDate,
+        resultDate: withdrawalDate,
         'No. & Date of CC/DC Issued (This Institution)': ccDcNo,
         ccDcNo,
+        'Admission Number': admNo,
+        'Admission No.': admNo,
+        'Adm. No.': admNo,
+        admissionNo: admNo,
+        admNo: admNo,
+        'Date of Admission': admDate,
+        'Admission Date': admDate,
+        'Adm. Date': admDate,
+        admissionDate: admDate,
+        admDate: admDate,
         'Remarks': remarks,
         updatedAt: serverTimestamp()
       };
 
+      const collName = raw._srcCollection || (student.sourceType === 'past' ? 'masterRegisters' : 'admissions');
+
       // Save directly to Firestore
-      const studentDocRef = doc(db, 'admissions', formNo);
+      const studentDocRef = doc(db, collName, String(docId));
       await setDoc(studentDocRef, patch, { merge: true });
 
       // Update in-memory local cache immediately
-      updateCachedItem('admissions', formNo, patch);
+      updateCachedItem(collName, String(docId), patch);
 
-      if (showToast) showToast(`✅ Exam Result & TC records updated for ${student.name || formNo}!`, 'success');
+      if (collName !== 'admissions' && formNo) {
+        try {
+          const admDocRef = doc(db, 'admissions', String(formNo));
+          await setDoc(admDocRef, patch, { merge: true });
+          updateCachedItem('admissions', String(formNo), patch);
+        } catch (_) {}
+      }
+
+      if (showToast) showToast(`✅ Exam Result & TC records updated for ${student.name || docId}!`, 'success');
       if (onSaveSuccess) onSaveSuccess({ ...student, ...patch, raw: { ...raw, ...patch } });
       onClose();
     } catch (err) {
@@ -372,7 +407,38 @@ export default function StudentResultEditorModal({
             </div>
           )}
 
-          {/* Section 4: Withdrawal Date & CC/DC Certificate No */}
+          {/* Section 4: Admission Number & Date of Admission */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Hash size={13} />
+                Admission Number
+              </label>
+              <input
+                type="text"
+                value={admNo}
+                onChange={(e) => setAdmNo(e.target.value)}
+                placeholder="e.g. 1101"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-mono font-bold focus:ring-2 focus:ring-teal-500 outline-none text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Calendar size={13} />
+                Date of Admission
+              </label>
+              <input
+                type="text"
+                value={admDate}
+                onChange={(e) => setAdmDate(e.target.value)}
+                placeholder="e.g. 01-07-2024"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold focus:ring-2 focus:ring-teal-500 outline-none text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Section 5: Withdrawal Date & CC/DC Certificate No */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
               <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">

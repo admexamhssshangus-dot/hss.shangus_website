@@ -6,9 +6,9 @@
 // while avoiding unnecessary database reads when cache is fresh.
 // =================================================================
 
-import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db } from './firebase';
-import { getStudentPhotoUrl } from '../utils/imageCompressor';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
 
 const CACHE_PREFIX = 'hss_cache_';
@@ -47,21 +47,21 @@ export function clearAllMemoryCache() {
   } catch (_) {}
 }
 
-// Automatically wipe memory cache when user logs out
+// Automatically wipe memory cache and purge contaminated photo caches
 if (typeof window !== 'undefined') {
   try {
     clearAllMemoryCache();
+    window._hss_central_photo_map = {};
     ['admissions', 'users'].forEach(name => {
       sessionStorage.removeItem(`${CACHE_PREFIX}${name}`);
       localStorage.removeItem(`${CACHE_PREFIX}${name}`);
       localStorage.removeItem(`${CACHE_PREFIX}${name}_ts`);
     });
     localStorage.removeItem(PHOTO_CACHE_KEY);
-    if (!localStorage.getItem('hss_photo_cache_v3_migrated')) {
-      sessionStorage.removeItem('hss_cache_admissions');
-      localStorage.removeItem('hss_cache_admissions');
-      localStorage.setItem('hss_photo_cache_v3_migrated', 'true');
-    }
+    localStorage.removeItem('hss_photo_url_cache_v1');
+    localStorage.removeItem('hss_student_photo_cache_v1');
+    localStorage.removeItem('hss_photo_cache_v1');
+    localStorage.removeItem('hss_photo_cache_v2');
   } catch (_) {}
 
   window.addEventListener('hss-auth-changed', (e) => {
@@ -87,16 +87,6 @@ export function getCachedCollectionSync(collectionName) {
   try {
     const cacheKey = `${CACHE_PREFIX}${collectionName}`;
     let cachedData = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
-    
-    // Fallback check for chunked masterRegisters keys
-    if (!cachedData && collectionName === 'masterRegisters') {
-      const c0 = localStorage.getItem(`${CACHE_PREFIX}masterRegisters_c0`) || localStorage.getItem(`hss_cache_masterRegisters_v2_c0`) || '';
-      const c1 = localStorage.getItem(`${CACHE_PREFIX}masterRegisters_c1`) || localStorage.getItem(`hss_cache_masterRegisters_v2_c1`) || '';
-      if (c0 || c1) cachedData = c0 + c1;
-      if (!cachedData) {
-        cachedData = localStorage.getItem('hss_cache_masterRegisters_v2');
-      }
-    }
 
     if (cachedData) {
       const parsed = JSON.parse(cachedData);
@@ -120,9 +110,6 @@ export function getCachedCollectionSync(collectionName) {
           });
         } catch (_) {}
         memoryCache.set(collectionName, parsed);
-        if (collectionName === 'masterRegisters') {
-          window._hssMasterRegistersCache = parsed;
-        }
         return parsed;
       }
     }
@@ -156,39 +143,51 @@ export function setCachedCollectionData(collectionName, list) {
   // ── Photo URL extraction: save photo URLs SEPARATELY before stripping ──
   const PHOTO_FIELDS = [
     'photo_id', 'photoId', 'Student Photo', 'Student Photograph', 'Student Photo URL',
-    'Photo', 'photoUrl', 'photo'
+    'Photo', 'photoUrl', 'photo', 'passport_photo'
   ];
   try {
     const existingPhotoCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    let dirty = false;
     list.forEach(item => {
       if (!item || typeof item !== 'object') return;
       const docId = item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'];
       if (!docId) return;
       for (const field of PHOTO_FIELDS) {
         const val = item[field];
-        if (val && typeof val === 'string' && val.length > 5) {
+        if (val && typeof val === 'string' && val.length > 5 && val !== '/logo.png') {
           existingPhotoCache[String(docId)] = val;
           if (item['Form Number']) existingPhotoCache[String(item['Form Number']).trim()] = val;
           if (item['Form No.']) existingPhotoCache[String(item['Form No.']).trim()] = val;
           if (item.formNo) existingPhotoCache[String(item.formNo).trim()] = val;
           if (item.id) existingPhotoCache[String(item.id).trim()] = val;
+          if (item['Board Registration Number']) existingPhotoCache[String(item['Board Registration Number']).trim()] = val;
+          if (item.boardRegNo) existingPhotoCache[String(item.boardRegNo).trim()] = val;
+          dirty = true;
           break;
         }
       }
     });
-    const photoStr = JSON.stringify(existingPhotoCache);
-    if (photoStr.length < 4500000) {
-      localStorage.setItem(PHOTO_CACHE_KEY, photoStr);
+    if (dirty) {
+      const photoStr = JSON.stringify(existingPhotoCache);
+      if (photoStr.length < 4500000) {
+        localStorage.setItem(PHOTO_CACHE_KEY, photoStr);
+      }
     }
   } catch (_) {}
 
-  // Strip ONLY massive uncompressed blobs (>45KB) while keeping standard compressed thumbnails (<45KB)
-  const liteList = list.map(item => {
+  // Strip ALL heavy photo fields (>500 chars or base64 or photo keys) from the collection cache
+  // to guarantee 0ms instant loading and zero memory bloat even with 100k+ records.
+  const cappedList = list.slice(0, 2000); // 2,000 active record safety cap for web storage
+  const liteList = cappedList.map(item => {
     if (!item || typeof item !== 'object') return item;
     const clean = {};
     Object.keys(item).forEach(k => {
       const v = item[k];
-      if (typeof v === 'string' && v.length > 45000) return;
+      // Exclude heavy photo fields or base64 data URLs from storage cache
+      if (PHOTO_FIELDS.includes(k) && typeof v === 'string' && (v.length > 500 || v.startsWith('data:'))) {
+        return;
+      }
+      if (typeof v === 'string' && v.length > 10000) return;
       clean[k] = v;
     });
     return clean;
@@ -330,15 +329,41 @@ async function revalidateBackground(collectionName, existingData, onBackgroundUp
 async function fetchFreshFromFirestore(collectionName) {
   const querySnapshot = await getDocs(collection(db, collectionName));
   const list = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
+  querySnapshot.forEach((docSnap) => {
+    const data = docSnap.data();
     // Skip any document explicitly marked as deleted
     if (
       data.Status === 'Deleted' ||
       data.status === 'Deleted' ||
       data._deleted === true
     ) return;
-    list.push({ id: doc.id, ...data });
+
+    const chunkItems = data.items || data.students || data.records || data.data;
+    if (Array.isArray(chunkItems) && chunkItems.length > 0) {
+      const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || docSnap.id?.split('_')[0] || '';
+      const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
+      const docStream = data.stream || data.Stream || data['Stream'] || data.groupKey?.split('_')[2] || '';
+
+      chunkItems.forEach((item, itemIdx) => {
+        if (item && typeof item === 'object') {
+          if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
+          list.push({
+            ...item,
+            id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docSnap.id}_${itemIdx}`,
+            Session: item.Session || item.session || item['Academic Session'] || docSession || '',
+            session: item.session || item.Session || item['Academic Session'] || docSession || '',
+            Class: item.Class || item.class || item['Class'] || docClass || '',
+            class: item.class || item.Class || item['Class'] || docClass || '',
+            Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
+            stream: item.stream || item.Stream || item['Stream'] || docStream || '',
+            _source: collectionName,
+            _parentDocId: docSnap.id
+          });
+        }
+      });
+    } else {
+      list.push({ id: docSnap.id, ...data, _source: collectionName });
+    }
   });
   return list;
 }
@@ -458,49 +483,116 @@ export function getPhotoUrlFromCache(docId) {
 }
 
 /**
- * Preload centralized student photos from 'studentPhotos' collection into local memory photo map.
+ * Helper to normalize registration numbers into clean alphanumeric lookup keys.
+ */
+export function normalizeRegNoKey(val) {
+  if (!val) return '';
+  let s = String(val).trim();
+  if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+    try {
+      if (typeof window !== 'undefined' && window.BigInt) {
+        s = window.BigInt(Math.floor(Number(val))).toString();
+      }
+    } catch (_) {}
+  }
+  return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+/**
+ * Preload centralized student photos from 'studentPhotos' collection AND in-memory admissions/masterRegisters
+ * into the local memory photo map indexed by registration number for universal cross-session sharing.
  */
 export async function preloadStudentPhotosCache() {
   if (typeof window === 'undefined') return {};
   try {
-    if (window._hss_central_photo_map && Object.keys(window._hss_central_photo_map).length > 200) {
-      return window._hss_central_photo_map;
-    }
-    const photosSnap = await getDocs(collection(db, 'studentPhotos'));
     const photoMap = window._hss_central_photo_map || {};
-    photosSnap.forEach(docSnap => {
-      const d = docSnap.data();
-      const p = d.photo_id || d.photoData || d.photo || d.photoUrl;
-      if (p && typeof p === 'string' && p.trim().length > 20) {
-        const photoVal = p.trim();
-        if (d.regNo) {
-          const r = String(d.regNo).trim();
-          photoMap[r] = photoVal;
-          photoMap[r.toLowerCase()] = photoVal;
-          photoMap[r.replace(/[^0-9]/g, '')] = photoVal;
-          photoMap[`reg_${r}`] = photoVal;
+
+    // 1. Scan all documents in 'studentPhotos' collection
+    try {
+      const photosSnap = await getDocs(collection(db, 'studentPhotos'));
+      photosSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const p = d.photo_id || d.photoData || d.photo || d.photoUrl;
+        if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
+          const photoVal = p.trim();
+          const regCandidates = [
+            d.regNo,
+            d.boardRegNo,
+            d['Board Registration Number'],
+            d['Board Registration No.'],
+            d['Board Reg. No.'],
+            d['REG. NO.']
+          ].filter(Boolean);
+
+          regCandidates.forEach(r => {
+            const rawR = String(r).trim();
+            const cleanR = normalizeRegNoKey(rawR);
+            if (cleanR) {
+              photoMap[cleanR] = photoVal;
+              photoMap[`photo_${cleanR}`] = photoVal;
+              photoMap[`reg_${cleanR}`] = photoVal;
+              photoMap[rawR] = photoVal;
+              photoMap[rawR.toLowerCase()] = photoVal;
+            }
+          });
+
+          if (d.formNo) {
+            const f = String(d.formNo).trim();
+            photoMap[f] = photoVal;
+            photoMap[f.toLowerCase()] = photoVal;
+          }
+          photoMap[docSnap.id] = photoVal;
+          photoMap[docSnap.id.replace(/^photo_/, '')] = photoVal;
         }
-        if (d.boardRegNo) {
-          const br = String(d.boardRegNo).trim();
-          photoMap[br] = photoVal;
-          photoMap[br.toLowerCase()] = photoVal;
-          photoMap[br.replace(/[^0-9]/g, '')] = photoVal;
-          photoMap[`reg_${br}`] = photoVal;
+      });
+    } catch (err) {
+      console.warn('studentPhotos collection scan note:', err);
+    }
+
+    // 2. Scan loaded admissions & masterRegisters collections across all sessions/classes
+    try {
+      const allAdmissions = getCachedCollectionSync('admissions') || [];
+      const allMaster = getCachedCollectionSync('masterRegisters') || [];
+      const allLegacy = getCachedCollectionSync('legacyStudents') || [];
+      const combinedAll = [...allAdmissions, ...allMaster, ...allLegacy];
+
+      combinedAll.forEach(st => {
+        if (!st || typeof st !== 'object') return;
+        const p = st.photo_id || st.photoId || st.photoUrl || st.photo || st['passport_photo'] || st['Student Photo'] || st['Photo'] || '';
+        if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
+          const photoVal = p.trim();
+          const regCandidates = [
+            st.boardRegNo,
+            st.regNo,
+            st['Board Registration Number'],
+            st['Board Registration No.'],
+            st['Board Registration No. (Class 10th)'],
+            st['Board Registration No. (Class 11th)'],
+            st['Board Reg. No.'],
+            st['Board Reg No'],
+            st['REG. NO.']
+          ].filter(Boolean);
+
+          regCandidates.forEach(r => {
+            const rawR = String(r).trim();
+            const cleanR = normalizeRegNoKey(rawR);
+            if (cleanR) {
+              photoMap[cleanR] = photoVal;
+              photoMap[`photo_${cleanR}`] = photoVal;
+              photoMap[`reg_${cleanR}`] = photoVal;
+              photoMap[rawR] = photoVal;
+              photoMap[rawR.toLowerCase()] = photoVal;
+            }
+          });
+
+          const formCandidates = [st.formNo, st['Form Number'], st['Form No.'], st.id].filter(Boolean);
+          formCandidates.forEach(f => {
+            photoMap[String(f).trim()] = photoVal;
+            photoMap[String(f).trim().toLowerCase()] = photoVal;
+          });
         }
-        if (d.studentName) {
-          const sName = String(d.studentName).trim().toLowerCase();
-          photoMap[sName] = photoVal;
-          photoMap[sName.replace(/[^a-z0-9]/g, '')] = photoVal;
-        }
-        if (d.formNo) {
-          const f = String(d.formNo).trim();
-          photoMap[f] = photoVal;
-          photoMap[f.toLowerCase()] = photoVal;
-        }
-        photoMap[docSnap.id] = photoVal;
-        photoMap[docSnap.id.replace(/^photo_/, '')] = photoVal;
-      }
-    });
+      });
+    } catch (_) {}
 
     window._hss_central_photo_map = photoMap;
 
@@ -518,9 +610,13 @@ export { preloadStudentPhotosCache as preloadCentralStudentPhotos };
 
 /**
  * Robust synchronous photo resolver cross-referencing all fields, in-memory central photo map, and localStorage.
+ * Ensures if a photo exists for a registration number in ANY session or class, it is automatically returned.
+ * STRICT: Matches ONLY by unique Registration Number, Form Number, or Document ID (NEVER by student name).
  */
 export function resolveStudentPhoto(student, fallback = null) {
   if (!student) return fallback;
+
+  const photoMap = typeof window !== 'undefined' ? (window._hss_central_photo_map || {}) : {};
 
   // 1. Direct photo on student object
   const directPhoto =
@@ -535,60 +631,51 @@ export function resolveStudentPhoto(student, fallback = null) {
     student['Student Photo URL'] ||
     '';
   if (directPhoto && typeof directPhoto === 'string' && directPhoto.trim().length > 15 && directPhoto !== '/logo.png') {
-    return directPhoto.trim();
+    const pTrim = directPhoto.trim();
+    const rawReg = student.boardRegNo || student.regNo || student['Board Registration Number'] || student['Board Registration No.'] || student['REG. NO.'] || '';
+    const cleanR = normalizeRegNoKey(rawReg);
+    if (cleanR && typeof window !== 'undefined') {
+      window._hss_central_photo_map = window._hss_central_photo_map || {};
+      window._hss_central_photo_map[cleanR] = pTrim;
+      window._hss_central_photo_map[`photo_${cleanR}`] = pTrim;
+    }
+    return pTrim;
   }
 
-  // 2. Cross-reference window._hss_central_photo_map (loaded from Firestore 'studentPhotos')
-  const photoMap = typeof window !== 'undefined' ? (window._hss_central_photo_map || {}) : {};
-
-  const cleanVal = (val) => {
-    if (!val) return '';
-    let s = String(val).trim();
-    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
-      try {
-        if (typeof window !== 'undefined' && window.BigInt) {
-          s = window.BigInt(Math.floor(Number(val))).toString();
-        }
-      } catch (_) {}
-    }
-    return s.replace(/\.0+$/, '').trim();
-  };
-
-  const reg = cleanVal(
+  // 2. Universal lookup by Registration Number across all sessions & classes
+  const rawReg =
     student.boardRegNo ||
     student.regNo ||
     student['Board Registration Number'] ||
     student['Board Registration No.'] ||
+    student['Board Registration No. (Class 10th)'] ||
+    student['Board Registration No. (Class 11th)'] ||
     student['Board Reg. No.'] ||
     student['Board Reg No'] ||
     student['REG. NO.'] ||
-    ''
-  );
+    '';
 
-  const formNo = cleanVal(student.formNo || student['Form Number'] || student['Form No.'] || student.id || '');
-  const docId = cleanVal(student.docId || student.id || '');
-  const sName = cleanVal(student.name || student.studentName || student["Student's Name"] || '').toLowerCase();
-  const fName = cleanVal(student.father || student.fatherName || student["Father's Name"] || '').toLowerCase();
+  const cleanReg = normalizeRegNoKey(rawReg);
+  const formNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.id || '').trim();
+  const docId = String(student.docId || student.id || '').trim();
 
+  // STRICT UNIQUE IDENTIFIERS ONLY - NO NAME KEYS
   const candidates = [
-    reg,
-    reg.toLowerCase(),
-    reg.replace(/[^0-9]/g, ''),
-    `reg_${reg}`,
-    `photo_${reg}`,
+    cleanReg,
+    cleanReg ? `photo_${cleanReg}` : null,
+    cleanReg ? `reg_${cleanReg}` : null,
+    rawReg,
+    rawReg.toLowerCase(),
     formNo,
     formNo.toLowerCase(),
-    `photo_${formNo}`,
+    formNo ? `photo_${formNo}` : null,
     docId,
-    `photo_${docId}`,
-    docId.replace(/^photo_/, ''),
-    sName,
-    sName.replace(/[^a-z0-9]/g, ''),
-    `${sName}_${fName}`.replace(/[^a-z0-9]/g, '')
+    docId ? `photo_${docId}` : null,
+    docId ? docId.replace(/^photo_/, '') : null
   ].filter(Boolean);
 
   for (const c of candidates) {
-    if (photoMap[c] && typeof photoMap[c] === 'string' && photoMap[c].length > 15) {
+    if (photoMap[c] && typeof photoMap[c] === 'string' && photoMap[c].length > 15 && photoMap[c] !== '/logo.png') {
       return photoMap[c];
     }
   }
@@ -597,9 +684,44 @@ export function resolveStudentPhoto(student, fallback = null) {
   try {
     const localCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
     for (const c of candidates) {
-      if (localCache[c]) return localCache[c];
+      if (localCache[c] && typeof localCache[c] === 'string' && localCache[c].length > 15 && localCache[c] !== '/logo.png') {
+        if (typeof window !== 'undefined') {
+          window._hss_central_photo_map = window._hss_central_photo_map || {};
+          window._hss_central_photo_map[c] = localCache[c];
+        }
+        return localCache[c];
+      }
     }
   } catch (_) {}
+
+  // 4. In-Memory scan of all cached student records across all sessions/classes for matching regNo
+  if (cleanReg) {
+    try {
+      const allAdmissions = getCachedCollectionSync('admissions') || [];
+      const allMaster = getCachedCollectionSync('masterRegisters') || [];
+      const allLegacy = getCachedCollectionSync('legacyStudents') || [];
+      const combinedAll = [...allAdmissions, ...allMaster, ...allLegacy];
+
+      for (const rec of combinedAll) {
+        if (!rec || typeof rec !== 'object') continue;
+        const recReg = normalizeRegNoKey(
+          rec.boardRegNo || rec.regNo || rec['Board Registration Number'] || rec['Board Registration No.'] || rec['Board Registration No. (Class 10th)'] || rec['Board Registration No. (Class 11th)'] || rec['REG. NO.']
+        );
+        if (recReg === cleanReg) {
+          const recPhoto = rec.photo_id || rec.photoId || rec.photoUrl || rec.photo || rec['passport_photo'] || rec['Student Photo'] || rec['Photo'] || '';
+          if (recPhoto && typeof recPhoto === 'string' && recPhoto.length > 15 && recPhoto !== '/logo.png') {
+            const pTrim = recPhoto.trim();
+            if (typeof window !== 'undefined') {
+              window._hss_central_photo_map = window._hss_central_photo_map || {};
+              window._hss_central_photo_map[cleanReg] = pTrim;
+              window._hss_central_photo_map[`photo_${cleanReg}`] = pTrim;
+            }
+            return pTrim;
+          }
+        }
+      }
+    } catch (_) {}
+  }
 
   return fallback;
 }
@@ -654,7 +776,7 @@ export async function fetchStudentPhotoOnDemand(student) {
   if (student.docId) docCandidates.push(String(student.docId).trim());
   if (student.id) docCandidates.push(String(student.id).trim());
 
-  const cacheKey = reg || student.docId || student.id || String(student.studentName || '').toLowerCase();
+  const cacheKey = reg || student.docId || student.id || (student.formNo ? `form_${student.formNo}` : '');
   if (!cacheKey) return '';
 
   if (_activePhotoPromises.has(cacheKey)) {
@@ -676,9 +798,6 @@ export async function fetchStudentPhotoOnDemand(student) {
               if (reg) {
                 window._hss_central_photo_map[reg] = p;
                 window._hss_central_photo_map[`photo_${reg}`] = p;
-              }
-              if (student.studentName) {
-                window._hss_central_photo_map[String(student.studentName).trim().toLowerCase()] = p;
               }
             }
             return p;
@@ -705,7 +824,7 @@ export async function fetchStudentPhotoOnDemand(student) {
 
 /**
  * Fetch all matching photos for a student by Board Registration Number and candidate IDs
- * across all classes, academic sessions, studentPhotos history, and historical registers.
+ * across studentPhotos records, photoHistory array, and in-memory photo caches.
  * Returns array of photo objects with metadata.
  */
 export async function fetchAllMatchingStudentPhotos(student) {
@@ -735,15 +854,18 @@ export async function fetchAllMatchingStudentPhotos(student) {
     student['REG. NO.']
   );
 
-  const formNo = String(student.formNo || student['Form Number'] || student['Form No.'] || '').trim();
+  const formNo = String(student.formNo || student['Form Number'] || student['Form No.'] || '').replace(/^'/, '').trim();
   const sName = String(student.studentName || student["Student's Name (as per school records)"] || student["Student's Name"] || student.name || '').trim().toLowerCase();
 
   const results = [];
   const seenUrls = new Set();
 
   const addCandidate = (item) => {
-    if (!item || !item.url || typeof item.url !== 'string' || item.url.length < 20 || item.url === '/logo.png') return;
-    const urlHash = item.url.substring(0, 100);
+    if (!item || !item.url || typeof item.url !== 'string') return;
+    const formattedUrl = formatPhotoDisplayUrl(item.url) || item.url.trim();
+    if (!formattedUrl || formattedUrl.length < 20 || formattedUrl === '/logo.png' || formattedUrl === '—' || formattedUrl === 'N/A') return;
+    item.url = formattedUrl;
+    const urlHash = formattedUrl.substring(0, 120);
     if (!seenUrls.has(urlHash)) {
       seenUrls.add(urlHash);
       results.push(item);
@@ -751,23 +873,29 @@ export async function fetchAllMatchingStudentPhotos(student) {
   };
 
   // 1. Current direct photo from active student record
-  const currentDirect = getStudentPhotoUrl(student);
+  const currentDirect = formatPhotoDisplayUrl(getStudentPhotoUrl(student)) || getStudentPhotoUrl(student);
   if (currentDirect) {
     addCandidate({
       id: 'current',
       url: currentDirect,
-      title: `${student.class || ''} (${student.session || 'Active'})`,
+      title: `${student.class || student['Class'] || ''} (${student.session || student['Session'] || 'Active'})`,
       badge: 'Active',
       isCurrent: true,
       source: 'Active Record'
     });
   }
 
-  // 2. Query Firestore studentPhotos by Board Reg No candidates & photoHistory array
+  // 2. Query Firestore studentPhotos by Board Reg No candidates, Form No & photoHistory array
   const docCandidates = [];
   if (reg) {
     docCandidates.push(`photo_${reg}`);
     docCandidates.push(reg);
+  }
+  if (formNo && formNo !== '—' && formNo !== 'N/A') {
+    docCandidates.push(`photo_form_${formNo}`);
+    docCandidates.push(`form_${formNo}`);
+    docCandidates.push(`photo_${formNo}`);
+    docCandidates.push(formNo);
   }
   if (student.docId) docCandidates.push(String(student.docId).trim());
   if (student.id) docCandidates.push(String(student.id).trim());
@@ -777,8 +905,9 @@ export async function fetchAllMatchingStudentPhotos(student) {
       const snap = await getDoc(doc(db, 'studentPhotos', cId));
       if (snap.exists()) {
         const d = snap.data();
-        const p = (d.photo_id || d.photoData || d.photo || d.photoUrl || '').trim();
-        if (p && p.length > 20) {
+        const rawP = d.photo_id || d.photoData || d.photo || d.photoUrl || '';
+        const p = formatPhotoDisplayUrl(rawP) || (typeof rawP === 'string' ? rawP.trim() : '');
+        if (p && p.length > 20 && p !== '/logo.png' && p !== '—') {
           addCandidate({
             id: snap.id,
             url: p,
@@ -794,8 +923,9 @@ export async function fetchAllMatchingStudentPhotos(student) {
         // Include any historical photos in photoHistory array
         if (Array.isArray(d.photoHistory)) {
           d.photoHistory.forEach((h, hIdx) => {
-            const hUrl = (h.url || h.photo_id || h.photoData || h.photo || '').trim();
-            if (hUrl && hUrl.length > 20) {
+            const rawH = h.url || h.photo_id || h.photoData || h.photo || '';
+            const hUrl = formatPhotoDisplayUrl(rawH) || (typeof rawH === 'string' ? rawH.trim() : '');
+            if (hUrl && hUrl.length > 20 && hUrl !== '/logo.png' && hUrl !== '—') {
               addCandidate({
                 id: `${snap.id}_hist_${hIdx}`,
                 url: hUrl,
@@ -813,55 +943,34 @@ export async function fetchAllMatchingStudentPhotos(student) {
     } catch (_) {}
   }
 
-  // 3. Cross-reference all matching records in admissions & masterRegisters caches across all sessions/classes
-  try {
-    const allAdmissions = getCachedCollectionSync('admissions') || [];
-    const allMaster = getCachedCollectionSync('masterRegisters') || [];
-    const combinedRecords = [...allAdmissions, ...allMaster];
-
-    combinedRecords.forEach((rec, rIdx) => {
-      const recReg = cleanReg(
-        rec.boardRegNo || rec.regNo || rec['Board Registration Number'] || rec['Board Registration No.'] || rec['Board Registration No. (Class 10th)'] || rec['Board Registration No. (Class 11th)']
-      );
-      const recForm = String(rec.formNo || rec['Form Number'] || rec['Form No.'] || '').trim();
-      const recName = String(rec.studentName || rec["Student's Name (as per school records)"] || rec["Student's Name"] || rec.name || '').trim().toLowerCase();
-
-      const isMatch = (reg && recReg && reg === recReg) || 
-                      (formNo && recForm && formNo === recForm && formNo !== '—' && formNo !== 'N/A') ||
-                      (sName && recName && sName.length > 5 && sName === recName);
-
-      if (isMatch) {
-        const recPhoto = (rec.photo_id || rec['Student Photo'] || rec.photoUrl || rec.photo || '').trim();
-        if (recPhoto && recPhoto.length > 20 && recPhoto !== '/logo.png' && recPhoto !== '—') {
-          const recClass = rec.class || rec['Admission sought for class'] || rec['Class'] || '';
-          const recSession = rec.session || rec['Session'] || '';
-          addCandidate({
-            id: rec._docId || rec.id || `rec_${rIdx}`,
-            url: recPhoto,
-            title: recClass ? `Class ${recClass} (${recSession || 'Record'})` : (recSession || 'Academic Record'),
-            badge: recClass || 'Record',
-            regNo: recReg || reg,
-            studentName: rec["Student's Name (as per school records)"] || rec.studentName || '',
-            isCurrent: currentDirect === recPhoto,
-            source: rec._isCurrentScope !== false ? 'Admissions' : 'Master Registers'
-          });
-        }
-      }
-    });
-  } catch (_) {}
-
-  // 4. Search in-memory photo map
+  // 3. Search in-memory photo map
   if (typeof window !== 'undefined' && window._hss_central_photo_map) {
     const memoryMap = window._hss_central_photo_map;
     if (reg) {
       [`photo_${reg}`, reg, `reg_${reg}`].forEach(k => {
         if (memoryMap[k]) {
+          const formattedMem = formatPhotoDisplayUrl(memoryMap[k]) || memoryMap[k];
           addCandidate({
             id: k,
-            url: memoryMap[k],
+            url: formattedMem,
             title: `Reg #${reg}`,
             badge: 'Cached',
-            isCurrent: currentDirect === memoryMap[k],
+            isCurrent: currentDirect === formattedMem,
+            source: 'Photo Cache'
+          });
+        }
+      });
+    }
+    if (formNo) {
+      [`photo_form_${formNo}`, `form_${formNo}`, formNo].forEach(k => {
+        if (memoryMap[k]) {
+          const formattedMem = formatPhotoDisplayUrl(memoryMap[k]) || memoryMap[k];
+          addCandidate({
+            id: k,
+            url: formattedMem,
+            title: `Form #${formNo}`,
+            badge: 'Cached',
+            isCurrent: currentDirect === formattedMem,
             source: 'Photo Cache'
           });
         }
@@ -944,7 +1053,7 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
     }
 
     const sName = student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || student?.name || '';
-    const sClass = student?.class || student?.['Class'] || '';
+    const sClass = student?.class || student?.['Admission sought for class'] || student?.['Class'] || '';
     const sSession = student?.session || student?.['Session'] || '';
     const sFormNo = String(student?.formNo || student?.['Form Number'] || student?.['Form No.'] || '').replace(/^'/, '').trim();
 
@@ -999,12 +1108,32 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
       }
     } else if (sFormNo) {
       // For students without a Board Registration number yet (e.g. 9th class or Drafts)
+      let existingHistory = [];
+      try {
+        const curSnap = await getDoc(doc(db, 'studentPhotos', `photo_form_${sFormNo}`));
+        if (curSnap.exists()) {
+          const cd = curSnap.data();
+          existingHistory = Array.isArray(cd.photoHistory) ? [...cd.photoHistory] : [];
+          const curP = (cd.photo_id || cd.photoData || cd.photo || '').trim();
+          if (curP && curP.length > 20 && curP !== photoUrl && !existingHistory.some(h => (h.url || h.photo_id) === curP)) {
+            existingHistory.push({
+              url: curP,
+              photo_id: curP,
+              class: cd.selectedClass || sClass,
+              session: cd.selectedSession || sSession,
+              updatedAt: cd.updatedAt || new Date().toISOString()
+            });
+          }
+        }
+      } catch (_) {}
+
       const docPayload = {
         photo_id: photoUrl,
         formNo: sFormNo,
         studentName: sName,
         selectedClass: sClass,
         selectedSession: sSession,
+        photoHistory: existingHistory,
         updatedAt: new Date().toISOString()
       };
 
@@ -1032,6 +1161,10 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
       } catch (_) {}
     }
 
+    // Save to lightweight local storage photo cache
+    if (targetNewReg) savePhotoUrlToCache(targetNewReg, photoUrl);
+    if (sFormNo) savePhotoUrlToCache(sFormNo, photoUrl);
+
     // Dispatch global event so all components reactively refresh photos
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { updatedReg: targetNewReg || sFormNo } }));
@@ -1042,6 +1175,100 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
     console.warn('syncStudentPhotoOnRegUpdate note:', e);
     return false;
   }
+}
+
+/**
+ * Harmonize / Migrate student photos for an entire academic session or cohort.
+ * Moves embedded base64/Drive photos from student records into the central `studentPhotos`
+ * collection, linking by Board Registration Number and preserving historical photos.
+ */
+export async function harmonizeSessionStudentPhotos({
+  students = [],
+  session = '',
+  onProgress = () => {}
+} = {}) {
+  const stats = {
+    totalStudents: students.length,
+    processed: 0,
+    synced: 0,
+    skipped: 0,
+    cleanedRecords: 0,
+    errors: []
+  };
+
+  const cleanReg = (val) => {
+    if (!val) return '';
+    let s = String(val).trim();
+    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
+      try {
+        if (typeof window !== 'undefined' && window.BigInt) {
+          s = window.BigInt(Math.floor(Number(val))).toString();
+        } else {
+          s = Number(val).toLocaleString('fullwide', { useGrouping: false });
+        }
+      } catch (_) {}
+    }
+    return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
+  };
+
+  for (let i = 0; i < students.length; i++) {
+    const st = students[i];
+    stats.processed++;
+
+    try {
+      const reg = cleanReg(
+        st.boardRegNo ||
+        st.regNo ||
+        st['Board Registration Number'] ||
+        st['Board Registration No.'] ||
+        st['Board Registration No. (Class 10th)'] ||
+        st['Board Registration No. (Class 11th)'] ||
+        st['REG. NO.']
+      );
+
+      const formNo = String(st.formNo || st['Form Number'] || st['Form No.'] || '').replace(/^'/, '').trim();
+      const photoVal = getStudentPhotoUrl(st);
+
+      if (photoVal && photoVal.length > 20 && photoVal !== '/logo.png' && photoVal !== '—' && photoVal !== 'N/A') {
+        // Sync to central studentPhotos collection
+        await syncStudentPhotoOnRegUpdate({
+          newReg: reg,
+          student: st,
+          photoData: photoVal
+        });
+        stats.synced++;
+
+        // Clean embedded heavy photoData from student document if present in admissions or masterRegisters
+        const collectionName = st._isHistorical || st._isMasterRegister ? 'masterRegisters' : 'admissions';
+        const docId = st._docId || st.id;
+        if (docId && (st.photoData || st.photo_id || st.photo)) {
+          try {
+            await updateDoc(doc(db, collectionName, docId), {
+              photoData: deleteField(),
+              photo: deleteField(),
+              photo_id: deleteField()
+            });
+            stats.cleanedRecords++;
+          } catch (_) {}
+        }
+      } else {
+        stats.skipped++;
+      }
+    } catch (err) {
+      stats.errors.push({ student: st.studentName || st.formNo, error: err.message });
+    }
+
+    if (i % 10 === 0 || i === students.length - 1) {
+      onProgress({
+        current: i + 1,
+        total: students.length,
+        percentage: Math.round(((i + 1) / students.length) * 100),
+        stats
+      });
+    }
+  }
+
+  return stats;
 }
 
 

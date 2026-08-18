@@ -6,20 +6,29 @@ import App from './App';
 
 // Handle transient IndexedDB closure / hidden tab events gracefully
 if (typeof window !== 'undefined') {
+  const isIdbTransientError = (err) => {
+    const msg = String(err?.message || err?.reason?.message || err?.reason || err || '').toLowerCase();
+    return msg.includes('database is closing') ||
+           msg.includes('database is hidden') ||
+           msg.includes('closing/hidden') ||
+           msg.includes('indexeddblocalpersistence');
+  };
+
   window.addEventListener('unhandledrejection', (event) => {
-    const msg = event?.reason?.message || String(event?.reason || '');
-    if (msg.includes('Database is closing') || msg.includes('database is closing') || msg.includes('Database is hidden')) {
+    if (isIdbTransientError(event?.reason)) {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
-  });
+  }, true);
+
   window.addEventListener('error', (event) => {
-    const msg = event?.message || '';
-    if (msg.includes('Database is closing') || msg.includes('Database is hidden')) {
+    if (isIdbTransientError(event?.error || event?.message)) {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
-  });
+  }, true);
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
