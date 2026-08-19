@@ -383,10 +383,16 @@ export function extractMotherName(st) {
   return '—';
 }
 
+export const isPlaceholderRegNo = (val) => {
+  if (val === null || val === undefined) return true;
+  const s = String(val).trim();
+  if (!s) return true;
+  return /^(0|na|n\/a|#n\/a|nil|null|undefined|—|-|none|not receive yet|not received|not received yet|home exam)$/i.test(s);
+};
+
 export const cleanRegNoVal = (val) => {
-  if (val === null || val === undefined) return '';
+  if (isPlaceholderRegNo(val)) return '';
   let s = String(val).trim();
-  if (!s || /^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) return '';
 
   if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
     try {

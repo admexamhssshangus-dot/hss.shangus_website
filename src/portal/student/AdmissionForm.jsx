@@ -215,10 +215,20 @@ export default function AdmissionForm() {
           text: `✨ Restored your auto-saved draft (Form #${assignedFormNo})! You can continue filling out or updating your application form.`
         });
       } else if (Object.keys(existing).length > 0) {
-        setAlert({
-          type: 'info',
-          text: `✨ Welcome back! Your application (Form #${assignedFormNo}) & passport photo have been retrieved. You can update any fields or select your new class & subjects.`
-        });
+        const exStat = existing.Status || existing.status;
+        if (exStat === 'Submitted' || exStat === 'Approved' || exStat === 'Under Review') {
+          setHasConfirmedInstructions(true);
+          setShowInstructions(false);
+          setAlert({
+            type: 'info',
+            text: `📄 Application Submitted (Form #${assignedFormNo || existing['Form Number'] || '—'}): Your application is locked for school verification. You can download or print your official PDF copy below.`
+          });
+        } else {
+          setAlert({
+            type: 'info',
+            text: `✨ Welcome back! Your application (Form #${assignedFormNo}) & passport photo have been retrieved. You can update any fields or select your new class & subjects.`
+          });
+        }
       } else if (Object.keys(historical).length > 0) {
         setAlert({
           type: 'info',
@@ -2016,29 +2026,35 @@ export default function AdmissionForm() {
                         ? 'border-emerald-500 ring-4 ring-emerald-500/30'
                         : 'border-teal-500 ring-4 ring-teal-500/30'
                   }`}
-                  style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
+                  style={{ backgroundColor: '#090d16', color: '#ffffff' }}
                 >
-                  <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     {alert.type === 'error' ? (
-                      <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/30">
+                      <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/40">
                         <AlertCircle size={22} className="stroke-[2.5]" />
                       </div>
                     ) : alert.type === 'success' ? (
-                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-emerald-500/30">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-emerald-500/40">
                         <CheckCircle size={22} className="stroke-[2.5]" />
                       </div>
                     ) : (
-                      <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-teal-500/30">
+                      <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-teal-500/40">
                         <Info size={22} className="stroke-[2.5]" />
                       </div>
                     )}
                     <div className="space-y-1 min-w-0 flex-1">
-                      <h4 className={`text-xs sm:text-sm font-black tracking-wider uppercase flex items-center justify-between ${
-                        alert.type === 'error' ? 'text-red-400' : alert.type === 'success' ? 'text-emerald-400' : 'text-teal-400'
-                      }`}>
+                      <h4
+                        className="text-xs sm:text-sm font-black tracking-wider uppercase flex items-center justify-between"
+                        style={{
+                          color: alert.type === 'error' ? '#f87171' : alert.type === 'success' ? '#34d399' : '#2dd4bf'
+                        }}
+                      >
                         <span>{alert.type === 'error' ? 'Action Required' : alert.type === 'success' ? 'Saved Successfully' : 'Notice'}</span>
                       </h4>
-                      <p className="text-xs font-semibold leading-relaxed text-slate-100 break-words">
+                      <p
+                        className="text-xs font-bold leading-relaxed break-words"
+                        style={{ color: '#ffffff', opacity: 1 }}
+                      >
                         {alert.text}
                       </p>
                     </div>

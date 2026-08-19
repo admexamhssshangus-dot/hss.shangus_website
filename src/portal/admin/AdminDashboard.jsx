@@ -14,11 +14,12 @@ import AdminAttendance from './AdminAttendance';
 import AdminGkTestManager from './AdminGkTestManager';
 import StudentIdCardManager from './StudentIdCardManager';
 import ModernLoader from '../../components/ModernLoader';
+import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown from './AdminToolsDropdown';
 import OfficialDocumentsStudioView from './OfficialDocumentsStudioView';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { db } from '../../services/firebase';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages } from '../../services/dbCache';
 
 const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
 
@@ -141,27 +142,45 @@ export default function AdminDashboard() {
     return getCachedCollectionSync('admissions') || [];
   });
   const [selectedApp, setSelectedApp] = useState(null); // For ApplicationReviewModal
+  const appsRef = useRef(applications);
+  appsRef.current = applications;
 
-  // Fetch Admin Dashboard Data using shared cache with silent background revalidation
+  // Fetch Admin Dashboard Data: instant first-page load + non-blocking background hydration
   const loadAdminData = useCallback(async (force = false) => {
-    // Only show full loader on initial cold start when NO data is available anywhere
-    if (applications.length === 0) {
+    if (appsRef.current.length === 0) {
       setLoading(true);
     }
 
     const timeoutTimer = setTimeout(() => {
       setLoading(false);
-    }, 3000);
+    }, 2500);
 
     try {
-      const list = await getCachedCollection('admissions', force, 30 * 60 * 1000, (freshList) => {
-        // Silent background update callback without unmounting UI
-        if (freshList && Array.isArray(freshList)) {
-          setApplications(freshList);
+      // 1. If we have cached data and not forcing, use cached and hydrate in background if needed
+      const cached = getCachedCollectionSync('admissions');
+      if (cached && cached.length > 0 && !force) {
+        setApplications(cached);
+        setLoading(false);
+      } else {
+        // 2. Cold start / force sync: Fetch first 50 applications instantly
+        const page1 = await getPaginatedCollection('admissions', 50);
+        if (page1.docs && page1.docs.length > 0) {
+          setApplications(page1.docs);
+          setLoading(false);
+
+          if (page1.hasMore && page1.lastDoc) {
+            // 3. Hydrate remaining pages in background without freezing UI
+            hydrateRemainingPages('admissions', page1.lastDoc, page1.docs, (batch) => {
+              setApplications(batch);
+            });
+          }
+        } else {
+          // Fallback to full fetch if paginated query returns empty
+          const fullList = await getCachedCollection('admissions', force, 30 * 60 * 1000);
+          if (fullList && Array.isArray(fullList)) {
+            setApplications(fullList);
+          }
         }
-      });
-      if (list && Array.isArray(list)) {
-        setApplications(list);
       }
     } catch (err) {
       console.error('Failed to load admin dashboard data:', err);
@@ -169,28 +188,25 @@ export default function AdminDashboard() {
       clearTimeout(timeoutTimer);
       setLoading(false);
     }
-  }, [applications.length]);
+  }, []);
 
   // Real-time live synchronization for admissions (0ms updates when students submit, edit, or withdraw)
   useEffect(() => {
-    if (typeof subscribeToCollection !== 'function') {
-      loadAdminData(true);
-      return;
-    }
+    loadAdminData();
+
+    if (typeof subscribeToCollection !== 'function') return;
     let unsubscribe = () => {};
     try {
       unsubscribe = subscribeToCollection('admissions', (liveList) => {
-        if (liveList && Array.isArray(liveList)) {
+        if (liveList && Array.isArray(liveList) && liveList.length > 0) {
           setApplications(liveList);
           setLoading(false);
         }
       }, (err) => {
-        console.warn('Realtime listener fallback to SWR query:', err);
-        loadAdminData(true);
+        console.warn('Realtime listener fallback note:', err);
       });
     } catch (err) {
       console.warn('subscribeToCollection initialization note:', err);
-      loadAdminData(true);
     }
 
     return () => {
@@ -285,6 +301,12 @@ export default function AdminDashboard() {
       />
 
       <div className="w-full max-w-[1750px] mx-auto space-y-0.5">
+        {/* Global Firestore Data Synchronization & Network Status Ribbon */}
+        <GlobalDataSyncHUD
+          isActive={loading}
+          recordCount={applications.length}
+        />
+
         {/* Workspace Card */}
         <div className="rounded-xl p-0.5 sm:p-1 border shadow-sm space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           {/* Navigation Tabs Dynamic Toolbar (For non-reports tabs) */}

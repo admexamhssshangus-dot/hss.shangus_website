@@ -31,10 +31,41 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
 
   // Helper to extract clean Stream
   const extractStream = (a) => {
-    const s = a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream'] || a.stream || '';
+    const s = a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream & Subjects for Class 12th'] || a['Stream / Faculty'] || a['Stream'] || a.stream || a.Stream || '';
     const clean = String(s).trim();
-    return clean || 'General';
+    if (!clean || clean === '—' || clean === 'N/A' || clean === 'null' || clean === 'undefined' || clean === '-') {
+      return 'General';
+    }
+    const lower = clean.toLowerCase();
+    if (lower.includes('sci') || lower.includes('med')) return 'Science';
+    if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
+    if (lower.includes('com')) return 'Commerce';
+    if (lower.includes('gen')) return 'General';
+    return clean;
   };
+
+  // Dynamically compute all unique streams & counts for selected class directly from live database
+  const availableStreams = useMemo(() => {
+    const classRecords = applications.filter((a) => {
+      const cls = String(a['Admission sought for class'] || a['Class'] || a.class || '').trim();
+      return cls.includes(selectedClass) || cls === selectedClass;
+    });
+
+    const streamCounts = {};
+    classRecords.forEach((a) => {
+      const s = extractStream(a);
+      streamCounts[s] = (streamCounts[s] || 0) + 1;
+    });
+
+    return Object.entries(streamCounts).map(([stream, count]) => ({ stream, count }));
+  }, [applications, selectedClass]);
+
+  // Auto-reset stream filter to 'All' if selectedStream is not present in new class
+  useEffect(() => {
+    if (selectedStream !== 'All' && !availableStreams.some(s => s.stream.toLowerCase() === selectedStream.toLowerCase())) {
+      setSelectedStream('All');
+    }
+  }, [selectedClass, availableStreams, selectedStream]);
 
   // Prepare & Filter Raw Roster
   const prepareRoster = useCallback(() => {
@@ -299,10 +330,17 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
             onChange={(e) => setSelectedStream(e.target.value)}
             className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
           >
-            <option value="All">All Streams</option>
-            <option value="Science">Science</option>
-            <option value="Humanities">Humanities</option>
-            <option value="Commerce">Commerce</option>
+            <option value="All">
+              All Streams ({applications.filter((a) => {
+                const cls = String(a['Admission sought for class'] || a['Class'] || a.class || '').trim();
+                return cls.includes(selectedClass) || cls === selectedClass;
+              }).length})
+            </option>
+            {availableStreams.map(({ stream, count }) => (
+              <option key={stream} value={stream}>
+                {stream} ({count})
+              </option>
+            ))}
           </select>
 
           <select

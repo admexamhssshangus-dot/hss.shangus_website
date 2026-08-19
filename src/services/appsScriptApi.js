@@ -377,24 +377,34 @@ async function legacyGetStudentApplication() {
   try {
     const user = sessionManager.getUser();
     if (user) {
+      const uid = auth.currentUser?.uid || user.uid || user.id || '';
       const email = String(user.email || '').toLowerCase().trim();
-      const mobile = String(user.mobile || user.phone || '').replace(/[^0-9]/g, '');
-      const regNo = String(user.regNo || user.boardRegNo || '').toLowerCase().trim();
-      const aadhar = String(user.aadhar || user.aadhaar || '').replace(/[^0-9]/g, '');
+      const mobile = String(user.mobile || user.phone || user['Mobile No. (with working WhatsApp)'] || '').replace(/[^0-9]/g, '');
+      const regNo = String(user.regNo || user.boardRegNo || user['Board Registration Number'] || '').toLowerCase().trim();
+      const aadhar = String(user.aadhar || user.aadhaar || user['Aadhar No.'] || '').replace(/[^0-9]/g, '');
+      const studentName = String(user.name || user.displayName || user.studentName || user["Student's Name (as per school records)"] || '').toLowerCase().trim();
 
       const isMatch = (a) => {
         if (!a) return false;
-        // Skip soft-deleted records
-        if (a.Status === 'Deleted' || a._deleted === true) return false;
-        const aEmail = String(a['Email Address'] || a.email || '').toLowerCase().trim();
-        const aMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || '').replace(/[^0-9]/g, '');
-        const aRegNo = String(a['Board Registration No. (Class 10th)'] || a['Board Registration No. (Class 11th)'] || a['Board Reg. No.'] || a.regNo || '').toLowerCase().trim();
-        const aAadhar = String(a['Aadhar No.'] || a.aadhar || '').replace(/[^0-9]/g, '');
+        // Skip soft-deleted and purged records
+        if (a.Status === 'Deleted' || a.status === 'Deleted' || a.Status === 'Purged' || a.status === 'Purged' || a._deleted === true) return false;
 
+        if (uid && a.ownerUid && String(a.ownerUid).trim() === String(uid).trim()) return true;
+
+        const aEmail = String(a['Email Address'] || a.email || a.emailNormalized || '').toLowerCase().trim();
         if (email && aEmail && aEmail === email) return true;
+
+        const aMobile = String(a['Mobile No. (with working WhatsApp)'] || a['Mobile No.'] || a.mobile || '').replace(/[^0-9]/g, '');
         if (mobile && aMobile && aMobile.length >= 10 && aMobile.slice(-10) === mobile.slice(-10)) return true;
+
+        const aRegNo = String(a['Board Registration No. (Class 10th)'] || a['Board Registration No. (Class 11th)'] || a['Board Registration Number'] || a['Board Reg. No.'] || a.regNo || '').toLowerCase().trim();
         if (regNo && aRegNo && aRegNo === regNo) return true;
+
+        const aAadhar = String(a['Aadhar No.'] || a.aadhar || '').replace(/[^0-9]/g, '');
         if (aadhar && aAadhar && aAadhar.length >= 12 && aAadhar.slice(-12) === aadhar.slice(-12)) return true;
+
+        const aName = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.studentName || a.name || '').toLowerCase().trim();
+        if (studentName && aName && studentName === aName && (email || mobile)) return true;
 
         return false;
       };
@@ -437,7 +447,7 @@ async function legacyGetStudentApplication() {
       }
 
       // Filter out any soft-deleted records that slipped through cache
-      const liveApps = matchedApps.filter(a => a.Status !== 'Deleted' && a._deleted !== true);
+      const liveApps = matchedApps.filter(a => a.Status !== 'Deleted' && a.status !== 'Deleted' && a._deleted !== true);
 
       return {
         success: true,

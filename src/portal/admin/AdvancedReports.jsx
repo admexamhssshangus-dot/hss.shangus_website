@@ -4,7 +4,7 @@ import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, C
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
@@ -225,13 +225,25 @@ export async function updateStudentDocument(student, updates) {
       await updateDoc(doc(db, 'admissions', cid), updates);
       updated = true;
       break;
-    } catch (e) {}
+    } catch (e) {
+      try {
+        await setDoc(doc(db, 'admissions', cid), updates, { merge: true });
+        updated = true;
+        break;
+      } catch (err2) {}
+    }
 
     try {
       await updateDoc(doc(db, 'masterRegisters', cid), updates);
       updated = true;
       break;
-    } catch (e) {}
+    } catch (e) {
+      try {
+        await setDoc(doc(db, 'masterRegisters', cid), updates, { merge: true });
+        updated = true;
+        break;
+      } catch (err2) {}
+    }
   }
 
   if (!updated && formNo && formNo !== '—') {
@@ -240,7 +252,7 @@ export async function updateStudentDocument(student, updates) {
         const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', formNo)));
         if (!qSnap.empty) {
           for (const dSnap of qSnap.docs) {
-            await updateDoc(doc(db, 'admissions', dSnap.id), updates);
+            await setDoc(doc(db, 'admissions', dSnap.id), updates, { merge: true });
             updated = true;
           }
           break;
@@ -1175,10 +1187,16 @@ export const extractStudentFormNo = (rec) => {
   return cleanFormNo(val);
 };
 
+export const isPlaceholderRegNo = (val) => {
+  if (val === null || val === undefined) return true;
+  const s = String(val).trim();
+  if (!s) return true;
+  return /^(0|na|n\/a|#n\/a|nil|null|undefined|—|-|none|not receive yet|not received|not received yet|home exam)$/i.test(s);
+};
+
 export const cleanRegNoVal = (val) => {
-  if (val === null || val === undefined) return '';
+  if (isPlaceholderRegNo(val)) return '';
   let s = String(val).trim();
-  if (!s || /^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) return '';
 
   if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
     try {
@@ -1957,11 +1975,11 @@ const formatPhotoDisplayUrl = (val, student = null) => {
   let str = (typeof val === 'string' ? val : '').trim();
 
   // If val is empty or placeholder, resolve from getStudentPhotoUrl
-  if ((!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') && student) {
+  if ((!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') && student) {
     str = getStudentPhotoUrl(student) || '';
   }
 
-  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
+  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') return '';
 
   // 1. Native Firestore / Data URL Base64 image
   if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
@@ -1972,14 +1990,9 @@ const formatPhotoDisplayUrl = (val, student = null) => {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Convert to direct thumbnail URL with size parameter
-  if (str.includes('drive.google.com') || str.includes('docs.google.com')) {
-    const fileIdMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-                        str.match(/id=([a-zA-Z0-9_-]+)/) ||
-                        str.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (fileIdMatch && fileIdMatch[1]) {
-      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w200`;
-    }
+  // 2. Google Drive Links -> Deprecated and ignored completely per pure Firebase directive
+  if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
+    return '';
   }
 
   // 3. Firebase Storage or standard web image URLs
@@ -2102,20 +2115,23 @@ function OnDemandStudentPhotoCell({ student, val }) {
       const reg = String(student?.boardRegNo || student?.regNo || '').trim();
       const payload = {
         photo_id: targetUrl,
-        photoData: targetUrl,
-        'Student Photo': targetUrl,
-        photoUrl: targetUrl
+        'Student Photo': deleteField(),
+        photoUrl: deleteField(),
+        photoId: deleteField(),
+        photo: deleteField(),
+        studentPhoto: deleteField(),
+        studentPhotoUrl: deleteField(),
+        passport_photo: deleteField(),
+        photoData: deleteField()
       };
 
       await updateStudentDocument(student, payload);
 
-      if (reg) {
-        await syncStudentPhotoOnRegUpdate({
-          newReg: reg,
-          student: { ...student, photo_id: targetUrl },
-          photoData: targetUrl
-        });
-      }
+      await syncStudentPhotoOnRegUpdate({
+        newReg: reg,
+        student: { ...student, photo_id: targetUrl },
+        photoData: targetUrl
+      });
 
       setPhotoUrl(targetUrl);
       setSelectedPreviewUrl(targetUrl);
@@ -3664,6 +3680,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
   const recycleBinCount = unreadRecycleBinCount;
   const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
+  const lastSyncedFingerprintRef = useRef('');
 
   // Compute active user permissions signature
   const currentPermsSig = useMemo(() => {
@@ -4451,14 +4468,62 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const [customIds, setCustomIds] = useState({});
   const [assignDateValue, setAssignDateValue] = useState(new Date().toISOString().split('T')[0]);
   const [assignDateField, setAssignDateField] = useState('admDate');
-  const [batchEditField, setBatchEditField] = useState('status');
+  const [batchEditField, setBatchEditField] = useState('class_session');
   const [batchEditValue, setBatchEditValue] = useState('Approved');
+  const [bulkNewClass, setBulkNewClass] = useState('KEEP');
+  const [bulkNewSession, setBulkNewSession] = useState('KEEP');
+  const [bulkNewStream, setBulkNewStream] = useState('KEEP');
+  const [bulkNewStatus, setBulkNewStatus] = useState('KEEP');
+  const [bulkCustomSession, setBulkCustomSession] = useState('');
+  const [bulkTargetMode, setBulkTargetMode] = useState('filtered'); // 'filtered' | 'selected'
+  const [bulkProgress, setBulkProgress] = useState({ active: false, current: 0, total: 0, percent: 0, studentName: '' });
+  const [bulkPreviewSession, setBulkPreviewSession] = useState('CURRENT_FILTER');
+  const [bulkPreviewClass, setBulkPreviewClass] = useState('ALL');
+  const [bulkPreviewSearch, setBulkPreviewSearch] = useState('');
+  const [quickEditStudent, setQuickEditStudent] = useState(null);
+  const [quickEditSaving, setQuickEditSaving] = useState(false);
   const [toolExecuting, setToolExecuting] = useState(false);
 
   // Photo Manager States
   const [photoBatchFiles, setPhotoBatchFiles] = useState([]);
   const [photoMatchResults, setPhotoMatchResults] = useState([]);
   const [batchSyncingPhotos, setBatchSyncingPhotos] = useState(false);
+  const [reconcilingPhotos, setReconcilingPhotos] = useState(false);
+  const [reconcileProgress, setReconcileProgress] = useState({ active: false, current: 0, total: 0, percent: 0, stats: null });
+
+  // Helper to flatten chunked or flat admissions records into uniform student objects
+  const flattenAdmissionsList = (rawList = []) => {
+    if (!Array.isArray(rawList)) return [];
+    const flat = [];
+    const seenIds = new Set();
+
+    rawList.forEach((doc, docIdx) => {
+      if (!doc || typeof doc !== 'object') return;
+      if (doc.Status === 'Deleted' || doc.status === 'Deleted' || doc._deleted === true) return;
+
+      const chunk = doc.items || doc.students || doc.records || doc.applications || doc.data;
+      if (Array.isArray(chunk) && chunk.length > 0) {
+        chunk.forEach((item, itemIdx) => {
+          if (!item || typeof item !== 'object') return;
+          if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
+          const cleanFNo = String(item.formNo || item['Form Number'] || item['Form No.'] || '').trim();
+          const cleanReg = String(item.boardRegNo || item['Board Registration Number'] || '').trim();
+          const cleanId = String(item.id || item.docId || cleanFNo || cleanReg || `${doc.id}_${itemIdx}`).trim();
+          if (seenIds.has(cleanId)) return;
+          seenIds.add(cleanId);
+          flat.push({ ...item, id: cleanId, _isCurrentScope: true });
+        });
+      } else {
+        const cleanFNo = String(doc.formNo || doc['Form Number'] || doc['Form No.'] || '').trim();
+        const cleanReg = String(doc.boardRegNo || doc['Board Registration Number'] || '').trim();
+        const cleanId = String(doc.id || doc.docId || cleanFNo || cleanReg || `adm_${docIdx}`).trim();
+        if (seenIds.has(cleanId)) return;
+        seenIds.add(cleanId);
+        flat.push({ ...doc, id: cleanId, _isCurrentScope: true });
+      }
+    });
+    return flat;
+  };
 
   // Helper to flatten chunked or flat masterRegisters records into uniform objects
   const flattenAndFormatMasterRegisters = (rawList = []) => {
@@ -4555,35 +4620,32 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       }
     }
 
-    if (activeList && activeList.length > 0) {
-      setCurrentAdmissions(activeList);
+    // Flatten any chunked structures and deduplicate
+    const flatAdmissions = flattenAdmissionsList(activeList);
+
+    if (flatAdmissions && flatAdmissions.length > 0) {
+      setCurrentAdmissions(flatAdmissions);
       if (setCounts) {
         setCounts({
-          active: activeList.length,
-          total: activeList.length
+          active: flatAdmissions.length,
+          total: flatAdmissions.length
         });
       }
       // Build in-memory fast search index for immediate ranked matching
-      buildLocalSearchIndex(activeList, masterHistoricalRecords);
+      buildLocalSearchIndex(flatAdmissions, masterHistoricalRecords);
     }
 
-    // Silent background load of historical master registers for instant global search across all sessions
-    const loadMasterRegistersSilently = async () => {
-      try {
-        let masterList = getCachedCollectionSync('masterRegisters');
-        if (!masterList || masterList.length === 0 || forceRefresh) {
-          masterList = await getCachedCollection('masterRegisters', forceRefresh);
-        }
+    // Lazy master registers load: Only load historical master registers on demand
+    // (when searching or explicit force refresh) to keep initial load lightweight and instant.
+    if (forceRefresh) {
+      getCachedCollection('masterRegisters', true).then((masterList) => {
         if (Array.isArray(masterList) && masterList.length > 0) {
           const flat = flattenAndFormatMasterRegisters(masterList);
           setMasterHistoricalRecords(flat);
-          buildLocalSearchIndex(activeList || currentAdmissions, flat);
+          buildLocalSearchIndex(flatAdmissions || currentAdmissions, flat);
         }
-      } catch (err) {
-        console.warn('Silent masterRegisters background fetch note:', err);
-      }
-    };
-    loadMasterRegistersSilently();
+      }).catch(() => {});
+    }
 
     setFetchProgress(100);
     setLoading(false);
@@ -4597,27 +4659,37 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Synchronize admissions from parent whenever initialData arrives or updates (filtered against Recycle Bin)
+  // Synchronize admissions from parent whenever initialData arrives or updates (debounced & filtered)
   useEffect(() => {
-    if (Array.isArray(initialData) && initialData.length > 0) {
-      getRecycleBinItems().then(recycleBinList => {
-        const filtered = filterActiveAgainstRecycleBin(initialData, recycleBinList);
-        setCurrentAdmissions(filtered);
-        buildLocalSearchIndex(filtered, []);
-        if (setCounts) {
-          setCounts(prev => ({
-            ...prev,
-            active: filtered.length,
-            total: filtered.length
-          }));
-        }
-      }).catch(() => {
-        const filtered = filterActiveAgainstRecycleBin(initialData, []);
-        setCurrentAdmissions(filtered);
-        buildLocalSearchIndex(filtered, []);
-      });
+    if (!Array.isArray(initialData) || initialData.length === 0) return;
+
+    // Fast fingerprint check to avoid heavy re-computation if initialData is unchanged
+    const currentFingerprint = `${initialData.length}_${initialData[0]?.id || initialData[0]?.formNo || ''}_${initialData[initialData.length - 1]?.id || initialData[initialData.length - 1]?.formNo || ''}`;
+    if (lastSyncedFingerprintRef.current === currentFingerprint && currentAdmissions.length > 0) {
+      return;
     }
-  }, [initialData, setCounts]);
+    lastSyncedFingerprintRef.current = currentFingerprint;
+
+    let isMounted = true;
+    const timer = setTimeout(() => {
+      getRecycleBinItems().then((recycleBinList) => {
+        if (!isMounted) return;
+        const filtered = flattenAdmissionsList(filterActiveAgainstRecycleBin(initialData, recycleBinList));
+        setCurrentAdmissions(filtered);
+        buildLocalSearchIndex(filtered, masterHistoricalRecords);
+      }).catch(() => {
+        if (!isMounted) return;
+        const filtered = flattenAdmissionsList(filterActiveAgainstRecycleBin(initialData, []));
+        setCurrentAdmissions(filtered);
+        buildLocalSearchIndex(filtered, masterHistoricalRecords);
+      });
+    }, 100);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [initialData, masterHistoricalRecords, currentAdmissions.length]);
 
   // Combined Dataset
   const allStudents = useMemo(() => {
@@ -4677,9 +4749,8 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     };
 
     const cleanRegNoVal = (val) => {
-      if (val === null || val === undefined) return '';
+      if (isPlaceholderRegNo(val)) return '';
       let s = String(val).trim();
-      if (!s || /^(N\/A|#N\/A|—|-|null|undefined)$/i.test(s)) return '';
 
       if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
         try {
@@ -5116,6 +5187,8 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
 
       const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${activeClassRoll} ${finalBoardRegNo} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory}`.toLowerCase();
 
+      const uniqueDocId = a.docId || a._docId || a.id || (cleanFNo && cleanFNo !== '—' ? `adm_${cleanFNo}` : `adm_${idx}`);
+
       combined.push({
         ...sanitizedRecord,
         _isCurrentScope: true,
@@ -5126,8 +5199,8 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         _admNum: parseNum(finalAdmNo),
         _nameLower: sName.toLowerCase(),
         _regLower: finalBoardRegNo.toLowerCase(),
-        id: a.id || a.docId || (cleanFNo && cleanFNo !== '—' ? `active_${cleanFNo}` : `adm_${idx}`),
-        docId: a.docId || a._docId || a.id || cleanFNo,
+        id: uniqueDocId,
+        docId: uniqueDocId,
         sno: idx + 1,
         formNo: cleanFNo || '—',
         classRollNo: activeClassRoll,
@@ -5209,6 +5282,23 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       });
     });
 
+    // Build index of seen active admission keys to prevent duplicate entries when historical records are merged
+    const seenActiveKeys = new Set();
+    combined.forEach(c => {
+      const cleanFNo = String(c.formNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
+      const cleanReg = String(c.boardRegNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
+      const cleanAdm = String(c.admNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
+      const sName = String(c.studentName || '').toLowerCase().trim();
+      const fName = String(c.fatherName || '').toLowerCase().trim();
+      const cls = String(c.class || '').toLowerCase().trim();
+      const sess = String(c.session || '').toLowerCase().trim();
+
+      if (cleanFNo && cleanFNo !== '—') seenActiveKeys.add(`fno_${sess}_${cleanFNo}`);
+      if (cleanReg && cleanReg.length > 5 && !cleanReg.endsWith('00000000')) seenActiveKeys.add(`reg_${cleanReg}`);
+      if (cleanAdm && cleanAdm !== '—') seenActiveKeys.add(`adm_${cleanAdm}`);
+      if (sName && sName !== 'student') seenActiveKeys.add(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
+    });
+
     // Process Historical Master Registers records (for global search, historical archives & earlier sessions)
     masterHistoricalRecords.forEach((m, idx) => {
       const cleanFNo = String(m['Form Number'] || m['Form No.'] || m.formNo || '').replace(/^'/, '').replace(/^(N\/A|—)$/i, '').trim();
@@ -5221,6 +5311,18 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const sName = m["Student's Name (as per school records)"] || m["Student's Name"] || m['Student Name'] || m['Name of Student'] || m['Account Name'] || m.studentName || m.name || 'Student';
       const fName = m["Father's/Guardian's Name (as per school records)"] || m["Father's Name"] || m['Father Name'] || m.fatherName || '—';
       const mName = m["Mother's Name (as per school records)"] || m["Mother's Name"] || m['Mother Name'] || m.motherName || '—';
+
+      // Skip this historical record if an identical active record is already present!
+      const checkFNo = cleanFNo.replace(/[^a-z0-9]/g, '').toLowerCase();
+      const checkReg = rawReg.replace(/[^a-z0-9]/g, '').toLowerCase();
+      const checkAdm = String(finalAdmNo).replace(/[^a-z0-9]/g, '').toLowerCase();
+      const checkNameKey = `name_${targetClass.toLowerCase()}_${targetSession.toLowerCase()}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`;
+
+      if (checkFNo && checkFNo !== '—' && seenActiveKeys.has(`fno_${targetSession.toLowerCase()}_${checkFNo}`)) return;
+      if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveKeys.has(`reg_${checkReg}`)) return;
+      if (checkAdm && checkAdm !== '—' && seenActiveKeys.has(`adm_${checkAdm}`)) return;
+      if (seenActiveKeys.has(checkNameKey)) return;
+
       const sDob = formatDobToDisplay(m["DoB (figures)"] || m["DoB (as per school records)"] || m['DoB (figures)'] || m['dob'] || '—');
       const sVillage = m['Permanent Address'] || m['Name of your village'] || m['Village/Town'] || m['Address'] || m.village || 'Shangus';
       const sGender = m['Gender'] || m.gender || '—';
@@ -5232,6 +5334,8 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const sPen = m['PEN No.'] || m.penNo || '—';
 
       const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${rawRoll} ${rawReg} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory}`.toLowerCase();
+
+      const uniqueHistId = m.id || `hist_${targetSession}_${targetClass}_${cleanFNo || rawReg || idx}`;
 
       combined.push({
         ...m,
@@ -5245,9 +5349,9 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         _admNum: parseNum(finalAdmNo),
         _nameLower: sName.toLowerCase(),
         _regLower: rawReg.toLowerCase(),
-        id: m.id || `hist_${idx}_${cleanFNo || rawReg || idx}`,
-        docId: m.docId || m._docId || m.id || `hist_${idx}`,
-        sno: currentAdmissions.length + idx + 1,
+        id: uniqueHistId,
+        docId: uniqueHistId,
+        sno: combined.length + 1,
         formNo: cleanFNo || '—',
         classRollNo: rawRoll || '—',
         'Class Roll No': rawRoll || '—',
@@ -5338,16 +5442,31 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   // Target dataset: when search query is active or user explicitly chooses specific/historical sessions,
   // search across all records (active + historical); when empty default view, show active admissions for 0ms speed.
   const targetDataset = useMemo(() => {
-    const activeQuery = deferredSearchTerm.trim();
+    const activeQuery = (deferredSearchTerm || '').trim();
     if (activeQuery !== '') {
+      if (masterHistoricalRecords.length === 0) {
+        getCachedCollection('masterRegisters').then(ml => {
+          if (Array.isArray(ml) && ml.length > 0) {
+            setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+          }
+        }).catch(() => {});
+      }
       return allStudents;
     }
     if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
-      return allStudents;
+      if (masterHistoricalRecords.length === 0) {
+        getCachedCollection('masterRegisters').then(ml => {
+          if (Array.isArray(ml) && ml.length > 0) {
+            setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+          }
+        }).catch(() => {});
+      }
+      const activeSessionLowerSet = new Set(selectedSessions.map(s => String(s || '').trim().toLowerCase()));
+      return allStudents.filter(s => activeSessionLowerSet.has(String(s.session || '').trim().toLowerCase()));
     }
-    // Default view: only active admissions for 0ms cold-start rendering
+    // Default view ("All Sessions" without search query): only active admissions for 0ms instant speed
     return allStudents.filter(s => s._isCurrentScope === true);
-  }, [allStudents, deferredSearchTerm, selectedSessions]);
+  }, [allStudents, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length]);
 
   // ─── Google-like Intelligent Search & Relevance Engine ───
   const evaluateGoogleSearch = useCallback((s, query) => {
@@ -5605,6 +5724,129 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
 
   const totalPages = pageSize === 'All' ? 1 : Math.ceil(filteredStudents.length / (parseInt(pageSize, 10) || 50));
 
+  // Candidates for the Bulk Class, Session & Stream Tool (with fast preview by session, class, or keyword search)
+  const bulkCandidateStudents = useMemo(() => {
+    let pool = [];
+    if (bulkPreviewSession === 'CURRENT_FILTER') {
+      pool = filteredStudents;
+    } else if (bulkPreviewSession === 'ALL') {
+      pool = allStudents;
+    } else {
+      const matchSess = String(bulkPreviewSession).trim().toLowerCase();
+      pool = allStudents.filter(s => String(s.session || '').trim().toLowerCase() === matchSess);
+    }
+
+    if (bulkPreviewClass !== 'ALL') {
+      const matchCls = String(bulkPreviewClass).trim().toLowerCase();
+      pool = pool.filter(s => String(s.class || '').trim().toLowerCase() === matchCls);
+    }
+
+    if (bulkPreviewSearch && bulkPreviewSearch.trim()) {
+      const q = bulkPreviewSearch.trim().toLowerCase();
+      pool = pool.filter(s => {
+        const name = String(s.studentName || '').toLowerCase();
+        const father = String(s.fatherName || '').toLowerCase();
+        const fNo = String(s.formNo || '').toLowerCase();
+        const roll = String(s.classRollNo || '').toLowerCase();
+        const adm = String(s.admNo || '').toLowerCase();
+        const reg = String(s.boardRegNo || '').toLowerCase();
+        return name.includes(q) || father.includes(q) || fNo.includes(q) || roll.includes(q) || adm.includes(q) || reg.includes(q);
+      });
+    }
+
+    return pool;
+  }, [bulkPreviewSession, bulkPreviewClass, bulkPreviewSearch, filteredStudents, allStudents]);
+
+  // Synchronize selection checkboxes whenever bulk candidate pool changes
+  useEffect(() => {
+    if (showToolsModal && activeToolsTab === 'db_editor') {
+      if (bulkCandidateStudents && bulkCandidateStudents.length > 0) {
+        setSelectedBulkFormIds(new Set(bulkCandidateStudents.map(s => s.id || s.formNo || s['Form Number'])));
+      } else {
+        setSelectedBulkFormIds(new Set());
+      }
+    }
+  }, [showToolsModal, activeToolsTab, bulkCandidateStudents]);
+
+  const toggleBulkStudent = (id) => {
+    setSelectedBulkFormIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllBulk = () => {
+    setSelectedBulkFormIds(new Set(bulkCandidateStudents.map(s => s.id || s.formNo || s['Form Number'])));
+  };
+
+  const handleDeselectAllBulk = () => {
+    setSelectedBulkFormIds(new Set());
+  };
+
+  const handleInvertBulk = () => {
+    setSelectedBulkFormIds(prev => {
+      const next = new Set();
+      bulkCandidateStudents.forEach(s => {
+        const id = s.id || s.formNo || s['Form Number'];
+        if (!prev.has(id)) next.add(id);
+      });
+      return next;
+    });
+  };
+
+  const handleSaveIndividualStudent = async (student, individualUpdates) => {
+    setQuickEditSaving(true);
+    try {
+      const payload = {
+        ...individualUpdates,
+        updatedAt: new Date().toISOString(),
+        lastEditedBy: `Admin (${user?.email || 'Individual Quick Editor'})`
+      };
+
+      await updateStudentDocument(student, payload);
+
+      setCurrentAdmissions(prev => prev.map(s => {
+        if ((s.id && s.id === student.id) || (s.formNo && s.formNo === student.formNo)) {
+          return { ...s, ...payload };
+        }
+        return s;
+      }));
+
+      invalidateCache('admissions');
+      invalidateCache('masterRegisters');
+
+      await logAdminActivity({
+        actionType: 'individual_edit',
+        actionTitle: `Updated Application #${student.formNo || student.id}`,
+        details: `Updated fields for ${student.studentName || 'Student'}: ${Object.keys(individualUpdates).map(k => `${k}="${individualUpdates[k]}"`).join(', ')}`,
+        reasonCategory: 'Administrative Record Correction',
+        customReason: 'Direct update via Tools Modal Quick Editor',
+        metadata: { studentId: student.id, formNo: student.formNo, updates: individualUpdates }
+      });
+
+      setToast({
+        type: 'success',
+        message: `✅ Updated application for ${student.studentName || `Form #${student.formNo}`}!`
+      });
+      setTimeout(() => setToast(null), 3000);
+      setQuickEditStudent(null);
+    } catch (err) {
+      console.error('Save individual student error:', err);
+      setToast({
+        type: 'error',
+        message: `Failed to update student: ${err.message || 'Database error'}`
+      });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setQuickEditSaving(false);
+    }
+  };
+
   // Column Presets
   const applyPreset = (preset) => {
     const allOff = {};
@@ -5834,12 +6076,159 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
 
   // Run Batch Edit
   const handleRunBatchEdit = async () => {
-    setToolExecuting(true);
-    try {
-      alert(`Batch updated ${batchEditField.toUpperCase()} to "${batchEditValue}" for ${filteredStudents.length} records!`);
-    } finally {
-      setToolExecuting(false);
+    const targetList = bulkCandidateStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']));
+
+    if (!targetList || targetList.length === 0) {
+      setToast({
+        type: 'error',
+        message: 'No student records selected for bulk update. Please check at least one student.'
+      });
+      setTimeout(() => setToast(null), 4000);
+      return;
     }
+
+    const updates = {
+      updatedAt: new Date().toISOString(),
+      lastEditedBy: `Admin (${user?.email || 'Bulk Updater'})`
+    };
+
+    if (batchEditField === 'class_session') {
+      const appliedSession = bulkNewSession === 'CUSTOM' ? bulkCustomSession.trim() : (bulkNewSession !== 'KEEP' ? bulkNewSession : '');
+
+      if (bulkNewClass && bulkNewClass !== 'KEEP') {
+        updates.class = bulkNewClass;
+        updates['Class'] = bulkNewClass;
+        updates['Admission sought for class'] = bulkNewClass;
+      }
+
+      if (appliedSession) {
+        updates.session = appliedSession;
+        updates['Session'] = appliedSession;
+        updates['Academic Session'] = appliedSession;
+      }
+
+      if (bulkNewStream && bulkNewStream !== 'KEEP') {
+        updates.stream = bulkNewStream;
+        updates['Stream'] = bulkNewStream;
+      }
+
+      if (bulkNewStatus && bulkNewStatus !== 'KEEP') {
+        updates.status = bulkNewStatus;
+        updates['Status'] = bulkNewStatus;
+      }
+    } else {
+      if (!batchEditValue) {
+        setToast({
+          type: 'error',
+          message: 'Please enter a new field value.'
+        });
+        setTimeout(() => setToast(null), 4000);
+        return;
+      }
+      updates[batchEditField] = batchEditValue;
+      if (batchEditField === 'status') updates['Status'] = batchEditValue;
+      if (batchEditField === 'class') {
+        updates['Class'] = batchEditValue;
+        updates['Admission sought for class'] = batchEditValue;
+      }
+      if (batchEditField === 'session') {
+        updates['Session'] = batchEditValue;
+        updates['Academic Session'] = batchEditValue;
+      }
+      if (batchEditField === 'stream') updates['Stream'] = batchEditValue;
+      if (batchEditField === 'category') updates['Cat._JKBOSE'] = batchEditValue;
+    }
+
+    const changeKeys = Object.keys(updates).filter(k => k !== 'updatedAt' && k !== 'lastEditedBy');
+    if (changeKeys.length === 0) {
+      setToast({
+        type: 'error',
+        message: 'Please choose at least one field to change (e.g. New Class or New Session).'
+      });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
+
+    const summaryItems = changeKeys.map(k => `${k}: "${updates[k]}"`).join(' • ');
+
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'warning',
+      title: `Confirm Bulk Update for ${targetList.length} Students`,
+      message: `You are about to batch update ${targetList.length} student records in the school registers.`,
+      consequence: `Field updates: ${summaryItems}. This will commit directly to Cloud Firestore.`,
+      confirmText: `🚀 Apply Updates to ${targetList.length} Students`,
+      cancelText: 'Cancel',
+      showReasonInput: true,
+      onConfirm: async ({ reasonCategory, customReason }) => {
+        setConfirmModalConfig(null);
+        setToolExecuting(true);
+        setBulkProgress({
+          active: true,
+          current: 0,
+          total: targetList.length,
+          percent: 0,
+          studentName: targetList[0]?.studentName || ''
+        });
+
+        try {
+          let count = 0;
+          for (let i = 0; i < targetList.length; i++) {
+            const st = targetList[i];
+            const currentName = st.studentName || st["Student's Name (as per school records)"] || `Form #${st.formNo}`;
+            setBulkProgress({
+              active: true,
+              current: i + 1,
+              total: targetList.length,
+              percent: Math.round(((i + 1) / targetList.length) * 100),
+              studentName: currentName
+            });
+
+            await updateStudentDocument(st, updates);
+            count++;
+            if (targetList.length > 10) {
+              await new Promise(r => setTimeout(r, 15));
+            }
+          }
+
+          // Update in-memory currentAdmissions list in place
+          setCurrentAdmissions(prev => prev.map(s => {
+            const isMatched = targetList.some(t => (t.id && t.id === s.id) || (t.formNo && t.formNo === s.formNo));
+            return isMatched ? { ...s, ...updates } : s;
+          }));
+
+          invalidateCache('admissions');
+          invalidateCache('masterRegisters');
+
+          await logAdminActivity({
+            actionType: 'bulk_edit',
+            actionTitle: 'Bulk Class & Session Update',
+            details: `Bulk updated ${count} student records with fields: ${changeKeys.map(k => `${k}="${updates[k]}"`).join(', ')}`,
+            reasonCategory: reasonCategory || 'Bulk Ingestion & Correction',
+            customReason: customReason || '',
+            metadata: { count, updates }
+          });
+
+          setToast({
+            type: 'success',
+            message: `🎉 Successfully updated ${count} students to Class "${updates.class || 'Current'}" and Session "${updates.session || 'Current'}"!`
+          });
+          setTimeout(() => setToast(null), 5000);
+
+          setShowToolsModal(false);
+        } catch (err) {
+          console.error('Bulk update error:', err);
+          setToast({
+            type: 'error',
+            message: `Bulk update failed: ${err.message || 'Unknown database error'}`
+          });
+          setTimeout(() => setToast(null), 5000);
+        } finally {
+          setToolExecuting(false);
+          setBulkProgress({ active: false, current: 0, total: 0, percent: 0, studentName: '' });
+        }
+      }
+    });
   };
 
   // Export Official Admission Register
@@ -6021,30 +6410,38 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         const compressed = await compressImageFile(item.file, 300, 360, 0.8);
         const s = item.matchedStudent;
 
-        if (s.id) {
+        // 1. Sync to central studentPhotos collection
+        await syncStudentPhotoOnRegUpdate({
+          student: s,
+          photoData: compressed
+        });
+
+        // 2. Update student doc in admissions or masterRegisters
+        const docId = s._docId || s.docId || s.id;
+        if (docId) {
           try {
-            const docRef = doc(db, 'admissions', String(s.id));
-            await updateDoc(docRef, {
+            const colName = s._isHistorical || s._isMasterRegister ? 'masterRegisters' : 'admissions';
+            const docRef = doc(db, colName, String(docId));
+            await setDoc(docRef, {
               photo_id: compressed,
               'Student Photo': deleteField(),
               photoUrl: deleteField(),
               photoId: deleteField(),
-              photo: deleteField()
-            });
+              photo: deleteField(),
+              studentPhoto: deleteField(),
+              studentPhotoUrl: deleteField(),
+              passport_photo: deleteField(),
+              'photo_synced_at': new Date().toISOString()
+            }, { merge: true });
           } catch (e) {
             console.warn('Firestore update note:', e);
           }
         }
 
-        const canonicalStudent = { ...s, photo_id: compressed };
-        ['Student Photo', 'photoUrl', 'photoId', 'photo'].forEach(key => delete canonicalStudent[key]);
-        await appsScriptApi.saveApplication(canonicalStudent);
-
         successCount++;
       }
 
-      alert(`Successfully compressed & synced ${successCount} student photos to School Database!`);
-      if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      alert(`Successfully compressed & synced ${successCount} student photos to Firebase School Database!`);
       loadReportsData();
       setPhotoBatchFiles([]);
       setPhotoMatchResults([]);
@@ -6053,6 +6450,45 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       alert('Error during batch photo sync.');
     } finally {
       setBatchSyncingPhotos(false);
+    }
+  };
+
+  const handleRunPhotoReconciliation = async () => {
+    if (!allStudents || allStudents.length === 0) {
+      alert('No student records loaded to reconcile.');
+      return;
+    }
+
+    if (!window.confirm(`Run Photo Database Reconciliation for all ${allStudents.length} student records?\n\nThis will:\n1. Match records against processed studentPhotos in Firebase\n2. Overwrite stale raw uploads with official passport photos\n3. Purge deprecated Google Drive URLs & redundant fields\n4. Synchronize 100% to Cloud Firestore`)) return;
+
+    setReconcilingPhotos(true);
+    setReconcileProgress({ active: true, current: 0, total: allStudents.length, percent: 0, stats: null });
+
+    try {
+      const stats = await reconcileAllStudentPhotosInDatabase({
+        students: allStudents,
+        onProgress: ({ current, total, percentage, stats }) => {
+          setReconcileProgress({
+            active: true,
+            current,
+            total,
+            percent: percentage,
+            stats
+          });
+        }
+      });
+
+      alert(`✅ Photo Database Reconciliation Completed Successfully!\n\n• Total Scanned: ${stats.totalScanned}\n• Processed Photos Matched: ${stats.matchedCount}\n• Records Updated in Firestore: ${stats.updatedCount}\n• Already Clean: ${stats.alreadyCleanCount}\n• No Photos Found: ${stats.noPhotoCount}`);
+      
+      logAdminActivity('Photo Database Reconciled', `Reconciled ${stats.totalScanned} student records. Updated ${stats.updatedCount} records to official passport photos from studentPhotos.`);
+      
+      loadReportsData();
+    } catch (err) {
+      console.error('Photo reconciliation error:', err);
+      alert(`Error during photo reconciliation: ${err.message}`);
+    } finally {
+      setReconcilingPhotos(false);
+      setReconcileProgress(prev => ({ ...prev, active: false }));
     }
   };
 
@@ -6207,16 +6643,37 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
               />
             </div>
 
-            {/* Total Records Counter Badge */}
-            <div className="relative overflow-hidden flex items-center px-2 py-1 rounded-lg border text-[10px] sm:text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100">
-              <span className="text-emerald-700 dark:text-emerald-400 font-black">📋 Records:</span>
-              <span className="font-mono font-black text-slate-900 dark:text-slate-50">{filteredStudents.length}</span>
-              {/* Red Progress Bar strictly at the bottom border */}
+            {/* Interactive Real-Time Data Sync & Records Counter Badge */}
+            <div className="relative overflow-hidden flex items-center px-2.5 py-1 rounded-xl border text-[11px] sm:text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1.5 text-slate-800 dark:text-slate-100 transition-all">
+              {isFetchingData || loading ? (
+                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
+                  <RefreshCw size={12} className="animate-spin text-amber-600 shrink-0" />
+                  <span>Syncing...</span>
+                  <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
+                </div>
+              ) : searchTerm.trim() ? (
+                <div className="flex items-center gap-1 text-sky-700 dark:text-sky-400">
+                  <span className="font-black">🔍 Records:</span>
+                  <span className="font-mono text-slate-900 dark:text-white font-extrabold">{filteredStudents.length}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">/ {allStudents.length}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400" title="Connected to Cloud Firestore in Real-Time">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="font-black">Live:</span>
+                  <span className="font-mono font-black text-slate-900 dark:text-slate-50">{filteredStudents.length}</span>
+                </div>
+              )}
+
+              {/* Glowing animated progress stripe */}
               {(isFetchingData || loading || fetchProgress > 0) && (
-                <div className="absolute left-0 right-0 bottom-0 h-0.5 sm:h-1 bg-red-100 dark:bg-rose-950/40 overflow-hidden pointer-events-none transition-all">
+                <div className="absolute left-0 right-0 bottom-0 h-1 bg-amber-100 dark:bg-amber-950/40 overflow-hidden pointer-events-none transition-all">
                   <div
-                    className="h-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(225,29,72,0.9)]"
-                    style={{ width: `${fetchProgress || (loading ? 45 : 100)}%` }}
+                    className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-teal-400 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse"
+                    style={{ width: `${fetchProgress || 75}%` }}
                   />
                 </div>
               )}
@@ -6349,6 +6806,12 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
 
       {/* Master Data Table (Clean Light Theme Adaptive Headers & Sticky S.No Column) */}
       <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-110px)] rounded-lg border border-slate-300 dark:border-slate-700 shadow-2xs max-w-full bg-white dark:bg-slate-900 relative">
+        {/* Real-time Table Loading Progress Stripe */}
+        {(isFetchingData || loading || fetchProgress > 0) && (
+          <div className="sticky top-0 left-0 right-0 z-50 h-1 bg-amber-100 dark:bg-amber-950/60 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 w-full animate-pulse shadow-sm" />
+          </div>
+        )}
         <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words table-fixed">
             <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr className="overflow-visible">
@@ -6431,7 +6894,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                   const dynamicSNo = pageSize === 'All' ? idx + 1 : (currentPage - 1) * (parseInt(pageSize, 10) || 50) + idx + 1;
 
                   return (
-                    <tr key={s.id || idx} className={`group transition-colors font-bold ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
+                    <tr key={`adv_rep_row_${s.id || s.docId || s.formNo || idx}_${dynamicSNo}_${idx}`} className={`group transition-colors font-bold ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
                       {orderedVisibleColumns.map(col => {
                         const val = col.key === 'sno' ? dynamicSNo : (s[col.key] ?? '—');
                         const cellId = `${s.id || s.sno || idx}_${col.key}`;
@@ -6934,7 +7397,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                 { id: 'bulk_forms', label: '📄 Bulk Forms Generator' },
                 { id: 'assign_ids', label: 'Assign IDs' },
                 { id: 'assign_dates', label: 'Assign Dates' },
-                { id: 'db_editor', label: 'DB Editor' },
+                { id: 'db_editor', label: '🔄 Bulk Class & Session' },
                 { id: 'photo_manager', label: '📷 Photo Sync & Manager' },
                 { id: 'adm_register', label: 'Adm. Register' },
                 { id: 'sentup', label: 'Sentup Export' },
@@ -7396,52 +7859,534 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
               </div>
             )}
 
-            {/* Tool Content 3: DB Editor */}
+            {/* Tool Content 3: Bulk Class & Session Updater */}
             {activeToolsTab === 'db_editor' && (
               <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="font-black text-sm text-slate-900 dark:text-white">
-                  Batch Field Value Editor
-                </div>
-                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold">Perform batch field updates across the {filteredStudents.length} currently filtered student records in the register.</p>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
                   <div>
-                    <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">Field to Batch Update:</label>
-                    <select
-                      value={batchEditField}
-                      onChange={(e) => setBatchEditField(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900"
-                    >
-                      <option value="status">Status (Approved / Submitted / Rejected)</option>
-                      <option value="class">Admission Class (11th / 12th)</option>
-                      <option value="session">Session</option>
-                      <option value="stream">Stream</option>
-                      <option value="category">Social Category</option>
-                    </select>
+                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <RefreshCw size={18} className="text-amber-600" />
+                      Bulk Class, Academic Session & Stream Updater
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                      Preview any academic session, select individual or all applications, and batch update or edit individual records.
+                    </p>
                   </div>
-                  <div>
-                    <label className="font-black block text-slate-700 dark:text-slate-300 mb-1">New Value:</label>
-                    <input
-                      type="text"
-                      value={batchEditValue}
-                      onChange={(e) => setBatchEditValue(e.target.value)}
-                      placeholder="Enter new field value..."
-                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900"
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700 shadow-2xs">
+                      {selectedBulkFormIds.size} of {bulkCandidateStudents.length} Selected
+                    </div>
                   </div>
                 </div>
 
+                {/* ─── 1. SESSION & CLASS PREVIEW TOOLBAR ─── */}
+                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-2xs">
+                  <div className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🔍</span>
+                    <span>1. Preview Session & Filter Candidate Students:</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Session Selector */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                        Academic Session Preview:
+                      </label>
+                      <select
+                        value={bulkPreviewSession}
+                        onChange={(e) => setBulkPreviewSession(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="CURRENT_FILTER">Current Table Filter ({filteredStudents.length} Students)</option>
+                        {availableSessions.map(sess => (
+                          <option key={sess} value={sess}>Session: {sess}</option>
+                        ))}
+                        <option value="ALL">All School History ({allStudents.length} Students)</option>
+                      </select>
+                    </div>
+
+                    {/* Class Selector */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                        Class Scope:
+                      </label>
+                      <select
+                        value={bulkPreviewClass}
+                        onChange={(e) => setBulkPreviewClass(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="ALL">All Classes</option>
+                        <option value="9th">9th</option>
+                        <option value="10th">10th</option>
+                        <option value="11th">11th</option>
+                        <option value="12th">12th</option>
+                        <option value="6th">6th</option>
+                        <option value="7th">7th</option>
+                        <option value="8th">8th</option>
+                      </select>
+                    </div>
+
+                    {/* Quick Search within Candidate Pool */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                        Quick Filter:
+                      </label>
+                      <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Search name, roll, form..."
+                          value={bulkPreviewSearch}
+                          onChange={(e) => setBulkPreviewSearch(e.target.value)}
+                          className="w-full pl-7 pr-3 p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 2. INTERACTIVE STUDENT PREVIEW & CHECKBOX TABLE ─── */}
+                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        2. Select Applications ({selectedBulkFormIds.size} / {bulkCandidateStudents.length}):
+                      </span>
+                    </div>
+
+                    {/* Checkbox Action Buttons */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllBulk}
+                        className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer shadow-2xs"
+                      >
+                        ✓ Select All ({bulkCandidateStudents.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeselectAllBulk}
+                        className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 text-[10px] font-black cursor-pointer shadow-2xs"
+                      >
+                        ✕ Deselect All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleInvertBulk}
+                        className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 hover:bg-amber-200 text-[10px] font-black cursor-pointer shadow-2xs"
+                      >
+                        🔄 Invert
+                      </button>
+                    </div>
+                  </div>
+
+                  {bulkCandidateStudents.length > 0 ? (
+                    <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                      <table className="w-full text-[11px] text-left border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 sticky top-0 z-10 font-black">
+                          <tr>
+                            <th className="p-1.5 w-8 text-center">
+                              <input
+                                type="checkbox"
+                                checked={bulkCandidateStudents.length > 0 && selectedBulkFormIds.size === bulkCandidateStudents.length}
+                                onChange={(e) => {
+                                  if (e.target.checked) handleSelectAllBulk();
+                                  else handleDeselectAllBulk();
+                                }}
+                                className="accent-amber-600 rounded cursor-pointer"
+                              />
+                            </th>
+                            <th className="p-1.5 w-10 text-center">S.No</th>
+                            <th className="p-1.5 w-16">Form #</th>
+                            <th className="p-1.5">Student & Father Name</th>
+                            <th className="p-1.5 w-14 text-center">Class</th>
+                            <th className="p-1.5 w-24 text-center">Session</th>
+                            <th className="p-1.5 w-20 text-center">Stream</th>
+                            <th className="p-1.5 w-20 text-center">Status</th>
+                            <th className="p-1.5 w-14 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-bold">
+                          {bulkCandidateStudents.map((st, idx) => {
+                            const idKey = st.id || st.formNo || st['Form Number'] || idx;
+                            const isChecked = selectedBulkFormIds.has(idKey);
+                            const currentName = st.studentName || st["Student's Name (as per school records)"] || '—';
+                            const fatherName = st.fatherName || st["Father's/Guardian's Name (as per school records)"] || '—';
+                            const clsVal = st.class || st['Class'] || '11th';
+                            const sessVal = st.session || st['Session'] || '2025-26';
+                            const streamVal = st.stream || st['Stream'] || 'General';
+                            const statusVal = st.status || st['Status'] || 'Submitted';
+
+                            return (
+                              <tr
+                                key={idKey}
+                                className={`transition-colors cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-850 ${
+                                  isChecked ? 'bg-amber-500/10 dark:bg-amber-950/20 font-extrabold' : ''
+                                }`}
+                                onClick={(e) => {
+                                  if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !e.target.closest('button')) {
+                                    toggleBulkStudent(idKey);
+                                  }
+                                }}
+                              >
+                                <td className="p-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggleBulkStudent(idKey)}
+                                    className="accent-amber-600 rounded cursor-pointer"
+                                  />
+                                </td>
+                                <td className="p-1.5 text-center text-slate-500 font-mono text-[10px]">{idx + 1}</td>
+                                <td className="p-1.5 font-mono text-slate-900 dark:text-slate-100 font-extrabold">
+                                  {st.formNo || st['Form Number'] || '—'}
+                                </td>
+                                <td className="p-1.5">
+                                  <div className="text-slate-900 dark:text-slate-100 truncate max-w-[180px] font-black">
+                                    {currentName}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 truncate max-w-[180px]">
+                                    {fatherName}
+                                  </div>
+                                </td>
+                                <td className="p-1.5 text-center">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
+                                    {clsVal}
+                                  </span>
+                                </td>
+                                <td className="p-1.5 text-center text-[10px] font-mono text-slate-700 dark:text-slate-300 truncate max-w-[100px]">
+                                  {sessVal}
+                                </td>
+                                <td className="p-1.5 text-center text-[10px] text-slate-600 dark:text-slate-400">
+                                  {streamVal}
+                                </td>
+                                <td className="p-1.5 text-center">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                    statusVal.toLowerCase().includes('appr')
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                      : statusVal.toLowerCase().includes('rejt')
+                                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                        : 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                  }`}>
+                                    {statusVal}
+                                  </span>
+                                </td>
+                                <td className="p-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickEditStudent({
+                                      ...st,
+                                      editClass: clsVal,
+                                      editSession: sessVal,
+                                      editStream: streamVal,
+                                      editStatus: statusVal,
+                                      editRollNo: st.classRollNo || st['Class Roll No'] || '',
+                                      editAdmDate: st.admDate || st['Adm. Date'] || ''
+                                    })}
+                                    title="Quick edit this individual application"
+                                    className="p-1 rounded-lg bg-slate-100 hover:bg-amber-100 dark:bg-slate-800 dark:hover:bg-amber-950/60 text-slate-700 hover:text-amber-700 dark:text-slate-300 dark:hover:text-amber-300 transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-xs font-semibold text-slate-500 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      No students found matching the selected preview session and search filters.
+                    </div>
+                  )}
+                </div>
+
+                {/* ─── 3. BATCH EDIT VALUES CONFIGURATION ─── */}
+                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+                  <div className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>3. Choose Batch Updates to Apply to {selectedBulkFormIds.size} Selected Students:</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Target Class */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        🏫 New Admission Class:
+                      </label>
+                      <select
+                        value={bulkNewClass}
+                        onChange={(e) => setBulkNewClass(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Class —</option>
+                        <option value="9th">9th</option>
+                        <option value="10th">10th</option>
+                        <option value="11th">11th</option>
+                        <option value="12th">12th</option>
+                        <option value="6th">6th</option>
+                        <option value="7th">7th</option>
+                        <option value="8th">8th</option>
+                      </select>
+                    </div>
+
+                    {/* Target Session */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        📅 New Academic Session:
+                      </label>
+                      <select
+                        value={bulkNewSession}
+                        onChange={(e) => setBulkNewSession(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Session —</option>
+                        <option value="2025-26">2025-26</option>
+                        <option value="2025-26 (Oct-Nov)">2025-26 (Oct-Nov)</option>
+                        <option value="2024-25">2024-25</option>
+                        <option value="2024-25 (Oct-Nov)">2024-25 (Oct-Nov)</option>
+                        <option value="2026-27">2026-27</option>
+                        <option value="2023-24">2023-24</option>
+                        <option value="CUSTOM">Custom Session (type below)...</option>
+                      </select>
+
+                      {bulkNewSession === 'CUSTOM' && (
+                        <input
+                          type="text"
+                          value={bulkCustomSession}
+                          onChange={(e) => setBulkCustomSession(e.target.value)}
+                          placeholder="e.g. 2025-26 (Nov-Dec)"
+                          className="mt-1.5 w-full p-1.5 rounded-xl border border-amber-400 font-bold text-xs bg-amber-50 dark:bg-amber-950/40 text-slate-900 dark:text-white"
+                        />
+                      )}
+                    </div>
+
+                    {/* Target Stream */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        🔬 New Stream (Optional):
+                      </label>
+                      <select
+                        value={bulkNewStream}
+                        onChange={(e) => setBulkNewStream(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Stream —</option>
+                        <option value="General">General (for junior classes 6th–10th)</option>
+                        <option value="Science">Science (Medical / Non-Medical)</option>
+                        <option value="Arts">Arts / Humanities</option>
+                        <option value="Commerce">Commerce</option>
+                        <option value="Home Science">Home Science</option>
+                      </select>
+                    </div>
+
+                    {/* Target Status */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        ✅ New Status (Optional):
+                      </label>
+                      <select
+                        value={bulkNewStatus}
+                        onChange={(e) => setBulkNewStatus(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Status —</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Submitted">Submitted (SUBM)</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Real-time Progress HUD */}
+                {bulkProgress.active && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 space-y-2 animate-fadeIn">
+                    <div className="flex justify-between items-center text-xs font-black text-amber-900 dark:text-amber-200">
+                      <span>⏳ Updating Record {bulkProgress.current} of {bulkProgress.total} ({bulkProgress.percent}%)</span>
+                      <span className="truncate max-w-[200px]">{bulkProgress.studentName}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-amber-950/20 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 transition-all duration-150 rounded-full"
+                        style={{ width: `${bulkProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── 4. APPLY CHANGES ACTION BUTTON ─── */}
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={handleRunBatchEdit}
-                    disabled={toolExecuting}
-                    className="flex-1 py-3 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    disabled={toolExecuting || selectedBulkFormIds.size === 0}
+                    className="flex-1 py-3 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
                   >
                     {toolExecuting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                    <span>Batch Update {filteredStudents.length} Selected Records</span>
+                    <span>
+                      Apply Changes to {selectedBulkFormIds.size} Selected Student Records
+                    </span>
                   </button>
                 </div>
+
+                {/* ─── 5. QUICK INDIVIDUAL APPLICATION EDITOR MODAL ─── */}
+                {quickEditStudent && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10002] p-3 animate-fadeIn">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 w-full max-w-lg shadow-2xl space-y-4 text-xs font-bold text-slate-900 dark:text-slate-100">
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300">
+                            <Edit3 size={16} />
+                          </div>
+                          <div>
+                            <div className="font-black text-sm text-slate-900 dark:text-white">
+                              Edit Application #{quickEditStudent.formNo || quickEditStudent.id}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-bold">
+                              {quickEditStudent.studentName || quickEditStudent["Student's Name (as per school records)"]} • Parentage: {quickEditStudent.fatherName || quickEditStudent["Father's/Guardian's Name (as per school records)"] || '—'}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setQuickEditStudent(null)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                            Admission Class:
+                          </label>
+                          <select
+                            value={quickEditStudent.editClass}
+                            onChange={(e) => setQuickEditStudent({ ...quickEditStudent, editClass: e.target.value })}
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+                          >
+                            <option value="9th">9th</option>
+                            <option value="10th">10th</option>
+                            <option value="11th">11th</option>
+                            <option value="12th">12th</option>
+                            <option value="6th">6th</option>
+                            <option value="7th">7th</option>
+                            <option value="8th">8th</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                            Academic Session:
+                          </label>
+                          <input
+                            type="text"
+                            value={quickEditStudent.editSession}
+                            onChange={(e) => setQuickEditStudent({ ...quickEditStudent, editSession: e.target.value })}
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                            Stream:
+                          </label>
+                          <select
+                            value={quickEditStudent.editStream}
+                            onChange={(e) => setQuickEditStudent({ ...quickEditStudent, editStream: e.target.value })}
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+                          >
+                            <option value="General">General</option>
+                            <option value="Science">Science</option>
+                            <option value="Arts">Arts</option>
+                            <option value="Commerce">Commerce</option>
+                            <option value="Home Science">Home Science</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                            Status:
+                          </label>
+                          <select
+                            value={quickEditStudent.editStatus}
+                            onChange={(e) => setQuickEditStudent({ ...quickEditStudent, editStatus: e.target.value })}
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+                          >
+                            <option value="Approved">Approved</option>
+                            <option value="Submitted">Submitted (SUBM)</option>
+                            <option value="Draft">Draft</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                            Class Roll No:
+                          </label>
+                          <input
+                            type="text"
+                            value={quickEditStudent.editRollNo}
+                            onChange={(e) => setQuickEditStudent({ ...quickEditStudent, editRollNo: e.target.value })}
+                            placeholder="e.g. 101"
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                            Admission Date:
+                          </label>
+                          <input
+                            type="date"
+                            value={quickEditStudent.editAdmDate}
+                            onChange={(e) => setQuickEditStudent({ ...quickEditStudent, editAdmDate: e.target.value })}
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setQuickEditStudent(null)}
+                          disabled={quickEditSaving}
+                          className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={quickEditSaving}
+                          onClick={() => handleSaveIndividualStudent(quickEditStudent, {
+                            class: quickEditStudent.editClass,
+                            'Class': quickEditStudent.editClass,
+                            'Admission sought for class': quickEditStudent.editClass,
+                            session: quickEditStudent.editSession,
+                            'Session': quickEditStudent.editSession,
+                            'Academic Session': quickEditStudent.editSession,
+                            stream: quickEditStudent.editStream,
+                            'Stream': quickEditStudent.editStream,
+                            status: quickEditStudent.editStatus,
+                            'Status': quickEditStudent.editStatus,
+                            classRollNo: quickEditStudent.editRollNo,
+                            'Class Roll No': quickEditStudent.editRollNo,
+                            admDate: quickEditStudent.editAdmDate,
+                            'Adm. Date': quickEditStudent.editAdmDate
+                          })}
+                          className="px-5 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                        >
+                          {quickEditSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                          <span>Save & Sync Record</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -7506,22 +8451,73 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
             {/* Tool Content 6: Photo Sync & Manager */}
             {activeToolsTab === 'photo_manager' && (
               <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="font-black text-sm text-slate-900 dark:text-white flex items-center justify-between">
+                <div className="font-black text-sm text-slate-900 dark:text-white flex items-center justify-between flex-wrap gap-2">
                   <span className="flex items-center gap-2">
                     <Camera size={18} className="text-amber-600" />
-                    Student Photo Synchronization & Optimizer Manager
+                    Student Photo Synchronization & Database Manager
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleDownloadMissingPhotosReport}
-                    className="px-3 py-1.5 rounded-xl font-black text-xs text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Download size={13} />
-                    <span>Missing Photos List (.txt)</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadMissingPhotosReport}
+                      className="px-3 py-1.5 rounded-xl font-black text-xs text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Download size={13} />
+                      <span>Missing Photos List (.txt)</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* 1. Database Reconciliation & Deduplication Card */}
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black">
+                        <Database size={16} />
+                      </div>
+                      <div>
+                        <div className="font-black text-xs text-slate-900 dark:text-white">
+                          Pure Firebase Photo Database Reconciliation & Deduplication
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-bold">
+                          Matches all {allStudents.length} loaded records against processed <code className="text-purple-600 dark:text-purple-400 font-bold">studentPhotos</code>, sets official passport photos as active, and purges deprecated Google Drive URLs.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={reconcilingPhotos || allStudents.length === 0}
+                      onClick={handleRunPhotoReconciliation}
+                      className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      {reconcilingPhotos ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      <span>{reconcilingPhotos ? 'Reconciling Database...' : 'Run Photo Reconciliation (1-Click Heal)'}</span>
+                    </button>
+                  </div>
+
+                  {/* Real-time Reconciliation Progress HUD */}
+                  {reconcileProgress.active && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 animate-fadeIn">
+                      <div className="flex justify-between items-center text-xs font-black text-amber-900 dark:text-amber-200">
+                        <span>⏳ Reconciling Record {reconcileProgress.current} of {reconcileProgress.total} ({reconcileProgress.percent}%)</span>
+                        {reconcileProgress.stats && (
+                          <span className="text-[11px]">
+                            ✅ Matched: {reconcileProgress.stats.matchedCount} • Updated: {reconcileProgress.stats.updatedCount}
+                          </span>
+                        )}
+                      </div>
+                      <div className="w-full h-2.5 bg-amber-950/20 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 transition-all duration-150 rounded-full"
+                          style={{ width: `${reconcileProgress.percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed">
-                  Bulk upload optimized/raw photo files (naming format: <code className="bg-slate-200 dark:bg-slate-800 px-1 rounded text-purple-700 dark:text-purple-300">Class_Session_RegNo_Name.jpg</code>). The system automatically matches student records, compresses images in-browser to ~5–10 KB JPEGs, and updates School Database.
+                  Bulk upload processed passport photos (naming format: <code className="bg-slate-200 dark:bg-slate-800 px-1 rounded text-purple-700 dark:text-purple-300">Class_Session_RegNo_Name.jpg</code>). The system automatically compresses images in-browser to ~5–10 KB JPEGs and syncs them directly to Cloud Firestore.
                 </p>
 
                 {/* File Picker */}
@@ -7579,12 +8575,12 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                       {batchSyncingPhotos ? (
                         <>
                           <RefreshCw size={14} className="animate-spin" />
-                          <span>Compressing & Syncing to School Database...</span>
+                          <span>Compressing & Syncing to Cloud Firestore...</span>
                         </>
                       ) : (
                         <>
                           <Camera size={14} />
-                          <span>Compress & Sync {photoMatchResults.filter(m => m.matchedStudent).length} Photos to School Database</span>
+                          <span>Compress & Sync {photoMatchResults.filter(m => m.matchedStudent).length} Photos to Cloud Firestore</span>
                         </>
                       )}
                     </button>

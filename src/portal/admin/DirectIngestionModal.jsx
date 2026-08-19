@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Save, PlusCircle, CheckCircle2, ShieldCheck, User, BookOpen, Phone, Landmark, Image as ImageIcon, RefreshCw, Download, FileSpreadsheet, History, Info, Upload, Trash2, Edit3, Eye, RotateCcw, CheckSquare, Square, Camera, FolderUp, Layers, AlertTriangle, Sparkles, ListChecks, Bot, Wand2, FileText, UploadCloud, Copy, Check, Cpu } from 'lucide-react';
+import { X, Save, PlusCircle, CheckCircle2, ShieldCheck, User, BookOpen, Phone, Landmark, Image as ImageIcon, RefreshCw, Download, FileSpreadsheet, History, Info, Upload, Trash2, Edit3, Eye, EyeOff, RotateCcw, CheckSquare, Square, Camera, FolderUp, Layers, AlertTriangle, Sparkles, ListChecks, Bot, Wand2, FileText, UploadCloud, Copy, Check, Cpu, Key, ExternalLink, ChevronDown, ChevronUp, Table, Columns, Maximize2, Minimize2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
 import { doc, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
@@ -7,10 +7,18 @@ import { updateCachedItem, getCachedCollectionSync } from '../../services/dbCach
 import { compressImageFile } from '../../utils/imageCompressor';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import { logAdminActivity } from '../../services/adminActivityLogger';
-import { deleteStudentDocument } from './AdvancedReports';
+import { deleteStudentDocument, isPlaceholderRegNo, areNamesCompatible } from './AdvancedReports';
 import { saveCsvImportBatch, getCsvImportBatches, undoCsvImportBatch } from '../../services/csvBatchManager';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
-import { fetchCloudGeminiKeys, getPreferredGeminiModel } from '../../services/geminiLetterService';
+import { toTitleCase } from '../../utils/textFormatting';
+import { 
+  fetchCloudGeminiKeys, 
+  saveCloudGeminiKeys, 
+  getStoredGeminiKeys, 
+  getPreferredGeminiModel, 
+  savePreferredGeminiModel, 
+  AVAILABLE_GEMINI_MODELS 
+} from '../../services/geminiLetterService';
 
 const JUNIOR_CLASS_SUBJECTS = [
   'English',
@@ -110,9 +118,22 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
   const [parsedWorkflowRows, setParsedWorkflowRows] = useState([]);
   const [showWorkflowPreviewModal, setShowWorkflowPreviewModal] = useState(false);
   const [ingestingWorkflow, setIngestingWorkflow] = useState(false);
+  const [ingestionProgress, setIngestionProgress] = useState({
+    active: false,
+    current: 0,
+    total: 0,
+    percent: 0,
+    currentStudent: '',
+    currentFormNo: '',
+    stage: '',
+    statusMap: {} // { [formNo]: 'uploading' | 'success' | 'error' }
+  });
   const [overwriteWarningNotice, setOverwriteWarningNotice] = useState(null);
   const [previewSearchQuery, setPreviewSearchQuery] = useState('');
   const [sourceTypeLabel, setSourceTypeLabel] = useState('Spreadsheet File');
+  const [workflowTableViewMode, setWorkflowTableViewMode] = useState('full'); // 'compact' | 'full'
+  const [extractingSpreadsheet, setExtractingSpreadsheet] = useState(false);
+  const [extractingStatusMsg, setExtractingStatusMsg] = useState('');
 
   // AI Extraction State
   const [aiInputMode, setAiInputMode] = useState('pdf'); // 'pdf' | 'text'
@@ -124,6 +145,48 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
   const [aiExtracting, setAiExtracting] = useState(false);
   const [aiStatusMessage, setAiStatusMessage] = useState('');
   const aiAbortControllerRef = useRef(null);
+
+  // Gemini API Keys & Model Configuration State
+  const [showKeysConfig, setShowKeysConfig] = useState(false);
+  const [geminiKeys, setGeminiKeys] = useState(() => getStoredGeminiKeys());
+  const [keysInputText, setKeysInputText] = useState('');
+  const [preferredModel, setPreferredModel] = useState(() => getPreferredGeminiModel() || 'gemini-3.7-flash');
+  const [showKeysPreview, setShowKeysPreview] = useState(false);
+  const [keySaveToast, setKeySaveToast] = useState('');
+
+  // Sync Gemini API keys from Cloud Firestore on mount
+  useEffect(() => {
+    fetchCloudGeminiKeys().then(keys => {
+      if (keys && keys.length > 0) {
+        setGeminiKeys(keys);
+        setKeysInputText(keys.join('\n'));
+      }
+    }).catch(err => console.warn('Could not sync cloud Gemini keys:', err));
+  }, []);
+
+  const handleSaveGeminiKeys = async () => {
+    const rawList = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+    const cleaned = Array.from(new Set(rawList));
+    setGeminiKeys(cleaned);
+    await saveCloudGeminiKeys(cleaned);
+    savePreferredGeminiModel(preferredModel);
+    setKeySaveToast(`✓ Saved ${cleaned.length} API keys & updated model!`);
+    setTimeout(() => setKeySaveToast(''), 3500);
+  };
+
+  // Custom Alert & Error Popup Dialog State (replaces native browser alert)
+  const [alertNoticeConfig, setAlertNoticeConfig] = useState(null);
+
+  const showNotice = (title, message, suggestion = null, actionText = null, onAction = null, type = 'danger') => {
+    setAlertNoticeConfig({
+      title,
+      message,
+      suggestion,
+      actionText,
+      onAction,
+      type
+    });
+  };
 
   // State for Post-Import Bulk Photo Sync by Group / Batch
   const [selectedBatchForPhotos, setSelectedBatchForPhotos] = useState('');
@@ -288,22 +351,30 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
 
   const handleUndoBatch = async (batch) => {
     if (!batch || !batch.batchId) return;
-    if (!window.confirm(`🔥 Are you sure you want to UNDO & PURGE all ${batch.totalCount} records imported from file "${batch.fileName}"?\n\nThis will permanently delete all ${batch.totalCount} student documents from database registers.`)) {
-      return;
-    }
-
-    try {
-      setUndoingBatchId(batch.batchId);
-      await undoCsvImportBatch(batch.batchId);
-      setSuccessToast(`🗑️ Undid CSV Import Batch "${batch.fileName}" (${batch.totalCount} Records Purged).`);
-      setTimeout(() => setSuccessToast(null), 3500);
-      await fetchCsvBatches();
-    } catch (err) {
-      console.error('Undo batch error:', err);
-      alert(`Failed to undo batch: ${err.message}`);
-    } finally {
-      setUndoingBatchId(null);
-    }
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'danger',
+      title: 'Undo & Purge Import Batch',
+      message: `Are you sure you want to UNDO & PURGE all ${batch.totalCount} records imported from file "${batch.fileName}"?`,
+      consequence: `This will permanently delete all ${batch.totalCount} student documents from database registers.`,
+      confirmText: '🗑️ Confirm & Purge Records',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        try {
+          setUndoingBatchId(batch.batchId);
+          await undoCsvImportBatch(batch.batchId);
+          setSuccessToast(`🗑️ Undid CSV Import Batch "${batch.fileName}" (${batch.totalCount} Records Purged).`);
+          setTimeout(() => setSuccessToast(null), 3500);
+          await fetchCsvBatches();
+        } catch (err) {
+          console.error('Undo batch error:', err);
+          showNotice('Batch Undo Failed', err.message || 'Could not undo batch.');
+        } finally {
+          setUndoingBatchId(null);
+        }
+      }
+    });
   };
 
   const [historyList, setHistoryList] = useState(() => {
@@ -528,18 +599,22 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
     if (!file) return;
     setCsvFile(file);
     setSourceTypeLabel(`Spreadsheet: ${file.name}`);
+    setExtractingSpreadsheet(true);
+    setExtractingStatusMsg(`Reading ${file.name}...`);
 
     try {
       const isExcel = /\.(xlsx|xls)$/i.test(file.name);
       let rawRows = [];
 
       if (isExcel) {
+        setExtractingStatusMsg('Parsing Excel workbook sheets...');
         const buffer = await file.arrayBuffer();
         const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
         const firstSheetName = wb.SheetNames[0];
         const ws = wb.Sheets[firstSheetName];
         rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
       } else {
+        setExtractingStatusMsg('Parsing CSV formatted text...');
         const text = await file.text();
         const wb = XLSX.read(text, { type: 'string', raw: false });
         const firstSheetName = wb.SheetNames[0];
@@ -548,24 +623,28 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
       }
 
       if (!rawRows || rawRows.length === 0) {
-        alert('Spreadsheet is empty or could not read data rows.');
+        showNotice('Empty Spreadsheet', 'The selected spreadsheet is empty or could not read any valid data rows.');
+        setExtractingSpreadsheet(false);
         return;
       }
 
+      setExtractingStatusMsg(`Extracted ${rawRows.length} student rows! Correlating with database...`);
       await processRawStudentRowsIntoPreview(rawRows, `Spreadsheet (${file.name})`);
     } catch (err) {
       console.error('Error parsing spreadsheet:', err);
-      alert(`Error reading spreadsheet: ${err.message}`);
+      showNotice('Spreadsheet Read Error', err.message || 'Failed to read spreadsheet file.');
+    } finally {
+      setExtractingSpreadsheet(false);
+      setExtractingStatusMsg('');
     }
   };
 
   /**
    * Process raw extracted/parsed objects into workflow preview with tri-key duplicate checking
+   * and session-specific sequential form number allocation.
    */
   const processRawStudentRowsIntoPreview = async (rawRows, sourceDesc = '') => {
-    const startFNo = Number(await getNextAvailableFormNumber()) || 250571;
-
-    // Fetch all cached students across admissions & masterRegisters for duplicate resolution
+    // Fetch all cached students across admissions & masterRegisters for duplicate resolution & max form number computation
     const activeAdmissions = getCachedCollectionSync('admissions') || [];
     const masterList = getCachedCollectionSync('masterRegisters') || [];
     const allExistingStudents = [];
@@ -580,8 +659,38 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
       });
     });
 
+    // Detect target session from first row or current UI session
+    const firstRowSession = rawRows[0]?.session || rawRows[0]?.Session || aiSession || '2025-26';
+    const cleanSession = String(firstRowSession).replace(/\s*\(.*?\)\s*/g, '').trim();
+    
+    // Determine session numeric prefix: "2024-25" -> "24", "2025-26" -> "25", "2026-27" -> "26"
+    const startYearMatch = cleanSession.match(/^(\d{4})/);
+    const sessionPrefix = startYearMatch ? startYearMatch[1].slice(-2) : '25';
+
+    // Scan all existing students in this session to get the highest form number in this session
+    let maxFormInTargetSession = 0;
+    allExistingStudents.forEach(r => {
+      const recSes = String(r.session || r['Session'] || '').replace(/\s*\(.*?\)\s*/g, '').trim();
+      const rawF = String(r.formNo || r['Form Number'] || r['Form No.'] || r['Form No'] || '').replace(/[^0-9]/g, '');
+      if (!rawF) return;
+      const numF = parseInt(rawF, 10);
+      if (isNaN(numF)) return;
+
+      const isSameSession = recSes === cleanSession || recSes.startsWith(cleanSession);
+      const isSamePrefix = rawF.startsWith(sessionPrefix) && rawF.length >= 5;
+
+      if (isSameSession || isSamePrefix) {
+        if (numF > maxFormInTargetSession) {
+          maxFormInTargetSession = numF;
+        }
+      }
+    });
+
+    let formNoCounter = maxFormInTargetSession > 0
+      ? maxFormInTargetSession + 1
+      : parseInt(`${sessionPrefix}0001`, 10);
+
     const parsedRows = [];
-    let formNoCounter = startFNo;
 
     for (let i = 0; i < rawRows.length; i++) {
       const raw = rawRows[i];
@@ -592,42 +701,99 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
         rowObj[cleanK] = typeof raw[k] === 'string' ? raw[k].trim() : String(raw[k] || '');
       });
 
-      const explicitFormNo = rowObj['formnumber'] || rowObj['formno'] || rowObj['formnumberoptional'] || rowObj['fno'];
+      const explicitFormNo = rowObj['formnumber'] || rowObj['formno'] || rowObj['formnumberoptional'] || rowObj['fno'] || raw.formNo || raw['Form Number'];
       let formNo = explicitFormNo;
-      if (!formNo) {
+      if (!formNo || !String(formNo).trim()) {
         formNo = String(formNoCounter);
         formNoCounter++;
       }
 
-      const studentName = rowObj['studentname'] || rowObj['name'] || rowObj['candidatename'] || raw.studentName || raw.name || `Student ${i + 1}`;
-      const boardRegNo = rowObj['boardregistrationnumber'] || rowObj['boardregno'] || rowObj['regno'] || rowObj['registrationnumber'] || raw.boardRegNo || raw.regNo || '';
-      const rowClass = rowObj['class'] || raw.class || '11th';
-      const rowSession = rowObj['session'] || raw.session || '2025-26';
-      const fatherAadhar = rowObj['fatheraadharno'] || rowObj['fathersaadharno'] || rowObj['fatheraadhar'] || rowObj['fathersaadhar'] || rowObj['father_aadhar'] || '';
+      const studentName = toTitleCase(rowObj['studentname'] || rowObj['name'] || rowObj['candidatename'] || raw.studentName || raw.name || `Student ${i + 1}`);
+      const fatherName = toTitleCase(rowObj['fathername'] || raw.fatherName || '');
+      const motherName = toTitleCase(rowObj['mothername'] || raw.motherName || '');
+      const village = toTitleCase(rowObj['village'] || rowObj['nameofyourvillage'] || raw.village || '');
+      const tehsil = toTitleCase(rowObj['tehsil'] || raw.tehsil || '');
+      const district = toTitleCase(rowObj['district'] || raw.district || 'Anantnag');
 
-      // Tri-Key Duplicate Check: Registration Number (or Form Number) + Class + Session
-      const cleanReg = String(boardRegNo).replace(/[^a-z0-9]/g, '').toLowerCase();
-      const cleanFNo = String(formNo).trim().toLowerCase();
-      const cleanCls = String(rowClass).trim().toLowerCase();
-      const cleanSes = String(rowSession).trim().toLowerCase();
+      const boardRegNo = rowObj['boardregistrationnumber'] || rowObj['boardregno'] || rowObj['regno'] || rowObj['registrationnumber'] || raw.boardRegNo || raw.regNo || '';
+      const rowClass = rowObj['class'] || raw.class || aiClass || '11th';
+      const isJuniorClass = ['6th', '7th', '8th', '9th', '10th', '6', '7', '8', '9', '10'].includes(String(rowClass).toLowerCase().trim());
+      
+      const rowStream = isJuniorClass 
+        ? 'General' 
+        : (rowObj['stream'] || raw.stream || (['Science', 'Arts', 'Commerce', 'Home Science'].includes(aiStream) ? aiStream : 'Science'));
+      
+      const defaultSubs = isJuniorClass
+        ? 'General English, Mathematics, Science, Social Science, Urdu'
+        : (rowStream === 'Arts' 
+          ? 'General English, History, Political Science, Education' 
+          : rowStream === 'Commerce' 
+          ? 'General English, Accountancy, Business Studies, Economics' 
+          : 'General English, Physics, Chemistry, Biology');
+
+      const subs = rowObj['subjects'] || rowObj['subs'] || raw.subs || defaultSubs;
+      const rowSession = rowObj['session'] || raw.session || firstRowSession;
+      const fatherAadhar = rowObj['fatheraadharno'] || rowObj['fathersaadharno'] || rowObj['fatheraadhar'] || rowObj['fathersaadhar'] || rowObj['father_aadhar'] || '';
+      const aadhar = rowObj['aadharno'] || rowObj['studentaadhar'] || rowObj['studentaadharno'] || rowObj['aadhar'] || raw.aadhar || '';
+      const mobile = rowObj['mobileno'] || rowObj['mobile'] || rowObj['contactno'] || raw.mobile || '';
+      const dob = rowObj['dob'] || rowObj['dateofbirth'] || raw.dob || '';
+      const gender = rowObj['gender'] || raw.gender || 'Male';
+      const category = rowObj['category'] || raw.category || 'General';
+      const classRollNo = rowObj['classrollno'] || rowObj['rollno'] || raw.classRollNo || raw.rollNo || '';
+      const admNo = rowObj['admno'] || rowObj['admissionno'] || raw.admNo || '';
+
+      // 1. Check if Board Registration Number is valid (16-digit or 11-12 digit alphanumeric)
+      // and NOT a placeholder string ('na', 'nil', '0', 'not receive yet', 'home exam', etc.)
+      const rawRegStr = String(boardRegNo || '').trim();
+      const hasValidReg = rawRegStr && !isPlaceholderRegNo(rawRegStr);
+      const cleanReg = hasValidReg ? rawRegStr.replace(/[^a-z0-9]/g, '').toLowerCase() : '';
+
+      const cleanFNo = String(formNo || '').trim().toLowerCase();
+      const cleanCls = String(rowClass || '').trim().toLowerCase();
+      const cleanSes = String(rowSession || '').trim().toLowerCase();
+      const cleanGen = String(gender || '').trim().toLowerCase();
+      const cleanName = String(studentName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
       let existingMatch = null;
       for (const ex of allExistingStudents) {
-        const exReg = String(ex.boardRegNo || ex['Board Registration Number'] || ex['Board Reg. No.'] || ex['Board Reg No'] || '').replace(/[^a-z0-9]/g, '').toLowerCase();
-        const exFNo = String(ex.formNo || ex['Form Number'] || ex['Form No.'] || ex['Form No'] || '').trim().toLowerCase();
+        const exRawReg = String(
+          ex.boardRegNo ||
+          ex['Board Registration Number'] ||
+          ex['Board Reg. No.'] ||
+          ex['Board Reg No'] ||
+          ex['Registration No.'] ||
+          ex.regNo ||
+          ''
+        ).trim();
+        const exHasValidReg = exRawReg && !isPlaceholderRegNo(exRawReg);
+        const exReg = exHasValidReg ? exRawReg.replace(/[^a-z0-9]/g, '').toLowerCase() : '';
+
+        const exFNo = String(ex.formNo || ex['Form Number'] || ex['Form No.'] || ex['Form No'] || ex.id || '').trim().toLowerCase();
         const exCls = String(ex.class || ex['Class'] || ex['Admission sought for class'] || '').trim().toLowerCase();
-        const exSes = String(ex.session || ex['Session'] || '').trim().toLowerCase();
+        const exSes = String(ex.session || ex['Session'] || ex['Academic Session'] || '').trim().toLowerCase();
+        const exGen = String(ex.gender || ex['Gender'] || '').trim().toLowerCase();
+        const exName = String(ex.studentName || ex["Student's Name (as per school records)"] || ex.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
         const isClassMatch = !cleanCls || !exCls || cleanCls === exCls;
         const isSessionMatch = !cleanSes || !exSes || cleanSes === exSes;
 
+        // Primary Match: Valid 16-digit or 11-12 digit Board Registration Number + Class + Session
         if (cleanReg && exReg && cleanReg === exReg && isClassMatch && isSessionMatch) {
           existingMatch = ex;
           break;
         }
-        if (!cleanReg && cleanFNo && exFNo && cleanFNo === exFNo && isClassMatch && isSessionMatch) {
-          existingMatch = ex;
-          break;
+
+        // Fallback Match (when Board Reg No is not given / placeholder):
+        // Form Number along with Class, Session, Gender, and Name of Student (ALL MUST MATCH)
+        if (!cleanReg) {
+          const isFormMatch = cleanFNo && exFNo && (cleanFNo === exFNo || cleanFNo === exFNo.replace(/^adm_/, ''));
+          const isGenderMatch = !cleanGen || !exGen || cleanGen === exGen;
+          const isNameMatch = cleanName && exName && (cleanName === exName || areNamesCompatible(studentName, ex.studentName || ex["Student's Name (as per school records)"]));
+
+          if (isFormMatch && isClassMatch && isSessionMatch && isGenderMatch && isNameMatch) {
+            existingMatch = ex;
+            break;
+          }
         }
       }
 
@@ -635,28 +801,29 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
 
       parsedRows.push({
         sno: i + 1,
-        selected: !isDuplicate, // Unchecked by default if already in database
+        selected: true, // Selected by default so all rows in the spreadsheet are ingested
         isDuplicate: isDuplicate,
         matchedRecord: existingMatch,
         formNo: formNo,
-        classRollNo: rowObj['classrollno'] || rowObj['rollno'] || raw.classRollNo || raw.rollNo || '',
-        admNo: rowObj['admno'] || rowObj['admissionno'] || raw.admNo || '',
+        classRollNo: classRollNo,
+        admNo: admNo,
         boardRegNo: boardRegNo,
         studentName: studentName,
-        fatherName: rowObj['fathername'] || raw.fatherName || '',
-        motherName: rowObj['mothername'] || raw.motherName || '',
-        dob: rowObj['dob'] || rowObj['dateofbirth'] || raw.dob || '',
-        gender: rowObj['gender'] || raw.gender || 'Male',
+        fatherName: fatherName,
+        motherName: motherName,
+        dob: dob,
+        gender: gender,
         class: rowClass,
-        stream: rowObj['stream'] || raw.stream || 'Science',
-        subs: rowObj['subjects'] || rowObj['subs'] || raw.subs || 'English, Physics, Chemistry, Biology',
+        stream: rowStream,
+        subs: subs,
         session: rowSession,
-        mobile: rowObj['mobileno'] || rowObj['mobile'] || raw.mobile || '',
-        category: rowObj['category'] || raw.category || 'General',
-        village: rowObj['village'] || raw.village || '',
-        district: rowObj['district'] || raw.district || 'Anantnag',
-        pinCode: rowObj['pincode'] || raw.pinCode || '',
-        aadhar: rowObj['aadharno'] || rowObj['aadhar'] || raw.aadhar || '',
+        mobile: mobile,
+        category: category,
+        village: village,
+        tehsil: tehsil,
+        district: district,
+        pinCode: rowObj['pincode'] || raw.pinCode || '192201',
+        aadhar: aadhar,
         fatherAadhar: fatherAadhar,
         bankAccount: rowObj['bankaccountno'] || rowObj['bankaccount'] || raw.bankAccount || '',
         bankName: rowObj['nameofbank'] || rowObj['bankname'] || raw.bankName || '',
@@ -670,7 +837,14 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
 
     const correlated = await correlatePhotos(parsedRows, bulkPhotoFiles);
     setParsedWorkflowRows(correlated);
-    setOverwriteWarningNotice(null);
+    
+    const dupCount = correlated.filter(r => r.isDuplicate).length;
+    if (dupCount > 0) {
+      setOverwriteWarningNotice(`ℹ️ ${dupCount} of ${correlated.length} students already exist in the database and are selected to overwrite/update. Use "Select New Only" if you want to skip existing students.`);
+    } else {
+      setOverwriteWarningNotice(null);
+    }
+
     setShowWorkflowPreviewModal(true);
     if (sourceDesc) setSourceTypeLabel(sourceDesc);
   };
@@ -691,11 +865,11 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
 
   const handleRunAiExtraction = async () => {
     if (aiInputMode === 'pdf' && !aiDocFile) {
-      alert('Please select a PDF document or scanned image first.');
+      showNotice('Missing Document File', 'Please select a PDF document or scanned image file before starting AI extraction.');
       return;
     }
     if (aiInputMode === 'text' && !aiRawText.trim()) {
-      alert('Please paste some text containing student information.');
+      showNotice('Missing Input Text', 'Please paste student information or copied table before starting AI extraction.');
       return;
     }
 
@@ -705,15 +879,23 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
     setAiStatusMessage('Connecting to Google Gemini AI API...');
 
     try {
-      const keys = await fetchCloudGeminiKeys();
-      if (!keys || keys.length === 0) {
-        throw new Error('No Gemini API key found. Please configure Gemini API Keys in Official Documents Studio or Cloud Firestore system settings.');
+      const activeKeys = geminiKeys.length > 0 ? geminiKeys : await fetchCloudGeminiKeys();
+      if (!activeKeys || activeKeys.length === 0) {
+        setShowKeysConfig(true);
+        throw new Error('No Gemini API key found. Please paste your Gemini API key in the configuration panel above.');
       }
 
       if (controller.signal.aborted) return;
 
       const preferredModel = getPreferredGeminiModel() || 'gemini-3.7-flash';
-      setAiStatusMessage(`Extracting student records using ${preferredModel} (${keys.length} cloud key${keys.length > 1 ? 's' : ''} pooled)...`);
+      const modelList = [
+        preferredModel,
+        'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-3.7-flash',
+        'gemini-3.6-flash',
+        'gemini-2.5-pro'
+      ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
       const prompt = `You are a high-accuracy Institutional Student Data Extraction AI for Govt. Higher Secondary School Shangus.
 Analyze the provided document (PDF/Image) or text and extract all student admission / registration / enrollment records into a structured JSON array.
@@ -774,49 +956,59 @@ CRITICAL INSTRUCTIONS:
 
       let lastError = null;
       let jsonText = '';
+      let successfulModel = '';
 
-      // Key rotation pool with abort signal
-      for (let i = 0; i < keys.length; i++) {
-        if (controller.signal.aborted) return;
-        const apiKey = keys[i];
-        try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${preferredModel}:generateContent?key=${apiKey}`;
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: controller.signal,
-            body: JSON.stringify({
-              contents: [{ parts: contentsParts }],
-              generationConfig: {
-                temperature: 0.1,
-                topP: 0.95,
-                maxOutputTokens: 8192
-              }
-            })
-          });
+      // Multi-model rotation with automatic high-demand failover
+      for (const currentModel of modelList) {
+        if (jsonText || controller.signal.aborted) break;
 
-          if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error?.message || `HTTP ${response.status}`);
+        for (let i = 0; i < activeKeys.length; i++) {
+          if (controller.signal.aborted) return;
+          const apiKey = activeKeys[i];
+          setAiStatusMessage(`Extracting student records using ${currentModel} (Key #${i + 1} of ${activeKeys.length})...`);
+
+          try {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify({
+                contents: [{ parts: contentsParts }],
+                generationConfig: {
+                  temperature: 0.1,
+                  topP: 0.95,
+                  maxOutputTokens: 8192
+                }
+              })
+            });
+
+            if (!response.ok) {
+              const errData = await response.json().catch(() => ({}));
+              throw new Error(errData.error?.message || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (jsonText) {
+              successfulModel = currentModel;
+              break;
+            }
+          } catch (err) {
+            if (err.name === 'AbortError' || controller.signal.aborted) {
+              console.log('AI Extraction aborted by user.');
+              return;
+            }
+            lastError = err;
+            console.warn(`Gemini (${currentModel}) Key #${i + 1} note:`, err.message);
           }
-
-          const data = await response.json();
-          jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (jsonText) break;
-        } catch (err) {
-          if (err.name === 'AbortError' || controller.signal.aborted) {
-            console.log('AI Extraction aborted by user.');
-            return;
-          }
-          lastError = err;
-          console.warn(`Gemini Key #${i + 1} failed:`, err.message);
         }
       }
 
       if (controller.signal.aborted) return;
 
       if (!jsonText) {
-        throw new Error(`AI analysis failed: ${lastError?.message || 'Empty response from Gemini'}`);
+        throw new Error(`AI analysis failed across key pool: ${lastError?.message || 'Empty response from Gemini'}`);
       }
 
       const cleanJson = jsonText
@@ -842,7 +1034,21 @@ CRITICAL INSTRUCTIONS:
         return;
       }
       console.error('AI Extraction Error:', err);
-      alert(`AI Extraction Error: ${err.message}`);
+      const msg = err.message || 'The AI service could not complete the extraction request.';
+      const isOverloaded = msg.includes('high demand') || msg.includes('503');
+      const isQuota = msg.includes('quota') || msg.includes('429');
+
+      showNotice(
+        '🤖 Gemini AI Extraction Notice',
+        msg,
+        isOverloaded
+          ? 'Google Gemini servers are temporarily experiencing high demand. Try switching to "Gemini 2.5 Flash" or "Gemini 1.5 Flash" in the API Keys panel, or retry in a few moments.'
+          : isQuota
+          ? 'API Key quota exceeded. Please add more Gemini API keys in the key pool to distribute the load.'
+          : 'You can check your API keys or switch to a different Gemini model in the configuration panel.',
+        '🔑 Configure Keys & Model',
+        () => setShowKeysConfig(true)
+      );
     } finally {
       setAiExtracting(false);
       setAiStatusMessage('');
@@ -859,7 +1065,7 @@ CRITICAL INSTRUCTIONS:
 
     const imageFiles = files.filter(f => f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f.name));
     if (imageFiles.length === 0) {
-      alert('No valid image files found in the selected folder.');
+      showNotice('No Valid Photos Found', 'No valid image files (JPG, PNG, WebP) were found in the selected folder.');
       return;
     }
 
@@ -874,135 +1080,181 @@ CRITICAL INSTRUCTIONS:
       await processBatchPhotoCorrelations(selectedBatchForPhotos, imageFiles);
     } else {
       // Disallow standalone photo upload without CSV or Batch selection
-      alert('⚠️ Standalone photo folder upload is not allowed without a target CSV or selecting student applications to match against.\n\nPlease upload a CSV file first, or select a CSV Batch/Group below to correlate your photos.');
+      showNotice(
+        'Photo Correlation Scope Required',
+        'Standalone photo folder upload is not allowed without a target CSV or selecting student applications to match against.',
+        'Please upload a CSV file first, or select a CSV Batch/Group below to correlate your photos.'
+      );
     }
   };
 
   /**
-   * Execute Workflow Ingestion to Cloud Firestore Admissions ONLY
+   * Execute Workflow Ingestion to Cloud Firestore Admissions ONLY with Real-Time Progress HUD
    */
   const handleConfirmWorkflowIngestion = async () => {
     const selectedRows = parsedWorkflowRows.filter(r => r.selected);
     if (selectedRows.length === 0) {
-      alert('Please select at least 1 student row to ingest.');
+      showNotice('No Students Selected', 'Please select at least 1 student row to proceed with ingestion.');
       return;
     }
 
     setIngestingWorkflow(true);
     setSuccessToast(null);
+    setIngestionProgress({
+      active: true,
+      current: 0,
+      total: selectedRows.length,
+      percent: 0,
+      currentStudent: selectedRows[0]?.studentName || '',
+      currentFormNo: selectedRows[0]?.formNo || '',
+      stage: 'Connecting to Cloud Firestore admissions collection...',
+      statusMap: {}
+    });
 
     try {
       let count = 0;
       const importedPayloads = [];
+      const failedRows = [];
 
-      for (const r of selectedRows) {
-        const docId = String(r.formNo).replace(/[\/\s]/g, '_').toLowerCase();
-        const timestamp = new Date().toISOString();
+      for (let i = 0; i < selectedRows.length; i++) {
+        const r = selectedRows[i];
+        const currentIdx = i + 1;
+        const currentPct = Math.round((currentIdx / selectedRows.length) * 100);
 
-        let photoDataUrl = '';
-        if (r.photoFile) {
-          try {
-            photoDataUrl = await compressImageFile(r.photoFile, 250, 300, 0.7);
-          } catch (e) {
-            console.warn('Photo compression note:', e);
+        setIngestionProgress(prev => ({
+          ...prev,
+          current: currentIdx,
+          percent: currentPct,
+          currentStudent: r.studentName || `Row #${r._actualIdx + 1}`,
+          currentFormNo: r.formNo || '',
+          stage: r.photoFile ? 'Compressing high-resolution photo & writing to Firestore...' : 'Writing student admission record to Cloud Firestore...',
+          statusMap: { ...prev.statusMap, [r.formNo]: 'uploading' }
+        }));
+
+        // Allow React DOM to repaint progress bar smoothly
+        await new Promise(res => setTimeout(res, 30));
+
+        try {
+          const docId = String(r.formNo).replace(/[\/\s]/g, '_').toLowerCase();
+          const timestamp = new Date().toISOString();
+
+          let photoDataUrl = '';
+          if (r.photoFile) {
+            try {
+              photoDataUrl = await compressImageFile(r.photoFile, 250, 300, 0.7);
+            } catch (e) {
+              console.warn('Photo compression failed for row:', r.formNo, e);
+            }
           }
+
+          const payload = {
+            id: docId,
+            _isCurrentScope: true,
+            _isDirectIngested: true,
+            formNo: r.formNo,
+            'Form Number': r.formNo,
+            status: r.status || 'Approved',
+            'Status': r.status || 'Approved',
+            classRollNo: r.classRollNo || '',
+            'Class Roll No': r.classRollNo || '',
+            admNo: r.admNo || '',
+            'Adm. No.': r.admNo || '',
+            class: r.class || '11th',
+            'Class': r.class || '11th',
+            session: r.session || '2025-26',
+            'Session': r.session || '2025-26',
+            boardRegNo: r.boardRegNo || '',
+            'Board Registration Number': r.boardRegNo || '',
+            studentName: r.studentName,
+            "Student's Name (as per school records)": r.studentName,
+            fatherName: r.fatherName || '',
+            "Father's/Guardian's Name (as per school records)": r.fatherName || '',
+            motherName: r.motherName || '',
+            "Mother's Name (as per school records)": r.motherName || '',
+            dob: r.dob || '',
+            'DoB (as per school records)': r.dob || '',
+            gender: r.gender || 'Male',
+            'Gender': r.gender || 'Male',
+            stream: r.stream || 'Science',
+            'Stream': r.stream || 'Science',
+            subs: r.subs || '',
+            'Subjects (Stream)': r.subs || '',
+            mobile: r.mobile || '',
+            'Mobile No. (with working WhatsApp)': r.mobile || '',
+            category: r.category || 'General',
+            'Cat._JKBOSE': r.category || 'General',
+            village: r.village || '',
+            'Name of your village': r.village || '',
+            tehsil: r.tehsil || '',
+            'Tehsil': r.tehsil || '',
+            district: r.district || 'Anantnag',
+            'District': r.district || 'Anantnag',
+            pinCode: r.pinCode || '192201',
+            'PIN code': r.pinCode || '192201',
+            aadhar: r.aadhar || '',
+            'Student Aadhaar Number': r.aadhar || '',
+            fatherAadhar: r.fatherAadhar || '',
+            'Father Aadhaar Number': r.fatherAadhar || '',
+            onlineSubmDate: timestamp.split('T')[0],
+            'Online Subm. Date': timestamp.split('T')[0],
+            admDate: timestamp.split('T')[0],
+            'Adm. Date': timestamp.split('T')[0],
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            lastEditedBy: `Admin (Direct Ingestion)`
+          };
+
+          if (photoDataUrl) {
+            payload.photo_id = photoDataUrl;
+          }
+
+          await setDoc(doc(db, 'admissions', docId), payload, { merge: true });
+          updateCachedItem('admissions', docId, payload);
+          if (onRecordAdded) onRecordAdded(payload);
+          importedPayloads.push(payload);
+          count++;
+
+          setIngestionProgress(prev => ({
+            ...prev,
+            statusMap: { ...prev.statusMap, [r.formNo]: 'success' }
+          }));
+        } catch (rowErr) {
+          console.error(`Row ingestion error for ${r.formNo} (${r.studentName}):`, rowErr);
+          failedRows.push({ formNo: r.formNo, studentName: r.studentName, error: rowErr?.message || 'Database write error' });
+          setIngestionProgress(prev => ({
+            ...prev,
+            statusMap: { ...prev.statusMap, [r.formNo]: 'error' }
+          }));
         }
-
-        const payload = {
-          id: docId,
-          _isCurrentScope: true,
-          _isDirectIngested: true,
-          formNo: String(r.formNo),
-          'Form Number': String(r.formNo),
-          'Form No.': String(r.formNo),
-          status: r.status || 'Approved',
-          'Status': r.status || 'Approved',
-          classRollNo: r.classRollNo || '',
-          'Class Roll No': r.classRollNo || '',
-          admNo: r.admNo || '',
-          'Adm. No.': r.admNo || '',
-          class: r.class || '11th',
-          'Class': r.class || '11th',
-          session: r.session || '2025-26',
-          'Session': r.session || '2025-26',
-          boardRegNo: r.boardRegNo || '',
-          'Board Registration Number': r.boardRegNo || '',
-          studentName: r.studentName,
-          "Student's Name (as per school records)": r.studentName,
-          fatherName: r.fatherName || '',
-          "Father's/Guardian's Name (as per school records)": r.fatherName || '',
-          motherName: r.motherName || '',
-          "Mother's Name (as per school records)": r.motherName || '',
-          dob: r.dob || '',
-          'DoB (as per school records)': r.dob || '',
-          gender: r.gender || 'Male',
-          'Gender': r.gender || 'Male',
-          stream: r.stream || 'Science',
-          'Stream': r.stream || 'Science',
-          subs: r.subs || '',
-          'Subjects (Stream)': r.subs || '',
-          mobile: r.mobile || '',
-          'Mobile No. (with working WhatsApp)': r.mobile || '',
-          category: r.category || 'General',
-          'Cat._JKBOSE': r.category || 'General',
-          village: r.village || '',
-          'Name of your village': r.village || '',
-          district: r.district || 'Anantnag',
-          'District': r.district || 'Anantnag',
-          pinCode: r.pinCode || '',
-          'PIN code': r.pinCode || '',
-          aadhar: r.aadhar || '',
-          'Aadhaar No.': r.aadhar || '',
-          'Aadhar No.': r.aadhar || '',
-          fatherAadhar: r.fatherAadhar || '',
-          'Father\'s Aadhar No.': r.fatherAadhar || '',
-          'Father\'s Aadhaar No.': r.fatherAadhar || '',
-          bankAccount: r.bankAccount || '',
-          'Bank Account No.': r.bankAccount || '',
-          bankName: r.bankName || '',
-          'Name of Bank': r.bankName || '',
-          ifsc: r.ifsc || '',
-          'IFSC code': r.ifsc || '',
-          photoUrl: photoDataUrl || '',
-          'Photo': photoDataUrl || '',
-          onlineSubmDate: timestamp.split('T')[0],
-          'Online Subm. Date': timestamp.split('T')[0],
-          admDate: timestamp.split('T')[0],
-          'Adm. Date': timestamp.split('T')[0],
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          lastEditedBy: 'Admin (CSV Workflow Ingestion)'
-        };
-
-        // 1. Commit STRICTLY to admissions collection ONLY (NOT masterRegisters)
-        await setDoc(doc(db, 'admissions', docId), payload, { merge: true });
-
-        // 2. Consume form number in counter service
-        await consumeFormNumber(r.formNo).catch(e => console.warn('consumeFormNumber note:', e));
-
-        // 3. Update local SWR dbCache
-        updateCachedItem('admissions', docId, payload);
-        if (onRecordAdded) onRecordAdded(payload);
-
-        importedPayloads.push(payload);
-        count++;
       }
+
+      setIngestionProgress(prev => ({
+        ...prev,
+        stage: 'Finalizing 30-day rollback batch and index sync...'
+      }));
 
       if (importedPayloads.length > 0) {
         await saveCsvImportBatch({
-          fileName: csvFile?.name || 'workflow_imported_students.csv',
+          fileName: `Workflow Import (${count} Records)`,
           importedRecords: importedPayloads,
-          reasonCategory: 'CSV Workflow Ingestion',
-          customReason: `Ingested ${count} student records with photo correlation.`
+          reasonCategory: 'Bulk Ingestion & AI Import',
+          customReason: `Ingested ${count} student records via CSV Workflow`
         });
+
+        // Advance form number tracker for highest form number
+        const numericFNums = selectedRows.map(r => parseInt(String(r.formNo).replace(/[^0-9]/g, ''), 10)).filter(n => !isNaN(n));
+        if (numericFNums.length > 0) {
+          const maxBatchNum = Math.max(...numericFNums);
+          await consumeFormNumber(maxBatchNum);
+        }
       }
 
       await logAdminActivity({
         actionType: 'bulk_import',
-        actionTitle: 'CSV Workflow Student Ingestion',
-        details: `Ingested ${count} student records (Photos matched: ${selectedRows.filter(r => r.photoFile).length}) from CSV "${csvFile?.name || 'Import'}"`,
-        reasonCategory: 'CSV Workflow Ingestion',
-        metadata: { count, filename: csvFile?.name }
+        actionTitle: `CSV Workflow Ingestion`,
+        details: `Directly ingested ${count} student records with ${selectedRows.filter(r => r.photoFile).length} photos attached${failedRows.length > 0 ? ` (${failedRows.length} failed)` : ''}`,
+        reasonCategory: 'Bulk Ingestion',
+        metadata: { count, photosCount: selectedRows.filter(r => r.photoFile).length, failedCount: failedRows.length }
       });
 
       setShowWorkflowPreviewModal(false);
@@ -1011,13 +1263,25 @@ CRITICAL INSTRUCTIONS:
       setBulkPhotoFiles([]);
       await fetchCsvBatches();
 
-      setSuccessToast(`🎉 Successfully Ingested ${count} Student Records to Admissions! (Photos attached: ${selectedRows.filter(r => r.photoFile).length})`);
-      setTimeout(() => setSuccessToast(null), 4000);
+      if (failedRows.length > 0) {
+        showNotice(
+          'Partial Ingestion Completed',
+          `Successfully ingested ${count} of ${selectedRows.length} students. ${failedRows.length} record(s) encountered issues: ${failedRows.slice(0, 3).map(f => `${f.studentName} (${f.formNo})`).join(', ')}${failedRows.length > 3 ? '...' : ''}`,
+          'Please verify the failed records and re-import them if needed.',
+          null,
+          null,
+          'warning'
+        );
+      } else {
+        setSuccessToast(`🎉 Successfully Ingested ${count} Student Records to Admissions! (Photos attached: ${selectedRows.filter(r => r.photoFile).length})`);
+        setTimeout(() => setSuccessToast(null), 4000);
+      }
     } catch (err) {
       console.error('Workflow ingestion error:', err);
-      alert(`❌ Failed to ingest CSV records: ${err.message}`);
+      showNotice('Workflow Ingestion Error', err.message || 'Failed to ingest records to admissions.');
     } finally {
       setIngestingWorkflow(false);
+      setIngestionProgress(prev => ({ ...prev, active: false }));
     }
   };
 
@@ -1049,7 +1313,7 @@ CRITICAL INSTRUCTIONS:
   const handleApplyBatchPhotosSync = async () => {
     const matched = batchPhotoMatches.filter(m => m.photoFile);
     if (matched.length === 0) {
-      alert('No matched photos found to sync.');
+      showNotice('No Matched Photos', 'No matched photos found to sync with the selected batch.');
       return;
     }
 
@@ -1062,14 +1326,10 @@ CRITICAL INSTRUCTIONS:
 
         const updatePayload = {
           photo_id: compressed,
-          photoUrl: deleteField(),
-          Photo: deleteField(),
-          'Student Photo': deleteField(),
           updatedAt: new Date().toISOString(),
           lastEditedBy: 'Admin (Post-Import Bulk Photo Sync)'
         };
 
-        // Update ONLY admissions collection
         await setDoc(doc(db, 'admissions', docId), updatePayload, { merge: true });
         updateCachedItem('admissions', docId, { photo_id: compressed, updatedAt: updatePayload.updatedAt });
         updatedCount++;
@@ -1088,7 +1348,7 @@ CRITICAL INSTRUCTIONS:
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err) {
       console.error('Photo sync error:', err);
-      alert(`❌ Photo sync failed: ${err.message}`);
+      showNotice('Photo Sync Error', err.message || 'Failed to sync photos.');
     } finally {
       setSyncingBatchPhotos(false);
     }
@@ -1106,7 +1366,8 @@ CRITICAL INSTRUCTIONS:
       consequence: 'Parsed student rows will be committed directly to database registers and table view.',
       confirmText: '📄 Confirm & Process CSV Import',
       cancelText: 'Cancel',
-      onConfirm: async ({ reasonCategory, customReason } = {}) => {
+      showReasonInput: true,
+      onConfirm: async ({ reasonCategory, customReason }) => {
         setConfirmModalConfig(null);
         setCsvImporting(true);
         setSuccessToast(null);
@@ -1116,11 +1377,10 @@ CRITICAL INSTRUCTIONS:
           const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
 
           if (lines.length < 2) {
-            alert('CSV file is empty or missing data rows.');
+            showNotice('Empty CSV File', 'The selected CSV file is empty or missing data rows.');
             return;
           }
 
-          // Simple CSV row parser handling quotes
           const parseCsvLine = (line) => {
             const result = [];
             let cur = '';
@@ -1209,7 +1469,6 @@ CRITICAL INSTRUCTIONS:
             };
 
             await setDoc(doc(db, 'admissions', docId), payload, { merge: true });
-            // masterRegisters is populated ONLY during session-close — not on import
 
             updateCachedItem('admissions', docId, payload);
             if (onRecordAdded) onRecordAdded(payload);
@@ -1238,7 +1497,7 @@ CRITICAL INSTRUCTIONS:
           setSuccessToast(`🎉 Bulk Imported ${importedCount} Student Records from CSV! Saved to 30-Day Batch Memory.`);
         } catch (err) {
           console.error('CSV import error:', err);
-          alert(`Error reading CSV: ${err.message}`);
+          showNotice('CSV Import Error', err.message || 'Error reading CSV file.');
         } finally {
           setCsvImporting(false);
         }
@@ -1246,7 +1505,6 @@ CRITICAL INSTRUCTIONS:
     });
   };
 
-  // Smart Existing Student Resolution Engine
   const findExistingStudentMatch = (formValues) => {
     const activeList = getCachedCollectionSync('admissions') || [];
     const masterList = getCachedCollectionSync('masterRegisters') || [];
@@ -1497,7 +1755,7 @@ CRITICAL INSTRUCTIONS:
       }
     } catch (err) {
       console.error('Direct Ingestion error:', err);
-      alert(`❌ Failed to process record: ${err.message}`);
+      showNotice('Record Processing Error', err.message || 'Failed to process student record.');
     } finally {
       setSaving(false);
     }
@@ -2380,8 +2638,25 @@ CRITICAL INSTRUCTIONS:
                 </div>
               </div>
 
+              {/* Extraction In-Progress Banner */}
+              {extractingSpreadsheet && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-emerald-500/15 to-teal-500/15 border border-emerald-500/40 flex items-center justify-between gap-3 shadow-sm animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <RefreshCw size={18} className="animate-spin text-emerald-600 dark:text-emerald-400" />
+                    <div>
+                      <div className="text-xs font-black text-slate-900 dark:text-white">
+                        Extracting & Parsing Spreadsheet Data...
+                      </div>
+                      <div className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold">
+                        {extractingStatusMsg || 'Processing rows...'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Workflow Status Banner */}
-              {parsedWorkflowRows.length > 0 && (
+              {parsedWorkflowRows.length > 0 && !extractingSpreadsheet && (
                 <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-emerald-500/30 flex items-center justify-between gap-2 shadow-2xs">
                   <div className="flex items-center gap-2">
                     <Sparkles size={15} className="text-emerald-600" />
@@ -2411,13 +2686,13 @@ CRITICAL INSTRUCTIONS:
           {/* TAB 7: 🤖 AI SMART EXTRACTION (PDF / SCANNED DOCUMENT / PASTED TEXT) */}
           {activeTab === 'ai' && (
             <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-black shadow-2xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-black shadow-2xs shrink-0">
                     <Bot size={16} />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white">
                         AI Student Roster Extraction
                       </h3>
@@ -2425,12 +2700,153 @@ CRITICAL INSTRUCTIONS:
                         Gemini Multimodal
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                       Extract structured student records directly from PDF documents, images, or raw pasted tables.
                     </p>
                   </div>
                 </div>
+
+                {/* API Keys Configuration Toggle Button */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowKeysConfig(!showKeysConfig)}
+                    className={`px-2.5 py-1 rounded-xl text-[10.5px] font-black border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                      showKeysConfig
+                        ? 'bg-amber-600 text-white border-amber-700'
+                        : geminiKeys.length === 0
+                        ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-400 animate-pulse'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                    title="View, add, and configure Gemini API keys and preferred AI model"
+                  >
+                    <Key size={12} className={showKeysConfig ? 'text-white' : 'text-amber-500'} />
+                    <span>{geminiKeys.length === 0 ? '🔑 Configure API Keys' : `🔑 ${geminiKeys.length} Keys Configured`}</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                      {preferredModel.replace('gemini-', '')}
+                    </span>
+                    {showKeysConfig ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                </div>
               </div>
+
+              {/* ════════ GEMINI API KEY POOL & MODEL SETTINGS PANEL ════════ */}
+              {showKeysConfig && (
+                <div className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 space-y-3 animate-fadeIn text-xs">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Key size={13} className="text-amber-600" />
+                      <span className="font-black text-amber-950 dark:text-amber-100 text-xs">
+                        Gemini API Key Pool ({geminiKeys.length} Active Key{geminiKeys.length !== 1 ? 's' : ''}):
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowKeysPreview(!showKeysPreview)}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-slate-700 dark:text-slate-300 hover:bg-amber-100/50 flex items-center gap-1 cursor-pointer"
+                        title="Toggle masked or visible API key preview"
+                      >
+                        {showKeysPreview ? <EyeOff size={11} /> : <Eye size={11} />}
+                        <span>{showKeysPreview ? 'Hide Keys' : 'Reveal Keys'}</span>
+                      </button>
+
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-amber-800 dark:text-amber-300 font-black hover:underline flex items-center gap-0.5 bg-amber-200/50 dark:bg-amber-900/50 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700"
+                      >
+                        <span>Get Free Key</span>
+                        <ExternalLink size={10} />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Active Keys List Preview */}
+                  {geminiKeys.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                        Active Keys in Pool:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800">
+                        {geminiKeys.map((k, idx) => {
+                          const displayKey = showKeysPreview
+                            ? k
+                            : k.length > 12
+                            ? `${k.slice(0, 7)}••••••••${k.slice(-4)}`
+                            : '••••••••';
+                          return (
+                            <div
+                              key={idx}
+                              className="px-2 py-1 rounded bg-amber-100/60 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 font-mono text-[10px] text-amber-950 dark:text-amber-200 flex items-center gap-1.5 shadow-2xs"
+                            >
+                              <span className="font-bold text-amber-600 dark:text-amber-400">#{idx + 1}</span>
+                              <span className="select-all">{displayKey}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Model Selector & Key Editor */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="sm:col-span-1 space-y-1">
+                      <label className="block text-[10px] font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                        Preferred AI Model:
+                      </label>
+                      <select
+                        value={preferredModel}
+                        onChange={(e) => {
+                          const m = e.target.value;
+                          setPreferredModel(m);
+                          savePreferredGeminiModel(m);
+                        }}
+                        className="w-full px-2 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-black text-[11px] text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+                      >
+                        {AVAILABLE_GEMINI_MODELS.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[9.5px] text-amber-800/80 dark:text-amber-400/80">
+                        Auto-fails over to backup models if experiencing high demand (503).
+                      </p>
+                    </div>
+
+                    <div className="sm:col-span-2 space-y-1">
+                      <label className="block text-[10px] font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                        Paste / Update Gemini API Keys (One per line or comma-separated):
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={keysInputText}
+                        onChange={(e) => setKeysInputText(e.target.value)}
+                        placeholder="Paste AIzaSy... keys here"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 shadow-2xs leading-relaxed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Save Button & Feedback */}
+                  <div className="flex items-center justify-between pt-1 border-t border-amber-200 dark:border-amber-800">
+                    <span className="text-[10px] font-bold text-amber-900 dark:text-amber-300">
+                      {keySaveToast || `${keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys in editor`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSaveGeminiKeys}
+                      className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs transition-colors flex items-center gap-1"
+                    >
+                      <Save size={12} />
+                      <span>Save & Sync Keys</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Sub-mode Segmented Switch */}
               <div className="inline-flex p-1 rounded-xl bg-slate-200/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold">
@@ -2869,6 +3285,78 @@ CRITICAL INSTRUCTIONS:
           />
         )}
 
+        {/* ════════ CUSTOM SYSTEM / AI ERROR & ALERT POPUP MODAL ════════ */}
+        {alertNoticeConfig && (
+          <div className="fixed inset-0 z-[100010] flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl overflow-hidden flex flex-col animate-scaleUp">
+              {/* Header */}
+              <div className="px-4 py-3 bg-gradient-to-r from-rose-500/20 via-pink-500/10 to-rose-500/20 flex items-center justify-between border-b border-rose-200 dark:border-rose-900/40">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black shadow-sm shrink-0">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white tracking-tight">
+                      {alertNoticeConfig.title || 'System Notification'}
+                    </h3>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                      Express Direct Ingestion
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAlertNoticeConfig(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-4 space-y-3">
+                <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-medium">
+                  {alertNoticeConfig.message}
+                </p>
+
+                {alertNoticeConfig.suggestion && (
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+                    <div className="font-black flex items-center gap-1">
+                      <Sparkles size={13} className="text-amber-600" />
+                      <span>Recommended Solution:</span>
+                    </div>
+                    <div className="leading-relaxed">{alertNoticeConfig.suggestion}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
+                {alertNoticeConfig.onAction && alertNoticeConfig.actionText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fn = alertNoticeConfig.onAction;
+                      setAlertNoticeConfig(null);
+                      fn();
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs cursor-pointer shadow-xs transition-colors flex items-center gap-1"
+                  >
+                    {alertNoticeConfig.actionText}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAlertNoticeConfig(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 text-white font-black text-xs cursor-pointer shadow-xs transition-colors"
+                >
+                  {alertNoticeConfig.closeText || 'Got it'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Spreadsheet Batch Preview Modal */}
         {selectedBatchPreview && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-sm animate-fadeIn">
@@ -2998,7 +3486,49 @@ CRITICAL INSTRUCTIONS:
                 </div>
               )}
 
-              {/* Action Toolbar with Search Filter */}
+              {/* Real-Time Live Ingestion Progress HUD */}
+              {ingestionProgress.active && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border-2 border-emerald-500 text-white shadow-2xl animate-fadeIn space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center animate-spin shadow-md shrink-0">
+                        <RefreshCw size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-black text-sm text-emerald-300 flex items-center gap-2">
+                          Real-Time Cloud Firestore Ingestion Active
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-200 border border-emerald-400/40">
+                            {ingestionProgress.current} of {ingestionProgress.total} Records
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-200 font-bold truncate max-w-xl flex items-center gap-1.5 mt-0.5">
+                          <span>Now Writing:</span>
+                          <span className="text-amber-300 font-mono font-extrabold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                            {ingestionProgress.currentStudent} (Form #{ingestionProgress.currentFormNo})
+                          </span>
+                          <span className="text-slate-400 text-[11px] hidden sm:inline">• {ingestionProgress.stage}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-2xl font-mono font-black text-emerald-400">{ingestionProgress.percent}%</div>
+                      <div className="text-[10px] text-emerald-300/80 font-bold">Cloud Syncing</div>
+                    </div>
+                  </div>
+
+                  {/* Animated Striped Progress Bar */}
+                  <div className="w-full h-3.5 bg-slate-950/80 rounded-full overflow-hidden p-0.5 border border-emerald-500/50 shadow-inner">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 rounded-full transition-all duration-300 relative shadow-md"
+                      style={{ width: `${ingestionProgress.percent}%` }}
+                    >
+                      <div className="absolute inset-0 bg-white/25 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Toolbar with Search Filter & View Mode Switcher */}
               <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold">
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -3035,6 +3565,34 @@ CRITICAL INSTRUCTIONS:
                   >
                     Select New Only ({parsedWorkflowRows.filter(r => !r.isDuplicate).length})
                   </button>
+
+                  {/* View Mode Toggle: Full vs Compact */}
+                  <div className="inline-flex p-0.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 shadow-2xs ml-1">
+                    <button
+                      type="button"
+                      onClick={() => setWorkflowTableViewMode('full')}
+                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all flex items-center gap-1 cursor-pointer ${
+                        workflowTableViewMode === 'full'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <Columns size={12} />
+                      <span>Full View (All Columns)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkflowTableViewMode('compact')}
+                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all flex items-center gap-1 cursor-pointer ${
+                        workflowTableViewMode === 'compact'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <Table size={12} />
+                      <span>Compact View</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -3043,7 +3601,7 @@ CRITICAL INSTRUCTIONS:
                     value={previewSearchQuery}
                     onChange={(e) => setPreviewSearchQuery(e.target.value)}
                     placeholder="Search candidate name, reg no, form no..."
-                    className="px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold w-48 sm:w-64 focus:ring-1 focus:ring-emerald-500"
+                    className="px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold w-48 sm:w-60 focus:ring-1 focus:ring-emerald-500"
                   />
                   <label className="px-3 py-1 rounded-xl text-[10.5px] font-black text-sky-900 dark:text-sky-200 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 cursor-pointer flex items-center gap-1">
                     <Camera size={12} />
@@ -3059,21 +3617,44 @@ CRITICAL INSTRUCTIONS:
                 </div>
               </div>
 
-              {/* Parsed Rows Editable Data Table */}
-              <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 max-h-[55vh]">
-                <table className="w-full text-left border-collapse text-xs">
+              {/* Parsed Rows Editable Data Table with Full vs Compact View */}
+              <div className="flex-1 overflow-x-auto overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 max-h-[56vh]">
+                <table className="w-full text-left border-collapse text-xs whitespace-nowrap min-w-full">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-black sticky top-0 border-b border-slate-200 dark:border-slate-800 z-10">
-                    <tr>
-                      <th className="p-2 w-10 text-center">Inc</th>
-                      <th className="p-2 w-12">S.No</th>
-                      <th className="p-2">Form No. / Reg No.</th>
-                      <th className="p-2">Student Name (Editable)</th>
-                      <th className="p-2">Father Name (Editable)</th>
-                      <th className="p-2">Class / Stream</th>
-                      <th className="p-2">Database Match Status</th>
-                      <th className="p-2">Photo</th>
-                      <th className="p-2 w-10 text-center">Action</th>
-                    </tr>
+                    {workflowTableViewMode === 'full' ? (
+                      <tr>
+                        <th className="p-2 w-10 text-center sticky left-0 bg-slate-100 dark:bg-slate-950 z-20">Inc</th>
+                        <th className="p-2 w-12 text-center">#</th>
+                        <th className="p-2 min-w-[140px]">Form No. / Reg No.</th>
+                        <th className="p-2 min-w-[110px]">Adm / Roll No</th>
+                        <th className="p-2 min-w-[180px]">Student's Name</th>
+                        <th className="p-2 min-w-[170px]">Father's Name</th>
+                        <th className="p-2 min-w-[160px]">Mother's Name</th>
+                        <th className="p-2 min-w-[150px]">DoB / Gender</th>
+                        <th className="p-2 min-w-[100px]">Category</th>
+                        <th className="p-2 min-w-[140px]">Class / Stream</th>
+                        <th className="p-2 min-w-[240px]">Subjects</th>
+                        <th className="p-2 min-w-[130px]">Session</th>
+                        <th className="p-2 min-w-[120px]">Mobile No.</th>
+                        <th className="p-2 min-w-[170px]">Village / Address</th>
+                        <th className="p-2 min-w-[160px]">Aadhaar (Student / Father)</th>
+                        <th className="p-2 min-w-[140px]">Match Status</th>
+                        <th className="p-2 min-w-[130px]">Photo</th>
+                        <th className="p-2 w-10 text-center sticky right-0 bg-slate-100 dark:bg-slate-950 z-20">Del</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th className="p-2 w-10 text-center">Inc</th>
+                        <th className="p-2 w-12 text-center">S.No</th>
+                        <th className="p-2">Form No. / Reg No.</th>
+                        <th className="p-2">Student Name (Editable)</th>
+                        <th className="p-2">Father Name (Editable)</th>
+                        <th className="p-2">Class / Stream</th>
+                        <th className="p-2">Database Match Status</th>
+                        <th className="p-2">Photo</th>
+                        <th className="p-2 w-10 text-center">Action</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-bold">
                     {parsedWorkflowRows
@@ -3084,21 +3665,26 @@ CRITICAL INSTRUCTIONS:
                         return (
                           String(r.studentName || '').toLowerCase().includes(q) ||
                           String(r.fatherName || '').toLowerCase().includes(q) ||
+                          String(r.motherName || '').toLowerCase().includes(q) ||
                           String(r.formNo || '').toLowerCase().includes(q) ||
                           String(r.boardRegNo || '').toLowerCase().includes(q) ||
-                          String(r.class || '').toLowerCase().includes(q)
+                          String(r.mobile || '').toLowerCase().includes(q) ||
+                          String(r.village || '').toLowerCase().includes(q) ||
+                          String(r.class || '').toLowerCase().includes(q) ||
+                          String(r.session || '').toLowerCase().includes(q)
                         );
                       })
                       .map((r) => (
                         <tr
-                          key={r._actualIdx}
+                          key={`workflow_row_${r._actualIdx}_${r.formNo}`}
                           className={`transition-colors ${
                             r.selected
                               ? r.isDuplicate ? 'bg-amber-500/10 dark:bg-amber-950/30 hover:bg-amber-500/15' : 'bg-emerald-500/5 dark:bg-emerald-950/20 hover:bg-emerald-500/10'
                               : 'bg-slate-50/50 opacity-60 hover:opacity-100'
                           }`}
                         >
-                          <td className="p-2 text-center">
+                          {/* Selection Checkbox */}
+                          <td className="p-2 text-center sticky left-0 bg-inherit z-10">
                             <button
                               type="button"
                               onClick={() => {
@@ -3113,9 +3699,38 @@ CRITICAL INSTRUCTIONS:
                               {r.selected ? <CheckSquare size={16} /> : <Square size={16} className="text-slate-400" />}
                             </button>
                           </td>
-                          <td className="p-2 font-mono text-slate-400">#{r.sno}</td>
+
+                          {/* S.No & Ingestion Realtime Status */}
+                          <td className="p-2 font-mono text-center">
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <span className="text-slate-400 text-xs font-bold">#{r.sno}</span>
+                              {ingestionProgress.statusMap[r.formNo] === 'uploading' && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black bg-amber-500 text-white animate-pulse flex items-center gap-0.5 shadow-xs">
+                                  <RefreshCw size={8} className="animate-spin" /> Ingesting
+                                </span>
+                              )}
+                              {ingestionProgress.statusMap[r.formNo] === 'success' && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black bg-emerald-600 text-white flex items-center gap-0.5 shadow-xs">
+                                  <CheckCircle2 size={8} /> Saved
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Form No & Reg No */}
                           <td className="p-2 font-mono">
-                            <div className="font-black text-indigo-600 dark:text-indigo-400">{r.formNo}</div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={r.formNo || ''}
+                                placeholder="Form No..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, formNo: val } : item));
+                                }}
+                                className="font-black text-indigo-600 dark:text-indigo-400 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 w-24 text-xs focus:bg-white"
+                              />
+                            </div>
                             <input
                               type="text"
                               value={r.boardRegNo || ''}
@@ -3124,9 +3739,39 @@ CRITICAL INSTRUCTIONS:
                                 const val = e.target.value;
                                 setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, boardRegNo: val } : item));
                               }}
-                              className="text-[10px] text-slate-700 dark:text-slate-300 font-mono px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent w-28 focus:bg-white"
+                              className="text-[10px] text-slate-700 dark:text-slate-300 font-mono px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent w-28 focus:bg-white mt-0.5"
                             />
                           </td>
+
+                          {/* Full Mode: Adm No & Class Roll No */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2 font-mono">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={r.admNo || ''}
+                                  placeholder="Adm No..."
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, admNo: val } : item));
+                                  }}
+                                  className="w-16 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white"
+                                />
+                                <input
+                                  type="text"
+                                  value={r.classRollNo || ''}
+                                  placeholder="Roll..."
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, classRollNo: val } : item));
+                                  }}
+                                  className="w-12 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white"
+                                />
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Student Name */}
                           <td className="p-2 font-black text-slate-900 dark:text-white">
                             <input
                               type="text"
@@ -3137,8 +3782,15 @@ CRITICAL INSTRUCTIONS:
                               }}
                               className="w-full px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent font-black text-xs text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
                             />
-                            {r.fatherAadhar && <div className="text-[10px] text-slate-400 font-mono font-normal">Father Aadhaar: {r.fatherAadhar}</div>}
+                            {workflowTableViewMode === 'compact' && r.fatherAadhar && (
+                              <div className="text-[10px] text-slate-400 font-mono font-normal">Father Aadhaar: {r.fatherAadhar}</div>
+                            )}
+                            {workflowTableViewMode === 'compact' && r.mobile && (
+                              <div className="text-[10px] text-slate-500 font-normal">📞 {r.mobile} • {r.category || 'General'}</div>
+                            )}
                           </td>
+
+                          {/* Father Name */}
                           <td className="p-2 text-slate-600 dark:text-slate-400">
                             <input
                               type="text"
@@ -3150,17 +3802,234 @@ CRITICAL INSTRUCTIONS:
                               className="w-full px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-xs text-slate-700 dark:text-slate-300 focus:bg-white dark:focus:bg-slate-800"
                             />
                           </td>
+
+                          {/* Full Mode: Mother Name */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2 text-slate-600 dark:text-slate-400">
+                              <input
+                                type="text"
+                                value={r.motherName || ''}
+                                placeholder="Mother's Name..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, motherName: val } : item));
+                                }}
+                                className="w-full px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-xs text-slate-700 dark:text-slate-300 focus:bg-white dark:focus:bg-slate-800"
+                              />
+                            </td>
+                          )}
+
+                          {/* Full Mode: DoB & Gender */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={r.dob || ''}
+                                  placeholder="YYYY-MM-DD"
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, dob: val } : item));
+                                  }}
+                                  className="w-24 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] font-mono focus:bg-white"
+                                />
+                                <select
+                                  value={r.gender || 'Male'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, gender: val } : item));
+                                  }}
+                                  className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white dark:bg-slate-900"
+                                >
+                                  <option value="Male">M</option>
+                                  <option value="Female">F</option>
+                                  <option value="Other">O</option>
+                                </select>
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Full Mode: Category */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2">
+                              <select
+                                value={r.category || 'General'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, category: val } : item));
+                                }}
+                                className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] font-bold focus:bg-white dark:bg-slate-900"
+                              >
+                                <option value="General">General</option>
+                                <option value="RBA">RBA</option>
+                                <option value="SC">SC</option>
+                                <option value="ST">ST</option>
+                                <option value="OBC">OBC</option>
+                                <option value="EWS">EWS</option>
+                                <option value="ALC/IB">ALC/IB</option>
+                                <option value="PSP">PSP</option>
+                              </select>
+                            </td>
+                          )}
+
+                          {/* Class / Stream */}
                           <td className="p-2">
-                            <div className="flex items-center gap-1">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                {r.class}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-500">
-                                {r.stream}
-                              </span>
-                            </div>
-                            <div className="text-[9.5px] text-slate-400 font-mono mt-0.5">{r.session}</div>
+                            {workflowTableViewMode === 'full' ? (
+                              <div className="flex items-center gap-1">
+                                <select
+                                  value={r.class || '11th'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const isJunior = ['6th', '7th', '8th', '9th', '10th', '6', '7', '8', '9', '10'].includes(String(val).toLowerCase().trim());
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => {
+                                      if (i !== r._actualIdx) return item;
+                                      return {
+                                        ...item,
+                                        class: val,
+                                        stream: isJunior ? 'General' : (item.stream === 'General' ? 'Science' : item.stream)
+                                      };
+                                    }));
+                                  }}
+                                  className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] font-bold focus:bg-white dark:bg-slate-900"
+                                >
+                                  <option value="9th">9th</option>
+                                  <option value="10th">10th</option>
+                                  <option value="11th">11th</option>
+                                  <option value="12th">12th</option>
+                                </select>
+                                <select
+                                  value={r.stream || 'General'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, stream: val } : item));
+                                  }}
+                                  className="px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] font-bold focus:bg-white dark:bg-slate-900"
+                                >
+                                  <option value="General">General</option>
+                                  <option value="Science">Science</option>
+                                  <option value="Arts">Arts</option>
+                                  <option value="Commerce">Commerce</option>
+                                  <option value="Home Science">Home Science</option>
+                                </select>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="flex items-center gap-1">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                    {r.class}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    {r.stream}
+                                  </span>
+                                </div>
+                                <div className="text-[9.5px] text-slate-400 font-mono mt-0.5">{r.session}</div>
+                              </div>
+                            )}
                           </td>
+
+                          {/* Full Mode: Subjects */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={r.subs || ''}
+                                placeholder="Subjects..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, subs: val } : item));
+                                }}
+                                className="w-full min-w-[220px] px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] text-slate-700 dark:text-slate-300 focus:bg-white dark:focus:bg-slate-800"
+                              />
+                            </td>
+                          )}
+
+                          {/* Full Mode: Session */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2 font-mono">
+                              <input
+                                type="text"
+                                value={r.session || ''}
+                                placeholder="Session..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, session: val } : item));
+                                }}
+                                className="w-28 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white font-mono"
+                              />
+                            </td>
+                          )}
+
+                          {/* Full Mode: Mobile */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2 font-mono">
+                              <input
+                                type="text"
+                                value={r.mobile || ''}
+                                placeholder="Mobile..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, mobile: val } : item));
+                                }}
+                                className="w-24 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white font-mono"
+                              />
+                            </td>
+                          )}
+
+                          {/* Full Mode: Village / District */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={r.village || ''}
+                                  placeholder="Village..."
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, village: val } : item));
+                                  }}
+                                  className="w-24 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white"
+                                />
+                                <input
+                                  type="text"
+                                  value={r.district || ''}
+                                  placeholder="District..."
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, district: val } : item));
+                                  }}
+                                  className="w-20 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10.5px] focus:bg-white"
+                                />
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Full Mode: Aadhaar (Student & Father) */}
+                          {workflowTableViewMode === 'full' && (
+                            <td className="p-2 font-mono">
+                              <input
+                                type="text"
+                                value={r.aadhar || ''}
+                                placeholder="Student Aadhaar..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, aadhar: val } : item));
+                                }}
+                                className="w-28 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[10px] focus:bg-white font-mono block"
+                              />
+                              <input
+                                type="text"
+                                value={r.fatherAadhar || ''}
+                                placeholder="Father Aadhaar..."
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setParsedWorkflowRows(prev => prev.map((item, i) => i === r._actualIdx ? { ...item, fatherAadhar: val } : item));
+                                }}
+                                className="w-28 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent text-[9.5px] text-slate-400 focus:bg-white font-mono block mt-0.5"
+                              />
+                            </td>
+                          )}
+
+                          {/* Database Match Status */}
                           <td className="p-2">
                             {r.isDuplicate ? (
                               <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 inline-flex items-center gap-1">
@@ -3172,13 +4041,15 @@ CRITICAL INSTRUCTIONS:
                               </span>
                             )}
                           </td>
+
+                          {/* Photo */}
                           <td className="p-2">
                             {r.photoFile ? (
                               <div className="flex items-center gap-1.5">
                                 {r.photoPreviewUrl && (
                                   <img src={r.photoPreviewUrl} alt="Thumb" className="w-6 h-7 rounded object-cover border border-slate-300 shrink-0" />
                                 )}
-                                <span className="px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 truncate max-w-[130px]">
+                                <span className="px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 truncate max-w-[120px]">
                                   📷 {r.photoMatchLabel}
                                 </span>
                               </div>
@@ -3186,13 +4057,15 @@ CRITICAL INSTRUCTIONS:
                               <span className="text-[10px] text-slate-400 font-normal">No photo</span>
                             )}
                           </td>
-                          <td className="p-2 text-center">
+
+                          {/* Action (Delete row) */}
+                          <td className="p-2 text-center sticky right-0 bg-inherit z-10">
                             <button
                               type="button"
                               onClick={() => {
                                 setParsedWorkflowRows(prev => prev.filter((_, i) => i !== r._actualIdx));
                               }}
-                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded cursor-pointer transition-colors"
                               title="Remove row from preview"
                             >
                               <Trash2 size={13} />
@@ -3224,10 +4097,19 @@ CRITICAL INSTRUCTIONS:
                     type="button"
                     disabled={ingestingWorkflow || parsedWorkflowRows.filter(r => r.selected).length === 0}
                     onClick={handleConfirmWorkflowIngestion}
-                    className="px-5 py-2 rounded-xl text-xs font-black text-white bg-emerald-700 hover:bg-emerald-600 shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-emerald-700 hover:bg-emerald-600 shadow-md cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-85"
                   >
-                    {ingestingWorkflow ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    <span>Confirm & Ingest {parsedWorkflowRows.filter(r => r.selected).length} Records to Admissions</span>
+                    {ingestingWorkflow ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin text-white shrink-0" />
+                        <span>Ingesting {ingestionProgress.current} / {ingestionProgress.total} ({ingestionProgress.percent}%) — {ingestionProgress.currentStudent || 'Processing'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} />
+                        <span>Confirm & Ingest {parsedWorkflowRows.filter(r => r.selected).length} Records to Admissions</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

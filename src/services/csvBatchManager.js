@@ -9,6 +9,7 @@ const MAX_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days
 
 /**
  * Get all stored CSV import batches (filtered for 30-day TTL)
+ * Combines localStorage cache with Cloud Firestore backup for 100% persistence
  */
 export async function getCsvImportBatches() {
   let localBatches = [];
@@ -19,17 +20,57 @@ export async function getCsvImportBatches() {
     }
   } catch (e) {}
 
+  // Also query Cloud Firestore if local storage has empty or few batches
+  try {
+    const snap = await getDocs(collection(db, 'csvImportBatches'));
+    const cloudBatches = [];
+    snap.forEach(d => {
+      const data = d.data();
+      if (data && data.batchId) {
+        cloudBatches.push({
+          ...data,
+          importedRecords: data.importedRecords || data.summaryRecords || []
+        });
+      }
+    });
+
+    if (cloudBatches.length > 0) {
+      const batchMap = new Map();
+      [...localBatches, ...cloudBatches].forEach(b => {
+        if (b && b.batchId) {
+          batchMap.set(b.batchId, {
+            ...batchMap.get(b.batchId),
+            ...b,
+            importedRecords: (b.importedRecords && b.importedRecords.length > 0) ? b.importedRecords : (batchMap.get(b.batchId)?.importedRecords || [])
+          });
+        }
+      });
+      localBatches = Array.from(batchMap.values());
+    }
+  } catch (e) {
+    // Ignore Firestore offline read errors
+  }
+
   // Filter out batches older than 30 days
   const now = Date.now();
-  const validBatches = (localBatches || []).filter(b => {
-    if (!b || !b.timestamp) return false;
-    const age = now - new Date(b.timestamp).getTime();
-    return age <= MAX_TTL_MS;
-  });
+  const validBatches = (localBatches || [])
+    .filter(b => {
+      if (!b || !b.timestamp) return false;
+      const age = now - new Date(b.timestamp).getTime();
+      return age <= MAX_TTL_MS;
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // Save cleaned list back to local storage
+  // Save cleaned lightweight list back to local storage
   try {
-    localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(validBatches));
+    const liteToStore = validBatches.map(b => ({
+      ...b,
+      importedRecords: (b.importedRecords || []).map(r => {
+        const { photo_id, 'Student Photo': sp, photoUrl, photo, ...rest } = r;
+        return rest;
+      })
+    }));
+    localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(liteToStore.slice(0, 50)));
   } catch (e) {}
 
   return validBatches;
@@ -42,23 +83,37 @@ export async function saveCsvImportBatch(batchData) {
   const nowStr = new Date().toISOString();
   const expiresAt = new Date(Date.now() + MAX_TTL_MS).toISOString();
 
+  // Sanitize records to strip heavy base64 strings so storage quota is never breached
+  const sanitizedRecords = (batchData.importedRecords || []).map(r => {
+    if (!r || typeof r !== 'object') return r;
+    const clean = {};
+    Object.keys(r).forEach(k => {
+      const v = r[k];
+      if (typeof v === 'string' && (v.startsWith('data:') || v.length > 500)) return;
+      clean[k] = v;
+    });
+    return clean;
+  });
+
   const newBatch = {
     batchId: `csv_batch_${Date.now()}`,
     fileName: batchData.fileName || 'imported_students.csv',
     timestamp: nowStr,
     expiresAt,
     totalCount: batchData.importedRecords?.length || 0,
-    importedRecords: batchData.importedRecords || [], // Full preview array
+    importedRecords: sanitizedRecords, // Cleaned preview array without massive images
     reasonCategory: batchData.reasonCategory || 'CSV Batch Import',
     customReason: batchData.customReason || ''
   };
 
   const existing = await getCsvImportBatches();
-  const updated = [newBatch, ...existing].slice(0, 50); // Keep last 50 batches within 30 days
+  const updated = [newBatch, ...existing.filter(b => b.batchId !== newBatch.batchId)].slice(0, 50);
 
   try {
     localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(updated));
-  } catch (e) {}
+  } catch (e) {
+    console.warn('localStorage batch save warning:', e);
+  }
 
   // Also backup batch metadata to Firestore csvImportBatches collection
   try {
@@ -68,15 +123,11 @@ export async function saveCsvImportBatch(batchData) {
       timestamp: nowStr,
       expiresAt,
       totalCount: newBatch.totalCount,
-      summaryRecords: (newBatch.importedRecords || []).map(r => ({
-        id: r.id || r.docId,
-        formNo: r.formNo || r['Form No.'],
-        studentName: r.studentName || r["Student's Name (as per school records)"],
-        class: r.class || r['Class'],
-        classRollNo: r.classRollNo || r['Class Roll No'] || ''
-      }))
+      summaryRecords: sanitizedRecords.slice(0, 500)
     }, { merge: true });
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Cloud Firestore batch save warning:', e);
+  }
 
   return newBatch;
 }
