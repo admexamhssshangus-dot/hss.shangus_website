@@ -115,13 +115,17 @@ export default function DeleteApplicationModal({
         return;
       }
 
-      for (const rec of recordsToDelete) {
-        const sourceColl = rec._sourceCollection || (rec._isCurrentScope ? 'admissions' : 'masterRegisters');
-        await moveToRecycleBin(rec, sourceColl, userEmail);
-      }
+      // Run deletion with non-blocking timeout safety
+      await Promise.race([
+        Promise.all(recordsToDelete.map(rec => {
+          const sourceColl = rec._sourceCollection || (rec._isCurrentScope ? 'admissions' : 'masterRegisters');
+          return moveToRecycleBin(rec, sourceColl, userEmail);
+        })),
+        new Promise(resolve => setTimeout(resolve, 3500))
+      ]);
 
       setArchiveStep('Logging activity...');
-      await logAdminActivity({
+      logAdminActivity({
         actionType: 'delete',
         actionTitle: 'Application Archived to Recycle Bin',
         details: `Moved ${recordsToDelete.length} student record(s) for "${studentName}" (Form #${formNo}) to 90-day Recycle Bin.`,
@@ -139,7 +143,7 @@ export default function DeleteApplicationModal({
         setArchiveStep('');
         setDeleting(false);
         onClose();
-      }, 800);
+      }, 400);
     } catch (err) {
       console.error('Delete execution error:', err);
       setArchiveStep('');

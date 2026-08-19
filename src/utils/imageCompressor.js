@@ -110,12 +110,13 @@ export const parsePhotoFilename = (filename) => {
 };
 
 /**
- * Formats and normalizes a photo string (base64, Google Drive, Firebase Storage, HTTP)
+ * Formats and normalizes a photo string (base64, Firebase Storage, HTTP)
+ * Pure Firebase Architecture: Google Drive links are deprecated and filtered out.
  */
 export const formatPhotoDisplayUrl = (val) => {
   if (!val || typeof val !== 'string') return '';
   const str = val.trim();
-  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
+  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') return '';
 
   // 1. Native Firestore / Data URL Base64 image
   if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
@@ -126,17 +127,12 @@ export const formatPhotoDisplayUrl = (val) => {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Convert to direct thumbnail URL
-  if (str.includes('drive.google.com') || str.includes('docs.google.com')) {
-    const fileIdMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-                        str.match(/id=([a-zA-Z0-9_-]+)/) ||
-                        str.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (fileIdMatch && fileIdMatch[1]) {
-      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w300`;
-    }
+  // 2. Disallow / Deprecate Google Drive links completely per user directive
+  if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
+    return '';
   }
 
-  // 3. Firebase Storage, local paths, or standard web image URLs
+  // 3. Firebase Storage, local paths, or standard web image URLs (excluding drive)
   if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
   }
@@ -146,6 +142,7 @@ export const formatPhotoDisplayUrl = (val) => {
 
 /**
  * Resolves student photo URL across all historical & standardized key aliases and localStorage cache.
+ * Pure Firebase single source of truth: Prioritizes processed admin passport photos in studentPhotos.
  */
 export const getStudentPhotoUrl = (st, fallback = '') => {
   if (!st) return fallback;
@@ -155,10 +152,11 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     return formatPhotoDisplayUrl(st) || fallback;
   }
 
-  // Helper to check if a value is a genuine photo (not placeholder like '—' or 'N/A')
+  // Helper to check if a value is a genuine photo (not placeholder or deprecated Google Drive link)
   const isValidPhotoStr = (v) => {
     if (!v || typeof v !== 'string') return false;
     const t = v.trim();
+    if (t.includes('drive.google.com') || t.includes('docs.google.com') || t.includes('googleusercontent.com')) return false;
     return t.length > 20 && t !== '—' && t !== 'N/A' && t !== 'null' && t !== 'undefined' && t !== '/logo.png';
   };
 
@@ -203,21 +201,32 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     '';
 
   const cleanedBoardReg = cleanReg(rawBoardReg);
+  const fNo = String(st['Form Number'] || st['Form No.'] || st['FormNo'] || st.formNo || st.form_no || st['Application ID'] || st.appId || '').replace(/^'/, '').trim();
+  const rawId = String(st.docId || st._docId || st.id || '').trim();
 
-  // 1. PRIMARY PRIORITY: Central photo map keyed by Board Registration Number
-  if (typeof window !== 'undefined' && cleanedBoardReg) {
+  // 1. PRIMARY PRIORITY: Central photo map keyed by Board Registration Number, Form No, or DocId
+  if (typeof window !== 'undefined') {
     try {
       const memoryMap = window._hss_central_photo_map || {};
       const cache1 = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
       const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
+      const mergedMap = { ...cache2, ...cache1, ...memoryMap };
+
       const regCandidates = [
         cleanedBoardReg,
-        `photo_${cleanedBoardReg}`,
-        `reg_${cleanedBoardReg}`,
-        cleanedBoardReg.toLowerCase()
-      ];
+        cleanedBoardReg ? `photo_${cleanedBoardReg}` : null,
+        cleanedBoardReg ? `reg_${cleanedBoardReg}` : null,
+        cleanedBoardReg ? cleanedBoardReg.toLowerCase() : null,
+        fNo ? `photo_form_${fNo}` : null,
+        fNo ? `form_${fNo}` : null,
+        fNo ? `photo_${fNo}` : null,
+        fNo,
+        rawId ? `photo_${rawId}` : null,
+        rawId
+      ].filter(Boolean);
+
       for (const rKey of regCandidates) {
-        const p = memoryMap[rKey] || cache1[rKey] || cache2[rKey];
+        const p = mergedMap[rKey];
         if (isValidPhotoStr(p)) {
           const formatted = formatPhotoDisplayUrl(p);
           if (formatted) return formatted;
@@ -226,12 +235,12 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     } catch (_) {}
   }
 
-  // 2. SECONDARY PRIORITY: Direct photo fields on current student record
+  // 2. SECONDARY PRIORITY: Direct photo fields on current student record (Base64 only)
   const photoCandidates = [
-    st.photoId,
-    st['photoId'],
     st.photo_id,
     st['photo_id'],
+    st.photoId,
+    st['photoId'],
     st['Student Photo'],
     st['Student Photograph'],
     st['Student Photo URL'],
@@ -257,63 +266,24 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     }
   }
 
-  // 3. TERTIARY PRIORITY: Unique identifier keys in cache (Form No, DocId, Application ID)
-  if (typeof window !== 'undefined') {
-    try {
-      const memoryMap = window._hss_central_photo_map || {};
-      const cache1 = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
-      const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
-      const cache = { ...cache2, ...cache1, ...memoryMap };
-
-      const fNo = String(st['Form Number'] || st['Form No.'] || st['FormNo'] || st.formNo || st.form_no || st['Application ID'] || st.appId || '').replace(/^'/, '').trim();
-      const rawId = String(st.docId || st._docId || st.id || '').trim();
-
-      const uniqueCandidateIds = [
-        fNo,
-        fNo ? `form_${fNo}` : '',
-        fNo ? `photo_${fNo}` : '',
-        fNo ? `adm_${fNo}` : '',
-        fNo ? `active_${fNo}` : '',
-        fNo ? `hist_${fNo}` : '',
-        rawId,
-        rawId ? `photo_${rawId}` : '',
-        rawId.replace(/^active_/, ''),
-        rawId.replace(/^hist_/, ''),
-        rawId.replace(/^adm_/, '')
-      ].filter(Boolean);
-
-      for (const uId of uniqueCandidateIds) {
-        const cleanId = String(uId).trim();
-        const cached = 
-          cache[cleanId] || 
-          cache[cleanId.toLowerCase()] || 
-          cache[`photo_${cleanId}`] ||
-          cache[`reg_${cleanId}`] ||
-          cache[cleanId.replace(/[^0-9]/g, '')] || 
-          cache[`photo_${cleanId.replace(/[^0-9]/g, '')}`];
-
-        if (isValidPhotoStr(cached)) {
-          const cachedFormatted = formatPhotoDisplayUrl(cached);
-          if (cachedFormatted) return cachedFormatted;
-        }
-      }
-    } catch (_) {}
-  }
-
   return fallback;
 };
 
 /**
  * Ensures student record payload stores Base64 string ONLY under 'photo_id'
- * to avoid duplicate Base64 document bloat in Firestore.
+ * to avoid duplicate Base64 document bloat and remove deprecated Drive links.
  */
 export const cleanStudentPhotoPayload = (payload) => {
   if (!payload) return payload;
   const photo = getStudentPhotoUrl(payload);
-  if (!photo) return payload;
+  const cleaned = { ...payload };
+  if (photo && !photo.includes('drive.google.com') && photo.length > 20) {
+    cleaned.photo_id = photo;
+  }
 
-  const cleaned = { ...payload, photo_id: photo };
-  ['photoId', 'Student Photo', 'Student Photograph', 'Student Photo URL', 'photoUrl', 'photo', 'Photo', 'studentPhoto', 'studentPhotoUrl'].forEach(key => delete cleaned[key]);
+  ['photoId', 'Student Photo', 'Student Photograph', 'Student Photo URL', 'photoUrl', 'photo', 'Photo', 'studentPhoto', 'studentPhotoUrl', 'passport_photo'].forEach(key => {
+    if (key !== 'photo_id') delete cleaned[key];
+  });
 
   return cleaned;
 };

@@ -64,14 +64,9 @@ export function formatPhotoDisplayUrl(val) {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Convert to direct thumbnail URL
-  if (str.includes('drive.google.com') || str.includes('docs.google.com')) {
-    const fileIdMatch = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-                        str.match(/id=([a-zA-Z0-9_-]+)/) ||
-                        str.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (fileIdMatch && fileIdMatch[1]) {
-      return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w300`;
-    }
+  // 2. Google Drive Links -> Deprecated and ignored completely per pure Firebase directive
+  if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
+    return '';
   }
 
   // 3. Firebase Storage or standard web image URLs

@@ -1972,7 +1972,7 @@ function SubmissionsLogView({ submissions, setSelSub, handleDeleteSubmission }) 
             {filtered.map((s, idx) => {
               const recCount = Array.isArray(s.records) ? s.records.length : Object.keys(s).filter(k => k.match(/^\d+\//)).length;
               return (
-                <tr key={s.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                <tr key={`pract_row_${s.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                   <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
                   <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
                     {s.className || s.Class || 'Class'} • {s.subjectName || s.Subject || NAMES[s.subjectCode] || s.subjectCode || 'Subject'}

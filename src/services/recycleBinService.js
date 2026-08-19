@@ -98,7 +98,13 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
       updateCachedItem('masterRegisters', cid, null);
     }
 
-    // 3. Update multi-tier local caches & global window cache
+    // 3. Clean from masterRegisters chunk arrays if record originated from or resides in historical registers
+    await cleanStudentFromMasterRegistersChunks({ ...recordData, formNo, studentName, boardRegNo, id: rawId }).catch(() => {});
+
+    // 4. Clean any orphaned drafts or duplicate active docs for this student from admissions
+    await cleanStudentDraftsFromAdmissions({ ...recordData, formNo, studentName, boardRegNo, id: rawId }).catch(() => {});
+
+    // 5. Update multi-tier local caches & global window cache
     idCandidates.forEach(cid => {
       updateCachedItem('admissions', cid, null);
       updateCachedItem('masterRegisters', cid, null);
@@ -107,7 +113,8 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
     if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
       window._hssMasterRegistersCache = window._hssMasterRegistersCache.filter(s => {
         const sf = String(s['Form Number'] || s['Form No.'] || s.formNo || s.id || '').trim();
-        return sf !== formNo && s.id !== rawId && s.id !== sanitizedId;
+        const sn = String(s.studentName || s["Student's Name"] || '').trim().toLowerCase();
+        return sf !== formNo && s.id !== rawId && s.id !== sanitizedId && (sn !== studentName.toLowerCase() || (formNo && formNo !== '—'));
       });
     }
 
@@ -117,7 +124,7 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
     try { sessionStorage.removeItem('hss_reports_cache_v5'); } catch(e) {}
     try { sessionStorage.removeItem('cached_admin_dashboard'); } catch(e) {}
 
-    // 4. Recycle form number if present
+    // 6. Recycle form number if present
     if (formNo && formNo !== '—') {
       await recycleDeletedFormNumber(formNo, recordData, adminEmail).catch(() => {});
     }
@@ -126,6 +133,95 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
   } catch (err) {
     console.error('moveToRecycleBin error:', err);
     throw err;
+  }
+}
+
+/**
+ * Remove matching student entries from inside masterRegisters chunk documents (items: []).
+ */
+async function cleanStudentFromMasterRegistersChunks(studentTarget) {
+  if (!studentTarget) return;
+  const targetName = String(studentTarget.studentName || studentTarget["Student's Name (as per school records)"] || studentTarget["Student's Name"] || '').trim().toLowerCase();
+  const targetForm = String(studentTarget.formNo || studentTarget['Form Number'] || studentTarget['Form No.'] || studentTarget.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+  const targetReg = String(studentTarget.boardRegNo || studentTarget['Board Registration Number'] || studentTarget.regNo || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+  const targetId = String(studentTarget.id || studentTarget.docId || '').trim().toLowerCase();
+
+  try {
+    const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);
+    if (!masterSnap || masterSnap.empty) return;
+
+    for (const d of masterSnap.docs) {
+      const data = d.data();
+      if (Array.isArray(data.items) && data.items.length > 0) {
+        let modified = false;
+        const remainingItems = data.items.filter(item => {
+          if (!item) return false;
+          const iName = String(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || '').trim().toLowerCase();
+          const iForm = String(item.formNo || item['Form Number'] || item['Form No.'] || item.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+          const iReg = String(item.boardRegNo || item['Board Registration Number'] || item.regNo || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+          const iId = String(item.id || item.docId || '').trim().toLowerCase();
+
+          const matchForm = targetForm && targetForm !== '—' && iForm && iForm === targetForm;
+          const matchReg = targetReg && targetReg !== '—' && iReg && iReg === targetReg;
+          const matchId = targetId && iId && iId === targetId;
+          const matchName = targetName && targetName.length > 2 && iName && (iName === targetName || (targetForm && iForm === targetForm));
+
+          if (matchForm || matchReg || matchId || matchName) {
+            modified = true;
+            return false;
+          }
+          return true;
+        });
+
+        if (modified) {
+          await setDoc(doc(db, 'masterRegisters', d.id), { ...data, items: remainingItems }, { merge: true }).catch(() => {});
+        }
+      } else {
+        const dName = String(data.studentName || data["Student's Name"] || '').trim().toLowerCase();
+        const dForm = String(data.formNo || data['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+        if ((targetForm && dForm === targetForm) || (targetName && dName === targetName)) {
+          await deleteDoc(doc(db, 'masterRegisters', d.id)).catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('cleanStudentFromMasterRegistersChunks warning:', err);
+  }
+}
+
+/**
+ * Remove orphaned drafts or residual applications for the target student from admissions.
+ */
+async function cleanStudentDraftsFromAdmissions(studentTarget) {
+  if (!studentTarget) return;
+  const targetName = String(studentTarget.studentName || studentTarget["Student's Name (as per school records)"] || studentTarget["Student's Name"] || '').trim().toLowerCase();
+  const targetForm = String(studentTarget.formNo || studentTarget['Form Number'] || studentTarget['Form No.'] || studentTarget.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+  const targetEmail = String(studentTarget.email || studentTarget['Email Address'] || studentTarget.emailNormalized || '').trim().toLowerCase();
+  const targetUid = String(studentTarget.ownerUid || studentTarget.uid || '').trim();
+
+  try {
+    const snap = await getDocs(collection(db, 'admissions')).catch(() => null);
+    if (!snap || snap.empty) return;
+
+    for (const d of snap.docs) {
+      const data = d.data();
+      const dName = String(data.studentName || data["Student's Name"] || '').trim().toLowerCase();
+      const dForm = String(data.formNo || data['Form Number'] || d.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
+      const dEmail = String(data.email || data['Email Address'] || data.emailNormalized || '').trim().toLowerCase();
+      const dUid = String(data.ownerUid || data.uid || '').trim();
+
+      const matchId = (targetForm && targetForm !== '—' && dForm === targetForm) || d.id === studentTarget.id || d.id === studentTarget.docId;
+      const matchUid = targetUid && dUid && targetUid === dUid;
+      const matchEmail = targetEmail && dEmail && targetEmail === dEmail;
+      const matchName = targetName && targetName.length > 2 && dName === targetName && (matchEmail || matchUid || !dForm || dForm === '—');
+
+      if (matchId || matchUid || matchEmail || matchName) {
+        await deleteDoc(doc(db, 'admissions', d.id)).catch(() => {});
+        updateCachedItem('admissions', d.id, null);
+      }
+    }
+  } catch (err) {
+    console.warn('cleanStudentDraftsFromAdmissions warning:', err);
   }
 }
 
@@ -284,7 +380,23 @@ export async function purgeFromRecycleBin(trashDocId) {
       updateCachedItem('masterRegisters', cid, null);
     }
 
-    // 3. Recycle form number for future series if clean form number exists
+    // 3. Clean from masterRegisters chunk arrays if record resides in historical registers
+    await cleanStudentFromMasterRegistersChunks({
+      studentName: targetStudentName,
+      formNo: targetFormNo,
+      boardRegNo: trashData?.boardRegNo || trashData?.data?.['Board Registration Number'] || '',
+      id: trashData?.originalDocId || trashDocId
+    }).catch(() => {});
+
+    // 4. Clean any remaining drafts from admissions
+    await cleanStudentDraftsFromAdmissions({
+      studentName: targetStudentName,
+      formNo: targetFormNo,
+      email: trashData?.data?.['Email Address'] || trashData?.data?.email || '',
+      ownerUid: trashData?.data?.ownerUid || ''
+    }).catch(() => {});
+
+    // 5. Recycle form number for future series if clean form number exists
     if (cleanFNo && cleanFNo !== '—') {
       await recycleDeletedFormNumber(cleanFNo).catch(() => {});
     }

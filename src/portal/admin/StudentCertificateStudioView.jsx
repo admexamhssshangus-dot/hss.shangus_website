@@ -965,7 +965,7 @@ export default function StudentCertificateStudioView({
     setIsDeletingTemplate(true);
     try {
       await deleteCloudDocTemplate(id, 'certificate');
-      showToast(`ðŸ—‘ï¸ Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
+      showToast(`🗑️  Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
     } catch (err) {
       console.warn(err);
       showToast(`Template "${name}" deleted locally.`, 'info');
@@ -2089,7 +2089,7 @@ export default function StudentCertificateStudioView({
       regNo: regNo || '—'
     };
 
-    showToast('ðŸ–¨ï¸ Opening print dialog / PDF preview...', 'info', 2500);
+    showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
     printStudentCertificate({
       officeTitle,
       institutionName,
@@ -2145,7 +2145,7 @@ export default function StudentCertificateStudioView({
         metaDetails
       });
 
-      showToast('ðŸ“¥ Word document (.docx) successfully exported!', 'success');
+      showToast('📥 Word document (.docx) successfully exported!', 'success');
     } catch (err) {
       console.error('Docx export error:', err);
       showToast('Could not generate Word document.', 'error');
@@ -2771,7 +2771,7 @@ export default function StudentCertificateStudioView({
                       </div>
                       {isDefault && (
                         <span className="px-1 py-0.2 rounded text-[7px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shrink-0">
-                          â­ Default
+                          ⭐  Default
                         </span>
                       )}
                     </div>
@@ -3196,7 +3196,7 @@ export default function StudentCertificateStudioView({
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
                         <Sparkles size={11} className="text-purple-600" />
-                        <span>ðŸª„ Polish & Humanize</span>
+                        <span>🪄 Polish & Humanize</span>
                       </button>
                       <button
                         type="button"
@@ -3204,15 +3204,15 @@ export default function StudentCertificateStudioView({
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
                         <FileText size={11} className="text-indigo-600" />
-                        <span>ðŸ“œ Formalize Terms</span>
+                        <span>📜 Formalize Terms</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => { handleOpenAiModal('shorten'); setShowAskGeminiMenu(false); }}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
                       >
-                        <span className="text-amber-600 text-xs">âœ‚ï¸</span>
-                        <span>âœ‚ï¸ Shorten Wording</span>
+                        <span className="text-amber-600 text-xs">✂️ </span>
+                        <span>✂️  Shorten Wording</span>
                       </button>
                       <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
                         <button
@@ -3623,7 +3623,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { deleteEntireTable(); setShowTableMenu(false); }}
                             className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200"
                           >
-                            ðŸ—‘ Delete Table
+                            🗑️ Delete Table
                           </button>
                         </>
                       ) : (
@@ -3637,7 +3637,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { insertTable(2, 2); setShowTableMenu(false); }}
                             className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
                           >
-                            <span>2 Ã— 2 Table</span>
+                            <span>2 × 2 Table</span>
                             <span className="text-[9px] text-slate-400 font-mono">4 cells</span>
                           </button>
                           <button
@@ -3646,7 +3646,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { insertTable(2, 3); setShowTableMenu(false); }}
                             className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
                           >
-                            <span>2 Ã— 3 Table</span>
+                            <span>2 × 3 Table</span>
                             <span className="text-[9px] text-slate-400 font-mono">6 cells</span>
                           </button>
                           <button
@@ -3655,7 +3655,7 @@ export default function StudentCertificateStudioView({
                             onClick={() => { insertTable(3, 3); setShowTableMenu(false); }}
                             className="w-full text-left px-2.5 py-1 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] font-bold flex items-center justify-between"
                           >
-                            <span>3 Ã— 3 Table</span>
+                            <span>3 × 3 Table</span>
                             <span className="text-[9px] text-slate-400 font-mono">9 cells</span>
                           </button>
                         </>
@@ -3685,7 +3685,7 @@ export default function StudentCertificateStudioView({
                   className="col-span-2 w-full h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer transition-colors text-[9px] font-bold font-mono hidden lg:flex"
                   title={dockSide === 'left' ? 'Move Dock to Right side of Canvas' : 'Move Dock to Left side of Canvas'}
                 >
-                  {dockSide === 'left' ? 'ðŸ‘‰ Right' : 'ðŸ‘ˆ Left'}
+                  {dockSide === 'left' ? '👉 Right' : '👈 Left'}
                 </button>
 
               </div>
@@ -4279,7 +4279,7 @@ export default function StudentCertificateStudioView({
                     className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 accent-teal-600 cursor-pointer shrink-0"
                   />
                   <div className="text-xs">
-                    <span className="font-black text-amber-950 dark:text-amber-200 block">â­ Make Default Active Template</span>
+                    <span className="font-black text-amber-950 dark:text-amber-200 block">⭐  Make Default Active Template</span>
                     <span className="text-[10px] text-amber-800 dark:text-amber-400 block">Auto-loads on studio launch and saves directly to Cloud Database.</span>
                   </div>
                 </label>
@@ -4760,9 +4760,9 @@ export default function StudentCertificateStudioView({
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
               {[
                 { id: 'draft', label: 'âœï¸ Draft Certificate' },
-                { id: 'humanize', label: 'ðŸª„ Polish & Humanize' },
-                { id: 'formalize', label: 'ðŸ“œ Formalize Terms' },
-                { id: 'shorten', label: 'âœ‚ï¸ Shorten Wording' }
+                { id: 'humanize', label: '🪄 Polish & Humanize' },
+                { id: 'formalize', label: '📜 Formalize Terms' },
+                { id: 'shorten', label: '✂️  Shorten Wording' }
               ].map((m) => (
                 <button
                   key={m.id}
@@ -4963,7 +4963,7 @@ export default function StudentCertificateStudioView({
         onClose={() => setShowResultIngestionModal(false)}
         allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
         onIngestSuccess={() => {
-          showToast('ðŸŽ‰ Ingestion complete! Master register synchronized.', 'success');
+          showToast('🎉 Ingestion complete! Master register synchronized.', 'success');
         }}
         showToast={showToast}
       />
