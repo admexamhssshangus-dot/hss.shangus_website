@@ -192,21 +192,59 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
   };
 
-  const rawBoardReg = 
-    st.boardRegNo ||
-    st.regNo ||
-    st['Board Registration No. (Class 10th)'] ||
-    st['Board Registration No. (Class 11th)'] ||
-    st['Board Registration No. (Class 12th)'] ||
-    st['Registration No. (allotted by JKBOSE)'] ||
-    st['Board Registration No.'] ||
-    st['Board Registration Number'] ||
-    st['Board Reg. No.'] ||
-    st['Board Reg No'] ||
-    st['REG. NO.'] ||
-    st['Registration No.'] ||
-    st['Registration No'] ||
-    '';
+  const explicitRegKeys = [
+    "Board Registration No. (Class 10th)",
+    "Board Registration No. (Class 11th)",
+    "Board Registration No. (Class 12th)",
+    "Registration No. (allotted by JKBOSE)",
+    "Registration No. (allotted by JKBOSE )",
+    "Registration No. (allotted by JKBOSE  )",
+    "Board Registration Number",
+    "Board Registration No.",
+    "Board Registration No",
+    "Board Reg. No.",
+    "Board Reg No",
+    "Registration Number",
+    "Registration No.",
+    "Registration No",
+    "Reg. No.",
+    "Reg. No",
+    "Reg No.",
+    "Reg No",
+    "REG. NO.",
+    "REG NO",
+    "REG. NO",
+    "DIET Registration No.",
+    "DIET/Board Reg. No.",
+    "DIET Reg. No.",
+    "boardRegNo",
+    "regNo",
+    "registrationNo",
+    "Reg_No",
+    "registration_no"
+  ];
+  let rawBoardReg = '';
+  for (const k of explicitRegKeys) {
+    if (st[k] !== undefined && st[k] !== null) {
+      const valStr = String(st[k]).trim();
+      if (valStr && !/^(—|-|NA|N\/A|Nill|null|undefined|0)$/i.test(valStr)) {
+        rawBoardReg = valStr;
+        break;
+      }
+    }
+  }
+  if (!rawBoardReg) {
+    for (const [k, v] of Object.entries(st)) {
+      const lk = k.toLowerCase();
+      if ((lk.includes('reg') || lk.includes('registration')) && !lk.includes('date') && !lk.includes('fee') && !lk.includes('status') && !lk.includes('type')) {
+        const valStr = String(v || '').trim();
+        if (valStr && !/^(—|-|NA|N\/A|Nill|null|undefined|0)$/i.test(valStr)) {
+          rawBoardReg = valStr;
+          break;
+        }
+      }
+    }
+  }
 
   const cleanedBoardReg = cleanReg(rawBoardReg);
   const fNo = String(st['Form Number'] || st['Form No.'] || st['FormNo'] || st.formNo || st.form_no || st['Application ID'] || st.appId || '').replace(/^'/, '').trim();

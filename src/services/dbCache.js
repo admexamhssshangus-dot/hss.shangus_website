@@ -695,6 +695,65 @@ export function getPhotoUrlFromCache(docId) {
 /**
  * Helper to normalize registration numbers into clean alphanumeric lookup keys.
  */
+/**
+ * Universal extractor for Board Registration Number across all database variations and spreadsheet imports.
+ */
+export function extractUniversalRegNo(st) {
+  if (!st || typeof st !== 'object') return '';
+  const explicitKeys = [
+    "Board Registration No. (Class 10th)",
+    "Board Registration No. (Class 11th)",
+    "Board Registration No. (Class 12th)",
+    "Registration No. (allotted by JKBOSE)",
+    "Registration No. (allotted by JKBOSE )",
+    "Registration No. (allotted by JKBOSE  )",
+    "Board Registration Number",
+    "Board Registration No.",
+    "Board Registration No",
+    "Board Reg. No.",
+    "Board Reg No",
+    "Registration Number",
+    "Registration No.",
+    "Registration No",
+    "Reg. No.",
+    "Reg. No",
+    "Reg No.",
+    "Reg No",
+    "REG. NO.",
+    "REG NO",
+    "REG. NO",
+    "DIET Registration No.",
+    "DIET/Board Reg. No.",
+    "DIET Reg. No.",
+    "boardRegNo",
+    "regNo",
+    "registrationNo",
+    "Reg_No",
+    "registration_no"
+  ];
+  for (const k of explicitKeys) {
+    if (st[k] !== undefined && st[k] !== null) {
+      const raw = String(st[k]).trim();
+      if (raw && !/^(—|-|NA|N\/A|Nill|null|undefined|0)$/i.test(raw)) {
+        const cleaned = normalizeRegNoKey(raw);
+        if (cleaned && cleaned !== '—') return cleaned;
+      }
+    }
+  }
+  // Dynamic search for keys containing reg
+  for (const [k, v] of Object.entries(st)) {
+    const lk = k.toLowerCase();
+    if ((lk.includes('reg') || lk.includes('registration')) && !lk.includes('date') && !lk.includes('fee') && !lk.includes('status') && !lk.includes('type')) {
+      const raw = String(v || '').trim();
+      if (raw && !/^(—|-|NA|N\/A|Nill|null|undefined|0)$/i.test(raw)) {
+        const cleaned = normalizeRegNoKey(raw);
+        if (cleaned && cleaned !== '—') return cleaned;
+      }
+    }
+  }
+  return '';
+}
+
 export function normalizeRegNoKey(val) {
   if (!val) return '';
   let s = String(val).trim();
@@ -881,19 +940,8 @@ export function resolveStudentPhoto(student, fallback = null) {
   }
 
   // 2. Universal lookup by Registration Number across all sessions & classes
-  const rawReg =
-    student.boardRegNo ||
-    student.regNo ||
-    student['Board Registration Number'] ||
-    student['Board Registration No.'] ||
-    student['Board Registration No. (Class 10th)'] ||
-    student['Board Registration No. (Class 11th)'] ||
-    student['Board Reg. No.'] ||
-    student['Board Reg No'] ||
-    student['REG. NO.'] ||
-    '';
-
-  const cleanReg = normalizeRegNoKey(rawReg);
+  const cleanReg = extractUniversalRegNo(student);
+  const rawReg = cleanReg;
   const formNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.id || '').trim();
   const docId = String(student.docId || student.id || '').trim();
 
@@ -1110,26 +1158,8 @@ export async function fetchStudentPhotoOnDemand(student) {
     return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
   };
 
-  const rawBoardReg =
-    student.boardRegNo ||
-    student.regNo ||
-    student['Board Registration No. (Class 10th)'] ||
-    student['Board Registration No. (Class 11th)'] ||
-    student['Board Registration No. (Class 12th)'] ||
-    student['Registration No. (allotted by JKBOSE)'] ||
-    student['Board Registration No.'] ||
-    student['Board Registration Number'] ||
-    student['Board Reg. No.'] ||
-    student['Board Reg No'] ||
-    student['Registration No.'] ||
-    student['Reg. No.'] ||
-    student['Reg. No'] ||
-    student['Reg No'] ||
-    student['REG. NO.'] ||
-    student['REG NO'] ||
-    '';
-
-  const reg = cleanReg(rawBoardReg);
+  const reg = extractUniversalRegNo(student);
+  const rawBoardReg = reg;
   const fNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
   const rawId = String(student.docId || student._docId || student.id || '').trim();
 
