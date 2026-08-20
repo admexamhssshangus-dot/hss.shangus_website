@@ -1247,9 +1247,9 @@ export const filterActiveAgainstRecycleBin = (list, trashItems) => {
     return list.filter(s => s && s.Status !== 'Deleted' && s.status !== 'Deleted' && s._deleted !== true);
   }
 
-  const trashRegs = new Set(trashItems.map(i => extractRegNoClean(i.data || i)).filter(Boolean));
-  const trashForms = new Set(trashItems.map(i => i.formNo || i.data?.['Form Number'] || i.data?.formNo).filter(f => f && f !== '—'));
-  const trashDocIds = new Set(trashItems.map(i => i.originalDocId || i.sanitizedDocId || i.trashId).filter(Boolean));
+  const admissionTrash = trashItems.filter(item => (item?.originalCollection || 'admissions') === 'admissions');
+  const trashForms = new Set(admissionTrash.map(i => i.formNo || i.data?.['Form Number'] || i.data?.formNo).filter(f => f && f !== '—').map(String));
+  const trashDocIds = new Set(admissionTrash.flatMap(i => [i.originalDocId, i.sanitizedDocId]).filter(Boolean).map(String));
 
   return list.filter(s => {
     if (!s) return false;
@@ -1258,10 +1258,10 @@ export const filterActiveAgainstRecycleBin = (list, trashItems) => {
     const sForm = extractStudentFormNo(s);
     if (sForm && sForm !== '—' && trashForms.has(sForm)) return false;
 
-    const sReg = extractRegNoClean(s);
-    if (sReg && trashRegs.has(sReg)) return false;
-
-    const sId = String(s.id || s.docId || s._docId || '').trim();
+    // A registration number belongs to the student across sessions and may
+    // legitimately identify several applications. Recycle filtering must only
+    // hide the exact archived document/form, never every matching registration.
+    const sId = String(s._docId || s.docId || s.id || '').trim();
     if (sId && trashDocIds.has(sId)) return false;
 
     return true;
@@ -3680,7 +3680,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
   const recycleBinCount = unreadRecycleBinCount;
   const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
-  const lastSyncedFingerprintRef = useRef('');
+  const lastSyncedInputRef = useRef(null);
 
   // Compute active user permissions signature
   const currentPermsSig = useMemo(() => {
@@ -4348,31 +4348,17 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const handleRecordDeleted = (student) => {
     if (!student) return;
     const formNo = String(student?.formNo || student?.['Form No.'] || student?.['Form Number'] || student?.id || '').replace(/^(N\/A|—)$/i, '').trim();
-    const rawId = String(student?.docId || student?._docId || student?.id || formNo).replace(/^(N\/A|—)$/i, '').trim();
+    const rawId = String(student?._docId || student?.docId || student?.id || formNo).replace(/^(N\/A|—)$/i, '').trim();
     const normForm = formNo ? formNo.replace(/[\/\s]/g, '_').toLowerCase() : '';
     const normId = rawId ? rawId.replace(/[\/\s]/g, '_').toLowerCase() : '';
-    const studentName = String(student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || '').trim().toLowerCase();
-
     const isMatch = (s) => {
       if (!s) return false;
-      if (student.id && (s.id === student.id || s.docId === student.id)) return true;
-      if (student.docId && (s.id === student.docId || s.docId === student.docId)) return true;
+      const sId = String(s._docId || s.docId || s.id || '').trim().replace(/[\/\s]/g, '_').toLowerCase();
+      if (normId && sId && sId === normId) return true;
       const sf = String(s.formNo || s['Form No.'] || s['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim();
       const snForm = sf ? sf.replace(/[\/\s]/g, '_').toLowerCase() : '';
       if (normForm && snForm && snForm === normForm) return true;
-      const sId = String(s.id || s.docId || s._docId || '').trim().replace(/[\/\s]/g, '_').toLowerCase();
-      if (normId && sId && sId === normId) return true;
-
-      const sReg = extractRegNoClean(s);
-      const targetReg = extractRegNoClean(student);
-      if (sReg && targetReg && sReg === targetReg) return true;
-
-      const sName = getStudentName(s);
-      const targetName = getStudentName(student);
-      if (sName && targetName && areNamesCompatible(sName, targetName)) {
-        if (!sf || sf === '—' || !formNo || formNo === '—' || sf === normForm) return true;
-      }
-      return false;
+      return Boolean(normForm && snForm && snForm === normForm);
     };
 
     // 1. Immediately remove from React state (0ms instant UI update)
@@ -4694,37 +4680,39 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Synchronize admissions from parent whenever initialData arrives or updates (debounced & filtered)
+  // Synchronize the already-filtered live admissions supplied by the parent.
+  // Re-reading the recycle bin for every snapshot caused duplicate reads and
+  // blocked the admin table while Firestore updates were settling.
   useEffect(() => {
     if (!Array.isArray(initialData) || initialData.length === 0) return;
 
-    // Fast fingerprint check to avoid heavy re-computation if initialData is unchanged
-    const currentFingerprint = `${initialData.length}_${initialData[0]?.id || initialData[0]?.formNo || ''}_${initialData[initialData.length - 1]?.id || initialData[initialData.length - 1]?.formNo || ''}`;
-    if (lastSyncedFingerprintRef.current === currentFingerprint && currentAdmissions.length > 0) {
+    // The parent preserves the array reference until a real snapshot arrives.
+    if (lastSyncedInputRef.current === initialData) {
       return;
     }
-    lastSyncedFingerprintRef.current = currentFingerprint;
+    lastSyncedInputRef.current = initialData;
 
     let isMounted = true;
     const timer = setTimeout(() => {
-      getRecycleBinItems().then((recycleBinList) => {
-        if (!isMounted) return;
-        const filtered = flattenAdmissionsList(filterActiveAgainstRecycleBin(initialData, recycleBinList));
-        setCurrentAdmissions(filtered);
-        buildLocalSearchIndex(filtered, masterHistoricalRecords);
-      }).catch(() => {
-        if (!isMounted) return;
-        const filtered = flattenAdmissionsList(filterActiveAgainstRecycleBin(initialData, []));
-        setCurrentAdmissions(filtered);
-        buildLocalSearchIndex(filtered, masterHistoricalRecords);
-      });
-    }, 100);
+      if (!isMounted) return;
+      const filtered = flattenAdmissionsList(initialData);
+      setCurrentAdmissions(filtered);
+
+      const buildIndex = () => {
+        if (isMounted) buildLocalSearchIndex(filtered, masterHistoricalRecords);
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(buildIndex, { timeout: 800 });
+      } else {
+        setTimeout(buildIndex, 0);
+      }
+    }, 50);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [initialData, masterHistoricalRecords, currentAdmissions.length]);
+  }, [initialData, masterHistoricalRecords]);
 
   // Combined Dataset
   const allStudents = useMemo(() => {
@@ -8987,7 +8975,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
             deletedRecords.forEach(rec => handleRecordDeleted(rec));
           }
           // Force cache invalidation so stale deleted records don't reload
-          loadReportsData(true);
+          // Live admissions listener updates both parent and table state.
         }}
       />
 
@@ -8996,7 +8984,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         isOpen={showRecycleBinModal}
         onClose={() => setShowRecycleBinModal(false)}
         onRestoreSuccess={() => {
-          loadReportsData(true);
+          // Live admissions listener refreshes restored records without a full scan.
         }}
       />
 

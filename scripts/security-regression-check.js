@@ -13,6 +13,9 @@ const settings = JSON.parse(read('public/slides/settings.json'));
 const admissionWorkflow = read('netlify/functions/admission-workflow.js');
 const admissionClient = read('src/services/admissionWorkflowApi.js');
 const cache = read('src/services/dbCache.js');
+const reports = read('src/portal/admin/AdvancedReports.jsx');
+const deleteModal = read('src/portal/admin/DeleteApplicationModal.jsx');
+const recycleService = read('src/services/recycleBinService.js');
 
 assert(!/allow\s+(read|write|create|update|delete)(?:\s*,\s*\w+)*\s*:\s*if\s+true\b/.test(rules), 'Firestore contains unconditional access');
 assert(/match \/\{document=\*\*\}[\s\S]*allow read, write: if false;/.test(rules), 'Firestore default deny is missing');
@@ -41,5 +44,9 @@ const preloadEnd = cache.indexOf('export { preloadStudentPhotosCache as preloadC
 assert(preloadStart >= 0 && preloadEnd > preloadStart, 'Student photo preload function is missing');
 assert(!/getDocs\(collection\(db, 'studentPhotos'\)\)/.test(cache.slice(preloadStart, preloadEnd)), 'Student photo preload still performs collection-wide reads');
 assert(/photo_id/.test(admissionClient) && /canonicalizePhoto/.test(admissionClient) && !/uploadBytes/.test(admissionClient), 'Admission photos are not stored once under the canonical Firestore field');
+assert(!/const trashRegs\s*=/.test(reports), 'Recycle-bin filtering still hides every application sharing a registration number');
+assert(!/Promise\.race\s*\(\s*\[\s*Promise\.all\(recordsToDelete/.test(deleteModal), 'Deletion can report success before Firestore commits');
+assert(/restoreMultipleFromRecycleBin/.test(recycleService) && /runTransaction/.test(recycleService), 'Atomic recycle-bin restore is missing');
+assert(/new Set\(\['users', 'admissions', 'masterRegisters'/.test(cache), 'Large private collections are still serialized into browser storage');
 
 console.log('Security regression checks passed.');

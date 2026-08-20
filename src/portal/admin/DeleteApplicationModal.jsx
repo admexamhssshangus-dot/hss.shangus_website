@@ -115,14 +115,13 @@ export default function DeleteApplicationModal({
         return;
       }
 
-      // Run deletion with non-blocking timeout safety
-      await Promise.race([
-        Promise.all(recordsToDelete.map(rec => {
-          const sourceColl = rec._sourceCollection || (rec._isCurrentScope ? 'admissions' : 'masterRegisters');
-          return moveToRecycleBin(rec, sourceColl, userEmail);
-        })),
-        new Promise(resolve => setTimeout(resolve, 3500))
-      ]);
+      // Wait for every selected archive/delete transaction to commit before
+      // updating the UI. A timeout race previously reported success while a
+      // Firestore operation was still running, leaving stale or double-looking rows.
+      await Promise.all(recordsToDelete.map(rec => {
+        const sourceColl = rec._sourceCollection || (rec._isCurrentScope ? 'admissions' : 'masterRegisters');
+        return moveToRecycleBin(rec, sourceColl, userEmail);
+      }));
 
       setArchiveStep('Logging activity...');
       logAdminActivity({

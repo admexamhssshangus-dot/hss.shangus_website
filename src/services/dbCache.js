@@ -16,7 +16,7 @@ const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins —
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
-const MEMORY_ONLY_COLLECTIONS = new Set(['users']);
+const MEMORY_ONLY_COLLECTIONS = new Set(['users', 'admissions', 'masterRegisters', 'legacyStudents', 'studentPhotos']);
 
 // In-memory cache for instant zero-latency cross-tab access
 const memoryCache = new Map();
@@ -324,7 +324,7 @@ export async function getPaginatedCollection(collectionName, pageSize = 50, last
           }
         });
       } else {
-        list.push({ id: docSnap.id, ...data, _source: collectionName });
+        list.push({ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: collectionName });
       }
     });
 
@@ -440,7 +440,7 @@ export function subscribeToCollection(collectionName, onUpdate, onError) {
             }
           });
         } else {
-          list.push({ id: docSnap.id, ...data, _source: collectionName });
+          list.push({ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: collectionName });
         }
       });
 
@@ -543,7 +543,7 @@ async function fetchFreshFromFirestore(collectionName) {
           }
         });
       } else {
-        list.push({ id: docSnap.id, ...data, _source: collectionName });
+        list.push({ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: collectionName });
       }
     });
 
