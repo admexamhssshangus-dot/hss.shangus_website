@@ -784,7 +784,7 @@ export function normalizeCanonicalClass(val) {
  * Applies class-band photo precedence:
  * - 9th/10th band: 9th photo takes precedence over 10th photo.
  * - 11th/12th band: 11th photo takes precedence over 12th photo.
- * - If only one photo exists on record across any class, it is used for all classes.
+ * Photos never cross the 9th/10th and 11th/12th bands.
  */
 export function selectClassPrecedencePhoto(photoMap, reg, targetClass) {
   if (!photoMap || !reg) return '';
@@ -800,12 +800,12 @@ export function selectClassPrecedencePhoto(photoMap, reg, targetClass) {
   const pDefault = photoMap[cleanR] || photoMap[`photo_${cleanR}`] || photoMap[`reg_${cleanR}`];
 
   if (normClass === '9th' || normClass === '10th') {
-    return p9 || p10 || p11 || p12 || pDefault || '';
+    return p9 || p10 || pDefault || '';
   }
   if (normClass === '11th' || normClass === '12th') {
-    return p11 || p12 || p9 || p10 || pDefault || '';
+    return p11 || p12 || pDefault || '';
   }
-  return p11 || p12 || p9 || p10 || pDefault || '';
+  return pDefault || '';
 }
 
 /**
@@ -955,19 +955,16 @@ export function resolveStudentPhoto(student, fallback = null) {
   }
 
   // STRICT UNIQUE IDENTIFIERS ONLY - NO NAME KEYS
-  const candidates = [
-    cleanReg,
-    cleanReg ? `photo_${cleanReg}` : null,
-    cleanReg ? `reg_${cleanReg}` : null,
-    rawReg,
-    rawReg.toLowerCase(),
-    formNo,
-    formNo.toLowerCase(),
-    formNo ? `photo_${formNo}` : null,
-    docId,
-    docId ? `photo_${docId}` : null,
-    docId ? docId.replace(/^photo_/, '') : null
-  ].filter(Boolean);
+  const candidates = cleanReg
+    ? [cleanReg, `photo_${cleanReg}`, `reg_${cleanReg}`, rawReg, rawReg.toLowerCase()].filter(Boolean)
+    : [
+        formNo,
+        formNo.toLowerCase(),
+        formNo ? `photo_${formNo}` : null,
+        docId,
+        docId ? `photo_${docId}` : null,
+        docId ? docId.replace(/^photo_/, '') : null
+      ].filter(Boolean);
 
   for (const c of candidates) {
     if (photoMap[c] && typeof photoMap[c] === 'string' && photoMap[c].length > 15 && photoMap[c] !== '/logo.png') {
@@ -1147,34 +1144,23 @@ const _activePhotoPromises = new Map();
 export async function fetchStudentPhotoOnDemand(student) {
   if (!student) return '';
 
-  // 1. Check in-memory synchronous photo map first
-  const existing = getStudentPhotoUrl(student);
-  if (existing && existing !== '/logo.png' && existing !== '—') return existing;
-
-  // 2. Extract candidate Board Reg No & Document IDs
-  const cleanReg = (val) => {
-    if (!val) return '';
-    let s = String(val).trim();
-    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s) || typeof val === 'number') {
-      try {
-        if (typeof window !== 'undefined' && window.BigInt) {
-          s = window.BigInt(Math.floor(Number(val))).toString();
-        } else {
-          s = Number(val).toLocaleString('fullwide', { useGrouping: false });
-        }
-      } catch (_) {}
-    }
-    return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
-  };
-
+  // 1. Extract the canonical Board Registration Number first.
   const reg = extractUniversalRegNo(student);
   const rawBoardReg = reg;
   const fNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
   const rawId = String(student.docId || student._docId || student.id || '').trim();
+  const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+
+  // Registration-based cache entries are safe; form/document identifiers are
+  // only fallbacks for records which genuinely have no registration number.
+  const photoMap = typeof window !== 'undefined' ? (window._hss_central_photo_map || {}) : {};
+  const existing = reg
+    ? selectClassPrecedencePhoto(photoMap, reg, targetClass)
+    : getStudentPhotoUrl(student);
+  if (existing && existing !== '/logo.png' && existing !== '—') return existing;
 
   const docCandidates = [];
   if (reg) {
-    const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
     const band = targetClass === '9th' || targetClass === '10th' ? 'secondary'
       : targetClass === '11th' || targetClass === '12th' ? 'higher-secondary' : '';
     if (band) docCandidates.push(`photo_${reg}_${band}`);
@@ -1188,13 +1174,13 @@ export async function fetchStudentPhotoOnDemand(student) {
     docCandidates.push(`photo_${rawBoardReg}`);
     docCandidates.push(rawBoardReg);
   }
-  if (fNo) {
+  if (!reg && fNo) {
     docCandidates.push(`photo_form_${fNo}`);
     docCandidates.push(`photo_${fNo}`);
     docCandidates.push(`form_${fNo}`);
     docCandidates.push(fNo);
   }
-  if (rawId) {
+  if (!reg && rawId) {
     docCandidates.push(`photo_${rawId}`);
     docCandidates.push(rawId);
   }
@@ -1216,11 +1202,19 @@ export async function fetchStudentPhotoOnDemand(student) {
             const d = snap.data();
             const p = (d.photo_id || d.photoId || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || d.passport_photo || d['Student Photo'] || '').trim();
             const dClass = normalizeCanonicalClass(d.selectedClass || d.class || d['Class'] || '');
-            const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+            const dReg = extractUniversalRegNo(d);
+            const targetBand = targetClass === '9th' || targetClass === '10th' ? 'secondary'
+              : targetClass === '11th' || targetClass === '12th' ? 'higher-secondary' : '';
+            const documentBand = dClass === '9th' || dClass === '10th' ? 'secondary'
+              : dClass === '11th' || dClass === '12th' ? 'higher-secondary' : '';
+            const mismatchedRegistration = Boolean(reg && dReg && normalizeRegNoKey(dReg) !== normalizeRegNoKey(reg));
+            const mismatchedBand = Boolean(targetBand && documentBand && targetBand !== documentBand);
+
+            if (mismatchedRegistration) continue;
 
             if (typeof window !== 'undefined') {
               window._hss_central_photo_map = window._hss_central_photo_map || {};
-              if (p && p.length > 20 && p !== '/logo.png') {
+              if (!mismatchedBand && p && p.length > 20 && p !== '/logo.png') {
                 const formatted = formatPhotoDisplayUrl(p) || p;
                 if (reg && dClass) {
                   window._hss_central_photo_map[`${reg}_${dClass}`] = formatted;
@@ -1255,7 +1249,7 @@ export async function fetchStudentPhotoOnDemand(student) {
               }
             }
 
-            if (p && p.length > 20 && p !== '/logo.png') {
+            if (!mismatchedBand && p && p.length > 20 && p !== '/logo.png') {
               return formatPhotoDisplayUrl(p) || p;
             }
           }

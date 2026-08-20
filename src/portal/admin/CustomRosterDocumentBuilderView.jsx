@@ -2102,17 +2102,33 @@ export default function CustomRosterDocumentBuilderView({
   };
 
   // Export to Print / PDF
-  const handlePrint = () => {
-    printCustomRosterTable({
+  const handlePrint = async () => {
+    setIsExporting(true);
+    try {
+      const printableRows = await Promise.all(processedRows.map(async (row) => {
+        const student = row._rawStudent || row;
+        const resolvedPhoto = await fetchStudentPhotoOnDemand(student).catch(() => '');
+        return {
+          ...row,
+          studentPhoto: resolvedPhoto && resolvedPhoto !== '/logo.png' && resolvedPhoto !== '—'
+            ? (formatPhotoDisplayUrl(resolvedPhoto) || resolvedPhoto)
+            : ''
+        };
+      }));
+
+      printCustomRosterTable({
       title: docTitle || 'STUDENT ROSTER',
       subtitle: docSubtitle,
       metaBadges,
       columns: activeTableColumns,
-      rows: processedRows,
+      rows: printableRows,
       orientation,
       rowHeightPx: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].px,
       signatories
-    });
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Export to Excel (.xlsx)
