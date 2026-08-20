@@ -97,13 +97,21 @@ export default function OfficialDocumentsStudioView({
   const activeSubTab = controlledActiveSubTab !== undefined ? controlledActiveSubTab : internalActiveSubTab;
   const setActiveSubTab = controlledOnSwitchSubTab || setInternalActiveSubTab;
 
-  // Detect default active session from current preloaded intake (e.g. '2025-26')
+  // Detect default active session from current preloaded intake (prioritize latest academic year e.g. '2025-26' and dominant count)
   const defaultActiveSession = useMemo(() => {
     if (allStudents && allStudents.length > 0) {
+      const counts = {};
       for (const st of allStudents) {
         const s = extractSession(st);
-        if (s) return s;
+        if (s) counts[s] = (counts[s] || 0) + 1;
       }
+      const sorted = Object.entries(counts).sort((a, b) => {
+        const yearA = parseInt(a[0].match(/\d{4}/)?.[0] || '0', 10);
+        const yearB = parseInt(b[0].match(/\d{4}/)?.[0] || '0', 10);
+        if (yearB !== yearA) return yearB - yearA;
+        return b[1] - a[1];
+      });
+      if (sorted.length > 0) return sorted[0][0];
     }
     return '2025-26';
   }, [allStudents]);
@@ -118,7 +126,7 @@ export default function OfficialDocumentsStudioView({
 
   // Sync if defaultActiveSession changes on initial load
   useEffect(() => {
-    if (defaultActiveSession && (selectedGlobalSession === 'active_2025-26' || selectedGlobalSession === '2025-26') && defaultActiveSession !== '2025-26') {
+    if (defaultActiveSession && selectedGlobalSession !== `active_${defaultActiveSession}` && !selectedGlobalSession.startsWith('master_') && selectedGlobalSession !== 'ALL') {
       setSelectedGlobalSession(`active_${defaultActiveSession}`);
     }
   }, [defaultActiveSession, selectedGlobalSession]);
@@ -174,19 +182,26 @@ export default function OfficialDocumentsStudioView({
       '2015-16'
     ];
 
-    // 1. Group Live Admissions by Session
+    // 1. Group Live Admissions by Session, sorting current/latest year (2025-26) to top
     const activeSessionMap = new Map();
     (allStudents || []).forEach(st => {
       const s = extractSession(st) || defaultActiveSession;
       activeSessionMap.set(s, (activeSessionMap.get(s) || 0) + 1);
     });
 
-    const activeOptions = Array.from(activeSessionMap.entries()).map(([sess, count]) => ({
-      value: `active_${sess}`,
-      label: `${sess} (Live Admissions · ${count})`,
-      count,
-      isLive: true
-    }));
+    const activeOptions = Array.from(activeSessionMap.entries())
+      .sort((a, b) => {
+        const yearA = parseInt(a[0].match(/\d{4}/)?.[0] || '0', 10);
+        const yearB = parseInt(b[0].match(/\d{4}/)?.[0] || '0', 10);
+        if (yearB !== yearA) return yearB - yearA;
+        return b[1] - a[1];
+      })
+      .map(([sess, count]) => ({
+        value: `active_${sess}`,
+        label: `${sess} (Live Admissions · ${count})`,
+        count,
+        isLive: true
+      }));
 
     if (activeOptions.length === 0) {
       activeOptions.push({
@@ -207,7 +222,12 @@ export default function OfficialDocumentsStudioView({
       });
 
       const sortedMaster = Array.from(masterSessionMap.entries())
-        .sort((a, b) => b[0].localeCompare(a[0], undefined, { numeric: true, sensitivity: 'base' }));
+        .sort((a, b) => {
+          const yearA = parseInt(a[0].match(/\d{4}/)?.[0] || '0', 10);
+          const yearB = parseInt(b[0].match(/\d{4}/)?.[0] || '0', 10);
+          if (yearB !== yearA) return yearB - yearA;
+          return b[0].localeCompare(a[0], undefined, { numeric: true, sensitivity: 'base' });
+        });
 
       sortedMaster.forEach(([sess, count]) => {
         masterOptions.push({
@@ -322,11 +342,6 @@ export default function OfficialDocumentsStudioView({
                   {opt.label}
                 </option>
               ))}
-              {dynamicSessionOptions.length > 1 && (
-                <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                  All Sessions (Combined · {(allStudents.length + masterHistoricalRecords.length)})
-                </option>
-              )}
             </select>
           </div>
         </div>
