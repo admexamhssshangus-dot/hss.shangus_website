@@ -64,5 +64,6 @@ assert(/selectedIncludesAssignedRoll/.test(reports), 'Bulk workflow status chang
 assert(!/classPhoto = p9 \|\| p10 \|\| p11 \|\| p12/.test(photoResolver), 'Secondary-class photos can still fall through to the higher-secondary band');
 assert(!/classPhoto = p11 \|\| p12 \|\| p9 \|\| p10/.test(photoResolver), 'Higher-secondary photos can still fall through to the secondary band');
 assert(/const printableRows = await Promise\.all\(processedRows\.map/.test(rosterBuilder), 'Roster printing does not wait for canonical photo resolution');
+assert(/setPhotoSrc\(''\);[\s\S]{0,220}const fast/.test(rosterBuilder), 'Roster photo cells can retain a previous student image while a new lookup is pending');
 
 console.log('Security regression checks passed.');
