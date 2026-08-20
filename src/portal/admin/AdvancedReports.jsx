@@ -1331,6 +1331,23 @@ export const resolveAdmNo = (rec) => {
   return cleaned || '—';
 };
 
+// Bulk mutations must never identify a record by a name, registration number,
+// or form number. Those values can legitimately be shared while records are
+// being merged; only the Firestore document ID is safe for exact selection.
+const getExactAdmissionDocId = (student) => String(
+  student?._docId || student?.docId || student?.id || ''
+).trim();
+
+async function updateExactAdmissionDocument(student, updates) {
+  const exactId = getExactAdmissionDocId(student);
+  if (!exactId || exactId.includes('/')) {
+    throw new Error('This record has no safe Firestore document ID. Refresh the table and try again.');
+  }
+  await updateDoc(doc(db, 'admissions', exactId), updates);
+  updateCachedItem('admissions', exactId, updates);
+  return true;
+}
+
 // ─── Status Smart Action Dropdown Component ───
 function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, onTriggerDelete }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -3676,6 +3693,9 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const [toast, setToast] = useState(null);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [deletingStudentTarget, setDeletingStudentTarget] = useState(null);
+  const [selectedTableDocIds, setSelectedTableDocIds] = useState(() => new Set());
+  const [bulkTableStatus, setBulkTableStatus] = useState('Submitted');
+  const [bulkTableActionBusy, setBulkTableActionBusy] = useState(false);
   const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
   const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
   const recycleBinCount = unreadRecycleBinCount;
@@ -4345,7 +4365,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleRecordDeleted = (student) => {
+  const handleRecordDeleted = useCallback((student) => {
     if (!student) return;
     const formNo = String(student?.formNo || student?.['Form No.'] || student?.['Form Number'] || student?.id || '').replace(/^(N\/A|—)$/i, '').trim();
     const rawId = String(student?._docId || student?.docId || student?.id || formNo).replace(/^(N\/A|—)$/i, '').trim();
@@ -4354,10 +4374,11 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     const isMatch = (s) => {
       if (!s) return false;
       const sId = String(s._docId || s.docId || s.id || '').trim().replace(/[\/\s]/g, '_').toLowerCase();
-      if (normId && sId && sId === normId) return true;
+      // When the deleted record has an exact Firestore ID, never fall through
+      // to a form-number match: merged applications can share that form value.
+      if (normId) return Boolean(sId && sId === normId);
       const sf = String(s.formNo || s['Form No.'] || s['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim();
       const snForm = sf ? sf.replace(/[\/\s]/g, '_').toLowerCase() : '';
-      if (normForm && snForm && snForm === normForm) return true;
       return Boolean(normForm && snForm && snForm === normForm);
     };
 
@@ -4373,7 +4394,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     if (onRecordDeleted && typeof onRecordDeleted === 'function') {
       onRecordDeleted(student);
     }
-  };
+  }, [onRecordDeleted]);
 
   const handleDeleteStudent = (student) => {
     if (!student) return;
@@ -5745,6 +5766,210 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     return filteredStudents.slice(start, start + size);
   }, [filteredStudents, currentPage, pageSize]);
 
+  const selectableFilteredStudents = useMemo(
+    () => filteredStudents.filter(student => student?._isCurrentScope !== false && getExactAdmissionDocId(student)),
+    [filteredStudents]
+  );
+
+  const selectablePageStudents = useMemo(
+    () => paginatedStudents.filter(student => student?._isCurrentScope !== false && getExactAdmissionDocId(student)),
+    [paginatedStudents]
+  );
+
+  const selectedTableStudents = useMemo(() => {
+    if (selectedTableDocIds.size === 0) return [];
+    const activeById = new Map();
+    allStudents.forEach(student => {
+      if (student?._isCurrentScope === false) return;
+      const exactId = getExactAdmissionDocId(student);
+      if (exactId) activeById.set(exactId, student);
+    });
+    return Array.from(selectedTableDocIds)
+      .map(id => activeById.get(id))
+      .filter(Boolean);
+  }, [allStudents, selectedTableDocIds]);
+
+  const allPageRowsSelected = selectablePageStudents.length > 0 &&
+    selectablePageStudents.every(student => selectedTableDocIds.has(getExactAdmissionDocId(student)));
+  const somePageRowsSelected = selectablePageStudents.some(student =>
+    selectedTableDocIds.has(getExactAdmissionDocId(student))
+  );
+  const selectedIncludesAssignedRoll = selectedTableStudents.some(student => Boolean(getStudentRollVal(student)));
+
+  useEffect(() => {
+    const validIds = new Set(
+      allStudents
+        .filter(student => student?._isCurrentScope !== false)
+        .map(getExactAdmissionDocId)
+        .filter(Boolean)
+    );
+    setSelectedTableDocIds(previous => {
+      const next = new Set(Array.from(previous).filter(id => validIds.has(id)));
+      if (next.size === previous.size && Array.from(next).every(id => previous.has(id))) return previous;
+      return next;
+    });
+  }, [allStudents]);
+
+  const toggleTableStudent = useCallback((student) => {
+    if (student?._isCurrentScope === false) return;
+    const exactId = getExactAdmissionDocId(student);
+    if (!exactId) return;
+    setSelectedTableDocIds(previous => {
+      const next = new Set(previous);
+      if (next.has(exactId)) next.delete(exactId);
+      else next.add(exactId);
+      return next;
+    });
+  }, []);
+
+  const toggleCurrentPageSelection = useCallback(() => {
+    setSelectedTableDocIds(previous => {
+      const next = new Set(previous);
+      const pageIds = selectablePageStudents.map(getExactAdmissionDocId);
+      const shouldClear = pageIds.length > 0 && pageIds.every(id => next.has(id));
+      pageIds.forEach(id => {
+        if (shouldClear) next.delete(id);
+        else next.add(id);
+      });
+      return next;
+    });
+  }, [selectablePageStudents]);
+
+  const selectAllFilteredApplications = useCallback(() => {
+    setSelectedTableDocIds(previous => {
+      const next = new Set(previous);
+      selectableFilteredStudents.forEach(student => next.add(getExactAdmissionDocId(student)));
+      return next;
+    });
+  }, [selectableFilteredStudents]);
+
+  const runSelectedMutation = useCallback(async (operation) => {
+    const selected = selectedTableStudents;
+    for (let offset = 0; offset < selected.length; offset += 10) {
+      const group = selected.slice(offset, offset + 10);
+      await Promise.all(group.map(operation));
+    }
+  }, [selectedTableStudents]);
+
+  const confirmBulkUnlock = useCallback(() => {
+    if (selectedTableStudents.length === 0) return;
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'warning',
+      title: `Unlock ${selectedTableStudents.length} Applications`,
+      message: 'Allow the selected students to edit their applications for the next 24 hours?',
+      consequence: 'Only the exact selected Firestore documents will be updated. No linked or similarly named application will be changed.',
+      confirmText: 'Unlock Selected for 24 Hours',
+      onConfirm: async ({ reasonCategory, customReason } = {}) => {
+        try {
+          setBulkTableActionBusy(true);
+          const until = Date.now() + (24 * 60 * 60 * 1000);
+          await runSelectedMutation(student => updateExactAdmissionDocument(student, {
+            editUnlocked: true,
+            editUnlockedUntil: until,
+            updatedAt: new Date().toISOString(),
+            lastEditedBy: `Admin (${user?.email || 'System'})`
+          }));
+          await logAdminActivity({
+            actionType: 'bulk_unlock',
+            actionTitle: 'Bulk Application Edit Unlock',
+            details: `Unlocked ${selectedTableStudents.length} exact application record(s) for 24 hours.`,
+            reasonCategory,
+            customReason,
+            metadata: { documentIds: selectedTableStudents.map(getExactAdmissionDocId), hours: 24 }
+          });
+          setToast({ type: 'success', message: `${selectedTableStudents.length} applications unlocked for 24 hours.` });
+          setConfirmModalConfig(null);
+        } catch (error) {
+          setToast({ type: 'error', message: `Bulk unlock failed: ${error.message}` });
+        } finally {
+          setBulkTableActionBusy(false);
+        }
+      }
+    });
+  }, [runSelectedMutation, selectedTableStudents, user?.email]);
+
+  const confirmBulkStatusChange = useCallback(() => {
+    if (selectedTableStudents.length === 0) return;
+    const nextStatus = bulkTableStatus;
+    setConfirmModalConfig({
+      isOpen: true,
+      type: nextStatus === 'Rejected' || nextStatus === 'Withdrawn' ? 'danger' : 'warning',
+      title: `Set ${selectedTableStudents.length} Applications to ${nextStatus}`,
+      message: `Change the workflow status of every selected application to “${nextStatus}”?`,
+      consequence: nextStatus === 'Approved'
+        ? 'Approval is intentionally unavailable here because each student needs a unique class roll number.'
+        : 'The operation uses exact Firestore document IDs and records one auditable bulk activity entry.',
+      confirmText: `Apply ${nextStatus} Status`,
+      onConfirm: async ({ reasonCategory, customReason } = {}) => {
+        try {
+          setBulkTableActionBusy(true);
+          const payload = {
+            Status: nextStatus,
+            status: nextStatus,
+            updatedAt: new Date().toISOString(),
+            lastEditedBy: `Admin (${user?.email || 'System'})`
+          };
+          if (nextStatus === 'Rejected') payload.rejectionReason = customReason || reasonCategory;
+          await runSelectedMutation(student => updateExactAdmissionDocument(student, { ...payload }));
+          const selectedIds = new Set(selectedTableStudents.map(getExactAdmissionDocId));
+          setCurrentAdmissions(previous => previous.map(student =>
+            selectedIds.has(getExactAdmissionDocId(student)) ? { ...student, ...payload } : student
+          ));
+          await logAdminActivity({
+            actionType: 'bulk_status_update',
+            actionTitle: `Bulk Status Updated to ${nextStatus}`,
+            details: `Updated ${selectedTableStudents.length} exact application record(s).`,
+            reasonCategory,
+            customReason,
+            metadata: { documentIds: Array.from(selectedIds), status: nextStatus }
+          });
+          setToast({ type: 'success', message: `${selectedTableStudents.length} applications set to ${nextStatus}.` });
+          setConfirmModalConfig(null);
+        } catch (error) {
+          setToast({ type: 'error', message: `Bulk status update failed: ${error.message}` });
+        } finally {
+          setBulkTableActionBusy(false);
+        }
+      }
+    });
+  }, [bulkTableStatus, runSelectedMutation, selectedTableStudents, user?.email]);
+
+  const confirmBulkDelete = useCallback(() => {
+    if (selectedTableStudents.length === 0) return;
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'danger',
+      title: `Archive ${selectedTableStudents.length} Applications`,
+      message: 'Move only the selected active applications to the 90-day Recycle Bin?',
+      consequence: 'Each exact Firestore document is archived and deleted independently. Master-register records and other applications with matching student details are not touched.',
+      confirmText: 'Archive Selected Applications',
+      onConfirm: async ({ reasonCategory, customReason } = {}) => {
+        try {
+          setBulkTableActionBusy(true);
+          const records = [...selectedTableStudents];
+          await runSelectedMutation(student => moveToRecycleBin(student, 'admissions', user?.email || 'Admin'));
+          records.forEach(handleRecordDeleted);
+          await logAdminActivity({
+            actionType: 'bulk_delete',
+            actionTitle: 'Bulk Applications Archived',
+            details: `Moved ${records.length} exact application record(s) to the 90-day Recycle Bin.`,
+            reasonCategory,
+            customReason,
+            metadata: { documentIds: records.map(getExactAdmissionDocId), count: records.length }
+          });
+          setSelectedTableDocIds(new Set());
+          setToast({ type: 'success', message: `${records.length} applications moved to the Recycle Bin.` });
+          setConfirmModalConfig(null);
+        } catch (error) {
+          setToast({ type: 'error', message: `Bulk archive failed: ${error.message}` });
+        } finally {
+          setBulkTableActionBusy(false);
+        }
+      }
+    });
+  }, [handleRecordDeleted, runSelectedMutation, selectedTableStudents, user?.email]);
+
   const totalPages = pageSize === 'All' ? 1 : Math.ceil(filteredStudents.length / (parseInt(pageSize, 10) || 50));
 
   // Candidates for the Bulk Class, Session & Stream Tool (with fast preview by session, class, or keyword search)
@@ -6837,6 +7062,94 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         </div>
       </div>
 
+      {/* Exact-record multi-selection actions */}
+      {selectedTableStudents.length > 0 && (
+        <div className="mx-0.5 mb-1.5 px-2.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/95 dark:bg-indigo-950/80 shadow-sm flex flex-wrap items-center gap-2 sticky top-0 z-40">
+          <div className="flex items-center gap-2 mr-auto min-w-0">
+            <span className="inline-flex items-center justify-center min-w-6 h-6 px-1.5 rounded-lg bg-indigo-600 text-white font-black text-[11px]">
+              {selectedTableStudents.length}
+            </span>
+            <div className="min-w-0">
+              <p className="font-black text-xs text-indigo-950 dark:text-indigo-100 leading-tight">Applications selected</p>
+              <p className="text-[9px] font-bold text-indigo-700 dark:text-indigo-300 leading-tight">Actions apply only to exact database records</p>
+            </div>
+          </div>
+
+          {selectedTableStudents.length < selectableFilteredStudents.length && (
+            <button
+              type="button"
+              onClick={selectAllFilteredApplications}
+              className="px-2.5 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-indigo-800 dark:text-indigo-200 font-black text-[10px] cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+            >
+              Select all {selectableFilteredStudents.length} filtered
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={bulkTableActionBusy}
+            onClick={() => generateBulkAdmissionPdf(selectedTableStudents, printSections)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-black text-[10px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Open the selected applications as one printable document"
+          >
+            <Printer size={12} /> Print selected
+          </button>
+
+          <button
+            type="button"
+            disabled={bulkTableActionBusy}
+            onClick={confirmBulkUnlock}
+            className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <Unlock size={12} /> Unlock 24h
+          </button>
+
+          <div className="flex items-center rounded-lg overflow-hidden border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900">
+            <select
+              value={bulkTableStatus}
+              onChange={event => setBulkTableStatus(event.target.value)}
+              disabled={bulkTableActionBusy || selectedIncludesAssignedRoll}
+              aria-label="Status for selected applications"
+              className="h-7 px-2 bg-transparent text-[10px] font-black text-slate-800 dark:text-slate-100 outline-none cursor-pointer disabled:opacity-50"
+            >
+              <option value="Submitted">Submitted</option>
+              <option value="Provisional">Provisional</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Withdrawn">Withdrawn</option>
+            </select>
+            <button
+              type="button"
+              disabled={bulkTableActionBusy || selectedIncludesAssignedRoll}
+              onClick={confirmBulkStatusChange}
+              title={selectedIncludesAssignedRoll ? 'Status changes are disabled when an approved record with an assigned roll number is selected' : 'Apply status to selected applications'}
+              className="h-7 px-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Apply status
+            </button>
+          </div>
+
+          <button
+            type="button"
+            disabled={bulkTableActionBusy}
+            onClick={confirmBulkDelete}
+            className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <Trash2 size={12} /> Archive
+          </button>
+
+          <button
+            type="button"
+            disabled={bulkTableActionBusy}
+            onClick={() => setSelectedTableDocIds(new Set())}
+            className="w-7 h-7 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 flex items-center justify-center cursor-pointer disabled:opacity-50"
+            title="Clear selection"
+            aria-label="Clear selected applications"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Master Data Table (Clean Light Theme Adaptive Headers & Sticky S.No Column) */}
       <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-110px)] rounded-lg border border-slate-300 dark:border-slate-700 shadow-2xs max-w-full bg-white dark:bg-slate-900 relative">
         {/* Real-time Table Loading Progress Stripe */}
@@ -6848,11 +7161,25 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words table-fixed">
             <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr className="overflow-visible">
+                <th className="sticky left-0 top-0 z-50 w-9 min-w-9 max-w-9 px-1 py-1 text-center bg-slate-100 dark:bg-slate-800 border-r border-slate-300 dark:border-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={allPageRowsSelected}
+                    ref={element => {
+                      if (element) element.indeterminate = somePageRowsSelected && !allPageRowsSelected;
+                    }}
+                    disabled={selectablePageStudents.length === 0}
+                    onChange={toggleCurrentPageSelection}
+                    aria-label={allPageRowsSelected ? 'Deselect all applications on this page' : 'Select all applications on this page'}
+                    title={allPageRowsSelected ? 'Deselect current page' : 'Select current page'}
+                    className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                </th>
                 {orderedVisibleColumns.map((col, idx) => {
                   const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
                   const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : configuredWidth;
                   const stickyClasses = col.isSticky
-                    ? 'sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700'
+                    ? 'sticky left-9 top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700'
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
 
                   const isFirstShiftable = idx === 0 || (idx === 1 && orderedVisibleColumns[0]?.isSticky);
@@ -6925,9 +7252,23 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                     _copiedCellId: copiedCellId,
                   };
                   const dynamicSNo = pageSize === 'All' ? idx + 1 : (currentPage - 1) * (parseInt(pageSize, 10) || 50) + idx + 1;
+                  const exactDocId = getExactAdmissionDocId(s);
+                  const isSelectable = s?._isCurrentScope !== false && Boolean(exactDocId);
+                  const isSelected = isSelectable && selectedTableDocIds.has(exactDocId);
 
                   return (
-                    <tr key={`adv_rep_row_${s.id || s.docId || s.formNo || idx}_${dynamicSNo}_${idx}`} className={`group transition-colors font-bold ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
+                    <tr key={`adv_rep_row_${s.id || s.docId || s.formNo || idx}_${dynamicSNo}_${idx}`} className={`group transition-colors font-bold ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950/50 ring-1 ring-inset ring-indigo-300 dark:ring-indigo-800' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
+                      <td className={`sticky left-0 z-20 w-9 min-w-9 max-w-9 px-1 py-1 text-center border-r border-slate-200 dark:border-slate-800 ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!isSelectable || bulkTableActionBusy}
+                          onChange={() => toggleTableStudent(s)}
+                          aria-label={isSelectable ? `Select ${s.studentName || `application ${dynamicSNo}`}` : 'Historical records cannot be selected for application actions'}
+                          title={isSelectable ? 'Select this exact application' : 'Historical register record: actions unavailable'}
+                          className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                        />
+                      </td>
                       {orderedVisibleColumns.map(col => {
                         const val = col.key === 'sno' ? dynamicSNo : (s[col.key] ?? '—');
                         const cellId = `${s.id || s.sno || idx}_${col.key}`;
@@ -6937,7 +7278,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                         const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : configuredWidth;
 
                         const stickyBg = col.isSticky
-                          ? ` sticky left-0 z-10 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
+                          ? ` sticky left-9 z-10 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
                           : '';
 
                         return (
@@ -7041,7 +7382,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                 })
               ) : (loading || isFetchingData) ? (
                 <tr>
-                  <td colSpan={orderedVisibleColumns.length || 1} className="p-10 text-center bg-slate-50/50 dark:bg-slate-900/30">
+                  <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-10 text-center bg-slate-50/50 dark:bg-slate-900/30">
                     <div className="flex flex-col items-center justify-center gap-2.5 py-4">
                       <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center border border-amber-300 dark:border-amber-700/50 shadow-inner">
                         <RefreshCw size={20} className="animate-spin text-amber-700 dark:text-amber-400" />
@@ -7059,7 +7400,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                 </tr>
               ) : (
                 <tr>
-                  <td colSpan={orderedVisibleColumns.length || 1} className="p-10 text-center text-slate-600 dark:text-slate-400">
+                  <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-10 text-center text-slate-600 dark:text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2 py-4">
                       <SearchX size={28} className="text-slate-400 dark:text-slate-500" />
                       <p className="font-extrabold text-sm text-slate-700 dark:text-slate-300">
@@ -8992,7 +9333,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       {confirmModalConfig && (
         <ConfirmDialogModal
           {...confirmModalConfig}
-          loading={isSavingEdit || isSavingQuickEdit}
+          loading={isSavingEdit || isSavingQuickEdit || bulkTableActionBusy}
           onClose={() => setConfirmModalConfig(null)}
         />
       )}
