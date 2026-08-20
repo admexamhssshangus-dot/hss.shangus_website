@@ -3940,7 +3940,7 @@ export default function StudentCertificateStudioView({
                   className="flex items-stretch justify-between bg-white border border-[#800000] rounded-md overflow-hidden text-[10px] font-sans shadow-2xs"
                 >
                   {/* Left Column: 2x2 Metadata Grid */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 flex-1 px-3.5 py-2">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 flex-1 px-3.5 py-3 leading-relaxed">
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Certificate No.:</span>
                       <span className="font-mono font-black text-red-600 truncate">{refNo || '—'}</span>
