@@ -764,11 +764,21 @@ export async function preloadStudentPhotosCache() {
       const allAdmissions = getCachedCollectionSync('admissions') || [];
       const allMaster = getCachedCollectionSync('masterRegisters') || [];
       const allLegacy = getCachedCollectionSync('legacyStudents') || [];
-      const combinedAll = [...allAdmissions, ...allMaster, ...allLegacy];
+      
+      const flatStudents = [];
+      [...allAdmissions, ...allMaster, ...allLegacy].forEach(item => {
+        if (!item) return;
+        const inner = item.items || item.students || item.records || item.data;
+        if (Array.isArray(inner)) {
+          flatStudents.push(...inner);
+        } else {
+          flatStudents.push(item);
+        }
+      });
 
-      combinedAll.forEach(st => {
+      flatStudents.forEach(st => {
         if (!st || typeof st !== 'object') return;
-        const p = st.photo_id || st.photoId || st.photoUrl || st.photo || st['passport_photo'] || st['Student Photo'] || st['Photo'] || '';
+        const p = st.photo_id || st.photoId || st.photoUrl || st.photo || st['passport_photo'] || st['Student Photo'] || st['Student Photograph'] || st['Photo'] || st.studentPhoto || '';
         if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
           const photoVal = p.trim();
           const regCandidates = [
@@ -778,9 +788,17 @@ export async function preloadStudentPhotosCache() {
             st['Board Registration No.'],
             st['Board Registration No. (Class 10th)'],
             st['Board Registration No. (Class 11th)'],
+            st['Board Registration No. (Class 12th)'],
+            st['Registration No. (allotted by JKBOSE)'],
             st['Board Reg. No.'],
             st['Board Reg No'],
-            st['REG. NO.']
+            st['Registration No.'],
+            st['Reg. No.'],
+            st['Reg. No'],
+            st['Reg No'],
+            st['Reg No.'],
+            st['REG. NO.'],
+            st['REG NO']
           ].filter(Boolean);
 
           regCandidates.forEach(r => {
@@ -910,9 +928,15 @@ export function resolveStudentPhoto(student, fallback = null) {
       const allAdmissions = getCachedCollectionSync('admissions') || [];
       const allMaster = getCachedCollectionSync('masterRegisters') || [];
       const allLegacy = getCachedCollectionSync('legacyStudents') || [];
-      const combinedAll = [...allAdmissions, ...allMaster, ...allLegacy];
+      const flatStudents = [];
+      [...allAdmissions, ...allMaster, ...allLegacy].forEach(item => {
+        if (!item) return;
+        const inner = item.items || item.students || item.records || item.data;
+        if (Array.isArray(inner)) flatStudents.push(...inner);
+        else flatStudents.push(item);
+      });
 
-      for (const rec of combinedAll) {
+      for (const rec of flatStudents) {
         if (!rec || typeof rec !== 'object') continue;
         const recReg = normalizeRegNoKey(
           rec.boardRegNo || rec.regNo || rec['Board Registration Number'] || rec['Board Registration No.'] || rec['Board Registration No. (Class 10th)'] || rec['Board Registration No. (Class 11th)'] || rec['REG. NO.']
