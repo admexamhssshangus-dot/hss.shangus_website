@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Info, CheckCircle2, Trash2, X, ShieldAlert, FileText, RefreshCw } from 'lucide-react';
 
 /**
@@ -9,6 +9,7 @@ import { AlertTriangle, Info, CheckCircle2, Trash2, X, ShieldAlert, FileText, Re
 export default function ConfirmDialogModal({
   isOpen,
   onClose,
+  onCancel,
   onConfirm,
   title = 'Confirm Sensitive Operation',
   message = 'Are you sure you want to proceed with this operation?',
@@ -22,6 +23,21 @@ export default function ConfirmDialogModal({
   const [reasonCategory, setReasonCategory] = useState('Routine Data Update & Correction');
   const [customReason, setCustomReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleClose = useCallback(() => {
+    if (loading || isSubmitting) return;
+    const closeHandler = onClose || onCancel;
+    if (closeHandler) closeHandler();
+  }, [loading, isSubmitting, onClose, onCancel]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 
@@ -83,8 +99,12 @@ export default function ConfirmDialogModal({
     <div
       className="fixed inset-0 z-[100005] flex items-center justify-center p-3 bg-slate-950/75 backdrop-blur-md animate-fadeIn"
       style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) handleClose();
+      }}
     >
-      <div className={`w-full max-w-md rounded-2xl border ${currentType.border} bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl overflow-hidden flex flex-col`}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={`w-full max-w-md rounded-2xl border ${currentType.border} bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl overflow-hidden flex flex-col`}>
         
         {/* Header Bar */}
         <div className={`px-4 py-3 bg-gradient-to-r ${currentType.bgGradient} flex items-center justify-between border-b border-slate-200 dark:border-slate-800`}>
@@ -104,7 +124,8 @@ export default function ConfirmDialogModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
+            aria-label="Close confirmation"
             className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-pointer transition-colors"
           >
             <X size={16} />
@@ -190,7 +211,7 @@ export default function ConfirmDialogModal({
           <button
             type="button"
             disabled={loading || isSubmitting}
-            onClick={onClose}
+            onClick={handleClose}
             className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer transition-colors disabled:opacity-50"
           >
             {cancelText}
