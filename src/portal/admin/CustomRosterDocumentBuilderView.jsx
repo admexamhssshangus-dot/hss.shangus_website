@@ -1957,8 +1957,9 @@ export default function CustomRosterDocumentBuilderView({
   }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster]);
 
   // Metadata Badges for Header
-  const displaySession = globalSession && globalSession !== 'ALL'
-    ? `Session: ${globalSession}`
+  const cleanGlobalSession = String(globalSession || '').replace(/^(active_|master_)/, '');
+  const displaySession = cleanGlobalSession && globalSession !== 'ALL'
+    ? `Session: ${cleanGlobalSession}`
     : (globalSession === 'ALL' ? 'All Sessions' : 'Session: 2025-26');
 
   const metaBadges = [
