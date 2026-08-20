@@ -1234,6 +1234,9 @@ function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
   useEffect(() => {
     let active = true;
     setImgError(false);
+    // Virtualized/reused table rows must never retain the previous student's
+    // image while the next registration-number lookup is pending.
+    setPhotoSrc('');
 
     const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
     if (fast && fast !== '/logo.png' && fast !== '—') {
@@ -2696,7 +2699,10 @@ export default function CustomRosterDocumentBuilderView({
                     </tr>
                   ) : (
                     (showAllPreviewRows ? processedRows : processedRows.slice(0, 35)).map((row, rIdx) => (
-                      <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}>
+                      <tr
+                        key={`${selectedClass}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
+                        className={rIdx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}
+                      >
                         {activeTableColumns.map((col) => (
                           <td
                             key={col.key}
@@ -2708,6 +2714,7 @@ export default function CustomRosterDocumentBuilderView({
                           >
                             {col.key === 'studentPhoto' || col.key === 'photo' ? (
                               <RosterStudentPhotoCell
+                                key={`${selectedClass}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
                                 student={row._rawStudent || row}
                                 studentName={row.studentName}
                                 initialPhoto={row.studentPhoto}
