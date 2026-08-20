@@ -109,7 +109,7 @@ export default function OfficialDocumentsStudioView({
   }, [allStudents]);
 
   // ─── Global Academic Session State ───
-  const [selectedGlobalSession, setSelectedGlobalSession] = useState(defaultActiveSession);
+  const [selectedGlobalSession, setSelectedGlobalSession] = useState(`active_${defaultActiveSession}`);
   
   // Real-time Firestore masterRegisters raw docs (Kept strictly in component RAM — NEVER written to localStorage)
   const [masterHistoricalRecords, setMasterHistoricalRecords] = useState([]);
@@ -118,8 +118,8 @@ export default function OfficialDocumentsStudioView({
 
   // Sync if defaultActiveSession changes on initial load
   useEffect(() => {
-    if (defaultActiveSession && selectedGlobalSession === '2025-26' && defaultActiveSession !== '2025-26') {
-      setSelectedGlobalSession(defaultActiveSession);
+    if (defaultActiveSession && (selectedGlobalSession === 'active_2025-26' || selectedGlobalSession === '2025-26') && defaultActiveSession !== '2025-26') {
+      setSelectedGlobalSession(`active_${defaultActiveSession}`);
     }
   }, [defaultActiveSession, selectedGlobalSession]);
 
@@ -151,17 +151,17 @@ export default function OfficialDocumentsStudioView({
     }
   }, [masterHistoricalRecords.length, isLoadingHistorical]);
 
-  const handleSessionChange = useCallback((sess) => {
-    setSelectedGlobalSession(sess);
-    if (sess !== defaultActiveSession) {
+  const handleSessionChange = useCallback((sessVal) => {
+    setSelectedGlobalSession(sessVal);
+    if (sessVal.startsWith('master_') || sessVal === 'ALL') {
       loadHistoricalRecordsOnDemand();
     }
-  }, [defaultActiveSession, loadHistoricalRecordsOnDemand]);
+  }, [loadHistoricalRecordsOnDemand]);
 
-  // ─── 2. DYNAMIC SESSIONS (Active + Standard Past Sessions) ───
+  // ─── 2. DYNAMIC SESSIONS (Live Admissions + Master Registers) ───
   const dynamicSessionOptions = useMemo(() => {
-    const activeCount = (allStudents || []).length;
     const standardSessions = [
+      '2025-26',
       '2024-25',
       '2023-24',
       '2022-23',
@@ -174,45 +174,73 @@ export default function OfficialDocumentsStudioView({
       '2015-16'
     ];
 
-    const options = [
-      {
-        value: defaultActiveSession,
-        label: `${defaultActiveSession} (Active · ${activeCount})`,
-        count: activeCount,
-        isActive: true
-      }
-    ];
+    // 1. Group Live Admissions by Session
+    const activeSessionMap = new Map();
+    (allStudents || []).forEach(st => {
+      const s = extractSession(st) || defaultActiveSession;
+      activeSessionMap.set(s, (activeSessionMap.get(s) || 0) + 1);
+    });
 
+    const activeOptions = Array.from(activeSessionMap.entries()).map(([sess, count]) => ({
+      value: `active_${sess}`,
+      label: `${sess} (Live Admissions · ${count})`,
+      count,
+      isLive: true
+    }));
+
+    if (activeOptions.length === 0) {
+      activeOptions.push({
+        value: `active_${defaultActiveSession}`,
+        label: `${defaultActiveSession} (Live Admissions · 0)`,
+        count: 0,
+        isLive: true
+      });
+    }
+
+    // 2. Group Master Registers by Session
+    const masterOptions = [];
     if (masterHistoricalRecords.length > 0) {
-      const sessionMap = new Map();
+      const masterSessionMap = new Map();
       masterHistoricalRecords.forEach(st => {
         const s = extractSession(st) || 'Historical';
-        sessionMap.set(s, (sessionMap.get(s) || 0) + 1);
+        masterSessionMap.set(s, (masterSessionMap.get(s) || 0) + 1);
       });
 
-      const sortedHistorical = Array.from(sessionMap.entries())
-        .filter(([sess]) => sess !== defaultActiveSession)
+      const sortedMaster = Array.from(masterSessionMap.entries())
         .sort((a, b) => b[0].localeCompare(a[0], undefined, { numeric: true, sensitivity: 'base' }));
 
-      sortedHistorical.forEach(([sess, count]) => {
-        options.push({
-          value: sess,
-          label: `${sess} (Historical · ${count})`,
+      sortedMaster.forEach(([sess, count]) => {
+        masterOptions.push({
+          value: `master_${sess}`,
+          label: `${sess} (Master Register Archive · ${count})`,
           count,
-          isActive: false
+          isMaster: true
         });
       });
     } else {
-      standardSessions
-        .filter(s => s !== defaultActiveSession)
-        .forEach(sess => {
-          options.push({
-            value: sess,
-            label: `${sess} (Historical)`,
-            count: 0,
-            isActive: false
-          });
+      standardSessions.forEach(sess => {
+        masterOptions.push({
+          value: `master_${sess}`,
+          label: `${sess} (Master Register Archive)`,
+          count: 0,
+          isMaster: true
         });
+      });
+    }
+
+    const options = [
+      ...activeOptions,
+      ...masterOptions
+    ];
+
+    const totalCombined = (allStudents || []).length + (masterHistoricalRecords || []).length;
+    if (options.length > 1) {
+      options.push({
+        value: 'ALL',
+        label: `All Sessions (Combined · ${totalCombined})`,
+        count: totalCombined,
+        isAll: true
+      });
     }
 
     return options;
@@ -220,21 +248,39 @@ export default function OfficialDocumentsStudioView({
 
   // ─── 3. FILTER STUDENTS FED TO SUB-STUDIOS BASED ON SELECTED GLOBAL SESSION ───
   const currentSessionStudents = useMemo(() => {
-    if (selectedGlobalSession === defaultActiveSession) {
-      return allStudents || [];
-    }
-
     if (selectedGlobalSession === 'ALL') {
       return [...(allStudents || []), ...masterHistoricalRecords];
     }
 
+    if (selectedGlobalSession.startsWith('active_')) {
+      const targetSess = selectedGlobalSession.replace(/^active_/, '').toLowerCase().trim();
+      return (allStudents || []).filter(st => {
+        const s = (extractSession(st) || '').toLowerCase().trim();
+        return !targetSess || s === targetSess || s.includes(targetSess) || targetSess.includes(s);
+      });
+    }
+
+    if (selectedGlobalSession.startsWith('master_')) {
+      const targetSess = selectedGlobalSession.replace(/^master_/, '').toLowerCase().trim();
+      return masterHistoricalRecords.filter(st => {
+        const s = (extractSession(st) || '').toLowerCase().trim();
+        return !targetSess || s === targetSess || s.includes(targetSess) || targetSess.includes(s);
+      });
+    }
+
+    // Fallback for legacy plain session values:
     const norm = selectedGlobalSession.toLowerCase().trim();
+    const activeMatches = (allStudents || []).filter(st => {
+      const s = (extractSession(st) || '').toLowerCase().trim();
+      return s === norm || s.includes(norm) || norm.includes(s);
+    });
+    if (activeMatches.length > 0) return activeMatches;
+
     return masterHistoricalRecords.filter(st => {
       const s = (extractSession(st) || '').toLowerCase().trim();
       return s === norm || s.includes(norm) || norm.includes(s);
-      return s === norm || s.includes(norm) || norm.includes(s);
     });
-  }, [allStudents, defaultActiveSession, masterHistoricalRecords, selectedGlobalSession]);
+  }, [allStudents, masterHistoricalRecords, selectedGlobalSession]);
 
   return (
     <div className="space-y-1 text-xs sm:text-sm animate-fadeIn relative text-slate-900 dark:text-slate-100">
