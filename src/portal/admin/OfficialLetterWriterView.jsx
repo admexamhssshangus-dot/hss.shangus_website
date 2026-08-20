@@ -2097,7 +2097,7 @@ export default function OfficialLetterWriterView({
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px] font-bold"
                       >
                         <span className="text-amber-600 text-xs">✂️</span>
-                        <span>✂️ Shorten & Summarize</span>
+                        <span>Shorten & Summarize</span>
                       </button>
                       <button
                         type="button"

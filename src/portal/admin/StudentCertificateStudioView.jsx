@@ -11,7 +11,7 @@ import {
   User, CheckCircle2, History, RotateCcw, AlertCircle, Info, AlertTriangle,
   Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Table as TableIcon, Undo, Redo, RemoveFormatting, Palette, Minus,
-  Bot, Key, Wand2, Shield, ExternalLink, Calendar
+  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors
 } from 'lucide-react';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
@@ -848,7 +848,7 @@ export default function StudentCertificateStudioView({
     setDefaultTemplateId(templateId);
     try {
       await setCloudDefaultTemplate(templateId, 'certificate');
-      showToast('âœ“ Set as default certificate template!', 'success');
+      showToast('✓ Set as default certificate template!', 'success');
     } catch (err) {
       console.warn('Set default error:', err);
       showToast(`Default template set locally (${err.message})`, 'info');
@@ -903,7 +903,7 @@ export default function StudentCertificateStudioView({
       }
       setShowSaveTemplateModal(false);
       setNewTplName('');
-      showToast(`â˜ï¸ Template "${targetTpl.name}" successfully saved to Cloud Database!`, 'success');
+      showToast(`☁️ Template "${targetTpl.name}" successfully saved to Cloud Database!`, 'success');
     } catch (err) {
       console.error(err);
       showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
@@ -944,7 +944,7 @@ export default function StudentCertificateStudioView({
       const updated = [targetTpl, ...customTemplates.filter(t => t.id !== targetTpl.id)];
       setCustomTemplates(updated);
       setTemplateBody(currentHtml);
-      showToast(`â˜ï¸ Template "${targetTpl.name}" successfully overwritten and saved in Cloud!`, 'success');
+      showToast(`☁️ Template "${targetTpl.name}" successfully overwritten and saved in Cloud!`, 'success');
     } catch (err) {
       console.error(err);
       showToast(`Template saved locally (Cloud note: ${err.message})`, 'warning');
@@ -2057,7 +2057,7 @@ export default function StudentCertificateStudioView({
     setGeminiKeys(saved);
     setShowKeysConfig(false);
     setAiError('');
-    showToast(`âœ“ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
+    showToast(`✓ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
   };
 
   const handleGenerateAi = async () => {
@@ -2130,7 +2130,7 @@ export default function StudentCertificateStudioView({
     }
 
     setTimeout(pushSnapshot, 50);
-    showToast('âœ¨ AI-generated certificate content applied to canvas!', 'success');
+    showToast('✨ AI-generated certificate content applied to canvas!', 'success');
     setShowAiModal(false);
   };
 
@@ -2365,7 +2365,7 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â• COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER â•â•â•â•â•â•â•â• */}
+      {/* ================ COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER ================ */}
       {showSettingsDrawer && (
         <div 
           className="rounded-xl p-3 shadow-2xs space-y-2 animate-fadeIn text-xs border"
@@ -2530,7 +2530,7 @@ export default function StudentCertificateStudioView({
       {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
       <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
         
-        {/* â•â•â•â•â•â•â•â• LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE â•â•â•â•â•â•â•â• */}
+        {/* ================ LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE ================ */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
           className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-hidden flex flex-col min-h-[620px] max-h-[calc(100vh-95px)]"
@@ -2998,7 +2998,7 @@ export default function StudentCertificateStudioView({
           <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
         </div>
 
-        {/* â•â•â•â•â•â•â•â• RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK â•â•â•â•â•â•â•â• */}
+        {/* ================ RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK ================ */}
         <div
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 pl-0 lg:pl-1 min-w-0"
@@ -3081,7 +3081,7 @@ export default function StudentCertificateStudioView({
                           title="Edit or add temporary dynamic field values"
                         >
                           <Sliders size={9} />
-                          <span>âœï¸ Edit Values</span>
+                          <span>✍️ Edit Values</span>
                         </button>
                       </div>
 
@@ -3322,7 +3322,7 @@ export default function StudentCertificateStudioView({
                           className="w-full py-1 px-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all"
                         >
                           <PlusCircle size={10} />
-                          <span>âž• Manage / Edit Custom & DB Fields</span>
+                          <span>➕ Manage / Edit Custom & DB Fields</span>
                         </button>
                       </div>
                     </div>
@@ -3359,34 +3359,34 @@ export default function StudentCertificateStudioView({
                       <button
                         type="button"
                         onClick={() => { handleOpenAiModal('draft'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
                       >
-                        <Bot size={11} className="text-purple-600" />
-                        <span>âœï¸ Draft Certificate with AI</span>
+                        <Bot size={13} className="text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span>Draft Certificate with AI</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => { handleOpenAiModal('humanize'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/60 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
                       >
-                        <Sparkles size={11} className="text-purple-600" />
-                        <span>🪄 Polish & Humanize</span>
+                        <Sparkles size={13} className="text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span>Polish & Humanize</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => { handleOpenAiModal('formalize'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
                       >
-                        <FileText size={11} className="text-indigo-600" />
-                        <span>📜 Formalize Terms</span>
+                        <FileText size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span>Formalize Terms</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => { handleOpenAiModal('shorten'); setShowAskGeminiMenu(false); }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer text-[10.5px]"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 flex items-center gap-2 cursor-pointer text-[10.5px]"
                       >
-                        <span className="text-amber-600 text-xs">✂️ </span>
-                        <span>✂️  Shorten Wording</span>
+                        <Scissors size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>Shorten Wording</span>
                       </button>
                       <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
                         <button
@@ -3865,7 +3865,7 @@ export default function StudentCertificateStudioView({
               </div>
             </div>
 
-            {/* â•â•â•â•â•â•â•â• A4 PAPER LIVE VIEWPORT & EDITOR â•â•â•â•â•â•â•â• */}
+            {/* ================ A4 PAPER LIVE VIEWPORT & EDITOR ================ */}
             <div className="flex-1 w-full max-w-[840px] min-w-0">
               <div
                 className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[calc(100vh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[620px]"
@@ -4485,7 +4485,7 @@ export default function StudentCertificateStudioView({
         );
       })()}
 
-      {/* â•â•â•â•â•â•â•â• EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL ================ */}
       {showFieldManagerModal && (
         <div className="fixed inset-0 z-[999999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 max-h-[88vh] overflow-y-auto">
@@ -4728,7 +4728,7 @@ export default function StudentCertificateStudioView({
                         }`}
                         title={studentVal ? `Value: ${studentVal}` : 'Click to add field'}
                       >
-                        <span>{isAdded ? 'âœ“' : 'âž•'} {preset.label}</span>
+                        <span>{isAdded ? '✓' : '➕'} {preset.label}</span>
                         {studentVal && (
                           <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-mono truncate max-w-[90px] ${
                             isAdded ? 'bg-teal-800 text-teal-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
@@ -4830,7 +4830,7 @@ export default function StudentCertificateStudioView({
                   disabled={!newCustomFieldName.trim()}
                   className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-sm cursor-pointer disabled:opacity-50 shrink-0 transition-all"
                 >
-                  âž• Add
+                  ➕ Add
                 </button>
               </form>
             </div>
@@ -4842,14 +4842,14 @@ export default function StudentCertificateStudioView({
                 onClick={() => setShowFieldManagerModal(false)}
                 className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-black text-xs cursor-pointer shadow-md transition-all"
               >
-                âœ“ Apply Overrides & Close
+                ✓ Apply Overrides & Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â• GEMINI AI CERTIFICATE ASSISTANT MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ GEMINI AI CERTIFICATE ASSISTANT MODAL ================ */}
       {showAiModal && (
         <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/80 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs text-slate-900 dark:text-slate-100">
@@ -4882,7 +4882,7 @@ export default function StudentCertificateStudioView({
                   title="Configure Gemini API Keys"
                 >
                   <Key size={11} />
-                  <span>{geminiKeys.length === 0 ? 'âš ï¸ Add API Key' : `${geminiKeys.length} Keys`}</span>
+                  <span>{geminiKeys.length === 0 ? '⚠️  Add API Key' : `${geminiKeys.length} Keys`}</span>
                 </button>
 
                 <button
@@ -4929,7 +4929,7 @@ export default function StudentCertificateStudioView({
                     onClick={handleSaveKeys}
                     className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs"
                   >
-                    âœ“ Save Keys to Cloud DB
+                    ✓ Save Keys to Cloud DB
                   </button>
                 </div>
               </div>
@@ -4938,10 +4938,10 @@ export default function StudentCertificateStudioView({
             {/* Mode Selector Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
               {[
-                { id: 'draft', label: 'âœï¸ Draft Certificate' },
+                { id: 'draft', label: '✍️ Draft Certificate' },
                 { id: 'humanize', label: '🪄 Polish & Humanize' },
                 { id: 'formalize', label: '📜 Formalize Terms' },
-                { id: 'shorten', label: '✂️  Shorten Wording' }
+                { id: 'shorten', label: '✂️ Shorten Wording' }
               ].map((m) => (
                 <button
                   key={m.id}
@@ -5106,7 +5106,7 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â• CLOUD DOCUMENT HISTORY & ARCHIVE MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ CLOUD DOCUMENT HISTORY & ARCHIVE MODAL ================ */}
       <DocumentHistoryModal
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
@@ -5114,7 +5114,7 @@ export default function StudentCertificateStudioView({
         onLoadAsDraft={handleLoadDraftFromHistory}
       />
 
-      {/* â•â•â•â•â•â•â•â• STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL ================ */}
       <StudentResultEditorModal
         isOpen={showResultEditorModal}
         onClose={() => setShowResultEditorModal(false)}
@@ -5131,12 +5131,12 @@ export default function StudentCertificateStudioView({
           setTcReappSubjects(res.reappSubjects);
           if (updatedSt?.withdrawalDate) setWithdrawalDate(updatedSt.withdrawalDate);
           setCustomCanvasHtml(null);
-          showToast('âœ“ Student exam result & TC records updated!', 'success');
+          showToast('✓ Student exam result & TC records updated!', 'success');
         }}
         showToast={showToast}
       />
 
-      {/* â•â•â•â•â•â•â•â• JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL ================ */}
       <ResultIngestionModal
         isOpen={showResultIngestionModal}
         onClose={() => setShowResultIngestionModal(false)}
@@ -5147,7 +5147,7 @@ export default function StudentCertificateStudioView({
         showToast={showToast}
       />
 
-      {/* â•â•â•â•â•â•â•â• BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL ================ */}
       <BulkCertificateGeneratorModal
         isOpen={showBulkGeneratorModal}
         onClose={() => setShowBulkGeneratorModal(false)}
@@ -5159,13 +5159,13 @@ export default function StudentCertificateStudioView({
         showToast={showToast}
       />
 
-      {/* â•â•â•â•â•â•â•â• CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL â•â•â•â•â•â•â•â• */}
+      {/* ================ CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL ================ */}
       <ConfirmModal
         isOpen={Boolean(templateToDelete)}
         onClose={() => { if (!isDeletingTemplate) setTemplateToDelete(null); }}
         onConfirm={handleConfirmDeleteTemplate}
         title="Delete Custom Template?"
-        message={`âš ï¸ WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
+        message={`⚠️  WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
         confirmText="Yes, Delete Permanently"
         cancelText="Cancel / Keep Template"
         type="danger"
