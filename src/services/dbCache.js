@@ -768,6 +768,47 @@ export function normalizeRegNoKey(val) {
 }
 
 /**
+ * Normalizes class strings to canonical format ('9th', '10th', '11th', '12th').
+ */
+export function normalizeCanonicalClass(val) {
+  if (!val) return '';
+  const s = String(val).toLowerCase().trim();
+  if (s.includes('12')) return '12th';
+  if (s.includes('11')) return '11th';
+  if (s.includes('10')) return '10th';
+  if (s.includes('9') || s.includes('ix')) return '9th';
+  return s;
+}
+
+/**
+ * Applies class-band photo precedence:
+ * - 9th/10th band: 9th photo takes precedence over 10th photo.
+ * - 11th/12th band: 11th photo takes precedence over 12th photo.
+ * - If only one photo exists on record across any class, it is used for all classes.
+ */
+export function selectClassPrecedencePhoto(photoMap, reg, targetClass) {
+  if (!photoMap || !reg) return '';
+  const cleanR = normalizeRegNoKey(reg);
+  if (!cleanR) return '';
+
+  const normClass = normalizeCanonicalClass(targetClass);
+
+  const p9 = photoMap[`${cleanR}_9th`] || photoMap[`photo_${cleanR}_9th`];
+  const p10 = photoMap[`${cleanR}_10th`] || photoMap[`photo_${cleanR}_10th`];
+  const p11 = photoMap[`${cleanR}_11th`] || photoMap[`photo_${cleanR}_11th`];
+  const p12 = photoMap[`${cleanR}_12th`] || photoMap[`photo_${cleanR}_12th`];
+  const pDefault = photoMap[cleanR] || photoMap[`photo_${cleanR}`] || photoMap[`reg_${cleanR}`];
+
+  if (normClass === '9th' || normClass === '10th') {
+    return p9 || p10 || p11 || p12 || pDefault || '';
+  }
+  if (normClass === '11th' || normClass === '12th') {
+    return p11 || p12 || p9 || p10 || pDefault || '';
+  }
+  return p11 || p12 || p9 || p10 || pDefault || '';
+}
+
+/**
  * Preload centralized student photos from 'studentPhotos' collection AND in-memory admissions/masterRegisters
  * into the local memory photo map indexed by registration number for universal cross-session sharing.
  */
@@ -784,26 +825,62 @@ export async function preloadStudentPhotosCache() {
         const p = d.photo_id || d.photoId || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || d.passport_photo || d['Student Photo'] || '';
         if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
           const photoVal = p.trim();
+          const dClass = normalizeCanonicalClass(d.selectedClass || d.class || d['Class'] || '');
           const regCandidates = [
             d.regNo,
             d.boardRegNo,
             d['Board Registration Number'],
             d['Board Registration No.'],
+            d['Board Registration No. (Class 10th)'],
+            d['Board Registration No. (Class 11th)'],
+            d['Board Registration No. (Class 12th)'],
+            d['Registration No. (allotted by JKBOSE)'],
             d['Board Reg. No.'],
-            d['REG. NO.']
+            d['Board Reg No'],
+            d['Registration No.'],
+            d['Reg. No.'],
+            d['Reg. No'],
+            d['Reg No'],
+            d['Reg No.'],
+            d['REG. NO.'],
+            d['REG NO']
           ].filter(Boolean);
 
           regCandidates.forEach(r => {
             const rawR = String(r).trim();
             const cleanR = normalizeRegNoKey(rawR);
             if (cleanR) {
-              photoMap[cleanR] = photoVal;
-              photoMap[`photo_${cleanR}`] = photoVal;
-              photoMap[`reg_${cleanR}`] = photoVal;
+              if (dClass) {
+                photoMap[`${cleanR}_${dClass}`] = photoVal;
+                photoMap[`photo_${cleanR}_${dClass}`] = photoVal;
+              }
+              // If not already set or default
+              if (!photoMap[cleanR]) {
+                photoMap[cleanR] = photoVal;
+                photoMap[`photo_${cleanR}`] = photoVal;
+                photoMap[`reg_${cleanR}`] = photoVal;
+              }
               photoMap[rawR] = photoVal;
               photoMap[rawR.toLowerCase()] = photoVal;
             }
           });
+
+          // Index any photos in photoHistory with their specific class
+          if (Array.isArray(d.photoHistory)) {
+            d.photoHistory.forEach(h => {
+              const hUrl = (h.url || h.photo_id || h.photoData || h.photo || '').trim();
+              const hClass = normalizeCanonicalClass(h.class || h.selectedClass || '');
+              if (hUrl && hUrl.length > 20 && hUrl !== '/logo.png') {
+                regCandidates.forEach(r => {
+                  const cleanR = normalizeRegNoKey(r);
+                  if (cleanR && hClass) {
+                    photoMap[`${cleanR}_${hClass}`] = hUrl;
+                    photoMap[`photo_${cleanR}_${hClass}`] = hUrl;
+                  }
+                });
+              }
+            });
+          }
 
           if (d.formNo) {
             const f = String(d.formNo).trim();
@@ -870,13 +947,20 @@ export async function preloadStudentPhotosCache() {
             st['REG NO']
           ].filter(Boolean);
 
+          const stClass = normalizeCanonicalClass(st.class || st.Class || st['Admission sought for class'] || '');
           regCandidates.forEach(r => {
             const rawR = String(r).trim();
             const cleanR = normalizeRegNoKey(rawR);
             if (cleanR) {
-              photoMap[cleanR] = photoVal;
-              photoMap[`photo_${cleanR}`] = photoVal;
-              photoMap[`reg_${cleanR}`] = photoVal;
+              if (stClass) {
+                photoMap[`${cleanR}_${stClass}`] = photoVal;
+                photoMap[`photo_${cleanR}_${stClass}`] = photoVal;
+              }
+              if (!photoMap[cleanR]) {
+                photoMap[cleanR] = photoVal;
+                photoMap[`photo_${cleanR}`] = photoVal;
+                photoMap[`reg_${cleanR}`] = photoVal;
+              }
               photoMap[rawR] = photoVal;
               photoMap[rawR.toLowerCase()] = photoVal;
             }
@@ -939,11 +1023,20 @@ export function resolveStudentPhoto(student, fallback = null) {
     return pTrim;
   }
 
-  // 2. Universal lookup by Registration Number across all sessions & classes
+  // 2. Universal lookup by Registration Number with Class-Band Precedence (9th>10th, 11th>12th)
   const cleanReg = extractUniversalRegNo(student);
   const rawReg = cleanReg;
   const formNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.id || '').trim();
   const docId = String(student.docId || student.id || '').trim();
+  const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+
+  // Check class-band prioritized match
+  if (cleanReg) {
+    const classPrioritized = selectClassPrecedencePhoto(photoMap, cleanReg, targetClass);
+    if (classPrioritized && classPrioritized !== '/logo.png' && classPrioritized !== '—') {
+      return classPrioritized;
+    }
+  }
 
   // STRICT UNIQUE IDENTIFIERS ONLY - NO NAME KEYS
   const candidates = [
@@ -1202,15 +1295,48 @@ export async function fetchStudentPhotoOnDemand(student) {
           if (snap.exists()) {
             const d = snap.data();
             const p = (d.photo_id || d.photoId || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || d.passport_photo || d['Student Photo'] || '').trim();
-            if (p && p.length > 20 && p !== '/logo.png') {
-              const formatted = formatPhotoDisplayUrl(p) || p;
-              if (typeof window !== 'undefined') {
-                window._hss_central_photo_map = window._hss_central_photo_map || {};
+            const dClass = normalizeCanonicalClass(d.selectedClass || d.class || d['Class'] || '');
+            const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+
+            if (typeof window !== 'undefined') {
+              window._hss_central_photo_map = window._hss_central_photo_map || {};
+              if (p && p.length > 20 && p !== '/logo.png') {
+                const formatted = formatPhotoDisplayUrl(p) || p;
+                if (reg && dClass) {
+                  window._hss_central_photo_map[`${reg}_${dClass}`] = formatted;
+                  window._hss_central_photo_map[`photo_${reg}_${dClass}`] = formatted;
+                }
                 docCandidates.forEach(cand => {
                   window._hss_central_photo_map[cand] = formatted;
                 });
               }
-              return formatted;
+
+              // Also index all photoHistory items with class tags
+              if (Array.isArray(d.photoHistory)) {
+                d.photoHistory.forEach(h => {
+                  const hUrl = (h.url || h.photo_id || h.photoData || h.photo || '').trim();
+                  const hClass = normalizeCanonicalClass(h.class || h.selectedClass || '');
+                  if (hUrl && hUrl.length > 20 && hUrl !== '/logo.png') {
+                    const formattedH = formatPhotoDisplayUrl(hUrl) || hUrl;
+                    if (reg && hClass) {
+                      window._hss_central_photo_map[`${reg}_${hClass}`] = formattedH;
+                      window._hss_central_photo_map[`photo_${reg}_${hClass}`] = formattedH;
+                    }
+                  }
+                });
+              }
+
+              // Return class-band prioritized photo
+              if (reg) {
+                const classPrioritized = selectClassPrecedencePhoto(window._hss_central_photo_map, reg, targetClass);
+                if (classPrioritized && classPrioritized !== '/logo.png' && classPrioritized !== '—') {
+                  return classPrioritized;
+                }
+              }
+            }
+
+            if (p && p.length > 20 && p !== '/logo.png') {
+              return formatPhotoDisplayUrl(p) || p;
             }
           }
         } catch (_) {}
