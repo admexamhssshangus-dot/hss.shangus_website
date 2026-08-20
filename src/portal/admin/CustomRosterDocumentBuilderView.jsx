@@ -22,7 +22,7 @@ import {
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { getCachedCollection, getCachedCollectionSync, preloadStudentPhotosCache, getPhotoUrlFromCache, resolveStudentPhoto } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, preloadStudentPhotosCache, getPhotoUrlFromCache, resolveStudentPhoto, fetchStudentPhotoOnDemand } from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -1223,6 +1223,53 @@ export function extractIfsc(st) {
   return '—';
 }
 
+// ─── High-Performance Self-Resolving Student Photo Cell ───
+function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
+  const [photoSrc, setPhotoSrc] = useState(() => initialPhoto || resolveStudentPhoto(student) || getStudentPhotoUrl(student) || '');
+
+  useEffect(() => {
+    let active = true;
+    const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student);
+    if (fast && fast !== '/logo.png' && fast !== '—') {
+      setPhotoSrc(fast);
+      return;
+    }
+    if (student) {
+      fetchStudentPhotoOnDemand(student).then((res) => {
+        if (active && res && res !== '/logo.png' && res !== '—') {
+          setPhotoSrc(res);
+        }
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [student, initialPhoto]);
+
+  return (
+    <div className="flex items-center justify-center p-0.5 min-h-[32px]">
+      {photoSrc ? (
+        <img
+          src={photoSrc}
+          alt={studentName || 'Student Photo'}
+          className="w-7 h-9 sm:w-8 sm:h-10 object-cover rounded border border-slate-300 shadow-2xs mx-auto bg-slate-100 block"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+            if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+          }}
+        />
+      ) : null}
+      <div
+        className={`w-7 h-9 sm:w-8 sm:h-10 border border-dashed border-slate-300 rounded bg-slate-50 flex-col items-center justify-center text-[7px] text-slate-400 font-bold mx-auto select-none ${
+          photoSrc ? 'hidden' : 'flex'
+        }`}
+      >
+        <User size={11} className="text-slate-300 mb-0.5" />
+        <span>Photo</span>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
@@ -1856,6 +1903,7 @@ export default function CustomRosterDocumentBuilderView({
       const mName = extractMotherName(st);
 
       row._originalIdx = idx + 1;
+      row._rawStudent = st;
       row['sno'] = idx + 1;
       
       let photoSrc = getStudentPhotoUrl(st);
@@ -2638,28 +2686,11 @@ export default function CustomRosterDocumentBuilderView({
                             className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle break-words whitespace-normal overflow-visible"
                           >
                             {col.key === 'studentPhoto' || col.key === 'photo' ? (
-                              <div className="flex items-center justify-center p-0.5 min-h-[32px]">
-                                {row.studentPhoto ? (
-                                  <img
-                                    src={row.studentPhoto}
-                                    alt={row.studentName || 'Student Photo'}
-                                    className="w-7 h-9 sm:w-8 sm:h-10 object-cover rounded border border-slate-300 shadow-2xs mx-auto bg-slate-100 block"
-                                    onError={(e) => {
-                                      e.target.onerror = null;
-                                      e.target.style.display = 'none';
-                                      if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
-                                    }}
-                                  />
-                                ) : null}
-                                <div
-                                  className={`w-7 h-9 sm:w-8 sm:h-10 border border-dashed border-slate-300 rounded bg-slate-50 flex-col items-center justify-center text-[7px] text-slate-400 font-bold mx-auto select-none ${
-                                    row.studentPhoto ? 'hidden' : 'flex'
-                                  }`}
-                                >
-                                  <User size={11} className="text-slate-300 mb-0.5" />
-                                  <span>Photo</span>
-                                </div>
-                              </div>
+                              <RosterStudentPhotoCell
+                                student={row._rawStudent || row}
+                                studentName={row.studentName}
+                                initialPhoto={row.studentPhoto}
+                              />
                             ) : col.key === 'subjects' ? (
                               <span className="font-mono text-[9px] leading-tight block break-words whitespace-normal">
                                 {row[col.key]}

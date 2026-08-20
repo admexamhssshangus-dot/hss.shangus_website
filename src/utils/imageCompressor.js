@@ -118,13 +118,9 @@ export const formatPhotoDisplayUrl = (val) => {
   const str = val.trim();
   if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') return '';
 
-  // 1. Native Firestore / Data URL Base64 image
+  // 1. Native Data URL
   if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
     return str;
-  }
-  // Raw Base64 string without data: prefix (e.g. /9j/4AAQSkZJRg... or long base64 string)
-  if (str.startsWith('/9j/') || str.startsWith('iVBORw') || /^[A-Za-z0-9+/=]{100,}$/.test(str)) {
-    return `data:image/jpeg;base64,${str}`;
   }
 
   // 2. Disallow / Deprecate Google Drive links completely per user directive
@@ -132,9 +128,21 @@ export const formatPhotoDisplayUrl = (val) => {
     return '';
   }
 
-  // 3. Firebase Storage, local paths, or standard web image URLs (excluding drive)
+  // 3. Standard Web URLs / Firebase Storage URLs
   if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
+  }
+
+  // 4. Raw Base64 string without data: prefix (handles newlines, PNG/WebP/JPEG headers)
+  const cleanBase64 = str.replace(/\s+/g, '');
+  if (cleanBase64.length > 40) {
+    if (cleanBase64.startsWith('iVBORw0KGgo')) {
+      return `data:image/png;base64,${cleanBase64}`;
+    }
+    if (cleanBase64.startsWith('UklGR')) {
+      return `data:image/webp;base64,${cleanBase64}`;
+    }
+    return `data:image/jpeg;base64,${cleanBase64}`;
   }
 
   return '';
