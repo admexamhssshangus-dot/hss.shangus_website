@@ -270,11 +270,11 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
 
         let classPhoto = '';
         if (targetClass === '9th' || targetClass === '10th') {
-          classPhoto = p9 || p10 || p11 || p12 || '';
+          classPhoto = p9 || p10 || '';
         } else if (targetClass === '11th' || targetClass === '12th') {
-          classPhoto = p11 || p12 || p9 || p10 || '';
+          classPhoto = p11 || p12 || '';
         } else {
-          classPhoto = p11 || p12 || p9 || p10 || '';
+          classPhoto = '';
         }
 
         if (isValidPhotoStr(classPhoto)) {
@@ -283,18 +283,19 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
         }
       }
 
-      const regCandidates = [
-        cleanedBoardReg,
-        cleanedBoardReg ? `photo_${cleanedBoardReg}` : null,
-        cleanedBoardReg ? `reg_${cleanedBoardReg}` : null,
-        cleanedBoardReg ? cleanedBoardReg.toLowerCase() : null,
-        fNo ? `photo_form_${fNo}` : null,
-        fNo ? `form_${fNo}` : null,
-        fNo ? `photo_${fNo}` : null,
-        fNo,
-        rawId ? `photo_${rawId}` : null,
-        rawId
-      ].filter(Boolean);
+      // A registration number is the canonical student identity. Form/document
+      // identifiers can repeat across sessions, so only use them when no
+      // registration number exists at all.
+      const regCandidates = cleanedBoardReg
+        ? [cleanedBoardReg, `photo_${cleanedBoardReg}`, `reg_${cleanedBoardReg}`, cleanedBoardReg.toLowerCase()]
+        : [
+            fNo ? `photo_form_${fNo}` : null,
+            fNo ? `form_${fNo}` : null,
+            fNo ? `photo_${fNo}` : null,
+            fNo,
+            rawId ? `photo_${rawId}` : null,
+            rawId
+          ].filter(Boolean);
 
       for (const rKey of regCandidates) {
         const p = mergedMap[rKey];

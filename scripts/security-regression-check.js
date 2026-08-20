@@ -18,6 +18,8 @@ const deleteModal = read('src/portal/admin/DeleteApplicationModal.jsx');
 const recycleService = read('src/services/recycleBinService.js');
 const mergerStudio = read('src/portal/admin/ApplicationMergerStudio.jsx');
 const appShell = read('src/App.js');
+const photoResolver = read('src/utils/imageCompressor.js');
+const rosterBuilder = read('src/portal/admin/CustomRosterDocumentBuilderView.jsx');
 
 assert(!/allow\s+(read|write|create|update|delete)(?:\s*,\s*\w+)*\s*:\s*if\s+true\b/.test(rules), 'Firestore contains unconditional access');
 assert(/match \/\{document=\*\*\}[\s\S]*allow read, write: if false;/.test(rules), 'Firestore default deny is missing');
@@ -59,5 +61,8 @@ assert(/getExactAdmissionDocId/.test(reports) && /updateExactAdmissionDocument/.
 assert(/await updateDoc\(doc\(db, 'admissions', exactId\), updates\)/.test(reports), 'Bulk application updates can create or target guessed documents');
 assert(/When the deleted record has an exact Firestore ID[\s\S]{0,240}if \(normId\) return/.test(reports), 'Deleted table rows can still be removed by a duplicate form-number fallback');
 assert(/selectedIncludesAssignedRoll/.test(reports), 'Bulk workflow status changes do not protect approved roll-number records');
+assert(!/classPhoto = p9 \|\| p10 \|\| p11 \|\| p12/.test(photoResolver), 'Secondary-class photos can still fall through to the higher-secondary band');
+assert(!/classPhoto = p11 \|\| p12 \|\| p9 \|\| p10/.test(photoResolver), 'Higher-secondary photos can still fall through to the secondary band');
+assert(/const printableRows = await Promise\.all\(processedRows\.map/.test(rosterBuilder), 'Roster printing does not wait for canonical photo resolution');
 
 console.log('Security regression checks passed.');
