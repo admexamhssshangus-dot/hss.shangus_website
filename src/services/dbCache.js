@@ -1115,23 +1115,48 @@ export async function fetchStudentPhotoOnDemand(student) {
     student.regNo ||
     student['Board Registration No. (Class 10th)'] ||
     student['Board Registration No. (Class 11th)'] ||
+    student['Board Registration No. (Class 12th)'] ||
+    student['Registration No. (allotted by JKBOSE)'] ||
     student['Board Registration No.'] ||
     student['Board Registration Number'] ||
     student['Board Reg. No.'] ||
     student['Board Reg No'] ||
+    student['Registration No.'] ||
+    student['Reg. No.'] ||
+    student['Reg. No'] ||
+    student['Reg No'] ||
     student['REG. NO.'] ||
+    student['REG NO'] ||
     '';
 
   const reg = cleanReg(rawBoardReg);
+  const fNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
+  const rawId = String(student.docId || student._docId || student.id || '').trim();
+
   const docCandidates = [];
   if (reg) {
     docCandidates.push(`photo_${reg}`);
     docCandidates.push(reg);
+    docCandidates.push(`photo_${reg.toLowerCase()}`);
+    docCandidates.push(reg.toLowerCase());
+    docCandidates.push(`reg_${reg}`);
   }
-  if (student.docId) docCandidates.push(String(student.docId).trim());
-  if (student.id) docCandidates.push(String(student.id).trim());
+  if (rawBoardReg && rawBoardReg !== reg) {
+    docCandidates.push(`photo_${rawBoardReg}`);
+    docCandidates.push(rawBoardReg);
+  }
+  if (fNo) {
+    docCandidates.push(`photo_form_${fNo}`);
+    docCandidates.push(`photo_${fNo}`);
+    docCandidates.push(`form_${fNo}`);
+    docCandidates.push(fNo);
+  }
+  if (rawId) {
+    docCandidates.push(`photo_${rawId}`);
+    docCandidates.push(rawId);
+  }
 
-  const cacheKey = reg || student.docId || student.id || (student.formNo ? `form_${student.formNo}` : '');
+  const cacheKey = reg || fNo || rawId;
   if (!cacheKey) return '';
 
   if (_activePhotoPromises.has(cacheKey)) {
@@ -1142,27 +1167,23 @@ export async function fetchStudentPhotoOnDemand(student) {
     try {
       for (const targetDocId of docCandidates) {
         if (!targetDocId) continue;
-        const snap = await getDoc(doc(db, 'studentPhotos', targetDocId));
-        if (snap.exists()) {
-          const d = snap.data();
-          const p = (d.photo_id || d.photoData || d.photo || d.photoUrl || '').trim();
-          if (p && p.length > 20) {
-            if (typeof window !== 'undefined') {
-              window._hss_central_photo_map = window._hss_central_photo_map || {};
-              window._hss_central_photo_map[targetDocId] = p;
-              if (reg) {
-                window._hss_central_photo_map[reg] = p;
-                window._hss_central_photo_map[`photo_${reg}`] = p;
+        try {
+          const snap = await getDoc(doc(db, 'studentPhotos', targetDocId));
+          if (snap.exists()) {
+            const d = snap.data();
+            const p = (d.photo_id || d.photoId || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || d.passport_photo || d['Student Photo'] || '').trim();
+            if (p && p.length > 20 && p !== '/logo.png') {
+              const formatted = formatPhotoDisplayUrl(p) || p;
+              if (typeof window !== 'undefined') {
+                window._hss_central_photo_map = window._hss_central_photo_map || {};
+                docCandidates.forEach(cand => {
+                  window._hss_central_photo_map[cand] = formatted;
+                });
               }
+              return formatted;
             }
-            return p;
           }
-        }
-      }
-      // Negative cache so we don't query Firestore repeatedly
-      if (typeof window !== 'undefined') {
-        window._hss_central_photo_map = window._hss_central_photo_map || {};
-        window._hss_central_photo_map[cacheKey] = '—';
+        } catch (_) {}
       }
       return '';
     } catch (e) {

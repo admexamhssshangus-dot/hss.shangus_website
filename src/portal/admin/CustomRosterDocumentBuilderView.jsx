@@ -1225,47 +1225,52 @@ export function extractIfsc(st) {
 
 // ─── High-Performance Self-Resolving Student Photo Cell ───
 function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
-  const [photoSrc, setPhotoSrc] = useState(() => initialPhoto || resolveStudentPhoto(student) || getStudentPhotoUrl(student) || '');
+  const [photoSrc, setPhotoSrc] = useState(() => {
+    const direct = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
+    return direct && direct !== '/logo.png' && direct !== '—' ? formatPhotoDisplayUrl(direct) || direct : '';
+  });
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student);
+    setImgError(false);
+
+    const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
     if (fast && fast !== '/logo.png' && fast !== '—') {
-      setPhotoSrc(fast);
+      const formatted = formatPhotoDisplayUrl(fast) || fast;
+      setPhotoSrc(formatted);
       return;
     }
+
     if (student) {
       fetchStudentPhotoOnDemand(student).then((res) => {
         if (active && res && res !== '/logo.png' && res !== '—') {
-          setPhotoSrc(res);
+          const formatted = formatPhotoDisplayUrl(res) || res;
+          setPhotoSrc(formatted);
         }
       }).catch(() => {});
     }
+
     return () => { active = false; };
   }, [student, initialPhoto]);
 
+  const hasPhoto = photoSrc && !imgError && photoSrc !== '—' && photoSrc !== '/logo.png';
+
   return (
     <div className="flex items-center justify-center p-0.5 min-h-[32px]">
-      {photoSrc ? (
+      {hasPhoto ? (
         <img
           src={photoSrc}
           alt={studentName || 'Student Photo'}
           className="w-7 h-9 sm:w-8 sm:h-10 object-cover rounded border border-slate-300 shadow-2xs mx-auto bg-slate-100 block"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.style.display = 'none';
-            if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
-          }}
+          onError={() => setImgError(true)}
         />
-      ) : null}
-      <div
-        className={`w-7 h-9 sm:w-8 sm:h-10 border border-dashed border-slate-300 rounded bg-slate-50 flex-col items-center justify-center text-[7px] text-slate-400 font-bold mx-auto select-none ${
-          photoSrc ? 'hidden' : 'flex'
-        }`}
-      >
-        <User size={11} className="text-slate-300 mb-0.5" />
-        <span>Photo</span>
-      </div>
+      ) : (
+        <div className="w-7 h-9 sm:w-8 sm:h-10 border border-dashed border-slate-300 rounded bg-slate-50 flex flex-col items-center justify-center text-[7px] text-slate-400 font-bold mx-auto select-none">
+          <User size={11} className="text-slate-300 mb-0.5" />
+          <span>Photo</span>
+        </div>
+      )}
     </div>
   );
 }
