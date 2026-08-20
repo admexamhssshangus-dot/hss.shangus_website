@@ -8,6 +8,8 @@ import html2canvas from 'html2canvas';
 import { generateVerificationSignature, getStudentRollVal } from './idCardRenderer';
 import { createQrSvgDataUri } from './qrSvgGenerator';
 import { getStudentPhotoUrl } from './imageCompressor';
+import { recordApplicationPrint } from '../services/printTrackerService';
+import { saveGeneratedDocToHistory } from '../services/docHistoryService';
 
 function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
   const cls = String(targetClass || '');
@@ -1268,6 +1270,22 @@ export function generateStudentAdmissionPdf(studentData, options = {}) {
   const cleanName = String(rawName).trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
   const docTitle = `Admission_Form_${formNo}_${cleanName}`;
 
+  // Record print event in per-application memory (strictly 3 most recent)
+  recordApplicationPrint(studentData, 'Admission Form', 'Printed / Saved PDF', { formNo, studentName: rawName });
+
+  // Auto-archive in Document History
+  saveGeneratedDocToHistory({
+    docType: 'bonafide',
+    title: `Admission Application Form (#${formNo})`,
+    refNo: formNo,
+    dateStr: new Date().toLocaleDateString('en-GB'),
+    recipientOrStudent: rawName,
+    bodyHtml: '',
+    actionType: 'Printed / Saved PDF',
+    templateName: 'Standard Admission Form',
+    extraData: { studentData }
+  }).catch(() => {});
+
   const htmlBody = buildStudentFormHtml(studentData, options);
   const fullDocument = wrapInPrintDocument(htmlBody, docTitle);
   
@@ -1579,6 +1597,22 @@ export function generateProvisionalAdmissionPdf(studentData) {
   const rawName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['name'] || 'Student';
   const cleanName = String(rawName).trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
   const docTitle = `Provisional_Admission_Slip_${formNo}_${cleanName}`;
+
+  // Record print event in per-application memory (strictly 3 most recent)
+  recordApplicationPrint(studentData, 'Provisional Admission Slip', 'Printed / Saved PDF', { formNo, studentName: rawName });
+
+  // Auto-archive in Document History
+  saveGeneratedDocToHistory({
+    docType: 'bonafide',
+    title: `Provisional Admission Slip (#${formNo})`,
+    refNo: formNo,
+    dateStr: new Date().toLocaleDateString('en-GB'),
+    recipientOrStudent: rawName,
+    bodyHtml: '',
+    actionType: 'Printed / Saved PDF',
+    templateName: 'Provisional Admission Slip',
+    extraData: { studentData }
+  }).catch(() => {});
 
   const htmlBody = buildProvisionalFormHtml(studentData);
   const provCss = `

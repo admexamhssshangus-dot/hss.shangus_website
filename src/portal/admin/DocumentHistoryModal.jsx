@@ -228,21 +228,51 @@ export default function DocumentHistoryModal({
         copyToText: rec.extraData?.copyToText || '',
         officeTitle: rec.extraData?.officeTitle || 'OFFICE OF THE PRINCIPAL',
         institutionName: rec.extraData?.institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
-        institutionAddress: rec.extraData?.institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)'
+        institutionAddress: rec.extraData?.institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)',
+        pageMargin: rec.extraData?.pageMargin,
+        headerLayout: rec.extraData?.headerLayout
       });
     } else {
+      const isTcDc = rec.docType === 'discharge' ||
+                     (rec.title || '').toLowerCase().includes('discharge') ||
+                     (rec.title || '').toLowerCase().includes('transfer') ||
+                     (rec.title || '').toLowerCase().includes('character');
+
+      const metaDetails = rec.extraData?.metaDetails || {
+        certificateNo: rec.refNo || rec.studentDetails?.certificateNo || rec.studentDetails?.regNo || '—',
+        admissionDate: rec.studentDetails?.admissionDate || rec.extraData?.admissionDate || '01-07-2024',
+        admissionNo: rec.studentDetails?.admissionNo || rec.studentDetails?.rollNo || '—',
+        regNo: rec.studentDetails?.regNo || '—'
+      };
+
+      const signatories = rec.extraData?.signatories || (isTcDc
+        ? ['Incharge Admissions & Exam', 'Checked By', 'Principal']
+        : ['Incharge Admissions & Exam', 'Principal']
+      );
+
       printStudentCertificate({
-        certificateTitle: rec.title || 'BONAFIDE CERTIFICATE',
-        refNo: rec.refNo,
-        dateStr: rec.dateStr,
+        certificateTitle: rec.title || (isTcDc ? 'Discharge/Transfer cum Character Certificate' : 'BONAFIDE CERTIFICATE'),
+        refNo: rec.refNo || metaDetails.certificateNo,
+        dateStr: rec.dateStr || new Date().toLocaleDateString('en-GB'),
         bodyHtml: rec.bodyHtml,
         studentPhotoUrl: rec.extraData?.studentPhotoUrl || null,
         showPhoto: rec.extraData?.showPhoto !== undefined ? rec.extraData.showPhoto : true,
         watermark: rec.extraData?.watermark !== undefined ? rec.extraData.watermark : true,
-        signatories: rec.extraData?.signatories || ['Incharge Admissions & Exam', 'Principal'],
+        signatories,
+        isDualCopy: rec.extraData?.isDualCopy !== undefined ? rec.extraData.isDualCopy : isTcDc,
+        metaDetails,
         officeTitle: rec.extraData?.officeTitle || 'OFFICE OF THE PRINCIPAL',
         institutionName: rec.extraData?.institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
-        institutionAddress: rec.extraData?.institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'
+        institutionAddress: rec.extraData?.institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)',
+        pageMargin: rec.extraData?.pageMargin ?? 0.3,
+        headerGap: rec.extraData?.headerGap ?? 0.50,
+        titleMetaGap: rec.extraData?.titleMetaGap ?? 0,
+        metaBodyGap: rec.extraData?.metaBodyGap ?? 0.50,
+        paraSpacing: rec.extraData?.paraSpacing ?? 8,
+        bodyLineHeight: rec.extraData?.bodyLineHeight ?? 1.85,
+        bodyDateGap: rec.extraData?.bodyDateGap ?? 12,
+        dateSigGap: rec.extraData?.dateSigGap ?? 0.50,
+        sigReceiptGap: rec.extraData?.sigReceiptGap ?? 12
       });
     }
   };
@@ -265,12 +295,31 @@ export default function DocumentHistoryModal({
           institutionAddress: rec.extraData?.institutionAddress || 'Anantnag, Kashmir — 192201 (J&K)'
         });
       } else {
+        const isTcDc = rec.docType === 'discharge' ||
+                       (rec.title || '').toLowerCase().includes('discharge') ||
+                       (rec.title || '').toLowerCase().includes('transfer') ||
+                       (rec.title || '').toLowerCase().includes('character');
+
+        const metaDetails = rec.extraData?.metaDetails || {
+          certificateNo: rec.refNo || rec.studentDetails?.certificateNo || rec.studentDetails?.regNo || '—',
+          admissionDate: rec.studentDetails?.admissionDate || rec.extraData?.admissionDate || '01-07-2024',
+          admissionNo: rec.studentDetails?.admissionNo || rec.studentDetails?.rollNo || '—',
+          regNo: rec.studentDetails?.regNo || '—'
+        };
+
+        const signatories = rec.extraData?.signatories || (isTcDc
+          ? ['Incharge Admissions & Exam', 'Checked By', 'Principal']
+          : ['Incharge Admissions & Exam', 'Principal']
+        );
+
         await generateStudentCertificateDocx({
-          certificateTitle: rec.title || 'BONAFIDE CERTIFICATE',
-          refNo: rec.refNo,
-          dateStr: rec.dateStr,
+          certificateTitle: rec.title || (isTcDc ? 'Discharge/Transfer cum Character Certificate' : 'BONAFIDE CERTIFICATE'),
+          refNo: rec.refNo || metaDetails.certificateNo,
+          dateStr: rec.dateStr || new Date().toLocaleDateString('en-GB'),
           bodyHtml: rec.bodyHtml,
-          signatories: rec.extraData?.signatories || ['Incharge Admissions & Exam', 'Principal'],
+          signatories,
+          isDualCopy: rec.extraData?.isDualCopy !== undefined ? rec.extraData.isDualCopy : isTcDc,
+          metaDetails,
           officeTitle: rec.extraData?.officeTitle || 'OFFICE OF THE PRINCIPAL',
           institutionName: rec.extraData?.institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
           institutionAddress: rec.extraData?.institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'

@@ -801,7 +801,7 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
 
       parsedRows.push({
         sno: i + 1,
-        selected: true, // Selected by default so all rows in the spreadsheet are ingested
+        selected: !isDuplicate, // Unselect by default if already in DB for this Registration No, Class & Session
         isDuplicate: isDuplicate,
         matchedRecord: existingMatch,
         formNo: formNo,
@@ -839,8 +839,9 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
     setParsedWorkflowRows(correlated);
     
     const dupCount = correlated.filter(r => r.isDuplicate).length;
+    const newCount = correlated.length - dupCount;
     if (dupCount > 0) {
-      setOverwriteWarningNotice(`ℹ️ ${dupCount} of ${correlated.length} students already exist in the database and are selected to overwrite/update. Use "Select New Only" if you want to skip existing students.`);
+      setOverwriteWarningNotice(`ℹ️ Found ${dupCount} record(s) already in the database for the same Class, Session & Registration No (unselected by default to prevent duplicate ingestion). ${newCount} new record(s) are selected.`);
     } else {
       setOverwriteWarningNotice(null);
     }

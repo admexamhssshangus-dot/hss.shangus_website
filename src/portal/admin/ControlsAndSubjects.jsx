@@ -14,7 +14,7 @@ export const ALL_ADMIN_MODULES = [
   { code: 'practicals', label: 'Practicals & Awards', desc: 'Practical marks entry, examiners, awards locking' },
   { code: 'attendanceMgmt', label: 'Attendance Management', desc: 'Class attendance registers, log attendance & reports' },
   { code: 'rollNo', label: 'Roll Number Assignment', desc: 'Auto-assign roll numbers & roll series configuration' },
-  { code: 'bulk', label: 'Bulk Export & ID Cards', desc: 'Generate batch ID Card PDFs & Excel/CSV exports' },
+  { code: 'idCards', label: 'Student ID Cards Studio', desc: 'Generate batch ID Card PDFs & print cards' },
   { code: 'automations', label: 'Email & Automations', desc: 'Group Email Composer, broadcast notifications & logs' },
   { code: 'funds', label: 'Fund & Fee Accounts', desc: 'Fee structures, student fee ledgers & account distribution' },
   { code: 'ingestion', label: 'Direct Ingestion & CSV Import', desc: 'Express student creation & raw CSV data importer' },
@@ -301,7 +301,7 @@ export default function ControlsAndSubjects() {
   const [adminUsers, setAdminUsers] = useState(DEFAULT_ADMIN_USERS);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
-  const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'] });
+  const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'idCards'] });
   const [userToDelete, setUserToDelete] = useState(null);
 
   // LAB Test Data Generator & Session Rollover State
@@ -514,7 +514,7 @@ export default function ControlsAndSubjects() {
   // Modal Action: Open Add Admin Modal
   const handleOpenAddAdmin = () => {
     setEditingAdminEmail(null);
-    setAdminForm({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'bulk'] });
+    setAdminForm({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'idCards'] });
     setShowAdminModal(true);
   };
 

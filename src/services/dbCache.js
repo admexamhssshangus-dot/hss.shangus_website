@@ -497,12 +497,14 @@ async function revalidateBackground(collectionName, existingData, onBackgroundUp
 async function fetchFreshFromFirestore(collectionName) {
   if (typeof window !== 'undefined') {
     window._hssGlobalFetchActive = true;
-    window.dispatchEvent(new CustomEvent('hss-sync-start', {
-      detail: {
-        collection: collectionName,
-        message: `Connecting & synchronizing ${collectionName === 'admissions' ? 'Admissions' : collectionName} database...`
-      }
-    }));
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('hss-sync-start', {
+        detail: {
+          collection: collectionName,
+          message: `Connecting & synchronizing ${collectionName === 'admissions' ? 'Admissions' : collectionName} database...`
+        }
+      }));
+    }, 0);
   }
 
   try {
@@ -547,24 +549,28 @@ async function fetchFreshFromFirestore(collectionName) {
 
     if (typeof window !== 'undefined') {
       window._hssGlobalFetchActive = false;
-      window.dispatchEvent(new CustomEvent('hss-sync-complete', {
-        detail: {
-          collection: collectionName,
-          count: list.length
-        }
-      }));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('hss-sync-complete', {
+          detail: {
+            collection: collectionName,
+            count: list.length
+          }
+        }));
+      }, 0);
     }
 
     return list;
   } catch (err) {
     if (typeof window !== 'undefined') {
       window._hssGlobalFetchActive = false;
-      window.dispatchEvent(new CustomEvent('hss-sync-error', {
-        detail: {
-          collection: collectionName,
-          message: err?.message || 'Failed to fetch from live database'
-        }
-      }));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('hss-sync-error', {
+          detail: {
+            collection: collectionName,
+            message: err?.message || 'Failed to fetch from live database'
+          }
+        }));
+      }, 0);
     }
     throw err;
   }
@@ -928,6 +934,117 @@ export function resolveStudentPhoto(student, fallback = null) {
   }
 
   return fallback;
+}
+
+/**
+ * Merges duplicate student applications based on Board Registration Number, Class, and Session.
+ * Merges rich student-submitted info (photo, parentage, DoB, phone, address, Aadhaar, subjects)
+ * with admin-verified bulk fields (form number, class roll no, admission no, verified stream).
+ */
+export function mergeDuplicateStudentApplications(records = []) {
+  if (!Array.isArray(records) || records.length === 0) return [];
+
+  const grouped = new Map();
+  const unmergedList = [];
+
+  records.forEach((rec, idx) => {
+    if (!rec) return;
+
+    // Extract normalized registration key
+    const rawReg = rec['Board Registration Number'] ||
+      rec['Board Registration No.'] ||
+      rec['Board Registration No. (Class 10th)'] ||
+      rec['Board Registration No. (Class 11th)'] ||
+      rec['Board Reg. No.'] ||
+      rec['Board Reg No'] ||
+      rec.boardRegNo ||
+      rec.regNo ||
+      '';
+    const cleanReg = normalizeRegNoKey(rawReg);
+
+    // Extract class canonical
+    const rawClass = String(rec['Admission sought for class'] || rec['Class'] || rec.class || '').trim().toLowerCase();
+    const cleanClass = rawClass.includes('10') ? '10th' : rawClass.includes('11') ? '11th' : rawClass.includes('12') ? '12th' : rawClass.includes('9') ? '9th' : rawClass;
+
+    // Extract session
+    const rawSession = String(rec['Session'] || rec['session'] || '').trim().toLowerCase();
+
+    // If student has a valid board registration number, group by reg + class + session
+    if (cleanReg && cleanReg !== '—' && cleanReg.length >= 6) {
+      const groupKey = `${cleanReg}_${cleanClass || 'all'}_${rawSession || 'curr'}`;
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, []);
+      }
+      grouped.get(groupKey).push({ ...rec, _origIdx: idx });
+    } else {
+      unmergedList.push(rec);
+    }
+  });
+
+  const mergedResults = [];
+
+  grouped.forEach((group) => {
+    if (group.length === 1) {
+      mergedResults.push(group[0]);
+      return;
+    }
+
+    // Sort group: prioritize online submitted (which usually has ownerUid, submittedAt, or photo_id)
+    // and admin bulk records (which usually have verified formNo, classRollNo)
+    let combined = {};
+
+    // 1. Identify best base (online submitted record with rich profile)
+    const onlineApp = group.find(r => r.ownerUid || r.photo_id || r.submittedAt || r['photoUrl']) || group[0];
+    // 2. Identify admin bulk record (with verified roll number or admin fields)
+    const adminApp = group.find(r => r !== onlineApp && (r['Class Roll No'] || r.classRollNo || r['Form Number'])) || group.find(r => r !== onlineApp) || {};
+
+    // Merge all keys from both
+    combined = { ...onlineApp };
+
+    // Overlay non-empty fields from all other records in the group
+    group.forEach(r => {
+      Object.keys(r).forEach(k => {
+        const val = r[k];
+        const isEmpty = val === undefined || val === null || val === '' || val === '—' || val === 'N/A' || val === 'null';
+        const currVal = combined[k];
+        const currIsEmpty = currVal === undefined || currVal === null || currVal === '' || currVal === '—' || currVal === 'N/A' || currVal === 'null';
+
+        if (!isEmpty && currIsEmpty) {
+          combined[k] = val;
+        }
+      });
+    });
+
+    // Special preference for verified admin fields
+    const verifiedRoll = adminApp['Class Roll No'] || adminApp['Class Roll No.'] || adminApp.classRollNo || onlineApp['Class Roll No'] || onlineApp.classRollNo || '';
+    if (verifiedRoll && verifiedRoll !== '—') {
+      combined['Class Roll No'] = String(verifiedRoll).trim();
+      combined['Class Roll No.'] = String(verifiedRoll).trim();
+      combined.classRollNo = String(verifiedRoll).trim();
+    }
+
+    const verifiedForm = adminApp['Form Number'] || adminApp.formNo || onlineApp['Form Number'] || onlineApp.formNo || '';
+    if (verifiedForm && verifiedForm !== '—') {
+      combined['Form Number'] = String(verifiedForm).trim();
+      combined.formNo = String(verifiedForm).trim();
+    }
+
+    // Resolve best photo
+    const bestPhoto = resolveStudentPhoto(combined) || resolveStudentPhoto(onlineApp) || resolveStudentPhoto(adminApp);
+    if (bestPhoto) {
+      combined['Student Photo'] = bestPhoto;
+      combined.photo_id = bestPhoto;
+      combined.photoUrl = bestPhoto;
+    }
+
+    // Ensure valid docId
+    combined.docId = combined.id || adminApp.id || onlineApp.id || combined['Form Number'];
+    combined.id = combined.docId;
+
+    mergedResults.push(combined);
+  });
+
+  return [...mergedResults, ...unmergedList];
 }
 
 const _activePhotoPromises = new Map();

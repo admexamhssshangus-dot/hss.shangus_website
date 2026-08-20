@@ -4032,7 +4032,23 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
 
   // Filter States (All filters default to [] so all records are visible by default)
   const [searchTerm, setSearchTerm] = useState('');
-  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (searchTerm === debouncedSearch) {
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setIsSearching(false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchTerm, debouncedSearch]);
+
+  const deferredSearchTerm = useDeferredValue(debouncedSearch);
   const [showSearchHelp, setShowSearchHelp] = useState(false);
   const searchHelpRef = useRef(null);
 
@@ -4490,6 +4506,25 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const [batchSyncingPhotos, setBatchSyncingPhotos] = useState(false);
   const [reconcilingPhotos, setReconcilingPhotos] = useState(false);
   const [reconcileProgress, setReconcileProgress] = useState({ active: false, current: 0, total: 0, percent: 0, stats: null });
+  const [isBackingUpPdfs, setIsBackingUpPdfs] = useState(false);
+
+  const handleBackupPdfsToDrive = async () => {
+    setIsBackingUpPdfs(true);
+    try {
+      const res = await appsScriptApi.call('backupPdfsWithClassOrganization');
+      const folderUrl = res?.folderUrl || res?.url;
+      if (folderUrl) {
+        window.open(folderUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        alert('PDF backup task initialized successfully on Google Drive!');
+      }
+    } catch (err) {
+      console.error('PDF backup error:', err);
+      alert('Failed to initialize Google Drive PDF backup: ' + (err.message || 'Server error'));
+    } finally {
+      setIsBackingUpPdfs(false);
+    }
+  };
 
   // Helper to flatten chunked or flat admissions records into uniform student objects
   const flattenAdmissionsList = (rawList = []) => {
@@ -5294,8 +5329,8 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const sess = String(c.session || '').toLowerCase().trim();
 
       if (cleanFNo && cleanFNo !== '—') seenActiveKeys.add(`fno_${sess}_${cleanFNo}`);
-      if (cleanReg && cleanReg.length > 5 && !cleanReg.endsWith('00000000')) seenActiveKeys.add(`reg_${cleanReg}`);
-      if (cleanAdm && cleanAdm !== '—') seenActiveKeys.add(`adm_${cleanAdm}`);
+      if (cleanReg && cleanReg.length > 5 && !cleanReg.endsWith('00000000')) seenActiveKeys.add(`reg_${cls}_${sess}_${cleanReg}`);
+      if (cleanAdm && cleanAdm !== '—') seenActiveKeys.add(`adm_${cls}_${sess}_${cleanAdm}`);
       if (sName && sName !== 'student') seenActiveKeys.add(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
     });
 
@@ -5312,15 +5347,17 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const fName = m["Father's/Guardian's Name (as per school records)"] || m["Father's Name"] || m['Father Name'] || m.fatherName || '—';
       const mName = m["Mother's Name (as per school records)"] || m["Mother's Name"] || m['Mother Name'] || m.motherName || '—';
 
-      // Skip this historical record if an identical active record is already present!
+      // Skip this historical record ONLY if an identical active record is already present for the SAME CLASS and SESSION!
       const checkFNo = cleanFNo.replace(/[^a-z0-9]/g, '').toLowerCase();
       const checkReg = rawReg.replace(/[^a-z0-9]/g, '').toLowerCase();
       const checkAdm = String(finalAdmNo).replace(/[^a-z0-9]/g, '').toLowerCase();
-      const checkNameKey = `name_${targetClass.toLowerCase()}_${targetSession.toLowerCase()}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`;
+      const targetClsLower = targetClass.toLowerCase().trim();
+      const targetSessLower = targetSession.toLowerCase().trim();
+      const checkNameKey = `name_${targetClsLower}_${targetSessLower}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`;
 
-      if (checkFNo && checkFNo !== '—' && seenActiveKeys.has(`fno_${targetSession.toLowerCase()}_${checkFNo}`)) return;
-      if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveKeys.has(`reg_${checkReg}`)) return;
-      if (checkAdm && checkAdm !== '—' && seenActiveKeys.has(`adm_${checkAdm}`)) return;
+      if (checkFNo && checkFNo !== '—' && seenActiveKeys.has(`fno_${targetSessLower}_${checkFNo}`)) return;
+      if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveKeys.has(`reg_${targetClsLower}_${targetSessLower}_${checkReg}`)) return;
+      if (checkAdm && checkAdm !== '—' && seenActiveKeys.has(`adm_${targetClsLower}_${targetSessLower}_${checkAdm}`)) return;
       if (seenActiveKeys.has(checkNameKey)) return;
 
       const sDob = formatDobToDisplay(m["DoB (figures)"] || m["DoB (as per school records)"] || m['DoB (figures)'] || m['dob'] || '—');
@@ -5439,40 +5476,36 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     };
   }, [allStudents]);
 
+  // Lazy load masterRegisters on demand in a clean reactive useEffect (never inside useMemo)
+  useEffect(() => {
+    if ((deferredSearchTerm.trim() !== '' || (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__'))) && masterHistoricalRecords.length === 0) {
+      getCachedCollection('masterRegisters').then(ml => {
+        if (Array.isArray(ml) && ml.length > 0) {
+          setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+        }
+      }).catch(() => {});
+    }
+  }, [deferredSearchTerm, selectedSessions, masterHistoricalRecords.length]);
+
   // Target dataset: when search query is active or user explicitly chooses specific/historical sessions,
   // search across all records (active + historical); when empty default view, show active admissions for 0ms speed.
   const targetDataset = useMemo(() => {
     const activeQuery = (deferredSearchTerm || '').trim();
     if (activeQuery !== '') {
-      if (masterHistoricalRecords.length === 0) {
-        getCachedCollection('masterRegisters').then(ml => {
-          if (Array.isArray(ml) && ml.length > 0) {
-            setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
-          }
-        }).catch(() => {});
-      }
       return allStudents;
     }
     if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
-      if (masterHistoricalRecords.length === 0) {
-        getCachedCollection('masterRegisters').then(ml => {
-          if (Array.isArray(ml) && ml.length > 0) {
-            setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
-          }
-        }).catch(() => {});
-      }
       const activeSessionLowerSet = new Set(selectedSessions.map(s => String(s || '').trim().toLowerCase()));
       return allStudents.filter(s => activeSessionLowerSet.has(String(s.session || '').trim().toLowerCase()));
     }
     // Default view ("All Sessions" without search query): only active admissions for 0ms instant speed
     return allStudents.filter(s => s._isCurrentScope === true);
-  }, [allStudents, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length]);
+  }, [allStudents, deferredSearchTerm, selectedSessions]);
 
-  // ─── Google-like Intelligent Search & Relevance Engine ───
-  const evaluateGoogleSearch = useCallback((s, query) => {
-    if (!query || !query.trim()) return { matches: true, score: 0 };
+  // ─── Pre-Parsed Google-like Intelligent Search & Relevance Engine ───
+  const evaluateParsedGoogleSearch = useCallback((s, parsed) => {
+    if (!parsed) return { matches: true, score: 0 };
 
-    const parsed = parseSearchQuery(query);
     if (parsed.isPattern) {
       const val = parsed.patternVal.toLowerCase();
       if (parsed.patternType === 'admNo') {
@@ -5513,17 +5546,18 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     }
 
     const rawTokens = parsed.rawTokens;
-    if (rawTokens.length === 0) return { matches: true, score: 0 };
+    if (!rawTokens || rawTokens.length === 0) return { matches: true, score: 0 };
 
     const blob = `${s._searchBlob || ''} ${s.motherName || ''} ${s.parentContact || ''} ${s.fatherName || ''} ${s.village || ''} ${s.admNo || ''} ${s.boardRegNo || ''} ${s.formNo || ''} ${s.classRollNo || ''} ${s.mobile || ''}`.toLowerCase();
     let score = 0;
 
-    for (const token of rawTokens) {
+    for (let i = 0; i < rawTokens.length; i++) {
+      const token = rawTokens[i];
       if (!blob.includes(token)) {
         return { matches: false, score: 0 };
       }
 
-      // Relevance score boosting
+      // Fast relevance score boosting
       if (s.formNo === token || String(s._formNum) === token) score += 2500;
       else if (String(s.formNo || '').includes(token)) score += 800;
 
@@ -5551,9 +5585,10 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     return { matches: true, score };
   }, []);
 
-  // Filtered & Sorted Students with Google Search Relevance
+  // Filtered & Sorted Students with Pre-Parsed Google Search Relevance
   const filteredStudents = useMemo(() => {
     const activeQuery = deferredSearchTerm.trim();
+    const parsedQuery = activeQuery ? parseSearchQuery(activeQuery) : null;
 
     // Strict exact string matching for Sessions, Streams, Gender, Categories
     const matchesExact = (sel, val) => {
@@ -5610,7 +5645,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     const scoredList = [];
 
     targetDataset.forEach(s => {
-      const searchRes = evaluateGoogleSearch(s, activeQuery);
+      const searchRes = evaluateParsedGoogleSearch(s, parsedQuery);
       if (!searchRes.matches) return;
 
       const matchesSessionVal = matchesExact(selectedSessions, s.session);
@@ -6533,7 +6568,11 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
           <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
             {/* Search Input Bar with Shortcut Tooltip Popover */}
             <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]" ref={searchHelpRef}>
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              {isSearching || searchTerm !== deferredSearchTerm ? (
+                <RefreshCw size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500 animate-spin pointer-events-none" />
+              ) : (
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              )}
               <input
                 type="text"
                 placeholder="Search Name, Father, Mother, Mob, adm4347, reg..."
@@ -6651,6 +6690,12 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                   <span>Syncing...</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
                 </div>
+              ) : (isSearching || searchTerm !== deferredSearchTerm) ? (
+                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
+                  <RefreshCw size={12} className="animate-spin text-amber-600 shrink-0" />
+                  <span>Searching...</span>
+                  <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
+                </div>
               ) : searchTerm.trim() ? (
                 <div className="flex items-center gap-1 text-sky-700 dark:text-sky-400">
                   <span className="font-black">🔍 Records:</span>
@@ -6669,11 +6714,11 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
               )}
 
               {/* Glowing animated progress stripe */}
-              {(isFetchingData || loading || fetchProgress > 0) && (
+              {(isFetchingData || loading || isSearching || searchTerm !== deferredSearchTerm || fetchProgress > 0) && (
                 <div className="absolute left-0 right-0 bottom-0 h-1 bg-amber-100 dark:bg-amber-950/40 overflow-hidden pointer-events-none transition-all">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-teal-400 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse"
-                    style={{ width: `${fetchProgress || 75}%` }}
+                    style={{ width: `${fetchProgress || 100}%` }}
                   />
                 </div>
               )}
@@ -7399,6 +7444,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                 { id: 'assign_dates', label: 'Assign Dates' },
                 { id: 'db_editor', label: '🔄 Bulk Class & Session' },
                 { id: 'photo_manager', label: '📷 Photo Sync & Manager' },
+                { id: 'drive_backup', label: '☁️ PDF Drive Backup' },
                 { id: 'adm_register', label: 'Adm. Register' },
                 { id: 'sentup', label: 'Sentup Export' },
               ].map(t => (
@@ -8586,6 +8632,53 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tool Content: PDF Drive Backup */}
+            {activeToolsTab === 'drive_backup' && (
+              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                  <div>
+                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Layers size={18} className="text-indigo-600" />
+                      Google Drive Class-Wise Application PDF Backup Hub
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                      Organize all student application PDFs into class-wise and session-wise Google Drive backup folders.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-2 text-xs">
+                  <div className="font-extrabold text-indigo-700 dark:text-indigo-400">Cloud Storage Architecture:</div>
+                  <ul className="list-disc list-inside space-y-1.5 text-slate-700 dark:text-slate-300 font-bold">
+                    <li>Target Storage: <strong>Official School Google Drive</strong></li>
+                    <li>Automated Hierarchy: <strong>HSS_Admissions_Backup &gt; [Class 9th–12th] &gt; [Session]</strong></li>
+                    <li>Includes: <strong>Generated Application PDFs with photographs, QR codes, and Undertakings</strong></li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={isBackingUpPdfs}
+                    onClick={handleBackupPdfsToDrive}
+                    className="flex-1 py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 shadow-md flex items-center justify-center gap-2 cursor-pointer text-xs transition-all"
+                  >
+                    {isBackingUpPdfs ? (
+                      <>
+                        <RefreshCw size={15} className="animate-spin" />
+                        <span>Organizing & Syncing PDFs to Google Drive...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download size={15} />
+                        <span>Start Class-Wise PDF Google Drive Backup</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>

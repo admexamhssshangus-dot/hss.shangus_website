@@ -206,7 +206,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
-<p class="cert-footer-dates-row" style="margin-top: 24px; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
+<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
   },
   {
     id: 'tc_dc_reappear',
@@ -222,7 +222,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
-<p class="cert-footer-dates-row" style="margin-top: 24px; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
+<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
   }
 ];
 
@@ -620,24 +620,24 @@ export function printStudentCertificate({
             <div class="cert-title-badge">${certificateTitle}</div>
           </div>
 
-          <!-- Meta Details (Left) & Scannable QR Security Box (Right) -->
+          <!-- Unified Meta Security Strip & Scannable QR Security Box -->
           <div class="meta-and-qr-row">
-            <div class="meta-four-lines-box">
-              <div class="meta-single-line">
-                <span class="meta-single-label">Certificate No.:</span>
-                <span class="meta-single-val val-red">${metaDetails.certificateNo || refNo || '1276'}</span>
+            <div class="meta-grid-box">
+              <div class="meta-grid-cell">
+                <span class="meta-label">Certificate No.:</span>
+                <span class="meta-val val-red">${metaDetails.certificateNo || refNo || '1276'}</span>
               </div>
-              <div class="meta-single-line">
-                <span class="meta-single-label">Registration No.:</span>
-                <span class="meta-single-val val-blue">${metaDetails.regNo || '—'}</span>
+              <div class="meta-grid-cell">
+                <span class="meta-label">Registration No.:</span>
+                <span class="meta-val val-blue">${metaDetails.regNo || '—'}</span>
               </div>
-              <div class="meta-single-line">
-                <span class="meta-single-label">Admission No.:</span>
-                <span class="meta-single-val val-blue">${metaDetails.admissionNo || '—'}</span>
+              <div class="meta-grid-cell">
+                <span class="meta-label">Admission No.:</span>
+                <span class="meta-val val-blue">${metaDetails.admissionNo || '—'}</span>
               </div>
-              <div class="meta-single-line">
-                <span class="meta-single-label">Date of Admission:</span>
-                <span class="meta-single-val val-blue">${metaDetails.admissionDate || '—'}</span>
+              <div class="meta-grid-cell">
+                <span class="meta-label">Date of Admission:</span>
+                <span class="meta-val val-blue">${metaDetails.admissionDate || '—'}</span>
               </div>
             </div>
 
@@ -774,7 +774,7 @@ export function printStudentCertificate({
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: -2px 0 1in 0;
+      margin: -2px 0 0.64in 0;
       padding-bottom: 4px;
       border-bottom: 1px dashed #e2e8f0;
     }
@@ -957,47 +957,49 @@ export function printStudentCertificate({
 
     .meta-and-qr-row {
       display: flex;
-      align-items: stretch;
+      align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      margin: ${titleMetaGapPx}px 0 ${metaBodyGapInches}in 0;
-      width: 100%;
+      gap: 0;
+      margin: ${titleMetaGapPx}px 0.5in ${metaBodyGapInches}in 0.5in;
+      width: calc(100% - 1in);
+      box-sizing: border-box;
+      background: #ffffff;
+      border: 1.2px solid #800000;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow: hidden;
     }
 
-    .meta-four-lines-box {
+    .meta-grid-box {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 5.5px;
-      padding: 6px 14px;
-      margin: 0;
-      border-top: 1px dashed #cbd5e1;
-      border-bottom: 1.5px solid #800000;
-      border-left: 2.5px solid #800000;
-      background: #f8fafc;
-      border-radius: 4px;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      column-gap: 14px;
+      row-gap: 5px;
+      padding: 6px 12px;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      font-size: 8.2pt;
     }
 
-    .meta-single-line {
+    .meta-grid-cell {
       display: flex;
       align-items: baseline;
-      gap: 12px;
-      line-height: 1.35;
+      gap: 5px;
+      line-height: 1.3;
     }
 
-    .meta-single-label {
+    .meta-label {
+      font-size: 7.8pt;
       font-weight: 700;
-      color: #334155;
-      min-width: 140px;
+      color: #475569;
+      white-space: nowrap;
     }
 
-    .meta-single-val {
+    .meta-val {
+      font-size: 8.4pt;
       font-weight: 800;
       font-family: 'Plus Jakarta Sans', 'Inter', monospace;
       letter-spacing: 0.2px;
+      white-space: nowrap;
     }
 
     .val-red {
@@ -1009,31 +1011,30 @@ export function printStudentCertificate({
     }
 
     .cert-qr-security-box {
-      width: 82px;
+      width: 92px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 5px 3px 5px;
-      background: #ffffff;
-      border: 1.2px solid #800000;
-      border-radius: 5px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      padding: 4px 6px;
+      background: #f8fafc;
+      border-left: 1px dashed #cbd5e1;
       flex-shrink: 0;
+      align-self: stretch;
     }
 
     .cert-qr-security-box svg {
-      width: 66px !important;
-      height: 66px !important;
+      width: 68px !important;
+      height: 68px !important;
       display: block;
     }
 
     .cert-qr-caption {
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      font-size: 5.5pt;
+      font-size: 5.8pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.6px;
+      letter-spacing: 0.5px;
       text-align: center;
       margin-top: 2px;
       text-transform: uppercase;
@@ -1066,7 +1067,7 @@ export function printStudentCertificate({
     }
 
     .cert-footer-dates-row {
-      margin-top: ${bodyDateGapPx}px !important;
+      margin-top: 0.5in !important;
       margin-bottom: 0px !important;
       display: flex;
       justify-content: space-between;
@@ -1114,7 +1115,7 @@ export function printStudentCertificate({
     }
 
     .footer-block {
-      margin-top: 1.7in !important;
+      margin-top: 0.77in !important;
       margin-bottom: 0px !important;
       padding-top: 0px !important;
     }
@@ -1399,24 +1400,24 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
               <div class="cert-title-badge">${certificateTitle}</div>
             </div>
 
-            <!-- Meta Details (Left) & Scannable QR Security Box (Right) -->
+            <!-- Unified Meta Security Strip & Scannable QR Security Box -->
             <div class="meta-and-qr-row">
-              <div class="meta-four-lines-box">
-                <div class="meta-single-line">
-                  <span class="meta-single-label">Certificate No.:</span>
-                  <span class="meta-single-val val-red">${metaDetails.certificateNo || '—'}</span>
+              <div class="meta-grid-box">
+                <div class="meta-grid-cell">
+                  <span class="meta-label">Certificate No.:</span>
+                  <span class="meta-val val-red">${metaDetails.certificateNo || '—'}</span>
                 </div>
-                <div class="meta-single-line">
-                  <span class="meta-single-label">Registration No.:</span>
-                  <span class="meta-single-val val-blue">${metaDetails.regNo || '—'}</span>
+                <div class="meta-grid-cell">
+                  <span class="meta-label">Registration No.:</span>
+                  <span class="meta-val val-blue">${metaDetails.regNo || '—'}</span>
                 </div>
-                <div class="meta-single-line">
-                  <span class="meta-single-label">Admission No.:</span>
-                  <span class="meta-single-val val-blue">${metaDetails.admissionNo || '—'}</span>
+                <div class="meta-grid-cell">
+                  <span class="meta-label">Admission No.:</span>
+                  <span class="meta-val val-blue">${metaDetails.admissionNo || '—'}</span>
                 </div>
-                <div class="meta-single-line">
-                  <span class="meta-single-label">Date of Admission:</span>
-                  <span class="meta-single-val val-blue">${metaDetails.admissionDate || '—'}</span>
+                <div class="meta-grid-cell">
+                  <span class="meta-label">Date of Admission:</span>
+                  <span class="meta-val val-blue">${metaDetails.admissionDate || '—'}</span>
                 </div>
               </div>
 
@@ -1555,7 +1556,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: -2px 0 1in 0;
+      margin: -2px 0 0.64in 0;
       padding-bottom: 4px;
       border-bottom: 1px dashed #e2e8f0;
     }
@@ -1731,47 +1732,49 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
 
     .meta-and-qr-row {
       display: flex;
-      align-items: stretch;
+      align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      margin: ${titleMetaGapPx}px 0 ${metaBodyGapInches}in 0;
-      width: 100%;
+      gap: 0;
+      margin: ${titleMetaGapPx}px 0.5in ${metaBodyGapInches}in 0.5in;
+      width: calc(100% - 1in);
+      box-sizing: border-box;
+      background: #ffffff;
+      border: 1.2px solid #800000;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      overflow: hidden;
     }
 
-    .meta-four-lines-box {
+    .meta-grid-box {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 5.5px;
-      padding: 6px 14px;
-      margin: 0;
-      border-top: 1px dashed #cbd5e1;
-      border-bottom: 1.5px solid #800000;
-      border-left: 2.5px solid #800000;
-      background: #f8fafc;
-      border-radius: 4px;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      column-gap: 14px;
+      row-gap: 5px;
+      padding: 6px 12px;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      font-size: 8.2pt;
     }
 
-    .meta-single-line {
+    .meta-grid-cell {
       display: flex;
       align-items: baseline;
-      gap: 12px;
-      line-height: 1.35;
+      gap: 5px;
+      line-height: 1.3;
     }
 
-    .meta-single-label {
+    .meta-label {
+      font-size: 7.8pt;
       font-weight: 700;
-      color: #334155;
-      min-width: 140px;
+      color: #475569;
+      white-space: nowrap;
     }
 
-    .meta-single-val {
+    .meta-val {
+      font-size: 8.4pt;
       font-weight: 800;
       font-family: 'Plus Jakarta Sans', 'Inter', monospace;
       letter-spacing: 0.2px;
+      white-space: nowrap;
     }
 
     .val-red {
@@ -1783,31 +1786,30 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-qr-security-box {
-      width: 82px;
+      width: 92px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 5px 3px 5px;
-      background: #ffffff;
-      border: 1.2px solid #800000;
-      border-radius: 5px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      padding: 4px 6px;
+      background: #f8fafc;
+      border-left: 1px dashed #cbd5e1;
       flex-shrink: 0;
+      align-self: stretch;
     }
 
     .cert-qr-security-box svg {
-      width: 66px !important;
-      height: 66px !important;
+      width: 68px !important;
+      height: 68px !important;
       display: block;
     }
 
     .cert-qr-caption {
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      font-size: 5.5pt;
+      font-size: 5.8pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.6px;
+      letter-spacing: 0.5px;
       text-align: center;
       margin-top: 2px;
       text-transform: uppercase;
@@ -1840,7 +1842,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-footer-dates-row {
-      margin-top: ${bodyDateGapPx}px !important;
+      margin-top: 0.5in !important;
       margin-bottom: 0px !important;
       display: flex;
       justify-content: space-between;
@@ -1888,7 +1890,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .footer-block {
-      margin-top: 1.7in !important;
+      margin-top: 0.77in !important;
       margin-bottom: 0px !important;
       padding-top: 0px !important;
     }
