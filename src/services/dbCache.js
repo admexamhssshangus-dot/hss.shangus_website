@@ -1547,16 +1547,7 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
       return s.replace(/\.0+$/, '').replace(/[^a-zA-Z0-9]/g, '');
     };
 
-    const targetNewReg = cleanReg(
-      newReg || 
-      student?.boardRegNo || 
-      student?.regNo || 
-      student?.['Board Registration Number'] || 
-      student?.['Board Registration No.'] ||
-      student?.['Board Registration No. (Class 10th)'] ||
-      student?.['Board Registration No. (Class 11th)'] ||
-      student?.['REG. NO.']
-    );
+    const targetNewReg = extractUniversalRegNo(student) || cleanReg(newReg);
 
     const targetOldReg = cleanReg(oldReg);
     let photoUrl = '';
@@ -1598,7 +1589,7 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
     }
 
     const sName = student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || student?.name || '';
-    const sClass = student?.class || student?.['Admission sought for class'] || student?.['Class'] || '';
+    const sClass = normalizeCanonicalClass(student?.class || student?.['Admission sought for class'] || student?.['Class'] || '');
     const sSession = student?.session || student?.['Session'] || '';
     const sFormNo = String(student?.formNo || student?.['Form Number'] || student?.['Form No.'] || '').replace(/^'/, '').trim();
 
@@ -1642,6 +1633,10 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
         window._hss_central_photo_map = window._hss_central_photo_map || {};
         window._hss_central_photo_map[targetNewReg] = photoUrl;
         window._hss_central_photo_map[`photo_${targetNewReg}`] = photoUrl;
+        if (sClass) {
+          window._hss_central_photo_map[`${targetNewReg}_${sClass}`] = photoUrl;
+          window._hss_central_photo_map[`photo_${targetNewReg}_${sClass}`] = photoUrl;
+        }
         if (sFormNo) {
           window._hss_central_photo_map[sFormNo] = photoUrl;
           window._hss_central_photo_map[`form_${sFormNo}`] = photoUrl;
@@ -1701,6 +1696,8 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
         const colName = student._isHistorical || student._isMasterRegister ? 'masterRegisters' : 'admissions';
         await setDoc(doc(db, colName, String(targetDocId)), {
           photo_id: photoUrl,
+          ...(targetNewReg ? { boardRegNo: targetNewReg } : {}),
+          ...(sClass ? { canonicalClass: sClass } : {}),
           'Student Photo': deleteField(),
           photoUrl: deleteField(),
           photoId: deleteField(),
