@@ -6,7 +6,7 @@
 // =================================================================
 
 import { db } from './firebase';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch } from 'firebase/firestore';
 import { updateCachedItem, invalidateCache } from './dbCache';
 import { recycleDeletedFormNumber } from './formNumberService';
 
@@ -40,10 +40,13 @@ function sanitizeForFirestore(obj) {
  */
 export async function moveToRecycleBin(recordData, originalCollection = 'admissions', adminEmail = 'Admin') {
   if (!recordData) return false;
+  if (!['admissions', 'masterRegisters'].includes(originalCollection)) {
+    throw new Error(`Recycle-bin moves are not allowed from collection "${originalCollection}".`);
+  }
 
   const formNo = String(recordData['Form Number'] || recordData['Form No.'] || recordData.formNo || '').replace(/^(N\/A|—)$/i, '').trim();
   const rawId = String(recordData.docId || recordData._docId || recordData.id || formNo || `doc_${Date.now()}`).replace(/^(N\/A|—)$/i, '').trim();
-  const sanitizedId = rawId.replace(/[\/\s]/g, '_').toLowerCase();
+  const sanitizedId = rawId.replace(/[/\s]/g, '_').toLowerCase();
 
   const studentName = recordData["Student's Name (as per school records)"] || recordData["Student's Name"] || recordData.studentName || 'Student';
   const boardRegNo = recordData['Board Registration Number'] || recordData.boardRegNo || recordData.regNo || '';
@@ -74,57 +77,46 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
 
   // Only delete the EXACT document IDs belonging to this record.
   // Never guess by form number — that can collide with other real records.
-  const idCandidates = Array.from(new Set([
-    rawId,
-    sanitizedId,
-    recordData.id,
-    recordData.docId,
-    recordData._docId
-  ].filter(cid => cid && cid !== '—' && cid !== 'N/A' && cid !== 'null' && !cid.includes('/'))));
+  const idCandidates = [rawId].filter(cid => cid && cid !== '—' && cid !== 'N/A' && cid !== 'null' && !cid.includes('/'));
 
   try {
-    // 1. Save archive payload to recycleBin Firestore collection
-    await setDoc(doc(db, RECYCLE_BIN_COLLECTION, trashDocId), trashPayload);
+    // 1. Atomically archive the payload and remove only the exact standalone
+    // source documents selected by the administrator.
+    const archiveBatch = writeBatch(db);
+    archiveBatch.set(doc(db, RECYCLE_BIN_COLLECTION, trashDocId), trashPayload);
 
-    // 2. Direct HARD-DELETE candidate IDs from admissions & masterRegisters (No residual soft-deleted docs in Firebase)
+    // 2. Never delete the same ID from another collection: an active admission and
+    // a historical register entry may legitimately share an identifier.
     for (const cid of idCandidates) {
-      try {
-        await deleteDoc(doc(db, 'admissions', cid)).catch(() => {});
-      } catch (_) {}
-      try {
-        await deleteDoc(doc(db, 'masterRegisters', cid)).catch(() => {});
-      } catch (_) {}
-      updateCachedItem('admissions', cid, null);
-      updateCachedItem('masterRegisters', cid, null);
+      archiveBatch.delete(doc(db, originalCollection, cid));
+      updateCachedItem(originalCollection, cid, null);
+    }
+    await archiveBatch.commit();
+
+    // 3. A historical record may live inside a master-register chunk rather than
+    // as a standalone document. Only inspect chunks when that was the source.
+    if (originalCollection === 'masterRegisters') {
+      await cleanStudentFromMasterRegistersChunks({ ...recordData, formNo, studentName, boardRegNo, id: rawId }).catch(() => {});
     }
 
-    // 3. Clean from masterRegisters chunk arrays if record originated from or resides in historical registers
-    await cleanStudentFromMasterRegistersChunks({ ...recordData, formNo, studentName, boardRegNo, id: rawId }).catch(() => {});
-
-    // 4. Clean any orphaned drafts or duplicate active docs for this student from admissions
-    await cleanStudentDraftsFromAdmissions({ ...recordData, formNo, studentName, boardRegNo, id: rawId }).catch(() => {});
-
-    // 5. Update multi-tier local caches & global window cache
+    // 4. Update multi-tier local caches & global window cache
     idCandidates.forEach(cid => {
-      updateCachedItem('admissions', cid, null);
-      updateCachedItem('masterRegisters', cid, null);
+      updateCachedItem(originalCollection, cid, null);
     });
 
-    if (window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
+    if (originalCollection === 'masterRegisters' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
       window._hssMasterRegistersCache = window._hssMasterRegistersCache.filter(s => {
         const sf = String(s['Form Number'] || s['Form No.'] || s.formNo || s.id || '').trim();
-        const sn = String(s.studentName || s["Student's Name"] || '').trim().toLowerCase();
-        return sf !== formNo && s.id !== rawId && s.id !== sanitizedId && (sn !== studentName.toLowerCase() || (formNo && formNo !== '—'));
+        return sf !== formNo && s.id !== rawId;
       });
     }
 
-    invalidateCache('admissions');
-    invalidateCache('masterRegisters');
+    invalidateCache(originalCollection);
 
     try { sessionStorage.removeItem('hss_reports_cache_v5'); } catch(e) {}
     try { sessionStorage.removeItem('cached_admin_dashboard'); } catch(e) {}
 
-    // 6. Recycle form number if present
+    // 5. Recycle form number if present
     if (formNo && formNo !== '—') {
       await recycleDeletedFormNumber(formNo, recordData, adminEmail).catch(() => {});
     }
@@ -141,10 +133,11 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
  */
 async function cleanStudentFromMasterRegistersChunks(studentTarget) {
   if (!studentTarget) return;
-  const targetName = String(studentTarget.studentName || studentTarget["Student's Name (as per school records)"] || studentTarget["Student's Name"] || '').trim().toLowerCase();
   const targetForm = String(studentTarget.formNo || studentTarget['Form Number'] || studentTarget['Form No.'] || studentTarget.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
   const targetReg = String(studentTarget.boardRegNo || studentTarget['Board Registration Number'] || studentTarget.regNo || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
   const targetId = String(studentTarget.id || studentTarget.docId || '').trim().toLowerCase();
+  const targetClass = String(studentTarget.class || studentTarget.Class || studentTarget['Admission sought for class'] || '').trim().toLowerCase();
+  const targetSession = String(studentTarget.session || studentTarget.Session || studentTarget['Academic Session'] || '').trim().toLowerCase();
 
   try {
     const masterSnap = await getDocs(collection(db, 'masterRegisters')).catch(() => null);
@@ -156,17 +149,19 @@ async function cleanStudentFromMasterRegistersChunks(studentTarget) {
         let modified = false;
         const remainingItems = data.items.filter(item => {
           if (!item) return false;
-          const iName = String(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || '').trim().toLowerCase();
           const iForm = String(item.formNo || item['Form Number'] || item['Form No.'] || item.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
           const iReg = String(item.boardRegNo || item['Board Registration Number'] || item.regNo || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
           const iId = String(item.id || item.docId || '').trim().toLowerCase();
+          const iClass = String(item.class || item.Class || item['Admission sought for class'] || '').trim().toLowerCase();
+          const iSession = String(item.session || item.Session || item['Academic Session'] || '').trim().toLowerCase();
 
           const matchForm = targetForm && targetForm !== '—' && iForm && iForm === targetForm;
-          const matchReg = targetReg && targetReg !== '—' && iReg && iReg === targetReg;
           const matchId = targetId && iId && iId === targetId;
-          const matchName = targetName && targetName.length > 2 && iName && (iName === targetName || (targetForm && iForm === targetForm));
+          const sameClass = !targetClass || !iClass || targetClass === iClass;
+          const sameSession = !targetSession || !iSession || targetSession === iSession;
+          const matchReg = targetReg && targetReg !== '—' && iReg && iReg === targetReg && sameClass && sameSession;
 
-          if (matchForm || matchReg || matchId || matchName) {
+          if (matchForm || matchReg || matchId) {
             modified = true;
             return false;
           }
@@ -177,51 +172,15 @@ async function cleanStudentFromMasterRegistersChunks(studentTarget) {
           await setDoc(doc(db, 'masterRegisters', d.id), { ...data, items: remainingItems }, { merge: true }).catch(() => {});
         }
       } else {
-        const dName = String(data.studentName || data["Student's Name"] || '').trim().toLowerCase();
         const dForm = String(data.formNo || data['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-        if ((targetForm && dForm === targetForm) || (targetName && dName === targetName)) {
+        const dId = String(d.id || data.id || data.docId || '').trim().toLowerCase();
+        if ((targetForm && dForm === targetForm) || (targetId && dId === targetId)) {
           await deleteDoc(doc(db, 'masterRegisters', d.id)).catch(() => {});
         }
       }
     }
   } catch (err) {
     console.warn('cleanStudentFromMasterRegistersChunks warning:', err);
-  }
-}
-
-/**
- * Remove orphaned drafts or residual applications for the target student from admissions.
- */
-async function cleanStudentDraftsFromAdmissions(studentTarget) {
-  if (!studentTarget) return;
-  const targetName = String(studentTarget.studentName || studentTarget["Student's Name (as per school records)"] || studentTarget["Student's Name"] || '').trim().toLowerCase();
-  const targetForm = String(studentTarget.formNo || studentTarget['Form Number'] || studentTarget['Form No.'] || studentTarget.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-  const targetEmail = String(studentTarget.email || studentTarget['Email Address'] || studentTarget.emailNormalized || '').trim().toLowerCase();
-  const targetUid = String(studentTarget.ownerUid || studentTarget.uid || '').trim();
-
-  try {
-    const snap = await getDocs(collection(db, 'admissions')).catch(() => null);
-    if (!snap || snap.empty) return;
-
-    for (const d of snap.docs) {
-      const data = d.data();
-      const dName = String(data.studentName || data["Student's Name"] || '').trim().toLowerCase();
-      const dForm = String(data.formNo || data['Form Number'] || d.id || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-      const dEmail = String(data.email || data['Email Address'] || data.emailNormalized || '').trim().toLowerCase();
-      const dUid = String(data.ownerUid || data.uid || '').trim();
-
-      const matchId = (targetForm && targetForm !== '—' && dForm === targetForm) || d.id === studentTarget.id || d.id === studentTarget.docId;
-      const matchUid = targetUid && dUid && targetUid === dUid;
-      const matchEmail = targetEmail && dEmail && targetEmail === dEmail;
-      const matchName = targetName && targetName.length > 2 && dName === targetName && (matchEmail || matchUid || !dForm || dForm === '—');
-
-      if (matchId || matchUid || matchEmail || matchName) {
-        await deleteDoc(doc(db, 'admissions', d.id)).catch(() => {});
-        updateCachedItem('admissions', d.id, null);
-      }
-    }
-  } catch (err) {
-    console.warn('cleanStudentDraftsFromAdmissions warning:', err);
   }
 }
 
@@ -243,184 +202,161 @@ export async function getRecycleBinItems() {
       }
     });
 
-    // Deduplicate multiple deleted entries for the same student (by Form Number or Student Name + Class)
-    const uniqueMap = new Map();
+    // Every archive is an independent restore target. Never hide entries merely
+    // because names or form numbers resemble another archived record.
     rawItems.sort((a, b) => new Date(b.deletedAt || 0) - new Date(a.deletedAt || 0));
-
-    for (const item of rawItems) {
-      const fNo = String(item.formNo || item['Form Number'] || item['Form No.'] || '').replace(/^(N\/A|—)$/i, '').trim().toLowerCase();
-      const sName = String(item.studentName || item["Student's Name"] || '').trim().toLowerCase();
-      const cls = String(item.class || '').trim().toLowerCase();
-      const dedupKey = (fNo && fNo !== '—') ? fNo : `${sName}_${cls}`;
-
-      if (!uniqueMap.has(dedupKey)) {
-        uniqueMap.set(dedupKey, item);
-      }
-    }
-
-    return Array.from(uniqueMap.values());
+    return rawItems;
   } catch (err) {
     console.warn('getRecycleBinItems warning:', err);
     return [];
   }
 }
 
+const RESTORABLE_COLLECTIONS = new Set(['admissions', 'masterRegisters']);
+
+function getRestoreIdentity(record = {}) {
+  const clean = value => String(value || '').replace(/^'/, '').trim().toLowerCase();
+  return {
+    formNo: clean(record.formNo || record['Form Number'] || record['Form No.']),
+    regNo: clean(record.boardRegNo || record['Board Registration Number'] || record['Board Registration No.'] || record.regNo),
+    className: clean(record.class || record.Class || record['Admission sought for class']),
+    session: clean(record.session || record.Session || record['Academic Session'])
+  };
+}
+
+function isSameRestoreIdentity(existing, archived) {
+  const a = getRestoreIdentity(existing);
+  const b = getRestoreIdentity(archived);
+  if (a.formNo && b.formNo) return a.formNo === b.formNo;
+  if (a.regNo && b.regNo) {
+    const sameClass = !a.className || !b.className || a.className === b.className;
+    const sameSession = !a.session || !b.session || a.session === b.session;
+    return a.regNo === b.regNo && sameClass && sameSession;
+  }
+  return false;
+}
+
+function buildRestoreEntry(trashDocId, trashData) {
+  const originalCollection = String(trashData.originalCollection || 'admissions').trim();
+  if (!RESTORABLE_COLLECTIONS.has(originalCollection)) {
+    throw new Error(`Restore is not allowed for collection "${originalCollection}".`);
+  }
+
+  const targetDocId = String(trashData.originalDocId || trashData.sanitizedDocId || '').trim();
+  if (!targetDocId || targetDocId.includes('/')) {
+    throw new Error(`Recycle record ${trashDocId} has an invalid original document ID.`);
+  }
+
+  const studentPayload = trashData.data || trashData.originalData || trashData.record;
+  if (!studentPayload || typeof studentPayload !== 'object' || Array.isArray(studentPayload)) {
+    throw new Error(`Recycle record ${trashDocId} has no restorable student payload.`);
+  }
+
+  const originalStatus = String(studentPayload.Status || studentPayload.status || '').trim();
+  const restoredStatus = !originalStatus || originalStatus.toLowerCase() === 'deleted' ? 'Submitted' : originalStatus;
+  const restoredAt = new Date().toISOString();
+  const restoredPayload = {
+    ...studentPayload,
+    Status: restoredStatus,
+    status: restoredStatus,
+    restoredAt,
+    updatedAt: restoredAt
+  };
+  delete restoredPayload._deleted;
+  delete restoredPayload._deletedAt;
+  delete restoredPayload._deletedBy;
+
+  return { trashDocId, trashData, originalCollection, targetDocId, restoredPayload };
+}
+
 /**
- * Restore a soft-deleted student record back to its original collection.
+ * Atomically restore one or more recycle-bin records. Existing matching active
+ * records are never overwritten; their stale recycle wrappers are only removed
+ * after identity verification. Any conflict aborts the entire selection.
  */
-export async function restoreFromRecycleBin(trashDocId) {
-  if (!trashDocId) return false;
+export async function restoreMultipleFromRecycleBin(trashDocIds = []) {
+  const uniqueIds = Array.from(new Set((trashDocIds || []).filter(Boolean).map(String)));
+  if (uniqueIds.length === 0) throw new Error('Select at least one recycle-bin record to restore.');
+  if (uniqueIds.length > 150) throw new Error('Restore at most 150 records in one operation.');
 
-  try {
-    const trashRef = doc(db, RECYCLE_BIN_COLLECTION, trashDocId);
-    const snap = await getDoc(trashRef);
-    if (!snap.exists()) {
-      throw new Error('Recycle bin record not found or already purged.');
-    }
+  const transactionResult = await runTransaction(db, async transaction => {
+    const trashRefs = uniqueIds.map(id => doc(db, RECYCLE_BIN_COLLECTION, id));
+    const trashSnaps = [];
+    for (const ref of trashRefs) trashSnaps.push(await transaction.get(ref));
 
-    const trashData = snap.data();
-    const originalCollection = trashData.originalCollection || 'admissions';
-    const targetDocId = trashData.sanitizedDocId || trashData.originalDocId || `restored_${Date.now()}`;
-    const studentPayload = trashData.data || {};
-
-    const updatedPayload = {
-      ...studentPayload,
-      status: (studentPayload.status === 'Deleted' || studentPayload.Status === 'Deleted') ? 'Approved' : (studentPayload.status || studentPayload.Status || 'Approved'),
-      Status: (studentPayload.status === 'Deleted' || studentPayload.Status === 'Deleted') ? 'Approved' : (studentPayload.status || studentPayload.Status || 'Approved'),
-      _deleted: false,
-      restoredAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    delete updatedPayload._deletedAt;
-    delete updatedPayload._deletedBy;
-
-    // 1. Re-insert document into original collection
-    await setDoc(doc(db, originalCollection, targetDocId), updatedPayload, { merge: true });
-
-    // If restoring a masterRegisters record, also restore active record in admissions
-    if (originalCollection === 'masterRegisters') {
-      await setDoc(doc(db, 'admissions', targetDocId), updatedPayload, { merge: true }).catch(() => {});
-      updateCachedItem('admissions', targetDocId, updatedPayload);
-    }
-
-    // 2. Hard delete document from recycleBin collection
-    await deleteDoc(trashRef).catch(async () => {
-      await setDoc(trashRef, { _purged: true, _restored: true, status: 'Restored' }, { merge: true });
+    const entries = trashSnaps.map((snap, index) => {
+      if (!snap.exists()) throw new Error(`Recycle record ${uniqueIds[index]} no longer exists.`);
+      return buildRestoreEntry(uniqueIds[index], snap.data());
     });
 
-    // 3. Update local cache & invalidate
-    updateCachedItem(originalCollection, targetDocId, updatedPayload);
-    invalidateCache(originalCollection);
-    invalidateCache('admissions');
+    const targetMap = new Map();
+    entries.forEach(entry => {
+      const collections = entry.originalCollection === 'masterRegisters'
+        ? ['masterRegisters', 'admissions']
+        : [entry.originalCollection];
+      collections.forEach(collectionName => {
+        const pathKey = `${collectionName}/${entry.targetDocId}`;
+        if (targetMap.has(pathKey)) throw new Error(`Multiple selected archives target ${pathKey}. Restore them separately.`);
+        targetMap.set(pathKey, { entry, collectionName, ref: doc(db, collectionName, entry.targetDocId) });
+      });
+    });
 
-    return {
-      success: true,
-      originalCollection,
-      studentName: trashData.studentName || 'Student',
-      formNo: trashData.formNo || '—'
-    };
-  } catch (err) {
-    console.error('restoreFromRecycleBin error:', err);
-    throw err;
-  }
+    const targets = Array.from(targetMap.values());
+    const targetSnaps = [];
+    for (const target of targets) targetSnaps.push(await transaction.get(target.ref));
+
+    targets.forEach((target, index) => {
+      const existingSnap = targetSnaps[index];
+      if (existingSnap.exists() && !isSameRestoreIdentity(existingSnap.data(), target.entry.restoredPayload)) {
+        throw new Error(`Restore conflict at ${target.collectionName}/${target.entry.targetDocId}; the active record is different.`);
+      }
+    });
+
+    targets.forEach((target, index) => {
+      if (!targetSnaps[index].exists()) transaction.set(target.ref, target.entry.restoredPayload);
+    });
+    entries.forEach((entry, index) => transaction.delete(trashRefs[index]));
+
+    return entries.map(entry => ({
+      originalCollection: entry.originalCollection,
+      targetDocId: entry.targetDocId,
+      studentName: entry.trashData.studentName || 'Student',
+      formNo: entry.trashData.formNo || '—',
+      payload: entry.restoredPayload
+    }));
+  });
+
+  transactionResult.forEach(result => {
+    updateCachedItem(result.originalCollection, result.targetDocId, result.payload);
+    if (result.originalCollection === 'masterRegisters') updateCachedItem('admissions', result.targetDocId, result.payload);
+  });
+  invalidateCache('admissions');
+  invalidateCache('masterRegisters');
+
+  return { success: true, restoredCount: transactionResult.length, records: transactionResult };
+}
+
+export async function restoreFromRecycleBin(trashDocId) {
+  const result = await restoreMultipleFromRecycleBin([trashDocId]);
+  const restored = result.records[0];
+  return { success: true, ...restored };
 }
 
 /**
- * Permanently delete a record from the recycle bin before the 90-day period.
- * Ensures complete end-to-end purging of all related duplicate deletion entries from Firestore and caches.
+ * Permanently remove only the selected recycle-bin wrapper. The active
+ * admissions and historical registers are never scanned or modified here.
  */
 export async function purgeFromRecycleBin(trashDocId) {
-  if (!trashDocId) return false;
-  try {
-    const trashRef = doc(db, RECYCLE_BIN_COLLECTION, trashDocId);
-    const snap = await getDoc(trashRef).catch(() => null);
-    const trashData = snap && snap.exists() ? snap.data() : null;
-
-    let targetFormNo = '';
-    let targetStudentName = '';
-
-    if (trashData) {
-      targetFormNo = String(trashData.formNo || trashData.data?.['Form Number'] || trashData.data?.formNo || '').replace(/^(N\/A|—)$/i, '').trim();
-      targetStudentName = String(trashData.studentName || trashData.data?.["Student's Name"] || '').trim();
-    }
-
-    // 1. Scan and hard-delete ALL duplicate recycleBin documents for this student
-    try {
-      const binSnap = await getDocs(collection(db, RECYCLE_BIN_COLLECTION));
-      for (const d of binSnap.docs) {
-        const bd = d.data();
-        const bFNo = String(bd.formNo || bd.data?.['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim();
-        const bName = String(bd.studentName || bd.data?.["Student's Name"] || '').trim();
-
-        const isMatch =
-          d.id === trashDocId ||
-          (targetFormNo && targetFormNo !== '—' && bFNo === targetFormNo) ||
-          (targetStudentName && targetStudentName.length > 2 && bName.toLowerCase() === targetStudentName.toLowerCase());
-
-        if (isMatch) {
-          await deleteDoc(doc(db, RECYCLE_BIN_COLLECTION, d.id)).catch(async () => {
-            await setDoc(doc(db, RECYCLE_BIN_COLLECTION, d.id), { _purged: true, status: 'Purged' }, { merge: true });
-          });
-        }
-      }
-    } catch (_) {}
-
-    // 2. Scan and hard-delete ALL candidate documents in admissions & masterRegisters
-    const cleanFNo = targetFormNo ? targetFormNo.replace(/^#/, '').trim() : '';
-    const digitsOnly = targetFormNo.replace(/[^0-9]/g, '');
-
-    const idCandidates = Array.from(new Set([
-      trashDocId, targetFormNo, cleanFNo, digitsOnly
-    ].filter(Boolean)));
-
-    for (const cid of idCandidates) {
-      try { await deleteDoc(doc(db, 'admissions', cid)); } catch (_) {}
-      try { await deleteDoc(doc(db, 'masterRegisters', cid)); } catch (_) {}
-      updateCachedItem('admissions', cid, null);
-      updateCachedItem('masterRegisters', cid, null);
-    }
-
-    // 3. Clean from masterRegisters chunk arrays if record resides in historical registers
-    await cleanStudentFromMasterRegistersChunks({
-      studentName: targetStudentName,
-      formNo: targetFormNo,
-      boardRegNo: trashData?.boardRegNo || trashData?.data?.['Board Registration Number'] || '',
-      id: trashData?.originalDocId || trashDocId
-    }).catch(() => {});
-
-    // 4. Clean any remaining drafts from admissions
-    await cleanStudentDraftsFromAdmissions({
-      studentName: targetStudentName,
-      formNo: targetFormNo,
-      email: trashData?.data?.['Email Address'] || trashData?.data?.email || '',
-      ownerUid: trashData?.data?.ownerUid || ''
-    }).catch(() => {});
-
-    // 5. Recycle form number for future series if clean form number exists
-    if (cleanFNo && cleanFNo !== '—') {
-      await recycleDeletedFormNumber(cleanFNo).catch(() => {});
-    }
-
-    invalidateCache('admissions');
-    invalidateCache('masterRegisters');
-
-    return true;
-  } catch (err) {
-    console.error('purgeFromRecycleBin error:', err);
-    try {
-      await setDoc(doc(db, RECYCLE_BIN_COLLECTION, trashDocId), {
-        _purged: true,
-        status: 'Purged',
-        purgedAt: new Date().toISOString()
-      }, { merge: true });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
+  if (!trashDocId) throw new Error('Recycle-bin document ID is required.');
+  const trashRef = doc(db, RECYCLE_BIN_COLLECTION, String(trashDocId));
+  await runTransaction(db, async transaction => {
+    const snap = await transaction.get(trashRef);
+    if (!snap.exists()) throw new Error('Recycle-bin record no longer exists.');
+    transaction.delete(trashRef);
+  });
+  return true;
 }
 
-/**
 /**
  * Hard-delete ONLY documents explicitly flagged as deleted (Status === 'Deleted' AND _deleted === true).
  * This is a safe targeted sweep — never touches real admission documents.

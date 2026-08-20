@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, RotateCcw, Trash2, Search, RefreshCw, Archive, Clock, ShieldCheck, CheckCircle2, Flame, Loader2, ShieldAlert, Sparkles } from 'lucide-react';
-import { getRecycleBinItems, restoreFromRecycleBin, purgeFromRecycleBin } from '../../services/recycleBinService';
+import { getRecycleBinItems, restoreFromRecycleBin, restoreMultipleFromRecycleBin, purgeFromRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 
@@ -41,21 +41,32 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
   const filteredItems = items.filter(it => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase().trim();
-    const name = String(it.studentName || '').toLowerCase();
-    const fNo = String(it.formNo || '').toLowerCase();
-    const reg = String(it.boardRegNo || '').toLowerCase();
-    const cls = String(it.class || '').toLowerCase();
-    const rollNo = String(getRecycleBinClassRollNo(it)).toLowerCase();
-    return name.includes(term) || fNo.includes(term) || reg.includes(term) || cls.includes(term) || rollNo === term;
+    const payload = it.data || it.originalData || it.record || {};
+    const searchableValues = [
+      it.studentName,
+      it.formNo,
+      it.boardRegNo,
+      it.class,
+      getRecycleBinClassRollNo(it),
+      it.originalCollection,
+      it.deletedBy,
+      payload.session,
+      payload.Session,
+      payload['Academic Session'],
+      payload.status,
+      payload.Status
+    ];
+    return searchableValues.some(value => String(value || '').toLowerCase().includes(term));
   });
 
-  const isAllSelected = filteredItems.length > 0 && selectedTrashIds.length === filteredItems.length;
+  const filteredTrashIds = filteredItems.map(item => item.trashId || item.id).filter(Boolean);
+  const isAllSelected = filteredTrashIds.length > 0 && filteredTrashIds.every(id => selectedTrashIds.includes(id));
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
-      setSelectedTrashIds([]);
+      setSelectedTrashIds(previous => previous.filter(id => !filteredTrashIds.includes(id)));
     } else {
-      setSelectedTrashIds(filteredItems.map(it => it.trashId || it.id));
+      setSelectedTrashIds(previous => Array.from(new Set([...previous, ...filteredTrashIds])));
     }
   };
 
@@ -94,7 +105,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
       consequence: 'This student application will be fully restored to active status in database registers.',
       confirmText: '🔄 Confirm & Restore Record',
       cancelText: 'Cancel',
-      onConfirm: async () => {
+      onConfirm: async (auditReason) => {
         setConfirmModalConfig(null);
         try {
           setRestoringId(item.trashId);
@@ -106,6 +117,8 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
             actionType: 'restore',
             actionTitle: 'Restored Record from Recycle Bin',
             details: `Restored student application "${sName}" (${fNo}) back to ${res.originalCollection}`,
+            reasonCategory: auditReason?.reasonCategory,
+            customReason: auditReason?.customReason,
             metadata: { formNo: fNo, studentName: sName }
           }).catch(() => {});
 
@@ -113,7 +126,8 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
           if (onRestoreSuccess) onRestoreSuccess(res);
         } catch (err) {
           console.error('Restore error:', err);
-          alert(`Failed to restore record: ${err.message}`);
+          setToast({ type: 'error', message: `Restore failed: ${err.message}` });
+          setTimeout(() => setToast(null), 4500);
         } finally {
           setRestoringId(null);
         }
@@ -165,6 +179,63 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
           setToast({ type: 'error', message: `Purge failed: ${err.message}` });
         } finally {
           setPurgingId(null);
+          setActionProgress(null);
+        }
+      }
+    });
+  };
+
+  const handleBulkRestore = () => {
+    if (selectedTrashIds.length === 0) return;
+    const selectedIds = [...selectedTrashIds];
+    const count = selectedIds.length;
+
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'success',
+      title: 'Restore Selected Student Records',
+      message: `Restore ${count} selected archived student record${count === 1 ? '' : 's'} to the active registers?`,
+      consequence: 'The restore is atomic: if any selected archive conflicts with a different active record, none of the selected records will be changed.',
+      confirmText: `Restore ${count} Record${count === 1 ? '' : 's'}`,
+      cancelText: 'Cancel',
+      onConfirm: async (auditReason) => {
+        setConfirmModalConfig(null);
+        setActionProgress({
+          variant: 'restore',
+          title: `Restoring ${count} Student Record${count === 1 ? '' : 's'}`,
+          subtitle: 'Validating identities and restoring the selected records atomically',
+          percent: 20,
+          step: 1,
+          steps: [
+            'Validating archived records and active-record conflicts',
+            'Restoring records in one database transaction',
+            'Refreshing registers and recording the audit event'
+          ]
+        });
+
+        try {
+          setLoading(true);
+          const result = await restoreMultipleFromRecycleBin(selectedIds);
+          setActionProgress(previous => previous ? { ...previous, percent: 100, step: 3, done: true } : null);
+          await logAdminActivity({
+            actionType: 'restore',
+            actionTitle: 'Bulk Restore from Recycle Bin',
+            details: `Restored ${result.restoredCount} student records from the recycle bin`,
+            reasonCategory: auditReason?.reasonCategory,
+            customReason: auditReason?.customReason,
+            metadata: { restoredCount: result.restoredCount, recycleBinIds: selectedIds }
+          }).catch(() => {});
+          setToast({ type: 'success', message: `Restored ${result.restoredCount} student record${result.restoredCount === 1 ? '' : 's'} successfully.` });
+          setTimeout(() => setToast(null), 4000);
+          setSelectedTrashIds([]);
+          await fetchItems();
+          if (onRestoreSuccess) onRestoreSuccess(result);
+        } catch (err) {
+          console.error('Bulk restore error:', err);
+          setToast({ type: 'error', message: `Bulk restore failed: ${err.message}` });
+          setTimeout(() => setToast(null), 5000);
+        } finally {
+          setLoading(false);
           setActionProgress(null);
         }
       }
@@ -318,7 +389,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                 </span>
               </h3>
               <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 leading-none mt-0.5">
-                Deleted student applications are preserved here for 90 days before auto-expiring.
+                Deleted student applications are retained for 90 days and changed only through explicit admin actions.
               </p>
             </div>
           </div>
@@ -341,22 +412,23 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by student name, form #, reg #..."
+              placeholder="Search name, roll, class, session, form or reg #..."
               className="w-full pl-8 pr-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500/50"
             />
           </div>
 
           <div className="flex items-center gap-1.5">
             {selectedTrashIds.length > 0 && (
-              <button
-                type="button"
-                onClick={handleBulkPurge}
-                className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all animate-pulse"
-                title="Permanently purge selected records"
-              >
-                <Trash2 size={12} />
-                <span>Purge Selected ({selectedTrashIds.length})</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button type="button" disabled={loading || Boolean(actionProgress)} onClick={handleBulkRestore} className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all disabled:opacity-50" title="Bulk restore selected records">
+                  <RotateCcw size={12} />
+                  <span>Bulk Restore ({selectedTrashIds.length})</span>
+                </button>
+                <button type="button" disabled={loading || Boolean(actionProgress)} onClick={handleBulkPurge} className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all disabled:opacity-50" title="Permanently purge selected recycle-bin records">
+                  <Trash2 size={12} />
+                  <span>Purge Selected ({selectedTrashIds.length})</span>
+                </button>
+              </div>
             )}
 
             {items.length > 0 && (
@@ -525,7 +597,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
             confirmText={confirmModalConfig.confirmText}
             cancelText={confirmModalConfig.cancelText || 'Cancel'}
             onConfirm={confirmModalConfig.onConfirm}
-            onCancel={() => setConfirmModalConfig(null)}
+            onClose={() => setConfirmModalConfig(null)}
           />
         )}
 
