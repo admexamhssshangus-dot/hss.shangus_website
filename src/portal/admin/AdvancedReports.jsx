@@ -5958,6 +5958,9 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
             customReason,
             metadata: { documentIds: records.map(getExactAdmissionDocId), count: records.length }
           });
+          // Recompute the unread badge immediately; the bulk path does not
+          // open/close the delete modal that normally triggers this refresh.
+          await refreshRecycleBinCount();
           setSelectedTableDocIds(new Set());
           setToast({ type: 'success', message: `${records.length} applications moved to the Recycle Bin.` });
           setConfirmModalConfig(null);
@@ -5968,7 +5971,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         }
       }
     });
-  }, [handleRecordDeleted, runSelectedMutation, selectedTableStudents, user?.email]);
+  }, [handleRecordDeleted, refreshRecycleBinCount, runSelectedMutation, selectedTableStudents, user?.email]);
 
   const totalPages = pageSize === 'All' ? 1 : Math.ceil(filteredStudents.length / (parseInt(pageSize, 10) || 50));
 
@@ -7056,6 +7059,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
               onExportCSV={handleExportCSV}
               onSync={onSync || (() => loadReportsData(true))}
               onOpenRecycleBin={() => setShowRecycleBinModal(true)}
+              unreadRecycleBinCount={recycleBinCount}
               loading={loading}
             />
           </div>
