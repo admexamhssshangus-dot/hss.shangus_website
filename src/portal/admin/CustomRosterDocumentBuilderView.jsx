@@ -22,7 +22,7 @@ import {
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { getCachedCollection, getCachedCollectionSync, preloadStudentPhotosCache, getPhotoUrlFromCache } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, preloadStudentPhotosCache, getPhotoUrlFromCache, resolveStudentPhoto } from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -1403,6 +1403,25 @@ export default function CustomRosterDocumentBuilderView({
   const [saveDefaultToast, setSaveDefaultToast] = useState(false);
   const [isSavingCustomToCloud, setIsSavingCustomToCloud] = useState(false);
   const [cloudFeeSaveToast, setCloudFeeSaveToast] = useState(false);
+  const [photoVersion, setPhotoVersion] = useState(0);
+
+  // Re-render when background student photos are indexed or loaded
+  useEffect(() => {
+    const handlePhotosLoaded = () => {
+      setPhotoVersion(v => v + 1);
+    };
+    window.addEventListener('hss-photos-loaded', handlePhotosLoaded);
+    return () => {
+      window.removeEventListener('hss-photos-loaded', handlePhotosLoaded);
+    };
+  }, []);
+
+  // Preload and index student photos whenever pool changes
+  useEffect(() => {
+    preloadStudentPhotosCache().then(() => {
+      setPhotoVersion(v => v + 1);
+    }).catch(() => {});
+  }, [unifiedStudentPool]);
 
   // Preload and sync custom fee rules and column defaults from Firebase Cloud
   useEffect(() => {
@@ -1841,7 +1860,21 @@ export default function CustomRosterDocumentBuilderView({
       
       let photoSrc = getStudentPhotoUrl(st);
       if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
-        const idVal = st.id || st['Form Number'] || st.formNo || extractBoardRegNo(st);
+        const directResolved = resolveStudentPhoto(st);
+        if (directResolved && directResolved !== '—' && directResolved !== '/logo.png') {
+          photoSrc = formatPhotoDisplayUrl(directResolved) || directResolved;
+        }
+      }
+      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
+        const reg = extractBoardRegNo(st);
+        if (reg && reg !== '—') {
+          const cleanR = cleanRegNoVal(reg);
+          const cachedUrl = getPhotoUrlFromCache(cleanR) || getPhotoUrlFromCache(reg) || getPhotoUrlFromCache(`photo_${cleanR}`) || getPhotoUrlFromCache(`reg_${cleanR}`);
+          if (cachedUrl) photoSrc = formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
+        }
+      }
+      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
+        const idVal = st.id || st['Form Number'] || st.formNo;
         if (idVal) {
           const cachedUrl = getPhotoUrlFromCache(String(idVal));
           if (cachedUrl) photoSrc = formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
@@ -1852,7 +1885,7 @@ export default function CustomRosterDocumentBuilderView({
         if (reg && reg !== '—') {
           const indexed = lookupStudentByRegSync(reg);
           if (indexed) {
-            const indexedPhoto = getStudentPhotoUrl(indexed);
+            const indexedPhoto = getStudentPhotoUrl(indexed) || resolveStudentPhoto(indexed);
             if (indexedPhoto && indexedPhoto !== '—' && indexedPhoto !== '/logo.png') {
               photoSrc = indexedPhoto;
             }
@@ -1954,7 +1987,7 @@ export default function CustomRosterDocumentBuilderView({
       ...r,
       sno: i + 1
     }));
-  }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster]);
+  }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster, photoVersion]);
 
   // Metadata Badges for Header
   const cleanGlobalSession = String(globalSession || '').replace(/^(active_|master_)/, '');

@@ -8,6 +8,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, RefreshCw } from 'lucide-react';
 import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { preloadStudentPhotosCache } from '../../services/dbCache';
 import CustomRosterDocumentBuilderView, { extractSession } from './CustomRosterDocumentBuilderView';
 import OfficialLetterWriterView from './OfficialLetterWriterView';
 import StudentCertificateStudioView from './StudentCertificateStudioView';
@@ -149,6 +150,7 @@ export default function OfficialDocumentsStudioView({
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const flatList = unpackMasterRegisterStudents(docs);
       setMasterHistoricalRecords(flatList);
+      preloadStudentPhotosCache().catch(() => {});
       setHistoricalFetchToast('');
     } catch (err) {
       console.warn('Historical master registers fetch note:', err);
