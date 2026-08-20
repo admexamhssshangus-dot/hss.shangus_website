@@ -63,7 +63,7 @@ const SENIOR_CLASS_SUBJECTS = [
  * Grants admins special privileges to insert new student records directly into the database
  * with ZERO mandatory field requirements, bulk CSV import, workflow preview modal, photo correlation, and CSV template download.
  */
-export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded }) {
+export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded, allStudents = [] }) {
   const [formData, setFormData] = useState({
     formNo: '',
     classRollNo: '',
@@ -640,23 +640,54 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
   };
 
   /**
+   * Normalize session string for robust cross-format matching:
+   * e.g. "2024-25 (Oct-Nov)", "2024-25(Oct-Nov)", "2024-25", "2024-2025" -> "2024"
+   */
+  const normalizeMatchSession = (ses) => {
+    if (!ses) return '';
+    const s = String(ses).trim().toLowerCase();
+    const match = s.match(/\b(20\d{2})/);
+    return match ? match[1] : s.replace(/[^a-z0-9]/g, '');
+  };
+
+  /**
+   * Normalize class string for robust cross-format matching:
+   * e.g. "10th", "Class 10th", "10", "Class 10", "X" -> "10th"
+   */
+  const normalizeMatchClass = (cls) => {
+    if (!cls) return '';
+    const s = String(cls).trim().toLowerCase().replace(/class/gi, '').trim();
+    if (s.includes('9') || s === 'ix') return '9th';
+    if (s.includes('10') || s === 'x') return '10th';
+    if (s.includes('11') || s === 'xi') return '11th';
+    if (s.includes('12') || s === 'xii') return '12th';
+    return s.replace(/[^a-z0-9]/g, '');
+  };
+
+  /**
    * Process raw extracted/parsed objects into workflow preview with tri-key duplicate checking
    * and session-specific sequential form number allocation.
    */
   const processRawStudentRowsIntoPreview = async (rawRows, sourceDesc = '') => {
-    // Fetch all cached students across admissions & masterRegisters for duplicate resolution & max form number computation
+    // Fetch all cached students across props allStudents, admissions & masterRegisters
     const activeAdmissions = getCachedCollectionSync('admissions') || [];
     const masterList = getCachedCollectionSync('masterRegisters') || [];
     const allExistingStudents = [];
 
+    const addRecordToPool = (r) => {
+      if (r && r.Status !== 'Deleted' && !r._deleted) {
+        allExistingStudents.push(r);
+      }
+    };
+
+    if (Array.isArray(allStudents)) {
+      allStudents.forEach(addRecordToPool);
+    }
+
     [...activeAdmissions, ...masterList].forEach(item => {
       const rec = item.items || item;
       const recs = Array.isArray(rec) ? rec : [rec];
-      recs.forEach(r => {
-        if (r && r.Status !== 'Deleted' && !r._deleted) {
-          allExistingStudents.push(r);
-        }
-      });
+      recs.forEach(addRecordToPool);
     });
 
     // Detect target session from first row or current UI session
@@ -748,13 +779,18 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
       const hasValidReg = rawRegStr && !isPlaceholderRegNo(rawRegStr);
       const cleanReg = hasValidReg ? rawRegStr.replace(/[^a-z0-9]/g, '').toLowerCase() : '';
 
-      const cleanFNo = String(formNo || '').trim().toLowerCase();
-      const cleanCls = String(rowClass || '').trim().toLowerCase();
-      const cleanSes = String(rowSession || '').trim().toLowerCase();
+      const cleanFNo = String(formNo || '').replace(/[^0-9]/g, '');
+      const cleanAdmNo = String(admNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
+      const cleanCls = normalizeMatchClass(rowClass);
+      const cleanSes = normalizeMatchSession(rowSession);
       const cleanGen = String(gender || '').trim().toLowerCase();
       const cleanName = String(studentName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanFather = String(fatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanAadhar = String(aadhar || '').replace(/[^0-9]/g, '');
 
       let existingMatch = null;
+      let matchReason = '';
+
       for (const ex of allExistingStudents) {
         const exRawReg = String(
           ex.boardRegNo ||
@@ -768,32 +804,55 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
         const exHasValidReg = exRawReg && !isPlaceholderRegNo(exRawReg);
         const exReg = exHasValidReg ? exRawReg.replace(/[^a-z0-9]/g, '').toLowerCase() : '';
 
-        const exFNo = String(ex.formNo || ex['Form Number'] || ex['Form No.'] || ex['Form No'] || ex.id || '').trim().toLowerCase();
-        const exCls = String(ex.class || ex['Class'] || ex['Admission sought for class'] || '').trim().toLowerCase();
-        const exSes = String(ex.session || ex['Session'] || ex['Academic Session'] || '').trim().toLowerCase();
+        const exFNo = String(ex.formNo || ex['Form Number'] || ex['Form No.'] || ex['Form No'] || ex.id || '').replace(/[^0-9]/g, '');
+        const exAdmNo = String(ex.admNo || ex['Admission No.'] || ex['Admission No'] || ex.admissionNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
+        const exCls = normalizeMatchClass(ex.class || ex['Class'] || ex['Admission sought for class'] || '');
+        const exSes = normalizeMatchSession(ex.session || ex['Session'] || ex['Academic Session'] || '');
         const exGen = String(ex.gender || ex['Gender'] || '').trim().toLowerCase();
         const exName = String(ex.studentName || ex["Student's Name (as per school records)"] || ex.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const exFather = String(ex.fatherName || ex["Father's/Guardian's Name (as per school records)"] || ex.father || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const exAadhar = String(ex.aadhar || ex['Aadhaar Number'] || ex['Aadhar No.'] || '').replace(/[^0-9]/g, '');
 
         const isClassMatch = !cleanCls || !exCls || cleanCls === exCls;
         const isSessionMatch = !cleanSes || !exSes || cleanSes === exSes;
 
-        // Primary Match: Valid 16-digit or 11-12 digit Board Registration Number + Class + Session
-        if (cleanReg && exReg && cleanReg === exReg && isClassMatch && isSessionMatch) {
+        // 1. Board Registration Number Match (High confidence)
+        if (cleanReg && exReg && cleanReg === exReg) {
           existingMatch = ex;
+          matchReason = `Matched Reg #${exRawReg}`;
           break;
         }
 
-        // Fallback Match (when Board Reg No is not given / placeholder):
-        // Form Number along with Class, Session, Gender, and Name of Student (ALL MUST MATCH)
-        if (!cleanReg) {
-          const isFormMatch = cleanFNo && exFNo && (cleanFNo === exFNo || cleanFNo === exFNo.replace(/^adm_/, ''));
-          const isGenderMatch = !cleanGen || !exGen || cleanGen === exGen;
-          const isNameMatch = cleanName && exName && (cleanName === exName || areNamesCompatible(studentName, ex.studentName || ex["Student's Name (as per school records)"]));
+        // 2. Form Number Match (within same academic session)
+        if (cleanFNo && exFNo && cleanFNo === exFNo && isSessionMatch) {
+          existingMatch = ex;
+          matchReason = `Matched Form #${exFNo}`;
+          break;
+        }
 
-          if (isFormMatch && isClassMatch && isSessionMatch && isGenderMatch && isNameMatch) {
+        // 3. Admission / Class Roll No Match (within same session & class)
+        if (cleanAdmNo && exAdmNo && cleanAdmNo === exAdmNo && isSessionMatch && isClassMatch) {
+          existingMatch = ex;
+          matchReason = `Matched Adm #${exAdmNo}`;
+          break;
+        }
+
+        // 4. Student Name + Father Name Match (within same session & class)
+        if (cleanName && exName && cleanFather && exFather && isSessionMatch && isClassMatch) {
+          const nameMatches = cleanName === exName || areNamesCompatible(studentName, ex.studentName || ex["Student's Name (as per school records)"]);
+          const fatherMatches = cleanFather === exFather || areNamesCompatible(fatherName, ex.fatherName || ex["Father's/Guardian's Name (as per school records)"]);
+          if (nameMatches && fatherMatches) {
             existingMatch = ex;
+            matchReason = `Matched Name & Father (${ex.studentName || ex.name})`;
             break;
           }
+        }
+
+        // 5. 12-digit Aadhaar Match
+        if (cleanAadhar && exAadhar && cleanAadhar === exAadhar && cleanAadhar.length >= 12) {
+          existingMatch = ex;
+          matchReason = `Matched Aadhaar`;
+          break;
         }
       }
 
@@ -801,9 +860,10 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded })
 
       parsedRows.push({
         sno: i + 1,
-        selected: !isDuplicate, // Unselect by default if already in DB for this Registration No, Class & Session
+        selected: !isDuplicate, // Unselect by default if already in DB to protect against duplicate additions
         isDuplicate: isDuplicate,
         matchedRecord: existingMatch,
+        matchReason: matchReason,
         formNo: formNo,
         classRollNo: classRollNo,
         admNo: admNo,
@@ -4033,12 +4093,17 @@ CRITICAL INSTRUCTIONS:
                           {/* Database Match Status */}
                           <td className="p-2">
                             {r.isDuplicate ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 inline-flex items-center gap-1">
-                                <AlertTriangle size={10} /> In Database (Update)
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 inline-flex items-center gap-1 shadow-2xs"
+                                title={r.matchReason ? `Existing student record detected in database: ${r.matchReason}` : 'Student already exists in database'}
+                              >
+                                <AlertTriangle size={10} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                                <span className="truncate max-w-[140px]">{r.matchReason ? `⚠️ ${r.matchReason}` : '⚠️ In Database (Update)'}</span>
                               </span>
                             ) : (
-                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1">
-                                <Sparkles size={10} /> ⚡ New Admission
+                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1 shadow-2xs">
+                                <Sparkles size={10} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                <span>⚡ New Admission</span>
                               </span>
                             )}
                           </td>

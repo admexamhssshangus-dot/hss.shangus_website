@@ -8965,6 +8965,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         isOpen={showDirectIngestionModal}
         onClose={() => setShowDirectIngestionModal(false)}
         onRecordAdded={handleDirectRecordAdded}
+        allStudents={allStudents.length > 0 ? allStudents : currentAdmissions}
       />
 
       {/* Analytics & Statistical Reports Suite Modal */}
