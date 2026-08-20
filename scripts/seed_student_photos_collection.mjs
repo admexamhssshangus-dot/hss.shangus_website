@@ -235,7 +235,13 @@ async function run() {
     const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
     const base64Data = `data:${mime};base64,${fileBuffer.toString('base64')}`;
 
-    const docId = (p.regNo && p.regNo.length >= 6) ? `photo_${p.regNo}` : `photo_name_${p.name.replace(/\s+/g, '_')}`;
+    // A registration number can legitimately span the 9th/10th and 11th/12th
+    // bands. Keep one canonical photo per band, rather than letting the later
+    // write overwrite the other band at photo_<registration-number>.
+    const photoBand = p.is9or10 ? 'secondary' : p.is11or12 ? 'higher-secondary' : 'other';
+    const docId = (p.regNo && p.regNo.length >= 6)
+      ? `photo_${p.regNo}_${photoBand}`
+      : `photo_name_${p.name.replace(/\s+/g, '_')}_${photoBand}`;
 
     const photoDoc = {
       photo_id: base64Data,
@@ -243,6 +249,7 @@ async function run() {
       studentName: p.rawName || '',
       selectedClass: p.rawCls || '',
       selectedSession: p.session || '',
+      photoBand,
       sourceFileName: p.fileName,
       updatedAt: new Date().toISOString()
     };

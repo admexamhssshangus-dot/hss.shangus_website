@@ -13,7 +13,7 @@ const PROTECTED_FIELDS = new Set([
   'Form Number', 'FormNo', 'Form No.', 'formNo', 'formNumber', 'admissionNumber',
   'approvedBy', 'rejectedBy', 'reviewedBy', 'workflowVersion', 'submissionKey',
   'classCanonical', 'sessionCanonical', 'emailNormalized', 'photoPath',
-  'applicationId', 'docId',
+  'applicationId', 'docId', 'registrationNoCanonical', 'photoRef', 'photoBand',
 ]);
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -155,6 +155,43 @@ function normalizeSession(value) {
   const session = cleanString(value, 20).replace(/\s/g, '');
   const normalized = session.replace(/\u2013/g, '-');
   return /^20\d{2}-(?:20)?\d{2}$/.test(normalized) ? normalized : '';
+}
+
+// A board registration number identifies a student across every record.  The
+// same number may have one record for each class/session, so it is deliberately
+// combined with those values in the server-only application index below.
+function normalizeRegistrationNumber(value) {
+  const normalized = cleanString(value, 80).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  return normalized.length >= 5 ? normalized : '';
+}
+
+function registrationNumberFrom(data) {
+  const keys = [
+    'Board Registration Number', 'Board Registration No.', 'Board Reg. No.',
+    'Registration Number', 'Registration No.', 'Reg. No.', 'boardRegNo', 'regNo',
+    'registrationNo', 'Board Registration No. (Class 9th)',
+    'Board Registration No. (Class 10th)', 'Board Registration No. (Class 11th)',
+    'Board Registration No. (Class 12th)', 'DIET Registration No.',
+  ];
+  for (const key of keys) {
+    const candidate = normalizeRegistrationNumber(data?.[key]);
+    if (candidate) return candidate;
+  }
+  return '';
+}
+
+function photoBandForClass(cls) {
+  return cls === '9th' || cls === '10th' ? 'secondary' : 'higher-secondary';
+}
+
+function photoSourcePriority(cls) {
+  // A lower score wins: 9th over 10th, and 11th over 12th.
+  return cls === '9th' || cls === '11th' ? 0 : 1;
+}
+
+function applicationIndexId(registrationNo, session, cls) {
+  // Keep the document id non-identifying while retaining an exact O(1) lookup.
+  return crypto.createHash('sha256').update(`${registrationNo}|${session}|${cls}`).digest('hex');
 }
 
 function currentAcademicSession(now = new Date()) {
@@ -376,6 +413,19 @@ async function loadWorkspace(db, token) {
       const time = v => v?.toMillis?.() || Date.parse(v || '') || 0;
       return time(b.updatedAt || b.submittedAt || b.createdAt) - time(a.updatedAt || a.submittedAt || a.createdAt);
     });
+  // Photos live only in studentPhotos.  Hydrate the small, signed-in student's
+  // workspace response instead of storing another base64 copy in admissions.
+  const photoRefs = [...new Set(applications.map(item => String(item.photoRef || '')).filter(ref => /^studentPhotos\/[a-zA-Z0-9_-]{1,256}$/.test(ref)))];
+  const photoSnapshots = await Promise.all(photoRefs.map(ref => db.doc(ref).get().catch(() => null)));
+  const photosByRef = new Map();
+  photoSnapshots.forEach((snap, index) => {
+    const photo = snap?.exists ? validatedPhoto(snap.data()?.photo_id) : '';
+    if (photo) photosByRef.set(photoRefs[index], photo);
+  });
+  applications.forEach(item => {
+    const resolvedPhoto = photosByRef.get(item.photoRef);
+    if (resolvedPhoto) item.photo_id = resolvedPhoto;
+  });
   const [settingsSnap, counterSnap] = await Promise.all([
     db.collection('site').doc('settings').get(),
     db.collection('systemSettings').doc('formNumberConfig').get(),
@@ -455,13 +505,21 @@ async function submitApplication(db, token, body) {
   const keyRef = db.collection('admissionSubmissionKeys').doc(`${token.uid}_${submissionKey}`);
   const counterRef = db.collection('systemSettings').doc('formNumberConfig');
   const settingsRef = db.collection('site').doc('settings');
+  const registrationNo = registrationNumberFrom(sanitized);
+  const photoBand = photoBandForClass(normalized.cls);
+  const photoRef = registrationNo ? db.collection('studentPhotos').doc(`photo_${registrationNo}_${photoBand}`) : null;
+  const recordIndexRef = registrationNo
+    ? db.collection('studentApplicationIndex').doc(applicationIndexId(registrationNo, normalized.session, normalized.cls))
+    : null;
 
   return db.runTransaction(async tx => {
     const legacyEmailQuery = db.collection('admissions').where('Email Address', '==', String(token.email || '').toLowerCase());
-    const [keySnap, existingSnap, counterSnap, settingsSnap, ownedSnap, legacyEmailSnap] = await Promise.all([
+    const [keySnap, existingSnap, counterSnap, settingsSnap, ownedSnap, legacyEmailSnap, photoSnap, recordIndexSnap] = await Promise.all([
       tx.get(keyRef), tx.get(appRef), tx.get(counterRef), tx.get(settingsRef),
       tx.get(db.collection('admissions').where('ownerUid', '==', token.uid)),
       tx.get(legacyEmailQuery),
+      photoRef ? tx.get(photoRef) : Promise.resolve(null),
+      recordIndexRef ? tx.get(recordIndexRef) : Promise.resolve(null),
     ]);
     if (keySnap.exists) return keySnap.data().result;
     const settings = settingsSnap.exists ? settingsSnap.data() : {};
@@ -493,6 +551,10 @@ async function submitApplication(db, token, body) {
         item._purged !== true;
     });
     if (duplicate) throw Object.assign(new Error(`An active application already exists for Class ${normalized.cls} in ${normalized.session}.`), { status: 409 });
+    if (recordIndexSnap?.exists && recordIndexSnap.data()?.applicationId !== appRef.id &&
+      ['Submitted', 'Under Review', 'Approved'].includes(recordIndexSnap.data()?.status)) {
+      throw Object.assign(new Error(`An active application already exists for this registration number in Class ${normalized.cls}, ${normalized.session}.`), { status: 409 });
+    }
 
     const counter = counterSnap.exists ? counterSnap.data() : {};
     let formNumber = cleanString(valueOf(existing || {}, 'Form Number', 'FormNo', 'formNo') || valueOf(sanitized || {}, 'Form Number', 'FormNo', 'formNo'), 20);
@@ -511,6 +573,25 @@ async function submitApplication(db, token, body) {
 
     const now = FieldValue.serverTimestamp();
     const result = { success: true, applicationId: appRef.id, formNumber, status: 'Submitted' };
+    let resolvedPhotoRef = photoRef?.path || cleanString(existing?.photoRef, 256) || null;
+    if (photoRef && photo) {
+      const priorPhoto = photoSnap?.exists ? photoSnap.data() : null;
+      const priorClass = normalizeClass(priorPhoto?.sourceClass || priorPhoto?.selectedClass);
+      const replacePhoto = !priorPhoto?.photo_id ||
+        photoSourcePriority(normalized.cls) < photoSourcePriority(priorClass || normalized.cls) ||
+        priorClass === normalized.cls;
+      if (replacePhoto) {
+        tx.set(photoRef, {
+          photo_id: photo,
+          boardRegNo: registrationNo,
+          regNo: registrationNo,
+          sourceClass: normalized.cls,
+          photoBand,
+          selectedClass: normalized.cls,
+          updatedAt: now,
+        }, { merge: true });
+      }
+    }
     tx.set(appRef, {
       ...sanitized,
       ownerUid: token.uid,
@@ -518,6 +599,10 @@ async function submitApplication(db, token, body) {
       'Email Address': normalized.email,
       classCanonical: normalized.cls,
       sessionCanonical: normalized.session,
+      registrationNoCanonical: registrationNo || null,
+      photoRef: resolvedPhotoRef,
+      photoBand: registrationNo ? photoBand : null,
+      ...(photoRef ? { photo_id: FieldValue.delete() } : {}),
       'Form Number': formNumber,
       FormNo: formNumber,
       formNo: formNumber,
@@ -533,6 +618,21 @@ async function submitApplication(db, token, body) {
       nextFormNumber: Math.max(Number(counter.nextFormNumber || 0), Number(formNumber) + 1),
       lastUpdated: now,
     }, { merge: true });
+    if (recordIndexRef) {
+      tx.set(recordIndexRef, {
+        registrationNo,
+        sessionCanonical: normalized.session,
+        classCanonical: normalized.cls,
+        applicationId: appRef.id,
+        formNumber,
+        status: 'Submitted',
+        ownerUid: token.uid,
+        photoRef: resolvedPhotoRef,
+        photoBand,
+        updatedAt: now,
+        ...(!recordIndexSnap?.exists ? { createdAt: now } : {}),
+      }, { merge: true });
+    }
     tx.create(keyRef, {
       ownerUid: token.uid,
       applicationId: appRef.id,

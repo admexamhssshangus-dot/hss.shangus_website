@@ -23,8 +23,8 @@ const missing = [...new Set(schemaFields)].filter(field => !mappedFields.include
 assert.strictEqual(duplicates.length, 0, `Duplicate admission classifications: ${[...new Set(duplicates)].join(', ')}`);
 assert.strictEqual(missing.length, 0, `Unclassified admission fields: ${missing.join(', ')}`);
 assert(/name === 'Declaration'\) return false;/.test(formSource), 'Declaration must remain workflow-managed');
-assert(/Confirmation is intentionally handled by the final review modal/.test(formSource), 'Declaration handling is undocumented');
-assert(/"Subjects Studied in Class 11th": '📚 Stream & Subject Selection'/.test(formSource), 'Class 12 dependent subjects are not classified with stream selection');
+assert(/Application Review & Confirmation Modal/.test(formSource), 'Declaration handling is undocumented');
+assert(/"Subjects Studied in Class 11th": '🏫 Class 11th Examination Records'/.test(formSource), 'Class 12 dependent subjects are not classified with examination records');
 assert(/next\['Stream & Subjects for Class 12th'\] = value/.test(formSource), 'Class 12 subject summary is not synchronized');
 assert(/if \(fieldName === 'Stream & Subjects for Class 12th'\) return false;/.test(formSource), 'Redundant Class 12 subject summary is visible');
 assert(!/id: 'subjects'/.test(formSource), 'Subjects still use a separate workflow tab');

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getStudentPhotoUrl } from '../utils/imageCompressor';
-import { normalizeRegNoKey } from '../services/dbCache';
+import { fetchStudentPhotoOnDemand } from '../services/dbCache';
 
 // In-memory cache for resolved image URLs
 const resolvedPhotoMemoryCache = new Map();
@@ -11,59 +11,9 @@ const resolvedPhotoMemoryCache = new Map();
 export function resolveStudentPhoto(student) {
   if (!student || typeof student !== 'object') return null;
 
-  const directPhoto = student.photo_id || student['Student Photo'] || student.photoUrl || student.photoId || student.photo || student.passport_photo;
-  if (directPhoto && typeof directPhoto === 'string' && directPhoto.trim().length > 10 && directPhoto !== '/logo.png') {
-    return directPhoto.trim();
-  }
-
-  // Check window central photo map
-  if (typeof window !== 'undefined' && window._hss_central_photo_map) {
-    const map = window._hss_central_photo_map;
-    const regCandidates = [
-      student.boardRegNo,
-      student.regNo,
-      student['Board Registration Number'],
-      student['Board Registration No.'],
-      student['Board Reg. No.'],
-      student['REG. NO.']
-    ].filter(Boolean);
-
-    for (const r of regCandidates) {
-      const cleanR = normalizeRegNoKey(r);
-      if (cleanR && map[cleanR]) return map[cleanR];
-      if (map[String(r).trim()]) return map[String(r).trim()];
-    }
-
-    const formCandidates = [student.formNo, student['Form Number'], student['Form No.'], student.id].filter(Boolean);
-    for (const f of formCandidates) {
-      const fKey = String(f).trim();
-      if (map[fKey]) return map[fKey];
-    }
-  }
-
-  // Check localStorage photo cache
-  try {
-    const rawCache = localStorage.getItem('hss_photo_url_cache_v1');
-    if (rawCache) {
-      const parsed = JSON.parse(rawCache);
-      const candidates = [
-        student.id,
-        student.formNo,
-        student['Form Number'],
-        student['Form No.'],
-        student.boardRegNo,
-        student.regNo,
-        student['Board Registration Number']
-      ].filter(Boolean);
-
-      for (const c of candidates) {
-        const val = parsed[String(c).trim()];
-        if (val && typeof val === 'string' && val.length > 10) return val;
-      }
-    }
-  } catch (_) {}
-
-  return null;
+  // This resolver applies registration and class-band precedence before using
+  // a legacy inline value, preventing stale record photos from winning.
+  return getStudentPhotoUrl(student, '') || null;
 }
 
 /**
@@ -137,10 +87,21 @@ export default function LazyStudentPhoto({
     if (resolved) {
       resolvedPhotoMemoryCache.set(studentKey, resolved);
       setPhotoSrc(resolved);
+      setIsLoading(false);
     } else {
-      setPhotoSrc(null);
+      // Only rows near the viewport perform a targeted studentPhotos read.
+      // This replaces collection-wide photo preloads.
+      fetchStudentPhotoOnDemand(student)
+        .then((photo) => {
+          if (photo) {
+            resolvedPhotoMemoryCache.set(studentKey, photo);
+            setPhotoSrc(photo);
+          }
+        })
+        .catch(() => setPhotoSrc(null))
+        .finally(() => setIsLoading(false));
+      return;
     }
-    setIsLoading(false);
   }, [isVisible, student, studentKey]);
 
   const initials = (fallbackText || student?.studentName || student?.['Student Name'] || 'ST')

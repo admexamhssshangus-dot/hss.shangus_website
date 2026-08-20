@@ -25,7 +25,7 @@ assert(!/REACT_APP_SAVE_SECRET/.test(read('src/pages/AdminPortal.jsx')), 'Browse
 assert(!settings.paymentGatewayConfig?.cashfree?.secretKey, 'Cashfree secret is present in public settings');
 assert(!settings.paymentGatewayConfig?.razorpay?.keySecret, 'Razorpay secret is present in public settings');
 assert(/verifyIdToken\(header\.slice\(7\), true\)/.test(admissionWorkflow), 'Admission endpoint does not verify a non-revoked Firebase token');
-assert(/profileRole[\s\S]*\['student', 'user'\]/.test(admissionWorkflow), 'Registered-student fallback is missing');
+assert(/profileRole[\s\S]*\['student', 'user', ''\]/.test(admissionWorkflow), 'Registered-student fallback is missing');
 assert(!/profileRole[\s\S]{0,300}(admin|teacher)/.test(admissionWorkflow), 'Profile fallback may grant a privileged role');
 assert(/runTransaction\(async tx/.test(admissionWorkflow), 'Admission submission is not transactional');
 assert(/admissionSubmissionKeys/.test(admissionWorkflow), 'Admission submission is not idempotent');
@@ -34,6 +34,12 @@ assert(/A valid Aadhaar|validAadhaar/.test(admissionWorkflow), 'Admission server
 assert(/Student writes go through the authenticated admission-workflow server/.test(rules), 'Direct student admission writes are not disabled');
 assert(/MEMORY_ONLY_COLLECTIONS/.test(cache) && /'admissions'/.test(cache), 'Private admission caches are still persistent');
 assert(/validatedPhoto/.test(admissionWorkflow) && /100 \* 1024/.test(admissionWorkflow), 'Firestore photo validation or size limit is missing');
+assert(/studentApplicationIndex/.test(admissionWorkflow) && /applicationIndexId/.test(admissionWorkflow), 'Admission registration/class/session index is missing');
+assert(/photo_\$\{registrationNo\}_\$\{photoBand\}/.test(admissionWorkflow), 'Canonical class-band photo storage is missing');
+const preloadStart = cache.indexOf('export async function preloadStudentPhotosCache');
+const preloadEnd = cache.indexOf('export { preloadStudentPhotosCache as preloadCentralStudentPhotos }', preloadStart);
+assert(preloadStart >= 0 && preloadEnd > preloadStart, 'Student photo preload function is missing');
+assert(!/getDocs\(collection\(db, 'studentPhotos'\)\)/.test(cache.slice(preloadStart, preloadEnd)), 'Student photo preload still performs collection-wide reads');
 assert(/photo_id/.test(admissionClient) && /canonicalizePhoto/.test(admissionClient) && !/uploadBytes/.test(admissionClient), 'Admission photos are not stored once under the canonical Firestore field');
 
 console.log('Security regression checks passed.');
