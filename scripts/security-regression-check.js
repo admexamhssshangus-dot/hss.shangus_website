@@ -55,5 +55,9 @@ assert(/recordData\._docId \|\| recordData\.docId/.test(recycleService), 'Recycl
 assert(!/moveToRecycleBin\([^\n]+\.catch\(\(\) => \{\}\)/.test(mergerStudio), 'Merger still suppresses recycle-bin failures');
 assert(!/await deleteDoc\(doc\(db, 'admissions', secId\)\)/.test(mergerStudio), 'Merger still deletes secondary applications twice');
 assert(/identitySafe/.test(mergerStudio) && /setMergeConfirmation/.test(mergerStudio), 'Merger identity or confirmation guard is missing');
+assert(/getExactAdmissionDocId/.test(reports) && /updateExactAdmissionDocument/.test(reports), 'Main application bulk actions are not tied to exact Firestore document IDs');
+assert(/await updateDoc\(doc\(db, 'admissions', exactId\), updates\)/.test(reports), 'Bulk application updates can create or target guessed documents');
+assert(/When the deleted record has an exact Firestore ID[\s\S]{0,240}if \(normId\) return/.test(reports), 'Deleted table rows can still be removed by a duplicate form-number fallback');
+assert(/selectedIncludesAssignedRoll/.test(reports), 'Bulk workflow status changes do not protect approved roll-number records');
 
 console.log('Security regression checks passed.');
