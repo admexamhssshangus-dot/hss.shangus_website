@@ -200,24 +200,33 @@ export default function AdminDashboard() {
 
   // Real-time live synchronization for admissions (0ms updates when students submit, edit, or withdraw)
   useEffect(() => {
-    loadAdminData();
-
-    if (typeof subscribeToCollection !== 'function') return;
+    if (typeof subscribeToCollection !== 'function') {
+      loadAdminData();
+      return undefined;
+    }
     let unsubscribe = () => {};
+    let receivedSnapshot = false;
+    const fallbackTimer = setTimeout(() => {
+      if (!receivedSnapshot && appsRef.current.length === 0) loadAdminData();
+    }, 2500);
     try {
       unsubscribe = subscribeToCollection('admissions', (liveList) => {
-        if (liveList && Array.isArray(liveList) && liveList.length > 0) {
+        if (Array.isArray(liveList)) {
+          receivedSnapshot = true;
           setApplications(liveList);
           setLoading(false);
         }
       }, (err) => {
         console.warn('Realtime listener fallback note:', err);
+        if (!receivedSnapshot) loadAdminData();
       });
     } catch (err) {
       console.warn('subscribeToCollection initialization note:', err);
+      loadAdminData();
     }
 
     return () => {
+      clearTimeout(fallbackTimer);
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [loadAdminData]);
@@ -225,21 +234,17 @@ export default function AdminDashboard() {
   const handleRecordDeleted = (student) => {
     if (!student) return;
     const formNo = String(student?.formNo || student?.['Form No.'] || student?.['Form Number'] || student?.id || '').replace(/^(N\/A|—)$/i, '').trim();
-    const rawId = String(student?.docId || student?._docId || student?.id || formNo).replace(/^(N\/A|—)$/i, '').trim();
+    const rawId = String(student?._docId || student?.docId || student?.id || formNo).replace(/^(N\/A|—)$/i, '').trim();
     const normForm = formNo ? formNo.replace(/[\/\s]/g, '_').toLowerCase() : '';
     const normId = rawId ? rawId.replace(/[\/\s]/g, '_').toLowerCase() : '';
-    const studentName = String(student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || '').trim().toLowerCase();
 
     setApplications(prev => prev.filter(s => {
       if (!s) return false;
-      if (student.id && s.id === student.id) return false;
+      const sId = String(s._docId || s.docId || s.id || '').trim().replace(/[\/\s]/g, '_').toLowerCase();
+      if (normId && sId && sId === normId) return false;
       const sf = String(s.formNo || s['Form No.'] || s['Form Number'] || '').replace(/^(N\/A|—)$/i, '').trim();
       const snForm = sf ? sf.replace(/[\/\s]/g, '_').toLowerCase() : '';
       if (normForm && snForm && snForm === normForm) return false;
-      const sId = String(s.id || s.docId || s._docId || '').trim().replace(/[\/\s]/g, '_').toLowerCase();
-      if (normId && sId && sId === normId) return false;
-      const sName = String(s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || '').trim().toLowerCase();
-      if (studentName && sName && sName === studentName && (!sf || sf === '—') && (!formNo || formNo === '—')) return false;
       return true;
     }));
   };
