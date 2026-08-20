@@ -333,12 +333,12 @@ service cloud.firestore {
     }
 
     match /fund_rates/{documentId} {
-      allow read: if true;
+      allow read: if isTeacher();
       allow write: if isAdmin();
     }
 
     match /fund_distributions/{documentId} {
-      allow read: if true;
+      allow read: if isTeacher();
       allow write: if isAdmin();
     }
 
@@ -371,6 +371,12 @@ service cloud.firestore {
 
     // Server-only verification/rate-limit indexes and every unknown path.
     match /studentVerificationIndex/{document=**} {
+      allow read, write: if false;
+    }
+    // Deterministic registration + class + session lookup documents. These are
+    // written only by the authenticated server workflow so clients cannot
+    // forge a student's identity or an application association.
+    match /studentApplicationIndex/{document=**} {
       allow read, write: if false;
     }
     match /securityRateLimits/{document=**} {

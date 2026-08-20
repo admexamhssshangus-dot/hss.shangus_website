@@ -817,93 +817,9 @@ export async function preloadStudentPhotosCache() {
   try {
     const photoMap = window._hss_central_photo_map || {};
 
-    // 1. Scan all documents in 'studentPhotos' collection
-    try {
-      const photosSnap = await getDocs(collection(db, 'studentPhotos'));
-      photosSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        const p = d.photo_id || d.photoId || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || d.passport_photo || d['Student Photo'] || '';
-        if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
-          const photoVal = p.trim();
-          const dClass = normalizeCanonicalClass(d.selectedClass || d.class || d['Class'] || '');
-          const regCandidates = [
-            d.regNo,
-            d.boardRegNo,
-            d['Board Registration Number'],
-            d['Board Registration No.'],
-            d['Board Registration No. (Class 10th)'],
-            d['Board Registration No. (Class 11th)'],
-            d['Board Registration No. (Class 12th)'],
-            d['Registration No. (allotted by JKBOSE)'],
-            d['Board Reg. No.'],
-            d['Board Reg No'],
-            d['Registration No.'],
-            d['Reg. No.'],
-            d['Reg. No'],
-            d['Reg No'],
-            d['Reg No.'],
-            d['REG. NO.'],
-            d['REG NO']
-          ].filter(Boolean);
-
-          regCandidates.forEach(r => {
-            const rawR = String(r).trim();
-            const cleanR = normalizeRegNoKey(rawR);
-            if (cleanR) {
-              if (dClass) {
-                photoMap[`${cleanR}_${dClass}`] = photoVal;
-                photoMap[`photo_${cleanR}_${dClass}`] = photoVal;
-              }
-              // If not already set or default
-              if (!photoMap[cleanR]) {
-                photoMap[cleanR] = photoVal;
-                photoMap[`photo_${cleanR}`] = photoVal;
-                photoMap[`reg_${cleanR}`] = photoVal;
-              }
-              photoMap[rawR] = photoVal;
-              photoMap[rawR.toLowerCase()] = photoVal;
-            }
-          });
-
-          // Index any photos in photoHistory with their specific class
-          if (Array.isArray(d.photoHistory)) {
-            d.photoHistory.forEach(h => {
-              const hUrl = (h.url || h.photo_id || h.photoData || h.photo || '').trim();
-              const hClass = normalizeCanonicalClass(h.class || h.selectedClass || '');
-              if (hUrl && hUrl.length > 20 && hUrl !== '/logo.png') {
-                regCandidates.forEach(r => {
-                  const cleanR = normalizeRegNoKey(r);
-                  if (cleanR && hClass) {
-                    photoMap[`${cleanR}_${hClass}`] = hUrl;
-                    photoMap[`photo_${cleanR}_${hClass}`] = hUrl;
-                  }
-                });
-              }
-            });
-          }
-
-          if (d.formNo) {
-            const f = String(d.formNo).trim();
-            photoMap[f] = photoVal;
-            photoMap[f.toLowerCase()] = photoVal;
-          }
-          const rawDocId = docSnap.id;
-          const cleanDocId = normalizeRegNoKey(rawDocId.replace(/^photo_/, '').replace(/^form_/, '').replace(/^reg_/, ''));
-          if (cleanDocId) {
-            photoMap[cleanDocId] = photoVal;
-            photoMap[`photo_${cleanDocId}`] = photoVal;
-            photoMap[`reg_${cleanDocId}`] = photoVal;
-          }
-          photoMap[rawDocId] = photoVal;
-          photoMap[rawDocId.replace(/^photo_/, '')] = photoVal;
-          if (rawDocId.startsWith('photo_form_')) {
-            photoMap[rawDocId.replace(/^photo_form_/, '')] = photoVal;
-          }
-        }
-      });
-    } catch (err) {
-      console.warn('studentPhotos collection scan note:', err);
-    }
+    // Do not scan every studentPhotos document here. That was a full Firestore
+    // collection read on each admin page. Visible records resolve their photo
+    // through one exact, registration-number + class-band document lookup.
 
     // 2. Scan loaded admissions & masterRegisters collections across all sessions/classes
     try {
@@ -1258,6 +1174,10 @@ export async function fetchStudentPhotoOnDemand(student) {
 
   const docCandidates = [];
   if (reg) {
+    const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+    const band = targetClass === '9th' || targetClass === '10th' ? 'secondary'
+      : targetClass === '11th' || targetClass === '12th' ? 'higher-secondary' : '';
+    if (band) docCandidates.push(`photo_${reg}_${band}`);
     docCandidates.push(`photo_${reg}`);
     docCandidates.push(reg);
     docCandidates.push(`photo_${reg.toLowerCase()}`);
@@ -1409,6 +1329,10 @@ export async function fetchAllMatchingStudentPhotos(student) {
   // 1. PRIMARY: Query centralized Firestore studentPhotos collection first (Processed Admin Photos)
   const docCandidates = [];
   if (reg) {
+    const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+    const band = targetClass === '9th' || targetClass === '10th' ? 'secondary'
+      : targetClass === '11th' || targetClass === '12th' ? 'higher-secondary' : '';
+    if (band) docCandidates.push(`photo_${reg}_${band}`);
     docCandidates.push(`photo_${reg}`);
     docCandidates.push(reg);
   }
@@ -1852,5 +1776,3 @@ export async function reconcileAllStudentPhotosInDatabase({
     return stats;
   }
 }
-
-
