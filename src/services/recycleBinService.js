@@ -45,7 +45,7 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
   }
 
   const formNo = String(recordData['Form Number'] || recordData['Form No.'] || recordData.formNo || '').replace(/^(N\/A|—)$/i, '').trim();
-  const rawId = String(recordData.docId || recordData._docId || recordData.id || formNo || `doc_${Date.now()}`).replace(/^(N\/A|—)$/i, '').trim();
+  const rawId = String(recordData._docId || recordData.docId || recordData.id || formNo || `doc_${Date.now()}`).replace(/^(N\/A|—)$/i, '').trim();
   const sanitizedId = rawId.replace(/[/\s]/g, '_').toLowerCase();
 
   const studentName = recordData["Student's Name (as per school records)"] || recordData["Student's Name"] || recordData.studentName || 'Student';
