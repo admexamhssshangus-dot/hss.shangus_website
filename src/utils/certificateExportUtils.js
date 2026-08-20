@@ -975,8 +975,8 @@ export function printStudentCertificate({
       display: grid;
       grid-template-columns: 1.15fr 1fr;
       column-gap: 14px;
-      row-gap: 5px;
-      padding: 6px 12px;
+      row-gap: 9px;
+      padding: 9px 12px;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
     }
 
@@ -984,7 +984,7 @@ export function printStudentCertificate({
       display: flex;
       align-items: baseline;
       gap: 5px;
-      line-height: 1.3;
+      line-height: 1.8;
     }
 
     .meta-label {
@@ -1750,8 +1750,8 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       display: grid;
       grid-template-columns: 1.15fr 1fr;
       column-gap: 14px;
-      row-gap: 5px;
-      padding: 6px 12px;
+      row-gap: 9px;
+      padding: 9px 12px;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
     }
 
@@ -1759,7 +1759,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       display: flex;
       align-items: baseline;
       gap: 5px;
-      line-height: 1.3;
+      line-height: 1.8;
     }
 
     .meta-label {
