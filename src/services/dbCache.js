@@ -722,7 +722,7 @@ export async function preloadStudentPhotosCache() {
       const photosSnap = await getDocs(collection(db, 'studentPhotos'));
       photosSnap.forEach(docSnap => {
         const d = docSnap.data();
-        const p = d.photo_id || d.photoData || d.photo || d.photoUrl;
+        const p = d.photo_id || d.photoId || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || d.passport_photo || d['Student Photo'] || '';
         if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
           const photoVal = p.trim();
           const regCandidates = [
@@ -751,8 +751,18 @@ export async function preloadStudentPhotosCache() {
             photoMap[f] = photoVal;
             photoMap[f.toLowerCase()] = photoVal;
           }
-          photoMap[docSnap.id] = photoVal;
-          photoMap[docSnap.id.replace(/^photo_/, '')] = photoVal;
+          const rawDocId = docSnap.id;
+          const cleanDocId = normalizeRegNoKey(rawDocId.replace(/^photo_/, '').replace(/^form_/, '').replace(/^reg_/, ''));
+          if (cleanDocId) {
+            photoMap[cleanDocId] = photoVal;
+            photoMap[`photo_${cleanDocId}`] = photoVal;
+            photoMap[`reg_${cleanDocId}`] = photoVal;
+          }
+          photoMap[rawDocId] = photoVal;
+          photoMap[rawDocId.replace(/^photo_/, '')] = photoVal;
+          if (rawDocId.startsWith('photo_form_')) {
+            photoMap[rawDocId.replace(/^photo_form_/, '')] = photoVal;
+          }
         }
       });
     } catch (err) {
