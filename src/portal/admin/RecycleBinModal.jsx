@@ -45,7 +45,8 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
     const fNo = String(it.formNo || '').toLowerCase();
     const reg = String(it.boardRegNo || '').toLowerCase();
     const cls = String(it.class || '').toLowerCase();
-    return name.includes(term) || fNo.includes(term) || reg.includes(term) || cls.includes(term);
+    const rollNo = String(getRecycleBinClassRollNo(it)).toLowerCase();
+    return name.includes(term) || fNo.includes(term) || reg.includes(term) || cls.includes(term) || rollNo === term;
   });
 
   const isAllSelected = filteredItems.length > 0 && selectedTrashIds.length === filteredItems.length;
@@ -70,6 +71,15 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
     if (!raw || raw === '—' || raw === 'N/A') return '—';
     return String(raw).replace(/^'/, '').trim();
   };
+
+  function getRecycleBinClassRollNo(item) {
+    if (!item) return '—';
+    const payload = item.data || item.originalData || item.record || {};
+    const raw = item.classRollNo || item['Class Roll No.'] || item['Class Roll No'] || item.rollNo ||
+      payload.classRollNo || payload['Class Roll No.'] || payload['Class Roll No'] || payload.rollNo;
+    if (raw === undefined || raw === null || String(raw).trim() === '') return '—';
+    return String(raw).replace(/^'/, '').trim();
+  }
 
   const handleRestore = (item) => {
     if (!item || !item.trashId) return;
@@ -406,6 +416,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                     <th className="py-2 px-2.5">Student Name</th>
                     <th className="py-2 px-2.5">Form #</th>
                     <th className="py-2 px-2.5">Class</th>
+                    <th className="py-2 px-2 text-center whitespace-nowrap" title="Class Roll Number">R.No.</th>
                     <th className="py-2 px-2.5">Source</th>
                     <th className="py-2 px-2.5">Deleted Date</th>
                     <th className="py-2 px-2.5">Retention</th>
@@ -440,6 +451,9 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                           {formDisplay}
                         </td>
                         <td className="py-1.5 px-2.5 font-black">{item.class || '11th'}</td>
+                        <td className="py-1.5 px-2 text-center font-mono font-black text-slate-900 dark:text-slate-100">
+                          {getRecycleBinClassRollNo(item)}
+                        </td>
                         <td className="py-1.5 px-2.5">
                           <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${
                             item.originalCollection === 'masterRegisters'
