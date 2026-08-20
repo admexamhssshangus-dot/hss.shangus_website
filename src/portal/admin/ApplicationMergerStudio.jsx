@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
-  GitMerge, Search, Filter, Hash, CheckSquare, Square, RefreshCw, 
-  AlertCircle, CheckCircle2, ArrowRight, UserCheck, ShieldCheck, 
-  Trash2, Sparkles, Layers, Info, Check, X, ChevronDown, ChevronRight,
-  Eye, Sliders, ArrowLeftRight, Database, Save, RotateCcw
+  GitMerge, Search, CheckSquare, Square, RefreshCw,
+  AlertCircle, CheckCircle2, ShieldCheck, Sparkles, Layers, X,
+  ChevronDown, ChevronRight, Eye, Sliders, RotateCcw
 } from 'lucide-react';
 import { db } from '../../services/firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { moveToRecycleBin } from '../../services/recycleBinService';
 import { updateCachedItem, invalidateCache, normalizeRegNoKey, resolveStudentPhoto, getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
@@ -35,6 +34,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
   const [merging, setMerging] = useState(false);
   const [mergeProgress, setMergeProgress] = useState('');
   const [alert, setAlert] = useState(null);
+  const [mergeConfirmation, setMergeConfirmation] = useState(null);
 
   // Sync loadedApps if applications prop changes or when database cache updates
   React.useEffect(() => {
@@ -60,6 +60,16 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
       window.removeEventListener('hss-admissions-updated', handleLiveUpdate);
     };
   }, []);
+
+  React.useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape' || merging) return;
+      setMergeConfirmation(null);
+      setPreviewStudentModal(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [merging]);
 
   // Direct fetch from live database
   const handleFetchFromDb = async () => {
@@ -155,6 +165,15 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     if (!st) return '—';
     const raw = String(st['Form Number'] || st['Form No.'] || st['Form No'] || st.formNo || st.id || st.docId || '—').replace(/^#/, '').trim();
     return raw || '—';
+  }, []);
+
+  // Firestore document identity must always win over form/application fields.
+  // Form numbers and registration numbers are business identifiers and may
+  // legitimately coexist across separate records or sessions.
+  const extractDocId = useCallback((st) => {
+    if (!st) return '';
+    const raw = String(st._docId || st.docId || st.id || '').trim();
+    return raw && !raw.includes('/') ? raw : '';
   }, []);
 
   const extractClassRoll = useCallback((st) => {
@@ -294,20 +313,20 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
 
   // Helper to extract clean Class
   const extractClass = useCallback((st) => {
-    if (!st) return '10th';
+    if (!st) return 'Unspecified';
     const raw = String(st['Admission sought for class'] || st['Class'] || st.class || st.className || '').trim().toLowerCase();
     if (raw.includes('10')) return '10th';
     if (raw.includes('11')) return '11th';
     if (raw.includes('12')) return '12th';
     if (raw.includes('9')) return '9th';
-    return raw || '10th';
+    return raw || 'Unspecified';
   }, []);
 
   // Helper to extract clean Session
   const extractSession = useCallback((st) => {
-    if (!st) return '2025-26';
+    if (!st) return 'Unspecified';
     const raw = String(st['Session'] || st['session'] || '').trim();
-    if (!raw || raw === '—' || raw === 'N/A') return '2025-26';
+    if (!raw || raw === '—' || raw === 'N/A') return 'Unspecified';
     if (raw.includes('2025') && raw.includes('26')) return '2025-26';
     if (raw.includes('2024') && raw.includes('25')) return '2024-25';
     return raw;
@@ -430,22 +449,33 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     }).length;
   }, [effectiveApps, selectedSession, extractSession]);
 
-  // Name & parentage compatibility validator to prevent dummy/shared reg numbers from grouping different students
+  // Conservative compatibility guard. Common tokens such as "Ahmad" or a
+  // shared father's name are not sufficient evidence that two students are the
+  // same person; uncertain candidates must remain separate for manual review.
   const areNamesCompatible = useCallback((stA, stB) => {
     if (!stA || !stB) return false;
-    const nameA = extractStudentName(stA).toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-    const nameB = extractStudentName(stB).toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-    if (!nameA || !nameB || nameA === 'student' || nameB === 'student') return true;
+    const normalizeName = value => String(value || '')
+      .toLowerCase()
+      .replace(/\b(mohd|mohammad|mohammed)\b/g, 'muhammad')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const nameA = normalizeName(extractStudentName(stA));
+    const nameB = normalizeName(extractStudentName(stB));
+    if (!nameA || !nameB || nameA === 'student' || nameB === 'student') return false;
     if (nameA === nameB) return true;
-
-    const fatherA = extractFatherName(stA).toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-    const fatherB = extractFatherName(stB).toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-    if (fatherA && fatherB && fatherA !== '—' && fatherB !== '—' && fatherA === fatherB) return true;
 
     const tokensA = nameA.split(/\s+/).filter(t => t.length >= 2);
     const tokensB = nameB.split(/\s+/).filter(t => t.length >= 2);
-    if (tokensA.length > 0 && tokensB.length > 0) {
-      return tokensA.some(t => tokensB.includes(t));
+    const intersection = tokensA.filter(t => tokensB.includes(t)).length;
+    const unionSize = new Set([...tokensA, ...tokensB]).size;
+    const nameSimilarity = unionSize ? intersection / unionSize : 0;
+    if (nameSimilarity < 0.75) return false;
+
+    const fatherA = normalizeName(extractFatherName(stA));
+    const fatherB = normalizeName(extractFatherName(stB));
+    if (fatherA && fatherB && fatherA !== '—' && fatherB !== '—') {
+      return fatherA === fatherB;
     }
     return true;
   }, [extractStudentName, extractFatherName]);
@@ -454,6 +484,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
   const buildDuplicateClusters = useCallback((recordsList, filterClass, filterSession) => {
     const validRecords = recordsList.filter(st => {
       if (!st || st.Status === 'Deleted' || st.status === 'Deleted' || st._deleted === true) return false;
+      if (extractClass(st) === 'Unspecified' || extractSession(st) === 'Unspecified') return false;
       if (filterClass && filterClass !== 'All' && !matchesClass(st, filterClass)) return false;
       if (filterSession && filterSession !== 'All' && extractSession(st) !== filterSession) return false;
       return true;
@@ -524,20 +555,34 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     });
 
     const clusters = [];
-    clusterGroups.forEach((records, rootIdx) => {
+    clusterGroups.forEach((records) => {
       if (records.length >= 2) {
         // Verify all records in cluster have compatible names and share exact same class and session
         const allNamesMatch = records.every((r, i) => i === 0 || areNamesCompatible(records[0], r));
         if (!allNamesMatch) return; // Drop invalid groupings
 
-        // Classify records into Online Student Submission vs Admin Bulk Upload
-        const onlineApp = records.find(r => isOnlineSubmission(r)) || records[0];
-        const adminApp = records.find(r => r !== onlineApp) || records[1] || records[0];
+        // Keep the institutionally verified record (roll/admission/approved)
+        // as the canonical target. Source heuristics alone are insufficient
+        // because older bulk imports can also contain photos and rich fields.
+        const canonicalScore = record => {
+          const status = String(record?.Status || record?.status || '').toLowerCase();
+          return (extractClassRoll(record) !== '—' ? 100 : 0)
+            + (extractAdmNo(record) !== '—' ? 60 : 0)
+            + (status.includes('approv') || status.includes('verif') ? 40 : 0)
+            + (!isOnlineSubmission(record) ? 10 : 0);
+        };
+        const adminApp = [...records].sort((a, b) => canonicalScore(b) - canonicalScore(a))[0];
+        const onlineCandidates = records.filter(r => r !== adminApp);
+        const onlineApp = onlineCandidates.find(r => isOnlineSubmission(r)) || onlineCandidates[0] || adminApp;
         const primaryStudentName = extractStudentName(adminApp) !== 'Student' ? extractStudentName(adminApp) : extractStudentName(onlineApp);
         const primaryRegNo = extractRegNo(adminApp) || extractRegNo(onlineApp) || '—';
         const primaryClass = extractClass(adminApp) || extractClass(onlineApp);
         const primarySession = extractSession(adminApp) || extractSession(onlineApp);
-        const groupKey = `cluster_${rootIdx}_${extractFormNo(adminApp)}_${extractFormNo(onlineApp)}`;
+        const identityParts = records
+          .map(r => extractDocId(r) || extractFormNo(r))
+          .filter(Boolean)
+          .sort();
+        const groupKey = `cluster_${primarySession}_${primaryClass}_${identityParts.join('__')}`;
 
         clusters.push({
           groupKey,
@@ -553,31 +598,38 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     });
 
     return clusters;
-  }, [matchingCriteria, matchesClass, extractClass, extractSession, extractRegNo, extractStudentName, extractFatherName, extractFormNo, extractAadhaar, isOnlineSubmission, areNamesCompatible]);
+  }, [matchingCriteria, matchesClass, extractClass, extractSession, extractRegNo, extractStudentName, extractFatherName, extractFormNo, extractDocId, extractClassRoll, extractAdmNo, extractAadhaar, isOnlineSubmission, areNamesCompatible]);
+
+  // Build the unfiltered duplicate map once. Class badges and duplicate markers
+  // derive from it instead of rescanning the full cohort several times.
+  const allDuplicateClusters = useMemo(
+    () => buildDuplicateClusters(effectiveApps, 'All', 'All'),
+    [effectiveApps, buildDuplicateClusters]
+  );
 
   // Real-time duplicate cluster counts per class for active session
   const duplicatesByClass = useMemo(() => {
     const dupCounts = {};
     const stdClasses = ['10th', '11th', '12th', '9th'];
     stdClasses.forEach(cls => {
-      const clusters = buildDuplicateClusters(effectiveApps, cls, selectedSession);
-      dupCounts[cls] = clusters.length;
+      dupCounts[cls] = allDuplicateClusters.filter(cluster => (
+        cluster.class === cls && (selectedSession === 'All' || cluster.session === selectedSession)
+      )).length;
     });
     return dupCounts;
-  }, [effectiveApps, selectedSession, buildDuplicateClusters]);
+  }, [allDuplicateClusters, selectedSession]);
 
   // Global Map of all detected duplicate record IDs
   const duplicateKeysSet = useMemo(() => {
     const set = new Set();
-    const clusters = buildDuplicateClusters(effectiveApps, 'All', 'All');
-    clusters.forEach(({ records }) => {
+    allDuplicateClusters.forEach(({ records }) => {
       records.forEach(r => {
-        const id = r.id || r.docId || r['Form Number'] || r.formNo;
+        const id = extractDocId(r) || r['Form Number'] || r.formNo;
         if (id) set.add(String(id));
       });
     });
     return set;
-  }, [effectiveApps, buildDuplicateClusters]);
+  }, [allDuplicateClusters, extractDocId]);
 
   // Filtered list of ALL applications for the comprehensive "All Records" preview mode
   const filteredAllApps = useMemo(() => {
@@ -635,9 +687,25 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     });
   }, [effectiveApps, selectedClass, selectedSession, selectedStream, selectedSource, selectedStatus, searchQuery, matchesClass, extractSession, extractStream, isOnlineSubmission, extractStudentName, extractFatherName, extractMotherName, extractFormNo, extractClassRoll, extractMobile, extractRegNo, extractAdmNo, extractVillage, extractAadhaar]);
 
-  // Scan and Group Duplicate Applications for the current view
+  // Apply every visible filter before duplicate detection. Previously stream,
+  // source and status changed their controls/counts but not the result list.
+  const duplicateCandidateApps = useMemo(() => effectiveApps.filter(st => {
+    if (!st || st.Status === 'Deleted' || st.status === 'Deleted' || st._deleted === true) return false;
+    if (!matchesClass(st, selectedClass)) return false;
+    if (selectedSession !== 'All' && extractSession(st) !== selectedSession) return false;
+    if (selectedStream !== 'All' && extractStream(st).toLowerCase() !== selectedStream.toLowerCase()) return false;
+    if (selectedSource === 'admin' && isOnlineSubmission(st)) return false;
+    if (selectedSource === 'online' && !isOnlineSubmission(st)) return false;
+    if (selectedStatus !== 'All') {
+      const status = String(st.Status || st.status || 'Submitted').trim().toLowerCase();
+      if (!status.includes(selectedStatus.toLowerCase())) return false;
+    }
+    return true;
+  }), [effectiveApps, selectedClass, selectedSession, selectedStream, selectedSource, selectedStatus, matchesClass, extractSession, extractStream, isOnlineSubmission]);
+
+  // Scan and group duplicate applications for the current view.
   const duplicateClusters = useMemo(() => {
-    const rawClusters = buildDuplicateClusters(effectiveApps, selectedClass, selectedSession);
+    const rawClusters = buildDuplicateClusters(duplicateCandidateApps, selectedClass, selectedSession);
 
     if (!searchQuery.trim()) return rawClusters;
 
@@ -652,7 +720,16 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
         return sName.includes(q) || sFather.includes(q) || sForm.includes(q) || sReg.includes(q) || sMobile.includes(q);
       });
     });
-  }, [effectiveApps, selectedClass, selectedSession, searchQuery, buildDuplicateClusters, extractStudentName, extractFatherName, extractFormNo, extractRegNo, extractMobile]);
+  }, [duplicateCandidateApps, selectedClass, selectedSession, searchQuery, buildDuplicateClusters, extractStudentName, extractFatherName, extractFormNo, extractRegNo, extractMobile]);
+
+  // Remove stale selections when filtering or live data changes the candidate list.
+  React.useEffect(() => {
+    const visibleKeys = new Set(duplicateClusters.map(cluster => cluster.groupKey));
+    setSelectedGroupKeys(previous => {
+      const next = new Set([...previous].filter(key => visibleKeys.has(key)));
+      return next.size === previous.size && [...next].every(key => previous.has(key)) ? previous : next;
+    });
+  }, [duplicateClusters]);
 
   // Auto-select all detected duplicate clusters by default
   const handleSelectAll = () => {
@@ -661,6 +738,19 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     } else {
       setSelectedGroupKeys(new Set(duplicateClusters.map(c => c.groupKey)));
     }
+  };
+
+  const handleResetFilters = () => {
+    setSelectedClass('All');
+    setSelectedSession('All');
+    setSelectedStream('All');
+    setSelectedSource('All');
+    setSelectedStatus('All');
+    setMatchingCriteria('auto');
+    setDefaultPrecedence('admin');
+    setSearchQuery('');
+    setSelectedGroupKeys(new Set());
+    setCustomFieldOverrides({});
   };
 
   const toggleSelectGroup = (key) => {
@@ -710,39 +800,65 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
       });
     });
 
-    // Apply Admin Verified fields by default (or custom precedence)
-    const adminFields = [
-      'Form Number', 'FormNo', 'formNo',
-      'Class Roll No', 'Class Roll No.', 'classRollNo',
-      'Admission Number', 'admNo',
-      'Stream for Class 11th', 'Stream opted in Class 11th', 'Stream', 'stream',
-      'Board Registration Number', 'Board Registration No.', 'Board Registration No. (Class 10th)',
-      'Status', 'status'
+    // Apply precedence through canonical fields so every visible conflict
+    // control changes the proposed output, irrespective of legacy field names.
+    const precedenceFields = [
+      { key: 'Form Number', aliases: ['Form Number', 'Form No.', 'formNo', 'FormNo'] },
+      { key: 'Class Roll No', aliases: ['Class Roll No', 'Class Roll No.', 'classRollNo', 'Roll No', 'rollNo'] },
+      { key: 'Admission Number', aliases: ['Admission Number', 'Admission No.', 'admNo'] },
+      { key: 'Stream for Class 11th', aliases: ['Stream for Class 11th', 'Stream opted in Class 11th', 'Stream', 'stream'] },
+      { key: 'Student Name', aliases: ["Student's Name (as per school records)", "Student's Name", 'Student Name', 'studentName', 'name'] },
+      { key: 'Board Registration Number', aliases: ['Board Registration Number', 'Board Registration No.', 'Board Registration No. (Class 10th)', 'regNo', 'boardRegNo'] },
+      { key: 'Village / Town', aliases: ['Village / Town', 'Village/Town', 'Name of your village', 'Village', 'village'] },
+      { key: 'Date of Birth', aliases: ['Date of Birth (as per school records)', 'Date of Birth', 'DoB (as per school records)', 'DOB', 'dob'] },
+      { key: 'Status', aliases: ['Status', 'status'] }
     ];
 
-    adminFields.forEach(fKey => {
-      const fieldSource = overrides[fKey] || defaultPrecedence;
-      const chosenRecord = fieldSource === 'admin' ? adminApp : onlineApp;
-      const val = chosenRecord[fKey];
-      if (val !== undefined && val !== null && val !== '' && val !== '—' && val !== 'N/A') {
-        merged[fKey] = val;
-      }
+    precedenceFields.forEach(({ key, aliases }) => {
+      const source = overrides[key] || defaultPrecedence;
+      const chosenRecord = source === 'admin' ? adminApp : onlineApp;
+      const value = aliases.map(alias => chosenRecord?.[alias]).find(val => (
+        val !== undefined && val !== null && val !== '' && val !== '—' && val !== 'N/A'
+      ));
+      if (value !== undefined) merged[key] = value;
     });
 
-    // Ensure photo is resolved properly
-    const photo = resolveStudentPhoto(onlineApp) || resolveStudentPhoto(adminApp) || resolveStudentPhoto(merged);
-    if (photo) {
-      merged['Student Photo'] = photo;
-      merged.photo_id = photo;
-      merged.photoUrl = photo;
-    }
-
     // Determine target primary docId & secondary docIds to remove
-    const targetDocId = String(adminApp.id || adminApp.docId || adminApp['Form Number'] || onlineApp.id || onlineApp.docId || onlineApp['Form Number'] || '').trim();
-    const secondaryRecords = records.filter(r => String(r.id || r.docId) !== targetDocId);
+    const recordIds = records.map(extractDocId);
+    const targetDocId = extractDocId(adminApp) || extractDocId(onlineApp);
+    const identitySafe = Boolean(targetDocId) && recordIds.every(Boolean) && new Set(recordIds).size === records.length;
+    const secondaryRecords = identitySafe
+      ? records.filter(r => extractDocId(r) !== targetDocId)
+      : [];
 
-    return { merged, targetDocId, secondaryRecords };
-  }, [customFieldOverrides, defaultPrecedence]);
+    return { merged, targetDocId, secondaryRecords, identitySafe };
+  }, [customFieldOverrides, defaultPrecedence, extractDocId]);
+
+  const createCleanMergePayload = useCallback((merged, targetDocId, secondaryRecords) => {
+    const payload = {};
+    Object.entries(merged || {}).forEach(([key, value]) => {
+      if (key.startsWith('_') || value === undefined || typeof value === 'function') return;
+      payload[key] = value;
+    });
+
+    // Photos are stored canonically in studentPhotos. Never duplicate resolved
+    // base64 data across several admission fields during a merge.
+    delete payload['Student Photo'];
+    delete payload.photo;
+    delete payload.photo_id;
+    delete payload.photoUrl;
+    delete payload.photoId;
+    delete payload.photoPath;
+
+    return {
+      ...payload,
+      id: targetDocId,
+      docId: targetDocId,
+      _mergedAt: new Date().toISOString(),
+      _mergedFrom: secondaryRecords.map(extractDocId).filter(Boolean),
+      updatedAt: new Date().toISOString()
+    };
+  }, [extractDocId]);
 
   const cancelMergeRef = React.useRef(false);
 
@@ -754,28 +870,20 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
     setAlert(null);
 
     try {
-      const { merged, targetDocId, secondaryRecords } = getMergedPreview(cluster);
-      if (!targetDocId) throw new Error('Target document ID not found.');
+      const { merged, targetDocId, secondaryRecords, identitySafe } = getMergedPreview(cluster);
+      if (!identitySafe) throw new Error('Exact Firestore document identity is missing or duplicated. Refresh the database before merging.');
 
       // 1. Write consolidated payload strictly for this class and session
-      const cleanPayload = {
-        ...merged,
-        id: targetDocId,
-        docId: targetDocId,
-        _mergedAt: new Date().toISOString(),
-        _mergedFrom: secondaryRecords.map(r => r.id || r.docId || r['Form Number']),
-        updatedAt: new Date().toISOString()
-      };
+      const cleanPayload = createCleanMergePayload(merged, targetDocId, secondaryRecords);
 
       await setDoc(doc(db, 'admissions', targetDocId), cleanPayload, { merge: true });
       updateCachedItem('admissions', targetDocId, cleanPayload);
 
       // 2. Clean secondary duplicate records
       for (const sec of secondaryRecords) {
-        const secId = String(sec.id || sec.docId || '').trim();
+        const secId = extractDocId(sec);
         if (secId && secId !== targetDocId) {
-          await moveToRecycleBin(sec, 'admissions', 'Admin').catch(() => {});
-          await deleteDoc(doc(db, 'admissions', secId)).catch(() => {});
+          await moveToRecycleBin({ ...sec, _docId: secId }, 'admissions', 'Admin');
           updateCachedItem('admissions', secId, null);
         }
       }
@@ -841,19 +949,13 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
         const cluster = clustersToMerge[i];
         setMergeProgress(`Merging student ${i + 1} of ${clustersToMerge.length}: ${cluster.studentName}...`);
 
-        const { merged, targetDocId, secondaryRecords } = getMergedPreview(cluster);
-
-        if (!targetDocId) continue;
+        const { merged, targetDocId, secondaryRecords, identitySafe } = getMergedPreview(cluster);
+        if (!identitySafe) {
+          throw new Error(`Exact Firestore identity is unavailable for ${cluster.studentName}. Refresh before merging.`);
+        }
 
         // 1. Write the consolidated merged application to Firestore admissions under primary targetDocId
-        const cleanPayload = {
-          ...merged,
-          id: targetDocId,
-          docId: targetDocId,
-          _mergedAt: new Date().toISOString(),
-          _mergedFrom: secondaryRecords.map(r => r.id || r.docId || r['Form Number']),
-          updatedAt: new Date().toISOString()
-        };
+        const cleanPayload = createCleanMergePayload(merged, targetDocId, secondaryRecords);
 
         await setDoc(doc(db, 'admissions', targetDocId), cleanPayload, { merge: true });
         updateCachedItem('admissions', targetDocId, cleanPayload);
@@ -862,10 +964,9 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
         // 2. Archive secondary duplicate records to Recycle Bin and remove from admissions
         for (const sec of secondaryRecords) {
           if (cancelMergeRef.current) break;
-          const secId = String(sec.id || sec.docId || '').trim();
+          const secId = extractDocId(sec);
           if (secId && secId !== targetDocId) {
-            await moveToRecycleBin(sec, 'admissions', 'Admin').catch(() => {});
-            await deleteDoc(doc(db, 'admissions', secId)).catch(() => {});
+            await moveToRecycleBin({ ...sec, _docId: secId }, 'admissions', 'Admin');
             updateCachedItem('admissions', secId, null);
             cleanedCount++;
           }
@@ -908,18 +1009,18 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
   };
 
   return (
-    <div className="space-y-3 animate-fadeIn text-xs select-none">
+    <div className="space-y-3 animate-fadeIn text-xs min-w-0">
       
       {/* Top Header Card with View Mode Switcher */}
-      <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
+      <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20">
             <GitMerge size={18} className="stroke-[2.5]" />
           </div>
           <div>
-            <h2 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-              <span>Application Merger & Deduplication Studio</span>
-              <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10.5px]">
+            <h2 className="font-black text-sm text-slate-900 dark:text-white flex flex-wrap items-center gap-1.5 leading-tight">
+              <span>Application Merger</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10px] whitespace-nowrap">
                 {duplicateClusters.length} Duplicate Group(s) Found
               </span>
             </h2>
@@ -930,11 +1031,11 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
         </div>
 
         {/* View Mode Switcher (Duplicates vs All Records) */}
-        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black">
+        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black overflow-x-auto max-w-full">
           <button
             type="button"
             onClick={() => setViewMode('duplicates')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               viewMode === 'duplicates'
                 ? 'bg-amber-600 text-white shadow-2xs'
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -947,7 +1048,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
           <button
             type="button"
             onClick={() => setViewMode('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               viewMode === 'all'
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -962,7 +1063,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-black cursor-pointer transition-all ml-auto"
+            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-black cursor-pointer transition-all justify-self-end xl:ml-0"
             title="Close Merger Studio"
           >
             <X size={15} />
@@ -971,10 +1072,10 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
       </div>
 
       {/* Control & Condition Filter Bar */}
-      <div className="p-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap scrollbar-none flex-wrap">
+      <div className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 min-w-0">
         
         {/* Class Filter */}
-        <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black shrink-0">
+        <div className="col-span-2 md:col-span-3 xl:col-span-6 flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black overflow-x-auto min-w-0">
           {availableClasses.map(({ cls, count }) => {
             const dupCount = duplicatesByClass[cls] || 0;
             return (
@@ -1020,12 +1121,12 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
         </div>
 
         {/* Session Filter */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10.5px] font-black text-slate-500 pl-1">Session:</span>
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[9.5px] uppercase tracking-wide font-black text-slate-500 pl-1">Session</span>
           <select
             value={selectedSession}
             onChange={(e) => setSelectedSession(e.target.value)}
-            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            className="w-full min-w-0 px-2 py-1.5 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
           >
             <option value="All">All Sessions ({effectiveApps.length})</option>
             {availableSessions.map((s) => (
@@ -1034,15 +1135,15 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
               </option>
             ))}
           </select>
-        </div>
+        </label>
 
         {/* Stream Filter (Dynamically fetched from database) */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10.5px] font-black text-slate-500 pl-1">Stream:</span>
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[9.5px] uppercase tracking-wide font-black text-slate-500 pl-1">Stream</span>
           <select
             value={selectedStream}
             onChange={(e) => setSelectedStream(e.target.value)}
-            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            className="w-full min-w-0 px-2 py-1.5 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
           >
             <option value="All">All Streams ({availableStreams.reduce((acc, s) => acc + s.count, 0)})</option>
             {availableStreams.map(({ stream, count }) => (
@@ -1051,29 +1152,29 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
               </option>
             ))}
           </select>
-        </div>
+        </label>
 
         {/* Source Filter (Dynamically calculated from database) */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10.5px] font-black text-slate-500 pl-1">Source:</span>
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[9.5px] uppercase tracking-wide font-black text-slate-500 pl-1">Source</span>
           <select
             value={selectedSource}
             onChange={(e) => setSelectedSource(e.target.value)}
-            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            className="w-full min-w-0 px-2 py-1.5 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
           >
             <option value="All">All Sources ({sourceCounts.total})</option>
             <option value="admin">Admin Bulk Uploads ({sourceCounts.admin})</option>
             <option value="online">Student Online Forms ({sourceCounts.online})</option>
           </select>
-        </div>
+        </label>
 
         {/* Status Filter (Dynamically fetched from database) */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10.5px] font-black text-slate-500 pl-1">Status:</span>
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[9.5px] uppercase tracking-wide font-black text-slate-500 pl-1">Status</span>
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            className="w-full min-w-0 px-2 py-1.5 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
           >
             <option value="All">All Status ({availableStatuses.reduce((acc, s) => acc + s.count, 0)})</option>
             {availableStatuses.map(({ status, count }) => (
@@ -1082,46 +1183,46 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
               </option>
             ))}
           </select>
-        </div>
+        </label>
 
         {/* Matching Identifier Condition */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10.5px] font-black text-slate-500 pl-1">Match By:</span>
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[9.5px] uppercase tracking-wide font-black text-slate-500 pl-1">Match rule</span>
           <select
             value={matchingCriteria}
             onChange={(e) => setMatchingCriteria(e.target.value)}
-            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            className="w-full min-w-0 px-2 py-1.5 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
           >
             <option value="auto">⚡ Smart Auto Match (Reg / Name / Form)</option>
             <option value="boardRegNo">Board Reg. No</option>
             <option value="nameParentage">Name + Parentage</option>
             <option value="formNo">Form Number</option>
           </select>
-        </div>
+        </label>
 
         {/* Default Precedence */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10.5px] font-black text-slate-500 pl-1">Precedence:</span>
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[9.5px] uppercase tracking-wide font-black text-slate-500 pl-1">Field priority</span>
           <select
             value={defaultPrecedence}
             onChange={(e) => setDefaultPrecedence(e.target.value)}
-            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            className="w-full min-w-0 px-2 py-1.5 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
             title="Conflict resolution rule for verified fields"
           >
             <option value="admin">Admin Upload Takes Priority (Default)</option>
             <option value="student">Student Online Submission Takes Priority</option>
           </select>
-        </div>
+        </label>
 
         {/* Search Filter */}
-        <div className="relative min-w-[140px] max-w-[200px] flex-1 shrink-0">
-          <Search size={11} className="absolute left-2.5 top-2 text-slate-400" />
+        <div className="relative col-span-2 md:col-span-1 min-w-0 self-end">
+          <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search student / reg no..."
-            className="w-full pl-7 pr-5 py-0.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+            className="w-full pl-7 pr-3 py-1.5 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
           />
         </div>
 
@@ -1130,7 +1231,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
           type="button"
           onClick={handleFetchFromDb}
           disabled={loadingDb}
-          className="px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-black text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs shrink-0"
+          className="col-span-2 md:col-span-1 self-end w-full px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-black text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs disabled:cursor-wait"
           title="Force fresh scan directly from Firestore database"
         >
           <RefreshCw size={12} className={loadingDb ? 'animate-spin text-amber-600' : 'text-amber-600'} />
@@ -1140,13 +1241,23 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
           </span>
         </button>
 
+        <button
+          type="button"
+          onClick={handleResetFilters}
+          className="self-end w-full px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-black text-[11px] flex items-center justify-center gap-1.5 transition-all"
+          title="Reset all merger filters and field choices"
+        >
+          <RotateCcw size={12} />
+          Reset
+        </button>
+
         {/* Action Buttons (Visible in Duplicates Mode) */}
-        {viewMode === 'duplicates' && (
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+        {viewMode === 'duplicates' && duplicateClusters.length > 0 && (
+          <div className="col-span-2 md:col-span-3 flex items-center justify-end gap-1.5 flex-wrap min-w-0">
             <button
               type="button"
               onClick={handleSelectAll}
-              className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center gap-1 cursor-pointer transition-all"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-[11px] flex items-center gap-1 cursor-pointer transition-all"
             >
               {selectedGroupKeys.size === duplicateClusters.length && duplicateClusters.length > 0 ? (
                 <CheckSquare size={13} className="text-amber-600" />
@@ -1158,9 +1269,9 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
 
             <button
               type="button"
-              onClick={handleExecuteMerge}
+              onClick={() => setMergeConfirmation({ mode: 'batch' })}
               disabled={merging || selectedGroupKeys.size === 0}
-              className="px-3.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-all disabled:opacity-40"
+              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] flex items-center gap-1.5 shadow-xs cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               title={`Merge ${selectedGroupKeys.size} selected student groups in ${selectedClass === 'All' ? 'All Classes' : `Class ${selectedClass}`}`}
             >
               {merging ? <RefreshCw size={12} className="animate-spin" /> : <GitMerge size={12} />}
@@ -1214,7 +1325,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
           {duplicateClusters.map((cluster, idx) => {
             const isSelected = selectedGroupKeys.has(cluster.groupKey);
             const isExpanded = expandedGroupKeys.has(cluster.groupKey);
-            const { merged, targetDocId, secondaryRecords } = getMergedPreview(cluster);
+            const { merged, secondaryRecords, identitySafe } = getMergedPreview(cluster);
             const overrides = customFieldOverrides[cluster.groupKey] || {};
 
             return (
@@ -1257,10 +1368,10 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => handleMergeSingleCluster(cluster)}
-                      disabled={merging}
+                      onClick={() => setMergeConfirmation({ mode: 'single', cluster })}
+                      disabled={merging || !identitySafe}
                       className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all shadow-2xs disabled:opacity-40"
-                      title={`Merge ${cluster.studentName} immediately`}
+                      title={identitySafe ? `Review and merge ${cluster.studentName}` : 'Refresh required: exact Firestore IDs are unavailable'}
                     >
                       <GitMerge size={12} />
                       <span>⚡ Merge This Student</span>
@@ -1288,7 +1399,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
                           Admin Bulk Upload
                         </span>
                         <span className="font-mono text-[10px] font-black text-blue-700 dark:text-blue-300">
-                          Doc: {cluster.adminApp.id || cluster.adminApp.docId}
+                          Doc: {extractDocId(cluster.adminApp) || '—'}
                         </span>
                       </div>
 
@@ -1319,7 +1430,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
                           Student Online Submission
                         </span>
                         <span className="font-mono text-[10px] font-black text-indigo-700 dark:text-indigo-300">
-                          Doc: {cluster.onlineApp.id || cluster.onlineApp.docId}
+                          Doc: {extractDocId(cluster.onlineApp) || '—'}
                         </span>
                       </div>
 
@@ -1434,11 +1545,11 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
           })}
 
           {duplicateClusters.length === 0 && (
-            <div className="p-12 text-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-              <CheckCircle2 size={32} className="mx-auto text-emerald-500 mb-2" />
+            <div className="p-8 text-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <CheckCircle2 size={28} className="mx-auto text-emerald-500 mb-2" />
               <h3 className="font-black text-sm text-slate-800 dark:text-slate-200">No Duplicate Applications Found</h3>
               <p className="text-xs font-semibold text-slate-500 mt-1">
-                All student records in Class {selectedClass} ({selectedSession}) have unique registration numbers and applications.
+                No records match the selected class, session and duplicate-matching rule. Adjust the filters or review all applications.
               </p>
             </div>
           )}
@@ -1471,7 +1582,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
               const stm = extractStream(st);
               const subs = extractSubjects(st);
               const status = st.Status || st.status || (roll !== '—' ? 'Approved' : 'Submitted');
-              const docId = st.id || st.docId || formNo;
+              const docId = extractDocId(st) || formNo;
               const isDuplicate = duplicateKeysSet.has(String(docId)) || duplicateKeysSet.has(String(formNo));
 
               return (
@@ -1595,7 +1706,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
             ) : (
               <button
                 type="button"
-                onClick={handleExecuteMerge}
+                onClick={() => setMergeConfirmation({ mode: 'batch' })}
                 disabled={selectedGroupKeys.size === 0}
                 className="px-4 py-1.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
               >
@@ -1603,6 +1714,57 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
                 <span>Execute Database Merge ({selectedGroupKeys.size} Selected {selectedClass === 'All' ? 'Across All Classes' : `in Class ${selectedClass}`})</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Explicit confirmation for destructive database consolidation. */}
+      {mergeConfirmation && (
+        <div
+          className="fixed inset-0 z-[70] bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-3"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="merge-confirm-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !merging) setMergeConfirmation(null);
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+            <div className="p-4 flex items-start gap-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                <ShieldCheck size={18} />
+              </div>
+              <div className="min-w-0">
+                <h3 id="merge-confirm-title" className="font-black text-sm text-slate-900 dark:text-white">Confirm application merge</h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  {mergeConfirmation.mode === 'single'
+                    ? `${mergeConfirmation.cluster?.studentName}: one canonical record will be updated and ${mergeConfirmation.cluster?.records?.length - 1} duplicate record(s) archived to the recycle bin.`
+                    : `${selectedGroupKeys.size} selected group(s) will be consolidated. Every removed record remains recoverable from the recycle bin.`}
+                </p>
+              </div>
+            </div>
+            <div className="p-3 bg-slate-50 dark:bg-slate-950/50 flex flex-col-reverse sm:flex-row justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMergeConfirmation(null)}
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-xs text-slate-700 dark:text-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const pending = mergeConfirmation;
+                  setMergeConfirmation(null);
+                  if (pending.mode === 'single') handleMergeSingleCluster(pending.cluster);
+                  else handleExecuteMerge();
+                }}
+                className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center justify-center gap-1.5"
+              >
+                <GitMerge size={13} />
+                Confirm & merge
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1659,7 +1821,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
 
             {/* Modal Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 bg-slate-50/50 dark:bg-slate-950/50">
-              <span className="text-[11px] font-mono text-slate-400">Doc ID: {previewStudentModal.id || previewStudentModal.docId}</span>
+              <span className="text-[11px] font-mono text-slate-400">Doc ID: {extractDocId(previewStudentModal) || '—'}</span>
               <button
                 type="button"
                 onClick={() => setPreviewStudentModal(null)}

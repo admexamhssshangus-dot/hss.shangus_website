@@ -13,30 +13,53 @@ import './styles/ui-system.css';
 // Core Portal components — statically imported for 100% render reliability & instant navigation
 
 // ---------------------------------------------------------------------------
-// Lazy-loaded pages — code-split to reduce initial bundle size.
+// Lazy-loaded pages — code-split to reduce initial bundle size. During a new
+// deployment or local hot-reload the browser can briefly retain an obsolete
+// chunk filename. Reload once to obtain the current asset manifest, then surface
+// a genuine error if the new chunk still cannot be loaded.
 // ---------------------------------------------------------------------------
-const About = lazy(() => import('./pages/About'));
-const Academics = lazy(() => import('./pages/Academics'));
-const Admissions = lazy(() => import('./pages/Admissions'));
-const NoticeBoard = lazy(() => import('./pages/NoticeBoard'));
-const DynamicPage = lazy(() => import('./pages/DynamicPage'));
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
-const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'));
-const RefundPolicy = lazy(() => import('./pages/RefundPolicy'));
-const ContactUs = lazy(() => import('./pages/ContactUs'));
-const LoginPortal = lazy(() => import('./pages/LoginPortal'));
-const StudentVerificationPage = lazy(() => import('./pages/StudentVerificationPage'));
-const PortalLayout = lazy(() => import('./portal/layout/PortalLayout'));
-const LoginPage = lazy(() => import('./portal/LoginPage'));
-const RegisterPage = lazy(() => import('./portal/RegisterPage'));
-const ForgotPasswordPage = lazy(() => import('./portal/ForgotPasswordPage'));
-const AuthActionPage = lazy(() => import('./portal/AuthActionPage'));
-const StudentDashboard = lazy(() => import('./portal/student/StudentDashboard'));
-const AdmissionForm = lazy(() => import('./portal/student/AdmissionForm'));
-const TeacherDashboard = lazy(() => import('./portal/teacher/TeacherDashboard'));
-const AttendancePage = lazy(() => import('./portal/teacher/AttendancePage'));
-const PracticalsPage = lazy(() => import('./portal/teacher/PracticalsPage'));
-const AdminDashboard = lazy(() => import('./portal/admin/AdminDashboard'));
+const lazyWithChunkRecovery = (importer, chunkKey) => lazy(async () => {
+  const retryKey = `hss_chunk_retry_${chunkKey}`;
+  try {
+    const module = await importer();
+    try { sessionStorage.removeItem(retryKey); } catch (_) {}
+    return module;
+  } catch (error) {
+    const message = String(error?.message || error || '');
+    const isChunkFailure = /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module/i.test(message);
+    let alreadyRetried = false;
+    try { alreadyRetried = sessionStorage.getItem(retryKey) === '1'; } catch (_) {}
+    if (isChunkFailure && !alreadyRetried && typeof window !== 'undefined') {
+      try { sessionStorage.setItem(retryKey, '1'); } catch (_) {}
+      window.location.reload();
+      return new Promise(() => {});
+    }
+    throw error;
+  }
+});
+
+const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
+const Academics = lazyWithChunkRecovery(() => import('./pages/Academics'), 'academics');
+const Admissions = lazyWithChunkRecovery(() => import('./pages/Admissions'), 'admissions');
+const NoticeBoard = lazyWithChunkRecovery(() => import('./pages/NoticeBoard'), 'notices');
+const DynamicPage = lazyWithChunkRecovery(() => import('./pages/DynamicPage'), 'dynamic');
+const PrivacyPolicy = lazyWithChunkRecovery(() => import('./pages/PrivacyPolicy'), 'privacy');
+const TermsAndConditions = lazyWithChunkRecovery(() => import('./pages/TermsAndConditions'), 'terms');
+const RefundPolicy = lazyWithChunkRecovery(() => import('./pages/RefundPolicy'), 'refund');
+const ContactUs = lazyWithChunkRecovery(() => import('./pages/ContactUs'), 'contact');
+const LoginPortal = lazyWithChunkRecovery(() => import('./pages/LoginPortal'), 'public-login');
+const StudentVerificationPage = lazyWithChunkRecovery(() => import('./pages/StudentVerificationPage'), 'verification');
+const PortalLayout = lazyWithChunkRecovery(() => import('./portal/layout/PortalLayout'), 'portal-layout');
+const LoginPage = lazyWithChunkRecovery(() => import('./portal/LoginPage'), 'portal-login');
+const RegisterPage = lazyWithChunkRecovery(() => import('./portal/RegisterPage'), 'register');
+const ForgotPasswordPage = lazyWithChunkRecovery(() => import('./portal/ForgotPasswordPage'), 'forgot-password');
+const AuthActionPage = lazyWithChunkRecovery(() => import('./portal/AuthActionPage'), 'auth-action');
+const StudentDashboard = lazyWithChunkRecovery(() => import('./portal/student/StudentDashboard'), 'student-dashboard');
+const AdmissionForm = lazyWithChunkRecovery(() => import('./portal/student/AdmissionForm'), 'admission-form');
+const TeacherDashboard = lazyWithChunkRecovery(() => import('./portal/teacher/TeacherDashboard'), 'teacher-dashboard');
+const AttendancePage = lazyWithChunkRecovery(() => import('./portal/teacher/AttendancePage'), 'attendance');
+const PracticalsPage = lazyWithChunkRecovery(() => import('./portal/teacher/PracticalsPage'), 'practicals');
+const AdminDashboard = lazyWithChunkRecovery(() => import('./portal/admin/AdminDashboard'), 'admin-dashboard');
 
 // A stable, responsive placeholder while route bundles are downloaded.
 const LazyFallback = () => <PublicPageSkeleton label="Loading page…" />;
@@ -56,15 +79,6 @@ function ScrollToTop() {
 // Reads the session from PortalLayout's Outlet context.
 // If the user's role doesn't match, they are redirected to their own dashboard.
 // ---------------------------------------------------------------------------
-const ROLE_REDIRECT = {
-  student: '/portal/student',
-  teacher: '/portal/teacher',
-  faculty: '/portal/teacher',
-  admin: '/portal/admin',
-  superadmin: '/portal/admin',
-  'super admin': '/portal/admin',
-};
-
 function RoleGuard({ allowedRoles, children }) {
   const { user, isAuthenticated } = useOutletContext();
 
