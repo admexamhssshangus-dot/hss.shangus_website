@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { doc, writeBatch } from 'firebase/firestore';
-import { updateCachedItem, invalidateCache } from '../../services/dbCache';
+import { updateCachedItem, invalidateCache, mergeDuplicateStudentApplications, getCachedCollectionSync } from '../../services/dbCache';
 
 export default function RollNoAssignment({ applications = [], onRefresh }) {
   const [selectedClass, setSelectedClass] = useState('12th');
@@ -16,10 +16,46 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
   const [startRollNo, setStartRollNo] = useState('101');
   const [filterView, setFilterView] = useState('all'); // 'all' | 'unassigned' | 'assigned'
   const [searchQuery, setSearchQuery] = useState('');
+  const [formRangeQuery, setFormRangeQuery] = useState('');
 
   const [studentList, setStudentList] = useState([]);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
+
+  // Helper to parse Form Number Range (e.g. 250001-250020, 250035, 1..10) or comma-separated list
+  const parsedFormRange = useMemo(() => {
+    if (!formRangeQuery || !formRangeQuery.trim()) return null;
+    const rawTokens = formRangeQuery.split(/[,;\n]+/).map(t => t.trim()).filter(Boolean);
+    const validFormSet = new Set();
+    const ranges = [];
+
+    rawTokens.forEach(token => {
+      // Check for range patterns: 250001-250020, 250001..250020, 250001 to 250020
+      const rangeMatch = token.match(/^(?:#?(\d+))\s*(?:-|–|—|\.\.|to)\s*(?:#?(\d+))$/i);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const min = Math.min(start, end);
+          const max = Math.max(start, end);
+          const cappedMax = Math.min(max, min + 5000);
+          for (let i = min; i <= cappedMax; i++) {
+            validFormSet.add(String(i));
+          }
+          ranges.push({ min, max: cappedMax });
+        }
+      } else {
+        const clean = token.replace(/^#/, '').trim();
+        if (clean) {
+          validFormSet.add(clean);
+          const numOnly = clean.replace(/[^0-9]/g, '');
+          if (numOnly) validFormSet.add(numOnly);
+        }
+      }
+    });
+
+    return validFormSet.size > 0 ? { validFormSet, ranges, totalParsed: validFormSet.size } : null;
+  }, [formRangeQuery]);
 
   // Helper to extract authentic Class Roll No (Never Board Exam Roll No)
   const extractClassRollNo = (a) => {
@@ -44,12 +80,27 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     return clean;
   };
 
+  // Robust class matcher for flexible naming (e.g. '10', '10th', 'Class 10', 'Class 10th', 'X')
+  const matchesClass = useCallback((a, targetClass) => {
+    if (!targetClass || targetClass === 'All') return true;
+    const cls = String(a['Admission sought for class'] || a['Class'] || a.class || a.className || '').trim().toLowerCase();
+    const sel = String(targetClass).trim().toLowerCase();
+    if (sel.includes('10')) return cls.includes('10') || cls === 'x' || cls === 'class x';
+    if (sel.includes('11')) return cls.includes('11') || cls === 'xi' || cls === 'class xi';
+    if (sel.includes('12')) return cls.includes('12') || cls === 'xii' || cls === 'class xii';
+    if (sel.includes('9')) return cls.includes('9') || cls === 'ix' || cls === 'class ix';
+    return cls.includes(sel);
+  }, []);
+
+  // Effective applications fallback to cache if prop is temporarily empty during hydration
+  const effectiveApps = useMemo(() => {
+    if (applications && applications.length > 0) return applications;
+    return getCachedCollectionSync('admissions') || [];
+  }, [applications]);
+
   // Dynamically compute all unique streams & counts for selected class directly from live database
   const availableStreams = useMemo(() => {
-    const classRecords = applications.filter((a) => {
-      const cls = String(a['Admission sought for class'] || a['Class'] || a.class || '').trim();
-      return cls.includes(selectedClass) || cls === selectedClass;
-    });
+    const classRecords = effectiveApps.filter((a) => matchesClass(a, selectedClass));
 
     const streamCounts = {};
     classRecords.forEach((a) => {
@@ -58,7 +109,7 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     });
 
     return Object.entries(streamCounts).map(([stream, count]) => ({ stream, count }));
-  }, [applications, selectedClass]);
+  }, [effectiveApps, selectedClass, matchesClass]);
 
   // Auto-reset stream filter to 'All' if selectedStream is not present in new class
   useEffect(() => {
@@ -69,13 +120,11 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
 
   // Prepare & Filter Raw Roster
   const prepareRoster = useCallback(() => {
-    let filtered = applications.filter((a) => {
-      const cls = String(a['Admission sought for class'] || a['Class'] || a.class || '').trim();
+    let filtered = effectiveApps.filter((a) => {
       const stream = extractStream(a);
-      
-      const matchesClass = cls.includes(selectedClass) || cls === selectedClass;
+      const isClassMatch = matchesClass(a, selectedClass);
       const matchesStream = selectedStream === 'All' || stream.toLowerCase() === selectedStream.toLowerCase();
-      return matchesClass && matchesStream;
+      return isClassMatch && matchesStream;
     });
 
     const formatted = filtered.map((a) => {
@@ -106,24 +155,6 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     );
   };
 
-  // Auto-fill roll numbers starting from startRollNo
-  const handleAutoFill = () => {
-    let current = parseInt(startRollNo || 101, 10);
-    
-    setStudentList((prev) => {
-      // Determine which students to fill based on filterView
-      return prev.map((s) => {
-        if (filterView === 'unassigned' && s.rollNo.trim()) {
-          return s; // keep existing if only targeting unassigned
-        }
-        return {
-          ...s,
-          rollNo: String(current++)
-        };
-      });
-    });
-  };
-
   // Header click handler for 2-way sort
   const handleHeaderSort = (field) => {
     if (sortField === field) {
@@ -139,6 +170,17 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     let list = studentList.filter(s => {
       if (filterView === 'unassigned' && s.rollNo.trim()) return false;
       if (filterView === 'assigned' && !s.rollNo.trim()) return false;
+
+      // Form Number Range / Comma Filter
+      if (parsedFormRange) {
+        const cleanForm = String(s.formNo || '').replace(/^#/, '').trim();
+        const numOnly = cleanForm.replace(/[^0-9]/g, '');
+        const matchesRange = parsedFormRange.validFormSet.has(cleanForm) || 
+                             (numOnly && parsedFormRange.validFormSet.has(numOnly)) || 
+                             parsedFormRange.validFormSet.has(String(s.docId));
+        if (!matchesRange) return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         return s.name.toLowerCase().includes(q) || 
@@ -183,7 +225,45 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     });
 
     return list;
-  }, [studentList, filterView, searchQuery, sortField, sortOrder]);
+  }, [studentList, filterView, searchQuery, formRangeQuery, parsedFormRange, sortField, sortOrder]);
+
+  // Auto-fill roll numbers starting from startRollNo for currently targeted/filtered students
+  const handleAutoFill = () => {
+    let current = parseInt(startRollNo || 101, 10);
+    if (isNaN(current)) current = 101;
+    
+    if (sortedAndFilteredStudents.length === 0) {
+      setAlert({ type: 'error', text: 'No students match the current filters or range.' });
+      return;
+    }
+
+    const targetDocMap = new Map();
+    sortedAndFilteredStudents.forEach((st) => {
+      if (filterView === 'unassigned' && st.rollNo.trim()) {
+        targetDocMap.set(st.docId, st.rollNo);
+      } else {
+        targetDocMap.set(st.docId, String(current++));
+      }
+    });
+
+    setStudentList((prev) => {
+      return prev.map((s) => {
+        if (targetDocMap.has(s.docId)) {
+          return {
+            ...s,
+            rollNo: targetDocMap.get(s.docId)
+          };
+        }
+        return s;
+      });
+    });
+
+    const countAssigned = sortedAndFilteredStudents.length;
+    setAlert({
+      type: 'success',
+      text: `⚡ Auto-filled roll numbers for ${countAssigned} student(s) ${formRangeQuery ? `(Range: ${formRangeQuery})` : ''} starting from ${startRollNo}!`
+    });
+  };
 
   // Statistics
   const stats = useMemo(() => {
@@ -218,17 +298,15 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
         chunk.forEach(s => {
           const cleanRoll = s.rollNo.trim();
           const targetRef = doc(db, 'admissions', String(s.docId));
-          batch.update(targetRef, {
+          batch.set(targetRef, {
             'Class Roll No': cleanRoll,
-            'Class Roll No.': cleanRoll,
             classRollNo: cleanRoll,
             updatedAt: new Date().toISOString()
-          });
+          }, { merge: true });
 
           // Optimistically update local cache
           updateCachedItem('admissions', String(s.docId), {
             'Class Roll No': cleanRoll,
-            'Class Roll No.': cleanRoll,
             classRollNo: cleanRoll
           });
         });
@@ -303,20 +381,46 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
           ))}
         </div>
 
-        {/* Group 3: Compact Search Bar (25% Wider) */}
-        <div className="relative min-w-[165px] max-w-[230px] flex-1 shrink-0">
+        {/* Group 3: Compact Search Bar */}
+        <div className="relative min-w-[130px] max-w-[180px] flex-1 shrink-0">
           <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search student, form #..."
+            placeholder="Search student..."
             className="w-full pl-8 pr-6 py-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+              className="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+
+        {/* Group 3B: Form # Range & Comma Selector */}
+        <div className="relative min-w-[180px] max-w-[240px] flex-1 shrink-0">
+          <Hash size={12} className={`absolute left-2.5 top-2.5 ${formRangeQuery.trim() ? 'text-amber-600' : 'text-slate-400'}`} />
+          <input
+            type="text"
+            value={formRangeQuery}
+            onChange={(e) => setFormRangeQuery(e.target.value)}
+            placeholder="Form range: 250001-20, 250035..."
+            className={`w-full pl-8 pr-6 py-1 rounded-xl text-xs font-mono font-bold border transition-all ${
+              formRangeQuery.trim()
+                ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/20'
+                : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white'
+            }`}
+            title="Type range of form numbers (e.g. 250001-250020) or comma-separated form numbers (e.g. 250001, 250005, 250012)"
+          />
+          {formRangeQuery && (
+            <button
+              onClick={() => setFormRangeQuery('')}
+              className="absolute right-1.5 top-1.5 text-slate-400 hover:text-amber-600 dark:hover:text-white cursor-pointer"
+              title="Clear form range filter"
             >
               <X size={11} />
             </button>
@@ -415,6 +519,33 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
           )}
         </div>
       </div>
+
+      {/* Range Active Indicator Banner */}
+      {formRangeQuery.trim() && (
+        <div className="p-1.5 px-3 rounded-xl bg-amber-50/90 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 flex items-center justify-between text-xs font-black animate-fadeIn gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded-md bg-amber-600 text-white font-mono text-[10.5px]">Range Active</span>
+            <span>Targeting <strong className="text-amber-700 dark:text-amber-300 underline font-black">{sortedAndFilteredStudents.length}</strong> student(s) matching Form(s) <span className="font-mono">{formRangeQuery}</span></span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAutoFill}
+              className="px-2.5 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-black cursor-pointer shadow-2xs transition-all flex items-center gap-1"
+            >
+              <Wand2 size={11} />
+              <span>Auto-Fill Range ({startRollNo} → {parseInt(startRollNo || 101, 10) + sortedAndFilteredStudents.length - 1})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormRangeQuery('')}
+              className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10.5px] font-black cursor-pointer"
+            >
+              Clear Range ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Alert Notification */}
       {alert && (

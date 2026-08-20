@@ -1133,9 +1133,11 @@ export default function OfficialLetterWriterView({
     setTimeout(pushSnapshot, 50);
   };
 
-  // Save Draft to LocalStorage
+  // Save Draft to LocalStorage & History Archive
   const handleSaveDraft = () => {
     if (!editorRef.current) return;
+    const bodyHtml = editorRef.current.innerHTML;
+    const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
     const draftData = {
       officeTitle,
       institutionName,
@@ -1148,15 +1150,40 @@ export default function OfficialLetterWriterView({
       copyToText,
       pageMargin,
       headerLayout,
-      bodyHtml: editorRef.current.innerHTML,
+      bodyHtml,
       savedAt: new Date().toISOString()
     };
     try {
       const existing = JSON.parse(localStorage.getItem('hss_official_letter_drafts') || '[]');
       existing.unshift(draftData);
-      localStorage.setItem('hss_official_letter_drafts', JSON.stringify(existing.slice(0, 10)));
+      localStorage.setItem('hss_official_letter_drafts', JSON.stringify(existing.slice(0, 300)));
       setSavedDraftsCount(existing.length);
-      showToast('✓ Official letter draft successfully saved locally!', 'success');
+
+      // Auto-archive in Cloud & Document History
+      saveGeneratedDocToHistory({
+        docType: 'letter',
+        title: tplName,
+        refNo: refNo || '',
+        dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+        recipientOrStudent: signatoryInstitution || institutionName || '',
+        bodyHtml,
+        actionType: 'Saved to Cloud',
+        templateId: selectedTemplateId,
+        templateName: tplName,
+        extraData: {
+          officeTitle,
+          institutionName,
+          institutionAddress,
+          signatoryName,
+          signatoryDesignation,
+          signatoryInstitution,
+          copyToText,
+          pageMargin,
+          headerLayout
+        }
+      }).catch(err => console.warn('Auto-save history on draft error:', err));
+
+      showToast('✓ Official letter successfully saved & archived!', 'success');
     } catch (e) {
       console.error(e);
       showToast('Could not save draft locally.', 'error');
@@ -1219,6 +1246,30 @@ export default function OfficialLetterWriterView({
     const bodyHtml = editorRef.current.innerHTML;
     const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
 
+    // Auto-archive in Document History
+    saveGeneratedDocToHistory({
+      docType: 'letter',
+      title: tplName,
+      refNo: refNo || '',
+      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+      recipientOrStudent: signatoryInstitution || institutionName || '',
+      bodyHtml,
+      actionType: 'Printed / Saved PDF',
+      templateId: selectedTemplateId,
+      templateName: tplName,
+      extraData: {
+        officeTitle,
+        institutionName,
+        institutionAddress,
+        signatoryName,
+        signatoryDesignation,
+        signatoryInstitution,
+        copyToText,
+        pageMargin,
+        headerLayout
+      }
+    }).catch(err => console.warn('Auto-save letter history error:', err));
+
     showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
 
     printOfficialLetter({
@@ -1243,6 +1294,31 @@ export default function OfficialLetterWriterView({
     setIsExportingDocx(true);
     const bodyHtml = editorRef.current.innerHTML;
     const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+
+    // Auto-archive in Document History
+    saveGeneratedDocToHistory({
+      docType: 'letter',
+      title: tplName,
+      refNo: refNo || '',
+      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+      recipientOrStudent: signatoryInstitution || institutionName || '',
+      bodyHtml,
+      actionType: 'Downloaded (.docx)',
+      templateId: selectedTemplateId,
+      templateName: tplName,
+      extraData: {
+        officeTitle,
+        institutionName,
+        institutionAddress,
+        signatoryName,
+        signatoryDesignation,
+        signatoryInstitution,
+        copyToText,
+        pageMargin,
+        headerLayout
+      }
+    }).catch(err => console.warn('Auto-save letter history on docx error:', err));
+
     try {
       const textContent = editorRef.current.innerText || '';
       await generateOfficialLetterDocx({

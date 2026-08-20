@@ -237,18 +237,19 @@ export function printCustomRosterTable({
     </html>
   `;
 
-  // Use a hidden iframe for seamless direct printing without popup tabs or lingering blank windows
+  // Use an offscreen iframe with real layout dimensions so browser renders and decodes images properly
   let iframe = document.getElementById('custom-roster-print-frame');
   if (!iframe) {
     iframe = document.createElement('iframe');
     iframe.id = 'custom-roster-print-frame';
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    iframe.style.width = '1024px';
+    iframe.style.height = '768px';
     iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
     document.body.appendChild(iframe);
   }
 
@@ -257,15 +258,34 @@ export function printCustomRosterTable({
   doc.write(html);
   doc.close();
 
-  // Trigger print cleanly once iframe content is ready
-  setTimeout(() => {
+  // Wait for all images inside iframe to decode and load before triggering browser print
+  const triggerPrint = () => {
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } catch (err) {
-      console.warn('Silent print fallback:', err);
+      console.warn('Print error:', err);
     }
-  }, 300);
+  };
+
+  const images = Array.from(doc.images || []);
+  if (images.length === 0) {
+    setTimeout(triggerPrint, 250);
+  } else {
+    const imagePromises = images.map(img => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    });
+
+    // Resolve when all images load or timeout after 1.5s
+    const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
+    Promise.race([Promise.all(imagePromises), timeoutPromise]).then(() => {
+      setTimeout(triggerPrint, 200);
+    });
+  }
 }
 
 /**

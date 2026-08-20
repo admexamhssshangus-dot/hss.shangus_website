@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { 
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
-  Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText
+  Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
+  GitMerge
 } from 'lucide-react';
 
 export const ADMIN_TOOL_MODULES = [
@@ -16,7 +17,7 @@ export const ADMIN_TOOL_MODULES = [
   { id: 'attendanceMgmt', label: 'Student Attendance', desc: 'Record and review daily attendance', category: 'Academics & Controls', icon: CalendarCheck },
   { id: 'rollNo', label: 'Roll Number Manager', desc: 'Assign and sequence class roll numbers', category: 'Academics & Controls', icon: Hash },
 
-  { id: 'bulk', label: 'Bulk Data & Exports', desc: 'CSV, Excel and PDF bulk utilities', category: 'Operations & Automation', icon: Layers },
+  { id: 'mergeStudio', label: 'Application Merger & Deduplication', desc: 'Scan, review side-by-side & merge duplicate records by Reg No', category: 'Operations & Automation', icon: GitMerge },
   { id: 'automations', label: 'Messages & Automations', desc: 'Group email and parent notifications', category: 'Operations & Automation', icon: Mail },
   { id: 'funds', label: 'Funds & Fee Accounts', desc: 'Student fees and institutional funds', category: 'Operations & Automation', icon: CreditCard },
   { id: 'cms', label: 'Website CMS & Administration', desc: 'Website content, access and publishing', category: 'Operations & Automation', icon: PanelsTopLeft },
@@ -80,7 +81,7 @@ export default function AdminToolsDropdown({
   const permittedModules = ADMIN_TOOL_MODULES.filter(t => isUserPermittedForModule(user, t.id));
   const isSuper = user?.role?.toLowerCase() === 'superadmin' || user?.email === 'adm.exam.hss.shangus@gmail.com';
   const canReports = isUserPermittedForModule(user, 'reports');
-  const canBulk = isUserPermittedForModule(user, 'bulk') || isUserPermittedForModule(user, 'controls') || isSuper;
+  const canBulk = isUserPermittedForModule(user, 'controls') || isUserPermittedForModule(user, 'reports') || isSuper;
 
   const categories = [
     { key: 'Records & Registers', title: 'Records & Registers', icon: BarChart2, color: 'text-amber-600 dark:text-amber-400' },

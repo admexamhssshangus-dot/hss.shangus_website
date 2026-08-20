@@ -53,40 +53,74 @@ export async function saveGeneratedDocToHistory({
   templateName = '',
   extraData = {}
 }) {
-  const timestamp = Date.now();
-  const id = `dochist_${docType}_${timestamp}_${Math.random().toString(36).substring(2, 7)}`;
   const nowIso = new Date().toISOString();
+  const normalizedTitle = String(title || (docType === 'letter' ? 'Official Letter' : 'Student Certificate')).trim();
+  const normalizedRefNo = String(refNo || '').trim();
+  const normalizedRecipient = String(recipientOrStudent || '').trim();
+
+  // Clean and sanitize extraData (strip large redundant raw objects)
+  const cleanExtraData = { ...(extraData || {}) };
+  delete cleanExtraData.rawStudent;
+  delete cleanExtraData.raw;
+  // If photo is huge base64 data URI (> 30KB), avoid ballooning Firestore/local storage
+  if (typeof cleanExtraData.studentPhotoUrl === 'string' && cleanExtraData.studentPhotoUrl.startsWith('data:') && cleanExtraData.studentPhotoUrl.length > 30000) {
+    cleanExtraData.studentPhotoUrl = null; // Can be re-resolved on demand from DB photo cache
+  }
+
+  // 1. Smart Deduplication: Check if an identical document was saved/printed in recent window (15 mins)
+  let cached = [];
+  let existingRecentDoc = null;
+  try {
+    const rawCache = localStorage.getItem(LOCAL_HISTORY_CACHE_KEY);
+    if (rawCache) cached = JSON.parse(rawCache) || [];
+
+    const fifteenMinsAgo = Date.now() - 15 * 60 * 1000;
+    existingRecentDoc = cached.find(item => {
+      if (item.docType !== docType) return false;
+      const itemTime = new Date(item.createdAt || 0).getTime();
+      if (itemTime < fifteenMinsAgo) return false;
+
+      // Match by exact reference number
+      if (normalizedRefNo && item.refNo && item.refNo === normalizedRefNo) return true;
+
+      // Match by recipient + title
+      if (normalizedRecipient && item.recipientOrStudent && item.recipientOrStudent.toLowerCase() === normalizedRecipient.toLowerCase() && item.title === normalizedTitle) return true;
+
+      return false;
+    });
+  } catch (_) {}
+
+  // Reuse existing ID if updating a recent document, or create fresh unique ID
+  const id = existingRecentDoc?.id || `dochist_${docType}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const recordPayload = {
     id,
-    docType, // 'bonafide' | 'letter' | 'certificate'
-    title: String(title || (docType === 'letter' ? 'Official Letter' : 'Student Certificate')).trim(),
-    refNo: String(refNo || '').trim(),
+    docType, // 'bonafide' | 'letter' | 'discharge'
+    title: normalizedTitle,
+    refNo: normalizedRefNo,
     dateStr: String(dateStr || new Date().toLocaleDateString('en-GB')).trim(),
-    recipientOrStudent: String(recipientOrStudent || '').trim(),
+    recipientOrStudent: normalizedRecipient,
     studentDetails: studentDetails && typeof studentDetails === 'object' ? studentDetails : null,
     bodyHtml: String(bodyHtml || '').trim(),
     actionType: String(actionType || 'Saved to Cloud').trim(),
     templateId: String(templateId || '').trim(),
     templateName: String(templateName || '').trim(),
-    extraData: extraData && typeof extraData === 'object' ? extraData : {},
+    extraData: cleanExtraData,
     createdAt: nowIso,
     serverCreatedAt: serverTimestamp(),
     immutable: true
   };
 
-  // 1. Optimistically update local cache
+  // 2. Optimistically update local cache
   try {
-    const raw = localStorage.getItem(LOCAL_HISTORY_CACHE_KEY);
-    const cached = raw ? JSON.parse(raw) : [];
-    const updated = [recordPayload, ...cached.filter(item => item.id !== id)].slice(0, 300);
+    const updated = [recordPayload, ...cached.filter(item => item.id !== id)].slice(0, 1000);
     localStorage.setItem(LOCAL_HISTORY_CACHE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('hss-doc-history-updated', { detail: { count: updated.length } }));
   } catch (e) {
     console.warn('Local history cache save error:', e);
   }
 
-  // 2. Persist to Cloud Firestore
+  // 3. Persist to Cloud Firestore
   try {
     const docRef = doc(db, COLLECTION_DOC_HISTORY, id);
     await setDoc(docRef, recordPayload);
@@ -102,12 +136,12 @@ export async function saveGeneratedDocToHistory({
  * 
  * @param {object} [options]
  * @param {'all' | 'bonafide' | 'letter' | 'certificate'} [options.docType='all']
- * @param {number} [options.limitCount=150]
+ * @param {number} [options.limitCount=500]
  * @returns {Promise<Array<object>>}
  */
 export async function fetchGeneratedDocHistory({
   docType = 'all',
-  limitCount = 150
+  limitCount = 500
 } = {}) {
   let cachedList = [];
 

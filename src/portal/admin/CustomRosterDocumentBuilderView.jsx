@@ -21,8 +21,8 @@ import {
   exportCustomRosterExcel,
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
-import { getStudentPhotoUrl } from '../../utils/imageCompressor';
-import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import { getCachedCollection, getCachedCollectionSync, preloadStudentPhotosCache, getPhotoUrlFromCache } from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -159,9 +159,28 @@ export function evaluateCustomColumnValue(col, st) {
 
   // 4. Special Dynamic Fee with Subject Surcharges (Base Fee + ₹100 per Lab/Practical Subject)
   if (calcType === 'fee_with_subject_surcharge') {
-    // Determine Base Fee (by class if configured, otherwise flat baseFee)
+    // Detect student's exact subject count (5 vs 6 subjects)
+    const studentSubjs = extractSubjects(st, false);
+    const subList = studentSubjs && studentSubjs !== '—'
+      ? studentSubjs.split(/[,+;]/).map(s => s.trim()).filter(Boolean)
+      : [];
+    const is6Subjects = subList.length >= 6;
+
+    // Determine Base Fee (by class if configured, with distinct 5-subject vs 6-subject rates)
     let base = Number(col.baseFee || 0);
-    if (col.classBaseFees && typeof col.classBaseFees === 'object') {
+    const targetClassBaseFees = (is6Subjects && col.classBaseFees6Subs && typeof col.classBaseFees6Subs === 'object')
+      ? col.classBaseFees6Subs
+      : (col.classBaseFees && typeof col.classBaseFees === 'object' ? col.classBaseFees : null);
+
+    if (targetClassBaseFees) {
+      const normClass = sClass.toLowerCase();
+      for (const [k, v] of Object.entries(targetClassBaseFees)) {
+        if (normClass.includes(k.toLowerCase()) && !isNaN(Number(v)) && String(v).trim() !== '') {
+          base = Number(v);
+          break;
+        }
+      }
+    } else if (col.classBaseFees && typeof col.classBaseFees === 'object') {
       const normClass = sClass.toLowerCase();
       for (const [k, v] of Object.entries(col.classBaseFees)) {
         if (normClass.includes(k.toLowerCase()) && !isNaN(Number(v)) && String(v).trim() !== '') {
@@ -220,8 +239,9 @@ const QUICK_CUSTOM_TEMPLATES = [
   {
     name: 'RR & Exam Fee',
     calcType: 'fee_with_subject_surcharge',
-    baseFee: 1750,
-    classBaseFees: { '11th': 1750, '12th': 1750, '10th': 1200, '9th': 800 },
+    baseFee: 1550,
+    classBaseFees: { '11th': 1520, '12th': 1560, '10th': 1550, '9th': 1550 },
+    classBaseFees6Subs: { '11th': 1760, '12th': 1800, '10th': 1850, '9th': 1850 },
     subjectSurcharge: 100,
     chargeableSubjects: ['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education'],
     prefixCurrency: true,
@@ -668,15 +688,57 @@ export function extractStream(st) {
 export function extractSubjects(st, useAbbr = true) {
   if (!st) return '—';
   
+  const cls = extractClass(st);
   let rawList = [];
 
-  // Array or string subjects
-  const keys = [
-    "Subjects to be taken in Class 11th", "Subjects to be taken in Class 12th",
-    "Subjects Studied in Class 11th", "Stream & Subjects for Class 12th",
-    "selectedSubjects", "Subjects", "subjects", "Subs", "subs",
-    "streamDisplay", "subjectsShort"
-  ];
+  // Determine class-specific subject keys strictly in order
+  let keys = [];
+  if (cls === '12th') {
+    keys = [
+      "Subjects to be taken in Class 12th",
+      "Stream & Subjects for Class 12th",
+      "Subjects Studied in Class 11th",
+      "Subjects to be taken in Class 11th",
+      "selectedSubjects", "Subjects", "subjects", "Subs", "subs",
+      "streamDisplay", "subjectsShort"
+    ];
+  } else if (cls === '11th') {
+    keys = [
+      "Subjects to be taken in Class 11th",
+      "Subjects Studied in Class 11th",
+      "Stream & Subjects for Class 12th",
+      "selectedSubjects", "Subjects", "subjects", "Subs", "subs",
+      "streamDisplay", "subjectsShort"
+    ];
+  } else if (cls === '10th') {
+    keys = [
+      "Subjects to be taken in Class 10th",
+      "Subjects in Class 10th",
+      "Subjects Studied in Class 10th",
+      "selectedSubjects_10th",
+      "selectedSubjects", "Subjects", "subjects", "Subs", "subs",
+      "streamDisplay", "subjectsShort"
+    ];
+  } else if (cls === '9th') {
+    keys = [
+      "Subjects to be taken in Class 9th",
+      "Subjects in Class 9th",
+      "Subjects Studied in Class 9th",
+      "selectedSubjects_9th",
+      "selectedSubjects", "Subjects", "subjects", "Subs", "subs",
+      "streamDisplay", "subjectsShort"
+    ];
+  } else {
+    keys = [
+      "Subjects to be taken in Class 11th",
+      "Subjects to be taken in Class 12th",
+      "Stream & Subjects for Class 12th",
+      "Subjects to be taken in Class 10th",
+      "Subjects to be taken in Class 9th",
+      "selectedSubjects", "Subjects", "subjects", "Subs", "subs",
+      "streamDisplay", "subjectsShort"
+    ];
+  }
 
   for (const k of keys) {
     const val = st[k];
@@ -707,6 +769,83 @@ export function extractSubjects(st, useAbbr = true) {
         rawList.push(val.trim());
       }
     });
+  }
+
+  // Check additional/vocational 6th subject keys
+  const extraKeys = [
+    "Vocational Subject", "Vocational / Additional Subject", "Additional Subject", "6th Subject",
+    "Vocational", "vocationalSubject", "additionalSubject", "6thSubject", "Optional Subject"
+  ];
+  let extraSubj = '';
+  for (const ek of extraKeys) {
+    const v = st[ek];
+    if (v && typeof v === 'string' && v.trim() && !/^(—|N\/A|null|undefined|none|no)$/i.test(v.trim())) {
+      extraSubj = v.trim();
+      break;
+    }
+  }
+
+  // Special handling strictly for Class 9th & 10th
+  if (cls === '9th' || cls === '10th') {
+    // 1. Determine Language Subject (Urdu or Hindi or Kashmiri or Arabic)
+    let lang = 'Urdu';
+    const langStr = String(
+      st['Language Subject'] || st['1st Language'] || st['First Language'] || st['Language'] || st['Mother Tongue'] || ''
+    ).toLowerCase();
+    if (langStr.includes('hindi') || rawList.some(s => s.toLowerCase().includes('hindi'))) {
+      lang = 'Hindi';
+    } else if (langStr.includes('kashmiri') || rawList.some(s => s.toLowerCase().includes('kashmiri'))) {
+      lang = 'Kashmiri';
+    } else if (langStr.includes('arabic') || rawList.some(s => s.toLowerCase().includes('arabic'))) {
+      lang = 'Arabic';
+    }
+
+    // 2. Identify if student has a 6th / Vocational / Additional subject
+    const vocMatch = rawList.find(s => {
+      const l = s.toLowerCase();
+      if (l.includes('english') || l.includes('urdu') || l.includes('hindi') || l.includes('kashmiri') ||
+          l.includes('arabic') || l.includes('math') || l.includes('science') || l.includes('social')) {
+        return false;
+      }
+      return l.includes('it') || l.includes('physical') || l.includes('retail') || l.includes('tour') ||
+             l.includes('health') || l.includes('agri') || l.includes('sec') || l.includes('beauty') ||
+             l.includes('auto') || l.includes('comp') || l.includes('plumb') || l.includes('voc');
+    });
+
+    const active6th = extraSubj || vocMatch || '';
+
+    // 3. For 9th & 10th, the 5 compulsory core subjects MUST ALWAYS BE:
+    // General English, Urdu (or Hindi), Mathematics, Science, Social Science
+    const canonicalList = [
+      'General English',
+      lang,
+      'Mathematics',
+      'Science',
+      'Social Science'
+    ];
+
+    // 4. If student has opted for a 6th / Vocational subject, append it (Result = 6 subjects)
+    if (active6th) {
+      canonicalList.push(active6th);
+    }
+
+    // 5. Append any other non-core distinct subject from rawList if present
+    rawList.forEach(s => {
+      const l = s.toLowerCase();
+      const isCore = l.includes('english') || l.includes('urdu') || l.includes('hindi') ||
+                    l.includes('kashmiri') || l.includes('arabic') || l.includes('math') ||
+                    l.includes('social') || (l === 'science' || l === 'sci' || l === 'gen science');
+      if (!isCore && !canonicalList.some(c => c.toLowerCase() === l)) {
+        canonicalList.push(s);
+      }
+    });
+
+    rawList = canonicalList;
+  } else {
+    // For Class 11th, 12th: if extra 6th subject is opted separately and not in rawList, append it
+    if (extraSubj && !rawList.some(s => s.toLowerCase() === extraSubj.toLowerCase())) {
+      rawList.push(extraSubj);
+    }
   }
 
   if (rawList.length === 0) return '—';
@@ -748,7 +887,14 @@ export function extractStreamAbbr(st) {
 }
 
 export function extractSubjectsWithStream(st, useAbbr = true) {
+  const cls = extractClass(st);
   const subjs = extractSubjects(st, useAbbr);
+  
+  // For 9th and 10th, do not append (G) stream tag
+  if (cls === '9th' || cls === '10th') {
+    return subjs;
+  }
+
   const stmAbbr = extractStreamAbbr(st);
   if (!subjs || subjs === '—') {
     return stmAbbr ? `(${stmAbbr})` : '—';
@@ -1206,8 +1352,9 @@ export default function CustomRosterDocumentBuilderView({
         key: 'custom_rr_exam_fee',
         label: 'RR & Exam Fee',
         calcType: 'fee_with_subject_surcharge',
-        baseFee: 1750,
-        classBaseFees: { '11th': 1750, '12th': 1750, '10th': 1200, '9th': 800 },
+        baseFee: 1550,
+        classBaseFees: { '11th': '1520', '12th': '1560', '10th': '1550', '9th': '1550' },
+        classBaseFees6Subs: { '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' },
         subjectSurcharge: 100,
         chargeableSubjects: ['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education'],
         prefixCurrency: true,
@@ -1273,6 +1420,7 @@ export default function CustomRosterDocumentBuilderView({
                     ...c,
                     baseFee: data.baseFee !== undefined ? Number(data.baseFee) : c.baseFee,
                     classBaseFees: data.classBaseFees || c.classBaseFees,
+                    classBaseFees6Subs: data.classBaseFees6Subs || c.classBaseFees6Subs,
                     subjectSurcharge: data.subjectSurcharge !== undefined ? Number(data.subjectSurcharge) : c.subjectSurcharge,
                     chargeableSubjects: Array.isArray(data.chargeableSubjects) ? data.chargeableSubjects : c.chargeableSubjects,
                     showBreakdown: data.showBreakdown !== undefined ? data.showBreakdown : c.showBreakdown
@@ -1292,6 +1440,7 @@ export default function CustomRosterDocumentBuilderView({
       }
     };
     fetchCloudFeeRules();
+    preloadStudentPhotosCache().catch(() => {});
     return () => { isMounted = false; };
   }, []);
 
@@ -1331,8 +1480,9 @@ export default function CustomRosterDocumentBuilderView({
   const [editingColKey, setEditingColKey] = useState(null);
   const [modalColLabel, setModalColLabel] = useState('');
   const [modalCalcType, setModalCalcType] = useState('fee_with_subject_surcharge');
-  const [modalBaseFee, setModalBaseFee] = useState(1750);
-  const [modalClassBaseFees, setModalClassBaseFees] = useState({ '11th': '1750', '12th': '1750', '10th': '1200', '9th': '800' });
+  const [modalBaseFee, setModalBaseFee] = useState(1550);
+  const [modalClassBaseFees, setModalClassBaseFees] = useState({ '11th': '1520', '12th': '1560', '10th': '1550', '9th': '1550' });
+  const [modalClassBaseFees6Subs, setModalClassBaseFees6Subs] = useState({ '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
   const [modalSubjectSurcharge, setModalSubjectSurcharge] = useState(100);
   const [modalChargeableSubjects, setModalChargeableSubjects] = useState(['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
   const [modalNewSubjectInput, setModalNewSubjectInput] = useState('');
@@ -1354,8 +1504,9 @@ export default function CustomRosterDocumentBuilderView({
     if (preset) {
       setModalColLabel(preset.name || '');
       setModalCalcType(preset.calcType || 'fixed');
-      setModalBaseFee(preset.baseFee !== undefined ? preset.baseFee : 1750);
-      setModalClassBaseFees(preset.classBaseFees || { '11th': '1750', '12th': '1750', '10th': '1200', '9th': '800' });
+      setModalBaseFee(preset.baseFee !== undefined ? preset.baseFee : 1550);
+      setModalClassBaseFees(preset.classBaseFees || { '11th': '1520', '12th': '1560', '10th': '1550', '9th': '1550' });
+      setModalClassBaseFees6Subs(preset.classBaseFees6Subs || { '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
       setModalSubjectSurcharge(preset.subjectSurcharge !== undefined ? preset.subjectSurcharge : 100);
       setModalChargeableSubjects(preset.chargeableSubjects || ['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
       setModalClassRules(preset.classRules || { '11th': '', '12th': '', '10th': '', '9th': '' });
@@ -1367,8 +1518,9 @@ export default function CustomRosterDocumentBuilderView({
     } else {
       setModalColLabel('');
       setModalCalcType('fee_with_subject_surcharge');
-      setModalBaseFee(1750);
-      setModalClassBaseFees({ '11th': '1750', '12th': '1750', '10th': '1200', '9th': '800' });
+      setModalBaseFee(1550);
+      setModalClassBaseFees({ '11th': '1520', '12th': '1560', '10th': '1550', '9th': '1550' });
+      setModalClassBaseFees6Subs({ '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
       setModalSubjectSurcharge(100);
       setModalChargeableSubjects(['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
       setModalClassRules({ '11th': '', '12th': '', '10th': '', '9th': '' });
@@ -1387,8 +1539,9 @@ export default function CustomRosterDocumentBuilderView({
     setEditingColKey(col.key);
     setModalColLabel(col.label || '');
     setModalCalcType(col.calcType || 'fixed');
-    setModalBaseFee(col.baseFee !== undefined ? col.baseFee : 1750);
-    setModalClassBaseFees(col.classBaseFees || { '11th': '1750', '12th': '1750', '10th': '1200', '9th': '800' });
+    setModalBaseFee(col.baseFee !== undefined ? col.baseFee : 1550);
+    setModalClassBaseFees(col.classBaseFees || { '11th': '1520', '12th': '1560', '10th': '1550', '9th': '1550' });
+    setModalClassBaseFees6Subs(col.classBaseFees6Subs || { '11th': '1760', '12th': '1800', '10th': '1850', '9th': '1850' });
     setModalSubjectSurcharge(col.subjectSurcharge !== undefined ? col.subjectSurcharge : 100);
     setModalChargeableSubjects(col.chargeableSubjects || ['Physics', 'Chemistry', 'Biology', 'Environmental Science', 'Physical Education']);
     setModalClassRules(col.classRules || { '11th': '', '12th': '', '10th': '', '9th': '' });
@@ -1411,6 +1564,7 @@ export default function CustomRosterDocumentBuilderView({
       calcType: modalCalcType,
       baseFee: Number(modalBaseFee || 0),
       classBaseFees: modalClassBaseFees,
+      classBaseFees6Subs: modalClassBaseFees6Subs,
       subjectSurcharge: Number(modalSubjectSurcharge !== undefined ? modalSubjectSurcharge : 100),
       chargeableSubjects: modalChargeableSubjects,
       classRules: modalClassRules,
@@ -1443,6 +1597,7 @@ export default function CustomRosterDocumentBuilderView({
       await setDoc(doc(db, 'systemSettings', 'rosterFeeRules'), {
         baseFee: Number(modalBaseFee || 0),
         classBaseFees: modalClassBaseFees,
+        classBaseFees6Subs: modalClassBaseFees6Subs,
         subjectSurcharge: Number(modalSubjectSurcharge !== undefined ? modalSubjectSurcharge : 100),
         chargeableSubjects: modalChargeableSubjects,
         showBreakdown: modalShowBreakdown,
@@ -1683,7 +1838,28 @@ export default function CustomRosterDocumentBuilderView({
 
       row._originalIdx = idx + 1;
       row['sno'] = idx + 1;
-      row['studentPhoto'] = getStudentPhotoUrl(st);
+      
+      let photoSrc = getStudentPhotoUrl(st);
+      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
+        const idVal = st.id || st['Form Number'] || st.formNo || extractBoardRegNo(st);
+        if (idVal) {
+          const cachedUrl = getPhotoUrlFromCache(String(idVal));
+          if (cachedUrl) photoSrc = formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
+        }
+      }
+      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
+        const reg = extractBoardRegNo(st);
+        if (reg && reg !== '—') {
+          const indexed = lookupStudentByRegSync(reg);
+          if (indexed) {
+            const indexedPhoto = getStudentPhotoUrl(indexed);
+            if (indexedPhoto && indexedPhoto !== '—' && indexedPhoto !== '/logo.png') {
+              photoSrc = indexedPhoto;
+            }
+          }
+        }
+      }
+      row['studentPhoto'] = photoSrc || '';
       row['classRollNo'] = getStudentRollNumber(st) || '—';
       row['boardRegNo'] = extractBoardRegNo(st);
       row['admNo'] = extractAdmNo(st);
@@ -2507,56 +2683,56 @@ export default function CustomRosterDocumentBuilderView({
         </div>
       )}
 
-      {/* ── Sub-Modal: Add / Edit Dynamic Custom Column (Refined & Modern) ── */}
+      {/* ── Sub-Modal: Add / Edit Dynamic Custom Column (Ultra-Modern & Compact) ── */}
       {showAddCustomModal && (
-        <div className="fixed inset-0 z-[999999] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-amber-200/90 dark:border-slate-800 p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[999999] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3 max-h-[95vh] overflow-y-auto">
             
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-gradient-to-br from-amber-500/20 via-orange-500/15 to-amber-500/5 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-inner">
-                  <Calculator size={20} />
+            {/* Modal Header (Compact) */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <Calculator size={17} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-base text-slate-900 dark:text-white tracking-tight">
-                      {editingColKey ? 'Edit Custom Column Formula & Rates' : 'Create Custom Roster Column'}
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white tracking-tight">
+                      {editingColKey ? 'Edit Custom Column Formula & Rates' : 'Create Custom Column'}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold text-[9.5px] flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                      <Cloud size={10} />
-                      <span>Firebase Cloud</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-extrabold text-[8.5px] flex items-center gap-0.5 border border-emerald-200 dark:border-emerald-800">
+                      <Cloud size={9} />
+                      <span>Cloud Sync</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                    Configure dynamic fee rules (Base fee + ₹100 per practical subject), custom rates, and table columns.
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    Configure base fees, 5 vs 6 subject rates, and lab surcharges.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => { setShowAddCustomModal(false); setEditingColKey(null); }}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                 title="Close"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Quick Templates (Only when adding new) */}
             {!editingColKey && (
-              <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-                <label className="block text-[9.5px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
-                  <Sparkles size={11} className="text-amber-500" />
-                  <span>1-Click Preset Templates:</span>
-                </label>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1">
+                  <Sparkles size={10} className="text-amber-500" />
+                  <span>Presets:</span>
+                </span>
+                <div className="flex flex-wrap gap-1">
                   {QUICK_CUSTOM_TEMPLATES.map((tpl) => (
                     <button
                       key={tpl.name}
                       type="button"
                       onClick={() => handleOpenAddModal(tpl)}
-                      className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-100 dark:hover:bg-amber-950/60 text-slate-800 dark:text-slate-200 text-[10.5px] font-black border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs hover:border-amber-400 transition-all active:scale-95"
+                      className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-50 text-slate-800 dark:text-slate-200 text-[9.5px] font-bold border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs hover:border-amber-400 transition-all"
                     >
                       + {tpl.name}
                     </button>
@@ -2565,174 +2741,173 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             )}
 
-            {/* Column Label */}
-            <div>
-              <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
-                <span>Column Header Title: <span className="text-rose-500">*</span></span>
-                <span className="text-[10px] text-slate-400 font-normal">Displayed at top of printed/exported table</span>
-              </label>
-              <div className="relative">
+            {/* Column Label & Mode Selector (Compact Grid) */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+              <div className="sm:col-span-6">
+                <label className="block text-[10.5px] font-black text-slate-800 dark:text-slate-200 mb-1">
+                  Column Title: <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={modalColLabel}
                   onChange={(e) => setModalColLabel(e.target.value)}
-                  placeholder="e.g. RR & Exam Fee, Practical Fee, Student Signature, Remarks"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 shadow-2xs transition-all"
+                  placeholder="e.g. Exam Fee, RR Fee"
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 shadow-2xs"
                 />
               </div>
-            </div>
 
-            {/* Calculation Mode Selector */}
-            <div>
-              <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200 mb-1.5">
-                Value & Calculation Engine:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setModalCalcType('fee_with_subject_surcharge')}
-                  className={`p-3 rounded-2xl border text-left cursor-pointer transition-all relative ${
-                    modalCalcType === 'fee_with_subject_surcharge'
-                      ? 'border-amber-500 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-950/40 dark:via-amber-950/20 text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/25 shadow-xs'
-                      : 'border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 hover:border-slate-300 hover:bg-slate-100/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="font-black text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                      <Zap size={14} className="text-amber-600" />
-                      <span>Fee & Lab Surcharges</span>
-                    </div>
-                    {modalCalcType === 'fee_with_subject_surcharge' && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-600 text-white font-black text-[8.5px]">
-                        ✓ Selected
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug font-medium">
-                    Class-wise base fee + surcharge for practical / lab subjects.
-                  </div>
-                </button>
+              {/* Segmented Mode Selector Pills */}
+              <div className="sm:col-span-6">
+                <label className="block text-[10.5px] font-black text-slate-800 dark:text-slate-200 mb-1">
+                  Calculation Engine:
+                </label>
+                <div className="grid grid-cols-2 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setModalCalcType('fee_with_subject_surcharge')}
+                    className={`py-1 px-2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      modalCalcType === 'fee_with_subject_surcharge'
+                        ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <Zap size={11} className="text-amber-500" />
+                    <span>Fee + Labs</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setModalCalcType('fixed')}
-                  className={`p-3 rounded-2xl border text-left cursor-pointer transition-all relative ${
-                    modalCalcType === 'fixed'
-                      ? 'border-purple-500 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent dark:from-purple-950/40 dark:via-purple-950/20 text-purple-950 dark:text-purple-200 ring-2 ring-purple-500/25 shadow-xs'
-                      : 'border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 hover:border-slate-300 hover:bg-slate-100/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="font-black text-xs flex items-center gap-1.5 text-purple-700 dark:text-purple-400">
-                      <Edit3 size={14} className="text-purple-600" />
-                      <span>Fixed Value / Blank Box</span>
-                    </div>
-                    {modalCalcType === 'fixed' && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-purple-600 text-white font-black text-[8.5px]">
-                        ✓ Selected
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug font-medium">
-                    Static value, notes, or empty box for physical pen signatures.
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalCalcType('fixed')}
+                    className={`py-1 px-2 rounded-lg text-[10.5px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      modalCalcType === 'fixed'
+                        ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <Edit3 size={11} className="text-purple-500" />
+                    <span>Fixed / Box</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* ── MODE 1: DYNAMIC FEE + PRACTICAL/LAB SUBJECT SURCHARGE (REFINED) ── */}
+            {/* ── MODE 1: DYNAMIC FEE + PRACTICAL/LAB SUBJECT SURCHARGE (ULTRA-COMPACT MATRIX) ── */}
             {modalCalcType === 'fee_with_subject_surcharge' && (
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 via-amber-50/40 to-orange-50/30 dark:from-slate-800/90 dark:via-slate-800/60 dark:to-amber-950/30 border border-amber-200/90 dark:border-amber-900/60 space-y-3.5 shadow-xs">
+              <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-2.5">
                 
-                {/* Unified Class Base Rates & Surcharge Row */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                {/* Table Header with Inline Surcharge Rate */}
+                <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1 border-b border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
+                    Base Fee Matrix (Auto-Applied by Class & Subjects)
+                  </span>
                   
-                  {/* Per-Class Base Rates (Auto-applied by Student Class) */}
-                  <div className="md:col-span-8 space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase text-amber-950 dark:text-amber-200 tracking-wider">
-                      Base Fee by Class (Auto-applied by Student Class):
-                    </label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {['11th', '12th', '10th', '9th'].map((clsKey) => (
-                        <div key={clsKey} className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-300/80 dark:border-amber-700/60 shadow-2xs">
-                          <label className="block text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1 text-center">
-                            Class {clsKey}
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-1.5 top-1 font-black text-[10px] text-slate-400">₹</span>
-                            <input
-                              type="number"
-                              value={modalClassBaseFees[clsKey] !== undefined ? modalClassBaseFees[clsKey] : modalBaseFee}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setModalClassBaseFees({ ...modalClassBaseFees, [clsKey]: val });
-                                if (clsKey === '11th') setModalBaseFee(Number(val) || 0);
-                              }}
-                              className="w-full pl-4 pr-1 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-black text-center text-slate-900 dark:text-white focus:bg-white focus:ring-1 focus:ring-amber-500"
-                            />
-                          </div>
-                        </div>
-                      ))}
+                  {/* Compact Inline Surcharge Input */}
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                    <FlaskConical size={11} className="text-amber-600" />
+                    <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-300">Lab Surcharge:</span>
+                    <div className="relative w-14">
+                      <span className="absolute left-1.5 top-0 text-[10px] font-bold text-slate-400">₹</span>
+                      <input
+                        type="number"
+                        value={modalSubjectSurcharge}
+                        onChange={(e) => setModalSubjectSurcharge(Number(e.target.value) || 0)}
+                        className="w-full pl-3.5 pr-1 py-0 rounded border-0 bg-transparent text-[11px] font-black text-slate-900 dark:text-white text-center focus:ring-0"
+                      />
                     </div>
                   </div>
-
-                  {/* Surcharge per Practical Subject */}
-                  <div className="md:col-span-4 space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase text-amber-950 dark:text-amber-200 tracking-wider flex items-center gap-1">
-                      <FlaskConical size={12} className="text-amber-600" />
-                      <span>Per Practical Surcharge:</span>
-                    </label>
-                    <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-300/80 dark:border-amber-700/60 shadow-2xs">
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1.5 text-xs font-black text-slate-400">₹</span>
-                        <input
-                          type="number"
-                          value={modalSubjectSurcharge}
-                          onChange={(e) => setModalSubjectSurcharge(Number(e.target.value) || 0)}
-                          placeholder="100"
-                          className="w-full pl-6 pr-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 font-black text-xs text-slate-900 dark:text-white focus:bg-white focus:ring-1 focus:ring-amber-500 text-center"
-                        />
-                      </div>
-                      <div className="text-[8.5px] font-bold text-slate-400 text-center mt-1">Per practical / lab subject</div>
-                    </div>
-                  </div>
-
                 </div>
 
-                {/* Chargeable Subjects Checklist & Add Custom */}
-                <div className="pt-2 border-t border-amber-200/80 dark:border-amber-900/40 space-y-2">
-                  <div className="flex items-center justify-between text-[10px] font-black text-slate-800 dark:text-slate-200 flex-wrap gap-1">
-                    <span>Chargeable Practical Subjects (+₹{modalSubjectSurcharge} each if student has subject):</span>
+                {/* Compact Rates Matrix Table */}
+                <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100/60 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <th className="py-1 px-2.5">Class</th>
+                        <th className="py-1 px-2.5 text-center">5 Subjects (Standard)</th>
+                        <th className="py-1 px-2.5 text-center">6 Subjects (+Voc / Add)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-[11px]">
+                      {[
+                        { key: '11th', label: 'Class 11th', def5: '1520', def6: '1760' },
+                        { key: '12th', label: 'Class 12th', def5: '1560', def6: '1800' },
+                        { key: '10th', label: 'Class 10th', def5: '1300', def6: '1550' },
+                        { key: '9th',  label: 'Class 9th',  def5: '1550', def6: '1850' }
+                      ].map(({ key, label, def5, def6 }) => (
+                        <tr key={key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="py-1 px-2.5 font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                            {label}
+                          </td>
+                          <td className="py-1 px-2.5">
+                            <div className="relative max-w-[120px] mx-auto">
+                              <span className="absolute left-2 top-0.5 text-[10px] font-bold text-slate-400">₹</span>
+                              <input
+                                type="number"
+                                value={modalClassBaseFees[key] !== undefined ? modalClassBaseFees[key] : (modalBaseFee || def5)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setModalClassBaseFees({ ...modalClassBaseFees, [key]: val });
+                                  if (key === '11th') setModalBaseFee(Number(val) || 0);
+                                }}
+                                placeholder={def5}
+                                className="w-full pl-5 pr-1 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-black text-slate-900 dark:text-white text-center focus:bg-white focus:ring-1 focus:ring-amber-500"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-1 px-2.5">
+                            <div className="relative max-w-[120px] mx-auto">
+                              <span className="absolute left-2 top-0.5 text-[10px] font-bold text-amber-500">₹</span>
+                              <input
+                                type="number"
+                                value={modalClassBaseFees6Subs[key] !== undefined ? modalClassBaseFees6Subs[key] : def6}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setModalClassBaseFees6Subs({ ...modalClassBaseFees6Subs, [key]: val });
+                                }}
+                                placeholder={def6}
+                                className="w-full pl-5 pr-1 py-0.5 rounded-md border border-amber-200 dark:border-amber-900/60 bg-amber-50/20 dark:bg-amber-950/20 text-[11px] font-black text-amber-950 dark:text-amber-200 text-center focus:bg-white focus:ring-1 focus:ring-amber-500"
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Compact Practical Subjects Checklist */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between text-[9.5px] font-black text-slate-700 dark:text-slate-300 flex-wrap gap-1">
+                    <span>Chargeable Lab Subjects (+₹{modalSubjectSurcharge}):</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[9px] font-black shadow-2xs">
+                      <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 text-[8.5px] font-black">
                         {modalChargeableSubjects.length} Selected
                       </span>
-                      <span className="text-slate-300">|</span>
                       <button
                         type="button"
                         onClick={() => setModalChargeableSubjects(DEFAULT_CHARGEABLE_SUBJECTS)}
-                        className="text-[9px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                        className="text-[8.5px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
                       >
                         Default Labs
                       </button>
                       <button
                         type="button"
                         onClick={() => setModalChargeableSubjects(dynamicStudentSubjects.map(s => s.name))}
-                        className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                       >
                         All
                       </button>
                       <button
                         type="button"
                         onClick={() => setModalChargeableSubjects([])}
-                        className="text-[9px] font-bold text-slate-500 hover:underline cursor-pointer"
+                        className="text-[8.5px] font-bold text-slate-500 hover:underline cursor-pointer"
                       >
                         Clear
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto pr-0.5 p-1 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-amber-200/50 dark:border-slate-800">
+                  <div className="flex flex-wrap gap-1 max-h-[90px] overflow-y-auto p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
                     {dynamicStudentSubjects.map((subItem) => {
                       const sub = subItem.name;
                       const isIncluded = modalChargeableSubjects.some(
@@ -2751,16 +2926,16 @@ export default function CustomRosterDocumentBuilderView({
                               setModalChargeableSubjects([...modalChargeableSubjects, sub]);
                             }
                           }}
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 border cursor-pointer transition-all active:scale-95 ${
+                          className={`px-2 py-0.5 rounded text-[9.5px] font-bold flex items-center gap-1 border cursor-pointer transition-all ${
                             isIncluded
-                              ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
-                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:bg-amber-50/50'
+                              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 border-slate-900 dark:border-slate-100 shadow-2xs'
+                              : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400'
                           }`}
                         >
-                          {isIncluded ? <CheckSquare size={10} className="text-amber-100" /> : <Square size={10} className="text-slate-300" />}
+                          {isIncluded ? <CheckSquare size={9} className="text-amber-400 dark:text-amber-600" /> : <Square size={9} className="text-slate-300" />}
                           <span>{sub}</span>
                           {subItem.count > 0 && (
-                            <span className={`text-[8.5px] font-bold px-1 rounded-full ${isIncluded ? 'bg-amber-700 text-amber-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                            <span className={`text-[8px] px-1 rounded-full ${isIncluded ? 'bg-slate-800 text-slate-200 dark:bg-slate-300 dark:text-slate-800' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
                               {subItem.count}
                             </span>
                           )}
@@ -2769,14 +2944,14 @@ export default function CustomRosterDocumentBuilderView({
                     })}
                   </div>
 
-                  {/* Add Custom Subject to Checklist */}
-                  <div className="flex items-center gap-2 pt-1">
+                  {/* Add Custom Subject Input */}
+                  <div className="flex items-center gap-1.5 pt-0.5">
                     <input
                       type="text"
                       value={modalNewSubjectInput}
                       onChange={(e) => setModalNewSubjectInput(e.target.value)}
-                      placeholder="Add custom chargeable subject name..."
-                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500"
+                      placeholder="Add custom subject name..."
+                      className="flex-1 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10.5px] font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500"
                     />
                     <button
                       type="button"
@@ -2789,38 +2964,23 @@ export default function CustomRosterDocumentBuilderView({
                         }
                       }}
                       disabled={!modalNewSubjectInput.trim()}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black cursor-pointer disabled:opacity-40 shadow-xs transition-all"
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-[10.5px] font-bold cursor-pointer disabled:opacity-40"
                     >
-                      + Add Subject
+                      + Add
                     </button>
                   </div>
                 </div>
 
-                {/* Live Formula Preview Card */}
-                <div className="p-3 rounded-2xl bg-amber-100/80 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-800/80 text-xs space-y-1">
-                  <div className="font-black text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-amber-600" />
-                    <span>💡 Live Calculation Preview & Simulation:</span>
-                  </div>
-                  <div className="text-amber-900 dark:text-amber-300 text-[11px] font-medium leading-relaxed">
-                    • 11th Science Student (4 lab subjects: Physics, Chemistry, Biology, Physical Education):
-                    <br />
-                    <span className="font-mono font-black text-amber-950 dark:text-amber-100 text-xs mt-0.5 block">
-                      Total = ₹{Number(modalClassBaseFees['11th'] || modalBaseFee)} (Base) + (4 × ₹{modalSubjectSurcharge}) = ₹{Number(modalClassBaseFees['11th'] || modalBaseFee) + (4 * modalSubjectSurcharge)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Breakdown Option */}
-                <div className="flex items-center gap-2 pt-1">
-                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                {/* Compact Breakdown Option */}
+                <div className="flex items-center justify-between pt-0.5">
+                  <label className="flex items-center gap-1.5 text-[10.5px] font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={modalShowBreakdown}
                       onChange={(e) => setModalShowBreakdown(e.target.checked)}
-                      className="w-4 h-4 rounded text-amber-600 accent-amber-600 cursor-pointer"
+                      className="w-3 h-3 rounded text-amber-600 accent-amber-600 cursor-pointer"
                     />
-                    <span>Display formula breakdown in table cell (e.g. ₹2150 (1750+400))</span>
+                    <span>Show formula breakdown in table (e.g. ₹2150 (1750+400))</span>
                   </label>
                 </div>
               </div>
@@ -2828,22 +2988,22 @@ export default function CustomRosterDocumentBuilderView({
 
             {/* ── MODE 2: CLASS / STREAM MAP ── */}
             {modalCalcType === 'class_map' && (
-              <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 space-y-2">
-                <label className="block text-[11px] font-black text-indigo-950 dark:text-indigo-200 mb-1">
+              <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 space-y-2">
+                <label className="block text-[10.5px] font-black text-indigo-950 dark:text-indigo-200">
                   Set Value per Class:
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {['11th', '12th', '10th', '9th'].map((clsKey) => (
-                    <div key={clsKey} className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-indigo-200 dark:border-indigo-800">
-                      <label className="block text-[9.5px] font-black text-slate-500 mb-0.5 text-center">Class {clsKey}</label>
+                    <div key={clsKey} className="bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 text-center">
+                      <label className="block text-[9px] font-bold text-slate-500 mb-0.5">Class {clsKey}</label>
                       <div className="relative">
-                        <span className="absolute left-2 top-1.5 text-xs font-bold text-slate-400">₹</span>
+                        <span className="absolute left-1.5 top-1 text-[10px] font-bold text-slate-400">₹</span>
                         <input
                           type="text"
                           value={modalClassRules[clsKey] || ''}
                           onChange={(e) => setModalClassRules({ ...modalClassRules, [clsKey]: e.target.value })}
-                          placeholder="e.g. 1750"
-                          className="w-full pl-5 pr-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-xs text-center"
+                          placeholder="1750"
+                          className="w-full pl-4 pr-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-black text-center"
                         />
                       </div>
                     </div>
@@ -2854,34 +3014,34 @@ export default function CustomRosterDocumentBuilderView({
 
             {/* ── MODE 3: FIXED VALUE / SIGNATURE BOX ── */}
             {modalCalcType === 'fixed' && (
-              <div className="p-4 rounded-2xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 space-y-2">
-                <label className="block text-[11px] font-black text-purple-950 dark:text-purple-200 mb-0.5">
+              <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 space-y-1.5">
+                <label className="block text-[10.5px] font-black text-purple-950 dark:text-purple-200">
                   Default Value / Placeholder:
                 </label>
                 <input
                   type="text"
                   value={modalFixedVal}
                   onChange={(e) => setModalFixedVal(e.target.value)}
-                  placeholder="e.g. ₹500, Paid, or leave empty for handwritten pen signature"
-                  className="w-full px-3 py-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white"
+                  placeholder="e.g. ₹500, Paid, or leave empty for physical pen signature"
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white"
                 />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Leave completely blank for an empty signature box where students or teachers can physically sign.
+                <p className="text-[9.5px] text-slate-500">
+                  Leave completely blank for an empty box where students or teachers physically sign.
                 </p>
               </div>
             )}
 
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 flex-wrap gap-2">
-              <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                <Cloud size={12} className="text-emerald-600" />
-                <span>Auto-saves to Firebase Firestore</span>
+            {/* Modal Actions (Compact Footer) */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[9.5px] text-slate-400 flex items-center gap-1">
+                <Cloud size={11} className="text-emerald-600" />
+                <span>Auto-saves to Firebase</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => { setShowAddCustomModal(false); setEditingColKey(null); }}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
@@ -2889,17 +3049,17 @@ export default function CustomRosterDocumentBuilderView({
                   type="button"
                   disabled={!modalColLabel.trim() || isSavingCustomToCloud}
                   onClick={handleSaveCustomColumn}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-amber-700 to-orange-700 hover:from-amber-500 hover:to-orange-600 text-white font-black text-xs disabled:opacity-50 cursor-pointer shadow-md flex items-center gap-1.5 transition-all active:scale-95"
+                  className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-black text-xs disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5 transition-all active:scale-95"
                 >
                   {isSavingCustomToCloud ? (
                     <>
-                      <RefreshCw size={13} className="animate-spin" />
-                      <span>Saving to Firebase...</span>
+                      <RefreshCw size={12} className="animate-spin" />
+                      <span>Saving...</span>
                     </>
                   ) : (
                     <>
-                      <Save size={13} />
-                      <span>{editingColKey ? 'Update & Save to Cloud' : 'Add Column to Roster'}</span>
+                      <Save size={12} />
+                      <span>{editingColKey ? 'Save Changes' : 'Add Column'}</span>
                     </>
                   )}
                 </button>

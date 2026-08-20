@@ -4,7 +4,6 @@ import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, Cr
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import RollNoAssignment from './RollNoAssignment';
-import BulkOperations from './BulkOperations';
 import AdvancedReports from './AdvancedReports';
 import AutomationsPage from './AutomationsPage';
 import FundDistribution from './FundDistribution';
@@ -17,9 +16,9 @@ import ModernLoader from '../../components/ModernLoader';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown from './AdminToolsDropdown';
 import OfficialDocumentsStudioView from './OfficialDocumentsStudioView';
+import ApplicationMergerStudio from './ApplicationMergerStudio';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import { db } from '../../services/firebase';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages, mergeDuplicateStudentApplications } from '../../services/dbCache';
 
 const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
 
@@ -29,16 +28,25 @@ function getInitialTab() {
   try {
     const searchParams = new URLSearchParams(window.location.search);
     const urlTab = searchParams.get('tab');
-    if (urlTab) return urlTab;
+    if (urlTab) {
+      if (urlTab === 'bulk') return 'reports';
+      return urlTab;
+    }
 
     const subtab = searchParams.get('subtab');
     if (subtab) return 'docStudio';
 
     const hash = window.location.hash.replace(/^#/, '');
-    if (hash) return hash;
+    if (hash) {
+      if (hash === 'bulk') return 'reports';
+      return hash;
+    }
 
     const savedTab = sessionStorage.getItem('hss_admin_active_tab');
-    if (savedTab) return savedTab;
+    if (savedTab) {
+      if (savedTab === 'bulk') return 'reports';
+      return savedTab;
+    }
   } catch (_) {}
   return 'reports';
 }
@@ -285,7 +293,6 @@ export default function AdminDashboard() {
     { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
     { id: 'attendanceMgmt', label: 'Student Attendance', icon: CalendarCheck },
     { id: 'rollNo', label: 'Roll Number Manager', icon: Hash },
-    { id: 'bulk', label: 'Bulk Data & Exports', icon: Layers },
     { id: 'automations', label: 'Messages & Automations', icon: Mail },
     { id: 'funds', label: 'Funds & Fee Accounts', icon: CreditCard },
     { id: 'cms', label: 'Website CMS & Administration', icon: PanelsTopLeft },
@@ -521,8 +528,14 @@ export default function AdminDashboard() {
                     <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
                   )}
 
-                  {/* TAB 4: Bulk Operations & Export */}
-                  {activeTab === 'bulk' && <BulkOperations setActiveTab={setActiveTab} />}
+                  {/* TAB: Application Merger & Deduplication Studio */}
+                  {activeTab === 'mergeStudio' && (
+                    <ApplicationMergerStudio
+                      applications={applications}
+                      onRefresh={loadAdminData}
+                      onClose={() => setActiveTab('reports')}
+                    />
+                  )}
 
                   {/* TAB 5: Automations & Group Email Composer */}
                   {activeTab === 'automations' && <AutomationsPage />}

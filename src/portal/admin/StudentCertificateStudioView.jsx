@@ -75,6 +75,7 @@ import {
   deleteCloudDocTemplate
 } from '../../services/docTemplateService';
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
+import { recordApplicationPrint } from '../../services/printTrackerService';
 import DocumentHistoryModal from './DocumentHistoryModal';
 
 export default function StudentCertificateStudioView({
@@ -1901,10 +1902,18 @@ export default function StudentCertificateStudioView({
   const handleSaveToCloud = async () => {
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const metaDetails = {
+      certificateNo: refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—',
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '01-07-2024',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
+      regNo: regNo || '—'
+    };
+
     try {
       await saveGeneratedDocToHistory({
-        docType: 'bonafide',
-        title: certificateTitle || 'BONAFIDE CERTIFICATE',
+        docType: isTcDcActive ? 'discharge' : 'bonafide',
+        title: certificateTitle || (isTcDcActive ? 'Discharge / Transfer Certificate' : 'Bonafide Certificate'),
         refNo: refNo || '',
         dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
         recipientOrStudent: studentName || 'Student',
@@ -1919,12 +1928,15 @@ export default function StudentCertificateStudioView({
           dob: dobRaw,
           session,
           gender,
-          address
+          address,
+          admissionNo: metaDetails.admissionNo,
+          admissionDate: metaDetails.admissionDate,
+          certificateNo: metaDetails.certificateNo
         },
         bodyHtml: currentHtml,
         actionType: 'Saved to Cloud',
         templateId: selectedTemplateId,
-        templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Bonafide',
+        templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Custom Certificate',
         extraData: {
           officeTitle,
           institutionName,
@@ -1932,10 +1944,30 @@ export default function StudentCertificateStudioView({
           studentPhotoUrl: effectivePhoto,
           showPhoto,
           watermark,
-          signatories
+          signatories,
+          isDualCopy: isDualCopy && isTcDcActive,
+          metaDetails,
+          pageMargin,
+          headerGap,
+          titleMetaGap,
+          metaBodyGap,
+          paraSpacing,
+          bodyLineHeight,
+          bodyDateGap,
+          dateSigGap,
+          sigReceiptGap
         }
       });
-      showToast('âœ“ Certificate successfully archived in Cloud History!', 'success');
+
+      // Record in per-app memory (max 3)
+      recordApplicationPrint(
+        selectedStudent || { refNo, studentName, className },
+        isTcDcActive ? 'Discharge / Transfer Certificate' : (certificateTitle || 'Bonafide Certificate'),
+        'Saved to Cloud',
+        { refNo, studentName, className, fatherName }
+      );
+
+      showToast('✓ Certificate successfully archived in Cloud History!', 'success');
     } catch (err) {
       console.error('History save error:', err);
       showToast(`Could not save document to cloud history: ${err.message}`, 'error');
@@ -1948,6 +1980,8 @@ export default function StudentCertificateStudioView({
     if (rec.title) setCertificateTitle(rec.title);
     if (rec.refNo) setRefNo(rec.refNo);
     if (rec.dateStr) setDateStr(rec.dateStr);
+    if (rec.templateId) setSelectedTemplateId(rec.templateId);
+
     if (rec.studentDetails) {
       if (rec.studentDetails.name) setStudentName(rec.studentDetails.name);
       if (rec.studentDetails.father) setFatherName(rec.studentDetails.father);
@@ -1960,7 +1994,33 @@ export default function StudentCertificateStudioView({
       if (rec.studentDetails.session) setSession(rec.studentDetails.session);
       if (rec.studentDetails.gender) setGender(rec.studentDetails.gender);
       if (rec.studentDetails.address) setAddress(rec.studentDetails.address);
+      if (rec.studentDetails.admissionDate) setAdmissionDate(rec.studentDetails.admissionDate);
+      if (rec.studentDetails.admissionNo) setAdmissionNo(rec.studentDetails.admissionNo);
     }
+    if (rec.extraData?.metaDetails) {
+      if (rec.extraData.metaDetails.admissionDate) setAdmissionDate(rec.extraData.metaDetails.admissionDate);
+      if (rec.extraData.metaDetails.admissionNo) setAdmissionNo(rec.extraData.metaDetails.admissionNo);
+      if (rec.extraData.metaDetails.certificateNo) setRefNo(rec.extraData.metaDetails.certificateNo);
+      if (rec.extraData.metaDetails.regNo) setRegNo(rec.extraData.metaDetails.regNo);
+    }
+    if (rec.extraData?.officeTitle) setOfficeTitle(rec.extraData.officeTitle);
+    if (rec.extraData?.institutionName) setInstitutionName(rec.extraData.institutionName);
+    if (rec.extraData?.institutionAddress) setInstitutionAddress(rec.extraData.institutionAddress);
+    if (Array.isArray(rec.extraData?.signatories)) {
+      if (rec.extraData.signatories[0]) setSignatoryLeft(rec.extraData.signatories[0]);
+      if (rec.extraData.signatories.length === 2) {
+        if (rec.extraData.signatories[1]) setSignatoryRight(rec.extraData.signatories[1]);
+      } else if (rec.extraData.signatories.length >= 3) {
+        if (rec.extraData.signatories[1]) setSignatoryCenter(rec.extraData.signatories[1]);
+        if (rec.extraData.signatories[2]) setSignatoryRight(rec.extraData.signatories[2]);
+      }
+    }
+    if (rec.extraData?.isDualCopy !== undefined) setIsDualCopy(rec.extraData.isDualCopy);
+    if (rec.extraData?.pageMargin !== undefined) setPageMargin(rec.extraData.pageMargin);
+    if (rec.extraData?.headerGap !== undefined) setHeaderGap(rec.extraData.headerGap);
+    if (rec.extraData?.metaBodyGap !== undefined) setMetaBodyGap(rec.extraData.metaBodyGap);
+    if (rec.extraData?.paraSpacing !== undefined) setParaSpacing(rec.extraData.paraSpacing);
+    if (rec.extraData?.bodyLineHeight !== undefined) setBodyLineHeight(rec.extraData.bodyLineHeight);
     if (rec.extraData?.studentPhotoUrl) {
       setStudentPhotoUrl(rec.extraData.studentPhotoUrl);
     }
@@ -2079,7 +2139,7 @@ export default function StudentCertificateStudioView({
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId);
-    const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId.startsWith('tc_dc_'));
+    const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId?.startsWith('tc_dc_'));
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
@@ -2088,6 +2148,63 @@ export default function StudentCertificateStudioView({
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
       regNo: regNo || '—'
     };
+
+    // Auto-record print in per-app memory (max 3)
+    recordApplicationPrint(
+      selectedStudent || metaDetails,
+      isTcDcActive ? 'Discharge / Transfer Certificate' : (certificateTitle || 'Bonafide Certificate'),
+      'Printed / Saved PDF',
+      { refNo, studentName, className, fatherName }
+    );
+
+    // Auto-archive in Document History & Cloud Archive
+    saveGeneratedDocToHistory({
+      docType: isTcDcActive ? 'discharge' : 'bonafide',
+      title: certificateTitle || (isTcDcActive ? 'Discharge / Transfer Certificate' : 'Bonafide Certificate'),
+      refNo: refNo || '',
+      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+      recipientOrStudent: studentName || 'Student',
+      studentDetails: {
+        name: studentName,
+        father: fatherName,
+        mother: motherName,
+        cls: className,
+        stream,
+        rollNo,
+        regNo,
+        dob: dobRaw,
+        session,
+        gender,
+        address,
+        admissionNo: metaDetails.admissionNo,
+        admissionDate: metaDetails.admissionDate,
+        certificateNo: metaDetails.certificateNo
+      },
+      bodyHtml: currentHtml,
+      actionType: 'Printed / Saved PDF',
+      templateId: selectedTemplateId,
+      templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Certificate',
+      extraData: {
+        officeTitle,
+        institutionName,
+        institutionAddress,
+        studentPhotoUrl: effectivePhoto,
+        showPhoto,
+        watermark,
+        signatories,
+        isDualCopy: isDualCopy && isTcDcActive,
+        metaDetails,
+        pageMargin,
+        headerGap,
+        titleMetaGap,
+        metaBodyGap,
+        paraSpacing,
+        bodyLineHeight,
+        bodyDateGap,
+        dateSigGap,
+        sigReceiptGap
+      }
+    }).catch(err => console.warn('Auto-save history on print error:', err));
 
     showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
     printStudentCertificate({
@@ -2121,7 +2238,7 @@ export default function StudentCertificateStudioView({
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId);
-    const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId.startsWith('tc_dc_'));
+    const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId?.startsWith('tc_dc_'));
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
@@ -2130,6 +2247,63 @@ export default function StudentCertificateStudioView({
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
       regNo: regNo || '—'
     };
+
+    // Auto-record in per-app memory (max 3)
+    recordApplicationPrint(
+      selectedStudent || metaDetails,
+      isTcDcActive ? 'Discharge / Transfer Certificate' : (certificateTitle || 'Bonafide Certificate'),
+      'Downloaded (.docx)',
+      { refNo, studentName, className, fatherName }
+    );
+
+    // Auto-archive in Document History & Cloud Archive
+    saveGeneratedDocToHistory({
+      docType: isTcDcActive ? 'discharge' : 'bonafide',
+      title: certificateTitle || (isTcDcActive ? 'Discharge / Transfer Certificate' : 'Bonafide Certificate'),
+      refNo: refNo || '',
+      dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
+      recipientOrStudent: studentName || 'Student',
+      studentDetails: {
+        name: studentName,
+        father: fatherName,
+        mother: motherName,
+        cls: className,
+        stream,
+        rollNo,
+        regNo,
+        dob: dobRaw,
+        session,
+        gender,
+        address,
+        admissionNo: metaDetails.admissionNo,
+        admissionDate: metaDetails.admissionDate,
+        certificateNo: metaDetails.certificateNo
+      },
+      bodyHtml: currentHtml,
+      actionType: 'Downloaded (.docx)',
+      templateId: selectedTemplateId,
+      templateName: allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Certificate',
+      extraData: {
+        officeTitle,
+        institutionName,
+        institutionAddress,
+        studentPhotoUrl: effectivePhoto,
+        showPhoto,
+        watermark,
+        signatories,
+        isDualCopy: isDualCopy && isTcDcActive,
+        metaDetails,
+        pageMargin,
+        headerGap,
+        titleMetaGap,
+        metaBodyGap,
+        paraSpacing,
+        bodyLineHeight,
+        bodyDateGap,
+        dateSigGap,
+        sigReceiptGap
+      }
+    }).catch(err => console.warn('Auto-save history on docx error:', err));
 
     try {
       await generateStudentCertificateDocx({
@@ -3754,35 +3928,40 @@ export default function StudentCertificateStudioView({
                 </span>
               </div>
 
-              {/* TC/DC Meta Details on Studio Canvas — Left 4-Line Metadata Box & Right QR Security Badge */}
+              {/* TC/DC Meta Details on Studio Canvas — Modern 2x2 Grid with Integrated QR Security Badge */}
               {isTcDcActive && (
                 <div
-                  style={{ marginTop: `${titleMetaGap}px`, marginBottom: `${metaBodyGap}in` }}
-                  className="flex items-stretch justify-between gap-3 px-3.5 py-2 bg-slate-50 border-t border-t-slate-200 border-l-[3px] border-b-[1.5px] border-l-[#800000] border-b-[#800000] rounded text-[10px] font-sans shadow-2xs"
+                  style={{
+                    marginTop: `${titleMetaGap}px`,
+                    marginBottom: `${metaBodyGap}in`,
+                    marginLeft: '0.5in',
+                    marginRight: '0.5in'
+                  }}
+                  className="flex items-stretch justify-between bg-white border border-[#800000] rounded-md overflow-hidden text-[10px] font-sans shadow-2xs"
                 >
-                  {/* Left Column: 4 Metadata Lines */}
-                  <div className="flex flex-col gap-1.5 flex-1 justify-center">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-700 w-36 shrink-0">Certificate No.:</span>
-                      <span className="font-mono font-black text-red-600">{refNo || '—'}</span>
+                  {/* Left Column: 2x2 Metadata Grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 flex-1 px-3.5 py-2">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Certificate No.:</span>
+                      <span className="font-mono font-black text-red-600 truncate">{refNo || '—'}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-700 w-36 shrink-0">Registration No.:</span>
-                      <span className="font-mono font-black text-blue-700">{regNo || '—'}</span>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Registration No.:</span>
+                      <span className="font-mono font-black text-blue-700 truncate">{regNo || '—'}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-700 w-36 shrink-0">Admission No.:</span>
-                      <span className="font-mono font-black text-blue-700">{admissionNo || extractStudentAdmissionNumber(selectedStudent) || rollNo || '—'}</span>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Admission No.:</span>
+                      <span className="font-mono font-black text-blue-700 truncate">{admissionNo || extractStudentAdmissionNumber(selectedStudent) || rollNo || '—'}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-700 w-36 shrink-0">Date of Admission:</span>
-                      <span className="font-mono font-black text-blue-700">{admissionDate || extractStudentAdmissionDate(selectedStudent) || '01-07-2024'}</span>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Date of Admission:</span>
+                      <span className="font-mono font-black text-blue-700 truncate">{admissionDate || extractStudentAdmissionDate(selectedStudent) || '01-07-2024'}</span>
                     </div>
                   </div>
 
-                  {/* Right Column: QR Security Badge */}
-                  <div className="flex flex-col items-center justify-center px-2 py-1 bg-white border border-[#800000]/60 rounded-md shadow-2xs shrink-0 self-center">
-                    <div className="w-13 h-13 bg-slate-50 border border-dashed border-slate-300 rounded flex flex-col items-center justify-center text-[7px] font-mono text-slate-500 font-black">
+                  {/* Right Column: Integrated QR Security Badge */}
+                  <div className="flex flex-col items-center justify-center px-3.5 py-1.5 bg-slate-50 border-l border-dashed border-slate-300 shrink-0 self-stretch min-w-[84px]">
+                    <div className="w-14 h-14 bg-white border border-slate-200 rounded flex flex-col items-center justify-center text-[7.5px] font-mono text-slate-500 font-black shadow-2xs">
                       <span>[ QR CODE ]</span>
                     </div>
                     <span className="text-[6.5px] font-black tracking-wider text-[#800000] uppercase mt-1">SCAN TO VERIFY</span>
@@ -3796,7 +3975,7 @@ export default function StudentCertificateStudioView({
                   margin-bottom: ${paraSpacing}px !important;
                 }
                 .cert-footer-dates-row {
-                  margin-top: ${bodyDateGap}px !important;
+                  margin-top: 0.5in !important;
                 }
               `}</style>
 
@@ -3839,7 +4018,7 @@ export default function StudentCertificateStudioView({
                   }}
                   onContextMenu={handleContextMenu}
                   className="doc-studio-wysiwyg-body flex-1 text-[11.5px] text-justify font-serif text-slate-900 space-y-2 focus:outline-none p-2 rounded-lg border border-dashed border-teal-200 hover:border-teal-400 focus:border-teal-500 focus:bg-teal-50/15 transition-all cursor-text min-h-[140px]"
-                  title="Click to edit text directly â€¢ Right-click anywhere to insert student details or placeholders"
+                  title="Click to edit text directly • Right-click anywhere to insert student details or placeholders"
                 />
 
                 {showPhoto && (
@@ -3876,7 +4055,7 @@ export default function StudentCertificateStudioView({
 
             {/* Footer Verification & Signatories */}
             <div
-              style={{ marginTop: '1.7in' }}
+              style={{ marginTop: '0.77in' }}
               className="relative z-10 pt-0 border-t border-slate-200"
             >
               <div className="flex items-end justify-between px-2">
