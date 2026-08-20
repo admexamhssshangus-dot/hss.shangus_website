@@ -258,6 +258,31 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
       const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
       const mergedMap = { ...cache2, ...cache1, ...memoryMap };
 
+      if (cleanedBoardReg) {
+        const rawClass = String(st.class || st.Class || st['Admission sought for class'] || '').toLowerCase();
+        const targetClass = rawClass.includes('12') ? '12th' : rawClass.includes('11') ? '11th' : rawClass.includes('10') ? '10th' : (rawClass.includes('9') || rawClass.includes('ix')) ? '9th' : '';
+
+        // Class-band precedence: 9th takes precedence in 9th/10th; 11th takes precedence in 11th/12th
+        const p9 = mergedMap[`${cleanedBoardReg}_9th`] || mergedMap[`photo_${cleanedBoardReg}_9th`];
+        const p10 = mergedMap[`${cleanedBoardReg}_10th`] || mergedMap[`photo_${cleanedBoardReg}_10th`];
+        const p11 = mergedMap[`${cleanedBoardReg}_11th`] || mergedMap[`photo_${cleanedBoardReg}_11th`];
+        const p12 = mergedMap[`${cleanedBoardReg}_12th`] || mergedMap[`photo_${cleanedBoardReg}_12th`];
+
+        let classPhoto = '';
+        if (targetClass === '9th' || targetClass === '10th') {
+          classPhoto = p9 || p10 || p11 || p12 || '';
+        } else if (targetClass === '11th' || targetClass === '12th') {
+          classPhoto = p11 || p12 || p9 || p10 || '';
+        } else {
+          classPhoto = p11 || p12 || p9 || p10 || '';
+        }
+
+        if (isValidPhotoStr(classPhoto)) {
+          const formatted = formatPhotoDisplayUrl(classPhoto);
+          if (formatted) return formatted;
+        }
+      }
+
       const regCandidates = [
         cleanedBoardReg,
         cleanedBoardReg ? `photo_${cleanedBoardReg}` : null,
