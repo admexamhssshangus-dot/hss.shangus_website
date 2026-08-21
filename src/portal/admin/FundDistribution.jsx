@@ -352,9 +352,14 @@ export default function FundDistribution() {
   const [fundSession, setFundSession] = useState('2025-26');
   const [formSession, setFormSession] = useState('2025-26');
 
-  // Live Database Students for auto-populating enrollment and roll numbers
+  // Live Database Students & Master Registers for auto-populating enrollment and roll numbers
   const [rawStudents, setRawStudents] = useState(() => {
     const cached = getCachedCollectionSync('admissions');
+    return Array.isArray(cached) ? cached : [];
+  });
+
+  const [masterRegisters, setMasterRegisters] = useState(() => {
+    const cached = getCachedCollectionSync('masterRegisters');
     return Array.isArray(cached) ? cached : [];
   });
 
@@ -375,6 +380,7 @@ export default function FundDistribution() {
 
   // Rate Settings & Accounts Modal State
   const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
+  const [settingsModalTab, setSettingsModalTab] = useState('rates'); // 'rates' | 'rolls'
   const [editingRatesClass, setEditingRatesClass] = useState('11th');
   const [tempRates, setTempRates] = useState(DEFAULT_RATES);
   const [isSavingRates, setIsSavingRates] = useState(false);
@@ -391,7 +397,61 @@ export default function FundDistribution() {
     }, 4000);
   };
 
-  // Fetch live rates, accounts, distributions, and admissions
+  // Helper string cleaner
+  const cleanStr = (v) => (v !== null && v !== undefined ? String(v).trim() : '');
+
+  // ─── ACCURATE STREAM RESOLUTION FOR 11TH & 12TH STUDENTS ───
+  const resolveStudentStream = (s) => {
+    const streamField = String(
+      s.stream || s.Stream || s['Stream for Class 11th'] || s['Stream opted in Class 11th'] ||
+      s['Stream & Subjects for Class 12th'] || s['Stream / Faculty'] || s.faculty || s.streamName || ''
+    ).trim();
+
+    const subjectsField = String(
+      s.subs || s.subjects || s.chosenSubjects || s['Subjects Opted'] || s['Subjects Chosen'] ||
+      s['Chosen Subjects'] || s['Stream & Subjects for Class 12th'] || s['Subject 1'] || s['Subject 2'] ||
+      s['Subject 3'] || s['Subject 4'] || s['Subject 5'] || ''
+    ).trim();
+
+    const rawCombined = `${streamField} ${subjectsField}`.toLowerCase();
+
+    // 1. Science Stream Check (Medical / Non-Medical / PCB / PCM / PCMB / Physics / Chemistry / Biology / etc.)
+    if (
+      rawCombined.includes('sci') ||
+      rawCombined.includes('med') ||
+      rawCombined.includes('physic') ||
+      rawCombined.includes('chemist') ||
+      rawCombined.includes('biolog') ||
+      rawCombined.includes('botan') ||
+      rawCombined.includes('zoolog') ||
+      rawCombined.includes('biotech') ||
+      rawCombined.includes('math') ||
+      /\b(ph|ch|bi|pcb|pcm|pcmb)\b/i.test(rawCombined)
+    ) {
+      return 'Science';
+    }
+
+    // 2. Commerce Stream Check
+    if (
+      rawCombined.includes('comm') ||
+      rawCombined.includes('account') ||
+      rawCombined.includes('business') ||
+      rawCombined.includes('entrepreneur') ||
+      /\b(bs|act|acc)\b/i.test(rawCombined)
+    ) {
+      return 'Commerce';
+    }
+
+    // 3. Home Science Check
+    if (rawCombined.includes('home sci') || rawCombined.includes('home-sci') || rawCombined.includes('homesci')) {
+      return 'Home Science';
+    }
+
+    // 4. Humanities / Arts Stream Check (Default for general higher secondary arts)
+    return 'Humanities';
+  };
+
+  // Fetch live rates, accounts, distributions, admissions, and master registers
   const fetchData = useCallback(async () => {
     setIsSyncing(true);
     try {
@@ -441,11 +501,20 @@ export default function FundDistribution() {
         }
       }
 
-      // 3. Fetch admissions / approved student applications
-      const admSnap = await getDocs(collection(db, 'admissions')).catch(() => null);
+      // 3. Fetch live admissions and masterRegisters
+      const [admSnap, mrSnap] = await Promise.all([
+        getDocs(collection(db, 'admissions')).catch(() => null),
+        getDocs(collection(db, 'masterRegisters')).catch(() => null)
+      ]);
+
       if (admSnap && !admSnap.empty) {
         const admList = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setRawStudents(admList);
+      }
+
+      if (mrSnap && !mrSnap.empty) {
+        const mrList = mrSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setMasterRegisters(mrList);
       }
     } catch (e) {
       console.error('Error fetching fund distribution data:', e);
@@ -499,25 +568,40 @@ export default function FundDistribution() {
       console.warn('Real-time admissions note in FundDistribution:', err);
     });
 
+    // Real-time listener for masterRegisters (historical / archived datasets)
+    const unsubMaster = onSnapshot(collection(db, 'masterRegisters'), (snap) => {
+      if (snap && !snap.empty) {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setMasterRegisters(list);
+      }
+    }, (err) => {
+      console.warn('Real-time masterRegisters note in FundDistribution:', err);
+    });
+
     return () => {
       unsubDist();
       unsubConfig();
       unsubAdmissions();
+      unsubMaster();
     };
   }, [fetchData]);
 
-  // ─── LIVE DATABASE STUDENT STATS FOR ACTIVE SESSION ───
+  // ─── LIVE DATABASE STUDENT STATS FOR ACTIVE SESSION ACROSS ADMISSIONS & MASTER REGISTERS ───
   const dbStudentStats = useMemo(() => {
     const stats = {
-      '9th': { total: 0, science: 0, streams: {} },
-      '10th': { total: 0, science: 0, streams: {} },
-      '11th': { total: 0, science: 0, streams: {} },
-      '12th': { total: 0, science: 0, streams: {} }
+      '9th': { total: 0, science: 0, streams: { Humanities: 0, Science: 0 } },
+      '10th': { total: 0, science: 0, streams: { Humanities: 0, Science: 0 } },
+      '11th': { total: 0, science: 0, streams: { Humanities: 0, Science: 0 } },
+      '12th': { total: 0, science: 0, streams: { Humanities: 0, Science: 0 } }
     };
 
-    const targetSession = String(formSession || fundSession || '2025-26').trim().toLowerCase();
+    const targetSession = String(fundSession || formSession || '2025-26').trim().toLowerCase();
+    const processedIds = new Set();
 
-    (rawStudents || []).forEach(s => {
+    const processStudent = (s, idx) => {
+      const id = String(s.id || s.docId || s.formNo || s['Form Number'] || `std_${idx}`);
+      if (processedIds.has(id)) return;
+
       const status = String(s.status || s.Status || s['Admission Status'] || s.admission_status || '').trim().toLowerCase();
       const rollNo = String(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s.rollNo || s.RollNo || s.class_roll_no || '').trim();
 
@@ -525,11 +609,11 @@ export default function FundDistribution() {
       if (status === 'rejected' || status === 'cancelled') return;
 
       // Must be approved or have assigned class roll number
-      const isApproved = status === 'approved' || (rollNo && rollNo !== '—' && rollNo !== 'N/A');
+      const isApproved = status === 'approved' || (rollNo && rollNo !== '—' && rollNo !== 'N/A' && rollNo !== 'undefined');
       if (!isApproved) return;
 
       // Match session
-      const sSession = String(s.session || s.Session || s['Academic Session'] || s.academicSession || '').trim().toLowerCase();
+      const sSession = String(s.session || s.Session || s['Academic Session'] || s.academicSession || s.academic_session || '').trim().toLowerCase();
       if (sSession && !sSession.includes(targetSession) && !targetSession.includes(sSession)) {
         return;
       }
@@ -544,30 +628,37 @@ export default function FundDistribution() {
 
       if (!cls || !stats[cls]) return;
 
+      processedIds.add(id);
       stats[cls].total += 1;
 
-      // Stream identification for 11th and 12th
-      const rawStream = String(s.stream || s.Stream || s['Stream for Class 11th'] || s['Stream opted in Class 11th'] || s['Stream & Subjects for Class 12th'] || s['Stream / Faculty'] || '').trim();
-      const lowerStream = rawStream.toLowerCase();
-      let stdStream = 'General';
-      if (lowerStream.includes('sci') || lowerStream.includes('med')) stdStream = 'Science';
-      else if (lowerStream.includes('hum') || lowerStream.includes('art')) stdStream = 'Humanities';
-      else if (lowerStream.includes('com')) stdStream = 'Commerce';
-      else if (lowerStream.includes('home')) stdStream = 'Home Science';
-      else if (rawStream) stdStream = rawStream;
-
+      // Stream resolution for 11th and 12th
+      const stdStream = resolveStudentStream(s);
       stats[cls].streams[stdStream] = (stats[cls].streams[stdStream] || 0) + 1;
       if (stdStream === 'Science') {
         stats[cls].science += 1;
       }
+    };
+
+    // 1. Process active admissions
+    (rawStudents || []).forEach((s, idx) => processStudent(s, idx));
+
+    // 2. Process masterRegisters if targetSession exists in historical records
+    (masterRegisters || []).forEach((h, hIdx) => {
+      const pSess = String(h.session || h.Session || h['Academic Session'] || '').trim().toLowerCase();
+      if (pSess && (pSess.includes(targetSession) || targetSession.includes(pSess))) {
+        const items = h.items || h.students || h.records || h.data;
+        if (Array.isArray(items)) {
+          items.forEach((item, iIdx) => processStudent(item, `${hIdx}_${iIdx}`));
+        }
+      }
     });
 
-    // In 9th and 10th, Science fund is universal (applies to all students)
+    // In 9th and 10th, Science fund is universal (applies to 100% of students)
     stats['9th'].science = stats['9th'].total;
     stats['10th'].science = stats['10th'].total;
 
     return stats;
-  }, [rawStudents, formSession, fundSession]);
+  }, [rawStudents, masterRegisters, fundSession, formSession]);
 
   // Handle Class Switch with Automatic 9th/10th Science Fund Sync
   const handleClassChange = (newCls) => {
@@ -920,23 +1011,54 @@ export default function FundDistribution() {
   const [analyticsSortBy, setAnalyticsSortBy] = useState('amount-desc'); // 'amount-desc' | 'amount-asc' | 'name-asc'
   const [isProcessingAnalytics, setIsProcessingAnalytics] = useState(null); // 'excel' | 'pdf' | 'print' | null
 
-  // Available unique lists for filters
+  // Available unique lists for filters dynamically fetched from admissions & masterRegisters
   const availableSessions = useMemo(() => {
     const set = new Set();
-    distributions.forEach(d => {
-      const s = d.academicSession || d.session || (d.year && d.year.includes('-') && !d.year.includes('(') ? d.year : '') || d.year || '';
-      if (s && s !== '—') set.add(s);
+
+    // 1. From live admissions records
+    (rawStudents || []).forEach(s => {
+      const sess = cleanStr(s.session || s.Session || s['Academic Session'] || s.academicSession || s.academic_session);
+      if (sess && sess !== '—' && sess.length >= 4) {
+        set.add(sess);
+      }
     });
-    const order = ['2026-27', '2025-26', '2024-25 (Oct-Nov)', '2024-25 (Mar-Apr)', '2024-25', '2023-24'];
+
+    // 2. From historical master registers
+    (masterRegisters || []).forEach(h => {
+      const sess = cleanStr(h.session || h.Session || h['Academic Session']);
+      if (sess && sess !== '—' && sess.length >= 4) set.add(sess);
+      const items = h.items || h.students || h.records || h.data;
+      if (Array.isArray(items)) {
+        items.forEach(item => {
+          const sItem = cleanStr(item.session || item.Session || item['Academic Session']);
+          if (sItem && sItem !== '—' && sItem.length >= 4) set.add(sItem);
+        });
+      }
+    });
+
+    // 3. From fund distribution statements
+    (distributions || []).forEach(d => {
+      const s = cleanStr(d.academicSession || d.session || d.year);
+      if (s && s !== '—' && s.length >= 4 && !s.includes('(')) {
+        set.add(s);
+      }
+    });
+
+    // Baseline fallbacks if nothing in DB yet
+    if (set.size === 0) {
+      set.add('2025-26');
+      set.add('2024-25');
+      set.add('2023-24');
+    }
+
+    // Sort cleanly in reverse chronological order
     return Array.from(set).sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
+      const numA = parseInt((a.match(/\d{4}/) || [0])[0], 10);
+      const numB = parseInt((b.match(/\d{4}/) || [0])[0], 10);
+      if (numA !== numB) return numB - numA;
       return String(b).localeCompare(String(a));
     });
-  }, [distributions]);
+  }, [rawStudents, masterRegisters, distributions]);
 
   const availableMonths = useMemo(() => {
     const set = new Set();
@@ -1354,148 +1476,22 @@ export default function FundDistribution() {
                   <FileText size={13} className="text-blue-600" />
                   <span className="text-xs font-black text-slate-700 dark:text-slate-300">New Fund Distribution Statement</span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-bold">
-                  Class & Month Transfer Generator
-                </span>
-              </div>
-
-              {/* ─── LIVE APPROVED ENROLLMENT (Assigned Roll Numbers Auto-Fetch Bar) ─── */}
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
-                  <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-slate-200">
-                    <Users size={12} className="text-blue-600" />
-                    <span>Approved Roll Numbers (Session {formSession || fundSession || '2025-26'}):</span>
-                  </div>
-                  <span className="text-[9px] text-slate-400 font-bold">
-                    💡 Click pill to auto-fill • Editable anytime for offline forms
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettingsModalTab('rolls');
+                      setIsRatesModalOpen(true);
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 text-[10px] font-black flex items-center gap-1 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
+                    title="View live database approved roll numbers and auto-fill breakdown in Settings"
+                  >
+                    <Users size={11} className="text-blue-600" />
+                    <span>DB Rolls ({dbStudentStats[formClass]?.total || 0} in {formClass})</span>
+                  </button>
+                  <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">
+                    Class & Month Generator
                   </span>
-                </div>
-
-                {/* 4 Class Interactive Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
-                  {/* 1. Class 9th */}
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-blue-700 dark:text-blue-400">Class 9th</span>
-                      <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-[9px]">
-                        {dbStudentStats['9th'].total} Std
-                      </span>
-                    </div>
-                    <div className="text-[8px] text-slate-400 font-bold">
-                      Science Fund: All {dbStudentStats['9th'].total}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyDbStats('9th', dbStudentStats['9th'].total, dbStudentStats['9th'].total)}
-                      className="w-full mt-0.5 py-1 px-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs active:scale-98"
-                      title="Auto-fill 9th student counts from approved database roll numbers"
-                    >
-                      <Sparkles size={10} />
-                      <span>Use 9th ({dbStudentStats['9th'].total})</span>
-                    </button>
-                  </div>
-
-                  {/* 2. Class 10th */}
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-blue-700 dark:text-blue-400">Class 10th</span>
-                      <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-[9px]">
-                        {dbStudentStats['10th'].total} Std
-                      </span>
-                    </div>
-                    <div className="text-[8px] text-slate-400 font-bold">
-                      Science Fund: All {dbStudentStats['10th'].total}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyDbStats('10th', dbStudentStats['10th'].total, dbStudentStats['10th'].total)}
-                      className="w-full mt-0.5 py-1 px-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs active:scale-98"
-                      title="Auto-fill 10th student counts from approved database roll numbers"
-                    >
-                      <Sparkles size={10} />
-                      <span>Use 10th ({dbStudentStats['10th'].total})</span>
-                    </button>
-                  </div>
-
-                  {/* 3. Class 11th (Stream-wise) */}
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-indigo-700 dark:text-indigo-400">Class 11th</span>
-                      <span className="px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-mono font-black text-[9px]">
-                        {dbStudentStats['11th'].total} Total
-                      </span>
-                    </div>
-                    <div className="text-[8px] text-slate-500 flex flex-wrap items-center gap-1 font-bold">
-                      <span className="text-purple-700 dark:text-purple-300 font-black">Sci: {dbStudentStats['11th'].science}</span>
-                      <span>•</span>
-                      <span>Hum: {dbStudentStats['11th'].streams['Humanities'] || 0}</span>
-                      {(dbStudentStats['11th'].streams['Commerce'] || 0) > 0 && (
-                        <>
-                          <span>•</span>
-                          <span>Com: {dbStudentStats['11th'].streams['Commerce']}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-1 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleApplyDbStats('11th', dbStudentStats['11th'].total, dbStudentStats['11th'].science)}
-                        className="py-1 px-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
-                        title="Auto-fill All 11th: Total Paid + Science stream count"
-                      >
-                        <Sparkles size={9} />
-                        <span>All ({dbStudentStats['11th'].total})</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApplyDbStats('11th', dbStudentStats['11th'].science, dbStudentStats['11th'].science)}
-                        className="py-1 px-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
-                        title="Auto-fill 11th Science stream only"
-                      >
-                        <span>Sci ({dbStudentStats['11th'].science})</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 4. Class 12th (Stream-wise) */}
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-rose-700 dark:text-rose-400">Class 12th</span>
-                      <span className="px-1.5 py-0.2 rounded bg-rose-50 dark:bg-rose-950 text-rose-800 dark:text-rose-300 font-mono font-black text-[9px]">
-                        {dbStudentStats['12th'].total} Total
-                      </span>
-                    </div>
-                    <div className="text-[8px] text-slate-500 flex flex-wrap items-center gap-1 font-bold">
-                      <span className="text-purple-700 dark:text-purple-300 font-black">Sci: {dbStudentStats['12th'].science}</span>
-                      <span>•</span>
-                      <span>Hum: {dbStudentStats['12th'].streams['Humanities'] || 0}</span>
-                      {(dbStudentStats['12th'].streams['Commerce'] || 0) > 0 && (
-                        <>
-                          <span>•</span>
-                          <span>Com: {dbStudentStats['12th'].streams['Commerce']}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-1 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleApplyDbStats('12th', dbStudentStats['12th'].total, dbStudentStats['12th'].science)}
-                        className="py-1 px-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
-                        title="Auto-fill All 12th: Total Paid + Science stream count"
-                      >
-                        <Sparkles size={9} />
-                        <span>All ({dbStudentStats['12th'].total})</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApplyDbStats('12th', dbStudentStats['12th'].science, dbStudentStats['12th'].science)}
-                        className="py-1 px-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
-                        title="Auto-fill 12th Science stream only"
-                      >
-                        <span>Sci ({dbStudentStats['12th'].science})</span>
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -2864,84 +2860,357 @@ export default function FundDistribution() {
       {isRatesModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden p-5 space-y-4 max-h-[92vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 flex-shrink-0">
+            {/* Modal Header with Top Navigation Tabs */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-2 flex-shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 flex items-center justify-center border border-blue-200 dark:border-blue-800">
-                  <SlidersHorizontal size={17} />
+                  {settingsModalTab === 'rolls' ? <Users size={17} /> : <SlidersHorizontal size={17} />}
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                    <span>Institutional Subsidiary Accounts & Fee Rates</span>
+                    <span>{settingsModalTab === 'rolls' ? 'Database Roll Numbers & Enrollment' : 'Institutional Accounts & Fee Rates'}</span>
                     <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-extrabold normal-case">
-                      {tempAccounts.length} Active Heads
+                      {settingsModalTab === 'rolls' ? `${dbStudentStats['9th'].total + dbStudentStats['10th'].total + dbStudentStats['11th'].total + dbStudentStats['12th'].total} Enrolled` : `${tempAccounts.length} Active Heads`}
                     </span>
                   </h3>
                   <p className="text-[10.5px] text-slate-400 font-bold">
-                    Add, edit, remove subsidiary accounts and configure per-student fee rates across classes
+                    {settingsModalTab === 'rolls' 
+                      ? `Session ${fundSession || formSession || '2025-26'} verified approved rolls across classes & streams`
+                      : 'Configure per-student institutional fee heads and rates across classes'}
                   </p>
                 </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => {
-                  setIsRatesModalOpen(false);
-                  setIsAddingAccount(false);
-                }} 
-                disabled={isSavingRates}
-                className="cursor-pointer text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg"
-              >
-                <X size={16} />
-              </button>
-            </div>
 
-            {/* Class Selector Tabs & Top Actions */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 flex-shrink-0">
-              {/* Class Tabs */}
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 flex-1">
-                {['9th', '10th', '11th', '12th'].map(cls => (
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                {/* Modal Sub-Tabs */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
                   <button
-                    key={cls}
                     type="button"
-                    onClick={() => setEditingRatesClass(cls)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                      editingRatesClass === cls
+                    onClick={() => setSettingsModalTab('rates')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+                      settingsModalTab === 'rates'
                         ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
                         : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
-                    Class {cls}
+                    <SlidersHorizontal size={12} />
+                    <span>Fee Rates</span>
                   </button>
-                ))}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsModalTab('rolls')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+                      settingsModalTab === 'rolls'
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Users size={12} />
+                    <span>Roll Numbers</span>
+                  </button>
+                </div>
 
-              {/* Action Buttons: Add Account & Reset Defaults */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAddingAccount(prev => !prev)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                    isAddingAccount
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-500/20'
-                  }`}
-                  title="Add a new subsidiary account and fee head"
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsRatesModalOpen(false);
+                    setIsAddingAccount(false);
+                  }} 
+                  disabled={isSavingRates}
+                  className="cursor-pointer text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg"
                 >
-                  <Plus size={13} />
-                  <span>{isAddingAccount ? 'Cancel Adding' : 'Add Account'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResetToDefaults}
-                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
-                  title="Reset all accounts and rates to original 13 institutional defaults"
-                >
-                  <Undo2 size={13} />
-                  <span className="hidden sm:inline">Reset Defaults</span>
+                  <X size={16} />
                 </button>
               </div>
             </div>
+
+            {/* TAB 1: APPROVED ROLL NUMBERS & ENROLLMENT BREAKDOWN */}
+            {settingsModalTab === 'rolls' && (
+              <div className="overflow-y-auto flex-1 pr-1 space-y-3.5 text-xs scrollbar-thin">
+                {/* Session Header Bar */}
+                <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                      <Users size={15} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Approved Roll Records Breakdown</span>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-200 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-[10px] font-mono">
+                          Session: {fundSession || formSession || '2025-26'}
+                        </span>
+                      </h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                        Student records with assigned class roll numbers across active admissions & master registers.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <span className="text-[9.5px] font-bold text-slate-400">Total Enrolled:</span>
+                    <span className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700 font-mono font-black text-blue-700 dark:text-blue-300 text-xs">
+                      {dbStudentStats['9th'].total + dbStudentStats['10th'].total + dbStudentStats['11th'].total + dbStudentStats['12th'].total} Students
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4 Class Breakdown Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 1. Class 9th */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
+                        <span className="font-black text-sm text-blue-700 dark:text-blue-400">Class 9th</span>
+                        <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-xs">
+                          {dbStudentStats['9th'].total} Approved Students
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
+                        <div className="flex justify-between">
+                          <span>Paid Students:</span>
+                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['9th'].total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Science Fund (Universal):</span>
+                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">All {dbStudentStats['9th'].total} (100%)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApplyDbStats('9th', dbStudentStats['9th'].total, dbStudentStats['9th'].total);
+                        setIsRatesModalOpen(false);
+                        setActiveTab('entry');
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer transition-all active:scale-98"
+                    >
+                      <Sparkles size={13} />
+                      <span>Auto-Populate Class 9th ({dbStudentStats['9th'].total})</span>
+                    </button>
+                  </div>
+
+                  {/* 2. Class 10th */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
+                        <span className="font-black text-sm text-blue-700 dark:text-blue-400">Class 10th</span>
+                        <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-xs">
+                          {dbStudentStats['10th'].total} Approved Students
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
+                        <div className="flex justify-between">
+                          <span>Paid Students:</span>
+                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['10th'].total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Science Fund (Universal):</span>
+                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">All {dbStudentStats['10th'].total} (100%)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApplyDbStats('10th', dbStudentStats['10th'].total, dbStudentStats['10th'].total);
+                        setIsRatesModalOpen(false);
+                        setActiveTab('entry');
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer transition-all active:scale-98"
+                    >
+                      <Sparkles size={13} />
+                      <span>Auto-Populate Class 10th ({dbStudentStats['10th'].total})</span>
+                    </button>
+                  </div>
+
+                  {/* 3. Class 11th (Stream-wise) */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
+                        <span className="font-black text-sm text-indigo-700 dark:text-indigo-400">Class 11th</span>
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-mono font-black text-xs">
+                          {dbStudentStats['11th'].total} Total Students
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-purple-700 dark:text-purple-300 font-extrabold flex items-center gap-1">
+                            <span>🔬 Science Stream (Opt Fee):</span>
+                          </span>
+                          <span className="font-mono font-black text-purple-700 dark:text-purple-300">{dbStudentStats['11th'].science}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>📚 Humanities / Arts:</span>
+                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['11th'].streams['Humanities'] || 0}</span>
+                        </div>
+                        {(dbStudentStats['11th'].streams['Commerce'] || 0) > 0 && (
+                          <div className="flex justify-between">
+                            <span>📊 Commerce:</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['11th'].streams['Commerce']}</span>
+                          </div>
+                        )}
+                        {(dbStudentStats['11th'].streams['Home Science'] || 0) > 0 && (
+                          <div className="flex justify-between">
+                            <span>🏡 Home Science:</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['11th'].streams['Home Science']}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('11th', dbStudentStats['11th'].total, dbStudentStats['11th'].science);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                        title="Populate all 11th students with Science count"
+                      >
+                        <Sparkles size={11} />
+                        <span>All ({dbStudentStats['11th'].total})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('11th', dbStudentStats['11th'].science, dbStudentStats['11th'].science);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                        title="Populate 11th Science stream only"
+                      >
+                        <span>Sci ({dbStudentStats['11th'].science})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Class 12th (Stream-wise) */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
+                        <span className="font-black text-sm text-rose-700 dark:text-rose-400">Class 12th</span>
+                        <span className="px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 font-mono font-black text-xs">
+                          {dbStudentStats['12th'].total} Total Students
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-purple-700 dark:text-purple-300 font-extrabold flex items-center gap-1">
+                            <span>🔬 Science Stream (Opt Fee):</span>
+                          </span>
+                          <span className="font-mono font-black text-purple-700 dark:text-purple-300">{dbStudentStats['12th'].science}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>📚 Humanities / Arts:</span>
+                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['12th'].streams['Humanities'] || 0}</span>
+                        </div>
+                        {(dbStudentStats['12th'].streams['Commerce'] || 0) > 0 && (
+                          <div className="flex justify-between">
+                            <span>📊 Commerce:</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['12th'].streams['Commerce']}</span>
+                          </div>
+                        )}
+                        {(dbStudentStats['12th'].streams['Home Science'] || 0) > 0 && (
+                          <div className="flex justify-between">
+                            <span>🏡 Home Science:</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['12th'].streams['Home Science']}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('12th', dbStudentStats['12th'].total, dbStudentStats['12th'].science);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                        title="Populate all 12th students with Science count"
+                      >
+                        <Sparkles size={11} />
+                        <span>All ({dbStudentStats['12th'].total})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('12th', dbStudentStats['12th'].science, dbStudentStats['12th'].science);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                        title="Populate 12th Science stream only"
+                      >
+                        <span>Sci ({dbStudentStats['12th'].science})</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Informational Help Alert */}
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 flex items-start gap-2.5 text-[11px] text-blue-900 dark:text-blue-300 font-bold leading-relaxed">
+                  <Sparkles size={15} className="flex-shrink-0 mt-0.5 text-blue-600" />
+                  <span>
+                    Auto-populating loads the live approved database count directly into your statement generator. You can freely adjust numbers in the entry form to include counter/offline admission receipts.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: FEE RATES & SUBSIDIARY ACCOUNTS CONFIGURATION */}
+            {settingsModalTab === 'rates' && (
+              <>
+                {/* Class Selector Tabs & Top Actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 flex-shrink-0">
+                  {/* Class Tabs */}
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 flex-1">
+                    {['9th', '10th', '11th', '12th'].map(cls => (
+                      <button
+                        key={cls}
+                        type="button"
+                        onClick={() => setEditingRatesClass(cls)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                          editingRatesClass === cls
+                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        Class {cls}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Action Buttons: Add Account & Reset Defaults */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingAccount(prev => !prev)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                        isAddingAccount
+                          ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-500/20'
+                      }`}
+                      title="Add a new subsidiary account and fee head"
+                    >
+                      <Plus size={13} />
+                      <span>{isAddingAccount ? 'Cancel Adding' : 'Add Account'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetToDefaults}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
+                      title="Reset all accounts and rates to original 13 institutional defaults"
+                    >
+                      <Undo2 size={13} />
+                      <span className="hidden sm:inline">Reset Defaults</span>
+                    </button>
+                  </div>
+                </div>
 
             {/* Expandable Add New Account Form Panel */}
             {isAddingAccount && (
@@ -3205,9 +3474,11 @@ export default function FundDistribution() {
                 )}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
+    </div>
+  )}
 
       {/* ─────────────────── ENHANCED EDIT / UPDATE CONFIRMATION MODAL ─────────────────── */}
       {editReport && (
