@@ -360,16 +360,16 @@ export default function AdmissionRegisterSuite({
       await setDoc(doc(db, 'system_settings', 'admission_register_layout'), layoutPayload, { merge: true });
       setIsLayoutModified(false);
       setToast({
-        title: 'Layout Preserved to Firebase!',
-        desc: 'Custom column widths and row height saved as institution default.',
+        message: '✅ Table layout (column widths & row height) preserved as Firebase institution default!',
         type: 'success'
       });
-      logAdminActivity('UPDATE_REGISTER_LAYOUT', `Saved custom admission register column widths & row height (${rowHeight}px) to Firebase default.`);
+      try {
+        logAdminActivity(user?.email || 'Admin', 'UPDATE_REGISTER_LAYOUT', `Saved custom admission register column widths & row height (${rowHeight}px) to Firebase default.`);
+      } catch (_) {}
     } catch (err) {
       console.error('Failed to save layout to Firebase:', err);
       setToast({
-        title: 'Save Failed',
-        desc: err.message || 'Could not save layout to Firebase.',
+        message: `❌ Failed to save layout: ${err.message || 'Could not save to Firebase.'}`,
         type: 'error'
       });
     } finally {
@@ -380,13 +380,19 @@ export default function AdmissionRegisterSuite({
   const handleResetLayoutToOriginal = () => {
     setColumnWidths(DEFAULT_COLUMN_WIDTHS);
     setRowHeight(DEFAULT_ROW_HEIGHT);
-    setIsLayoutModified(false);
+    setPrintMargin(0.35);
+    setIsLayoutModified(true);
     setToast({
-      title: 'Reset to Factory Defaults',
-      desc: 'Table column widths and row heights restored to original factory format.',
+      message: '🔄 Column widths and row heights restored to factory format. Click "Set to Default" to save permanently.',
       type: 'info'
     });
   };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   // Count active non-default filters
   const activeFiltersCount = useMemo(() => {
@@ -2034,18 +2040,35 @@ export default function AdmissionRegisterSuite({
                 </button>
               </>
             )}
+
+            {/* Universal Exit / Close Suite Button */}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-0.5 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                title="Exit Admission Register Suite and return to Master Register"
+              >
+                <X size={12} strokeWidth={2.5} />
+                <span>Close</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       {/* ─── TOAST NOTIFICATION ─── */}
       {toast && (
-        <div className="no-print fixed top-14 right-4 z-50 animate-bounce">
-          <div className={`px-3.5 py-2 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-2 ${
-            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-rose-600 text-white border-rose-500'
+        <div className="no-print fixed top-12 right-4 z-[9999] animate-bounce">
+          <div className={`px-3.5 py-2 rounded-xl shadow-xl border text-xs font-bold flex items-center gap-2 ${
+            toast.type === 'success'
+              ? 'bg-emerald-600 text-white border-emerald-500'
+              : toast.type === 'info'
+              ? 'bg-indigo-600 text-white border-indigo-500'
+              : 'bg-rose-600 text-white border-rose-500'
           }`}>
-            <span>{toast.message}</span>
-            <button type="button" onClick={() => setToast(null)} className="opacity-80 hover:opacity-100 cursor-pointer">✕</button>
+            <span>{toast.message || toast.title || toast.desc}</span>
+            <button type="button" onClick={() => setToast(null)} className="opacity-80 hover:opacity-100 cursor-pointer ml-1">✕</button>
           </div>
         </div>
       )}
