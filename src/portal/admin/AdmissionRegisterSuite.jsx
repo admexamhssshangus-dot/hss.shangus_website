@@ -3,11 +3,12 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer,
   RefreshCw, Check, Search, ZoomIn, ZoomOut,
-  Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid
+  Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
+  UserCheck, UserX, AlertCircle, X, Edit3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
-import { doc, writeBatch, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, writeBatch, collection, getDocs, query, where, setDoc } from 'firebase/firestore';
 import {
   updateCachedItem,
   getCachedCollectionSync,
@@ -166,11 +167,17 @@ export default function AdmissionRegisterSuite({
   // Global Filter States
   const [selectedSession, setSelectedSession] = useState('2025-26');
   const [selectedStatus, setSelectedStatus] = useState('Approved'); // 'Approved' (Default) | 'Submitted' | 'Provisional' | 'ALL'
+  const [selectedAdmissionType, setSelectedAdmissionType] = useState('ALL'); // 'ALL' | 'fresh' | 'readmission'
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
+
+  // Readmission Management Modal State
+  const [readmissionModalStudent, setReadmissionModalStudent] = useState(null);
+  const [reAdmFormState, setReAdmFormState] = useState({ isReAdm: true, oldAdmNo: '', reason: 'Gap in Studies / Re-enrolled' });
+  const [savingReAdm, setSavingReAdm] = useState(false);
 
   // Loading States for Session Data
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -318,7 +325,7 @@ export default function AdmissionRegisterSuite({
     } catch (_) {}
   }, []);
 
-  // Normalized Student Object Mapper
+  // Normalized Student Object Mapper with Re-admission Parsing
   const normalizedStudents = useMemo(() => {
     return (dataset || []).map((s, idx) => {
       const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
@@ -355,6 +362,19 @@ export default function AdmissionRegisterSuite({
       const admDate = cleanStr(s.admDate || s['Adm. Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
       const onlineStatus = cleanStr(s.onlineSubmDate || s.submittedAt?.slice(0, 10) || 'Submitted');
       const status = resolveEffectiveStatus(s);
+
+      // Re-admission Identification
+      const isReadmission =
+        String(s.readmission || s['readmission'] || s['Re-admission'] || s['Re-Admission'] || s.isReadmission || s['Are you seeking Re-admission?'] || s.reAdmissionStatus || '').toLowerCase() === 'yes' ||
+        s.readmission === true ||
+        s.isReadmission === true;
+
+      const oldAdmNo = cleanStr(s['Old Admission No.'] || s['Old Adm. No.'] || s.oldAdmNo || s['old_adm_no'] || s['Previous Adm. No.'] || s['Prev Adm No']);
+
+      // Formatted Adm No: e.g. 5480 (4312) for readmission
+      const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== admNo)
+        ? `${admNo || '—'} (${oldAdmNo})`
+        : (admNo || '—');
       
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
       const directPhoto = getStudentPhotoUrl(s, '');
@@ -365,6 +385,9 @@ export default function AdmissionRegisterSuite({
         sno: idx + 1,
         formNo,
         admNo,
+        oldAdmNo,
+        displayAdmNo,
+        isReadmission,
         rollNo,
         boardReg,
         name,
@@ -397,9 +420,9 @@ export default function AdmissionRegisterSuite({
         onlineStatus,
         status,
         directPhoto,
-        prevCC: prevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC',
+        prevCC: isReadmission ? 'Re-admitted (Gap)' : (prevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC'),
         withdrawal: '—',
-        remarks: cleanStr(s.remarks || s.Remarks || '')
+        remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || '')
       };
     });
   }, [dataset, selectedSession]);
@@ -433,19 +456,22 @@ export default function AdmissionRegisterSuite({
 
   // Dynamic Status Counts (Approved, Submitted, Provisional, All)
   const statusCounts = useMemo(() => {
-    let approved = 0, submitted = 0, provisional = 0;
+    let approved = 0, submitted = 0, provisional = 0, readmissions = 0, fresh = 0;
     normalizedStudents.forEach(s => {
       if (selectedClass !== 'ALL' && !matchesClassVal(selectedClass, s.class)) return;
       if (s.status === 'Approved') approved++;
       if (s.status === 'Submitted') submitted++;
       if (s.status === 'Provisional') provisional++;
+      if (s.isReadmission) readmissions++;
+      else fresh++;
     });
-    return { approved, submitted, provisional, total: normalizedStudents.length };
+    return { approved, submitted, provisional, readmissions, fresh, total: normalizedStudents.length };
   }, [normalizedStudents, selectedClass]);
 
-  // Filtered Students for Current View
+  // Filtered Students for Current View with Readmission Sorting Rule (Re-admissions placed at end of class register)
   const filteredStudents = useMemo(() => {
-    return normalizedStudents.filter(s => {
+    const rawFiltered = normalizedStudents.filter(s => {
+      // 1. Status Filter
       if (selectedStatus !== 'ALL') {
         if (selectedStatus === 'Approved') {
           if (s.status !== 'Approved') return false;
@@ -458,14 +484,21 @@ export default function AdmissionRegisterSuite({
         }
       }
 
+      // 2. Admission Type Filter (Fresh vs Re-admission)
+      if (selectedAdmissionType === 'fresh' && s.isReadmission) return false;
+      if (selectedAdmissionType === 'readmission' && !s.isReadmission) return false;
+
+      // 3. Class Filter
       if (selectedClass !== 'ALL') {
         if (!matchesClassVal(selectedClass, s.class)) return false;
       }
 
+      // 4. Stream Filter
       if (selectedStream !== 'ALL') {
         if (s.stream !== selectedStream) return false;
       }
 
+      // 5. Search Query Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -473,19 +506,39 @@ export default function AdmissionRegisterSuite({
           s.father.toLowerCase().includes(q) ||
           s.rollNo.toLowerCase().includes(q) ||
           s.admNo.toLowerCase().includes(q) ||
+          s.oldAdmNo.toLowerCase().includes(q) ||
           s.formNo.toLowerCase().includes(q) ||
           s.boardReg.toLowerCase().includes(q) ||
           s.mobile.includes(q)
         );
       }
       return true;
-    }).sort((a, b) => {
+    });
+
+    // STRICT REGISTER ORDERING:
+    // 1. Group by Class (9th, 10th, 11th, 12th)
+    // 2. Fresh Admissions FIRST (sorted by Class Roll No / Name)
+    // 3. Re-admissions PLACED AT THE END OF EACH CLASS REGISTER!
+    const sorted = rawFiltered.sort((a, b) => {
+      const cA = parseInt(a.class, 10) || 0;
+      const cB = parseInt(b.class, 10) || 0;
+      if (cA !== cB) return cA - cB;
+
+      // Fresh First (0), Re-admission at end (1)
+      const isReA = a.isReadmission ? 1 : 0;
+      const isReB = b.isReadmission ? 1 : 0;
+      if (isReA !== isReB) return isReA - isReB;
+
       const rA = parseInt(a.rollNo, 10) || 0;
       const rB = parseInt(b.rollNo, 10) || 0;
       if (rA !== rB && rA > 0 && rB > 0) return rA - rB;
+
       return a.name.localeCompare(b.name);
     });
-  }, [normalizedStudents, selectedStatus, selectedClass, selectedStream, searchQuery]);
+
+    // Re-index continuous S.No.
+    return sorted.map((st, i) => ({ ...st, sno: i + 1 }));
+  }, [normalizedStudents, selectedStatus, selectedAdmissionType, selectedClass, selectedStream, searchQuery]);
 
   // ASYNC PHOTO FETCHING FOR VISIBLE FILTERED STUDENTS
   useEffect(() => {
@@ -551,6 +604,67 @@ export default function AdmissionRegisterSuite({
     );
   };
 
+  // Open Readmission Modal
+  const handleOpenReadmissionModal = (student) => {
+    setReadmissionModalStudent(student);
+    setReAdmFormState({
+      isReAdm: !student.isReadmission, // toggle suggestion
+      oldAdmNo: student.oldAdmNo || '',
+      reason: student.isReadmission ? 'Fresh Admission' : 'Gap in Studies / Re-enrolled'
+    });
+  };
+
+  // Save Readmission Status to Firestore & Local Cache
+  const handleSaveReadmission = async () => {
+    if (!readmissionModalStudent) return;
+    setSavingReAdm(true);
+    try {
+      const isRe = reAdmFormState.isReAdm;
+      const oldAdm = cleanStr(reAdmFormState.oldAdmNo);
+      const docRef = doc(db, 'admissions', readmissionModalStudent.id);
+
+      const updates = {
+        readmission: isRe ? 'Yes' : 'No',
+        'Re-admission': isRe ? 'Yes' : 'No',
+        isReadmission: isRe,
+        oldAdmNo: isRe ? oldAdm : '',
+        'Old Admission No.': isRe ? oldAdm : '',
+        updatedAt: new Date().toISOString(),
+        lastEditedBy: `Admin (${user?.email || 'Readmission Tool'})`
+      };
+
+      await setDoc(docRef, updates, { merge: true });
+      updateCachedItem('admissions', readmissionModalStudent.id, updates);
+
+      // Update local dataset state
+      setDataset(prev => prev.map(item => {
+        if (item.id === readmissionModalStudent.id || item.formNo === readmissionModalStudent.formNo) {
+          return { ...item, ...updates };
+        }
+        return item;
+      }));
+
+      await logAdminActivity({
+        actionType: 'student_readmission_update',
+        actionTitle: `Updated Readmission Status: ${readmissionModalStudent.name}`,
+        details: `${readmissionModalStudent.name} set as ${isRe ? `Re-admission (Old Adm: ${oldAdm || 'N/A'})` : 'Fresh Admission'}.`,
+        metadata: { studentId: readmissionModalStudent.id, isReadmission: isRe, oldAdmNo: oldAdm }
+      });
+
+      setToast({
+        message: `✨ ${readmissionModalStudent.name} updated to ${isRe ? 'Re-admission' : 'Fresh Admission'}!`,
+        type: 'success'
+      });
+      setReadmissionModalStudent(null);
+      if (onDataUpdated) onDataUpdated();
+    } catch (err) {
+      console.error('Error saving readmission:', err);
+      setToast({ message: `❌ Failed to update readmission: ${err.message}`, type: 'error' });
+    } finally {
+      setSavingReAdm(false);
+    }
+  };
+
   // 10 Students Per Page Chunks for Legal Print Layout
   const STUDENTS_PER_PAGE = 10;
   const pageChunks = useMemo(() => {
@@ -568,10 +682,11 @@ export default function AdmissionRegisterSuite({
       const c = s.class || '11th';
       const str = s.stream || 'General';
       if (!map[c]) map[c] = {};
-      if (!map[c][str]) map[c][str] = { male: 0, female: 0, total: 0 };
+      if (!map[c][str]) map[c][str] = { male: 0, female: 0, total: 0, reAdm: 0 };
       const isFemale = s.gender.toLowerCase().startsWith('f');
       if (isFemale) map[c][str].female++;
       else map[c][str].male++;
+      if (s.isReadmission) map[c][str].reAdm++;
       map[c][str].total++;
     });
     return map;
@@ -579,14 +694,15 @@ export default function AdmissionRegisterSuite({
 
   // Total Counts
   const overallSummaryTotals = useMemo(() => {
-    let m = 0, f = 0, tot = 0;
+    let m = 0, f = 0, tot = 0, re = 0;
     filteredStudents.forEach(s => {
       const isFemale = s.gender.toLowerCase().startsWith('f');
       if (isFemale) f++;
       else m++;
+      if (s.isReadmission) re++;
       tot++;
     });
-    return { male: m, female: f, grandTotal: tot };
+    return { male: m, female: f, grandTotal: tot, totalReAdm: re };
   }, [filteredStudents]);
 
   // Editable Register Notes Page State
@@ -605,7 +721,7 @@ export default function AdmissionRegisterSuite({
     },
     {
       id: 4,
-      text: "Fresh admission numbers have been assigned to students re-joining after an academic gap or those readmitted due to non-appearance in prior exams. Previous admission numbers are recorded in brackets for historical auditing."
+      text: "Fresh admission numbers have been assigned to students re-joining after an academic gap or those readmitted due to non-appearance in prior exams. Previous admission numbers are recorded in brackets (e.g. 5480 (4312)) and placed at the end of their respective class register for historical audit and departmental verification."
     }
   ]);
 
@@ -819,7 +935,7 @@ export default function AdmissionRegisterSuite({
 
     if (activeTab === 'adm_register') {
       const headers = [
-        'S.No.', 'Class Roll No.', 'Form No.', 'Status', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Class', 'Board Reg. No.',
+        'S.No.', 'Class Roll No.', 'Form No.', 'Status', 'Admission Type', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Old Adm. No.', 'Class', 'Board Reg. No.',
         "Student's Name", "Father's Name", "Mother's Name", 'DOB (Figures)', 'DOB (Words)', 'Gender',
         'Village/Town', 'Block', 'Tehsil', 'District', 'Student Mobile', 'Parent Mobile',
         'Stream', 'Chosen Subjects', 'Aadhaar No.', 'Social Category', 'Socio-Economic Category', 'Blood Group',
@@ -832,9 +948,11 @@ export default function AdmissionRegisterSuite({
         s.rollNo || '',
         s.formNo || '',
         s.status || '',
+        s.isReadmission ? 'Re-admission' : 'Fresh',
         s.onlineStatus || '',
         s.admDate || '',
         s.admNo || '',
+        s.oldAdmNo || '',
         s.class || '',
         s.boardReg || '',
         s.name || '',
@@ -873,7 +991,7 @@ export default function AdmissionRegisterSuite({
       XLSX.writeFile(wb, filename);
     } else {
       const headers = [
-        'S.No.', 'Adm. No.', 'Class Roll No.', 'Status', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
+        'S.No.', 'Adm. No.', 'Class Roll No.', 'Status', 'Admission Type', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
         'Date of Birth', 'Class', 'Session', 'Stream', 'Subjects', 'Board Roll No.', 'Result'
       ];
 
@@ -882,6 +1000,7 @@ export default function AdmissionRegisterSuite({
         s.admNo || '',
         s.rollNo || '',
         s.status || '',
+        s.isReadmission ? 'Re-admission' : 'Fresh',
         s.boardReg || '',
         s.name || '',
         s.father || '',
@@ -1133,7 +1252,25 @@ export default function AdmissionRegisterSuite({
                   </select>
                 </div>
 
-                {/* 3. Class Scope Selector */}
+                {/* 3. Admission Type Filter (Fresh vs Re-admission) */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-slate-500">Type:</span>
+                  <select
+                    value={selectedAdmissionType}
+                    onChange={(e) => setSelectedAdmissionType(e.target.value)}
+                    className={`py-0.5 px-2 text-xs rounded-lg border font-bold shadow-2xs ${
+                      selectedAdmissionType === 'readmission'
+                        ? 'border-purple-400 bg-purple-50 text-purple-900 dark:bg-purple-950 dark:text-purple-200'
+                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100'
+                    }`}
+                  >
+                    <option value="ALL">All Types ({statusCounts.total})</option>
+                    <option value="fresh">Fresh Only ({statusCounts.fresh})</option>
+                    <option value="readmission">Re-admission Only ({statusCounts.readmissions})</option>
+                  </select>
+                </div>
+
+                {/* 4. Class Scope Selector */}
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-bold text-slate-500">Class:</span>
                   <div className="inline-flex rounded-lg p-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
@@ -1154,7 +1291,7 @@ export default function AdmissionRegisterSuite({
                   </div>
                 </div>
 
-                {/* 4. Stream Filter */}
+                {/* 5. Stream Filter */}
                 {availableStreams.length > 0 && (
                   <div className="flex items-center gap-1">
                     <span className="text-[11px] font-bold text-slate-500">Stream:</span>
@@ -1171,7 +1308,7 @@ export default function AdmissionRegisterSuite({
                   </div>
                 )}
 
-                {/* 5. Quick Search */}
+                {/* 6. Quick Search */}
                 <div className="relative">
                   <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
@@ -1298,6 +1435,11 @@ export default function AdmissionRegisterSuite({
                 {/* Record count badge */}
                 <div className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black whitespace-nowrap shadow-2xs">
                   {filteredStudents.length} Students ({pageChunks.length} Spreads)
+                  {statusCounts.readmissions > 0 && (
+                    <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
+                      • {statusCounts.readmissions} Re-Adm
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1313,6 +1455,108 @@ export default function AdmissionRegisterSuite({
           }`}>
             <span>{toast.message}</span>
             <button type="button" onClick={() => setToast(null)} className="opacity-80 hover:opacity-100 cursor-pointer">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── READMISSION MANAGER MODAL ─── */}
+      {readmissionModalStudent && (
+        <div className="no-print fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center">
+                  <Edit3 size={16} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">Admission Type & Re-admission Status</h3>
+                  <p className="text-[11px] text-slate-500">{readmissionModalStudent.name} (Class: {readmissionModalStudent.class})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReadmissionModalStudent(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Admission Category:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: false }))}
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                      !reAdmFormState.isReAdm
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <UserCheck size={14} />
+                    <span>Fresh Admission</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: true }))}
+                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                      reAdmFormState.isReAdm
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <RefreshCw size={14} />
+                    <span>Re-admission (Gap)</span>
+                  </button>
+                </div>
+              </div>
+
+              {reAdmFormState.isReAdm && (
+                <div className="p-3 bg-purple-50/70 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 space-y-2.5 animate-in fade-in">
+                  <div>
+                    <label className="block text-[11px] font-bold text-purple-950 dark:text-purple-200 mb-1">
+                      Previous Admission Number (Recorded in Historical Audit):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 4312"
+                      value={reAdmFormState.oldAdmNo}
+                      onChange={(e) => setReAdmFormState(prev => ({ ...prev, oldAdmNo: e.target.value }))}
+                      className="w-full p-2 text-xs rounded-lg border border-purple-300 dark:border-purple-700 font-mono font-bold bg-white dark:bg-slate-900"
+                    />
+                    <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-1">
+                      Will format in register as: <strong>{readmissionModalStudent.admNo || '5480'} ({reAdmFormState.oldAdmNo || 'Old Adm'})</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-[10.5px] text-purple-800 dark:text-purple-300 flex items-start gap-1.5 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <AlertCircle size={13} className="shrink-0 mt-0.5 text-purple-600" />
+                    <span>Re-admission students will be neatly ordered at the end of their respective class register section as per departmental guidelines.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setReadmissionModalStudent(null)}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveReadmission}
+                disabled={savingReAdm}
+                className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {savingReAdm ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                <span>Save Status</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1350,7 +1594,7 @@ export default function AdmissionRegisterSuite({
                     {SCHOOL_SUBTITLE}
                   </p>
                   <div className="mt-12 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg p-2.5 bg-slate-50">
-                    Total Enrolled Approved Candidates: <strong>{filteredStudents.length}</strong> • Formatted for Physical Legal Archives
+                    Total Enrolled Approved Candidates: <strong>{filteredStudents.length}</strong> (Fresh: {statusCounts.fresh} • Re-admission: {statusCounts.readmissions}) • Formatted for Physical Legal Archives
                   </div>
                 </div>
               )}
@@ -1401,7 +1645,7 @@ export default function AdmissionRegisterSuite({
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Form No.</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Online Subm.</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Adm. Date</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Adm. No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 h-grey">Adm. No.</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 h-grey">Class</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24 h-grey">Board Reg. No.</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-28 text-left pl-2 h-grey">Student's Name</th>
@@ -1428,7 +1672,7 @@ export default function AdmissionRegisterSuite({
                               {chunk.map((s) => {
                                 const photoSrc = getResolvedStudentPhoto(s);
                                 return (
-                                  <tr key={s.id} className="h-11 hover:bg-slate-50">
+                                  <tr key={s.id} className="h-11 hover:bg-slate-50 group">
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.sno}</td>
                                     <td className="border border-slate-900 p-0 text-center w-10 h-11 overflow-hidden bg-slate-50 print:bg-transparent">
                                       {photoSrc ? (
@@ -1454,10 +1698,32 @@ export default function AdmissionRegisterSuite({
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.formNo}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px]">{s.onlineStatus}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.admDate}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9.5px]">{s.admNo}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
+                                      <div>{s.admNo || '—'}</div>
+                                      {s.isReadmission && s.oldAdmNo && s.oldAdmNo !== s.admNo && (
+                                        <div className="text-[7.5px] font-mono text-purple-700 font-bold">({s.oldAdmNo})</div>
+                                      )}
+                                    </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase">{s.name}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="font-black uppercase">{s.name}</span>
+                                        {/* Clickable Re-admission indicator badge */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenReadmissionModal(s)}
+                                          className={`no-print px-1 py-0.2 rounded text-[7px] font-black cursor-pointer transition-all ${
+                                            s.isReadmission
+                                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300'
+                                              : 'opacity-0 group-hover:opacity-100 bg-slate-100 text-slate-500 hover:bg-purple-50 hover:text-purple-700'
+                                          }`}
+                                          title="Click to toggle Re-admission / Fresh admission status"
+                                        >
+                                          {s.isReadmission ? 'Re-Adm' : 'Set Re-Adm'}
+                                        </button>
+                                      </div>
+                                    </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.father}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.mother}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.dobFigures}</td>
@@ -1521,7 +1787,7 @@ export default function AdmissionRegisterSuite({
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 bg-yellow-200 text-slate-900 h-yellow">IFSC</th>
                                 <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Previous Academic Record</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 h-grey">PEN (UDISE)</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-emerald-800 bg-emerald-100 h-green">Admtd. Vide DC/CC</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-18 text-emerald-800 bg-emerald-100 h-green">Admtd. Vide DC/CC</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 text-red-800 bg-red-100 h-red">Withdrawal</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-red-800 bg-red-100 h-red">Issued DC/CC</th>
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-32 text-red-800 bg-red-100 h-red">Receipt</th>
@@ -1548,7 +1814,9 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px]">{s.pen}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7px] bg-emerald-50">{s.prevCC}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7px] bg-emerald-50">
+                                    {s.prevCC}
+                                  </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-red-800 text-[7.5px] bg-red-50">{s.withdrawal}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-red-50 leading-tight">
                                     <div>C.No. _______</div>
@@ -1600,6 +1868,7 @@ export default function AdmissionRegisterSuite({
                           <th className="border-2 border-red-800 p-2 text-left pl-4">Stream</th>
                           <th className="border-2 border-red-800 p-2 w-20">Male</th>
                           <th className="border-2 border-red-800 p-2 w-20">Female</th>
+                          <th className="border-2 border-red-800 p-2 w-20">Re-Adm</th>
                           <th className="border-2 border-red-800 p-2 w-20">Total</th>
                           <th className="border-2 border-red-800 p-2 w-28">Class Total</th>
                         </tr>
@@ -1620,6 +1889,7 @@ export default function AdmissionRegisterSuite({
                                 <td className="border-2 border-red-800 p-1.5 text-left pl-4 font-semibold">{st}</td>
                                 <td className="border-2 border-red-800 p-1.5">{item.male}</td>
                                 <td className="border-2 border-red-800 p-1.5">{item.female}</td>
+                                <td className="border-2 border-red-800 p-1.5 text-purple-800 font-bold">{item.reAdm || 0}</td>
                                 <td className="border-2 border-red-800 p-1.5 font-black">{item.total}</td>
                                 {idx === 0 && (
                                   <td rowSpan={streams.length} className="border-2 border-red-800 p-1.5 font-black text-lg text-red-800 bg-red-50/60">
@@ -1634,6 +1904,7 @@ export default function AdmissionRegisterSuite({
                           <td colSpan="2" className="border-2 border-red-800 p-2 text-right pr-4">Overall Grand Total</td>
                           <td className="border-2 border-red-800 p-2">{overallSummaryTotals.male}</td>
                           <td className="border-2 border-red-800 p-2">{overallSummaryTotals.female}</td>
+                          <td className="border-2 border-red-800 p-2 text-purple-900">{overallSummaryTotals.totalReAdm}</td>
                           <td colSpan="2" className="border-2 border-red-800 p-2 text-base">{overallSummaryTotals.grandTotal}</td>
                         </tr>
                       </tbody>
@@ -1644,7 +1915,7 @@ export default function AdmissionRegisterSuite({
                   <div className="mt-5 p-3 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-serif leading-relaxed text-slate-800">
                     <p className="font-bold mb-0.5">Institutional Certification:</p>
                     <p>
-                      Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
+                      Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students (including <strong>{overallSummaryTotals.totalReAdm}</strong> readmitted gap candidates placed at the end of their respective class rolls) have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
                     </p>
                   </div>
 
@@ -1801,7 +2072,16 @@ export default function AdmissionRegisterSuite({
                                   </div>
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
-                                <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[10px]">{s.name}</td>
+                                <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[10px]">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span>{s.name}</span>
+                                    {s.isReadmission && (
+                                      <span className="text-[7px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800">
+                                        Re-Adm
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="border border-slate-900 px-2 py-0.5 text-left uppercase text-[8.5px] leading-tight">
                                   <div className="font-bold border-b border-slate-200 pb-0.5">{s.father}</div>
                                   <div className="text-slate-500 text-[7.5px] pt-0.5">{s.mother}</div>
