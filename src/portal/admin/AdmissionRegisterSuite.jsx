@@ -5,11 +5,11 @@ import {
   RefreshCw, Check, Search, ZoomIn, ZoomOut,
   Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
   UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight,
-  Filter, Eye, ChevronDown, Sparkles, SlidersHorizontal
+  Filter, Eye, ChevronDown, Sparkles, SlidersHorizontal, Save, RotateCcw, Move, ArrowUpDown
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
-import { doc, writeBatch, collection, getDocs, query, where, setDoc } from 'firebase/firestore';
+import { doc, writeBatch, collection, getDocs, getDoc, query, where, setDoc } from 'firebase/firestore';
 import {
   updateCachedItem,
   getCachedCollectionSync,
@@ -22,6 +22,130 @@ import { getStudentPhotoUrl } from '../../utils/imageCompressor';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
+
+export const DEFAULT_ROW_HEIGHT = 44; // Standard row height in px
+
+export const DEFAULT_COLUMN_WIDTHS = {
+  // PART 1
+  sno: 26,
+  photo: 40,
+  rollNo: 34,
+  formNo: 48,
+  onlineStatus: 48,
+  admDate: 48,
+  admNo: 56,
+  class: 32,
+  boardReg: 96,
+  name: 112,
+  father: 90,
+  mother: 90,
+  dobFigures: 56,
+  dobWords: 96,
+  gender: 36,
+  village: 64,
+  block: 54,
+  tehsil: 54,
+  district: 54,
+  mobile: 66,
+  parentMobile: 66,
+
+  // PART 2
+  p2_stream: 48,
+  p2_subs: 96,
+  p2_aadhar: 80,
+  p2_cat: 32,
+  p2_socio: 32,
+  p2_blood: 32,
+  p2_account: 80,
+  p2_ifsc: 64,
+  p2_prevSchool: 86,
+  p2_prevRoll: 48,
+  p2_prevResult: 48,
+  p2_pen: 64,
+  p2_prevCC: 72,
+  p2_withdrawal: 56,
+  p2_issuedCC: 64,
+  p2_receipt: 128,
+  p2_remarks: 80,
+
+  // SENTUP
+  st_sno: 40,
+  st_rollNo: 40,
+  st_photo: 40,
+  st_boardReg: 96,
+  st_name: 128,
+  st_parentage: 128,
+  st_dob: 64,
+  st_subs: 64,
+  st_boardRoll: 64,
+  st_result: 48,
+  st_admitReceipt: 56,
+  st_marksReceipt: 144
+};
+
+// Draggable Table Column Header Component
+function ResizableTh({
+  colKey,
+  width,
+  onResize,
+  rowSpan,
+  colSpan,
+  className = '',
+  children,
+  minWidth = 20,
+  ...rest
+}) {
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = width || 60;
+
+    const onMouseMove = (moveEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const newWidth = Math.max(minWidth, Math.round(startW + delta));
+      if (onResize && colKey) {
+        onResize(colKey, newWidth);
+      }
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const styleObj = width ? { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` } : undefined;
+
+  return (
+    <th
+      rowSpan={rowSpan}
+      colSpan={colSpan}
+      style={styleObj}
+      className={`relative group/th select-none ${className}`}
+      {...rest}
+    >
+      {children}
+      {colKey && onResize && (
+        <div
+          onMouseDown={onMouseDown}
+          onClick={(e) => e.stopPropagation()}
+          className="no-print absolute top-0 right-0 w-2.5 h-full cursor-col-resize opacity-0 group-hover/th:opacity-100 hover:opacity-100 hover:bg-amber-500 bg-indigo-400/40 transition-all z-30 flex items-center justify-center"
+          title="Click & Drag to resize column width"
+        >
+          <div className="w-[1.5px] h-3 bg-white rounded-full opacity-80" />
+        </div>
+      )}
+    </th>
+  );
+}
 
 // Convert date (DD-MM-YYYY or YYYY-MM-DD) to formal English words
 export function formatDateToWords(dateStr) {
@@ -180,6 +304,89 @@ export default function AdmissionRegisterSuite({
   const [showViewPopover, setShowViewPopover] = useState(false);
   const filtersPopoverRef = useRef(null);
   const viewPopoverRef = useRef(null);
+
+  // ─── DYNAMIC COLUMN WIDTHS & ROW HEIGHT STATE (FIREBASE-PRESERVED) ───
+  const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
+  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
+  const [isLayoutModified, setIsLayoutModified] = useState(false);
+  const [savingLayout, setSavingLayout] = useState(false);
+
+  // Load layout from Firebase on mount
+  useEffect(() => {
+    const loadFirebaseLayout = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'system_settings', 'admission_register_layout'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.columnWidths && typeof data.columnWidths === 'object') {
+            setColumnWidths(prev => ({ ...prev, ...data.columnWidths }));
+          }
+          if (data.rowHeight && typeof data.rowHeight === 'number') {
+            setRowHeight(data.rowHeight);
+          }
+          if (data.printMargin && typeof data.printMargin === 'number') {
+            setPrintMargin(data.printMargin);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load saved register layout from Firebase:', err);
+      }
+    };
+    loadFirebaseLayout();
+  }, []);
+
+  const handleColumnResize = (colKey, newWidth) => {
+    setColumnWidths(prev => ({
+      ...prev,
+      [colKey]: newWidth
+    }));
+    setIsLayoutModified(true);
+  };
+
+  const handleRowHeightChange = (newHeight) => {
+    setRowHeight(newHeight);
+    setIsLayoutModified(true);
+  };
+
+  const handleSaveLayoutToFirebase = async () => {
+    try {
+      setSavingLayout(true);
+      const layoutPayload = {
+        columnWidths,
+        rowHeight,
+        printMargin,
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'system_settings', 'admission_register_layout'), layoutPayload, { merge: true });
+      setIsLayoutModified(false);
+      setToast({
+        title: 'Layout Preserved to Firebase!',
+        desc: 'Custom column widths and row height saved as institution default.',
+        type: 'success'
+      });
+      logAdminActivity('UPDATE_REGISTER_LAYOUT', `Saved custom admission register column widths & row height (${rowHeight}px) to Firebase default.`);
+    } catch (err) {
+      console.error('Failed to save layout to Firebase:', err);
+      setToast({
+        title: 'Save Failed',
+        desc: err.message || 'Could not save layout to Firebase.',
+        type: 'error'
+      });
+    } finally {
+      setSavingLayout(false);
+    }
+  };
+
+  const handleResetLayoutToOriginal = () => {
+    setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+    setRowHeight(DEFAULT_ROW_HEIGHT);
+    setIsLayoutModified(false);
+    setToast({
+      title: 'Reset to Factory Defaults',
+      desc: 'Table column widths and row heights restored to original factory format.',
+      type: 'info'
+    });
+  };
 
   // Count active non-default filters
   const activeFiltersCount = useMemo(() => {
@@ -1372,7 +1579,7 @@ export default function AdmissionRegisterSuite({
 
       {/* ─── ULTRA-COMPACT CONSOLIDATED 1-ROW TOOLBAR ─── */}
       <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2.5 py-1">
-        <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-x-auto whitespace-nowrap">
+        <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-visible">
           {/* Left Cluster: Module Selector, Direct Class Scope, + Re-Adm, and Filters Popover */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {/* 1. Main Suite Module Dropdown */}
@@ -1441,7 +1648,7 @@ export default function AdmissionRegisterSuite({
 
                   {/* Filter Popover Dropdown Panel */}
                   {showFiltersPopover && (
-                    <div className="absolute left-0 mt-1 w-64 p-3 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 space-y-2.5 whitespace-normal animate-in fade-in zoom-in-95">
+                    <div className="absolute left-0 top-full mt-1.5 w-64 p-3 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] space-y-2.5 whitespace-normal animate-in fade-in zoom-in-95">
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
                         <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
                           <Filter size={12} className="text-amber-600" /> Filter Register
@@ -1468,7 +1675,7 @@ export default function AdmissionRegisterSuite({
                         <select
                           value={selectedSession}
                           onChange={(e) => setSelectedSession(e.target.value)}
-                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300"
+                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 cursor-pointer"
                         >
                           {availableSessions.map(sess => (
                             <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
@@ -1482,7 +1689,7 @@ export default function AdmissionRegisterSuite({
                         <select
                           value={selectedStatus}
                           onChange={(e) => setSelectedStatus(e.target.value)}
-                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-emerald-900 dark:text-emerald-200"
+                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-emerald-900 dark:text-emerald-200 cursor-pointer"
                         >
                           <option value="Approved">Approved ({statusCounts.approved})</option>
                           <option value="Submitted">Submitted ({statusCounts.submitted})</option>
@@ -1497,7 +1704,7 @@ export default function AdmissionRegisterSuite({
                         <select
                           value={selectedAdmissionType}
                           onChange={(e) => setSelectedAdmissionType(e.target.value)}
-                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800"
+                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 cursor-pointer"
                         >
                           <option value="ALL">All Types</option>
                           <option value="fresh">Fresh Only ({statusCounts.fresh})</option>
@@ -1512,7 +1719,7 @@ export default function AdmissionRegisterSuite({
                           <select
                             value={selectedStream}
                             onChange={(e) => setSelectedStream(e.target.value)}
-                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800"
+                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 cursor-pointer"
                           >
                             <option value="ALL">All Streams</option>
                             {availableStreams.map(str => (
@@ -1544,7 +1751,7 @@ export default function AdmissionRegisterSuite({
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
-                {/* 1. Grouped View & Layout Popover (Section, Book View, Margins, Zoom) */}
+                {/* 1. Grouped View & Layout Popover (Section, Book View, Margins, Row Height, Zoom, Firebase Presets) */}
                 <div className="relative shrink-0" ref={viewPopoverRef}>
                   <button
                     type="button"
@@ -1553,7 +1760,7 @@ export default function AdmissionRegisterSuite({
                       setShowFiltersPopover(false);
                     }}
                     className="py-0.5 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-50 shadow-2xs"
-                    title="View Section, Book Layout, Margins & Zoom Settings"
+                    title="View Section, Book Layout, Margins, Row Height & Zoom Settings"
                   >
                     <Eye size={11} className="text-indigo-600" />
                     <span>View & Layout</span>
@@ -1562,10 +1769,10 @@ export default function AdmissionRegisterSuite({
 
                   {/* View Popover Dropdown Panel */}
                   {showViewPopover && (
-                    <div className="absolute right-0 mt-1 w-64 p-3 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 space-y-2.5 whitespace-normal animate-in fade-in zoom-in-95">
+                    <div className="absolute right-0 top-full mt-1.5 w-72 p-3.5 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] space-y-3 whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
                       <div className="border-b border-slate-100 dark:border-slate-800 pb-1.5">
                         <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Eye size={12} className="text-indigo-600" /> Display & Print Settings
+                          <Eye size={12} className="text-indigo-600" /> Display & Table Layout
                         </span>
                       </div>
 
@@ -1576,7 +1783,7 @@ export default function AdmissionRegisterSuite({
                           <select
                             value={registerViewSection}
                             onChange={(e) => setRegisterViewSection(e.target.value)}
-                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800"
+                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 cursor-pointer"
                           >
                             <option value="all">📑 All Spreads (Full Register)</option>
                             <option value="cover">📜 Cover Page Only</option>
@@ -1619,6 +1826,37 @@ export default function AdmissionRegisterSuite({
                           </div>
                         </div>
                       )}
+
+                      {/* Dynamic Row Height Manager */}
+                      <div>
+                        <div className="flex items-center justify-between text-[10.5px] font-bold mb-0.5">
+                          <span className="text-slate-600 dark:text-slate-400">Row Height:</span>
+                          <span className="font-mono text-indigo-600 font-black">{rowHeight} px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="28"
+                          max="70"
+                          step="2"
+                          value={rowHeight}
+                          onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
+                          className="w-full cursor-pointer accent-indigo-600"
+                        />
+                        <div className="grid grid-cols-3 gap-1 pt-0.5">
+                          {[34, 44, 54].map(h => (
+                            <button
+                              key={h}
+                              type="button"
+                              onClick={() => handleRowHeightChange(h)}
+                              className={`py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                rowHeight === h ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                              }`}
+                            >
+                              {h === 34 ? 'Compact' : h === 44 ? 'Default' : 'Spacious'} ({h}px)
+                            </button>
+                          ))}
+                        </div>
+                      </div>
 
                       {/* Margins */}
                       <div>
@@ -1680,6 +1918,29 @@ export default function AdmissionRegisterSuite({
                             +
                           </button>
                         </div>
+                      </div>
+
+                      {/* Save to Firebase & Reset to Original Buttons */}
+                      <div className="border-t border-slate-200 dark:border-slate-800 pt-2.5 space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={handleSaveLayoutToFirebase}
+                          disabled={savingLayout}
+                          className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
+                          title="Save custom column widths, row height and margins to Firebase default"
+                        >
+                          {savingLayout ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                          <span>Set this to Default (Firebase)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetLayoutToOriginal}
+                          className="w-full py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                          title="Reset columns and row heights to original factory format"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Reset to Original Form</span>
+                        </button>
                       </div>
                     </div>
                   )}
@@ -2086,42 +2347,42 @@ export default function AdmissionRegisterSuite({
                           <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-6 h-grey">S.No.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10 h-grey">Photo</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 h-grey">Class Roll</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Form No.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Online Subm.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Adm. Date</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 h-grey">Adm. No.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 h-grey">Class</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24 h-grey">Board Reg. No.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-28 text-left pl-2 h-grey">Student's Name</th>
+                                <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.No.</ResizableTh>
+                                <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Photo</ResizableTh>
+                                <ResizableTh colKey="rollNo" width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Class Roll</ResizableTh>
+                                <ResizableTh colKey="formNo" width={columnWidths.formNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Form No.</ResizableTh>
+                                <ResizableTh colKey="onlineStatus" width={columnWidths.onlineStatus} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Online Subm.</ResizableTh>
+                                <ResizableTh colKey="admDate" width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Adm. Date</ResizableTh>
+                                <ResizableTh colKey="admNo" width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Adm. No.</ResizableTh>
+                                <ResizableTh colKey="class" width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Class</ResizableTh>
+                                <ResizableTh colKey="boardReg" width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Board Reg. No.</ResizableTh>
+                                <ResizableTh colKey="name" width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">Student's Name</ResizableTh>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Parentage</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Date of Birth</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10 h-grey">Gender</th>
+                                <ResizableTh colKey="gender" width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Gender</ResizableTh>
                                 <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">Residence</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">Contact</th>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
-                                <th className="border border-slate-900 px-1 py-0.5 h-grey">Father's Name</th>
-                                <th className="border border-slate-900 px-1 py-0.5 h-grey">Mother's Name</th>
-                                <th className="border border-slate-900 px-1 py-0.5 w-14 h-grey">Figures</th>
-                                <th className="border border-slate-900 px-1 py-0.5 w-24 h-grey">In Words</th>
-                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Village/Town</th>
-                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Block</th>
-                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Tehsil</th>
-                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">District</th>
-                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Student Mobile</th>
-                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Parent Mobile</th>
+                                <ResizableTh colKey="father" width={columnWidths.father} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Father's Name</ResizableTh>
+                                <ResizableTh colKey="mother" width={columnWidths.mother} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Mother's Name</ResizableTh>
+                                <ResizableTh colKey="dobFigures" width={columnWidths.dobFigures} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Figures</ResizableTh>
+                                <ResizableTh colKey="dobWords" width={columnWidths.dobWords} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">In Words</ResizableTh>
+                                <ResizableTh colKey="village" width={columnWidths.village} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Village/Town</ResizableTh>
+                                <ResizableTh colKey="block" width={columnWidths.block} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Block</ResizableTh>
+                                <ResizableTh colKey="tehsil" width={columnWidths.tehsil} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Tehsil</ResizableTh>
+                                <ResizableTh colKey="district" width={columnWidths.district} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">District</ResizableTh>
+                                <ResizableTh colKey="mobile" width={columnWidths.mobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Student Mobile</ResizableTh>
+                                <ResizableTh colKey="parentMobile" width={columnWidths.parentMobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Parent Mobile</ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
                               {chunk.map((s) => {
                                 const photoSrc = getResolvedStudentPhoto(s);
                                 return (
-                                  <tr key={s.id} className="h-11 hover:bg-slate-50 group">
+                                  <tr key={s.id} style={{ height: `${rowHeight}px` }} className="hover:bg-slate-50 group">
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
-                                    <td className="border border-slate-900 p-0 text-center w-10 h-11 overflow-hidden bg-slate-50 print:bg-transparent">
+                                    <td className="border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined }}>
                                       {photoSrc ? (
                                         <img
                                           src={photoSrc}
@@ -2224,31 +2485,31 @@ export default function AdmissionRegisterSuite({
                           <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Stream</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24 h-grey">Subjects</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-200 text-slate-900 h-yellow">Aadhaar No.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-200 text-slate-900 h-yellow">Soc. Cat.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-200 text-slate-900 h-yellow">Socio-Econ</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-200 text-slate-900 h-yellow">Blood</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-200 text-slate-900 h-yellow">A/C No.</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 bg-yellow-200 text-slate-900 h-yellow">IFSC</th>
+                                <ResizableTh colKey="p2_stream" width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Stream</ResizableTh>
+                                <ResizableTh colKey="p2_subs" width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Subjects</ResizableTh>
+                                <ResizableTh colKey="p2_aadhar" width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Aadhaar No.</ResizableTh>
+                                <ResizableTh colKey="p2_cat" width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Soc. Cat.</ResizableTh>
+                                <ResizableTh colKey="p2_socio" width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Socio-Econ</ResizableTh>
+                                <ResizableTh colKey="p2_blood" width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Blood</ResizableTh>
+                                <ResizableTh colKey="p2_account" width={columnWidths.p2_account} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C No.</ResizableTh>
+                                <ResizableTh colKey="p2_ifsc" width={columnWidths.p2_ifsc} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">IFSC</ResizableTh>
                                 <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Previous Academic Record</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 h-grey">PEN (UDISE)</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-18 text-emerald-800 bg-emerald-100 h-green">Admtd. Vide DC/CC</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 text-red-800 bg-red-100 h-red">Withdrawal</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-red-800 bg-red-100 h-red">Issued DC/CC</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-32 text-red-800 bg-red-100 h-red">Receipt</th>
-                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 h-grey">Remarks</th>
+                                <ResizableTh colKey="p2_pen" width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
+                                <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-800 bg-emerald-100 h-green">Admtd. Vide DC/CC</ResizableTh>
+                                <ResizableTh colKey="p2_withdrawal" width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-red-800 bg-red-100 h-red">Withdrawal</ResizableTh>
+                                <ResizableTh colKey="p2_issuedCC" width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-red-800 bg-red-100 h-red">Issued DC/CC</ResizableTh>
+                                <ResizableTh colKey="p2_receipt" width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-red-800 bg-red-100 h-red">Receipt</ResizableTh>
+                                <ResizableTh colKey="p2_remarks" width={columnWidths.p2_remarks} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Remarks</ResizableTh>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
-                                <th className="border border-slate-900 px-1 py-0.5 h-grey">Previous School</th>
-                                <th className="border border-slate-900 px-1 py-0.5 w-12 h-grey">Prev Roll</th>
-                                <th className="border border-slate-900 px-1 py-0.5 w-12 h-grey">Prev Result</th>
+                                <ResizableTh colKey="p2_prevSchool" width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Previous School</ResizableTh>
+                                <ResizableTh colKey="p2_prevRoll" width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Prev Roll</ResizableTh>
+                                <ResizableTh colKey="p2_prevResult" width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Prev Result</ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
                               {chunk.map((s) => (
-                                <tr key={s.id} className="h-11 hover:bg-slate-50">
+                                <tr key={s.id} style={{ height: `${rowHeight}px` }} className="hover:bg-slate-50">
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium">{s.subs}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font">{s.aadhar}</td>
@@ -2474,31 +2735,31 @@ export default function AdmissionRegisterSuite({
                       <table className="w-full text-left text-[9px] border-collapse border border-slate-900 ledger-data-font">
                         <thead>
                           <tr className={`${themeHeaderBg} uppercase font-black text-center text-[8.5px]`}>
-                            <th className="border border-slate-900 px-1 py-1 w-10">S.No.<br /><span className="text-[7px] opacity-80">[Adm No.]</span></th>
-                            <th className="border border-slate-900 px-1 py-1 w-10">Class<br />Roll No.</th>
-                            <th className="border border-slate-900 px-1 py-1 w-10">Photo</th>
-                            <th className="border border-slate-900 px-1 py-1 w-24">Board<br />Reg. No.</th>
-                            <th className="border border-slate-900 px-1 py-1 w-32 text-left pl-2">Student's Name</th>
-                            <th className="border border-slate-900 px-1 py-1 w-32 text-left pl-2">Parentage<br /><span className="text-[6.5px] opacity-80">(Father / Mother)</span></th>
-                            <th className="border border-slate-900 px-1 py-1 w-16">Date of Birth</th>
-                            <th className="border border-slate-900 px-1 py-1 w-16">Subjects</th>
-                            <th className="border border-slate-900 px-1 py-1 w-16">Board<br />Roll No.</th>
-                            <th className="border border-slate-900 px-1 py-1 w-12">Result</th>
-                            <th className="border border-slate-900 px-1 py-1 w-14">Admit Card<br />Receipt</th>
-                            <th className="border border-slate-900 px-1 py-1 w-36">Marks Card / Certificate Receipt</th>
+                            <ResizableTh colKey="st_sno" width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">S.No.<br /><span className="text-[7px] opacity-80">[Adm No.]</span></ResizableTh>
+                            <ResizableTh colKey="st_rollNo" width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Class<br />Roll No.</ResizableTh>
+                            <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Photo</ResizableTh>
+                            <ResizableTh colKey="st_boardReg" width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Board<br />Reg. No.</ResizableTh>
+                            <ResizableTh colKey="st_name" width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2">Student's Name</ResizableTh>
+                            <ResizableTh colKey="st_parentage" width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2">Parentage<br /><span className="text-[6.5px] opacity-80">(Father / Mother)</span></ResizableTh>
+                            <ResizableTh colKey="st_dob" width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Date of Birth</ResizableTh>
+                            <ResizableTh colKey="st_subs" width={columnWidths.st_subs} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Subjects</ResizableTh>
+                            <ResizableTh colKey="st_boardRoll" width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Board<br />Roll No.</ResizableTh>
+                            <ResizableTh colKey="st_result" width={columnWidths.st_result} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Result</ResizableTh>
+                            <ResizableTh colKey="st_admitReceipt" width={columnWidths.st_admitReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Admit Card<br />Receipt</ResizableTh>
+                            <ResizableTh colKey="st_marksReceipt" width={columnWidths.st_marksReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Marks Card / Certificate Receipt</ResizableTh>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-900 text-slate-900">
                           {chunk.map((s) => {
                             const photoSrc = getResolvedStudentPhoto(s);
                             return (
-                              <tr key={s.id} className="h-12 hover:bg-slate-50">
+                              <tr key={s.id} style={{ height: `${rowHeight}px` }} className="hover:bg-slate-50">
                                 <td className="border border-slate-900 px-1 py-0.5 text-center">
                                   <div className="font-black text-xs ledger-mono-font">{s.sno}</div>
                                   <div className="text-[7.5px] font-mono text-slate-500 ledger-mono-font">[{s.admNo || '—'}]</div>
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800 ledger-mono-font">{s.rollNo}</td>
-                                <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-50 print:bg-transparent">
+                                <td className="border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined }}>
                                   {photoSrc ? (
                                     <img
                                       src={photoSrc}
@@ -2867,6 +3128,37 @@ export default function AdmissionRegisterSuite({
           )}
         </div>
       </main>
+
+      {/* Floating Notification & Action Bar when Custom Layout is Modified */}
+      {isLayoutModified && (
+        <div className="no-print fixed bottom-5 right-5 z-[120] bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border-2 border-amber-500/80 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
+          <div className="flex items-center gap-1.5 text-xs font-black text-amber-300">
+            <SlidersHorizontal size={14} className="text-amber-400" />
+            <span>Table Layout Modified</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSaveLayoutToFirebase}
+              disabled={savingLayout}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50"
+              title="Save custom column widths and row height to Firebase default"
+            >
+              {savingLayout ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              <span>Set to Default (Firebase)</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleResetLayoutToOriginal}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              title="Reset columns and row heights to original factory format"
+            >
+              <RotateCcw size={12} />
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
