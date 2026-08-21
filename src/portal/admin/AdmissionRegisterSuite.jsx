@@ -86,13 +86,17 @@ function cleanStr(val) {
   return String(val).trim();
 }
 
-// Business status evaluation (Students with roll numbers or explicit approved status are Approved)
-function resolveEffectiveStatus(s) {
-  const roll = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo);
-  const hasRollNo = roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A';
-  const rawStat = cleanStr(s.status || s.Status || s.admissionStatus || s['Status'] || s['Admission Status'] || '').toLowerCase();
+// Check if student has been assigned a Class Roll Number
+export function hasAssignedClassRollNo(s) {
+  const roll = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no || s['Roll No'] || s['Roll No.']);
+  return roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined' && roll !== '0';
+}
 
-  if (hasRollNo || rawStat.includes('approv')) return 'Approved';
+// Business status evaluation: Approved strictly means those assigned a Class Roll Number
+function resolveEffectiveStatus(s) {
+  if (hasAssignedClassRollNo(s)) return 'Approved';
+
+  const rawStat = cleanStr(s.status || s.Status || s.admissionStatus || s['Status'] || s['Admission Status'] || '').toLowerCase();
   if (rawStat.includes('reject') || rawStat.includes('rejt')) return 'Rejected';
   if (rawStat.includes('draft')) return 'Draft';
   if (rawStat.includes('provis')) return 'Provisional';
@@ -888,10 +892,10 @@ export default function AdmissionRegisterSuite({
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   className="p-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200"
                 >
-                  <option value="Approved">Approved ({statusCounts.approved})</option>
-                  <option value="Submitted">Submitted & Approved ({statusCounts.approved + statusCounts.submitted})</option>
+                  <option value="Approved">Approved (Assigned Roll No: {statusCounts.approved})</option>
+                  <option value="Submitted">Submitted (Pending Roll No: {statusCounts.submitted})</option>
                   <option value="Provisional">Provisional ({statusCounts.provisional})</option>
-                  <option value="ALL">All Applications ({statusCounts.total})</option>
+                  <option value="ALL">All Records ({statusCounts.total})</option>
                 </select>
               </div>
 
