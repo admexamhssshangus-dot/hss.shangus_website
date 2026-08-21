@@ -1,0 +1,1564 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import {
+  BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer, Download,
+  RefreshCw, Check, Search, ArrowLeft, ZoomIn, ZoomOut,
+  Plus, Trash2, FileCheck
+} from 'lucide-react';
+import { db } from '../../services/firebase';
+import { doc, writeBatch, collection, getDocs } from 'firebase/firestore';
+import { updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
+import { logAdminActivity } from '../../services/adminActivityLogger';
+
+const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
+const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
+
+// Convert date (DD-MM-YYYY or YYYY-MM-DD) to formal English words
+export function formatDateToWords(dateStr) {
+  if (!dateStr) return '—';
+  try {
+    let clean = String(dateStr).trim();
+    let day = 0, month = 0, year = 0;
+    if (clean.includes('-')) {
+      const parts = clean.split('-');
+      if (parts[0].length === 4) {
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10);
+        day = parseInt(parts[2], 10);
+      } else {
+        day = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10);
+        year = parseInt(parts[2], 10);
+      }
+    } else if (clean.includes('/')) {
+      const parts = clean.split('/');
+      day = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10);
+      year = parseInt(parts[2], 10);
+    }
+    if (!day || !month || !year || isNaN(day) || isNaN(month) || isNaN(year)) return clean;
+
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = months[month - 1] || '';
+
+    const ones = [
+      "", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth",
+      "Eleventh", "Twelfth", "Thirteenth", "Fourteenth", "Fifteenth", "Sixteenth", "Seventeenth", "Eighteenth", "Nineteenth", "Twentieth",
+      "Twenty-First", "Twenty-Second", "Twenty-Third", "Twenty-Fourth", "Twenty-Fifth", "Twenty-Sixth", "Twenty-Seventh", "Twenty-Eighth", "Twenty-Ninth", "Thirtieth", "Thirty-First"
+    ];
+
+    const yOnes = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+    const yTens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+    function yearToWords(y) {
+      if (y >= 2000 && y <= 2099) {
+        const rem = y % 2000;
+        if (rem === 0) return "Two Thousand";
+        if (rem < 20) return "Two Thousand " + yOnes[rem];
+        return "Two Thousand " + yTens[Math.floor(rem / 10)] + (rem % 10 > 0 ? " " + yOnes[rem % 10] : "");
+      }
+      if (y >= 1900 && y <= 1999) {
+        const rem = y % 1900;
+        let w = "Nineteen Hundred";
+        if (rem > 0) {
+          if (rem < 20) w += " " + yOnes[rem];
+          else w += " " + yTens[Math.floor(rem / 10)] + (rem % 10 > 0 ? " " + yOnes[rem % 10] : "");
+        }
+        return w;
+      }
+      return String(y);
+    }
+
+    const dayWord = ones[day] || String(day);
+    const yWord = yearToWords(year);
+    return `${dayWord} of ${monthName} ${yWord}`;
+  } catch (e) {
+    return String(dateStr);
+  }
+}
+
+// Clean helper values
+function cleanStr(val) {
+  if (!val || val === '—' || val === 'N/A' || val === 'undefined' || val === 'null' || val === '-') return '';
+  return String(val).trim();
+}
+
+function formatBoardRegSplit(val) {
+  const s = cleanStr(val);
+  if (!s) return '—';
+  if (s.length > 12) {
+    return (
+      <div className="leading-tight">
+        <span className="font-extrabold">{s.substring(0, 12)}</span>
+        <br />
+        <span className="font-bold text-slate-600 dark:text-slate-400">{s.substring(12)}</span>
+      </div>
+    );
+  }
+  return <span className="font-bold">{s}</span>;
+}
+
+export default function AdmissionRegisterSuite({
+  students: propStudents,
+  allHistory: propAllHistory,
+  onClose: propOnClose,
+  onDataUpdated,
+  user: propUser,
+  initialTab = 'adm_register'
+}) {
+  const navigate = useNavigate();
+  const outletCtx = useOutletContext?.() || {};
+  const user = propUser || outletCtx?.user;
+  const onClose = propOnClose || (() => navigate('/portal/admin'));
+
+  // Internal dataset state (supports standalone route or embedded mode)
+  const [dataset, setDataset] = useState(() => {
+    if (Array.isArray(propStudents) && propStudents.length > 0) return propStudents;
+    const cached = getCachedCollectionSync('admissions');
+    return Array.isArray(cached) && cached.length > 0 ? cached : [];
+  });
+
+  const [historyDataset, setHistoryDataset] = useState(() => {
+    if (Array.isArray(propAllHistory) && propAllHistory.length > 0) return propAllHistory;
+    const cached = getCachedCollectionSync('masterRegisters');
+    return Array.isArray(cached) && cached.length > 0 ? cached : [];
+  });
+
+  useEffect(() => {
+    if (Array.isArray(propStudents) && propStudents.length > 0) {
+      setDataset(propStudents);
+    } else if (dataset.length === 0) {
+      getDocs(collection(db, 'admissions')).then(snap => {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setDataset(list);
+      }).catch(err => console.error('Failed to fetch admissions:', err));
+    }
+  }, [propStudents]);
+
+  // Main Suite Tab: 'adm_register' | 'sentup' | 'assign_ids' | 'assign_dates'
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Global Filter States
+  const [selectedSession, setSelectedSession] = useState('2025-26');
+  const [selectedClass, setSelectedClass] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [zoomLevel, setZoomLevel] = useState(1.0);
+  const [toast, setToast] = useState(null);
+
+  // Available sessions in dataset
+  const availableSessions = useMemo(() => {
+    const set = new Set(['2025-26', '2024-25', '2026-27']);
+    dataset.forEach(s => {
+      const sess = cleanStr(s.session || s.Session || s['Academic Session']);
+      if (sess) set.add(sess);
+    });
+    return Array.from(set).sort().reverse();
+  }, [dataset]);
+
+  // Normalized Student Object Mapper
+  const normalizedStudents = useMemo(() => {
+    return (dataset || []).map((s, idx) => {
+      const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
+      const sess = cleanStr(s.session || s.Session || s['Academic Session'] || '2025-26');
+      const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo);
+      const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s.admissionNumber);
+      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo);
+      const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']);
+      const name = cleanStr(s.studentName || s["Student's Name (as per school records)"] || s['Student Name'] || s.name);
+      const father = cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.father);
+      const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s.mother);
+      const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['Date of Birth']);
+      const gender = cleanStr(s.gender || s.Gender || 'Male');
+      const stream = cleanStr(s.stream || s.Stream || 'General');
+      const subs = cleanStr(s.subs || s.subjects || s.Subjects || s['Subjects Chosen'] || '');
+      const aadhar = cleanStr(s.aadhar || s['Aadhar No.'] || s.aadhaar || s['Aadhaar No.']);
+      const village = cleanStr(s.village || s['Name of your village'] || s['Village/Town']);
+      const block = cleanStr(s.block || s.Block || s['Block/Zone'] || 'Shangus');
+      const tehsil = cleanStr(s.tehsil || s.Tehsil || 'Shangus');
+      const district = cleanStr(s.district || s.District || 'Anantnag');
+      const mobile = cleanStr(s.mobile || s['Mobile No. (with working WhatsApp)'] || s['Student Mobile']);
+      const parentMobile = cleanStr(s.parentContact || s["Father's Mobile No."] || s['Parent Mobile']);
+      const category = cleanStr(s.category || s['Cat._JKBOSE'] || s['Social Category'] || 'OM');
+      const socioEcon = cleanStr(s.socioEconomic || s['Socio-Economic Category'] || 'AAY/BPL');
+      const blood = cleanStr(s.blood || s['Blood Group'] || s.bloodGroup || '—');
+      const account = cleanStr(s.bankAccount || s['Bank Account No.'] || s.accountNo);
+      const ifsc = cleanStr(s.ifsc || s['IFSC code'] || s.ifscCode);
+      const pen = cleanStr(s.penNo || s['PEN No.'] || s.pen || 'NA');
+      const prevSchool = cleanStr(s.prevSchool || s['Previous School'] || s['Name of Previous School']);
+      const prevRoll = cleanStr(s.prevExamRollNo || s['Previous Exam Roll No'] || s.examRoll10th);
+      const prevMarks = cleanStr(s.marksObt || s['Marks Obtained'] || s.marksObt10th);
+      const maxMarks = cleanStr(s.maxMarks || s['Max Marks'] || '500');
+      const prevResult = prevMarks ? `${prevMarks} / ${maxMarks}` : '—';
+      const admDate = cleanStr(s.admDate || s['Adm. Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
+      const onlineStatus = cleanStr(s.onlineSubmDate || s.submittedAt?.slice(0, 10) || 'Submitted');
+      const photo = s.photoUrl || s.photo_id || s['Student Photo'] || s.photo || '';
+      const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
+
+      return {
+        raw: s,
+        id: docId,
+        sno: idx + 1,
+        formNo,
+        admNo,
+        rollNo,
+        boardReg,
+        name,
+        father,
+        mother,
+        dobFigures: dob,
+        dobWords: formatDateToWords(dob),
+        gender,
+        class: cls,
+        session: sess,
+        stream,
+        subs,
+        aadhar,
+        village,
+        block,
+        tehsil,
+        district,
+        mobile,
+        parentMobile,
+        category,
+        socioEcon,
+        blood,
+        account,
+        ifsc,
+        pen,
+        prevSchool,
+        prevRoll,
+        prevResult,
+        admDate,
+        onlineStatus,
+        photo,
+        prevCC: prevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC',
+        withdrawal: '—',
+        remarks: cleanStr(s.remarks || s.Remarks || '')
+      };
+    });
+  }, [dataset]);
+
+  // Filtered Students for Current View
+  const filteredStudents = useMemo(() => {
+    return normalizedStudents.filter(s => {
+      if (selectedSession !== 'ALL' && s.session !== selectedSession) return false;
+      if (selectedClass !== 'ALL') {
+        const matchCls = s.class.toLowerCase().replace(/[^0-9a-z]/g, '');
+        const targetCls = selectedClass.toLowerCase().replace(/[^0-9a-z]/g, '');
+        if (!matchCls.includes(targetCls)) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          s.name.toLowerCase().includes(q) ||
+          s.father.toLowerCase().includes(q) ||
+          s.rollNo.toLowerCase().includes(q) ||
+          s.admNo.toLowerCase().includes(q) ||
+          s.formNo.toLowerCase().includes(q) ||
+          s.boardReg.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    }).sort((a, b) => {
+      const rA = parseInt(a.rollNo, 10) || 0;
+      const rB = parseInt(b.rollNo, 10) || 0;
+      if (rA !== rB && rA > 0 && rB > 0) return rA - rB;
+      return a.name.localeCompare(b.name);
+    });
+  }, [normalizedStudents, selectedSession, selectedClass, searchQuery]);
+
+  // 10 Students Per Page Chunks for Legal Print Layout
+  const STUDENTS_PER_PAGE = 10;
+  const pageChunks = useMemo(() => {
+    const chunks = [];
+    for (let i = 0; i < filteredStudents.length; i += STUDENTS_PER_PAGE) {
+      chunks.push(filteredStudents.slice(i, i + STUDENTS_PER_PAGE));
+    }
+    return chunks;
+  }, [filteredStudents]);
+
+  // Consolidated Summary Breakdown Stats
+  const summaryStats = useMemo(() => {
+    const map = {};
+    filteredStudents.forEach(s => {
+      const c = s.class || '11th';
+      const str = s.stream || 'General';
+      if (!map[c]) map[c] = {};
+      if (!map[c][str]) map[c][str] = { male: 0, female: 0, total: 0 };
+      const isFemale = s.gender.toLowerCase().startsWith('f');
+      if (isFemale) map[c][str].female++;
+      else map[c][str].male++;
+      map[c][str].total++;
+    });
+    return map;
+  }, [filteredStudents]);
+
+  // Total Counts
+  const overallSummaryTotals = useMemo(() => {
+    let m = 0, f = 0, tot = 0;
+    filteredStudents.forEach(s => {
+      const isFemale = s.gender.toLowerCase().startsWith('f');
+      if (isFemale) f++;
+      else m++;
+      tot++;
+    });
+    return { male: m, female: f, grandTotal: tot };
+  }, [filteredStudents]);
+
+  // Editable Register Notes Page State
+  const [registerNotes, setRegisterNotes] = useState([
+    {
+      id: 1,
+      text: "Details of columns with Yellow background in their header have been copied/adapted from students' response (Online Admission Form); remaining details have been verified from original records."
+    },
+    {
+      id: 2,
+      text: "The students with the comment 'Internal (HSS Shangus)' under the 'Admtd. Vide DC/CC' column studied their previous class at Govt Hr Sec School Shangus. Admission was granted based on mark sheets and internal promotion records."
+    },
+    {
+      id: 3,
+      text: "Abbreviations of Subjects used: BI (Biology), CH (Chemistry), EC (Economics), ED (Education), EN (General English), ES (Environmental Science), HT (History), HTC (Healthcare), ITE (IT & ITES), MA (Mathematics), PD (Physical Education), PH (Physics), PS (Political Science), and UR (Urdu)."
+    },
+    {
+      id: 4,
+      text: "Fresh admission numbers have been assigned to students re-joining after an academic gap or those readmitted due to non-appearance in prior exams. Previous admission numbers are recorded in brackets for historical auditing."
+    }
+  ]);
+
+  const handleAddNote = () => {
+    const newId = registerNotes.length > 0 ? Math.max(...registerNotes.map(n => n.id)) + 1 : 1;
+    setRegisterNotes([...registerNotes, { id: newId, text: 'New verification note or institutional remark...' }]);
+  };
+
+  const handleRemoveNote = (id) => {
+    setRegisterNotes(registerNotes.filter(n => n.id !== id));
+  };
+
+  const handleUpdateNote = (id, newText) => {
+    setRegisterNotes(registerNotes.map(n => n.id === id ? { ...n, text: newText } : n));
+  };
+
+  // -------------------------------------------------------------
+  // ASSIGN IDs ENGINE STATE & LOGIC
+  // -------------------------------------------------------------
+  const [assignStartId, setAssignStartId] = useState('5476');
+  const [assigningIds, setAssigningIds] = useState(false);
+  const [assignClasses, setAssignClasses] = useState(['9th', '11th']);
+  const [assignSessionFilter, setAssignSessionFilter] = useState('2025-26');
+  const [onlyMissingAdmNo, setOnlyMissingAdmNo] = useState(true);
+  const [assignStrategies, setAssignStrategies] = useState({});
+
+  // Auto calculate highest existing Adm No
+  const calculatedNextAdmNo = useMemo(() => {
+    let maxId = 5000;
+    normalizedStudents.forEach(s => {
+      const num = parseInt(s.admNo, 10);
+      if (!isNaN(num) && num > maxId && num < 99999) {
+        maxId = num;
+      }
+    });
+    return String(maxId + 1);
+  }, [normalizedStudents]);
+
+  // Set default auto-calculated start ID once on load
+  useEffect(() => {
+    if (calculatedNextAdmNo && (!assignStartId || assignStartId === '5476')) {
+      setAssignStartId(calculatedNextAdmNo);
+    }
+  }, [calculatedNextAdmNo]);
+
+  // Candidate students for ID assignment
+  const candidateAssignStudents = useMemo(() => {
+    return normalizedStudents.filter(st => {
+      if (assignSessionFilter !== 'ALL' && st.session !== assignSessionFilter) return false;
+      if (assignClasses.length > 0) {
+        const match = assignClasses.some(c => st.class.toLowerCase().includes(c.toLowerCase().replace(/[^0-9a-z]/g, '')));
+        if (!match) return false;
+      }
+      if (onlyMissingAdmNo) {
+        if (st.admNo && st.admNo !== '—' && st.admNo !== 'N/A') return false;
+      }
+      return true;
+    });
+  }, [normalizedStudents, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
+
+  // Preview list with strategies
+  const candidateIdPreviewList = useMemo(() => {
+    let seqCounter = parseInt(assignStartId, 10) || 5476;
+    return candidateAssignStudents.map(st => {
+      // Check historical inheritance via Board Reg No
+      const reg = st.boardReg;
+      let prevInfo = null;
+      if (reg && reg.length > 5) {
+        const histMatch = (historyDataset || []).find(h => {
+          const hReg = cleanStr(h.boardRegNo || h['Board Registration Number']);
+          const hAdm = cleanStr(h.admNo || h['Adm. No.']);
+          return hReg === reg && hAdm && h.id !== st.id;
+        });
+        if (histMatch) {
+          prevInfo = {
+            admNo: cleanStr(histMatch.admNo || histMatch['Adm. No.']),
+            class: cleanStr(histMatch.class || histMatch.Class || '10th'),
+            session: cleanStr(histMatch.session || histMatch.Session || '')
+          };
+        }
+      }
+
+      const userStrat = assignStrategies[st.id];
+      const strat = userStrat || (prevInfo ? 'inherit_prev' : 'assign_new');
+
+      let proposed = '—';
+      if (strat === 'assign_new') {
+        proposed = String(seqCounter);
+        seqCounter++;
+      } else if (strat === 'inherit_prev' && prevInfo) {
+        proposed = prevInfo.admNo;
+      } else if (strat === 'skip') {
+        proposed = st.admNo || '—';
+      }
+
+      return {
+        student: st,
+        currentAdm: st.admNo,
+        prevInfo,
+        strat,
+        proposed
+      };
+    });
+  }, [candidateAssignStudents, assignStartId, assignStrategies, historyDataset]);
+
+  const handleRunAssignIds = async () => {
+    if (candidateIdPreviewList.length === 0) {
+      setToast({ message: '⚠️ No eligible students selected for assignment.', type: 'error' });
+      return;
+    }
+
+    setAssigningIds(true);
+    let count = 0;
+    try {
+      const batch = writeBatch(db);
+      const todayDate = new Date().toISOString().split('T')[0];
+
+      for (const item of candidateIdPreviewList) {
+        const { student, proposed, strat } = item;
+        if (!proposed || proposed === '—' || strat === 'skip') continue;
+
+        const docRef = doc(db, 'admissions', student.id);
+        const payload = {
+          'Adm. No.': proposed,
+          admNo: proposed,
+          'Adm. Date': student.admDate || todayDate,
+          updatedAt: new Date().toISOString(),
+          lastEditedBy: `Admin (${user?.email || 'Assign IDs'})`
+        };
+        batch.set(docRef, payload, { merge: true });
+        updateCachedItem('admissions', student.id, payload);
+        count++;
+      }
+
+      await batch.commit();
+
+      await logAdminActivity({
+        actionType: 'batch_id_assign',
+        actionTitle: 'Bulk Assigned Admission Numbers',
+        details: `Assigned admission numbers to ${count} students in session ${assignSessionFilter}.`,
+        metadata: { count, session: assignSessionFilter }
+      });
+
+      setToast({ message: `✨ Successfully assigned Admission Numbers to ${count} students!`, type: 'success' });
+      if (onDataUpdated) onDataUpdated();
+    } catch (err) {
+      console.error('Assign IDs batch error:', err);
+      setToast({ message: `❌ Error assigning IDs: ${err.message}`, type: 'error' });
+    } finally {
+      setAssigningIds(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // ASSIGN DATES ENGINE STATE & LOGIC
+  // -------------------------------------------------------------
+  const [assignDateValue, setAssignDateValue] = useState(new Date().toISOString().split('T')[0]);
+  const [assignDateField, setAssignDateField] = useState('admDate');
+  const [assignDateSession, setAssignDateSession] = useState('2025-26');
+  const [assignDateClass, setAssignDateClass] = useState('ALL');
+  const [assigningDates, setAssigningDates] = useState(false);
+
+  const dateTargetStudents = useMemo(() => {
+    return normalizedStudents.filter(st => {
+      if (assignDateSession !== 'ALL' && st.session !== assignDateSession) return false;
+      if (assignDateClass !== 'ALL' && !st.class.toLowerCase().includes(assignDateClass.toLowerCase().replace(/[^0-9a-z]/g, ''))) return false;
+      return true;
+    });
+  }, [normalizedStudents, assignDateSession, assignDateClass]);
+
+  const handleRunAssignDates = async () => {
+    if (dateTargetStudents.length === 0) {
+      setToast({ message: '⚠️ No students match the selected session and class scope.', type: 'error' });
+      return;
+    }
+    setAssigningDates(true);
+    try {
+      const batch = writeBatch(db);
+      const fieldKey = assignDateField === 'admDate' ? 'Adm. Date' : 'Online Subm. Date';
+      const aliasKey = assignDateField === 'admDate' ? 'admDate' : 'onlineSubmDate';
+
+      for (const st of dateTargetStudents) {
+        const docRef = doc(db, 'admissions', st.id);
+        const payload = {
+          [fieldKey]: assignDateValue,
+          [aliasKey]: assignDateValue,
+          updatedAt: new Date().toISOString(),
+          lastEditedBy: `Admin (${user?.email || 'Assign Dates'})`
+        };
+        batch.set(docRef, payload, { merge: true });
+        updateCachedItem('admissions', st.id, payload);
+      }
+
+      await batch.commit();
+
+      await logAdminActivity({
+        actionType: 'batch_date_assign',
+        actionTitle: `Bulk Assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Submission Date'}`,
+        details: `Assigned date ${assignDateValue} to ${dateTargetStudents.length} students.`,
+        metadata: { date: assignDateValue, count: dateTargetStudents.length }
+      });
+
+      setToast({ message: `✨ Applied date (${assignDateValue}) to ${dateTargetStudents.length} records!`, type: 'success' });
+      if (onDataUpdated) onDataUpdated();
+    } catch (err) {
+      console.error('Assign Dates error:', err);
+      setToast({ message: `❌ Failed to assign dates: ${err.message}`, type: 'error' });
+    } finally {
+      setAssigningDates(false);
+    }
+  };
+
+  // CSV Export for Admission Register
+  const handleExportRegisterCSV = () => {
+    if (filteredStudents.length === 0) return;
+    const headers = [
+      'S.No.', 'Class Roll No.', 'Form No.', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Class', 'Board Reg. No.',
+      "Student's Name", "Father's Name", "Mother's Name", 'DOB (Figures)', 'DOB (Words)', 'Gender',
+      'Village/Town', 'Block', 'Tehsil', 'District', 'Mobile (Student)', 'Mobile (Parent)',
+      'Stream', 'Subjects', 'Aadhaar No.', 'Social Category', 'Socio-Econ Category', 'Blood Group',
+      'Bank Account No.', 'IFSC Code', 'PEN (UDISE)', 'Previous School', 'Prev Roll No', 'Prev Result',
+      'Admtd. Vide DC/CC', 'Withdrawal Date', 'Remarks'
+    ];
+
+    const rows = filteredStudents.map(s => [
+      s.sno,
+      `"${s.rollNo}"`,
+      `"${s.formNo}"`,
+      `"${s.onlineStatus}"`,
+      `"${s.admDate}"`,
+      `"${s.admNo}"`,
+      `"${s.class}"`,
+      `"${s.boardReg}"`,
+      `"${s.name}"`,
+      `"${s.father}"`,
+      `"${s.mother}"`,
+      `"${s.dobFigures}"`,
+      `"${s.dobWords}"`,
+      `"${s.gender}"`,
+      `"${s.village}"`,
+      `"${s.block}"`,
+      `"${s.tehsil}"`,
+      `"${s.district}"`,
+      `"${s.mobile}"`,
+      `"${s.parentMobile}"`,
+      `"${s.stream}"`,
+      `"${s.subs}"`,
+      `"${s.aadhar}"`,
+      `"${s.category}"`,
+      `"${s.socioEcon}"`,
+      `"${s.blood}"`,
+      `"${s.account}"`,
+      `"${s.ifsc}"`,
+      `"${s.pen}"`,
+      `"${s.prevSchool}"`,
+      `"${s.prevRoll}"`,
+      `"${s.prevResult}"`,
+      `"${s.prevCC}"`,
+      `"${s.withdrawal}"`,
+      `"${s.remarks}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `HSS_Shangus_Official_Admission_Register_${selectedSession}_${selectedClass}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // CSV Export for Sentup
+  const handleExportSentupCSV = () => {
+    if (filteredStudents.length === 0) return;
+    const headers = [
+      'S.No.', 'Adm. No.', 'Class Roll No.', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
+      'Date of Birth', 'Class', 'Session', 'Stream', 'Subjects', 'Board Roll No.', 'Result'
+    ];
+
+    const rows = filteredStudents.map(s => [
+      s.sno,
+      `"${s.admNo}"`,
+      `"${s.rollNo}"`,
+      `"${s.boardReg}"`,
+      `"${s.name}"`,
+      `"${s.father}"`,
+      `"${s.mother}"`,
+      `"${s.dobFigures}"`,
+      `"${s.class}"`,
+      `"${s.session}"`,
+      `"${s.stream}"`,
+      `"${s.subs}"`,
+      `"${s.raw?.exam_r_no_current || ''}"`,
+      `"${s.raw?.result_current || ''}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `HSS_Shangus_JKBOSE_Sentup_List_${selectedSession}_${selectedClass}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+      {/* ─── TOP SUITE NAVIGATION & CONTROLS HEADER (HIDDEN ON PRINT) ─── */}
+      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm px-4 py-2.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+          {/* Left: Title & Back Button */}
+          <div className="flex items-center gap-3">
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold transition-all shadow-xs flex items-center gap-1 text-xs cursor-pointer"
+                title="Return to Admin Dashboard"
+              >
+                <ArrowLeft size={14} />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+            )}
+            <div>
+              <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <BookOpen size={20} className="text-amber-600 dark:text-amber-400" />
+                <span>Admission Register & Sentup Suite</span>
+              </h1>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                Official School Ledgers, JKBOSE Sentup Rolls, Sequential ID Engine & Date Assigners
+              </p>
+            </div>
+          </div>
+
+          {/* Center: Suite Tab Switcher */}
+          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 text-xs font-black">
+            {[
+              { id: 'adm_register', label: '📖 Admission Register', icon: BookOpen },
+              { id: 'sentup', label: '📋 Sentup Export', icon: FileCheck },
+              { id: 'assign_ids', label: '🔢 Assign IDs', icon: CreditCard },
+              { id: 'assign_dates', label: '📅 Assign Dates', icon: Calendar }
+            ].map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                  activeTab === t.id
+                    ? 'bg-amber-600 text-white shadow-sm font-black'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <t.icon size={13} />
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Right: Quick Action Controls */}
+          <div className="flex items-center gap-2">
+            {(activeTab === 'adm_register' || activeTab === 'sentup') && (
+              <>
+                {/* Zoom Controls */}
+                <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel(prev => Math.max(0.6, prev - 0.1))}
+                    className="p-1 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut size={13} />
+                  </button>
+                  <span className="px-1 text-[11px] font-mono font-extrabold">{Math.round(zoomLevel * 100)}%</span>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel(prev => Math.min(1.4, prev + 0.1))}
+                    className="p-1 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
+                    title="Zoom In"
+                  >
+                    <ZoomIn size={13} />
+                  </button>
+                </div>
+
+                {/* Print Button */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <Printer size={14} />
+                  <span>Print {activeTab === 'adm_register' ? 'Register' : 'Sentup'}</span>
+                </button>
+
+                {/* CSV Download */}
+                <button
+                  type="button"
+                  onClick={activeTab === 'adm_register' ? handleExportRegisterCSV : handleExportSentupCSV}
+                  className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                >
+                  <Download size={14} />
+                  <span>CSV</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ─── TOAST NOTIFICATION BANNER ─── */}
+      {toast && (
+        <div className="no-print fixed top-16 right-4 z-50 animate-bounce">
+          <div className={`px-4 py-2.5 rounded-2xl shadow-xl border text-xs font-black flex items-center gap-2 ${
+            toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-rose-600 text-white border-rose-500'
+          }`}>
+            <span>{toast.message}</span>
+            <button type="button" onClick={() => setToast(null)} className="opacity-80 hover:opacity-100 cursor-pointer">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── SUB-TOOLBAR: SESSION & CLASS FILTERS (FOR REGISTER & SENTUP) ─── */}
+      {(activeTab === 'adm_register' || activeTab === 'sentup') && (
+        <div className="no-print bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap text-xs">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Session Selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-slate-600 dark:text-slate-400">Session:</span>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="p-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="ALL">All Sessions</option>
+                  {availableSessions.map(sess => (
+                    <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Current)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Class Selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-slate-600 dark:text-slate-400">Class:</span>
+                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  {['ALL', '11th', '12th', '10th', '9th'].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setSelectedClass(c)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black cursor-pointer transition-all ${
+                        selectedClass === c
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Search */}
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Filter name, roll, reg no..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-7 pr-3 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 w-48 sm:w-60 focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Scope Summary Badge */}
+            <div className="flex items-center gap-2 text-[11px] font-black text-slate-600 dark:text-slate-300">
+              <span className="px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                {filteredStudents.length} Students ({pageChunks.length} Pages)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MAIN CONTENT AREA ─── */}
+      <main className="flex-1 p-3 sm:p-6 overflow-x-auto">
+        <div className="max-w-7xl mx-auto">
+          {/* ============================================================== */}
+          {/* TAB 1: ADMISSION REGISTER (PRINT-READY 2-PAGE DUAL SPREAD)     */}
+          {/* ============================================================== */}
+          {activeTab === 'adm_register' && (
+            <div className="space-y-8" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}>
+              {/* 1. COVER PAGE */}
+              <div className="page-container cover-page bg-white p-12 rounded-2xl border border-slate-300 shadow-md text-center flex flex-col items-center justify-center min-h-[215.9mm] max-w-[355.6mm] mx-auto page-break-after">
+                <div className="w-20 h-20 rounded-full border-4 border-red-800 flex items-center justify-center mb-6 text-red-800 font-black text-2xl">
+                  HSS
+                </div>
+                <h1 className="text-4xl md:text-5xl font-black text-red-800 tracking-tight uppercase mb-4 font-serif">
+                  Official Admission Register
+                </h1>
+                <h2 className="text-xl md:text-2xl font-bold text-emerald-800 mb-6">
+                  Classes 11th & 12th • Academic Session {selectedSession}
+                </h2>
+                <div className="w-48 h-1 bg-red-800 mb-6"></div>
+                <h3 className="text-2xl md:text-3xl font-black text-slate-900 uppercase">
+                  {SCHOOL_NAME}
+                </h3>
+                <p className="text-sm font-bold text-slate-600 mt-2">
+                  {SCHOOL_SUBTITLE}
+                </p>
+                <div className="mt-16 text-xs font-bold text-slate-500">
+                  Total Admitted Candidates: <strong>{filteredStudents.length}</strong> • Ledger Formatted for Physical School Archives
+                </div>
+              </div>
+
+              {/* 2. DUAL-SPREAD REGISTER PAGES */}
+              {pageChunks.map((chunk, chunkIdx) => {
+                const pageNum = chunkIdx + 1;
+                return (
+                  <div key={pageNum} className="spread-container flex flex-col gap-6 max-w-[355.6mm] mx-auto page-break-after">
+                    {/* LEFT PAGE: PART 1 (Personal & Contact) */}
+                    <div className="page-container bg-white p-6 rounded-2xl border border-slate-300 shadow-md">
+                      <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-3">
+                        <div className="text-xs font-black text-slate-600">Page {pageNum} (Part 1 - Identification & Contact)</div>
+                        <div className="text-center">
+                          <h2 className="text-base font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
+                          <div className="text-[10px] font-extrabold text-emerald-800 mt-0.5">
+                            Admission Register of Classes 11th & 12th • Session {selectedSession}
+                          </div>
+                        </div>
+                        <div className="w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
+                          {pageNum}
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
+                          <thead>
+                            <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-6">S.No.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10">Photo</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8">Class Roll</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Form No.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Online Subm.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Adm. Date</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Adm. No.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8">Class</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24">Board Reg. No.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-28 text-left pl-2">Student's Name</th>
+                              <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center">Parentage</th>
+                              <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center">Date of Birth</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10">Gender</th>
+                              <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-100">Residence</th>
+                              <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-100">Contact</th>
+                            </tr>
+                            <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[8px]">
+                              <th className="border border-slate-900 px-1 py-0.5">Father's Name</th>
+                              <th className="border border-slate-900 px-1 py-0.5">Mother's Name</th>
+                              <th className="border border-slate-900 px-1 py-0.5 w-14">Figures</th>
+                              <th className="border border-slate-900 px-1 py-0.5 w-24">In Words</th>
+                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Village/Town</th>
+                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Block</th>
+                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Tehsil</th>
+                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">District</th>
+                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Student Mobile</th>
+                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Parent Mobile</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-900 text-slate-900">
+                            {chunk.map((s) => (
+                              <tr key={s.id} className="h-12 hover:bg-slate-50">
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.sno}</td>
+                                <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-100">
+                                  {s.photo ? (
+                                    <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-[7px] text-slate-400">No Photo</span>
+                                  )}
+                                </td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700">{s.rollNo}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.formNo}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center text-[8px]">{s.onlineStatus}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.admDate}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[10px]">{s.admNo}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
+                                <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase">{s.name}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8.5px]">{s.father}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8.5px]">{s.mother}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.dobFigures}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-serif">{s.dobWords}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.gender}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.village}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.block}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.tehsil}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.district}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-mono">{s.mobile}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-mono">{s.parentMobile}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Footer Signatures */}
+                      <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
+                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
+                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
+                    <div className="page-container bg-white p-6 rounded-2xl border border-slate-300 shadow-md">
+                      <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-3">
+                        <div className="text-xs font-black text-slate-600">Page {pageNum} (Part 2 - Academic Details & Ledger)</div>
+                        <div className="text-center">
+                          <h2 className="text-base font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
+                          <div className="text-[10px] font-extrabold text-emerald-800 mt-0.5">
+                            Admission Register of Classes 11th & 12th • Session {selectedSession}
+                          </div>
+                        </div>
+                        <div className="w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
+                          {pageNum}
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
+                          <thead>
+                            <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Stream</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24">Subjects</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-100">Aadhaar No.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-100">Soc. Cat.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-100">Socio-Econ</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-100">Blood</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-100">A/C No.</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 bg-yellow-100">IFSC</th>
+                              <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center">Previous Academic Record</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16">PEN (UDISE)</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-emerald-800 bg-emerald-50">Admtd. Vide DC/CC</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 text-red-800 bg-red-50">Withdrawal</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-red-800 bg-red-50">Issued DC/CC</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-32 text-red-800 bg-red-50">Receipt</th>
+                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20">Remarks</th>
+                            </tr>
+                            <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[8px]">
+                              <th className="border border-slate-900 px-1 py-0.5">Previous School</th>
+                              <th className="border border-slate-900 px-1 py-0.5 w-12">Prev Roll</th>
+                              <th className="border border-slate-900 px-1 py-0.5 w-12">Prev Result</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-900 text-slate-900">
+                            {chunk.map((s) => (
+                              <tr key={s.id} className="h-12 hover:bg-slate-50">
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-medium">{s.subs}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50/50">{s.aadhar}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-black">{s.category}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50">{s.socioEcon}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-bold">{s.blood}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px] bg-yellow-50/50">{s.account}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px] bg-yellow-50/50">{s.ifsc}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[8px] leading-tight">{s.prevSchool}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.prevRoll}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px]">{s.pen}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7.5px] bg-emerald-50/30">{s.prevCC}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center text-red-800 text-[8px] bg-red-50/30">{s.withdrawal}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] bg-red-50/30">
+                                  <div>C.No. _______</div>
+                                  <div>Dt. _______</div>
+                                </td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight bg-red-50/30">
+                                  <div>Received DC/CC vide C. No. ___</div>
+                                  <div>On _______ Sig. _______</div>
+                                </td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px]">{s.remarks}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Footer Signatures */}
+                      <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
+                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
+                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* 3. CONSOLIDATED SUMMARY PAGE */}
+              <div className="page-container bg-white p-10 rounded-2xl border border-slate-300 shadow-md max-w-[355.6mm] mx-auto page-break-after">
+                <div className="text-center border-b-2 border-red-800 pb-4 mb-6">
+                  <h1 className="text-2xl font-black text-red-800 uppercase tracking-wide">
+                    Consolidated Admission Statement
+                  </h1>
+                  <h2 className="text-sm font-extrabold text-slate-700 mt-1">
+                    Roll & Enrollment Statement for Session {selectedSession} • {SCHOOL_NAME}
+                  </h2>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse border-2 border-red-800 text-sm">
+                    <thead>
+                      <tr className="bg-red-100 text-slate-900 font-black">
+                        <th className="border-2 border-red-800 p-2.5">Class</th>
+                        <th className="border-2 border-red-800 p-2.5 text-left pl-6">Stream</th>
+                        <th className="border-2 border-red-800 p-2.5 w-24">Male</th>
+                        <th className="border-2 border-red-800 p-2.5 w-24">Female</th>
+                        <th className="border-2 border-red-800 p-2.5 w-24">Total</th>
+                        <th className="border-2 border-red-800 p-2.5 w-32">Class Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y-2 divide-red-800 font-bold text-slate-900">
+                      {Object.keys(summaryStats).sort().map(cls => {
+                        const streams = Object.keys(summaryStats[cls]).sort();
+                        const clsTotal = Object.values(summaryStats[cls]).reduce((acc, curr) => acc + curr.total, 0);
+                        return streams.map((st, idx) => {
+                          const item = summaryStats[cls][st];
+                          return (
+                            <tr key={`${cls}_${st}`} className="hover:bg-red-50/50">
+                              {idx === 0 && (
+                                <td rowSpan={streams.length} className="border-2 border-red-800 p-2 font-black text-lg bg-slate-50">
+                                  {cls}
+                                </td>
+                              )}
+                              <td className="border-2 border-red-800 p-2 text-left pl-6 font-semibold">{st}</td>
+                              <td className="border-2 border-red-800 p-2">{item.male}</td>
+                              <td className="border-2 border-red-800 p-2">{item.female}</td>
+                              <td className="border-2 border-red-800 p-2 font-black">{item.total}</td>
+                              {idx === 0 && (
+                                <td rowSpan={streams.length} className="border-2 border-red-800 p-2 font-black text-xl text-red-800 bg-red-50/60">
+                                  {clsTotal}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        });
+                      })}
+                      <tr className="bg-red-200 text-red-900 font-black text-base">
+                        <td colSpan="2" className="border-2 border-red-800 p-3 text-right pr-6">Overall Grand Total</td>
+                        <td className="border-2 border-red-800 p-3">{overallSummaryTotals.male}</td>
+                        <td className="border-2 border-red-800 p-3">{overallSummaryTotals.female}</td>
+                        <td colSpan="2" className="border-2 border-red-800 p-3 text-xl">{overallSummaryTotals.grandTotal}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Institutional Certification Paragraph */}
+                <div className="mt-8 p-4 bg-slate-50 border border-slate-300 rounded-xl text-xs font-serif leading-relaxed text-slate-800">
+                  <p className="font-bold mb-1">Institutional Certification:</p>
+                  <p>
+                    Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
+                  </p>
+                </div>
+
+                {/* Footer Signatures */}
+                <div className="flex justify-between items-center mt-12 pt-6 border-t-2 border-red-800 text-xs font-black text-red-800">
+                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Checked By</div>
+                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Principal</div>
+                </div>
+              </div>
+
+              {/* 4. EDITABLE OFFICIAL NOTES PAGE */}
+              <div className="page-container bg-white p-10 rounded-2xl border border-slate-300 shadow-md max-w-[355.6mm] mx-auto">
+                <div className="flex items-center justify-between border-b-2 border-red-800 pb-3 mb-4">
+                  <h1 className="text-xl font-black text-red-800 uppercase">
+                    Official Explanatory Notes & Ledger Annexure
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={handleAddNote}
+                    className="no-print px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>Add Note Item</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-slate-400 text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-900 font-black">
+                        <th className="border border-slate-400 p-2 w-12 text-center">#</th>
+                        <th className="border border-slate-400 p-2 text-left">Explanatory Note / Ledger Directive</th>
+                        <th className="no-print border border-slate-400 p-2 w-12 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-300 text-slate-800">
+                      {registerNotes.map((note, idx) => (
+                        <tr key={note.id}>
+                          <td className="border border-slate-400 p-2 text-center font-bold bg-slate-50">{idx + 1}</td>
+                          <td className="border border-slate-400 p-2 font-medium">
+                            <textarea
+                              value={note.text}
+                              onChange={(e) => handleUpdateNote(note.id, e.target.value)}
+                              rows={2}
+                              className="w-full p-1.5 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-xs font-medium resize-y focus:bg-white"
+                            />
+                          </td>
+                          <td className="no-print border border-slate-400 p-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveNote(note.id)}
+                              className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
+                              title="Delete Note"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footer Signatures */}
+                <div className="flex justify-between items-center mt-12 pt-6 border-t-2 border-red-800 text-xs font-black text-red-800">
+                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Checked By</div>
+                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Principal</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAB 2: SENTUP EXPORT (JKBOSE THEMED CANDIDATE ROLL SHEET)       */}
+          {/* ============================================================== */}
+          {activeTab === 'sentup' && (
+            <div className="space-y-8" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}>
+              {pageChunks.map((chunk, idx) => {
+                const pageNum = idx + 1;
+                const is12th = selectedClass.includes('12');
+                const themeHeaderBg = is12th ? 'bg-rose-900 text-white' : 'bg-sky-800 text-white';
+
+                return (
+                  <div key={pageNum} className="page-container bg-white p-6 rounded-2xl border border-slate-300 shadow-md max-w-[355.6mm] mx-auto page-break-after">
+                    {/* Header */}
+                    <div className="text-center border-b-2 border-slate-900 pb-2 mb-3 relative">
+                      <div className="absolute left-0 top-0 text-xs font-black text-slate-500">Page {pageNum}</div>
+                      <h1 className="text-lg font-black text-red-800 uppercase tracking-tight">{SCHOOL_NAME}</h1>
+                      <div className="text-[11px] font-extrabold text-slate-800 mt-0.5">
+                        JKBOSE Sentup & Candidate Roll Sheet for Class {selectedClass} • Session {selectedSession}
+                      </div>
+                      <div className="absolute right-0 top-0 w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
+                        {pageNum}
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[10px] border-collapse border border-slate-900">
+                        <thead>
+                          <tr className={`${themeHeaderBg} uppercase font-black text-center text-[9px]`}>
+                            <th className="border border-slate-900 px-1 py-1 w-10">S.No.<br /><span className="text-[7.5px] opacity-80">[Adm No.]</span></th>
+                            <th className="border border-slate-900 px-1 py-1 w-10">Class<br />Roll No.</th>
+                            <th className="border border-slate-900 px-1 py-1 w-10">Photo</th>
+                            <th className="border border-slate-900 px-1 py-1 w-24">Board<br />Reg. No.</th>
+                            <th className="border border-slate-900 px-1 py-1 w-32 text-left pl-2">Student's Name</th>
+                            <th className="border border-slate-900 px-1 py-1 w-32 text-left pl-2">Parentage<br /><span className="text-[7px] opacity-80">(Father / Mother)</span></th>
+                            <th className="border border-slate-900 px-1 py-1 w-16">Date of Birth</th>
+                            <th className="border border-slate-900 px-1 py-1 w-16">Subjects</th>
+                            <th className="border border-slate-900 px-1 py-1 w-16">Board<br />Roll No.</th>
+                            <th className="border border-slate-900 px-1 py-1 w-12">Result</th>
+                            <th className="border border-slate-900 px-1 py-1 w-14">Admit Card<br />Receipt</th>
+                            <th className="border border-slate-900 px-1 py-1 w-36">Marks Card / Certificate Receipt</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-900 text-slate-900">
+                          {chunk.map((s) => (
+                            <tr key={s.id} className="h-14 hover:bg-slate-50">
+                              <td className="border border-slate-900 px-1 py-0.5 text-center">
+                                <div className="font-black text-xs">{s.sno}</div>
+                                <div className="text-[8px] font-mono text-slate-500">[{s.admNo || '—'}]</div>
+                              </td>
+                              <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800">{s.rollNo}</td>
+                              <td className="border border-slate-900 p-0 text-center w-10 h-14 overflow-hidden bg-slate-100">
+                                {s.photo ? (
+                                  <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-[7px] text-slate-400">Photo</span>
+                                )}
+                              </td>
+                              <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
+                              <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[11px]">{s.name}</td>
+                              <td className="border border-slate-900 px-2 py-0.5 text-left uppercase text-[9px] leading-tight">
+                                <div className="font-bold border-b border-slate-200 pb-0.5">{s.father}</div>
+                                <div className="text-slate-500 text-[8px] pt-0.5">{s.mother}</div>
+                              </td>
+                              <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[9px]">{s.dobFigures}</td>
+                              <td className="border border-slate-900 px-1 py-0.5 text-center text-[8px] leading-tight font-medium">
+                                {s.subs ? s.subs.split(',').map((sub, i) => <div key={i}>{sub.trim()}</div>) : '—'}
+                              </td>
+                              <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs">{s.raw?.exam_r_no_current || '—'}</td>
+                              <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[9px]">{s.raw?.result_current || '—'}</td>
+                              <td className="border border-slate-900 p-1 text-center align-bottom text-[8px]">
+                                <div className="border-t border-slate-900 pt-0.5">Signature</div>
+                              </td>
+                              <td className="border border-slate-900 p-1 text-[8px] leading-tight">
+                                <div className="flex justify-between gap-2 h-full">
+                                  <div className="flex-1 border-r border-dashed border-slate-300 pr-1">
+                                    <div className="font-bold text-[7.5px]">Marks Card Received</div>
+                                    <div className="mt-2 text-[7.5px]">Sig. __________</div>
+                                    <div className="text-[7px] text-slate-500">Date: ________</div>
+                                  </div>
+                                  <div className="flex-1 pl-1">
+                                    <div className="font-bold text-[7.5px]">Qual. Certificate</div>
+                                    <div className="mt-2 text-[7.5px]">Sig. __________</div>
+                                    <div className="text-[7px] text-slate-500">Date: ________</div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Footer Signatures */}
+                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
+                      <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge</div>
+                      <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
+                      <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAB 3: ASSIGN IDs (BULK SEQUENTIAL + INHERITANCE ENGINE)        */}
+          {/* ============================================================== */}
+          {activeTab === 'assign_ids' && (
+            <div className="space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
+              <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <CreditCard size={18} className="text-indigo-600 dark:text-indigo-400" />
+                    <span>Assign Admission Numbers in Bulk</span>
+                  </h2>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-0.5">
+                    Calculate next sequential ID, inherit previous IDs via Reg No, and write directly to Firestore database.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignStartId(calculatedNextAdmNo)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hover:bg-indigo-200 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  title="Auto-calculate next available Admission Number"
+                >
+                  <RefreshCw size={13} />
+                  <span>Auto-Calculate Next ({calculatedNextAdmNo})</span>
+                </button>
+              </div>
+
+              {/* Scope Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold">
+                {/* Session Filter */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Academic Session:</label>
+                  <select
+                    value={assignSessionFilter}
+                    onChange={(e) => setAssignSessionFilter(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold"
+                  >
+                    <option value="2025-26">2025-26 (Current)</option>
+                    <option value="2024-25">2024-25</option>
+                    <option value="2026-27">2026-27</option>
+                    <option value="ALL">All Sessions</option>
+                  </select>
+                </div>
+
+                {/* Target Classes */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Target Classes:</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['9th', '10th', '11th', '12th'].map(cls => {
+                      const checked = assignClasses.includes(cls);
+                      return (
+                        <label
+                          key={cls}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black cursor-pointer border select-none transition-all ${
+                            checked
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) setAssignClasses(prev => [...prev, cls]);
+                              else setAssignClasses(prev => prev.filter(c => c !== cls));
+                            }}
+                            className="hidden"
+                          />
+                          <span>{cls}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Start Assigning From ID Input */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Start Assigning From ID:</label>
+                  <input
+                    type="number"
+                    value={assignStartId}
+                    onChange={(e) => setAssignStartId(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-center"
+                  />
+                </div>
+
+                {/* Only Missing Adm No Toggle */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Target Scope:</label>
+                  <div className="flex items-center justify-between gap-1 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={onlyMissingAdmNo}
+                        onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
+                        className="rounded text-indigo-600"
+                      />
+                      <span>Only Missing Adm No</span>
+                    </label>
+                    <span className="px-2 py-0.5 rounded-full font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-950">
+                      {candidateIdPreviewList.length} Selected
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Candidate Preview Table */}
+              {candidateIdPreviewList.length > 0 ? (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300">
+                        <tr>
+                          <th className="p-2 w-10 text-center">#</th>
+                          <th className="p-2">Student & Father's Name</th>
+                          <th className="p-2">Class / Session</th>
+                          <th className="p-2">Board Reg. No.</th>
+                          <th className="p-2">Previous Adm. No. (Reg Key)</th>
+                          <th className="p-2">Current Adm No</th>
+                          <th className="p-2 text-center">Assignment Strategy</th>
+                          <th className="p-2 text-right">Proposed ID</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-semibold text-slate-800 dark:text-slate-200">
+                        {candidateIdPreviewList.map((item, idx) => {
+                          const { student, currentAdm, prevInfo, strat, proposed } = item;
+                          return (
+                            <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                              <td className="p-2 text-center font-bold text-slate-400">{idx + 1}</td>
+                              <td className="p-2 font-bold">
+                                <div className="text-slate-900 dark:text-slate-100">{student.name}</div>
+                                <div className="text-[10px] text-slate-500 font-normal">S/O: {student.father}</div>
+                              </td>
+                              <td className="p-2 font-bold text-indigo-600 dark:text-indigo-400">
+                                {student.class} ({student.session})
+                              </td>
+                              <td className="p-2 font-mono text-[11px]">{student.boardReg || '—'}</td>
+                              <td className="p-2 font-mono text-[11px]">
+                                {prevInfo ? (
+                                  <span className="px-2 py-0.5 rounded font-black text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800">
+                                    {prevInfo.admNo} ({prevInfo.class})
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                              <td className="p-2 font-mono text-slate-600 dark:text-slate-400">{currentAdm || '—'}</td>
+                              <td className="p-2 text-center">
+                                <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'assign_new' }))}
+                                    className={`px-2 py-0.5 text-[10px] font-black rounded cursor-pointer ${
+                                      strat === 'assign_new' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                                    }`}
+                                  >
+                                    Sequential
+                                  </button>
+                                  {prevInfo && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'inherit_prev' }))}
+                                      className={`px-2 py-0.5 text-[10px] font-black rounded cursor-pointer ${
+                                        strat === 'inherit_prev' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                                      }`}
+                                    >
+                                      Inherit ({prevInfo.admNo})
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'skip' }))}
+                                    className={`px-2 py-0.5 text-[10px] font-black rounded cursor-pointer ${
+                                      strat === 'skip' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                                    }`}
+                                  >
+                                    Skip
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="p-2 text-right font-mono font-black text-indigo-700 dark:text-indigo-300 text-sm">
+                                {proposed}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-500 font-bold border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950">
+                  No students match the selected class scope and missing admission number filter.
+                </div>
+              )}
+
+              {/* Run Button */}
+              <button
+                type="button"
+                onClick={handleRunAssignIds}
+                disabled={assigningIds || candidateIdPreviewList.length === 0}
+                className="w-full py-3 rounded-xl font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all text-sm"
+              >
+                {assigningIds ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                <span>Execute Admission ID Assignment ({candidateIdPreviewList.length} Students)</span>
+              </button>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAB 4: ASSIGN DATES (BULK ADM & SUBMISSION DATE ASSIGNER)       */}
+          {/* ============================================================== */}
+          {activeTab === 'assign_dates' && (
+            <div className="space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
+              <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Calendar size={18} className="text-indigo-600 dark:text-indigo-400" />
+                  <span>Bulk Assign Admission & Submission Dates</span>
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-0.5">
+                  Apply a uniform Admission Date or Online Submission Date across target classes or sessions.
+                </p>
+              </div>
+
+              {/* Scope & Date Form */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Target Date Field:</label>
+                  <select
+                    value={assignDateField}
+                    onChange={(e) => setAssignDateField(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold"
+                  >
+                    <option value="admDate">Admission Date (Adm. Date)</option>
+                    <option value="onlineSubmDate">Online Submission Date</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Select Date:</label>
+                  <input
+                    type="date"
+                    value={assignDateValue}
+                    onChange={(e) => setAssignDateValue(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-center"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Session Scope:</label>
+                  <select
+                    value={assignDateSession}
+                    onChange={(e) => setAssignDateSession(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold"
+                  >
+                    <option value="2025-26">2025-26 (Current)</option>
+                    <option value="2024-25">2024-25</option>
+                    <option value="2026-27">2026-27</option>
+                    <option value="ALL">All Sessions</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Class Scope:</label>
+                  <select
+                    value={assignDateClass}
+                    onChange={(e) => setAssignDateClass(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold"
+                  >
+                    <option value="ALL">All Classes</option>
+                    <option value="11th">11th</option>
+                    <option value="12th">12th</option>
+                    <option value="10th">10th</option>
+                    <option value="9th">9th</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Target Summary Card */}
+              <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 flex items-center justify-between">
+                <div>
+                  <div className="font-black text-sm">Target Records: {dateTargetStudents.length} Students</div>
+                  <div className="text-[11px] font-medium mt-0.5">
+                    Will update <strong>{assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date'}</strong> to <strong>{assignDateValue}</strong>.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRunAssignDates}
+                  disabled={assigningDates || dateTargetStudents.length === 0}
+                  className="px-5 py-2.5 rounded-xl font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all text-xs"
+                >
+                  {assigningDates ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
+                  <span>Apply Date to {dateTargetStudents.length} Records</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

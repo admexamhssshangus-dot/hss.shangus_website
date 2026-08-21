@@ -17,6 +17,7 @@ import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown from './AdminToolsDropdown';
 import OfficialDocumentsStudioView from './OfficialDocumentsStudioView';
 import ApplicationMergerStudio from './ApplicationMergerStudio';
+import AdmissionRegisterSuite from './AdmissionRegisterSuite';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages, mergeDuplicateStudentApplications } from '../../services/dbCache';
 
@@ -506,6 +507,17 @@ export default function AdminDashboard() {
 
                   {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
                   {activeTab === 'gkTest' && <AdminGkTestManager />}
+
+                  {/* TAB: Admission Register & Sentup Suite */}
+                  {activeTab === 'admRegisterSuite' && (
+                    <AdmissionRegisterSuite
+                      students={applications}
+                      allHistory={getCachedCollectionSync('masterRegisters') || []}
+                      onClose={() => setActiveTab('reports')}
+                      onDataUpdated={() => loadAdminData(true)}
+                      user={user}
+                    />
+                  )}
 
                   {/* TAB: Student ID Cards Suite */}
                   {activeTab === 'idCards' && (

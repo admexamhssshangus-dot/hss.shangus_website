@@ -3,11 +3,12 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge
+  GitMerge, BookOpen
 } from 'lucide-react';
 
 export const ADMIN_TOOL_MODULES = [
   { id: 'reports', label: 'Student Records & Reports', desc: 'Master register, student records and reports', category: 'Records & Registers', icon: BarChart2 },
+  { id: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', desc: 'Official ledger, JKBOSE sentup roll, bulk assign IDs & dates', category: 'Records & Registers', icon: BookOpen },
   { id: 'docStudio', label: 'Official Documents & Registers Studio', desc: 'Custom student lists, fee sheets & official letterhead writer', category: 'Records & Registers', icon: FileSpreadsheet },
   { id: 'idCards', label: 'Student ID Cards', desc: 'Generate and print student identity cards', category: 'Records & Registers', icon: Contact },
   { id: 'gkTest', label: 'Competitive Exams', desc: 'Exam preparation and registrations', category: 'Records & Registers', icon: ShieldCheck },
