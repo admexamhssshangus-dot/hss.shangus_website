@@ -443,20 +443,6 @@ export default function AdminDashboard() {
                       align="right"
                     />
                   </div>
-
-                  {/* Refresh Sync Button */}
-                  {activeTab !== 'cms' && activeTab !== 'customRoster' && activeTab !== 'officialLetter' && activeTab !== 'docStudio' && (
-                    <button
-                      type="button"
-                      onClick={() => loadAdminData(true)}
-                      disabled={loading}
-                      title="Sync & Refresh Database Records"
-                      className="h-8 px-2 sm:px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95"
-                    >
-                      <RefreshCw size={13} className={loading ? 'animate-spin text-purple-600' : 'text-slate-500'} />
-                      <span className="hidden sm:inline">Sync</span>
-                    </button>
-                  )}
                 </div>
               </div>
             );

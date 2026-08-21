@@ -385,6 +385,9 @@ export default function FundDistribution() {
   const [tempRates, setTempRates] = useState(DEFAULT_RATES);
   const [isSavingRates, setIsSavingRates] = useState(false);
 
+  // Manual Enrollment & Stream Figures Overrides State (freely editable by admin)
+  const [enrollmentOverrides, setEnrollmentOverrides] = useState({});
+
   // History Filter & Accordion States
   const [historySearch, setHistorySearch] = useState('');
   const [historyClassFilter, setHistoryClassFilter] = useState('All');
@@ -660,6 +663,126 @@ export default function FundDistribution() {
     return stats;
   }, [rawStudents, masterRegisters, fundSession, formSession]);
 
+  // ─── ACTIVE ENROLLMENT STATS (Combines Live DB Roll Numbers with Manual Admin Figures) ───
+  const activeStudentStats = useMemo(() => {
+    const res = {};
+    ['9th', '10th', '11th', '12th'].forEach(cls => {
+      const db = dbStudentStats[cls] || { total: 0, science: 0, streams: {} };
+      const ov = enrollmentOverrides[cls];
+      if (ov) {
+        res[cls] = {
+          total: ov.total !== undefined ? ov.total : db.total,
+          science: ov.science !== undefined ? ov.science : db.science,
+          streams: {
+            Humanities: ov.humanities !== undefined ? ov.humanities : (db.streams?.Humanities || 0),
+            Science: ov.science !== undefined ? ov.science : (db.streams?.Science || 0),
+            Commerce: ov.commerce !== undefined ? ov.commerce : (db.streams?.Commerce || 0),
+            'Home Science': ov.homeScience !== undefined ? ov.homeScience : (db.streams?.['Home Science'] || 0)
+          },
+          isCustom: true
+        };
+      } else {
+        res[cls] = {
+          ...db,
+          isCustom: false
+        };
+      }
+    });
+    return res;
+  }, [dbStudentStats, enrollmentOverrides]);
+
+  // Handle updating enrollment override figures (total or streamwise)
+  const handleUpdateEnrollmentOverride = (cls, field, value) => {
+    setEnrollmentOverrides(prev => {
+      const current = prev[cls] || {
+        total: dbStudentStats[cls]?.total || 0,
+        science: dbStudentStats[cls]?.science || 0,
+        humanities: dbStudentStats[cls]?.streams?.Humanities || 0,
+        commerce: dbStudentStats[cls]?.streams?.Commerce || 0,
+        homeScience: dbStudentStats[cls]?.streams?.['Home Science'] || 0
+      };
+
+      const numVal = Math.max(0, parseInt(value, 10) || 0);
+      const updated = { ...current, [field]: numVal };
+
+      if (cls === '9th' || cls === '10th') {
+        if (field === 'total') {
+          updated.science = numVal;
+        }
+      } else {
+        // For 11th and 12th: If updating a stream, recompute total
+        if (field === 'science' || field === 'humanities' || field === 'commerce' || field === 'homeScience') {
+          updated.total = (updated.science || 0) + (updated.humanities || 0) + (updated.commerce || 0) + (updated.homeScience || 0);
+        }
+      }
+
+      return {
+        ...prev,
+        [cls]: updated
+      };
+    });
+  };
+
+  const handleResetEnrollmentOverride = (cls) => {
+    setEnrollmentOverrides(prev => {
+      const next = { ...prev };
+      delete next[cls];
+      return next;
+    });
+    showNotification(`Reset Class ${cls} counts to database defaults.`, 'info');
+  };
+
+  // ─── FEE DISTRIBUTION PROGRESS & TRACKING (Approved vs Distributed vs Remaining Left) ───
+  const feeDistributionProgress = useMemo(() => {
+    const targetSession = String(fundSession || formSession || '2025-26').trim().toLowerCase();
+
+    // Sum already distributed students from past statements in target session
+    const distributed = {
+      '9th': { total: 0, science: 0 },
+      '10th': { total: 0, science: 0 },
+      '11th': { total: 0, science: 0 },
+      '12th': { total: 0, science: 0 }
+    };
+
+    (distributions || []).forEach(d => {
+      const dSess = String(d.academicSession || d.session || d.year || '').trim().toLowerCase();
+      if (!dSess || (!dSess.includes(targetSession) && !targetSession.includes(dSess))) {
+        return;
+      }
+      const cls = d.class;
+      if (cls && distributed[cls]) {
+        distributed[cls].total += parseInt(d.paidStudents || d.onRoll || 0, 10) || 0;
+        distributed[cls].science += parseInt(d.scienceStudents || 0, 10) || 0;
+      }
+    });
+
+    const progress = {};
+    ['9th', '10th', '11th', '12th'].forEach(cls => {
+      const approvedTotal = activeStudentStats[cls]?.total || 0;
+      const approvedSci = activeStudentStats[cls]?.science || 0;
+      const distTotal = distributed[cls].total;
+      const distSci = distributed[cls].science;
+
+      const remainingTotal = Math.max(0, approvedTotal - distTotal);
+      const remainingSci = Math.max(0, approvedSci - distSci);
+      const percent = approvedTotal > 0 ? Math.min(100, Math.round((distTotal / approvedTotal) * 100)) : (distTotal > 0 ? 100 : 0);
+
+      progress[cls] = {
+        approvedTotal,
+        approvedSci,
+        distributedTotal: distTotal,
+        distributedSci: distSci,
+        remainingTotal,
+        remainingSci,
+        percent,
+        isComplete: approvedTotal > 0 && remainingTotal === 0,
+        streams: activeStudentStats[cls]?.streams || {}
+      };
+    });
+
+    return progress;
+  }, [activeStudentStats, distributions, fundSession, formSession]);
+
   // Handle Class Switch with Automatic 9th/10th Science Fund Sync
   const handleClassChange = (newCls) => {
     setFormClass(newCls);
@@ -680,7 +803,7 @@ export default function FundDistribution() {
     }
   };
 
-  // 1-Click Auto-Fill from Database Counts (Freely editable anytime)
+  // 1-Click Auto-Fill from Counts (Freely editable anytime)
   const handleApplyDbStats = (cls, paid, science) => {
     setFormClass(cls);
     setFormPaidCount(String(paid || 0));
@@ -689,7 +812,7 @@ export default function FundDistribution() {
     } else {
       setFormScienceCount(String(science !== undefined ? science : 0));
     }
-    showNotification(`Auto-filled Class ${cls} from approved database roll records (${paid} Paid Std • ${science !== undefined ? science : paid} Science Std). You can adjust numbers freely.`, 'info');
+    showNotification(`Populated Class ${cls} counts (${paid} Paid Std • ${science !== undefined ? science : paid} Science Std). You can adjust numbers freely.`, 'info');
   };
 
   // Calculate Breakdown for class and student counts
@@ -1484,16 +1607,127 @@ export default function FundDistribution() {
                       setIsRatesModalOpen(true);
                     }}
                     className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 text-[10px] font-black flex items-center gap-1 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer"
-                    title="View live database approved roll numbers and auto-fill breakdown in Settings"
+                    title="View and edit live database approved roll numbers & stream figures in Settings"
                   >
                     <Users size={11} className="text-blue-600" />
-                    <span>DB Rolls ({dbStudentStats[formClass]?.total || 0} in {formClass})</span>
+                    <span>DB Rolls ({activeStudentStats[formClass]?.total || 0} in {formClass})</span>
                   </button>
                   <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">
                     Class & Month Generator
                   </span>
                 </div>
               </div>
+
+              {/* ─── LIVE FEE RECONCILIATION PROGRESS FOR ACTIVE CLASS (Approved vs Distributed vs Left) ─── */}
+              {(() => {
+                const prog = feeDistributionProgress[formClass] || {
+                  approvedTotal: 0,
+                  approvedSci: 0,
+                  distributedTotal: 0,
+                  distributedSci: 0,
+                  remainingTotal: 0,
+                  remainingSci: 0,
+                  percent: 0
+                };
+                const is11or12 = formClass === '11th' || formClass === '12th';
+
+                return (
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-[10.5px]">
+                      <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        <span className="text-blue-700 dark:text-blue-400 font-extrabold uppercase">Class {formClass} Distribution Status:</span>
+                        <span className="text-slate-600 dark:text-slate-400 font-bold">
+                          Session {formSession || fundSession || '2025-26'}
+                        </span>
+                      </div>
+
+                      {/* Quick 1-Click Fill Buttons */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleApplyDbStats(formClass, prog.remainingTotal, is11or12 ? prog.remainingSci : prog.remainingTotal)}
+                          disabled={prog.remainingTotal <= 0 && prog.approvedTotal > 0}
+                          className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9.5px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={`Fill remaining pending students (${prog.remainingTotal} Left)`}
+                        >
+                          <Sparkles size={10} />
+                          <span>Fill Remaining ({prog.remainingTotal} Left)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyDbStats(formClass, prog.approvedTotal, is11or12 ? prog.approvedSci : prog.approvedTotal)}
+                          className="px-2 py-0.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-black text-[9.5px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
+                          title={`Fill total approved students (${prog.approvedTotal} Total)`}
+                        >
+                          <span>Fill Total ({prog.approvedTotal})</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3 Metric Pills: Target Approved • Distributed So Far • Remaining Left */}
+                    <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                      {/* Metric 1: Total Approved */}
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <div className="text-[8.5px] font-black uppercase text-slate-400">Approved on Roll</div>
+                        <div className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs">
+                          {prog.approvedTotal}
+                          {is11or12 && (
+                            <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 ml-1">
+                              (Sci: {prog.approvedSci})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Metric 2: Distributed in Previous Statements */}
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <div className="text-[8.5px] font-black uppercase text-slate-400">Already Distributed</div>
+                        <div className="font-mono font-black text-blue-600 dark:text-blue-400 text-xs">
+                          {prog.distributedTotal}
+                          {is11or12 && (
+                            <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 ml-1">
+                              (Sci: {prog.distributedSci})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Metric 3: Remaining Left to Pay */}
+                      <div className={`p-1.5 rounded-lg border ${
+                        prog.remainingTotal === 0 && prog.approvedTotal > 0
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                          : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-300'
+                      }`}>
+                        <div className="text-[8.5px] font-black uppercase tracking-tight">
+                          {prog.remainingTotal === 0 && prog.approvedTotal > 0 ? 'Fully Disbursed' : 'Remaining Left'}
+                        </div>
+                        <div className="font-mono font-black text-xs">
+                          {prog.remainingTotal === 0 && prog.approvedTotal > 0 ? '✓ 100%' : `${prog.remainingTotal} Left`}
+                          {is11or12 && prog.remainingTotal > 0 && (
+                            <span className="text-[9px] font-bold text-purple-700 dark:text-purple-300 ml-1">
+                              (Sci: {prog.remainingSci})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-500 rounded-full ${
+                          prog.remainingTotal === 0 && prog.approvedTotal > 0
+                            ? 'bg-emerald-500'
+                            : 'bg-blue-600'
+                        }`}
+                        style={{ width: `${Math.min(100, prog.percent)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Entry Form */}
               <form onSubmit={handleGenerateReport} className="space-y-2.5">
@@ -2275,106 +2509,58 @@ export default function FundDistribution() {
               </div>
             </div>
 
-            {/* Filter Controls Row */}
+            {/* Filter Controls Row — All 4 Filters in One Clean Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-              {/* 1. Academic Sessions Filter */}
+              {/* 1. Academic Sessions Filter Dropdown */}
               <div className="space-y-1">
-                <div className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
                   <span>Academic Sessions</span>
                   {analyticsSessions.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setAnalyticsSessions([])}
-                      className="text-[8.5px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      Clear
-                    </button>
+                    <span className="text-[8.5px] text-blue-600 dark:text-blue-400 font-bold">
+                      {analyticsSessions.length} Sel
+                    </span>
                   )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setAnalyticsSessions([])}
-                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-black transition-all cursor-pointer ${
-                      analyticsSessions.length === 0
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    All
-                  </button>
-                  {availableSessions.map(s => {
-                    const isSel = analyticsSessions.includes(s);
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => {
-                          setAnalyticsSessions(prev =>
-                            isSel ? prev.filter(x => x !== s) : [...prev, s]
-                          );
-                        }}
-                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-black transition-all cursor-pointer ${
-                          isSel
-                            ? 'bg-blue-600 text-white shadow-2xs'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    );
-                  })}
-                </div>
+                </label>
+                <select
+                  value={analyticsSessions.length === 1 ? analyticsSessions[0] : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) setAnalyticsSessions([]);
+                    else setAnalyticsSessions([val]);
+                  }}
+                  className="w-full px-2 py-1 rounded-lg text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Sessions ({availableSessions.length})</option>
+                  {availableSessions.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
 
-              {/* 2. Classes Filter */}
+              {/* 2. Classes Filter Dropdown */}
               <div className="space-y-1">
-                <div className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
                   <span>Classes</span>
                   {analyticsClasses.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setAnalyticsClasses([])}
-                      className="text-[8.5px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      Clear
-                    </button>
+                    <span className="text-[8.5px] text-blue-600 dark:text-blue-400 font-bold">
+                      {analyticsClasses.length} Sel
+                    </span>
                   )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setAnalyticsClasses([])}
-                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-black transition-all cursor-pointer ${
-                      analyticsClasses.length === 0
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    All
-                  </button>
-                  {availableClasses.map(c => {
-                    const isSel = analyticsClasses.includes(c);
-                    return (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => {
-                          setAnalyticsClasses(prev =>
-                            isSel ? prev.filter(x => x !== c) : [...prev, c]
-                          );
-                        }}
-                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-black transition-all cursor-pointer ${
-                          isSel
-                            ? 'bg-blue-600 text-white shadow-2xs'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                        }`}
-                      >
-                        Class {c}
-                      </button>
-                    );
-                  })}
-                </div>
+                </label>
+                <select
+                  value={analyticsClasses.length === 1 ? analyticsClasses[0] : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) setAnalyticsClasses([]);
+                    else setAnalyticsClasses([val]);
+                  }}
+                  className="w-full px-2 py-1 rounded-lg text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Classes</option>
+                  {availableClasses.map(c => (
+                    <option key={c} value={c}>Class {c}</option>
+                  ))}
+                </select>
               </div>
 
               {/* 3. Months / Period Filter Dropdown */}
@@ -2924,7 +3110,7 @@ export default function FundDistribution() {
               </div>
             </div>
 
-            {/* TAB 1: APPROVED ROLL NUMBERS & ENROLLMENT BREAKDOWN */}
+            {/* TAB 1: APPROVED ROLL NUMBERS & ENROLLMENT BREAKDOWN (DIRECTLY EDITABLE) */}
             {settingsModalTab === 'rolls' && (
               <div className="overflow-y-auto flex-1 pr-1 space-y-3.5 text-xs scrollbar-thin">
                 {/* Session Header Bar */}
@@ -2935,13 +3121,13 @@ export default function FundDistribution() {
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                        <span>Approved Roll Records Breakdown</span>
+                        <span>Approved Roll Records & Figures</span>
                         <span className="px-2 py-0.5 rounded-full bg-blue-200 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-[10px] font-mono">
                           Session: {fundSession || formSession || '2025-26'}
                         </span>
                       </h4>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                        Student records with assigned class roll numbers across active admissions & master registers.
+                        Editable figures for total & streams. Update values directly to account for offline receipts.
                       </p>
                     </div>
                   </div>
@@ -2949,203 +3135,421 @@ export default function FundDistribution() {
                   <div className="flex items-center gap-1.5 self-end sm:self-auto">
                     <span className="text-[9.5px] font-bold text-slate-400">Total Enrolled:</span>
                     <span className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700 font-mono font-black text-blue-700 dark:text-blue-300 text-xs">
-                      {dbStudentStats['9th'].total + dbStudentStats['10th'].total + dbStudentStats['11th'].total + dbStudentStats['12th'].total} Students
+                      {activeStudentStats['9th'].total + activeStudentStats['10th'].total + activeStudentStats['11th'].total + activeStudentStats['12th'].total} Students
                     </span>
                   </div>
                 </div>
 
-                {/* 4 Class Breakdown Cards Grid */}
+                {/* 4 Class Breakdown Cards Grid with Editable Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* 1. Class 9th */}
                   <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
-                        <span className="font-black text-sm text-blue-700 dark:text-blue-400">Class 9th</span>
-                        <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-xs">
-                          {dbStudentStats['9th'].total} Approved Students
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
-                        <div className="flex justify-between">
-                          <span>Paid Students:</span>
-                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['9th'].total}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm text-blue-700 dark:text-blue-400">Class 9th</span>
+                          {activeStudentStats['9th'].isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetEnrollmentOverride('9th')}
+                              className="text-[9px] text-blue-600 hover:text-blue-800 dark:text-blue-400 underline font-bold cursor-pointer"
+                              title="Reset to database count"
+                            >
+                              ↩ Reset DB ({dbStudentStats['9th'].total})
+                            </button>
+                          )}
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['9th'].total}
+                            onChange={(e) => handleUpdateEnrollmentOverride('9th', 'total', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 font-mono font-black text-xs text-right text-blue-700 dark:text-blue-300 outline-none focus:ring-1 focus:ring-blue-500"
+                            title="Edit Class 9th Total Student count"
+                          />
+                          <span className="text-[10px] font-black text-slate-400">Std</span>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span>Paid Students (Editable):</span>
+                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">
+                            {activeStudentStats['9th'].total}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
                           <span>Science Fund (Universal):</span>
-                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">All {dbStudentStats['9th'].total} (100%)</span>
+                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">
+                            All {activeStudentStats['9th'].total} (100%)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-800">
+                          <span>Paid So Far: {feeDistributionProgress['9th']?.distributedTotal || 0}</span>
+                          <span className="font-black text-amber-600 dark:text-amber-400">
+                            Left: {feeDistributionProgress['9th']?.remainingTotal || 0}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleApplyDbStats('9th', dbStudentStats['9th'].total, dbStudentStats['9th'].total);
-                        setIsRatesModalOpen(false);
-                        setActiveTab('entry');
-                      }}
-                      className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer transition-all active:scale-98"
-                    >
-                      <Sparkles size={13} />
-                      <span>Auto-Populate Class 9th ({dbStudentStats['9th'].total})</span>
-                    </button>
+
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('9th', activeStudentStats['9th'].total, activeStudentStats['9th'].total);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                      >
+                        <Sparkles size={11} />
+                        <span>All ({activeStudentStats['9th'].total})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('9th', feeDistributionProgress['9th']?.remainingTotal || 0, feeDistributionProgress['9th']?.remainingTotal || 0);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        disabled={(feeDistributionProgress['9th']?.remainingTotal || 0) <= 0}
+                        className="py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98 disabled:opacity-40"
+                      >
+                        <span>Left ({feeDistributionProgress['9th']?.remainingTotal || 0})</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* 2. Class 10th */}
                   <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
-                        <span className="font-black text-sm text-blue-700 dark:text-blue-400">Class 10th</span>
-                        <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-xs">
-                          {dbStudentStats['10th'].total} Approved Students
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
-                        <div className="flex justify-between">
-                          <span>Paid Students:</span>
-                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['10th'].total}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm text-blue-700 dark:text-blue-400">Class 10th</span>
+                          {activeStudentStats['10th'].isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetEnrollmentOverride('10th')}
+                              className="text-[9px] text-blue-600 hover:text-blue-800 dark:text-blue-400 underline font-bold cursor-pointer"
+                              title="Reset to database count"
+                            >
+                              ↩ Reset DB ({dbStudentStats['10th'].total})
+                            </button>
+                          )}
                         </div>
-                        <div className="flex justify-between">
-                          <span>Science Fund (Universal):</span>
-                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">All {dbStudentStats['10th'].total} (100%)</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['10th'].total}
+                            onChange={(e) => handleUpdateEnrollmentOverride('10th', 'total', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 font-mono font-black text-xs text-right text-blue-700 dark:text-blue-300 outline-none focus:ring-1 focus:ring-blue-500"
+                            title="Edit Class 10th Total Student count"
+                          />
+                          <span className="text-[10px] font-black text-slate-400">Std</span>
                         </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleApplyDbStats('10th', dbStudentStats['10th'].total, dbStudentStats['10th'].total);
-                        setIsRatesModalOpen(false);
-                        setActiveTab('entry');
-                      }}
-                      className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer transition-all active:scale-98"
-                    >
-                      <Sparkles size={13} />
-                      <span>Auto-Populate Class 10th ({dbStudentStats['10th'].total})</span>
-                    </button>
-                  </div>
 
-                  {/* 3. Class 11th (Stream-wise) */}
-                  <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
-                        <span className="font-black text-sm text-indigo-700 dark:text-indigo-400">Class 11th</span>
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-mono font-black text-xs">
-                          {dbStudentStats['11th'].total} Total Students
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-purple-700 dark:text-purple-300 font-extrabold flex items-center gap-1">
-                            <span>🔬 Science Stream (Opt Fee):</span>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span>Paid Students (Editable):</span>
+                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">
+                            {activeStudentStats['10th'].total}
                           </span>
-                          <span className="font-mono font-black text-purple-700 dark:text-purple-300">{dbStudentStats['11th'].science}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span>📚 Humanities / Arts:</span>
-                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['11th'].streams['Humanities'] || 0}</span>
+                        <div className="flex items-center justify-between">
+                          <span>Science Fund (Universal):</span>
+                          <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">
+                            All {activeStudentStats['10th'].total} (100%)
+                          </span>
                         </div>
-                        {(dbStudentStats['11th'].streams['Commerce'] || 0) > 0 && (
-                          <div className="flex justify-between">
-                            <span>📊 Commerce:</span>
-                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['11th'].streams['Commerce']}</span>
-                          </div>
-                        )}
-                        {(dbStudentStats['11th'].streams['Home Science'] || 0) > 0 && (
-                          <div className="flex justify-between">
-                            <span>🏡 Home Science:</span>
-                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['11th'].streams['Home Science']}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-800">
+                          <span>Paid So Far: {feeDistributionProgress['10th']?.distributedTotal || 0}</span>
+                          <span className="font-black text-amber-600 dark:text-amber-400">
+                            Left: {feeDistributionProgress['10th']?.remainingTotal || 0}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-1.5 pt-1">
                       <button
                         type="button"
                         onClick={() => {
-                          handleApplyDbStats('11th', dbStudentStats['11th'].total, dbStudentStats['11th'].science);
+                          handleApplyDbStats('10th', activeStudentStats['10th'].total, activeStudentStats['10th'].total);
                           setIsRatesModalOpen(false);
                           setActiveTab('entry');
                         }}
-                        className="py-1.5 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
-                        title="Populate all 11th students with Science count"
+                        className="py-1.5 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
                       >
                         <Sparkles size={11} />
-                        <span>All ({dbStudentStats['11th'].total})</span>
+                        <span>All ({activeStudentStats['10th'].total})</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          handleApplyDbStats('11th', dbStudentStats['11th'].science, dbStudentStats['11th'].science);
+                          handleApplyDbStats('10th', feeDistributionProgress['10th']?.remainingTotal || 0, feeDistributionProgress['10th']?.remainingTotal || 0);
                           setIsRatesModalOpen(false);
                           setActiveTab('entry');
                         }}
-                        className="py-1.5 px-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                        disabled={(feeDistributionProgress['10th']?.remainingTotal || 0) <= 0}
+                        className="py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98 disabled:opacity-40"
+                      >
+                        <span>Left ({feeDistributionProgress['10th']?.remainingTotal || 0})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Class 11th (Stream-wise Editable) */}
+                  <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm text-indigo-700 dark:text-indigo-400">Class 11th</span>
+                          {activeStudentStats['11th'].isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetEnrollmentOverride('11th')}
+                              className="text-[9px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 underline font-bold cursor-pointer"
+                              title="Reset to database count"
+                            >
+                              ↩ Reset DB ({dbStudentStats['11th'].total})
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['11th'].total}
+                            onChange={(e) => handleUpdateEnrollmentOverride('11th', 'total', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded-md border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 font-mono font-black text-xs text-right text-indigo-700 dark:text-indigo-300 outline-none focus:ring-1 focus:ring-indigo-500"
+                            title="Edit Class 11th Total (auto-updates when streams change)"
+                          />
+                          <span className="text-[10px] font-black text-slate-400">Total</span>
+                        </div>
+                      </div>
+
+                      {/* Streamwise Editable Inputs */}
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1.5">
+                        {/* Science Stream */}
+                        <div className="flex items-center justify-between bg-purple-50/60 dark:bg-purple-950/30 p-1 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
+                          <span className="text-purple-700 dark:text-purple-300 font-extrabold flex items-center gap-1">
+                            <span>🔬 Science Stream (Opt Fee):</span>
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['11th'].science}
+                            onChange={(e) => handleUpdateEnrollmentOverride('11th', 'science', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-mono font-black text-xs text-right text-purple-700 dark:text-purple-300 outline-none focus:ring-1 focus:ring-purple-500"
+                            title="Edit 11th Science stream student count"
+                          />
+                        </div>
+
+                        {/* Humanities / Arts */}
+                        <div className="flex items-center justify-between p-1">
+                          <span>📚 Humanities / Arts:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['11th'].streams.Humanities || 0}
+                            onChange={(e) => handleUpdateEnrollmentOverride('11th', 'humanities', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-right text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500"
+                            title="Edit 11th Humanities student count"
+                          />
+                        </div>
+
+                        {/* Commerce */}
+                        {((activeStudentStats['11th'].streams.Commerce || 0) > 0 || activeStudentStats['11th'].isCustom) && (
+                          <div className="flex items-center justify-between p-1">
+                            <span>📊 Commerce:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={activeStudentStats['11th'].streams.Commerce || 0}
+                              onChange={(e) => handleUpdateEnrollmentOverride('11th', 'commerce', e.target.value)}
+                              className="w-16 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-right text-slate-800 dark:text-slate-200 outline-none"
+                              title="Edit 11th Commerce student count"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-800">
+                          <span>Paid: {feeDistributionProgress['11th']?.distributedTotal || 0} (Sci: {feeDistributionProgress['11th']?.distributedSci || 0})</span>
+                          <span className="font-black text-amber-600 dark:text-amber-400">
+                            Left: {feeDistributionProgress['11th']?.remainingTotal || 0} (Sci: {feeDistributionProgress['11th']?.remainingSci || 0})
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('11th', activeStudentStats['11th'].total, activeStudentStats['11th'].science);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] flex items-center justify-center gap-0.5 shadow-sm cursor-pointer transition-all active:scale-98"
+                        title="Populate All 11th students with Science count"
+                      >
+                        <Sparkles size={10} />
+                        <span>All ({activeStudentStats['11th'].total})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('11th', activeStudentStats['11th'].science, activeStudentStats['11th'].science);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[10px] flex items-center justify-center gap-0.5 shadow-sm cursor-pointer transition-all active:scale-98"
                         title="Populate 11th Science stream only"
                       >
-                        <span>Sci ({dbStudentStats['11th'].science})</span>
+                        <span>Sci ({activeStudentStats['11th'].science})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('11th', feeDistributionProgress['11th']?.remainingTotal || 0, feeDistributionProgress['11th']?.remainingSci || 0);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        disabled={(feeDistributionProgress['11th']?.remainingTotal || 0) <= 0}
+                        className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] flex items-center justify-center gap-0.5 shadow-sm cursor-pointer transition-all active:scale-98 disabled:opacity-40"
+                        title="Populate Remaining 11th students"
+                      >
+                        <span>Left ({feeDistributionProgress['11th']?.remainingTotal || 0})</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* 4. Class 12th (Stream-wise) */}
+                  {/* 4. Class 12th (Stream-wise Editable) */}
                   <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5 flex flex-col justify-between">
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2">
-                        <span className="font-black text-sm text-rose-700 dark:text-rose-400">Class 12th</span>
-                        <span className="px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 font-mono font-black text-xs">
-                          {dbStudentStats['12th'].total} Total Students
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm text-rose-700 dark:text-rose-400">Class 12th</span>
+                          {activeStudentStats['12th'].isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetEnrollmentOverride('12th')}
+                              className="text-[9px] text-rose-600 hover:text-rose-800 dark:text-rose-400 underline font-bold cursor-pointer"
+                              title="Reset to database count"
+                            >
+                              ↩ Reset DB ({dbStudentStats['12th'].total})
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['12th'].total}
+                            onChange={(e) => handleUpdateEnrollmentOverride('12th', 'total', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 font-mono font-black text-xs text-right text-rose-700 dark:text-rose-300 outline-none focus:ring-1 focus:ring-rose-500"
+                            title="Edit Class 12th Total (auto-updates when streams change)"
+                          />
+                          <span className="text-[10px] font-black text-slate-400">Total</span>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1">
-                        <div className="flex justify-between">
+
+                      {/* Streamwise Editable Inputs */}
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 font-bold space-y-1.5">
+                        {/* Science Stream */}
+                        <div className="flex items-center justify-between bg-purple-50/60 dark:bg-purple-950/30 p-1 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
                           <span className="text-purple-700 dark:text-purple-300 font-extrabold flex items-center gap-1">
                             <span>🔬 Science Stream (Opt Fee):</span>
                           </span>
-                          <span className="font-mono font-black text-purple-700 dark:text-purple-300">{dbStudentStats['12th'].science}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['12th'].science}
+                            onChange={(e) => handleUpdateEnrollmentOverride('12th', 'science', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-mono font-black text-xs text-right text-purple-700 dark:text-purple-300 outline-none focus:ring-1 focus:ring-purple-500"
+                            title="Edit 12th Science stream student count"
+                          />
                         </div>
-                        <div className="flex justify-between">
+
+                        {/* Humanities / Arts */}
+                        <div className="flex items-center justify-between p-1">
                           <span>📚 Humanities / Arts:</span>
-                          <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['12th'].streams['Humanities'] || 0}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={activeStudentStats['12th'].streams.Humanities || 0}
+                            onChange={(e) => handleUpdateEnrollmentOverride('12th', 'humanities', e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-right text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500"
+                            title="Edit 12th Humanities student count"
+                          />
                         </div>
-                        {(dbStudentStats['12th'].streams['Commerce'] || 0) > 0 && (
-                          <div className="flex justify-between">
+
+                        {/* Commerce */}
+                        {((activeStudentStats['12th'].streams.Commerce || 0) > 0 || activeStudentStats['12th'].isCustom) && (
+                          <div className="flex items-center justify-between p-1">
                             <span>📊 Commerce:</span>
-                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['12th'].streams['Commerce']}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={activeStudentStats['12th'].streams.Commerce || 0}
+                              onChange={(e) => handleUpdateEnrollmentOverride('12th', 'commerce', e.target.value)}
+                              className="w-16 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-right text-slate-800 dark:text-slate-200 outline-none"
+                              title="Edit 12th Commerce student count"
+                            />
                           </div>
                         )}
-                        {(dbStudentStats['12th'].streams['Home Science'] || 0) > 0 && (
-                          <div className="flex justify-between">
-                            <span>🏡 Home Science:</span>
-                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{dbStudentStats['12th'].streams['Home Science']}</span>
-                          </div>
-                        )}
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-800">
+                          <span>Paid: {feeDistributionProgress['12th']?.distributedTotal || 0} (Sci: {feeDistributionProgress['12th']?.distributedSci || 0})</span>
+                          <span className="font-black text-amber-600 dark:text-amber-400">
+                            Left: {feeDistributionProgress['12th']?.remainingTotal || 0} (Sci: {feeDistributionProgress['12th']?.remainingSci || 0})
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+
+                    <div className="grid grid-cols-3 gap-1 pt-1">
                       <button
                         type="button"
                         onClick={() => {
-                          handleApplyDbStats('12th', dbStudentStats['12th'].total, dbStudentStats['12th'].science);
+                          handleApplyDbStats('12th', activeStudentStats['12th'].total, activeStudentStats['12th'].science);
                           setIsRatesModalOpen(false);
                           setActiveTab('entry');
                         }}
-                        className="py-1.5 px-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
-                        title="Populate all 12th students with Science count"
+                        className="py-1.5 px-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] flex items-center justify-center gap-0.5 shadow-sm cursor-pointer transition-all active:scale-98"
+                        title="Populate All 12th students with Science count"
                       >
-                        <Sparkles size={11} />
-                        <span>All ({dbStudentStats['12th'].total})</span>
+                        <Sparkles size={10} />
+                        <span>All ({activeStudentStats['12th'].total})</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          handleApplyDbStats('12th', dbStudentStats['12th'].science, dbStudentStats['12th'].science);
+                          handleApplyDbStats('12th', activeStudentStats['12th'].science, activeStudentStats['12th'].science);
                           setIsRatesModalOpen(false);
                           setActiveTab('entry');
                         }}
-                        className="py-1.5 px-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[11px] flex items-center justify-center gap-1 shadow-sm cursor-pointer transition-all active:scale-98"
+                        className="py-1.5 px-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-[10px] flex items-center justify-center gap-0.5 shadow-sm cursor-pointer transition-all active:scale-98"
                         title="Populate 12th Science stream only"
                       >
-                        <span>Sci ({dbStudentStats['12th'].science})</span>
+                        <span>Sci ({activeStudentStats['12th'].science})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleApplyDbStats('12th', feeDistributionProgress['12th']?.remainingTotal || 0, feeDistributionProgress['12th']?.remainingSci || 0);
+                          setIsRatesModalOpen(false);
+                          setActiveTab('entry');
+                        }}
+                        disabled={(feeDistributionProgress['12th']?.remainingTotal || 0) <= 0}
+                        className="py-1.5 px-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] flex items-center justify-center gap-0.5 shadow-sm cursor-pointer transition-all active:scale-98 disabled:opacity-40"
+                        title="Populate Remaining 12th students"
+                      >
+                        <span>Left ({feeDistributionProgress['12th']?.remainingTotal || 0})</span>
                       </button>
                     </div>
                   </div>
@@ -3155,7 +3559,7 @@ export default function FundDistribution() {
                 <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 flex items-start gap-2.5 text-[11px] text-blue-900 dark:text-blue-300 font-bold leading-relaxed">
                   <Sparkles size={15} className="flex-shrink-0 mt-0.5 text-blue-600" />
                   <span>
-                    Auto-populating loads the live approved database count directly into your statement generator. You can freely adjust numbers in the entry form to include counter/offline admission receipts.
+                    Figures are live and fully editable. When you adjust stream numbers, totals automatically recalculate. 1-click populate buttons inject current values directly into your statement generator.
                   </span>
                 </div>
               </div>
