@@ -2743,11 +2743,11 @@ function SubjectStreamCell({ val, student }) {
       {/* Subject abbreviations + Stream badge INLINE */}
       <span
         title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
-        className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline-flex items-center flex-wrap gap-1"
+        className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help"
       >
-        <span>{abbr}</span>
+        {abbr}
         {streamInfo.code && (
-          <span className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
+          <span className={`inline-block ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap align-middle ${streamInfo.style}`}>
             ({streamInfo.code})
           </span>
         )}
