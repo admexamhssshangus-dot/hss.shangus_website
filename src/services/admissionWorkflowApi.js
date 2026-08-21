@@ -2,7 +2,6 @@ import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { auth } from './firebase';
 import { getFirebaseAppCheck } from './firebaseAppCheck';
 
-const PROD_ENDPOINT = 'https://hssshangus.netlify.app/.netlify/functions/admission-workflow';
 const ENDPOINT = '/.netlify/functions/admission-workflow';
 const SERVICE_COOLDOWN_MS = 60 * 1000;
 let serviceUnavailableUntil = 0;
@@ -34,44 +33,18 @@ async function request(action, payload = {}, { force = false } = {}) {
     }
   }
 
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   let response;
   try {
     response = await fetch(ENDPOINT, {
       method: 'POST', headers, cache: 'no-store',
       body: JSON.stringify({ action, ...payload }),
     });
-
-    // If local dev proxy fails, transparently retry against live upstream endpoint
-    if (!response.ok && isLocal && (response.status >= 500 || response.status === 404)) {
-      console.warn(`Local proxy returned ${response.status}, retrying direct live backend.`);
-      response = await fetch(PROD_ENDPOINT, {
-        method: 'POST', headers, cache: 'no-store',
-        body: JSON.stringify({ action, ...payload }),
-      });
-    }
   } catch (cause) {
-    if (isLocal) {
-      try {
-        console.warn('Local endpoint connection failed, retrying direct live backend.');
-        response = await fetch(PROD_ENDPOINT, {
-          method: 'POST', headers, cache: 'no-store',
-          body: JSON.stringify({ action, ...payload }),
-        });
-      } catch (prodCause) {
-        const error = workflowError('The admission service could not be reached. Check your connection and try again.');
-        error.cause = prodCause;
-        cachedServiceError = error;
-        serviceUnavailableUntil = Date.now() + SERVICE_COOLDOWN_MS;
-        throw error;
-      }
-    } else {
-      const error = workflowError('The admission service could not be reached. Check your connection and try again.');
-      error.cause = cause;
-      cachedServiceError = error;
-      serviceUnavailableUntil = Date.now() + SERVICE_COOLDOWN_MS;
-      throw error;
-    }
+    const error = workflowError('The admission service could not be reached. Check your connection and try again.');
+    error.cause = cause;
+    cachedServiceError = error;
+    serviceUnavailableUntil = Date.now() + SERVICE_COOLDOWN_MS;
+    throw error;
   }
 
   const result = await response.json().catch(() => ({}));
