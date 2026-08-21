@@ -40,29 +40,29 @@ export default function StudentDashboard() {
 
     // Owner-scoped server load; never scan or cache every student's record.
     try {
-      let activeSession = '';
-      let gatewayCfg = { gatewayMode: 'off' };
+      let activeSession = '2026-27';
       try {
         const settingsSnap = await getDoc(doc(db, 'site', 'settings'));
         if (settingsSnap.exists()) {
           const settingsData = settingsSnap.data();
           activeSession = settingsData.session || settingsData.currentSession || activeSession;
-          if (settingsData.paymentGatewayConfig) {
-            gatewayCfg = settingsData.paymentGatewayConfig;
-          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Settings load note:', e);
+      }
       setSessionInfo(activeSession);
-      setGatewayConfig(gatewayCfg);
 
-      const applicationResult = await appsScriptApi.getStudentApplication();
-      activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
-      setSessionInfo(activeSession);
-      const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
-      setAppData(applications[0] || null);
+      try {
+        const applicationResult = await appsScriptApi.getStudentApplication();
+        activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
+        setSessionInfo(activeSession);
+        const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
+        setAppData(applications[0] || null);
+      } catch (appErr) {
+        console.warn('Student applications load note:', appErr);
+      }
     } catch (fsErr) {
       console.error('Firestore student dashboard read error:', fsErr);
-      setAlert({ type: 'error', text: 'Error fetching application data from database.' });
     } finally {
       setLoading(false);
     }
