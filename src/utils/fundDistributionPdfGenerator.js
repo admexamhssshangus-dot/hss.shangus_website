@@ -8,7 +8,7 @@ export const DEFAULT_SUBSIDIARY_ACCOUNTS = [
   { key: 'poorFund', name: 'Mutual Benefit (Poor Fund)', accNo: '0137040500000421', isScienceOnly: false },
   { key: 'gamesFund', name: 'Games Fund', accNo: '0137040500000124', isScienceOnly: false },
   { key: 'printingFund', name: 'Printing Fund (Forms & Prospectus)', accNo: '0137040500008527', isScienceOnly: false },
-  { key: 'scienceFund', name: 'Science Fund (Per Science Student)', accNo: '0137040500001072', isScienceOnly: true },
+  { key: 'scienceFund', name: 'Science Fund', accNo: '0137040500001072', isScienceOnly: true },
   { key: 'computerFund', name: 'Computer Fund', accNo: '0137040500000001', isScienceOnly: false },
   { key: 'libraryFund', name: 'Library Fund', accNo: '0137040500000133', isScienceOnly: false },
   { key: 'socialActivity', name: 'Social Activity Fund', accNo: '0137040500005504', isScienceOnly: false },

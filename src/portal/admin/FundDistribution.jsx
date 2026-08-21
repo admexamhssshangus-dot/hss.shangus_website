@@ -176,11 +176,13 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
               ? parseFloat(report[acc.key]) || (rateVal * count)
               : (rateVal * count);
 
+            const displayName = String(acc.name || '').replace(/\s*\(\s*per science student\s*\)/gi, '').trim();
+
             return (
               <div key={acc.key} className="flex justify-between items-start gap-1 py-0.5">
                 <div className="min-w-0 flex-1">
-                  <div className="text-slate-600 dark:text-slate-400 truncate flex items-center gap-1 font-bold" title={acc.name}>
-                    <span className="truncate">{acc.name}</span>
+                  <div className="text-slate-600 dark:text-slate-400 truncate flex items-center gap-1 font-bold" title={displayName}>
+                    <span className="truncate">{displayName}</span>
                     {acc.isScienceOnly && (
                       <span className="text-[8px] px-1 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold flex-shrink-0">
                         Sci
@@ -188,7 +190,7 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
                     )}
                   </div>
                   <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 font-bold leading-tight">
-                    {count} × ₹{rateVal}
+                    ({count} × ₹{rateVal})
                   </div>
                 </div>
                 <span className="font-mono font-black flex-shrink-0 text-slate-900 dark:text-white pt-0.5">
@@ -319,7 +321,7 @@ const HEAD_LABELS = {
   poorFund: 'Mutual Benefit (Poor Fund)',
   gamesFund: 'Games Fund',
   printingFund: 'Printing Fund (Forms & Prospectus)',
-  scienceFund: 'Science Fund (Per Science Student)',
+  scienceFund: 'Science Fund',
   computerFund: 'Computer Fund',
   libraryFund: 'Library Fund',
   socialActivity: 'Social Activity Fund',
