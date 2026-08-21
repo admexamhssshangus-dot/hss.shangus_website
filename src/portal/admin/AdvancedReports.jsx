@@ -3831,7 +3831,20 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
   );
 }
 
-export default function AdvancedReports({ setActiveTab, setCounts, user, onLogout, onSync, stats, initialData = [], onRecordDeleted }) {
+export default function AdvancedReports({
+  setActiveTab,
+  setCounts,
+  user,
+  onLogout,
+  onSync,
+  stats,
+  initialData = [],
+  onRecordDeleted,
+  triggerAction,
+  onTriggerActionHandled,
+  enableQuickCellEdit: parentQuickCellEdit,
+  setEnableQuickCellEdit: parentSetQuickCellEdit
+}) {
   // Clear legacy cache keys on initial render to prevent stale dataset from sticking in sessionStorage
   useEffect(() => {
     try {
@@ -3863,6 +3876,23 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   const [bulkTableActionBusy, setBulkTableActionBusy] = useState(false);
   const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
   const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
+
+  // Handle triggerAction from global module launcher
+  useEffect(() => {
+    if (!triggerAction) return;
+    if (triggerAction === 'analytics') {
+      setShowAnalyticsModal(true);
+    } else if (triggerAction === 'directEntry') {
+      setShowDirectIngestionModal(true);
+    } else if (triggerAction === 'bulkTools') {
+      setShowToolsModal(true);
+    } else if (triggerAction === 'recycleBin') {
+      setShowRecycleBinModal(true);
+    }
+    if (onTriggerActionHandled) {
+      onTriggerActionHandled();
+    }
+  }, [triggerAction, onTriggerActionHandled]);
   const recycleBinCount = unreadRecycleBinCount;
   const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
   const lastSyncedInputRef = useRef(null);
@@ -4036,7 +4066,15 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
   };
 
   // ─── Quick Cell Edit Controls & Handlers ───
-  const [enableQuickCellEdit, setEnableQuickCellEdit] = useState(false);
+  const [localQuickCellEdit, setLocalQuickCellEdit] = useState(() => {
+    try {
+      return localStorage.getItem('hss_quick_cell_edit') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const enableQuickCellEdit = parentQuickCellEdit !== undefined ? parentQuickCellEdit : localQuickCellEdit;
+  const setEnableQuickCellEdit = parentSetQuickCellEdit !== undefined ? parentSetQuickCellEdit : setLocalQuickCellEdit;
   const [quickEditCell, setQuickEditCell] = useState(null);
   const [isSavingQuickEdit, setIsSavingQuickEdit] = useState(false);
   const [quickEditProgress, setQuickEditProgress] = useState(0);
