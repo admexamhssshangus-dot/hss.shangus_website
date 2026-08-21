@@ -1618,7 +1618,7 @@ export default function FundDistribution() {
                 </div>
               </div>
 
-              {/* ─── LIVE FEE RECONCILIATION PROGRESS FOR ACTIVE CLASS (Approved vs Distributed vs Left) ─── */}
+              {/* ─── LIVE FEE RECONCILIATION PROGRESS FOR ACTIVE CLASS (Compact Micro-Bar) ─── */}
               {(() => {
                 const prog = feeDistributionProgress[formClass] || {
                   approvedTotal: 0,
@@ -1630,100 +1630,56 @@ export default function FundDistribution() {
                   percent: 0
                 };
                 const is11or12 = formClass === '11th' || formClass === '12th';
+                const isFullyPaid = prog.remainingTotal === 0 && prog.approvedTotal > 0;
 
                 return (
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-1 text-[10.5px]">
-                      <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-slate-200">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                        <span className="text-blue-700 dark:text-blue-400 font-extrabold uppercase">Class {formClass} Distribution Status:</span>
-                        <span className="text-slate-600 dark:text-slate-400 font-bold">
-                          Session {formSession || fundSession || '2025-26'}
+                  <div className="px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
+                    {/* Left: Class Badge & Inline Micro Stats */}
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <span className="font-black text-blue-700 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isFullyPaid ? 'bg-emerald-500' : 'bg-blue-500 animate-pulse'}`} />
+                        <span>Class {formClass}:</span>
+                      </span>
+
+                      {/* 3 Inline Micro Badges */}
+                      <div className="flex items-center gap-1 font-mono text-[9.5px]">
+                        <span className="px-1.5 py-0.2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold" title="Approved on Roll">
+                          Roll: <strong className="text-slate-900 dark:text-white">{prog.approvedTotal}</strong>{is11or12 && ` (Sci:${prog.approvedSci})`}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-blue-700 dark:text-blue-300 font-bold" title="Previously Distributed">
+                          Paid: <strong>{prog.distributedTotal}</strong>{is11or12 && ` (Sci:${prog.distributedSci})`}
+                        </span>
+                        <span className={`px-1.5 py-0.2 rounded border font-bold ${
+                          isFullyPaid
+                            ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                            : 'bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                        }`} title={isFullyPaid ? 'Fully Disbursed' : 'Remaining to Disburse'}>
+                          {isFullyPaid ? '✓ 100% Disbursed' : `Left: ${prog.remainingTotal}${is11or12 ? ` (Sci:${prog.remainingSci})` : ''}`}
                         </span>
                       </div>
-
-                      {/* Quick 1-Click Fill Buttons */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleApplyDbStats(formClass, prog.remainingTotal, is11or12 ? prog.remainingSci : prog.remainingTotal)}
-                          disabled={prog.remainingTotal <= 0 && prog.approvedTotal > 0}
-                          className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9.5px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={`Fill remaining pending students (${prog.remainingTotal} Left)`}
-                        >
-                          <Sparkles size={10} />
-                          <span>Fill Remaining ({prog.remainingTotal} Left)</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleApplyDbStats(formClass, prog.approvedTotal, is11or12 ? prog.approvedSci : prog.approvedTotal)}
-                          className="px-2 py-0.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-black text-[9.5px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95"
-                          title={`Fill total approved students (${prog.approvedTotal} Total)`}
-                        >
-                          <span>Fill Total ({prog.approvedTotal})</span>
-                        </button>
-                      </div>
                     </div>
 
-                    {/* 3 Metric Pills: Target Approved • Distributed So Far • Remaining Left */}
-                    <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                      {/* Metric 1: Total Approved */}
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[8.5px] font-black uppercase text-slate-400">Approved on Roll</div>
-                        <div className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs">
-                          {prog.approvedTotal}
-                          {is11or12 && (
-                            <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 ml-1">
-                              (Sci: {prog.approvedSci})
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                    {/* Right: Quick Action Buttons */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyDbStats(formClass, prog.remainingTotal, is11or12 ? prog.remainingSci : prog.remainingTotal)}
+                        disabled={isFullyPaid}
+                        className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] flex items-center gap-0.5 cursor-pointer shadow-2xs transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={`Populate remaining ${prog.remainingTotal} students`}
+                      >
+                        <Sparkles size={9} />
+                        <span>Fill Left ({prog.remainingTotal})</span>
+                      </button>
 
-                      {/* Metric 2: Distributed in Previous Statements */}
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[8.5px] font-black uppercase text-slate-400">Already Distributed</div>
-                        <div className="font-mono font-black text-blue-600 dark:text-blue-400 text-xs">
-                          {prog.distributedTotal}
-                          {is11or12 && (
-                            <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 ml-1">
-                              (Sci: {prog.distributedSci})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Metric 3: Remaining Left to Pay */}
-                      <div className={`p-1.5 rounded-lg border ${
-                        prog.remainingTotal === 0 && prog.approvedTotal > 0
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-                          : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-300'
-                      }`}>
-                        <div className="text-[8.5px] font-black uppercase tracking-tight">
-                          {prog.remainingTotal === 0 && prog.approvedTotal > 0 ? 'Fully Disbursed' : 'Remaining Left'}
-                        </div>
-                        <div className="font-mono font-black text-xs">
-                          {prog.remainingTotal === 0 && prog.approvedTotal > 0 ? '✓ 100%' : `${prog.remainingTotal} Left`}
-                          {is11or12 && prog.remainingTotal > 0 && (
-                            <span className="text-[9px] font-bold text-purple-700 dark:text-purple-300 ml-1">
-                              (Sci: {prog.remainingSci})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-500 rounded-full ${
-                          prog.remainingTotal === 0 && prog.approvedTotal > 0
-                            ? 'bg-emerald-500'
-                            : 'bg-blue-600'
-                        }`}
-                        style={{ width: `${Math.min(100, prog.percent)}%` }}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyDbStats(formClass, prog.approvedTotal, is11or12 ? prog.approvedSci : prog.approvedTotal)}
+                        className="px-2 py-0.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] flex items-center gap-0.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                        title={`Populate all ${prog.approvedTotal} approved students`}
+                      >
+                        <span>Fill Total ({prog.approvedTotal})</span>
+                      </button>
                     </div>
                   </div>
                 );
