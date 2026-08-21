@@ -660,15 +660,21 @@ export default function AdmissionRegisterSuite({
 
   // Normalized Student Object Mapper with Re-admission Parsing
   const normalizedStudents = useMemo(() => {
-    return (dataset || []).map((s, idx) => {
-      const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
-      const sess = cleanStr(s.session || s.Session || s['Academic Session'] || selectedSession);
-      const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo);
-      const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s.admissionNumber);
-      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no);
-      const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']);
+    const list = [];
+    (dataset || []).forEach((s, idx) => {
+      if (!s) return;
       const name = cleanStr(s.studentName || s["Student's Name (as per school records)"] || s['Student Name'] || s.name);
       const father = cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.father);
+      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no);
+      const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s.admissionNumber);
+      const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo);
+      const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']);
+
+      // CRITICAL: Reject phantom/empty ghost database rows that have zero identifying student information
+      if (!name && !father && !rollNo && !admNo && !formNo && !boardReg) return;
+
+      const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
+      const sess = cleanStr(s.session || s.Session || s['Academic Session'] || selectedSession);
       const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s.mother);
       const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['Date of Birth']);
       const gender = cleanStr(s.gender || s.Gender || 'Male');
@@ -712,10 +718,10 @@ export default function AdmissionRegisterSuite({
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
       const directPhoto = getStudentPhotoUrl(s, '');
 
-      return {
+      list.push({
         raw: s,
         id: docId,
-        sno: idx + 1,
+        sno: list.length + 1,
         formNo,
         admNo,
         oldAdmNo,
@@ -723,7 +729,7 @@ export default function AdmissionRegisterSuite({
         isReadmission,
         rollNo,
         boardReg,
-        name,
+        name: name || 'Student Record',
         father,
         mother,
         dobFigures: dob,
@@ -756,8 +762,9 @@ export default function AdmissionRegisterSuite({
         prevCC: isReadmission ? 'Re-admitted (Gap)' : (prevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC'),
         withdrawal: '—',
         remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || '')
-      };
+      });
     });
+    return list;
   }, [dataset, selectedSession]);
 
   // 4. DYNAMIC CLASSES TAILORED STRICTLY TO LOADED SESSION DATA
@@ -1604,9 +1611,9 @@ export default function AdmissionRegisterSuite({
                   title="Select Register Class Scope"
                 >
                   <option value="11th">Class 11th</option>
-                  <option value="9th">Class 9th</option>
-                  <option value="10th">Class 10th</option>
-                  <option value="12th">Class 12th</option>
+                  {availableClasses.filter(c => c !== '11th').map(c => (
+                    <option key={c} value={c}>Class {c}</option>
+                  ))}
                   <option value="ALL">All Classes</option>
                 </select>
 
@@ -2838,36 +2845,54 @@ export default function AdmissionRegisterSuite({
           {/* TAB 3: ASSIGN IDs (BULK SEQUENTIAL + INHERITANCE ENGINE)        */}
           {/* ============================================================== */}
           {activeTab === 'assign_ids' && (
-            <div className="space-y-4 p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
-              <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200 dark:border-slate-800 pb-3">
-                <div>
-                  <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <CreditCard size={16} className="text-indigo-600 dark:text-indigo-400" />
-                    <span>Assign Admission Numbers in Bulk</span>
-                  </h2>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                    Sequential auto-numbering, inheritance via Board Reg No, and direct atomic Firestore commits.
-                  </p>
+            <div className="space-y-3 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs text-xs">
+              {/* Compact Control Bar */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                    <CreditCard size={15} />
+                  </span>
+                  <div>
+                    <h2 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                      Bulk Assign Admission Numbers
+                    </h2>
+                    <p className="text-[10.5px] text-slate-500 font-medium">
+                      Auto-numbering & Board Reg No inheritance with direct Firestore sync.
+                    </p>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAssignStartId(calculatedNextAdmNo)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hover:bg-indigo-100 flex items-center gap-1.5 cursor-pointer"
-                  title="Auto-calculate next available Admission Number"
-                >
-                  <RefreshCw size={12} />
-                  <span>Auto-Next ({calculatedNextAdmNo})</span>
-                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setAssignStartId(calculatedNextAdmNo)}
+                    className="py-1 px-2 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                    title="Auto-calculate next available Admission Number from database"
+                  >
+                    <RefreshCw size={11} />
+                    <span>Auto-Next ({calculatedNextAdmNo})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRunAssignIds}
+                    disabled={assigningIds || candidateIdPreviewList.length === 0}
+                    className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
+                  >
+                    {assigningIds ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                    <span>Assign IDs ({candidateIdPreviewList.length})</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Scope Filters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Session:</label>
+              {/* Compact Filter Toolbar */}
+              <div className="flex items-center justify-between gap-2 flex-wrap p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
+                {/* Session */}
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-semibold text-[10.5px]">Session:</span>
                   <select
                     value={assignSessionFilter}
                     onChange={(e) => setAssignSessionFilter(e.target.value)}
-                    className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold"
+                    className="py-0.5 px-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-indigo-700 dark:text-indigo-300 cursor-pointer"
                   >
                     {availableSessions.map(sess => (
                       <option key={sess} value={sess}>{sess}</option>
@@ -2876,97 +2901,91 @@ export default function AdmissionRegisterSuite({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Target Classes:</label>
-                  <div className="flex items-center gap-1 flex-wrap">
+                {/* Target Classes Toggle Pills */}
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-semibold text-[10.5px]">Classes:</span>
+                  <div className="flex items-center gap-0.5">
                     {availableClasses.map(cls => {
                       const checked = assignClasses.includes(cls);
                       return (
-                        <label
+                        <button
                           key={cls}
-                          className={`px-2 py-0.5 rounded-md text-[11px] font-bold cursor-pointer border select-none transition-all ${
+                          type="button"
+                          onClick={() => {
+                            if (checked) setAssignClasses(prev => prev.filter(c => c !== cls));
+                            else setAssignClasses(prev => [...prev, cls]);
+                          }}
+                          className={`py-0.5 px-2 rounded text-[10.5px] font-extrabold cursor-pointer border transition-all ${
                             checked
                               ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
                           }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              if (e.target.checked) setAssignClasses(prev => [...prev, cls]);
-                              else setAssignClasses(prev => prev.filter(c => c !== cls));
-                            }}
-                            className="hidden"
-                          />
-                          <span>{cls}</span>
-                        </label>
+                          {cls}
+                        </button>
                       );
                     })}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Start Assigning From ID:</label>
+                {/* Start From ID */}
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 font-semibold text-[10.5px]">Start ID:</span>
                   <input
                     type="number"
                     value={assignStartId}
                     onChange={(e) => setAssignStartId(e.target.value)}
-                    className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-center"
+                    className="w-20 py-0.5 px-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-center"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Scope Filter:</label>
-                  <div className="flex items-center justify-between gap-1 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                    <label className="flex items-center gap-1 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={onlyMissingAdmNo}
-                        onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
-                        className="rounded text-indigo-600"
-                      />
-                      <span>Only Missing Adm No</span>
-                    </label>
-                    <span className="px-1.5 py-0.5 rounded font-bold text-[10.5px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950">
-                      {candidateIdPreviewList.length}
-                    </span>
-                  </div>
-                </div>
+                {/* Only Missing Checkbox */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={onlyMissingAdmNo}
+                    onChange={(e) => setOnlyMissingAdmNo(e.target.checked)}
+                    className="rounded text-indigo-600 cursor-pointer"
+                  />
+                  <span className="text-[10.5px]">Only Missing Adm No</span>
+                  <span className="ml-1 px-1 py-0.2 rounded font-mono font-black text-[10px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950">
+                    {candidateIdPreviewList.length}
+                  </span>
+                </label>
               </div>
 
-              {/* Candidate Preview Table */}
+              {/* High Density Candidate Preview Table */}
               {candidateIdPreviewList.length > 0 ? (
-                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
-                  <div className="max-h-80 overflow-y-auto">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+                  <div className="max-h-96 overflow-y-auto">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-extrabold text-slate-700 dark:text-slate-300">
+                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 w-10 text-center">#</th>
-                          <th className="p-2">Student & Father's Name</th>
-                          <th className="p-2">Class / Session</th>
-                          <th className="p-2">Board Reg. No.</th>
-                          <th className="p-2">Previous Adm. No. (Reg Key)</th>
-                          <th className="p-2">Current Adm No</th>
-                          <th className="p-2 text-center">Assignment Strategy</th>
-                          <th className="p-2 text-right">Proposed ID</th>
+                          <th className="py-1.5 px-2 w-10 text-center">#</th>
+                          <th className="py-1.5 px-2 min-w-44">Student & Father's Name</th>
+                          <th className="py-1.5 px-2">Class (Session)</th>
+                          <th className="py-1.5 px-2">Board Reg. No.</th>
+                          <th className="py-1.5 px-2">Previous Adm. No.</th>
+                          <th className="py-1.5 px-2 text-center">Current Adm No</th>
+                          <th className="py-1.5 px-2 text-center">Strategy</th>
+                          <th className="py-1.5 px-2 text-right">Proposed ID</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
                         {candidateIdPreviewList.map((item, idx) => {
                           const { student, currentAdm, prevInfo, strat, proposed } = item;
                           return (
-                            <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                              <td className="p-2 text-center font-bold text-slate-400">{idx + 1}</td>
-                              <td className="p-2 font-bold">
-                                <div className="text-slate-900 dark:text-slate-100">{student.name}</div>
-                                <div className="text-[10px] text-slate-500 font-normal">S/O: {student.father}</div>
+                            <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                              <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
+                              <td className="py-1 px-2">
+                                <div className="font-extrabold text-slate-900 dark:text-white leading-tight">{student.name}</div>
+                                <div className="text-[10px] text-slate-500">S/O: {student.father || '—'}</div>
                               </td>
-                              <td className="p-2 font-bold text-indigo-600 dark:text-indigo-400">
-                                {student.class} ({student.session})
+                              <td className="py-1 px-2 font-bold text-indigo-600 dark:text-indigo-400">
+                                {student.class} <span className="text-[10px] text-slate-400">({student.session})</span>
                               </td>
-                              <td className="p-2 font-mono text-[11px]">{student.boardReg || '—'}</td>
-                              <td className="p-2 font-mono text-[11px]">
+                              <td className="py-1 px-2 font-mono text-[10.5px] ledger-mono-font">{student.boardReg || '—'}</td>
+                              <td className="py-1 px-2 font-mono text-[10.5px]">
                                 {prevInfo ? (
                                   <span className="px-1.5 py-0.5 rounded font-black text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800">
                                     {prevInfo.admNo} ({prevInfo.class})
@@ -2975,13 +2994,13 @@ export default function AdmissionRegisterSuite({
                                   <span className="text-slate-400">—</span>
                                 )}
                               </td>
-                              <td className="p-2 font-mono text-slate-600 dark:text-slate-400">{currentAdm || '—'}</td>
-                              <td className="p-2 text-center">
+                              <td className="py-1 px-2 text-center font-mono ledger-mono-font text-slate-600 dark:text-slate-400">{currentAdm || '—'}</td>
+                              <td className="py-1 px-2 text-center">
                                 <div className="inline-flex rounded-md p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                   <button
                                     type="button"
                                     onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'assign_new' }))}
-                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
+                                    className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
                                       strat === 'assign_new' ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
                                     }`}
                                   >
@@ -2991,17 +3010,17 @@ export default function AdmissionRegisterSuite({
                                     <button
                                       type="button"
                                       onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'inherit_prev' }))}
-                                      className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
+                                      className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
                                         strat === 'inherit_prev' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
                                       }`}
                                     >
-                                      Inherit ({prevInfo.admNo})
+                                      Inherit
                                     </button>
                                   )}
                                   <button
                                     type="button"
                                     onClick={() => setAssignStrategies(prev => ({ ...prev, [student.id]: 'skip' }))}
-                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
+                                    className={`px-1.5 py-0.5 text-[9.5px] font-black rounded cursor-pointer transition-all ${
                                       strat === 'skip' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400'
                                     }`}
                                   >
@@ -3009,7 +3028,7 @@ export default function AdmissionRegisterSuite({
                                   </button>
                                 </div>
                               </td>
-                              <td className="p-2 text-right font-mono font-black text-indigo-700 dark:text-indigo-300 text-sm">
+                              <td className="py-1 px-2 text-right font-mono font-black text-indigo-700 dark:text-indigo-300 text-xs">
                                 {proposed}
                               </td>
                             </tr>
@@ -3024,17 +3043,6 @@ export default function AdmissionRegisterSuite({
                   No students match the selected class scope and missing admission number filter.
                 </div>
               )}
-
-              {/* Run Button */}
-              <button
-                type="button"
-                onClick={handleRunAssignIds}
-                disabled={assigningIds || candidateIdPreviewList.length === 0}
-                className="w-full py-2.5 rounded-lg font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all text-xs"
-              >
-                {assigningIds ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
-                <span>Execute Admission ID Assignment ({candidateIdPreviewList.length} Students)</span>
-              </button>
             </div>
           )}
 
@@ -3042,25 +3050,42 @@ export default function AdmissionRegisterSuite({
           {/* TAB 4: ASSIGN DATES (BULK ADM & SUBMISSION DATE ASSIGNER)       */}
           {/* ============================================================== */}
           {activeTab === 'assign_dates' && (
-            <div className="space-y-4 p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-2.5">
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Calendar size={16} className="text-indigo-600 dark:text-indigo-400" />
-                  <span>Bulk Assign Admission & Submission Dates</span>
-                </h2>
-                <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                  Apply a uniform Admission Date or Online Submission Date across target classes or sessions.
-                </p>
+            <div className="space-y-3 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs text-xs">
+              {/* Compact Control Bar */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                    <Calendar size={15} />
+                  </span>
+                  <div>
+                    <h2 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                      Bulk Assign Admission & Submission Dates
+                    </h2>
+                    <p className="text-[10.5px] text-slate-500 font-medium">
+                      Apply uniform Admission Date or Online Submission Date across target classes.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRunAssignDates}
+                  disabled={assigningDates || dateTargetStudents.length === 0}
+                  className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
+                >
+                  {assigningDates ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                  <span>Apply Date ({dateTargetStudents.length} Students)</span>
+                </button>
               </div>
 
-              {/* Scope & Date Form */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold">
+              {/* Compact Form Toolbar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Target Date Field:</label>
+                  <label className="block text-[10.5px] font-bold text-slate-500 mb-0.5">Target Field:</label>
                   <select
                     value={assignDateField}
                     onChange={(e) => setAssignDateField(e.target.value)}
-                    className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold"
+                    className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold cursor-pointer"
                   >
                     <option value="admDate">Admission Date (Adm. Date)</option>
                     <option value="onlineSubmDate">Online Submission Date</option>
@@ -3068,21 +3093,30 @@ export default function AdmissionRegisterSuite({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Select Date:</label>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="text-[10.5px] font-bold text-slate-500">Select Date:</label>
+                    <button
+                      type="button"
+                      onClick={() => setAssignDateValue(new Date().toISOString().split('T')[0])}
+                      className="text-[9.5px] text-indigo-600 hover:underline cursor-pointer font-bold"
+                    >
+                      Today
+                    </button>
+                  </div>
                   <input
                     type="date"
                     value={assignDateValue}
                     onChange={(e) => setAssignDateValue(e.target.value)}
-                    className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-center"
+                    className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold font-mono text-center"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Session Scope:</label>
+                  <label className="block text-[10.5px] font-bold text-slate-500 mb-0.5">Session Scope:</label>
                   <select
                     value={assignDateSession}
                     onChange={(e) => setAssignDateSession(e.target.value)}
-                    className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold"
+                    className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold cursor-pointer text-indigo-700 dark:text-indigo-300"
                   >
                     {availableSessions.map(sess => (
                       <option key={sess} value={sess}>{sess}</option>
@@ -3092,38 +3126,61 @@ export default function AdmissionRegisterSuite({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Class Scope:</label>
+                  <label className="block text-[10.5px] font-bold text-slate-500 mb-0.5">Class Scope:</label>
                   <select
                     value={assignDateClass}
                     onChange={(e) => setAssignDateClass(e.target.value)}
-                    className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold"
+                    className="w-full py-1 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold cursor-pointer"
                   >
                     <option value="ALL">All Classes</option>
                     {availableClasses.map(c => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>Class {c}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Target Summary Card */}
-              <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 flex items-center justify-between">
-                <div>
-                  <div className="font-extrabold text-xs">Target Records: {dateTargetStudents.length} Students</div>
-                  <div className="text-[10.5px] mt-0.5">
-                    Will update <strong>{assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date'}</strong> to <strong>{assignDateValue}</strong>.
+              {/* Target Records Table Preview */}
+              {dateTargetStudents.length > 0 ? (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+                  <div className="max-h-72 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 font-black text-slate-700 dark:text-slate-300 text-[11px] border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="py-1 px-2 w-10 text-center">#</th>
+                          <th className="py-1 px-2">Student Name</th>
+                          <th className="py-1 px-2">Father's Name</th>
+                          <th className="py-1 px-2">Class</th>
+                          <th className="py-1 px-2">Roll No.</th>
+                          <th className="py-1 px-2">Current Date</th>
+                          <th className="py-1 px-2 text-right text-indigo-600">New Date to Apply</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
+                        {dateTargetStudents.map((st, idx) => (
+                          <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                            <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
+                            <td className="py-1 px-2 font-bold">{st.name}</td>
+                            <td className="py-1 px-2 text-slate-500">{st.father}</td>
+                            <td className="py-1 px-2 font-bold text-indigo-600">{st.class}</td>
+                            <td className="py-1 px-2 font-mono ledger-mono-font">{st.rollNo || '—'}</td>
+                            <td className="py-1 px-2 font-mono text-slate-500 ledger-mono-font">
+                              {assignDateField === 'admDate' ? (st.admDate || '—') : (st.onlineStatus || '—')}
+                            </td>
+                            <td className="py-1 px-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 ledger-mono-font">
+                              {assignDateValue}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRunAssignDates}
-                  disabled={assigningDates || dateTargetStudents.length === 0}
-                  className="px-4 py-2 rounded-lg font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs"
-                >
-                  {assigningDates ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
-                  <span>Apply Date ({dateTargetStudents.length})</span>
-                </button>
-              </div>
+              ) : (
+                <div className="p-5 text-center text-slate-500 font-semibold border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50 dark:bg-slate-950">
+                  No students match the selected session and class scope.
+                </div>
+              )}
             </div>
           )}
         </div>
