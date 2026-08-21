@@ -165,13 +165,29 @@ export default function AdmissionForm() {
       const existingId = existing.docId || existing.applicationId || '';
       setApplicationId(existingId);
       applicationIdRef.current = existingId;
-      // Remove legacy browser drafts because they can contain Aadhaar, bank and photo data.
-      try { sessionStorage.removeItem('hss_admission_draft'); } catch (e) { }
-      const localDraft = {};
+      // Retrieve local draft if student refreshed the page while drafting
+      let localDraft = {};
+      try {
+        const uid = currentUser?.uid || 'guest';
+        const rawDraft = localStorage.getItem(`hss_student_draft_${uid}`) ||
+          localStorage.getItem('hss_student_draft_guest') ||
+          localStorage.getItem('hss_student_draft_local');
+        if (rawDraft) {
+          const parsed = JSON.parse(rawDraft);
+          if (parsed && parsed.formData && typeof parsed.formData === 'object') {
+            localDraft = parsed.formData;
+          } else if (parsed && typeof parsed === 'object') {
+            localDraft = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Local draft load note:', e);
+      }
 
       // Pre-fill student photo from any available source (draft, existing, historical, or user profile)
       const preloadedPhoto =
         existing['Student Photo'] || existing['photo_id'] || existing['photoUrl'] || existing['photo'] ||
+        localDraft['Student Photo'] || localDraft['photo_id'] || localDraft['photoUrl'] || localDraft['photo'] ||
         historical['Student Photo'] || historical['photo_id'] || historical['photoUrl'] || historical['photo'] ||
         currentUser?.['Student Photo'] || currentUser?.photo_id || currentUser?.photoUrl || currentUser?.photoURL || '';
 
@@ -189,7 +205,8 @@ export default function AdmissionForm() {
       );
 
       // If filling a NEW form, merge historical student records for instant pre-fill
-      const prefillSource = Object.keys(existing).length > 0 ? existing : historical;
+      const isExistingSubmitted = ['Submitted', 'Approved', 'Under Review'].includes(existing.Status || existing.status);
+      const prefillSource = isExistingSubmitted ? existing : (Object.keys(localDraft).length > 0 ? { ...historical, ...localDraft } : (Object.keys(existing).length > 0 ? existing : historical));
 
       const defaultSession = (() => {
         const now = new Date();
@@ -203,6 +220,7 @@ export default function AdmissionForm() {
 
       const mergedData = {
         ...prefillSource,
+        ...(isExistingSubmitted ? {} : localDraft),
         ...(assignedFormNo ? { 'Form Number': assignedFormNo, FormNo: assignedFormNo, formNo: assignedFormNo } : {}),
         Session: prefillSource.Session || prefillSource.session || appDataRes?.data?.activeSession || appDataRes?.activeSession || defaultSession,
         'Email Address': prefillSource['Email Address'] || currentUser?.email || '',
@@ -220,10 +238,12 @@ export default function AdmissionForm() {
         delete mergedData['formNo'];
       }
 
-      if (Object.keys(localDraft).length > 0) {
+      if (Object.keys(localDraft).length > 0 && !isExistingSubmitted) {
+        setHasConfirmedInstructions(true);
+        setShowInstructions(false);
         setAlert({
           type: 'info',
-          text: `✨ Restored your auto-saved draft (Form #${assignedFormNo})! You can continue filling out or updating your application form.`
+          text: '✨ Restored your auto-saved draft! You can continue filling out your application form.'
         });
       } else if (Object.keys(existing).length > 0) {
         const exStat = existing.Status || existing.status;
@@ -1413,8 +1433,14 @@ export default function AdmissionForm() {
         formNo,
         Status: 'Submitted',
       };
-      setFormData(submittedData);
-      try { sessionStorage.removeItem('hss_admission_upgrade'); } catch (e) { }
+      try {
+        const uid = currentUser?.uid || 'guest';
+        localStorage.removeItem(`hss_student_draft_${uid}`);
+        localStorage.removeItem('hss_student_draft_guest');
+        localStorage.removeItem('hss_student_draft_local');
+        sessionStorage.removeItem('hss_admission_upgrade');
+        sessionStorage.removeItem('hss_admission_draft');
+      } catch (e) { }
       setSubmittedSuccessData(submittedData);
       return;
       }
