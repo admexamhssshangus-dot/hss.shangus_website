@@ -68,20 +68,26 @@ export default compressImageFile;
  */
 export const parsePhotoFilename = (filename) => {
   const cleanName = filename.replace(/\.[^/.]+$/, '').trim();
-  const parts = cleanName.split('_').map(p => p.trim()).filter(Boolean);
+  const parts = cleanName.split(/[_-]/).map(p => p.trim()).filter(Boolean);
 
   let className = '';
   let session = '';
   let regNoOrFormNo = '';
+  let admNo = '';
   let studentName = '';
 
   const regNoMatch = cleanName.match(/\b\d{14,17}\b/);
-  const formNoMatch = cleanName.match(/\b25\d{4}\b/);
+  const formNoMatch = cleanName.match(/\b2[0-9]\d{4}\b/);
+  const admNoMatch = cleanName.match(/\b(?:adm|admno)?[_-]?(\d{3,5})\b/i);
 
   if (regNoMatch) {
     regNoOrFormNo = regNoMatch[0];
   } else if (formNoMatch) {
     regNoOrFormNo = formNoMatch[0];
+  }
+
+  if (admNoMatch && admNoMatch[1]) {
+    admNo = admNoMatch[1];
   }
 
   const classMatch = cleanName.match(/\b(9th|10th|11th|12th)\b/i);
@@ -93,7 +99,8 @@ export const parsePhotoFilename = (filename) => {
   const nameParts = parts.filter(p => 
     !/\b(9th|10th|11th|12th)\b/i.test(p) &&
     !/\b20\d{2}-\d{2}\b/.test(p) &&
-    !/^\d+$/.test(p)
+    !/^\d+$/.test(p) &&
+    !/\b(adm|admno|photo|student)\b/i.test(p)
   );
   if (nameParts.length > 0) {
     studentName = nameParts.join(' ');
@@ -105,6 +112,7 @@ export const parsePhotoFilename = (filename) => {
     className,
     session,
     regNoOrFormNo,
+    admNo,
     studentName
   };
 };

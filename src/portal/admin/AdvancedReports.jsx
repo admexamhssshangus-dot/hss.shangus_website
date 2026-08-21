@@ -6965,19 +6965,35 @@ export default function AdvancedReports({
       const parsed = parsePhotoFilename(file.name);
       let matchedStudent = null;
 
+      // 1. Match by Board Registration Number or Form Number
       if (parsed.regNoOrFormNo) {
-        matchedStudent = allStudents.find(s =>
-          String(s.boardRegNo || '').trim() === parsed.regNoOrFormNo ||
-          String(s.formNo || '').trim() === parsed.regNoOrFormNo ||
-          String(s.id || '').trim() === parsed.regNoOrFormNo
-        );
+        const target = parsed.regNoOrFormNo.trim();
+        matchedStudent = allStudents.find(s => {
+          const sReg = String(s.boardRegNo || s['Board Registration Number'] || s.regNo || '').replace(/[\s-]/g, '');
+          const sForm = String(s.formNo || s['Form Number'] || '').trim();
+          const sId = String(s.id || '').trim();
+          return sReg === target || sForm === target || sId === target;
+        });
       }
 
+      // 2. Match by Admission Number (e.g. 4347, adm_4347)
+      if (!matchedStudent && parsed.admNo) {
+        const targetAdm = String(parsed.admNo).trim();
+        matchedStudent = allStudents.find(s => {
+          const sAdm = String(s.admNo || s['Adm. No.'] || s['Admission No.'] || '').replace(/\D/g, '');
+          return sAdm === targetAdm;
+        });
+      }
+
+      // 3. Match by Normalized Student Name
       if (!matchedStudent && parsed.studentName) {
-        const q = parsed.studentName.toLowerCase().replace(/_/g, ' ').trim();
-        matchedStudent = allStudents.find(s =>
-          s.studentName.toLowerCase().replace(/_/g, ' ').trim() === q
-        );
+        const q = parsed.studentName.toLowerCase().replace(/[\s_.-]/g, '');
+        if (q.length >= 3) {
+          matchedStudent = allStudents.find(s => {
+            const sName = String(s.studentName || s["Student's Name (as per school records)"] || s.name || '').toLowerCase().replace(/[\s_.-]/g, '');
+            return sName === q || sName.includes(q) || q.includes(sName);
+          });
+        }
       }
 
       return {
