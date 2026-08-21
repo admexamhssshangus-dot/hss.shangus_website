@@ -1134,11 +1134,11 @@ export default function AdmissionRegisterSuite({
   const [registerNotes, setRegisterNotes] = useState([
     {
       id: 1,
-      text: "Details of columns with Yellow background in their header have been copied/adapted from students' response (Online Admission Form); remaining details have been verified from original records."
+      text: "Details of columns with Yellow background in their header have been copied/adapted from students' response (Online Admission Form); remaining details have been verified."
     },
     {
       id: 2,
-      text: "The students with the comment 'Internal (HSS Shangus)' under the 'Admtd. Vide DC/CC' column studied their previous class at Govt Hr Sec School Shangus. Admission was granted based on mark sheets and internal promotion records."
+      text: "The students with the comment 'internal student of HSS Shangus' under the 'Admtd. Vide DC/CC' column are those who studied their Class 10th at Govt Hr Sec School Shangus (010061). They appeared in the Class 10th annual regular examination 2025 (march session), conducted by JKBOSE, through this same school. Their admission to Class 11th was granted based on the mark sheets provided by the school. For further verification, please refer to the Class 9th/10th admission records."
     },
     {
       id: 3,
@@ -1146,7 +1146,7 @@ export default function AdmissionRegisterSuite({
     },
     {
       id: 4,
-      text: "Fresh admission numbers have been assigned to students re-joining after an academic gap or those readmitted due to non-appearance in prior exams. Previous admission numbers are recorded in brackets (e.g. 5480 (4312)) and placed at the end of their respective class register for historical audit and departmental verification."
+      text: "Fresh admission numbers have been assigned to students re-joining after an academic gap or those readmitted due to non-appearance in prior exams. To facilitate historical tracking, the student's previous admission number is recorded in brackets immediately below the new number in the 'Adm. No.' column [e.g., 5265 (5071)]."
     }
   ]);
 
@@ -2284,32 +2284,28 @@ export default function AdmissionRegisterSuite({
           {/* ============================================================== */}
           {activeTab === 'adm_register' && (
             <div className="space-y-6" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}>
-              {/* 1. COVER PAGE (FEATURING OFFICIAL SCHOOL LOGO) */}
+              {/* 1. COVER PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'cover') && (
                 <div
                   className="page-container cover-page bg-white rounded-xl border border-slate-300 shadow-sm text-center flex flex-col items-center justify-center min-h-[215.9mm] max-w-[355.6mm] mx-auto page-break-after"
                   style={{ padding: `${printMargin}in` }}
                 >
-                  <img
-                    src="/logo.png"
-                    alt="Govt. HSS Shangus Logo"
-                    className="w-24 h-24 object-contain mb-4 filter drop-shadow-md"
-                  />
-                  <h1 className="text-3xl sm:text-4xl font-black text-red-800 uppercase tracking-tight mb-2 font-serif">
-                    Official Admission Register
-                  </h1>
-                  <h2 className="text-lg sm:text-xl font-bold text-emerald-800 mb-4 font-serif">
-                    Classes 11th & 12th • Academic Session {selectedSession}
-                  </h2>
-                  <div className="w-36 h-1 bg-red-800 mb-5 rounded-full"></div>
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 uppercase">
-                    {SCHOOL_NAME}
-                  </h3>
-                  <p className="text-xs font-bold text-slate-600 mt-1">
-                    {SCHOOL_SUBTITLE}
-                  </p>
-                  <div className="mt-12 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg p-2.5 bg-slate-50">
-                    Total Enrolled Approved Candidates: <strong>{filteredStudents.length}</strong> (Fresh: {statusCounts.fresh} • Re-admission: {statusCounts.readmissions}) • Formatted for Physical Legal Archives
+                  <div className="flex flex-col items-center justify-center w-full my-auto py-12">
+                    <h1 className="text-4xl sm:text-5xl font-black text-red-700 uppercase tracking-tight font-sans mb-2">
+                      ADMISSION REGISTER
+                    </h1>
+                    <h2 className="text-2xl sm:text-3xl font-black text-red-700 uppercase tracking-tight font-sans mb-3">
+                      {selectedClass === 'ALL' ? 'OF CLASSES 11th AND 12th' : `OF CLASS ${selectedClass.toUpperCase()}`}
+                    </h2>
+                    <h3 className="text-xl sm:text-2xl font-black text-emerald-700 font-sans mb-6">
+                      Session {selectedSession}
+                    </h3>
+
+                    <div className="w-4/5 max-w-4xl border-b-2 border-slate-900 my-4"></div>
+
+                    <h4 className="text-2xl sm:text-3xl font-black text-slate-800 font-sans mt-2">
+                      {SCHOOL_NAME}
+                    </h4>
                   </div>
                 </div>
               )}
@@ -2335,16 +2331,16 @@ export default function AdmissionRegisterSuite({
                         style={{ padding: `${printMargin}in` }}
                       >
                         <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5">
-                          <div className="text-[10px] font-bold text-slate-600">(Part 1 - Identification & Contact Details)</div>
+                          <div className="text-xs font-black text-slate-900">{pageNum} (part1)</div>
                           <div className="text-center">
-                            <h2 className="text-sm font-black text-red-800 uppercase leading-none school-header-font">{SCHOOL_NAME}</h2>
-                            <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
-                              Admission Register • Session {selectedSession} • {selectedStatus} Records
+                            <h2 className="text-base font-black text-red-700 uppercase leading-none font-sans">{SCHOOL_NAME}</h2>
+                            <div className="text-[10.5px] font-bold text-emerald-700 mt-0.5">
+                              Admission Register of classes 11th and 12th, session {selectedSession}
                             </div>
                           </div>
                           {/* Blank circle for manual hand-stamping of serial number */}
                           <div
-                            className="w-5 h-5 rounded-full border border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none"
+                            className="w-6 h-6 rounded-full border border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none"
                             title="Manual Serial / Page Number Stamp Area"
                           >
                           </div>
@@ -2354,33 +2350,33 @@ export default function AdmissionRegisterSuite({
                           <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.No.</ResizableTh>
-                                <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Photo</ResizableTh>
-                                <ResizableTh colKey="rollNo" width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Class Roll</ResizableTh>
-                                <ResizableTh colKey="formNo" width={columnWidths.formNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Form No.</ResizableTh>
-                                <ResizableTh colKey="onlineStatus" width={columnWidths.onlineStatus} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Online Subm.</ResizableTh>
-                                <ResizableTh colKey="admDate" width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Adm. Date</ResizableTh>
-                                <ResizableTh colKey="admNo" width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Adm. No.</ResizableTh>
-                                <ResizableTh colKey="class" width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Class</ResizableTh>
-                                <ResizableTh colKey="boardReg" width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Board Reg. No.</ResizableTh>
-                                <ResizableTh colKey="name" width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">Student's Name</ResizableTh>
-                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Parentage</th>
-                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Date of Birth</th>
-                                <ResizableTh colKey="gender" width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Gender</ResizableTh>
-                                <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">Residence</th>
-                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">Contact</th>
+                                <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
+                                <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PHOTO</ResizableTh>
+                                <ResizableTh colKey="rollNo" width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS R.NO.</ResizableTh>
+                                <ResizableTh colKey="formNo" width={columnWidths.formNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">FORM NO.</ResizableTh>
+                                <ResizableTh colKey="onlineStatus" width={columnWidths.onlineStatus} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ONLINE SUBM.</ResizableTh>
+                                <ResizableTh colKey="admDate" width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. DATE</ResizableTh>
+                                <ResizableTh colKey="admNo" width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. NO.</ResizableTh>
+                                <ResizableTh colKey="class" width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS ADM. TO</ResizableTh>
+                                <ResizableTh colKey="boardReg" width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">BOARD REG. NO.</ResizableTh>
+                                <ResizableTh colKey="name" width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">STUDENT'S NAME</ResizableTh>
+                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PARENTAGE</th>
+                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">DATE OF BIRTH</th>
+                                <ResizableTh colKey="gender" width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">GENDER</ResizableTh>
+                                <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">RESIDENCE</th>
+                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">CONTACT</th>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
-                                <ResizableTh colKey="father" width={columnWidths.father} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Father's Name</ResizableTh>
-                                <ResizableTh colKey="mother" width={columnWidths.mother} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Mother's Name</ResizableTh>
-                                <ResizableTh colKey="dobFigures" width={columnWidths.dobFigures} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Figures</ResizableTh>
-                                <ResizableTh colKey="dobWords" width={columnWidths.dobWords} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">In Words</ResizableTh>
-                                <ResizableTh colKey="village" width={columnWidths.village} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Village/Town</ResizableTh>
-                                <ResizableTh colKey="block" width={columnWidths.block} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Block</ResizableTh>
-                                <ResizableTh colKey="tehsil" width={columnWidths.tehsil} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Tehsil</ResizableTh>
-                                <ResizableTh colKey="district" width={columnWidths.district} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">District</ResizableTh>
-                                <ResizableTh colKey="mobile" width={columnWidths.mobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Student Mobile</ResizableTh>
-                                <ResizableTh colKey="parentMobile" width={columnWidths.parentMobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Parent Mobile</ResizableTh>
+                                <ResizableTh colKey="father" width={columnWidths.father} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FATHER'S NAME</ResizableTh>
+                                <ResizableTh colKey="mother" width={columnWidths.mother} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">MOTHER'S NAME</ResizableTh>
+                                <ResizableTh colKey="dobFigures" width={columnWidths.dobFigures} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FIGURES</ResizableTh>
+                                <ResizableTh colKey="dobWords" width={columnWidths.dobWords} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">WORDS</ResizableTh>
+                                <ResizableTh colKey="village" width={columnWidths.village} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">VILLAGE/ TOWN</ResizableTh>
+                                <ResizableTh colKey="block" width={columnWidths.block} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">BLOCK</ResizableTh>
+                                <ResizableTh colKey="tehsil" width={columnWidths.tehsil} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">TEHSIL</ResizableTh>
+                                <ResizableTh colKey="district" width={columnWidths.district} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">DISTRICT</ResizableTh>
+                                <ResizableTh colKey="mobile" width={columnWidths.mobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">STUDENT'S MOBILE</ResizableTh>
+                                <ResizableTh colKey="parentMobile" width={columnWidths.parentMobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">PARENT'S MOBILE</ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
@@ -2411,7 +2407,7 @@ export default function AdmissionRegisterSuite({
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font">{s.rollNo}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.formNo}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px]">{s.onlineStatus}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px] leading-tight">{s.onlineStatus}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold ledger-mono-font">{s.admDate}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
                                       <div className="ledger-mono-font font-black">{s.admNo || '—'}</div>
@@ -2458,10 +2454,10 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
-                          <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
-                          <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
-                          <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
+                        <div className="flex justify-between items-center mt-3 pt-1 text-xs font-black text-red-700">
+                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
+                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
+                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
                         </div>
                       </div>
 
@@ -2473,16 +2469,16 @@ export default function AdmissionRegisterSuite({
                         style={{ padding: `${printMargin}in` }}
                       >
                         <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5">
-                          <div className="text-[10px] font-bold text-slate-600">(Part 2 - Academic Details & Ledger)</div>
+                          <div className="text-xs font-black text-slate-900">{pageNum} (part2)</div>
                           <div className="text-center">
-                            <h2 className="text-sm font-black text-red-800 uppercase leading-none school-header-font">{SCHOOL_NAME}</h2>
-                            <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
-                              Admission Register • Session {selectedSession} • {selectedStatus} Records
+                            <h2 className="text-base font-black text-red-700 uppercase leading-none font-sans">{SCHOOL_NAME}</h2>
+                            <div className="text-[10.5px] font-bold text-emerald-700 mt-0.5">
+                              Admission Register of classes 11th and 12th, session {selectedSession}
                             </div>
                           </div>
                           {/* Blank circle for manual hand-stamping of serial number */}
                           <div
-                            className="w-5 h-5 rounded-full border border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none"
+                            className="w-6 h-6 rounded-full border border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none"
                             title="Manual Serial / Page Number Stamp Area"
                           >
                           </div>
@@ -2492,26 +2488,26 @@ export default function AdmissionRegisterSuite({
                           <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <ResizableTh colKey="p2_stream" width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Stream</ResizableTh>
-                                <ResizableTh colKey="p2_subs" width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Subjects</ResizableTh>
-                                <ResizableTh colKey="p2_aadhar" width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Aadhaar No.</ResizableTh>
-                                <ResizableTh colKey="p2_cat" width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Soc. Cat.</ResizableTh>
-                                <ResizableTh colKey="p2_socio" width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Socio-Econ</ResizableTh>
-                                <ResizableTh colKey="p2_blood" width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">Blood</ResizableTh>
-                                <ResizableTh colKey="p2_account" width={columnWidths.p2_account} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C No.</ResizableTh>
-                                <ResizableTh colKey="p2_ifsc" width={columnWidths.p2_ifsc} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">IFSC</ResizableTh>
-                                <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Previous Academic Record</th>
+                                <ResizableTh colKey="p2_stream" width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">STREAM</ResizableTh>
+                                <ResizableTh colKey="p2_subs" width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">SUBS</ResizableTh>
+                                <ResizableTh colKey="p2_aadhar" width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">AADHAR NO.</ResizableTh>
+                                <ResizableTh colKey="p2_cat" width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOC. CAT.</ResizableTh>
+                                <ResizableTh colKey="p2_socio" width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOCIO-ECON CAT.</ResizableTh>
+                                <ResizableTh colKey="p2_blood" width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">BLOOD GRP</ResizableTh>
+                                <ResizableTh colKey="p2_account" width={columnWidths.p2_account} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C NO.</ResizableTh>
+                                <ResizableTh colKey="p2_ifsc" width={columnWidths.p2_ifsc} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">IFSC CODE</ResizableTh>
+                                <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PREVIOUS ACADEMIC DETAILS</th>
                                 <ResizableTh colKey="p2_pen" width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
-                                <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-800 bg-emerald-100 h-green">Admtd. Vide DC/CC</ResizableTh>
-                                <ResizableTh colKey="p2_withdrawal" width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-red-800 bg-red-100 h-red">Withdrawal</ResizableTh>
-                                <ResizableTh colKey="p2_issuedCC" width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-red-800 bg-red-100 h-red">Issued DC/CC</ResizableTh>
-                                <ResizableTh colKey="p2_receipt" width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-red-800 bg-red-100 h-red">Receipt</ResizableTh>
-                                <ResizableTh colKey="p2_remarks" width={columnWidths.p2_remarks} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">Remarks</ResizableTh>
+                                <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC</ResizableTh>
+                                <ResizableTh colKey="p2_withdrawal" width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-100 h-red">WITHDRAWAL DATE</ResizableTh>
+                                <ResizableTh colKey="p2_issuedCC" width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">ISSUED DC/CC</ResizableTh>
+                                <ResizableTh colKey="p2_receipt" width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">RECEIPT</ResizableTh>
+                                <ResizableTh colKey="p2_remarks" width={columnWidths.p2_remarks} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">REMARKS</ResizableTh>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
-                                <ResizableTh colKey="p2_prevSchool" width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Previous School</ResizableTh>
-                                <ResizableTh colKey="p2_prevRoll" width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Prev Roll</ResizableTh>
-                                <ResizableTh colKey="p2_prevResult" width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">Prev Result</ResizableTh>
+                                <ResizableTh colKey="p2_prevSchool" width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREVIOUS SCHOOL</ResizableTh>
+                                <ResizableTh colKey="p2_prevRoll" width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV R.NO.</ResizableTh>
+                                <ResizableTh colKey="p2_prevResult" width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV RESULT</ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
@@ -2529,17 +2525,17 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] ledger-mono-font">{s.pen}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7px] bg-emerald-50">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
                                     {s.prevCC}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-red-800 text-[7.5px] bg-red-50">{s.withdrawal}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-red-50 leading-tight">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 leading-tight">
                                     <div>C.No. _______</div>
                                     <div>Dt. _______</div>
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-tight bg-red-50">
-                                    <div>Received DC/CC vide C. No. ___</div>
-                                    <div>On _______ Sig. _______</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50">
+                                    <div>received DC/CC vide C. No. ___</div>
+                                    <div>on _______ Sig. _______</div>
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px]">{s.remarks}</td>
                                 </tr>
@@ -2549,10 +2545,10 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
-                          <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
-                          <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
-                          <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
+                        <div className="flex justify-between items-center mt-3 pt-1 text-xs font-black text-red-700">
+                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
+                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
+                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
                         </div>
                       </div>
                     </div>
@@ -2566,48 +2562,46 @@ export default function AdmissionRegisterSuite({
                   className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
                   style={{ padding: `${printMargin}in` }}
                 >
-                  <div className="text-center border-b-2 border-red-800 pb-2 mb-3">
-                    <h1 className="text-xl font-black text-red-800 uppercase tracking-wide school-header-font">
-                      Consolidated Admission Statement
+                  <div className="text-center border-b-2 border-red-700 pb-2 mb-3">
+                    <h1 className="text-2xl font-black text-red-700 uppercase tracking-wide font-sans">
+                      CONSOLIDATED ADMISSION STATEMENT
                     </h1>
-                    <h2 className="text-xs font-extrabold text-slate-700 mt-0.5">
-                      Roll & Enrollment Statement for Session {selectedSession} • {SCHOOL_NAME}
+                    <h2 className="text-xs font-bold text-emerald-700 font-sans mt-0.5">
+                      Roll statement for Session {selectedSession}
                     </h2>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-center border-collapse border-2 border-red-800 text-xs ledger-data-font">
+                    <table className="w-full text-center border-collapse border-2 border-red-700 text-xs ledger-data-font">
                       <thead>
-                        <tr className="bg-red-100 text-slate-900 font-black">
-                          <th className="border-2 border-red-800 p-2">Class</th>
-                          <th className="border-2 border-red-800 p-2 text-left pl-4">Stream</th>
-                          <th className="border-2 border-red-800 p-2 w-20">Male</th>
-                          <th className="border-2 border-red-800 p-2 w-20">Female</th>
-                          <th className="border-2 border-red-800 p-2 w-20">Re-Adm</th>
-                          <th className="border-2 border-red-800 p-2 w-20">Total</th>
-                          <th className="border-2 border-red-800 p-2 w-28">Class Total</th>
+                        <tr className="bg-red-50 text-slate-900 font-black">
+                          <th className="border-2 border-red-700 p-2">CLASS</th>
+                          <th className="border-2 border-red-700 p-2 text-left pl-4">STREAM</th>
+                          <th className="border-2 border-red-700 p-2 w-24">MALE</th>
+                          <th className="border-2 border-red-700 p-2 w-24">FEMALE</th>
+                          <th className="border-2 border-red-700 p-2 w-24">TOTAL</th>
+                          <th className="border-2 border-red-700 p-2 w-32">GRAND TOTAL</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y-2 divide-red-800 font-bold text-slate-900">
+                      <tbody className="divide-y-2 divide-red-700 font-bold text-slate-900">
                         {Object.keys(summaryStats).sort().map(cls => {
                           const streams = Object.keys(summaryStats[cls]).sort();
                           const clsTotal = Object.values(summaryStats[cls]).reduce((acc, curr) => acc + curr.total, 0);
                           return streams.map((st, idx) => {
                             const item = summaryStats[cls][st];
                             return (
-                              <tr key={`${cls}_${st}`} className="hover:bg-red-50/50">
+                              <tr key={`${cls}_${st}`} className="hover:bg-red-50/40">
                                 {idx === 0 && (
-                                  <td rowSpan={streams.length} className="border-2 border-red-800 p-1.5 font-black text-base bg-slate-50">
+                                  <td rowSpan={streams.length} className="border-2 border-red-700 p-2 font-black text-base bg-white">
                                     {cls}
                                   </td>
                                 )}
-                                <td className="border-2 border-red-800 p-1.5 text-left pl-4 font-semibold">{st}</td>
-                                <td className="border-2 border-red-800 p-1.5 ledger-mono-font">{item.male}</td>
-                                <td className="border-2 border-red-800 p-1.5 ledger-mono-font">{item.female}</td>
-                                <td className="border-2 border-red-800 p-1.5 text-purple-800 font-bold ledger-mono-font">{item.reAdm || 0}</td>
-                                <td className="border-2 border-red-800 p-1.5 font-black ledger-mono-font">{item.total}</td>
+                                <td className="border-2 border-red-700 p-2 text-left pl-4 font-semibold">{st}</td>
+                                <td className="border-2 border-red-700 p-2 ledger-mono-font">{item.male}</td>
+                                <td className="border-2 border-red-700 p-2 ledger-mono-font">{item.female}</td>
+                                <td className="border-2 border-red-700 p-2 font-bold ledger-mono-font">{item.total}</td>
                                 {idx === 0 && (
-                                  <td rowSpan={streams.length} className="border-2 border-red-800 p-1.5 font-black text-lg text-red-800 bg-red-50/60 ledger-mono-font">
+                                  <td rowSpan={streams.length} className="border-2 border-red-700 p-2 font-black text-lg italic text-red-700 bg-white ledger-mono-font">
                                     {clsTotal}
                                   </td>
                                 )}
@@ -2615,30 +2609,30 @@ export default function AdmissionRegisterSuite({
                             );
                           });
                         })}
-                        <tr className="bg-red-200 text-red-900 font-black text-sm">
-                          <td colSpan="2" className="border-2 border-red-800 p-2 text-right pr-4">Overall Grand Total</td>
-                          <td className="border-2 border-red-800 p-2 ledger-mono-font">{overallSummaryTotals.male}</td>
-                          <td className="border-2 border-red-800 p-2 ledger-mono-font">{overallSummaryTotals.female}</td>
-                          <td className="border-2 border-red-800 p-2 text-purple-900 ledger-mono-font">{overallSummaryTotals.totalReAdm}</td>
-                          <td colSpan="2" className="border-2 border-red-800 p-2 text-base ledger-mono-font">{overallSummaryTotals.grandTotal}</td>
+                        <tr className="bg-white text-slate-900 font-black text-sm">
+                          <td colSpan="2" className="border-2 border-red-700 p-2 text-right pr-4 font-black">Overall Grand Total</td>
+                          <td className="border-2 border-red-700 p-2 ledger-mono-font font-black">{overallSummaryTotals.male}</td>
+                          <td className="border-2 border-red-700 p-2 ledger-mono-font font-black">{overallSummaryTotals.female}</td>
+                          <td className="border-2 border-red-700 p-2 font-black text-base ledger-mono-font bg-white"></td>
+                          <td className="border-2 border-red-700 p-2 font-black text-lg ledger-mono-font text-slate-900">{overallSummaryTotals.grandTotal}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
                   {/* Institutional Certification Paragraph */}
-                  <div className="mt-4 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-serif leading-relaxed text-slate-800">
-                    <p className="font-bold mb-0.5">Institutional Certification:</p>
+                  <div className="mt-4 p-2.5 text-xs font-serif leading-relaxed text-slate-800">
+                    <p className="font-bold mb-1">Certification:</p>
                     <p>
-                      Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students (including <strong>{overallSummaryTotals.totalReAdm}</strong> readmitted gap candidates placed at the end of their respective class rolls) have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
+                      Certified that the above mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students have been admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their particulars as entered in this register have been verified from the original documents and found correct.
                     </p>
                   </div>
 
                   {/* Footer Signatures */}
-                  <div className="flex justify-between items-center mt-3 pt-1 border-t-2 border-red-800 text-[11px] font-black text-red-800">
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Checked By</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Principal</div>
+                  <div className="flex justify-between items-center mt-6 pt-1 text-xs font-black text-red-700">
+                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
+                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
+                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
                   </div>
                 </div>
               )}
@@ -2649,42 +2643,35 @@ export default function AdmissionRegisterSuite({
                   className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto"
                   style={{ padding: `${printMargin}in` }}
                 >
-                  <div className="flex items-center justify-between border-b-2 border-red-800 pb-2 mb-3">
-                    <h1 className="text-lg font-black text-red-800 uppercase school-header-font">
-                      Official Explanatory Notes & Ledger Annexure
+                  <div className="flex items-center justify-between pb-1 mb-2">
+                    <h1 className="text-base font-black text-red-700 uppercase font-sans">
+                      Please, Note:
                     </h1>
                     <button
                       type="button"
                       onClick={handleAddNote}
-                      className="no-print px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                      className="no-print px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                     >
-                      <Plus size={12} />
+                      <Plus size={11} />
                       <span>Add Note</span>
                     </button>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-slate-400 text-[11px] ledger-data-font">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-900 font-black">
-                          <th className="border border-slate-400 p-1.5 w-10 text-center">#</th>
-                          <th className="border border-slate-400 p-1.5 text-left">Explanatory Note / Directive</th>
-                          <th className="no-print border border-slate-400 p-1.5 w-10 text-center">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-300 text-slate-800">
+                    <table className="w-full border-collapse border border-slate-800 text-[11px] ledger-data-font">
+                      <tbody className="divide-y divide-slate-800 text-slate-900">
                         {registerNotes.map((note, idx) => (
                           <tr key={note.id}>
-                            <td className="border border-slate-400 p-1.5 text-center font-bold bg-slate-50 ledger-mono-font">{idx + 1}</td>
-                            <td className="border border-slate-400 p-1.5 font-medium">
+                            <td className="border border-slate-800 p-2 w-10 text-center font-black bg-white ledger-mono-font align-top">{idx + 1}</td>
+                            <td className="border border-slate-800 p-2 font-medium leading-relaxed">
                               <textarea
                                 value={note.text}
                                 onChange={(e) => handleUpdateNote(note.id, e.target.value)}
-                                rows={2}
-                                className="w-full p-1 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-[11px] font-medium resize-y focus:bg-white"
+                                rows={note.text.length > 200 ? 3 : 2}
+                                className="w-full p-1 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-[11px] font-medium resize-y focus:bg-white leading-relaxed"
                               />
                             </td>
-                            <td className="no-print border border-slate-400 p-1.5 text-center">
+                            <td className="no-print border border-slate-800 p-1.5 w-10 text-center align-top">
                               <button
                                 type="button"
                                 onClick={() => handleRemoveNote(note.id)}
@@ -2701,10 +2688,10 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   {/* Footer Signatures */}
-                  <div className="flex justify-between items-center mt-3 pt-1 border-t-2 border-red-800 text-[11px] font-black text-red-800">
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Checked By</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Principal</div>
+                  <div className="flex justify-between items-center mt-8 pt-1 text-xs font-black text-red-700">
+                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
+                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
+                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
                   </div>
                 </div>
               )}
