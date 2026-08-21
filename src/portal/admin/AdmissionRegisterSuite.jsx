@@ -220,6 +220,93 @@ function cleanStr(val) {
   return String(val).trim();
 }
 
+// Robust Subject Extractor across all Firebase form variations & array types
+export function extractStudentSubjects(s) {
+  if (!s) return '—';
+
+  // 1. Array or string candidates
+  const candidates = [
+    s['Subjects to be taken in Class 11th'],
+    s['Subjects to be taken in Class 12th'],
+    s['Subjects to be taken in Class 10th'],
+    s['Subjects to be taken in Class 9th'],
+    s['Subjects Studied in Class 11th'],
+    s['Subjects Studied in Class 10th'],
+    s['Subjects Studied in Class 9th'],
+    s['selectedSubjects'],
+    s['Subjects Chosen'],
+    s['Chosen Subjects'],
+    s['Subjects'],
+    s['subjects'],
+    s['Subs'],
+    s['subs'],
+    s['Stream & Subjects for Class 11th'],
+    s['Stream & Subjects for Class 12th']
+  ];
+
+  for (const item of candidates) {
+    if (!item) continue;
+    if (Array.isArray(item) && item.length > 0) {
+      const cleaned = item.filter(sub => sub && String(sub).trim() !== '—' && !String(sub).toLowerCase().includes('same as')).map(sub => String(sub).trim());
+      if (cleaned.length > 0) return cleaned.join(', ');
+    } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
+      return item.trim();
+    }
+  }
+
+  // 2. Individual subjects1..6 fields
+  const subjList = [];
+  const subjKeys = [
+    'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
+    'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
+  ];
+  subjKeys.forEach(k => {
+    const val = s[k];
+    if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
+      subjList.push(val.trim());
+    }
+  });
+
+  if (subjList.length > 0) {
+    return subjList.join(', ');
+  }
+
+  return '—';
+}
+
+// Robust Stream Extractor
+export function extractStudentStream(s, subs = '') {
+  if (!s) return 'General';
+  const rawStream = cleanStr(
+    s['Stream / Subject combination chosen'] ||
+    s['Stream chosen'] ||
+    s['Stream & Subjects for Class 11th'] ||
+    s['Stream & Subjects for Class 12th'] ||
+    s['Stream'] ||
+    s.stream ||
+    s.Stream ||
+    ''
+  );
+  if (rawStream && rawStream.toLowerCase() !== 'general' && rawStream !== '—') {
+    return rawStream;
+  }
+
+  // Infer stream from subjects if stream is General / unassigned
+  const subText = (subs || '').toUpperCase();
+  if (subText.includes('BI') || subText.includes('BIO') || (subText.includes('PH') && subText.includes('CH'))) {
+    if (subText.includes('MA') || subText.includes('MATH')) return 'Science (Non-Med/Med)';
+    return 'Science (Med)';
+  }
+  if (subText.includes('ACC') || subText.includes('BST') || subText.includes('COMMERCE')) {
+    return 'Commerce';
+  }
+  if (subText.includes('HT') || subText.includes('PS') || subText.includes('UR') || subText.includes('ED') || subText.includes('ARTS')) {
+    return 'Arts';
+  }
+
+  return rawStream || 'General';
+}
+
 // Check if student has been assigned a Class Roll Number
 export function hasAssignedClassRollNo(s) {
   const roll = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no || s['Roll No'] || s['Roll No.']);
@@ -599,11 +686,24 @@ export default function AdmissionRegisterSuite({
       try {
         let loadedRecords = [];
 
-        const qSnap = await getDocs(query(collection(db, 'admissions'), where('session', '==', selectedSession)));
-        if (!qSnap.empty) {
-          loadedRecords = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // 1. Check admissions collection (live & cached)
+        const allAdmissions = await getCachedCollection('admissions');
+        if (Array.isArray(allAdmissions) && allAdmissions.length > 0) {
+          const matched = allAdmissions.filter(d => {
+            if (!d) return false;
+            const sSess = cleanStr(d.session || d.Session || d['Academic Session'] || '');
+            if (selectedSession === 'ALL') return true;
+            if (selectedSession === '2025-26') {
+              return sSess === '2025-26' || !sSess;
+            }
+            return sSess === selectedSession;
+          });
+          if (matched.length > 0) {
+            loadedRecords = matched;
+          }
         }
 
+        // 2. If not found in admissions, check masterRegisters collection
         if (loadedRecords.length === 0) {
           const masterList = await getCachedCollection('masterRegisters');
           const flat = [];
@@ -630,9 +730,18 @@ export default function AdmissionRegisterSuite({
           loadedRecords = flat;
         }
 
-        if (loadedRecords.length === 0 && selectedSession === '2025-26') {
+        // 3. Fallback direct Firestore fetch if cache was empty
+        if (loadedRecords.length === 0) {
           const admSnap = await getDocs(collection(db, 'admissions'));
-          loadedRecords = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (!admSnap.empty) {
+            const rawDocs = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            loadedRecords = rawDocs.filter(d => {
+              const sSess = cleanStr(d.session || d.Session || d['Academic Session'] || '');
+              if (selectedSession === 'ALL') return true;
+              if (selectedSession === '2025-26') return sSess === '2025-26' || !sSess;
+              return sSess === selectedSession;
+            });
+          }
         }
 
         if (!isCancelled) {
@@ -664,47 +773,49 @@ export default function AdmissionRegisterSuite({
     } catch (_) {}
   }, []);
 
-  // Normalized Student Object Mapper with Re-admission Parsing
+  // Normalized Student Object Mapper with Re-admission Parsing & Complete Multi-Alias Firebase Field Resolution
   const normalizedStudents = useMemo(() => {
     const list = [];
     (dataset || []).forEach((s, idx) => {
       if (!s) return;
-      const name = cleanStr(s.studentName || s["Student's Name (as per school records)"] || s['Student Name'] || s.name);
-      const father = cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.father);
-      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no);
-      const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s.admissionNumber);
-      const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo);
-      const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']);
+      const name = cleanStr(s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || s['Student Name'] || s.name || s['Account Name']);
+      const father = cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s['Father Name'] || s.father);
+      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s['RL. NO.'] || s['RL. NO'] || s['Class R.No.'] || s['Class R. No.'] || s.rollNo || s.RollNo || s.roll_no);
+      const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s['Admission Number'] || s.admissionNumber || s.admissionNo);
+      const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s['Form No'] || s.FormNo);
+      const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s['Board Reg No'] || s['Registration Number'] || s['Reg. No.'] || s.boardReg || s.regNo);
 
       // CRITICAL: Reject phantom/empty ghost database rows that have zero identifying student information
       if (!name && !father && !rollNo && !admNo && !formNo && !boardReg) return;
 
       const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
       const sess = cleanStr(s.session || s.Session || s['Academic Session'] || selectedSession);
-      const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s.mother);
-      const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['Date of Birth']);
+      const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s['Mother Name'] || s.mother);
+      const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['DoB (figures)'] || s['Date of Birth'] || s['DOB']);
       const gender = cleanStr(s.gender || s.Gender || 'Male');
-      const stream = cleanStr(s.stream || s.Stream || 'General');
-      const subs = cleanStr(s.subs || s.subjects || s.Subjects || s['Subjects Chosen'] || '');
-      const aadhar = cleanStr(s.aadhar || s['Aadhar No.'] || s.aadhaar || s['Aadhaar No.']);
-      const village = cleanStr(s.village || s['Name of your village'] || s['Village/Town']);
+      const subs = extractStudentSubjects(s);
+      const stream = extractStudentStream(s, subs);
+      const aadhar = cleanStr(s.aadhar || s['Aadhar No.'] || s['Aadhaar No.'] || s['Aadhaar Number'] || s['Aadhar Number'] || s.aadhaar || s.aadharNo || s.aadhaarNo);
+      const village = cleanStr(s.village || s['Name of your village'] || s['Village/Town'] || s['Village']);
       const block = cleanStr(s.block || s.Block || s['Block/Zone'] || 'Shangus');
       const tehsil = cleanStr(s.tehsil || s.Tehsil || 'Shangus');
       const district = cleanStr(s.district || s.District || 'Anantnag');
-      const mobile = cleanStr(s.mobile || s['Mobile No. (with working WhatsApp)'] || s['Student Mobile']);
-      const parentMobile = cleanStr(s.parentContact || s["Father's Mobile No."] || s['Parent Mobile']);
-      const category = cleanStr(s.category || s['Cat._JKBOSE'] || s['Social Category'] || 'OM');
-      const socioEcon = cleanStr(s.socioEconomic || s['Socio-Economic Category'] || 'AAY/BPL');
-      const blood = cleanStr(s.blood || s['Blood Group'] || s.bloodGroup || '—');
-      const account = cleanStr(s.bankAccount || s['Bank Account No.'] || s.accountNo);
-      const ifsc = cleanStr(s.ifsc || s['IFSC code'] || s.ifscCode);
-      const pen = cleanStr(s.penNo || s['PEN No.'] || s.pen || 'NA');
-      const prevSchool = cleanStr(s.prevSchool || s['Previous School'] || s['Name of Previous School']);
-      const prevRoll = cleanStr(s.prevExamRollNo || s['Previous Exam Roll No'] || s.examRoll10th);
-      const prevMarks = cleanStr(s.marksObt || s['Marks Obtained'] || s.marksObt10th);
-      const maxMarks = cleanStr(s.maxMarks || s['Max Marks'] || '500');
-      const prevResult = prevMarks ? `${prevMarks} / ${maxMarks}` : '—';
-      const admDate = cleanStr(s.admDate || s['Adm. Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
+      const mobile = cleanStr(s.mobile || s['Mobile No. (with working WhatsApp)'] || s["Student's Contact"] || s['Student Mobile'] || s.studentMobile);
+      const parentMobile = cleanStr(s.parentContact || s["Father's Mobile No."] || s["Guardian's Mobile No."] || s['Parent Mobile'] || s.parentMobile);
+      const category = cleanStr(s.category || s['Cat._JKBOSE'] || s['Social Category'] || s['Category'] || s.category_jkbose || 'OM');
+      const socioEcon = cleanStr(s.socioEconomic || s['Socio-Economic Category'] || s['Socio Economic Category'] || s['Ration Card Type'] || s.socioEcon || 'AAY/BPL');
+      const blood = cleanStr(s.blood || s['Blood Group'] || s['Blood GRP'] || s.bloodGroup || '—');
+      const account = cleanStr(s.bankAccount || s['Bank Account No.'] || s['Bank Account Number'] || s['Account Number'] || s['A/C No.'] || s.accountNo || s.account);
+      const ifsc = cleanStr(s.ifsc || s['IFSC code'] || s['IFSC Code'] || s['IFSC'] || s.ifscCode);
+      const pen = cleanStr(s.penNo || s['PEN No.'] || s['PEN Number'] || s['PEN (UDISE)'] || s['UDISE PEN'] || s.pen || s.udisePen || 'NA');
+      
+      const prevSchool = cleanStr(s.prevSchool || s['Previous School'] || s['Name of Previous School'] || s['School Last Attended'] || s['Last School Attended'] || s['Institution Last Attended'] || s['Previous Institute'] || s['Name of Institution last attended'] || '');
+      const prevRoll = cleanStr(s.prevExamRollNo || s['Previous Exam Roll No'] || s['Roll No. of 10th'] || s['10th Roll No'] || s['Class 10th Roll No'] || s['10th Roll Number'] || s['Roll No of 10th Class'] || s.examRoll10th || s.rollNo10th || '');
+      const prevMarks = cleanStr(s.marksObt || s['Marks Obtained'] || s['Marks Obtained in 10th'] || s['10th Marks'] || s['Marks of 10th'] || s.marksObt10th || '');
+      const maxMarks = cleanStr(s.maxMarks || s['Max Marks'] || s['Total Marks of 10th'] || s['Total Marks (10th)'] || s.maxMarks10th || '500');
+      const prevResult = prevMarks ? `${prevMarks} / ${maxMarks}` : cleanStr(s.prevResult || s['Previous Result'] || s['10th Result'] || s['Result of 10th'] || '—');
+      
+      const admDate = cleanStr(s.admDate || s['Adm. Date'] || s['Admission Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
       const onlineStatus = cleanStr(s.onlineSubmDate || s.submittedAt?.slice(0, 10) || 'Submitted');
       const status = resolveEffectiveStatus(s);
 
