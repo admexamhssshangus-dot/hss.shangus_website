@@ -167,8 +167,8 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
           </div>
         </div>
 
-        {/* Dynamic 2-Column Fee Breakdown Grid for All Configured Accounts */}
-        <div className="border-t border-dotted border-slate-200 dark:border-slate-700 pt-2 grid grid-cols-2 gap-x-3.5 gap-y-2 text-[10.5px]">
+        {/* Dynamic 2-Column Fee Breakdown Grid for All Configured Accounts (Compact Inline Format) */}
+        <div className="border-t border-dotted border-slate-200 dark:border-slate-700 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-3.5 gap-y-1.5 text-[10px]">
           {accounts.map(acc => {
             const count = acc.isScienceOnly ? sciCount : paidCount;
             const rateVal = cRate[acc.key] || 0;
@@ -179,21 +179,21 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
             const displayName = String(acc.name || '').replace(/\s*\(\s*per science student\s*\)/gi, '').trim();
 
             return (
-              <div key={acc.key} className="flex justify-between items-start gap-1 py-0.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-slate-600 dark:text-slate-400 truncate flex items-center gap-1 font-bold" title={displayName}>
-                    <span className="truncate">{displayName}</span>
-                    {acc.isScienceOnly && (
-                      <span className="text-[8px] px-1 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold flex-shrink-0">
-                        Sci
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 font-bold leading-tight">
+              <div key={acc.key} className="flex justify-between items-center gap-1 py-0.5 border-b border-slate-100/60 dark:border-slate-800/40">
+                <div className="min-w-0 flex-1 flex items-center gap-1 font-bold">
+                  <span className="text-slate-700 dark:text-slate-300 truncate" title={displayName}>
+                    {displayName}
+                  </span>
+                  <span className="text-[8.5px] font-mono text-slate-400 dark:text-slate-500 font-semibold whitespace-nowrap flex-shrink-0">
                     ({count} × ₹{rateVal})
-                  </div>
+                  </span>
+                  {acc.isScienceOnly && (
+                    <span className="text-[7.5px] px-1 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold flex-shrink-0">
+                      Sci
+                    </span>
+                  )}
                 </div>
-                <span className="font-mono font-black flex-shrink-0 text-slate-900 dark:text-white pt-0.5">
+                <span className="font-mono font-black flex-shrink-0 text-slate-900 dark:text-white pl-1">
                   {formatCurrency(val)}
                 </span>
               </div>
@@ -388,6 +388,56 @@ export default function FundDistribution() {
 
   // Preview & Modal States
   const [previewReport, setPreviewReport] = useState(null);
+
+  // ─── DRAGGABLE DUAL-PANE SPLITTER & WIDTH PRESET STATE (Like Documents Studio) ───
+  const [leftSplitPct, setLeftSplitPct] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_fund_split_pct');
+      return saved ? Math.max(25, Math.min(75, Number(saved))) : 46;
+    } catch {
+      return 46;
+    }
+  });
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleSplitterMouseDown = (e) => {
+    e.preventDefault();
+    setIsDraggingSplitter(true);
+    const container = e.currentTarget.closest('.fund-split-container');
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+
+    const handleMouseMove = (moveEvt) => {
+      moveEvt.preventDefault();
+      const mouseX = moveEvt.clientX - rect.left;
+      const pct = Math.max(25, Math.min(75, (mouseX / rect.width) * 100));
+      const rounded = Math.round(pct * 10) / 10;
+      setLeftSplitPct(rounded);
+      try {
+        localStorage.setItem('hss_fund_split_pct', String(rounded));
+      } catch {}
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingSplitter(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
   const [editReport, setEditReport] = useState(null);
   const [deleteTargetReport, setDeleteTargetReport] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -1556,6 +1606,34 @@ export default function FundDistribution() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Workspace Width Presets (Like in Documents Studio) */}
+          <div className="hidden lg:flex items-center gap-1 bg-slate-50 dark:bg-slate-950 px-1.5 py-0.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[10px] font-bold">
+            <span className="text-[9px] font-black uppercase text-slate-400 pl-1">Width:</span>
+            {[
+              { label: '40:60', pct: 40, title: 'Extra Wide Preview (40% Form / 60% Preview)' },
+              { label: '46:54', pct: 46, title: 'Wide Preview (46% Form / 54% Preview - Default)' },
+              { label: '50:50', pct: 50, title: 'Balanced (50% Form / 50% Preview)' },
+              { label: '58:42', pct: 58, title: 'Wide Form (58% Form / 42% Preview)' }
+            ].map(preset => (
+              <button
+                key={preset.pct}
+                type="button"
+                onClick={() => {
+                  setLeftSplitPct(preset.pct);
+                  try { localStorage.setItem('hss_fund_split_pct', String(preset.pct)); } catch {}
+                }}
+                className={`px-1.5 py-0.5 rounded-lg font-mono font-black transition-all cursor-pointer ${
+                  Math.abs(leftSplitPct - preset.pct) < 1.5
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title={preset.title}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
           {/* Fund Distribution Local Academic Session Selector */}
           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
             <span className="text-[9px] font-black uppercase text-slate-400">Session:</span>
@@ -1593,9 +1671,12 @@ export default function FundDistribution() {
 
       {/* ─────────────────── TAB 1: REPORT ENTRY & GENERATOR ─────────────────── */}
       {activeTab === 'entry' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+        <div className="fund-split-container flex flex-col lg:flex-row items-start gap-1.5">
           {/* Left Column: Combined Entry Form & Recent Generations with Integrated Header */}
-          <div className="lg:col-span-6 xl:col-span-7">
+          <div
+            style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
+            className="w-full shrink-0"
+          >
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-2xs space-y-3">
               {/* Card Section Header */}
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -1788,20 +1869,6 @@ export default function FundDistribution() {
                   </div>
                 </div>
 
-                {/* Real-Time Statement Bank Label Preview */}
-                <div className="p-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/80 flex items-center justify-between text-[10.5px]">
-                  <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-bold min-w-0">
-                    <Calendar size={13} className="text-blue-600 flex-shrink-0" />
-                    <span className="text-slate-500">Bank Letter Heading:</span>
-                    <span className="font-mono font-black text-blue-700 dark:text-blue-300 truncate">
-                      {MONTH_NAMES[new Date(formDate || Date.now()).getMonth()]} {new Date(formDate || Date.now()).getFullYear()} (Academic Session: {formSession || '2025-26'})
-                    </span>
-                  </div>
-                  <span className="text-[9px] text-slate-400 font-bold hidden sm:inline flex-shrink-0 ml-2">
-                    Applies only in Funds Distribution
-                  </span>
-                </div>
-
                 {/* Generate Button */}
                 <button
                   type="submit"
@@ -1981,8 +2048,23 @@ export default function FundDistribution() {
             </div>
           </div>
 
+          {/* Draggable Vertical Splitter Handle */}
+          <div
+            onMouseDown={handleSplitterMouseDown}
+            title="Drag horizontally to adjust split width (Double-click to reset 46%)"
+            onDoubleClick={() => {
+              setLeftSplitPct(46);
+              try { localStorage.setItem('hss_fund_split_pct', '46'); } catch {}
+            }}
+            className="hidden lg:flex flex-col items-center justify-center w-2.5 self-stretch cursor-col-resize hover:bg-blue-400/20 active:bg-blue-600/30 group transition-colors z-20 shrink-0 mx-0.5"
+          >
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-blue-600 ${isDraggingSplitter ? 'bg-blue-600 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+          </div>
+
           {/* Right Column: Naturally Compact Live Report Preview Card */}
-          <div className="lg:col-span-6 xl:col-span-5 lg:sticky lg:top-[76px]">
+          <div
+            className="w-full lg:flex-1 lg:min-w-[300px] lg:sticky lg:top-[76px] min-w-0"
+          >
             <ReportPreviewCard
               report={previewReport}
               rates={rates}
@@ -1997,9 +2079,12 @@ export default function FundDistribution() {
 
       {/* ─────────────────── TAB 2: AUDIT STATEMENT HISTORY & RECONCILIATION ─────────────────── */}
       {activeTab === 'history' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+        <div className="fund-split-container flex flex-col lg:flex-row items-start gap-1.5">
           {/* Left Column: History Controls & Scrollable Grouped Tables */}
-          <div className="lg:col-span-6 xl:col-span-7 space-y-2.5 flex flex-col">
+          <div
+            style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
+            className="w-full shrink-0 space-y-2.5 flex flex-col"
+          >
             {/* History Controls Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex-shrink-0">
               <div className="flex items-center gap-2 flex-1">
@@ -2339,8 +2424,23 @@ export default function FundDistribution() {
             </div>
           </div>
 
+          {/* Draggable Vertical Splitter Handle */}
+          <div
+            onMouseDown={handleSplitterMouseDown}
+            title="Drag horizontally to adjust split width (Double-click to reset 46%)"
+            onDoubleClick={() => {
+              setLeftSplitPct(46);
+              try { localStorage.setItem('hss_fund_split_pct', '46'); } catch {}
+            }}
+            className="hidden lg:flex flex-col items-center justify-center w-2.5 self-stretch cursor-col-resize hover:bg-blue-400/20 active:bg-blue-600/30 group transition-colors z-20 shrink-0 mx-0.5"
+          >
+            <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-blue-600 ${isDraggingSplitter ? 'bg-blue-600 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
+          </div>
+
           {/* Right Column: Naturally Compact Live Report Preview Card */}
-          <div className="lg:col-span-6 xl:col-span-5">
+          <div
+            className="w-full lg:flex-1 lg:min-w-[300px] lg:sticky lg:top-[76px] min-w-0"
+          >
             <ReportPreviewCard
               report={previewReport}
               rates={rates}
