@@ -1453,7 +1453,7 @@ export default function AdmissionRegisterSuite({
       <style>{`
         @page {
           size: 355.6mm 215.9mm landscape !important;
-          margin: 0mm !important;
+          margin: 4mm 6mm !important;
         }
         @media print {
           *, *::before, *::after {
@@ -1466,7 +1466,8 @@ export default function AdmissionRegisterSuite({
           html, body {
             width: 100% !important;
             height: auto !important;
-            min-height: 100% !important;
+            min-height: 0 !important;
+            max-height: none !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
@@ -1503,22 +1504,21 @@ export default function AdmissionRegisterSuite({
             box-shadow: none !important;
           }
 
-          .admission-suite-root {
+          .admission-suite-root, #root, main {
+            display: block !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             background: transparent !important;
             transform: none !important;
-          }
-
-          main {
-            padding: 0 !important;
-            margin: 0 !important;
-            background: #ffffff !important;
-            transform: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
           }
 
           .space-y-6, .space-y-4, .space-y-3 {
+            display: block !important;
             gap: 0 !important;
             margin: 0 !important;
             transform: none !important;
@@ -1526,35 +1526,54 @@ export default function AdmissionRegisterSuite({
 
           .spread-container {
             display: block !important;
-            page-break-after: auto !important;
-            break-after: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
           }
 
           .page-container {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
+            display: block !important;
+            position: relative !important;
             box-sizing: border-box !important;
-            width: 355.6mm !important;
-            max-width: 355.6mm !important;
-            height: 215.9mm !important;
-            min-height: 215.9mm !important;
-            max-height: 215.9mm !important;
-            padding: ${printMargin}in !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            padding: 4mm 6mm !important;
             margin: 0 !important;
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             outline: none !important;
+            page-break-before: always !important;
             page-break-after: always !important;
+            break-before: page !important;
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             background: #ffffff !important;
-            overflow: hidden !important;
+            overflow: visible !important;
+          }
+
+          .page-container:first-of-type, .cover-page {
+            page-break-before: auto !important;
+            break-before: auto !important;
+          }
+
+          .cover-page {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: 185mm !important;
+            max-height: 200mm !important;
+            padding: 10mm 12mm !important;
+            page-break-after: always !important;
+            break-after: page !important;
           }
 
           /* Clean single 1px black borders without thick or duplicate outlines */
@@ -1564,11 +1583,12 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             border-collapse: collapse !important;
             border: 1px solid #000000 !important;
+            table-layout: auto !important;
           }
 
           th, td {
             border: 1px solid #000000 !important;
-            padding: 1px 3px !important;
+            padding: 1px 2.5px !important;
           }
 
           tr {
@@ -2316,23 +2336,23 @@ export default function AdmissionRegisterSuite({
               {/* 1. COVER PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'cover') && (
                 <div
-                  className="page-container cover-page bg-white rounded-xl border border-slate-300 shadow-sm text-center flex flex-col items-center justify-center min-h-[215.9mm] max-w-[355.6mm] mx-auto page-break-after"
+                  className="page-container cover-page bg-white rounded-xl border border-slate-300 shadow-sm text-center flex flex-col items-center justify-center max-w-[355.6mm] mx-auto page-break-after"
                   style={{ padding: `${printMargin}in` }}
                 >
-                  <div className="flex flex-col items-center justify-center w-full my-auto py-12">
-                    <h1 className="text-4xl sm:text-5xl font-black text-red-700 uppercase tracking-tight font-sans mb-2">
+                  <div className="flex flex-col items-center justify-center w-full my-auto py-6 sm:py-8">
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-red-700 uppercase tracking-tight font-sans mb-2">
                       ADMISSION REGISTER
                     </h1>
-                    <h2 className="text-2xl sm:text-3xl font-black text-red-700 uppercase tracking-tight font-sans mb-3">
+                    <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-red-700 uppercase tracking-tight font-sans mb-3">
                       {selectedClass === 'ALL' ? 'OF CLASSES 11th AND 12th' : `OF CLASS ${selectedClass.toUpperCase()}`}
                     </h2>
-                    <h3 className="text-xl sm:text-2xl font-black text-emerald-700 font-sans mb-6">
+                    <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-emerald-700 font-sans mb-4 sm:mb-6">
                       Session {selectedSession}
                     </h3>
 
-                    <div className="w-4/5 max-w-4xl border-b-2 border-slate-900 my-4"></div>
+                    <div className="w-4/5 max-w-3xl border-b-2 border-slate-900 my-3 sm:my-4"></div>
 
-                    <h4 className="text-2xl sm:text-3xl font-black text-slate-800 font-sans mt-2">
+                    <h4 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-800 font-sans mt-2">
                       {SCHOOL_NAME}
                     </h4>
                   </div>
@@ -2346,7 +2366,7 @@ export default function AdmissionRegisterSuite({
                   return (
                     <div
                       key={pageNum}
-                      className={`spread-container page-break-after ${
+                      className={`spread-container ${
                         spreadLayoutMode === 'side_by_side'
                           ? 'flex flex-col 2xl:flex-row gap-3 max-w-full mx-auto items-stretch'
                           : 'flex flex-col gap-4 max-w-[355.6mm] mx-auto'
