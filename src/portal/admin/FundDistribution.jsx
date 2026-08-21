@@ -212,13 +212,15 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
         <div className="text-[8.5px] text-slate-400 italic text-center pt-0.5 border-t border-slate-100 dark:border-slate-800">
           Live Statement Breakdown ({accounts.length} Heads)
         </div>
+      </div>
 
-        {/* Action Buttons: Download & Print */}
-        <div className="grid grid-cols-2 gap-2 mt-1 pt-1 flex-shrink-0">
+      {/* Persistent Sticky Action Footer — Always Visible Without Scrolling */}
+      <div className="p-2.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => onDownload(report)}
-            className="w-full py-2 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[10.5px] flex items-center justify-center gap-1 shadow-sm shadow-blue-500/20 transition-all cursor-pointer active:scale-98"
+            className="w-full py-2 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[10.5px] flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 transition-all cursor-pointer active:scale-98"
             title="Download Statement as PDF or Excel"
           >
             <Download size={13} />
@@ -227,7 +229,7 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
           <button
             type="button"
             onClick={() => onPrint(report)}
-            className="w-full py-2 px-2 rounded-xl bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white font-black text-[10.5px] flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-98"
+            className="w-full py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-black text-[10.5px] flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-98"
             title="Print Official Letter"
           >
             <Printer size={13} />
