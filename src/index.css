@@ -1516,15 +1516,26 @@ img {
     display: none !important;
   }
   
-  /* Disable generic portal headers when printing ID cards */
+  /* Disable generic portal headers when printing ID cards, Admission Registers, or Clean Print sheets */
   body.id-card-print-mode::before,
   body.id-card-print-mode::after,
+  body.admission-register-print-mode::before,
+  body.admission-register-print-mode::after,
+  body.clean-print-mode::before,
+  body.clean-print-mode::after,
+  .admission-suite-root ~ *::before,
+  .admission-suite-root ~ *::after,
   .id-cards-print-area ~ * {
     display: none !important;
     content: none !important;
   }
 
-  body:not(.id-card-print-mode)::before {
+  .ui-skip-link {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body:not(.id-card-print-mode):not(.admission-register-print-mode):not(.clean-print-mode)::before {
     content: "Govt. Higher Secondary School Shangus — Official Portal Document";
     display: block;
     text-align: center;
@@ -1535,7 +1546,7 @@ img {
     margin-bottom: 20px;
     color: #00674F;
   }
-  body:not(.id-card-print-mode)::after {
+  body:not(.id-card-print-mode):not(.admission-register-print-mode):not(.clean-print-mode)::after {
     content: "Verified Official Record • hssshangus.netlify.app";
     display: block;
     text-align: center;

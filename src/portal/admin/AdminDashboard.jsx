@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders } from 'lucide-react';
+import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import RollNoAssignment from './RollNoAssignment';
@@ -292,6 +292,7 @@ export default function AdminDashboard() {
 
   const TOOL_MODULES = [
     { id: 'reports', label: 'Student Records & Reports', icon: BarChart2 },
+    { id: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', icon: BookOpen },
     { id: 'docStudio', label: 'Official Documents Studio', icon: FileSpreadsheet },
     { id: 'idCards', label: 'Student ID Cards', icon: Contact },
     { id: 'gkTest', label: 'Competitive Exams', icon: ShieldCheck },
