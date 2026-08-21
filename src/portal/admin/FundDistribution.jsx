@@ -52,6 +52,7 @@ import {
   getDocs,
   onSnapshot
 } from 'firebase/firestore';
+import { getCachedCollectionSync } from '../../services/dbCache';
 import {
   DEFAULT_SUBSIDIARY_ACCOUNTS,
   SUBSIDIARY_ACCOUNTS,
@@ -351,6 +352,12 @@ export default function FundDistribution() {
   const [fundSession, setFundSession] = useState('2025-26');
   const [formSession, setFormSession] = useState('2025-26');
 
+  // Live Database Students for auto-populating enrollment and roll numbers
+  const [rawStudents, setRawStudents] = useState(() => {
+    const cached = getCachedCollectionSync('admissions');
+    return Array.isArray(cached) ? cached : [];
+  });
+
   // Entry Form State
   const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [formClass, setFormClass] = useState('9th');
@@ -384,7 +391,7 @@ export default function FundDistribution() {
     }, 4000);
   };
 
-  // Fetch live rates, accounts, and distributions
+  // Fetch live rates, accounts, distributions, and admissions
   const fetchData = useCallback(async () => {
     setIsSyncing(true);
     try {
@@ -433,6 +440,13 @@ export default function FundDistribution() {
           setPreviewReport(distList[0]);
         }
       }
+
+      // 3. Fetch admissions / approved student applications
+      const admSnap = await getDocs(collection(db, 'admissions')).catch(() => null);
+      if (admSnap && !admSnap.empty) {
+        const admList = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setRawStudents(admList);
+      }
     } catch (e) {
       console.error('Error fetching fund distribution data:', e);
     } finally {
@@ -475,11 +489,117 @@ export default function FundDistribution() {
       console.warn('Real-time config note:', err);
     });
 
+    // Real-time listener for admissions (live database enrollment)
+    const unsubAdmissions = onSnapshot(collection(db, 'admissions'), (snap) => {
+      if (snap && !snap.empty) {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setRawStudents(list);
+      }
+    }, (err) => {
+      console.warn('Real-time admissions note in FundDistribution:', err);
+    });
+
     return () => {
       unsubDist();
       unsubConfig();
+      unsubAdmissions();
     };
   }, [fetchData]);
+
+  // ─── LIVE DATABASE STUDENT STATS FOR ACTIVE SESSION ───
+  const dbStudentStats = useMemo(() => {
+    const stats = {
+      '9th': { total: 0, science: 0, streams: {} },
+      '10th': { total: 0, science: 0, streams: {} },
+      '11th': { total: 0, science: 0, streams: {} },
+      '12th': { total: 0, science: 0, streams: {} }
+    };
+
+    const targetSession = String(formSession || fundSession || '2025-26').trim().toLowerCase();
+
+    (rawStudents || []).forEach(s => {
+      const status = String(s.status || s.Status || s['Admission Status'] || s.admission_status || '').trim().toLowerCase();
+      const rollNo = String(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s.rollNo || s.RollNo || s.class_roll_no || '').trim();
+
+      // Discard rejected or cancelled records
+      if (status === 'rejected' || status === 'cancelled') return;
+
+      // Must be approved or have assigned class roll number
+      const isApproved = status === 'approved' || (rollNo && rollNo !== '—' && rollNo !== 'N/A');
+      if (!isApproved) return;
+
+      // Match session
+      const sSession = String(s.session || s.Session || s['Academic Session'] || s.academicSession || '').trim().toLowerCase();
+      if (sSession && !sSession.includes(targetSession) && !targetSession.includes(sSession)) {
+        return;
+      }
+
+      // Identify class
+      const rawClass = String(s.class || s.Class || s['Admission sought for class'] || s.className || '').trim().toLowerCase();
+      let cls = null;
+      if (rawClass.includes('9') || rawClass === 'ix') cls = '9th';
+      else if (rawClass.includes('10') || rawClass === 'x') cls = '10th';
+      else if (rawClass.includes('11') || rawClass === 'xi') cls = '11th';
+      else if (rawClass.includes('12') || rawClass === 'xii') cls = '12th';
+
+      if (!cls || !stats[cls]) return;
+
+      stats[cls].total += 1;
+
+      // Stream identification for 11th and 12th
+      const rawStream = String(s.stream || s.Stream || s['Stream for Class 11th'] || s['Stream opted in Class 11th'] || s['Stream & Subjects for Class 12th'] || s['Stream / Faculty'] || '').trim();
+      const lowerStream = rawStream.toLowerCase();
+      let stdStream = 'General';
+      if (lowerStream.includes('sci') || lowerStream.includes('med')) stdStream = 'Science';
+      else if (lowerStream.includes('hum') || lowerStream.includes('art')) stdStream = 'Humanities';
+      else if (lowerStream.includes('com')) stdStream = 'Commerce';
+      else if (lowerStream.includes('home')) stdStream = 'Home Science';
+      else if (rawStream) stdStream = rawStream;
+
+      stats[cls].streams[stdStream] = (stats[cls].streams[stdStream] || 0) + 1;
+      if (stdStream === 'Science') {
+        stats[cls].science += 1;
+      }
+    });
+
+    // In 9th and 10th, Science fund is universal (applies to all students)
+    stats['9th'].science = stats['9th'].total;
+    stats['10th'].science = stats['10th'].total;
+
+    return stats;
+  }, [rawStudents, formSession, fundSession]);
+
+  // Handle Class Switch with Automatic 9th/10th Science Fund Sync
+  const handleClassChange = (newCls) => {
+    setFormClass(newCls);
+    if (newCls === '9th' || newCls === '10th') {
+      // In 9th and 10th, auto-sync SCI (OPT) to PAID STD
+      if (formPaidCount) {
+        setFormScienceCount(formPaidCount);
+      }
+    }
+  };
+
+  // Handle Paid Count Changes with Default 1:1 Auto-Update for 9th/10th
+  const handlePaidCountChange = (val) => {
+    setFormPaidCount(val);
+    if (formClass === '9th' || formClass === '10th') {
+      // For 9th and 10th, Science fund is for all students by default
+      setFormScienceCount(val);
+    }
+  };
+
+  // 1-Click Auto-Fill from Database Counts (Freely editable anytime)
+  const handleApplyDbStats = (cls, paid, science) => {
+    setFormClass(cls);
+    setFormPaidCount(String(paid || 0));
+    if (cls === '9th' || cls === '10th') {
+      setFormScienceCount(String(paid || 0));
+    } else {
+      setFormScienceCount(String(science !== undefined ? science : 0));
+    }
+    showNotification(`Auto-filled Class ${cls} from approved database roll records (${paid} Paid Std • ${science !== undefined ? science : paid} Science Std). You can adjust numbers freely.`, 'info');
+  };
 
   // Calculate Breakdown for class and student counts
   const calculateBreakdown = (cls, paid, science, accList = accounts) => {
@@ -1239,6 +1359,146 @@ export default function FundDistribution() {
                 </span>
               </div>
 
+              {/* ─── LIVE APPROVED ENROLLMENT (Assigned Roll Numbers Auto-Fetch Bar) ─── */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
+                  <div className="flex items-center gap-1.5 font-black text-slate-800 dark:text-slate-200">
+                    <Users size={12} className="text-blue-600" />
+                    <span>Approved Roll Numbers (Session {formSession || fundSession || '2025-26'}):</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-bold">
+                    💡 Click pill to auto-fill • Editable anytime for offline forms
+                  </span>
+                </div>
+
+                {/* 4 Class Interactive Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                  {/* 1. Class 9th */}
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-blue-700 dark:text-blue-400">Class 9th</span>
+                      <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-[9px]">
+                        {dbStudentStats['9th'].total} Std
+                      </span>
+                    </div>
+                    <div className="text-[8px] text-slate-400 font-bold">
+                      Science Fund: All {dbStudentStats['9th'].total}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyDbStats('9th', dbStudentStats['9th'].total, dbStudentStats['9th'].total)}
+                      className="w-full mt-0.5 py-1 px-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs active:scale-98"
+                      title="Auto-fill 9th student counts from approved database roll numbers"
+                    >
+                      <Sparkles size={10} />
+                      <span>Use 9th ({dbStudentStats['9th'].total})</span>
+                    </button>
+                  </div>
+
+                  {/* 2. Class 10th */}
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-blue-700 dark:text-blue-400">Class 10th</span>
+                      <span className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-mono font-black text-[9px]">
+                        {dbStudentStats['10th'].total} Std
+                      </span>
+                    </div>
+                    <div className="text-[8px] text-slate-400 font-bold">
+                      Science Fund: All {dbStudentStats['10th'].total}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyDbStats('10th', dbStudentStats['10th'].total, dbStudentStats['10th'].total)}
+                      className="w-full mt-0.5 py-1 px-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs active:scale-98"
+                      title="Auto-fill 10th student counts from approved database roll numbers"
+                    >
+                      <Sparkles size={10} />
+                      <span>Use 10th ({dbStudentStats['10th'].total})</span>
+                    </button>
+                  </div>
+
+                  {/* 3. Class 11th (Stream-wise) */}
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-indigo-700 dark:text-indigo-400">Class 11th</span>
+                      <span className="px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-mono font-black text-[9px]">
+                        {dbStudentStats['11th'].total} Total
+                      </span>
+                    </div>
+                    <div className="text-[8px] text-slate-500 flex flex-wrap items-center gap-1 font-bold">
+                      <span className="text-purple-700 dark:text-purple-300 font-black">Sci: {dbStudentStats['11th'].science}</span>
+                      <span>•</span>
+                      <span>Hum: {dbStudentStats['11th'].streams['Humanities'] || 0}</span>
+                      {(dbStudentStats['11th'].streams['Commerce'] || 0) > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>Com: {dbStudentStats['11th'].streams['Commerce']}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyDbStats('11th', dbStudentStats['11th'].total, dbStudentStats['11th'].science)}
+                        className="py-1 px-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
+                        title="Auto-fill All 11th: Total Paid + Science stream count"
+                      >
+                        <Sparkles size={9} />
+                        <span>All ({dbStudentStats['11th'].total})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyDbStats('11th', dbStudentStats['11th'].science, dbStudentStats['11th'].science)}
+                        className="py-1 px-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
+                        title="Auto-fill 11th Science stream only"
+                      >
+                        <span>Sci ({dbStudentStats['11th'].science})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Class 12th (Stream-wise) */}
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-1 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-rose-700 dark:text-rose-400">Class 12th</span>
+                      <span className="px-1.5 py-0.2 rounded bg-rose-50 dark:bg-rose-950 text-rose-800 dark:text-rose-300 font-mono font-black text-[9px]">
+                        {dbStudentStats['12th'].total} Total
+                      </span>
+                    </div>
+                    <div className="text-[8px] text-slate-500 flex flex-wrap items-center gap-1 font-bold">
+                      <span className="text-purple-700 dark:text-purple-300 font-black">Sci: {dbStudentStats['12th'].science}</span>
+                      <span>•</span>
+                      <span>Hum: {dbStudentStats['12th'].streams['Humanities'] || 0}</span>
+                      {(dbStudentStats['12th'].streams['Commerce'] || 0) > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>Com: {dbStudentStats['12th'].streams['Commerce']}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyDbStats('12th', dbStudentStats['12th'].total, dbStudentStats['12th'].science)}
+                        className="py-1 px-1 rounded bg-rose-600 hover:bg-rose-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
+                        title="Auto-fill All 12th: Total Paid + Science stream count"
+                      >
+                        <Sparkles size={9} />
+                        <span>All ({dbStudentStats['12th'].total})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyDbStats('12th', dbStudentStats['12th'].science, dbStudentStats['12th'].science)}
+                        className="py-1 px-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-black text-[8.5px] flex items-center justify-center gap-0.5 cursor-pointer shadow-2xs active:scale-98"
+                        title="Auto-fill 12th Science stream only"
+                      >
+                        <span>Sci ({dbStudentStats['12th'].science})</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Entry Form */}
               <form onSubmit={handleGenerateReport} className="space-y-2.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
@@ -1278,7 +1538,7 @@ export default function FundDistribution() {
                     </label>
                     <select
                       value={formClass}
-                      onChange={(e) => setFormClass(e.target.value)}
+                      onChange={(e) => handleClassChange(e.target.value)}
                       className="w-full px-1.5 py-1.5 rounded-lg text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                     >
                       <option value="9th">9th</option>
@@ -1290,14 +1550,17 @@ export default function FundDistribution() {
 
                   {/* 4. STUDENTS (PAID) Input */}
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-                      <Users size={10} /> PAID STD
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                        <Users size={10} /> PAID STD
+                      </label>
+                      <span className="text-[8px] font-bold text-slate-400">Total Fee</span>
+                    </div>
                     <input
                       type="number"
                       placeholder="e.g. 18"
                       value={formPaidCount}
-                      onChange={(e) => setFormPaidCount(e.target.value)}
+                      onChange={(e) => handlePaidCountChange(e.target.value)}
                       min="1"
                       className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
                       required
@@ -1306,16 +1569,31 @@ export default function FundDistribution() {
 
                   {/* 5. SCIENCE (opt) Input */}
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-                      <FlaskConical size={10} /> SCI (OPT)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                        <FlaskConical size={10} /> SCI (OPT)
+                      </label>
+                      {(formClass === '9th' || formClass === '10th') ? (
+                        <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 rounded">
+                          Auto: All Std
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-bold text-purple-600 dark:text-purple-400">
+                          Sci Stream
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="number"
-                      placeholder="e.g. 7"
+                      placeholder={formClass === '9th' || formClass === '10th' ? (formPaidCount || 'e.g. 18') : 'e.g. 7'}
                       value={formScienceCount}
                       onChange={(e) => setFormScienceCount(e.target.value)}
                       min="0"
-                      className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+                      className={`w-full px-2 py-1.5 rounded-lg text-xs font-bold border ${
+                        formClass === '9th' || formClass === '10th'
+                          ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950'
+                      } text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none`}
                     />
                   </div>
                 </div>
@@ -2995,23 +3273,44 @@ export default function FundDistribution() {
               {/* Row 2: Paid & Science Students */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[9.5px] font-black uppercase text-slate-400 flex items-center gap-1">
-                    <Users size={11} /> PAID STUDENTS
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] font-black uppercase text-slate-400 flex items-center gap-1">
+                      <Users size={11} /> PAID STUDENTS
+                    </label>
+                    <span className="text-[8px] font-bold text-slate-400">Total Fee</span>
+                  </div>
                   <input
                     type="number"
                     min="1"
                     value={editReport.paidStudents || ''}
-                    onChange={(e) => setEditReport({ ...editReport, paidStudents: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (editReport.class === '9th' || editReport.class === '10th') {
+                        setEditReport({ ...editReport, paidStudents: val, scienceStudents: val });
+                      } else {
+                        setEditReport({ ...editReport, paidStudents: val });
+                      }
+                    }}
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[9.5px] font-black uppercase text-slate-400 flex items-center gap-1">
-                    <FlaskConical size={11} /> SCIENCE (OPT)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] font-black uppercase text-slate-400 flex items-center gap-1">
+                      <FlaskConical size={11} /> SCIENCE (OPT)
+                    </label>
+                    {(editReport.class === '9th' || editReport.class === '10th') ? (
+                      <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 rounded">
+                        Auto: All Std
+                      </span>
+                    ) : (
+                      <span className="text-[8px] font-bold text-purple-600 dark:text-purple-400">
+                        Sci Stream
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     min="0"
