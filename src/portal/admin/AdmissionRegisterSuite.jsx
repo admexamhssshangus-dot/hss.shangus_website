@@ -220,6 +220,49 @@ function cleanStr(val) {
   return String(val).trim();
 }
 
+function firstCleanValue(record, keys) {
+  if (!record) return '';
+  for (const key of keys) {
+    const value = cleanStr(record[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+const BOARD_REGISTRATION_KEYS = [
+  'boardRegNo', 'Board Registration Number', 'Board Registration No.', 'Board Registration No',
+  'Board Reg. No.', 'Board Reg No', 'Board Registration No. (Class 12th)',
+  'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)',
+  'Board Registration No. (Class 9th)', 'Registration No. (allotted by JKBOSE)',
+  'Registration No. (allotted by JKBOSE )', 'Registration Number', 'Registration No.',
+  'Registration No', 'Reg. No.', 'Reg No', 'boardReg', 'regNo'
+];
+
+const BOARD_ROLL_KEYS = [
+  'exam_r_no_current', 'examRollNoCurrent', 'boardRollNo', 'board_roll_no',
+  'Board Roll No.', 'Board Roll No', 'Board Examination Roll No.', 'Exam Roll No.',
+  'Exam Roll No', 'Roll No. (Current Examination)'
+];
+
+const CURRENT_RESULT_KEYS = [
+  'result_current', 'currentResult', 'boardResult', 'Board Result', 'Result',
+  'Current Result', 'Result (Current Examination)', 'examResult'
+];
+
+function getBoardRegistration(record, classValue) {
+  const numericClass = parseInt(cleanStr(classValue || record?.class || record?.Class || record?.['Admission sought for class']), 10);
+  const preferredKey = numericClass === 12
+    ? 'Board Registration No. (Class 11th)'
+    : numericClass === 11
+      ? 'Board Registration No. (Class 10th)'
+      : numericClass === 10
+        ? 'Board Registration No. (Class 9th)'
+        : numericClass === 9
+          ? 'DIET Registration No.'
+          : '';
+  return firstCleanValue(record, preferredKey ? [preferredKey, ...BOARD_REGISTRATION_KEYS] : BOARD_REGISTRATION_KEYS);
+}
+
 // Robust Subject Extractor across all Firebase form variations & array types
 export function extractStudentSubjects(s) {
   if (!s) return '—';
@@ -483,6 +526,7 @@ export default function AdmissionRegisterSuite({
   initialTab = 'adm_register'
 }) {
   const navigate = useNavigate();
+  const suiteRootRef = useRef(null);
   const outletCtx = useOutletContext?.() || {};
   const user = propUser || outletCtx?.user;
   const onClose = propOnClose || (() => navigate('/portal/admin'));
@@ -509,6 +553,7 @@ export default function AdmissionRegisterSuite({
   const [searchQuery, setSearchQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
   // Popover Dropdown States for Consolidated Toolbar
   const [showFiltersPopover, setShowFiltersPopover] = useState(false);
@@ -673,6 +718,19 @@ export default function AdmissionRegisterSuite({
     const cached = getCachedCollectionSync('masterRegisters');
     return Array.isArray(cached) && cached.length > 0 ? cached : [];
   });
+
+  // Direct-route usage may not receive the dashboard's archive prop. Load the cached
+  // archive once, only when needed, so missing legacy identifiers can still be enriched.
+  useEffect(() => {
+    if (historyDataset.length > 0) return undefined;
+    let active = true;
+    getCachedCollection('masterRegisters')
+      .then(records => {
+        if (active && Array.isArray(records) && records.length > 0) setHistoryDataset(records);
+      })
+      .catch(error => console.warn('Could not load historical register enrichment data:', error));
+    return () => { active = false; };
+  }, [historyDataset.length]);
 
   // Calculate Next Available Sequential Admission Number
   const nextSequentialAdmNo = useMemo(() => {
@@ -910,7 +968,7 @@ export default function AdmissionRegisterSuite({
             flat.push({
               ...item,
               id: item.id || item['Form Number'] || item['Form No.'] || `${docItem.id}_${itemIdx}`,
-              boardRegNo: cleanStr(item.boardRegNo || item['Board Registration Number'] || item['Board Reg. No.'] || item['Board Reg No'] || item['Registration Number'] || item['Reg. No.']),
+              boardRegNo: getBoardRegistration(item),
               classRollNo: cleanStr(item.classRollNo || item['Class Roll No'] || item.rollNo || item['Roll No'] || item['RL. NO.']),
               studentName: cleanStr(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || item['Student Name']),
               fatherName: cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"]),
@@ -925,7 +983,7 @@ export default function AdmissionRegisterSuite({
       } else {
         flat.push({
           ...docItem,
-          boardRegNo: cleanStr(docItem.boardRegNo || docItem['Board Registration Number'] || docItem['Board Reg. No.'] || docItem['Board Reg No']),
+          boardRegNo: getBoardRegistration(docItem),
           classRollNo: cleanStr(docItem.classRollNo || docItem['Class Roll No'] || docItem.rollNo || docItem['Roll No']),
           studentName: cleanStr(docItem.studentName || docItem["Student's Name (as per school records)"] || docItem["Student's Name"] || docItem['Student Name']),
           fatherName: cleanStr(docItem.fatherName || docItem["Father's/Guardian's Name (as per school records)"] || docItem["Father's Name"]),
@@ -950,12 +1008,14 @@ export default function AdmissionRegisterSuite({
       const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s['RL. NO.'] || s['RL. NO'] || s['Class R.No.'] || s['Class R. No.'] || s.rollNo || s.RollNo || s.roll_no);
       const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s['Admission Number'] || s.admissionNumber || s.admissionNo);
       const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s['Form No'] || s.FormNo);
-      const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s['Board Reg No'] || s['Registration Number'] || s['Reg. No.'] || s.boardReg || s.regNo);
+      const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
+      const boardReg = getBoardRegistration(s, cls);
+      const boardRollNo = firstCleanValue(s, BOARD_ROLL_KEYS);
+      const currentResult = firstCleanValue(s, CURRENT_RESULT_KEYS);
 
       // CRITICAL: Reject phantom/empty ghost database rows that have zero identifying student information
       if (!name && !father && !rollNo && !admNo && !formNo && !boardReg) return;
 
-      const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
       const sess = cleanStr(s.session || s.Session || s['Academic Session'] || selectedSession);
       const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s['Mother Name'] || s.mother);
       const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['DoB (figures)'] || s['Date of Birth'] || s['DOB']);
@@ -1003,14 +1063,22 @@ export default function AdmissionRegisterSuite({
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
       const directPhoto = getStudentPhotoUrl(s, '');
 
-      // Lookup match in historical archive to fill in missing Board Reg No, PEN, Previous School, etc.
+      // Match one historical identity before inheriting missing fields. Strong identifiers
+      // deliberately precede names and roll numbers to prevent cross-student data leakage.
       let histMatch = null;
       if (flatHistoryRecords.length > 0) {
-        if (prevRoll) {
-          histMatch = flatHistoryRecords.find(h => cleanStr(h.classRollNo || h['Class Roll No'] || h.rollNo || h.examRoll10th) === prevRoll);
+        if (boardReg) {
+          histMatch = flatHistoryRecords.find(h => getBoardRegistration(h) === boardReg);
         }
         if (!histMatch && formNo) {
           histMatch = flatHistoryRecords.find(h => cleanStr(h.formNo || h['Form Number'] || h['Form No.']) === formNo);
+        }
+        if (!histMatch && aadhar && aadhar.replace(/\D/g, '').length >= 10) {
+          const normalizedAadhar = aadhar.replace(/\D/g, '');
+          histMatch = flatHistoryRecords.find(h => cleanStr(h.aadhar || h['Aadhar No.'] || h['Aadhaar No.']).replace(/\D/g, '') === normalizedAadhar);
+        }
+        if (!histMatch && admNo) {
+          histMatch = flatHistoryRecords.find(h => cleanStr(h.admNo || h['Adm. No.'] || h['Admission No.'] || h['Admission Number']) === admNo);
         }
         if (!histMatch && name && father) {
           const normName = name.toLowerCase().replace(/[^a-z]/g, '');
@@ -1018,15 +1086,20 @@ export default function AdmissionRegisterSuite({
           histMatch = flatHistoryRecords.find(h => {
             const hN = cleanStr(h.studentName || h["Student's Name"]).toLowerCase().replace(/[^a-z]/g, '');
             const hF = cleanStr(h.fatherName || h["Father's Name"]).toLowerCase().replace(/[^a-z]/g, '');
-            return hN === normName && (hF.includes(normFather.slice(0, 4)) || normFather.includes(hF.slice(0, 4)));
+            return normName.length >= 3 && normFather.length >= 4 && hN === normName && hF === normFather;
           });
         }
-        if (!histMatch && aadhar && aadhar.length >= 10) {
-          histMatch = flatHistoryRecords.find(h => cleanStr(h.aadhar || h['Aadhar No.'] || h['Aadhaar No.']) === aadhar);
+        if (!histMatch && prevRoll && name) {
+          const normName = name.toLowerCase().replace(/[^a-z]/g, '');
+          histMatch = flatHistoryRecords.find(h => {
+            const hRoll = cleanStr(h.classRollNo || h['Class Roll No'] || h.rollNo || h.examRoll10th);
+            const hName = cleanStr(h.studentName || h["Student's Name"]).toLowerCase().replace(/[^a-z]/g, '');
+            return hRoll === prevRoll && hName === normName;
+          });
         }
       }
 
-      const finalBoardReg = boardReg || (histMatch ? cleanStr(histMatch.boardRegNo || histMatch['Board Registration Number']) : '');
+      const finalBoardReg = boardReg || getBoardRegistration(histMatch, cls);
       const finalPrevSchool = prevSchool || (histMatch ? 'Govt. Higher Secondary School Shangus' : '');
       const finalPrevRoll = prevRoll || (histMatch ? cleanStr(histMatch.classRollNo || histMatch['Class Roll No'] || histMatch.rollNo) : '');
       const finalPen = (pen && pen !== 'NA') ? pen : (histMatch ? cleanStr(histMatch.penNo || histMatch['PEN No.'] || 'NA') : 'NA');
@@ -1044,6 +1117,8 @@ export default function AdmissionRegisterSuite({
         isReadmission,
         rollNo,
         boardReg: finalBoardReg,
+        boardRollNo: boardRollNo || firstCleanValue(histMatch, BOARD_ROLL_KEYS),
+        currentResult: currentResult || firstCleanValue(histMatch, CURRENT_RESULT_KEYS),
         name: name || 'Student Record',
         father,
         mother,
@@ -1257,6 +1332,56 @@ export default function AdmissionRegisterSuite({
       getStudentPhotoUrl(s.raw || s, '') ||
       ''
     );
+  };
+
+  const handleCleanPrint = async () => {
+    if (isPreparingPrint) return;
+    setIsPreparingPrint(true);
+
+    try {
+      // Resolve only the current filtered register, with bounded request concurrency.
+      const missingPhotos = filteredStudents.filter(st => !getResolvedStudentPhoto(st));
+      const resolvedPhotos = {};
+      for (let i = 0; i < missingPhotos.length; i += 12) {
+        const batch = missingPhotos.slice(i, i + 12);
+        const results = await Promise.allSettled(batch.map(async (st) => ({
+          student: st,
+          url: await fetchStudentPhotoOnDemand(st.raw || st)
+        })));
+        results.forEach(result => {
+          if (result.status !== 'fulfilled' || !result.value.url) return;
+          const { student, url } = result.value;
+          if (student.id) resolvedPhotos[student.id] = url;
+          if (student.formNo) resolvedPhotos[student.formNo] = url;
+          if (student.boardReg) resolvedPhotos[student.boardReg] = url;
+        });
+      }
+
+      if (Object.keys(resolvedPhotos).length > 0) {
+        setPhotosMap(prev => ({ ...prev, ...resolvedPhotos }));
+      }
+
+      if (document.fonts?.ready) await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const images = Array.from(suiteRootRef.current?.querySelectorAll('img') || []);
+      await Promise.all(images.map(img => {
+        if (img.complete) return img.decode?.().catch(() => undefined) || Promise.resolve();
+        return new Promise(resolve => {
+          const done = () => resolve();
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+          setTimeout(done, 5000);
+        });
+      }));
+
+      window.print();
+    } catch (error) {
+      console.error('Could not fully prepare Admission Register print:', error);
+      setToast({ message: 'Some print assets could not be prepared. Please retry after photos finish loading.', type: 'error' });
+    } finally {
+      setIsPreparingPrint(false);
+    }
   };
 
   // Open Universal Readmission Modal (Candidate Search Mode)
@@ -1750,8 +1875,8 @@ export default function AdmissionRegisterSuite({
         s.session || '',
         s.stream || '',
         s.subs || '',
-        s.raw?.exam_r_no_current || '',
-        s.raw?.result_current || ''
+        s.boardRollNo || '',
+        s.currentResult || ''
       ]);
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -1763,12 +1888,12 @@ export default function AdmissionRegisterSuite({
   };
 
   return (
-    <div className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+    <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* ─── DYNAMIC PRINT CSS STYLESHEET (STRICT CLEAN LEGAL LANDSCAPE) ─── */}
       <style>{`
         @page {
-          size: 355.6mm 215.9mm landscape !important;
-          margin: 4mm 6mm !important;
+          size: legal landscape;
+          margin: 5mm;
         }
         @media print {
           *, *::before, *::after {
@@ -1801,14 +1926,33 @@ export default function AdmissionRegisterSuite({
             padding: 0 !important;
           }
 
-          /* Strict Print Isolation: Hide all outer headers, portals, toolbars, buttons, ribbons */
-          header, nav, footer, aside, .navbar, .portal-header, .admin-header, [role="navigation"], .no-print, button, select, input, .fixed, .sticky, .global-hud {
-            display: none !important;
+          /* Strictly isolate the register without retaining hidden portal layout space. */
+          body.admission-register-print-mode * {
             visibility: hidden !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
           }
+
+          body.admission-register-print-mode .admission-suite-root,
+          body.admission-register-print-mode .admission-suite-root * {
+            visibility: visible !important;
+          }
+
+          body.admission-register-print-mode .admission-suite-root {
+            position: absolute !important;
+            inset: 0 auto auto 0 !important;
+            width: 100% !important;
+            min-height: 0 !important;
+            display: block !important;
+            background: #ffffff !important;
+          }
+
+          .admission-suite-root header, .admission-suite-root nav, .admission-suite-root footer,
+          .admission-suite-root aside, .admission-suite-root .no-print, .admission-suite-root button,
+          .admission-suite-root select, .admission-suite-root input, .admission-suite-root .screen-only,
+          .admission-suite-root .fixed, .admission-suite-root .sticky, .global-hud {
+            display: none !important;
+          }
+
+          .admission-suite-root .print-only { display: block !important; }
 
           /* Ensure parent themes don't apply backgrounds or borders during print */
           .admin-dashboard-theme, .workspace-card, .admin-dashboard-theme > div {
@@ -1819,7 +1963,8 @@ export default function AdmissionRegisterSuite({
             box-shadow: none !important;
           }
 
-          .admission-suite-root, #root, main, .page-container, .spread-container, .overflow-x-auto, div {
+          .admission-suite-root, .admission-suite-root main, .admission-suite-root .page-container,
+          .admission-suite-root .spread-container, .admission-suite-root .overflow-x-auto {
             overflow: visible !important;
             overflow-x: visible !important;
             overflow-y: visible !important;
@@ -1860,15 +2005,13 @@ export default function AdmissionRegisterSuite({
             height: auto !important;
             min-height: 0 !important;
             max-height: none !important;
-            padding: 4mm 6mm !important;
+            padding: 4mm !important;
             margin: 0 !important;
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             outline: none !important;
-            page-break-before: always !important;
             page-break-after: always !important;
-            break-before: page !important;
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -1876,9 +2019,9 @@ export default function AdmissionRegisterSuite({
             overflow: visible !important;
           }
 
-          .page-container:first-of-type, .cover-page {
-            page-break-before: auto !important;
-            break-before: auto !important;
+          .admission-suite-root main .space-y-6 > .page-container:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
 
           .cover-page {
@@ -1889,8 +2032,8 @@ export default function AdmissionRegisterSuite({
             box-sizing: border-box !important;
             width: 100% !important;
             max-width: 100% !important;
-            min-height: 185mm !important;
-            max-height: 200mm !important;
+            min-height: 195mm !important;
+            max-height: 195mm !important;
             padding: 10mm 12mm !important;
             page-break-after: always !important;
             break-after: page !important;
@@ -1903,12 +2046,13 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             border-collapse: collapse !important;
             border: 1px solid #000000 !important;
-            table-layout: auto !important;
+            table-layout: fixed !important;
           }
 
           th, td {
             border: 1px solid #000000 !important;
             padding: 1.5px 2.5px !important;
+            overflow-wrap: anywhere !important;
           }
 
           tr {
@@ -1925,6 +2069,7 @@ export default function AdmissionRegisterSuite({
 
           img {
             object-fit: cover !important;
+            max-width: 100% !important;
           }
 
           .h-yellow, th.h-yellow, td.bg-yellow-50, td.bg-yellow-100, th.bg-yellow-200 { 
@@ -1942,6 +2087,8 @@ export default function AdmissionRegisterSuite({
             color: #991b1b !important; 
           }
         }
+
+        .print-only { display: none; }
 
         /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (OVERRIDES ANY THEME CASCADE) ─── */
         .register-popover-panel {
@@ -2411,11 +2558,13 @@ export default function AdmissionRegisterSuite({
                 {/* 4. Print */}
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="py-0.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                  onClick={handleCleanPrint}
+                  disabled={isPreparingPrint}
+                  className="py-0.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 disabled:opacity-70 disabled:cursor-wait"
+                  title="Prepare visible records and photos, then open the clean print dialog"
                 >
-                  <Printer size={11} />
-                  <span>Print</span>
+                  {isPreparingPrint ? <Loader2 size={11} className="animate-spin" /> : <Printer size={11} />}
+                  <span>{isPreparingPrint ? 'Preparing…' : 'Print'}</span>
                 </button>
               </>
             )}
@@ -2843,7 +2992,6 @@ export default function AdmissionRegisterSuite({
                                           alt={s.name}
                                           className="w-full h-full object-cover"
                                           loading="eager"
-                                          crossOrigin="anonymous"
                                           onError={(e) => {
                                             e.currentTarget.style.display = 'none';
                                             if (e.currentTarget.nextElementSibling) {
@@ -3119,8 +3267,9 @@ export default function AdmissionRegisterSuite({
                                 value={note.text}
                                 onChange={(e) => handleUpdateNote(note.id, e.target.value)}
                                 rows={note.text.length > 200 ? 3 : 2}
-                                className="w-full p-1 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-[11px] font-medium resize-y focus:bg-white leading-relaxed"
+                                className="screen-only w-full p-1 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-[11px] font-medium resize-y focus:bg-white leading-relaxed"
                               />
+                              <div className="print-only whitespace-pre-wrap text-[10px] leading-relaxed">{note.text}</div>
                             </td>
                             <td className="no-print border border-slate-800 p-1.5 w-10 text-center align-top">
                               <button
@@ -3211,7 +3360,6 @@ export default function AdmissionRegisterSuite({
                                       alt={s.name}
                                       className="w-full h-full object-cover"
                                       loading="eager"
-                                      crossOrigin="anonymous"
                                       onError={(e) => {
                                         e.currentTarget.style.display = 'none';
                                         if (e.currentTarget.nextElementSibling) {
@@ -3243,8 +3391,8 @@ export default function AdmissionRegisterSuite({
                                 <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px] leading-tight font-medium">
                                   {s.subs ? s.subs.split(',').map((sub, i) => <div key={i}>{sub.trim()}</div>) : '—'}
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">{s.raw?.exam_r_no_current || '—'}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">{s.raw?.result_current || '—'}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">{s.boardRollNo || '—'}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">{s.currentResult || '—'}</td>
                                 <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
                                   <div className="border-t border-slate-900 pt-0.5">Signature</div>
                                 </td>
