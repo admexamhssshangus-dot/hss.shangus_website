@@ -89,8 +89,7 @@ module.exports = function(app) {
         Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
         return res.status(result.statusCode || 500).send(result.body || '');
       } catch (error) {
-        console.error('Local admission function error:', error.message);
-        return res.status(500).json({ error: 'The local admission service could not start.' });
+        console.warn('Local admission function failed, falling back to upstream relay:', error.message);
       }
     }
 
