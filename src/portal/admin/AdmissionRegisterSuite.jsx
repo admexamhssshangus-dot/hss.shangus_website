@@ -7,8 +7,9 @@ import {
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { doc, writeBatch, collection, getDocs } from 'firebase/firestore';
-import { updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
+import { updateCachedItem, getCachedCollectionSync, preloadStudentPhotosCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
+import { getStudentPhotoUrl } from '../../utils/imageCompressor';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
@@ -142,6 +143,13 @@ export default function AdmissionRegisterSuite({
   const user = propUser || outletCtx?.user;
   const onClose = propOnClose || (() => navigate('/portal/admin'));
 
+  // Preload photo cache on mount
+  useEffect(() => {
+    try {
+      preloadStudentPhotosCache();
+    } catch (_) {}
+  }, []);
+
   // Internal dataset state (supports standalone route or embedded mode)
   const [dataset, setDataset] = useState(() => {
     if (Array.isArray(propStudents) && propStudents.length > 0) return propStudents;
@@ -228,7 +236,7 @@ export default function AdmissionRegisterSuite({
       const sess = cleanStr(s.session || s.Session || s['Academic Session'] || '2025-26');
       const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s.FormNo);
       const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s.admissionNumber);
-      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo);
+      const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no);
       const boardReg = cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']);
       const name = cleanStr(s.studentName || s["Student's Name (as per school records)"] || s['Student Name'] || s.name);
       const father = cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.father);
@@ -258,7 +266,9 @@ export default function AdmissionRegisterSuite({
       const admDate = cleanStr(s.admDate || s['Adm. Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
       const onlineStatus = cleanStr(s.onlineSubmDate || s.submittedAt?.slice(0, 10) || 'Submitted');
       const status = resolveEffectiveStatus(s);
-      const photo = s.photoUrl || s.photo_id || s['Student Photo'] || s.photo || '';
+      
+      // Robust photo resolution via imageCompressor + DB photo cache
+      const photo = getStudentPhotoUrl(s, '');
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
 
       return {
@@ -731,32 +741,60 @@ export default function AdmissionRegisterSuite({
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
-      {/* ─── DYNAMIC PRINT CSS STYLESHEET (DEFAULT: 0.3 INCH DYNAMIC MARGINS ON LEGAL LANDSCAPE) ─── */}
+    <div className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+      {/* ─── DYNAMIC PRINT CSS STYLESHEET (STRICT LEGAL LANDSCAPE & ISOLATED CLEAN DOCUMENT) ─── */}
       <style>{`
         @page {
-          size: 355.6mm 215.9mm landscape;
+          size: 355.6mm 215.9mm landscape !important;
           margin: ${printMargin}in !important;
         }
         @media print {
-          body, html {
-            background: white !important;
-            color: #000 !important;
+          html, body {
+            width: 100% !important;
+            height: auto !important;
+            min-height: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            overflow: visible !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .no-print, header, nav, footer, .ui-skip-link, .fixed {
+          
+          /* Strict Print Isolation: Hide all outer headers, portals, toolbars, buttons, ribbons */
+          header, nav, footer, aside, .navbar, .portal-header, .admin-header, [role="navigation"], .no-print, button, select, input, .fixed, .sticky, .global-hud {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
+
+          /* Ensure parent themes don't apply backgrounds or borders during print */
+          .admin-dashboard-theme, .workspace-card, .admin-dashboard-theme > div {
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+          }
+
+          .admission-suite-root {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+          }
+
           main {
             padding: 0 !important;
             margin: 0 !important;
-            background: white !important;
+            background: #ffffff !important;
             transform: none !important;
           }
+
           .page-container {
             margin: 0 0 ${printMargin}in 0 !important;
             padding: ${printMargin}in !important;
@@ -765,21 +803,35 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             max-width: 100% !important;
             page-break-after: always !important;
+            break-after: page !important;
             page-break-inside: avoid !important;
-            background: white !important;
+            break-inside: avoid !important;
+            background: #ffffff !important;
           }
+
           .spread-container {
             display: block !important;
             page-break-after: always !important;
+            break-after: page !important;
           }
+
           table {
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
             width: 100% !important;
             border-collapse: collapse !important;
           }
+
           tr {
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
+
+          img {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
           .h-yellow { background-color: #fef08a !important; }
           .h-grey { background-color: #e2e8f0 !important; }
           .h-green { background-color: #dcfce7 !important; color: #15803d !important; }
@@ -1174,12 +1226,25 @@ export default function AdmissionRegisterSuite({
                               {chunk.map((s) => (
                                 <tr key={s.id} className="h-11 hover:bg-slate-50">
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.sno}</td>
-                                  <td className="border border-slate-900 p-0 text-center w-10 h-11 overflow-hidden bg-slate-100">
+                                  <td className="border border-slate-900 p-0 text-center w-10 h-11 overflow-hidden bg-slate-50 print:bg-transparent">
                                     {s.photo ? (
-                                      <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <span className="text-[7px] text-slate-400">Photo</span>
-                                    )}
+                                      <img
+                                        src={s.photo}
+                                        alt={s.name}
+                                        className="w-full h-full object-cover"
+                                        loading="eager"
+                                        crossOrigin="anonymous"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                          if (e.currentTarget.nextElementSibling) {
+                                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                                          }
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div className={`w-full h-full items-center justify-center text-[7px] text-slate-400 font-bold ${s.photo ? 'hidden' : 'flex'}`}>
+                                      Photo
+                                    </div>
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700">{s.rollNo}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.formNo}</td>
@@ -1504,12 +1569,25 @@ export default function AdmissionRegisterSuite({
                                 <div className="text-[7.5px] font-mono text-slate-500">[{s.admNo || '—'}]</div>
                               </td>
                               <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800">{s.rollNo}</td>
-                              <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-100">
+                              <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-50 print:bg-transparent">
                                 {s.photo ? (
-                                  <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-[7px] text-slate-400">Photo</span>
-                                )}
+                                  <img
+                                    src={s.photo}
+                                    alt={s.name}
+                                    className="w-full h-full object-cover"
+                                    loading="eager"
+                                    crossOrigin="anonymous"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      if (e.currentTarget.nextElementSibling) {
+                                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                                      }
+                                    }}
+                                  />
+                                ) : null}
+                                <div className={`w-full h-full items-center justify-center text-[7px] text-slate-400 font-bold ${s.photo ? 'hidden' : 'flex'}`}>
+                                  Photo
+                                </div>
                               </td>
                               <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
                               <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[10px]">{s.name}</td>
