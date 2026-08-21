@@ -1453,9 +1453,16 @@ export default function AdmissionRegisterSuite({
       <style>{`
         @page {
           size: 355.6mm 215.9mm landscape !important;
-          margin: ${printMargin}in !important;
+          margin: 0mm !important;
         }
         @media print {
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            box-sizing: border-box !important;
+          }
+
           html, body {
             width: 100% !important;
             height: auto !important;
@@ -1466,8 +1473,6 @@ export default function AdmissionRegisterSuite({
             color: #000000 !important;
             overflow: visible !important;
             font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
           }
           
           /* Suppress ALL injected header/footer watermarks and accessibility skip buttons */
@@ -1503,6 +1508,7 @@ export default function AdmissionRegisterSuite({
             margin: 0 !important;
             padding: 0 !important;
             background: transparent !important;
+            transform: none !important;
           }
 
           main {
@@ -1512,30 +1518,43 @@ export default function AdmissionRegisterSuite({
             transform: none !important;
           }
 
+          .space-y-6, .space-y-4, .space-y-3 {
+            gap: 0 !important;
+            margin: 0 !important;
+            transform: none !important;
+          }
+
           .spread-container {
             display: block !important;
-            page-break-after: always !important;
-            break-after: page !important;
+            page-break-after: auto !important;
+            break-after: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
           }
 
           .page-container {
-            display: block !important;
-            margin: 0 0 ${printMargin}in 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
+            width: 355.6mm !important;
+            max-width: 355.6mm !important;
+            height: 215.9mm !important;
+            min-height: 215.9mm !important;
+            max-height: 215.9mm !important;
             padding: ${printMargin}in !important;
+            margin: 0 !important;
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             outline: none !important;
-            width: 100% !important;
-            max-width: 100% !important;
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             background: #ffffff !important;
+            overflow: hidden !important;
           }
 
           /* Clean single 1px black borders without thick or duplicate outlines */
@@ -1548,7 +1567,8 @@ export default function AdmissionRegisterSuite({
           }
 
           th, td {
-            border: 1px solid #111111 !important;
+            border: 1px solid #000000 !important;
+            padding: 1px 3px !important;
           }
 
           tr {
@@ -1557,14 +1577,23 @@ export default function AdmissionRegisterSuite({
           }
 
           img {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            object-fit: cover !important;
           }
 
-          .h-yellow { background-color: #fef08a !important; }
-          .h-grey { background-color: #e2e8f0 !important; }
-          .h-green { background-color: #dcfce7 !important; color: #15803d !important; }
-          .h-red { background-color: #fee2e2 !important; color: #b91c1c !important; }
+          .h-yellow, th.h-yellow, td.bg-yellow-50, td.bg-yellow-100, th.bg-yellow-200 { 
+            background-color: #fef08a !important; 
+          }
+          .h-grey, th.h-grey, tr.bg-slate-200, tr.bg-slate-100, th.bg-slate-200, th.bg-slate-100 { 
+            background-color: #e2e8f0 !important; 
+          }
+          .h-green, th.h-green, td.bg-emerald-50, th.bg-emerald-100 { 
+            background-color: #dcfce7 !important; 
+            color: #14532d !important; 
+          }
+          .h-red, th.h-red, td.bg-rose-50, th.bg-rose-100 { 
+            background-color: #fee2e2 !important; 
+            color: #991b1b !important; 
+          }
         }
 
         /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
