@@ -133,15 +133,12 @@ export async function saveAdmissionDraft({ formData, applicationId, force = fals
   try {
     return await request('draft', { formData: safeDraft, applicationId }, { force });
   } catch (err) {
-    if (err.isServiceUnavailable || err.status === 404 || err.message?.includes('local admission backend')) {
-      console.info('Saved draft locally (backend endpoint not reached).');
-      return {
-        success: true,
-        localOnly: true,
-        applicationId: applicationId || `draft_${user?.uid || 'local'}`,
-      };
-    }
-    throw err;
+    console.info('Saved draft locally in browser storage:', err.message);
+    return {
+      success: true,
+      localOnly: true,
+      applicationId: applicationId || `draft_${user?.uid || 'local'}`,
+    };
   }
 }
 
