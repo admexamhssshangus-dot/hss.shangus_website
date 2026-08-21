@@ -122,6 +122,22 @@ export default function AdminDashboard() {
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [showCustomRosterModal, setShowCustomRosterModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [triggerAction, setTriggerAction] = useState(null); // 'analytics' | 'directEntry' | 'bulkTools'
+  const [enableQuickCellEdit, setEnableQuickCellEditState] = useState(() => {
+    try {
+      return localStorage.getItem('hss_quick_cell_edit') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleQuickCellEdit = useCallback((val) => {
+    setEnableQuickCellEditState(val);
+    try {
+      localStorage.setItem('hss_quick_cell_edit', String(val));
+    } catch {}
+  }, []);
+
   const dropdownRef = useRef(null);
 
   // Trigger confirm modal before logging out
@@ -440,6 +456,20 @@ export default function AdminDashboard() {
                       setActiveTab={setActiveTab}
                       user={user}
                       onOpenCustomRoster={() => setShowCustomRosterModal(true)}
+                      onOpenAnalytics={() => {
+                        setActiveTab('reports');
+                        setTriggerAction('analytics');
+                      }}
+                      onOpenDirectEntry={() => {
+                        setActiveTab('reports');
+                        setTriggerAction('directEntry');
+                      }}
+                      onOpenBulkTools={() => {
+                        setActiveTab('reports');
+                        setTriggerAction('bulkTools');
+                      }}
+                      enableQuickCellEdit={enableQuickCellEdit}
+                      setEnableQuickCellEdit={handleToggleQuickCellEdit}
                       align="right"
                     />
                   </div>
@@ -488,6 +518,10 @@ export default function AdminDashboard() {
                       stats={{ totalCount, submittedCount, draftCount, approvedCount, rejectedCount }}
                       initialData={applications}
                       onRecordDeleted={handleRecordDeleted}
+                      triggerAction={triggerAction}
+                      onTriggerActionHandled={() => setTriggerAction(null)}
+                      enableQuickCellEdit={enableQuickCellEdit}
+                      setEnableQuickCellEdit={handleToggleQuickCellEdit}
                     />
                   </div>
 
