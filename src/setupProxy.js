@@ -124,6 +124,13 @@ module.exports = function(app) {
         if (responseBody.length < 1024 * 1024) responseBody += chunk;
       });
       upstreamResponse.on('end', () => {
+        // Forward upstream CORS / cache headers so browser accepts the response
+        const fwd = ['access-control-allow-origin', 'access-control-allow-methods',
+          'access-control-allow-headers', 'vary'];
+        fwd.forEach(h => {
+          const v = upstreamResponse.headers[h];
+          if (v) res.setHeader(h, v);
+        });
         res.setHeader('Cache-Control', 'no-store');
         res.type('application/json').status(upstreamResponse.statusCode || 502).send(responseBody || '{}');
       });
