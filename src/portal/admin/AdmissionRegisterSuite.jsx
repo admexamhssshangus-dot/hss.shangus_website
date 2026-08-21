@@ -1710,10 +1710,10 @@ export default function AdmissionRegisterSuite({
 
                   {/* Filter Popover Dropdown Panel */}
                   {showFiltersPopover && (
-                    <div className="absolute left-0 top-full mt-1.5 w-64 p-3 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] space-y-2.5 whitespace-normal animate-in fade-in zoom-in-95">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                    <div className="absolute left-0 top-full mt-1.5 w-72 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] space-y-3 whitespace-normal animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
                         <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Filter size={12} className="text-amber-600" /> Filter Register
+                          <Filter size={13} className="text-amber-600 dark:text-amber-400" /> Filter Register
                         </span>
                         {activeFiltersCount > 0 && (
                           <button
@@ -1724,68 +1724,70 @@ export default function AdmissionRegisterSuite({
                               setSelectedAdmissionType('ALL');
                               setSelectedStream('ALL');
                             }}
-                            className="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer"
+                            className="text-[11px] font-black text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
                           >
-                            Reset
+                            Reset Filters
                           </button>
                         )}
                       </div>
 
                       {/* Session */}
                       <div>
-                        <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Academic Session:</label>
+                        <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Academic Session:</label>
                         <select
                           value={selectedSession}
                           onChange={(e) => setSelectedSession(e.target.value)}
-                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 cursor-pointer"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           {availableSessions.map(sess => (
-                            <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
+                            <option key={sess} value={sess} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                              {sess} {sess === '2025-26' ? '(Live)' : ''}
+                            </option>
                           ))}
                         </select>
                       </div>
 
                       {/* Status */}
                       <div>
-                        <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Admission Status:</label>
+                        <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Admission Status:</label>
                         <select
                           value={selectedStatus}
                           onChange={(e) => setSelectedStatus(e.target.value)}
-                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-emerald-900 dark:text-emerald-200 cursor-pointer"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
-                          <option value="Approved">Approved ({statusCounts.approved})</option>
-                          <option value="Submitted">Submitted ({statusCounts.submitted})</option>
-                          <option value="Provisional">Provisional ({statusCounts.provisional})</option>
-                          <option value="ALL">All ({statusCounts.total})</option>
+                          <option value="Approved" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Approved ({statusCounts.approved})</option>
+                          <option value="Submitted" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Submitted ({statusCounts.submitted})</option>
+                          <option value="Provisional" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Provisional ({statusCounts.provisional})</option>
+                          <option value="ALL" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">All ({statusCounts.total})</option>
                         </select>
                       </div>
 
                       {/* Admission Type */}
                       <div>
-                        <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Admission Type:</label>
+                        <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Admission Type:</label>
                         <select
                           value={selectedAdmissionType}
                           onChange={(e) => setSelectedAdmissionType(e.target.value)}
-                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 cursor-pointer"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
-                          <option value="ALL">All Types</option>
-                          <option value="fresh">Fresh Only ({statusCounts.fresh})</option>
-                          <option value="readmission">Re-admission Only ({statusCounts.readmissions})</option>
+                          <option value="ALL" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">All Types</option>
+                          <option value="fresh" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Fresh Only ({statusCounts.fresh})</option>
+                          <option value="readmission" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Re-admission Only ({statusCounts.readmissions})</option>
                         </select>
                       </div>
 
                       {/* Stream */}
                       {availableStreams.length > 0 && (
                         <div>
-                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Stream Scope:</label>
+                          <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Stream Scope:</label>
                           <select
                             value={selectedStream}
                             onChange={(e) => setSelectedStream(e.target.value)}
-                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 cursor-pointer"
+                            className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                           >
-                            <option value="ALL">All Streams</option>
+                            <option value="ALL" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">All Streams</option>
                             {availableStreams.map(str => (
-                              <option key={str} value={str}>{str}</option>
+                              <option key={str} value={str} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">{str}</option>
                             ))}
                           </select>
                         </div>
@@ -1831,27 +1833,27 @@ export default function AdmissionRegisterSuite({
 
                   {/* View Popover Dropdown Panel */}
                   {showViewPopover && (
-                    <div className="absolute right-0 top-full mt-1.5 w-72 p-3.5 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] space-y-3 whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
-                      <div className="border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                    <div className="absolute right-0 top-full mt-1.5 w-80 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] space-y-3.5 whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
+                      <div className="border-b border-slate-200 dark:border-slate-800 pb-2">
                         <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Eye size={12} className="text-indigo-600" /> Display & Table Layout
+                          <Eye size={13} className="text-indigo-600 dark:text-indigo-400" /> Display & Table Layout
                         </span>
                       </div>
 
                       {/* Sub-view Section Selector */}
                       {activeTab === 'adm_register' && (
                         <div>
-                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Section to Display:</label>
+                          <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Section to Display:</label>
                           <select
                             value={registerViewSection}
                             onChange={(e) => setRegisterViewSection(e.target.value)}
-                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 cursor-pointer"
+                            className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                           >
-                            <option value="all">📑 All Spreads (Full Register)</option>
-                            <option value="cover">📜 Cover Page Only</option>
-                            <option value="spreads">📖 Ledger Table Only</option>
-                            <option value="summary">📊 Summary Statement Only</option>
-                            <option value="notes">📝 Notes & Annexure Only</option>
+                            <option value="all" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📑 All Spreads (Full Register)</option>
+                            <option value="cover" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📜 Cover Page Only</option>
+                            <option value="spreads" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📖 Ledger Table Only</option>
+                            <option value="summary" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📊 Summary Statement Only</option>
+                            <option value="notes" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📝 Notes & Annexure Only</option>
                           </select>
                         </div>
                       )}
@@ -1859,30 +1861,30 @@ export default function AdmissionRegisterSuite({
                       {/* Screen Layout Mode (Side-by-Side Book View vs Stacked) */}
                       {activeTab === 'adm_register' && (
                         <div>
-                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-1">Book Layout:</label>
-                          <div className="grid grid-cols-2 gap-1.5">
+                          <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Book Layout:</label>
+                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
                             <button
                               type="button"
                               onClick={() => setSpreadLayoutMode('side_by_side')}
-                              className={`py-1 px-2 rounded-lg border text-[10.5px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                 spreadLayoutMode === 'side_by_side'
-                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200'
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
                               }`}
                             >
-                              <Columns size={11} />
+                              <Columns size={12} />
                               <span>Side-by-Side</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setSpreadLayoutMode('stacked')}
-                              className={`py-1 px-2 rounded-lg border text-[10.5px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                 spreadLayoutMode === 'stacked'
-                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200'
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
                               }`}
                             >
-                              <LayoutGrid size={11} />
+                              <LayoutGrid size={12} />
                               <span>Stacked Pages</span>
                             </button>
                           </div>
@@ -1891,9 +1893,9 @@ export default function AdmissionRegisterSuite({
 
                       {/* Dynamic Row Height Manager */}
                       <div>
-                        <div className="flex items-center justify-between text-[10.5px] font-bold mb-0.5">
-                          <span className="text-slate-600 dark:text-slate-400">Row Height:</span>
-                          <span className="font-mono text-indigo-600 font-black">{rowHeight} px</span>
+                        <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                          <span className="text-slate-700 dark:text-slate-200">Row Height:</span>
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono font-black text-[11px] border border-indigo-200 dark:border-indigo-800">{rowHeight} px</span>
                         </div>
                         <input
                           type="range"
@@ -1904,14 +1906,16 @@ export default function AdmissionRegisterSuite({
                           onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
                           className="w-full cursor-pointer accent-indigo-600"
                         />
-                        <div className="grid grid-cols-3 gap-1 pt-0.5">
+                        <div className="grid grid-cols-3 gap-1.5 pt-1">
                           {[34, 44, 54].map(h => (
                             <button
                               key={h}
                               type="button"
                               onClick={() => handleRowHeightChange(h)}
-                              className={`py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                                rowHeight === h ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                              className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
+                                rowHeight === h
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
                               }`}
                             >
                               {h === 34 ? 'Compact' : h === 44 ? 'Default' : 'Spacious'} ({h}px)
@@ -1922,9 +1926,9 @@ export default function AdmissionRegisterSuite({
 
                       {/* Margins */}
                       <div>
-                        <div className="flex items-center justify-between text-[10.5px] font-bold mb-0.5">
-                          <span className="text-slate-600 dark:text-slate-400">Print Margins:</span>
-                          <span className="font-mono text-indigo-600 font-black">{printMargin} in</span>
+                        <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                          <span className="text-slate-700 dark:text-slate-200">Print Margins:</span>
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono font-black text-[11px] border border-indigo-200 dark:border-indigo-800">{printMargin} in</span>
                         </div>
                         <input
                           type="range"
@@ -1935,14 +1939,16 @@ export default function AdmissionRegisterSuite({
                           onChange={(e) => setPrintMargin(parseFloat(e.target.value))}
                           className="w-full cursor-pointer accent-indigo-600"
                         />
-                        <div className="grid grid-cols-4 gap-1 pt-0.5">
+                        <div className="grid grid-cols-4 gap-1.5 pt-1">
                           {[0.2, 0.3, 0.4, 0.5].map(m => (
                             <button
                               key={m}
                               type="button"
                               onClick={() => setPrintMargin(m)}
-                              className={`py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                                printMargin === m ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                              className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
+                                printMargin === m
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
                               }`}
                             >
                               {m}" {m === 0.3 ? '★' : ''}
@@ -1953,29 +1959,29 @@ export default function AdmissionRegisterSuite({
 
                       {/* Zoom Controls */}
                       <div>
-                        <div className="flex items-center justify-between text-[10.5px] font-bold mb-0.5">
-                          <span className="text-slate-600 dark:text-slate-400">Screen Zoom:</span>
-                          <span className="font-mono text-slate-800 dark:text-slate-200">{Math.round(zoomLevel * 100)}%</span>
+                        <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                          <span className="text-slate-700 dark:text-slate-200">Screen Zoom:</span>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-mono font-black text-[11px] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">{Math.round(zoomLevel * 100)}%</span>
                         </div>
-                        <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                        <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                           <button
                             type="button"
                             onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
-                            className="px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-xs font-black text-slate-700 dark:text-slate-200 cursor-pointer shadow-2xs"
+                            className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg text-xs font-black text-slate-800 dark:text-slate-100 cursor-pointer shadow-2xs"
                           >
                             -
                           </button>
                           <button
                             type="button"
                             onClick={() => setZoomLevel(1.0)}
-                            className="text-[10.5px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                            className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                           >
                             Reset 100%
                           </button>
                           <button
                             type="button"
                             onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
-                            className="px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-xs font-black text-slate-700 dark:text-slate-200 cursor-pointer shadow-2xs"
+                            className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg text-xs font-black text-slate-800 dark:text-slate-100 cursor-pointer shadow-2xs"
                           >
                             +
                           </button>
@@ -1983,24 +1989,24 @@ export default function AdmissionRegisterSuite({
                       </div>
 
                       {/* Save to Firebase & Reset to Original Buttons */}
-                      <div className="border-t border-slate-200 dark:border-slate-800 pt-2.5 space-y-1.5">
+                      <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2">
                         <button
                           type="button"
                           onClick={handleSaveLayoutToFirebase}
                           disabled={savingLayout}
-                          className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
+                          className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
                           title="Save custom column widths, row height and margins to Firebase default"
                         >
-                          {savingLayout ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                          {savingLayout ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                           <span>Set this to Default (Firebase)</span>
                         </button>
                         <button
                           type="button"
                           onClick={handleResetLayoutToOriginal}
-                          className="w-full py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                          className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
                           title="Reset columns and row heights to original factory format"
                         >
-                          <RotateCcw size={12} />
+                          <RotateCcw size={13} />
                           <span>Reset to Original Form</span>
                         </button>
                       </div>
