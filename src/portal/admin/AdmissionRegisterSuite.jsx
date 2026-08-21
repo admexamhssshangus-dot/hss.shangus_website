@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
-  BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer, Download,
-  RefreshCw, Check, Search, ArrowLeft, ZoomIn, ZoomOut,
-  Plus, Trash2, FileCheck, CheckCircle2, Sliders, Eye, Loader2, Sparkles
+  BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer,
+  RefreshCw, Check, Search, ZoomIn, ZoomOut,
+  Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -156,6 +156,9 @@ export default function AdmissionRegisterSuite({
   // Sub-view Tab for Admission Register: 'all' | 'cover' | 'spreads' | 'summary' | 'notes'
   const [registerViewSection, setRegisterViewSection] = useState('all');
 
+  // Spread Layout Mode on Screen: 'side_by_side' (Book View) | 'stacked'
+  const [spreadLayoutMode, setSpreadLayoutMode] = useState('side_by_side');
+
   // Print & Layout Configuration (DEFAULT: 0.3 INCH DYNAMIC MARGINS ON LEGAL LANDSCAPE)
   const [printMargin, setPrintMargin] = useState(0.3); // 0.3 inch default
   const [showMarginControls, setShowMarginControls] = useState(false);
@@ -171,10 +174,19 @@ export default function AdmissionRegisterSuite({
 
   // Loading States for Session Data
   const [isLoadingSession, setIsLoadingSession] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   // In-memory Session Storage Cache for instantaneous tab switching
   const sessionCacheRef = useRef({});
+
+  // Clean Print Mode Body Attachment
+  useEffect(() => {
+    document.body.classList.add('admission-register-print-mode');
+    document.body.classList.add('clean-print-mode');
+    return () => {
+      document.body.classList.remove('admission-register-print-mode');
+      document.body.classList.remove('clean-print-mode');
+    };
+  }, []);
 
   // Centralized Loaded Datasets (admissions + master registers)
   const [dataset, setDataset] = useState(() => {
@@ -193,16 +205,11 @@ export default function AdmissionRegisterSuite({
   const [availableSessions, setAvailableSessions] = useState(['2025-26', '2024-25', '2023-24', '2022-23']);
 
   useEffect(() => {
-    // Scan all database sources for known sessions
     const sessionsFound = new Set(['2025-26', '2024-25', '2023-24', '2022-23']);
-    
-    // Check admissions
     (dataset || []).forEach(s => {
       const sess = cleanStr(s.session || s.Session || s['Academic Session']);
       if (sess) sessionsFound.add(sess);
     });
-
-    // Check masterRegisters
     (historyDataset || []).forEach(h => {
       const sess = cleanStr(h.session || h.Session || h['Academic Session']);
       if (sess) sessionsFound.add(sess);
@@ -213,8 +220,6 @@ export default function AdmissionRegisterSuite({
         });
       }
     });
-
-    // Fetch distinct session list from config if present
     getDocs(collection(db, 'academicSessions')).then(snap => {
       snap.docs.forEach(d => {
         const sessName = cleanStr(d.data()?.name || d.data()?.session || d.id);
@@ -230,13 +235,11 @@ export default function AdmissionRegisterSuite({
   useEffect(() => {
     if (!selectedSession) return;
 
-    // Check if session is already cached in memory
     if (sessionCacheRef.current[selectedSession]) {
       setDataset(sessionCacheRef.current[selectedSession]);
       return;
     }
 
-    // If current session 2025-26 and we already have propStudents or cached admissions
     if (selectedSession === '2025-26' && Array.isArray(propStudents) && propStudents.length > 0) {
       sessionCacheRef.current['2025-26'] = propStudents;
       setDataset(propStudents);
@@ -250,13 +253,11 @@ export default function AdmissionRegisterSuite({
       try {
         let loadedRecords = [];
 
-        // 1. Try querying admissions collection for this specific session
         const qSnap = await getDocs(query(collection(db, 'admissions'), where('session', '==', selectedSession)));
         if (!qSnap.empty) {
           loadedRecords = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         }
 
-        // 2. If no records in admissions, check masterRegisters collection
         if (loadedRecords.length === 0) {
           const masterList = await getCachedCollection('masterRegisters');
           const flat = [];
@@ -283,7 +284,6 @@ export default function AdmissionRegisterSuite({
           loadedRecords = flat;
         }
 
-        // 3. Fallback to all loaded admissions if still empty
         if (loadedRecords.length === 0 && selectedSession === '2025-26') {
           const admSnap = await getDocs(collection(db, 'admissions'));
           loadedRecords = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -305,7 +305,7 @@ export default function AdmissionRegisterSuite({
     return () => { isCancelled = true; };
   }, [selectedSession, propStudents]);
 
-  // 3. REACTIVE ON-DEMAND PHOTO RESOLUTION ENGINE (End-to-End Multi-Source Loader)
+  // 3. REACTIVE ON-DEMAND PHOTO RESOLUTION MAP
   const [photosMap, setPhotosMap] = useState(() => {
     return typeof window !== 'undefined' && window._hss_central_photo_map
       ? { ...window._hss_central_photo_map }
@@ -446,7 +446,6 @@ export default function AdmissionRegisterSuite({
   // Filtered Students for Current View
   const filteredStudents = useMemo(() => {
     return normalizedStudents.filter(s => {
-      // 1. Status Filter
       if (selectedStatus !== 'ALL') {
         if (selectedStatus === 'Approved') {
           if (s.status !== 'Approved') return false;
@@ -459,17 +458,14 @@ export default function AdmissionRegisterSuite({
         }
       }
 
-      // 2. Class Filter
       if (selectedClass !== 'ALL') {
         if (!matchesClassVal(selectedClass, s.class)) return false;
       }
 
-      // 3. Stream Filter
       if (selectedStream !== 'ALL') {
         if (s.stream !== selectedStream) return false;
       }
 
-      // 4. Search Query Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -496,7 +492,6 @@ export default function AdmissionRegisterSuite({
     if (!filteredStudents || filteredStudents.length === 0) return;
     let isMounted = true;
 
-    // Filter students needing photo fetch from Firestore studentPhotos
     const toFetch = filteredStudents.filter(st => {
       const existing = photosMap[st.id] || photosMap[st.formNo] || photosMap[st.boardReg] || st.directPhoto;
       return !existing || existing === '/logo.png';
@@ -504,7 +499,6 @@ export default function AdmissionRegisterSuite({
 
     if (toFetch.length === 0) return;
 
-    // Concurrent batch loader (15 parallel requests)
     const chunkArray = (arr, size) => {
       const res = [];
       for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
@@ -546,7 +540,6 @@ export default function AdmissionRegisterSuite({
     return () => { isMounted = false; };
   }, [filteredStudents]);
 
-  // Helper to resolve the best photo URL for a student row
   const getResolvedStudentPhoto = (s) => {
     return (
       photosMap[s.id] ||
@@ -639,7 +632,6 @@ export default function AdmissionRegisterSuite({
   const [onlyMissingAdmNo, setOnlyMissingAdmNo] = useState(true);
   const [assignStrategies, setAssignStrategies] = useState({});
 
-  // Auto calculate highest existing Adm No
   const calculatedNextAdmNo = useMemo(() => {
     let maxId = 5000;
     normalizedStudents.forEach(s => {
@@ -657,7 +649,6 @@ export default function AdmissionRegisterSuite({
     }
   }, [calculatedNextAdmNo]);
 
-  // Candidate students for ID assignment
   const candidateAssignStudents = useMemo(() => {
     return normalizedStudents.filter(st => {
       if (assignSessionFilter !== 'ALL' && st.session !== assignSessionFilter) return false;
@@ -672,7 +663,6 @@ export default function AdmissionRegisterSuite({
     });
   }, [normalizedStudents, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
 
-  // Preview list with strategies
   const candidateIdPreviewList = useMemo(() => {
     let seqCounter = parseInt(assignStartId, 10) || 5476;
     return candidateAssignStudents.map(st => {
@@ -915,7 +905,7 @@ export default function AdmissionRegisterSuite({
 
   return (
     <div className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
-      {/* ─── DYNAMIC PRINT CSS STYLESHEET (STRICT LEGAL LANDSCAPE & ISOLATED CLEAN DOCUMENT) ─── */}
+      {/* ─── DYNAMIC PRINT CSS STYLESHEET (STRICT CLEAN LEGAL LANDSCAPE) ─── */}
       <style>{`
         @page {
           size: 355.6mm 215.9mm landscape !important;
@@ -936,6 +926,16 @@ export default function AdmissionRegisterSuite({
             print-color-adjust: exact !important;
           }
           
+          /* Suppress ALL injected header/footer watermarks and accessibility skip buttons */
+          body::before, body::after, html::before, html::after, .ui-skip-link {
+            display: none !important;
+            content: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
           /* Strict Print Isolation: Hide all outer headers, portals, toolbars, buttons, ribbons */
           header, nav, footer, aside, .navbar, .portal-header, .admin-header, [role="navigation"], .no-print, button, select, input, .fixed, .sticky, .global-hud {
             display: none !important;
@@ -968,11 +968,22 @@ export default function AdmissionRegisterSuite({
             transform: none !important;
           }
 
+          .spread-container {
+            display: block !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
           .page-container {
+            display: block !important;
             margin: 0 0 ${printMargin}in 0 !important;
             padding: ${printMargin}in !important;
             border: none !important;
+            border-radius: 0 !important;
             box-shadow: none !important;
+            outline: none !important;
             width: 100% !important;
             max-width: 100% !important;
             page-break-after: always !important;
@@ -982,17 +993,17 @@ export default function AdmissionRegisterSuite({
             background: #ffffff !important;
           }
 
-          .spread-container {
-            display: block !important;
-            page-break-after: always !important;
-            break-after: page !important;
-          }
-
+          /* Clean single 1px black borders without thick or duplicate outlines */
           table {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             width: 100% !important;
             border-collapse: collapse !important;
+            border: 1px solid #000000 !important;
+          }
+
+          th, td {
+            border: 1px solid #111111 !important;
           }
 
           tr {
@@ -1016,30 +1027,20 @@ export default function AdmissionRegisterSuite({
       <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs">
         {/* ROW 1: PRIMARY SUITE NAVIGATION & ACTIONS */}
         <div className="max-w-[1800px] mx-auto px-3 py-1.5 flex items-center justify-between gap-2.5 flex-wrap">
-          {/* Left: Clean Back Button & Title */}
+          {/* Left: School Logo & Title (Back button removed) */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold transition-all text-xs flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
-            >
-              <ArrowLeft size={13} />
-              <span>Back</span>
-            </button>
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="School Logo" className="w-5 h-5 object-contain" />
-              <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                <span>Admission Register & Sentup Suite</span>
-                {isLoadingSession ? (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                    <Loader2 size={10} className="animate-spin" /> Loading Session...
-                  </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                    {selectedSession}
-                  </span>
-                )}
-              </div>
+            <img src="/logo.png" alt="School Logo" className="w-5 h-5 object-contain" />
+            <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+              <span>Admission Register & Sentup Suite</span>
+              {isLoadingSession ? (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                  <Loader2 size={10} className="animate-spin" /> Loading Session...
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  {selectedSession}
+                </span>
+              )}
             </div>
           </div>
 
@@ -1103,7 +1104,7 @@ export default function AdmissionRegisterSuite({
             <div className="max-w-[1800px] mx-auto flex items-center justify-between gap-2 flex-wrap">
               {/* Left Filters */}
               <div className="flex items-center gap-2 flex-wrap">
-                {/* 1. Academic Session (On-Demand Selector) */}
+                {/* 1. Academic Session */}
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-bold text-slate-500">Session:</span>
                   <select
@@ -1132,7 +1133,7 @@ export default function AdmissionRegisterSuite({
                   </select>
                 </div>
 
-                {/* 3. Class Scope Selector (Dynamic from DB) */}
+                {/* 3. Class Scope Selector */}
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-bold text-slate-500">Class:</span>
                   <div className="inline-flex rounded-lg p-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
@@ -1153,7 +1154,7 @@ export default function AdmissionRegisterSuite({
                   </div>
                 </div>
 
-                {/* 4. Stream Filter (Dynamic from DB) */}
+                {/* 4. Stream Filter */}
                 {availableStreams.length > 0 && (
                   <div className="flex items-center gap-1">
                     <span className="text-[11px] font-bold text-slate-500">Stream:</span>
@@ -1209,6 +1210,23 @@ export default function AdmissionRegisterSuite({
                       </button>
                     ))}
                   </div>
+                )}
+
+                {/* Side-by-Side Dual Spread View Mode Switcher */}
+                {activeTab === 'adm_register' && (
+                  <button
+                    type="button"
+                    onClick={() => setSpreadLayoutMode(prev => prev === 'side_by_side' ? 'stacked' : 'side_by_side')}
+                    className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                      spreadLayoutMode === 'side_by_side'
+                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-700'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                    title="Toggle Side-by-Side Book View vs Stacked Pages"
+                  >
+                    <Columns size={12} />
+                    <span>{spreadLayoutMode === 'side_by_side' ? 'Side-by-Side View' : 'Stacked View'}</span>
+                  </button>
                 )}
 
                 {/* Dynamic Margins Button & Popover */}
@@ -1301,7 +1319,7 @@ export default function AdmissionRegisterSuite({
 
       {/* ─── MAIN PREVIEW CONTAINER ─── */}
       <main className="flex-1 p-2 sm:p-5 overflow-x-auto">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           {/* ============================================================== */}
           {/* TAB 1: ADMISSION REGISTER (PRINT-READY DUAL SPREAD)            */}
           {/* ============================================================== */}
@@ -1342,22 +1360,34 @@ export default function AdmissionRegisterSuite({
                 pageChunks.map((chunk, chunkIdx) => {
                   const pageNum = chunkIdx + 1;
                   return (
-                    <div key={pageNum} className="spread-container flex flex-col gap-4 max-w-[355.6mm] mx-auto page-break-after">
+                    <div
+                      key={pageNum}
+                      className={`spread-container page-break-after ${
+                        spreadLayoutMode === 'side_by_side'
+                          ? 'flex flex-col 2xl:flex-row gap-3 max-w-full mx-auto items-stretch'
+                          : 'flex flex-col gap-4 max-w-[355.6mm] mx-auto'
+                      }`}
+                    >
                       {/* LEFT PAGE: PART 1 (Personal & Contact Details) */}
                       <div
-                        className="page-container bg-white rounded-xl border border-slate-300 shadow-sm"
+                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm ${
+                          spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-[50%]' : 'w-full'
+                        }`}
                         style={{ padding: `${printMargin}in` }}
                       >
-                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-1 mb-2">
-                          <div className="text-[10px] font-bold text-slate-600">Page {pageNum} (Part 1 - Identification & Contact)</div>
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-2">
+                          <div className="text-[10px] font-bold text-slate-600">(Part 1 - Identification & Contact Details)</div>
                           <div className="text-center">
                             <h2 className="text-sm font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
                             <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
                               Admission Register • Session {selectedSession} • {selectedStatus} Records
                             </div>
                           </div>
-                          <div className="w-5 h-5 rounded-full border border-slate-900 text-center text-[9px] font-black leading-4">
-                            {pageNum}
+                          {/* Blank circle for manual hand-stamping of serial number */}
+                          <div
+                            className="w-5 h-5 rounded-full border border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none"
+                            title="Manual Serial / Page Number Stamp Area"
+                          >
                           </div>
                         </div>
 
@@ -1447,7 +1477,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-5 pt-3 border-t border-slate-300 text-[11px] font-black text-red-800">
+                        <div className="flex justify-between items-center mt-4 pt-2 border-t border-slate-300 text-[11px] font-black text-red-800">
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
@@ -1456,19 +1486,24 @@ export default function AdmissionRegisterSuite({
 
                       {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
                       <div
-                        className="page-container bg-white rounded-xl border border-slate-300 shadow-sm"
+                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm ${
+                          spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-[50%]' : 'w-full'
+                        }`}
                         style={{ padding: `${printMargin}in` }}
                       >
-                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-1 mb-2">
-                          <div className="text-[10px] font-bold text-slate-600">Page {pageNum} (Part 2 - Academic Details & Ledger)</div>
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-2">
+                          <div className="text-[10px] font-bold text-slate-600">(Part 2 - Academic Details & Ledger)</div>
                           <div className="text-center">
                             <h2 className="text-sm font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
                             <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
                               Admission Register • Session {selectedSession} • {selectedStatus} Records
                             </div>
                           </div>
-                          <div className="w-5 h-5 rounded-full border border-slate-900 text-center text-[9px] font-black leading-4">
-                            {pageNum}
+                          {/* Blank circle for manual hand-stamping of serial number */}
+                          <div
+                            className="w-5 h-5 rounded-full border border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none"
+                            title="Manual Serial / Page Number Stamp Area"
+                          >
                           </div>
                         </div>
 
@@ -1531,7 +1566,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-5 pt-3 border-t border-slate-300 text-[11px] font-black text-red-800">
+                        <div className="flex justify-between items-center mt-4 pt-2 border-t border-slate-300 text-[11px] font-black text-red-800">
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
@@ -1707,14 +1742,13 @@ export default function AdmissionRegisterSuite({
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
-                    <div className="text-center border-b-2 border-slate-900 pb-1 mb-2 relative">
-                      <div className="absolute left-0 top-0 text-[10px] font-bold text-slate-500">Page {pageNum}</div>
+                    <div className="text-center border-b border-slate-900 pb-1 mb-2 relative">
+                      <div className="absolute left-0 top-0 text-[10px] font-bold text-slate-500">Candidate Roll Sheet</div>
                       <h1 className="text-base font-black text-red-800 uppercase tracking-tight">{SCHOOL_NAME}</h1>
                       <div className="text-[9.5px] font-bold text-slate-800 mt-0.5">
                         JKBOSE Sentup Roll Sheet • Class {selectedClass} • Session {selectedSession} • {selectedStatus} Candidates
                       </div>
-                      <div className="absolute right-0 top-0 w-5 h-5 rounded-full border border-slate-900 text-center text-[9px] font-black leading-4">
-                        {pageNum}
+                      <div className="absolute right-0 top-0 w-5 h-5 rounded-full border border-slate-900 text-center text-[9px] font-black leading-4 text-transparent select-none">
                       </div>
                     </div>
 
@@ -1801,7 +1835,7 @@ export default function AdmissionRegisterSuite({
                     </div>
 
                     {/* Footer Signatures */}
-                    <div className="flex justify-between items-center mt-5 pt-3 border-t border-slate-300 text-[11px] font-black text-red-800">
+                    <div className="flex justify-between items-center mt-4 pt-2 border-t border-slate-300 text-[11px] font-black text-red-800">
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge</div>
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
