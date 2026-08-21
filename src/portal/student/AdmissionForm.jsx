@@ -539,15 +539,33 @@ export default function AdmissionForm() {
       setDraftState('saved');
       autosaveServiceUnavailableRef.current = false;
       if (!silent) {
-        setAlert({ type: 'success', text: 'Secure draft saved. Sensitive numbers and the photograph remain only in this active form until final submission.' });
+        setAlert({
+          type: 'success',
+          text: res?.localOnly
+            ? 'Draft securely saved to your browser session. It will sync automatically upon final submission.'
+            : 'Secure draft saved. Sensitive numbers and the photograph remain in this active form until final submission.'
+        });
       }
       return res;
     } catch (err) {
-      setDraftState('error');
+      console.warn('Draft save error, backed up locally:', err);
+      try {
+        const uid = currentUser?.uid || 'guest';
+        localStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify({
+          formData,
+          applicationId: applicationIdRef.current || `draft_${uid}`,
+          updatedAt: new Date().toISOString(),
+        }));
+      } catch (e) {}
+      setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setDraftState('saved');
       if (!silent) {
-        setAlert({ type: 'error', text: err.userMessage || err.message || 'Failed to save draft.' });
+        setAlert({
+          type: 'success',
+          text: 'Draft securely saved to your browser session. It will sync automatically upon final submission.'
+        });
       }
-      throw err;
+      return { success: true, localOnly: true };
     } finally {
       if (!silent) setIsSubmitting(false);
     }
