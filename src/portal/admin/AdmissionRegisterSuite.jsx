@@ -3,7 +3,8 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer, Download,
   RefreshCw, Check, Search, ArrowLeft, ZoomIn, ZoomOut,
-  Plus, Trash2, FileCheck
+  Plus, Trash2, FileCheck, Layers, FileText, Award,
+  ChevronDown, CheckCircle2, AlertCircle, Sliders, Eye
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { doc, writeBatch, collection, getDocs } from 'firebase/firestore';
@@ -38,7 +39,10 @@ export function formatDateToWords(dateStr) {
     }
     if (!day || !month || !year || isNaN(day) || isNaN(month) || isNaN(year)) return clean;
 
-    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
     const monthName = months[month - 1] || '';
 
     const ones = [
@@ -83,19 +87,31 @@ function cleanStr(val) {
   return String(val).trim();
 }
 
+function normalizeStatusVal(st) {
+  if (!st) return 'Submitted';
+  const s = String(st).trim();
+  const lower = s.toLowerCase();
+  if (lower.includes('approv')) return 'Approved';
+  if (lower.includes('provis')) return 'Provisional';
+  if (lower.includes('subm')) return 'Submitted';
+  if (lower.includes('draft')) return 'Draft';
+  if (lower.includes('reject')) return 'Rejected';
+  return s;
+}
+
 function formatBoardRegSplit(val) {
   const s = cleanStr(val);
   if (!s) return '—';
   if (s.length > 12) {
     return (
-      <div className="leading-tight">
+      <div className="leading-tight text-center font-mono">
         <span className="font-extrabold">{s.substring(0, 12)}</span>
         <br />
         <span className="font-bold text-slate-600 dark:text-slate-400">{s.substring(12)}</span>
       </div>
     );
   }
-  return <span className="font-bold">{s}</span>;
+  return <span className="font-bold font-mono">{s}</span>;
 }
 
 export default function AdmissionRegisterSuite({
@@ -124,28 +140,40 @@ export default function AdmissionRegisterSuite({
     return Array.isArray(cached) && cached.length > 0 ? cached : [];
   });
 
+  const [isFetchingData, setIsFetchingData] = useState(false);
+
   useEffect(() => {
     if (Array.isArray(propStudents) && propStudents.length > 0) {
       setDataset(propStudents);
     } else if (dataset.length === 0) {
+      setIsFetchingData(true);
       getDocs(collection(db, 'admissions')).then(snap => {
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setDataset(list);
-      }).catch(err => console.error('Failed to fetch admissions:', err));
+      }).catch(err => {
+        console.error('Failed to fetch admissions:', err);
+      }).finally(() => {
+        setIsFetchingData(false);
+      });
     }
   }, [propStudents]);
 
   // Main Suite Tab: 'adm_register' | 'sentup' | 'assign_ids' | 'assign_dates'
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  // Sub-view Tab for Admission Register: 'all' | 'cover' | 'spreads' | 'summary' | 'notes'
+  const [registerViewSection, setRegisterViewSection] = useState('all');
+
   // Global Filter States
   const [selectedSession, setSelectedSession] = useState('2025-26');
+  const [selectedStatus, setSelectedStatus] = useState('Approved'); // 'Approved' | 'Submitted' | 'Provisional' | 'ALL'
   const [selectedClass, setSelectedClass] = useState('ALL');
+  const [selectedStream, setSelectedStream] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
 
-  // Available sessions in dataset
+  // 1. DYNAMICALLY EXTRACT AVAILABLE SESSIONS FROM DATABASE
   const availableSessions = useMemo(() => {
     const set = new Set(['2025-26', '2024-25', '2026-27']);
     dataset.forEach(s => {
@@ -153,6 +181,32 @@ export default function AdmissionRegisterSuite({
       if (sess) set.add(sess);
     });
     return Array.from(set).sort().reverse();
+  }, [dataset]);
+
+  // 2. DYNAMICALLY EXTRACT AVAILABLE CLASSES FROM DATABASE
+  const availableClasses = useMemo(() => {
+    const set = new Set(['11th', '12th', '10th', '9th']);
+    dataset.forEach(s => {
+      const cls = cleanStr(s.class || s.Class || s['Admission sought for class']);
+      if (cls) {
+        if (cls.includes('12')) set.add('12th');
+        else if (cls.includes('11')) set.add('11th');
+        else if (cls.includes('10')) set.add('10th');
+        else if (cls.includes('9')) set.add('9th');
+        else set.add(cls);
+      }
+    });
+    return Array.from(set);
+  }, [dataset]);
+
+  // 3. DYNAMICALLY EXTRACT AVAILABLE STREAMS FROM DATABASE
+  const availableStreams = useMemo(() => {
+    const set = new Set();
+    dataset.forEach(s => {
+      const str = cleanStr(s.stream || s.Stream);
+      if (str && str !== '—') set.add(str);
+    });
+    return Array.from(set).sort();
   }, [dataset]);
 
   // Normalized Student Object Mapper
@@ -191,6 +245,7 @@ export default function AdmissionRegisterSuite({
       const prevResult = prevMarks ? `${prevMarks} / ${maxMarks}` : '—';
       const admDate = cleanStr(s.admDate || s['Adm. Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
       const onlineStatus = cleanStr(s.onlineSubmDate || s.submittedAt?.slice(0, 10) || 'Submitted');
+      const status = normalizeStatusVal(s.status || s.Status || s.admissionStatus || s['Status'] || s['Admission Status'] || 'Submitted');
       const photo = s.photoUrl || s.photo_id || s['Student Photo'] || s.photo || '';
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
 
@@ -230,6 +285,7 @@ export default function AdmissionRegisterSuite({
         prevResult,
         admDate,
         onlineStatus,
+        status,
         photo,
         prevCC: prevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC',
         withdrawal: '—',
@@ -241,12 +297,35 @@ export default function AdmissionRegisterSuite({
   // Filtered Students for Current View
   const filteredStudents = useMemo(() => {
     return normalizedStudents.filter(s => {
+      // 1. Session Filter
       if (selectedSession !== 'ALL' && s.session !== selectedSession) return false;
+
+      // 2. Status Filter
+      if (selectedStatus !== 'ALL') {
+        if (selectedStatus === 'Approved') {
+          if (!s.status.toLowerCase().includes('approv')) return false;
+        } else if (selectedStatus === 'Submitted') {
+          if (!s.status.toLowerCase().includes('subm') && !s.status.toLowerCase().includes('approv')) return false;
+        } else if (selectedStatus === 'Provisional') {
+          if (!s.status.toLowerCase().includes('provis')) return false;
+        } else if (!s.status.toLowerCase().includes(selectedStatus.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // 3. Class Filter
       if (selectedClass !== 'ALL') {
         const matchCls = s.class.toLowerCase().replace(/[^0-9a-z]/g, '');
         const targetCls = selectedClass.toLowerCase().replace(/[^0-9a-z]/g, '');
         if (!matchCls.includes(targetCls)) return false;
       }
+
+      // 4. Stream Filter
+      if (selectedStream !== 'ALL') {
+        if (s.stream !== selectedStream) return false;
+      }
+
+      // 5. Search Query Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -255,7 +334,8 @@ export default function AdmissionRegisterSuite({
           s.rollNo.toLowerCase().includes(q) ||
           s.admNo.toLowerCase().includes(q) ||
           s.formNo.toLowerCase().includes(q) ||
-          s.boardReg.toLowerCase().includes(q)
+          s.boardReg.toLowerCase().includes(q) ||
+          s.mobile.includes(q)
         );
       }
       return true;
@@ -265,7 +345,7 @@ export default function AdmissionRegisterSuite({
       if (rA !== rB && rA > 0 && rB > 0) return rA - rB;
       return a.name.localeCompare(b.name);
     });
-  }, [normalizedStudents, selectedSession, selectedClass, searchQuery]);
+  }, [normalizedStudents, selectedSession, selectedStatus, selectedClass, selectedStream, searchQuery]);
 
   // 10 Students Per Page Chunks for Legal Print Layout
   const STUDENTS_PER_PAGE = 10;
@@ -538,7 +618,7 @@ export default function AdmissionRegisterSuite({
   const handleExportRegisterCSV = () => {
     if (filteredStudents.length === 0) return;
     const headers = [
-      'S.No.', 'Class Roll No.', 'Form No.', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Class', 'Board Reg. No.',
+      'S.No.', 'Class Roll No.', 'Form No.', 'Status', 'Online Subm.', 'Adm. Date', 'Adm. No.', 'Class', 'Board Reg. No.',
       "Student's Name", "Father's Name", "Mother's Name", 'DOB (Figures)', 'DOB (Words)', 'Gender',
       'Village/Town', 'Block', 'Tehsil', 'District', 'Mobile (Student)', 'Mobile (Parent)',
       'Stream', 'Subjects', 'Aadhaar No.', 'Social Category', 'Socio-Econ Category', 'Blood Group',
@@ -550,6 +630,7 @@ export default function AdmissionRegisterSuite({
       s.sno,
       `"${s.rollNo}"`,
       `"${s.formNo}"`,
+      `"${s.status}"`,
       `"${s.onlineStatus}"`,
       `"${s.admDate}"`,
       `"${s.admNo}"`,
@@ -587,7 +668,7 @@ export default function AdmissionRegisterSuite({
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const link = document.createElement('a');
     link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', `HSS_Shangus_Official_Admission_Register_${selectedSession}_${selectedClass}.csv`);
+    link.setAttribute('download', `HSS_Shangus_Official_Admission_Register_${selectedSession}_${selectedClass}_${selectedStatus}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -597,7 +678,7 @@ export default function AdmissionRegisterSuite({
   const handleExportSentupCSV = () => {
     if (filteredStudents.length === 0) return;
     const headers = [
-      'S.No.', 'Adm. No.', 'Class Roll No.', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
+      'S.No.', 'Adm. No.', 'Class Roll No.', 'Status', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
       'Date of Birth', 'Class', 'Session', 'Stream', 'Subjects', 'Board Roll No.', 'Result'
     ];
 
@@ -605,6 +686,7 @@ export default function AdmissionRegisterSuite({
       s.sno,
       `"${s.admNo}"`,
       `"${s.rollNo}"`,
+      `"${s.status}"`,
       `"${s.boardReg}"`,
       `"${s.name}"`,
       `"${s.father}"`,
@@ -621,7 +703,7 @@ export default function AdmissionRegisterSuite({
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const link = document.createElement('a');
     link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', `HSS_Shangus_JKBOSE_Sentup_List_${selectedSession}_${selectedClass}.csv`);
+    link.setAttribute('download', `HSS_Shangus_JKBOSE_Sentup_List_${selectedSession}_${selectedClass}_${selectedStatus}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -629,22 +711,73 @@ export default function AdmissionRegisterSuite({
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+      {/* ─── EMBEDDED PRINT CSS STYLESHEET (PERFECT HIGH-DENSITY LEGAL PRINTING) ─── */}
+      <style>{`
+        @media print {
+          @page {
+            size: 355.6mm 215.9mm landscape;
+            margin: 4mm;
+          }
+          body, html {
+            background: white !important;
+            color: #000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+          }
+          .no-print, header, nav, footer, .ui-skip-link, .fixed {
+            display: none !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+            transform: none !important;
+          }
+          .page-container {
+            margin: 0 0 10mm 0 !important;
+            padding: 4mm !important;
+            border: none !important;
+            box-shadow: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            page-break-after: always !important;
+            page-break-inside: avoid !important;
+            background: white !important;
+          }
+          .spread-container {
+            display: block !important;
+            page-break-after: always !important;
+          }
+          table {
+            page-break-inside: avoid !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+          }
+          .h-yellow { background-color: #fef08a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .h-grey { background-color: #e2e8f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .h-green { background-color: #dcfce7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .h-red { background-color: #fee2e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
       {/* ─── TOP SUITE NAVIGATION & CONTROLS HEADER (HIDDEN ON PRINT) ─── */}
       <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm px-4 py-2.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
           {/* Left: Title & Back Button */}
           <div className="flex items-center gap-3">
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold transition-all shadow-xs flex items-center gap-1 text-xs cursor-pointer"
-                title="Return to Admin Dashboard"
-              >
-                <ArrowLeft size={14} />
-                <span className="hidden sm:inline">Back</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-800 dark:text-slate-200 font-extrabold transition-all shadow-xs flex items-center gap-1.5 text-xs cursor-pointer active:scale-95"
+              title="Return to Admin Dashboard"
+            >
+              <ArrowLeft size={15} />
+              <span>Back to Admin</span>
+            </button>
             <div>
               <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <BookOpen size={20} className="text-amber-600 dark:text-amber-400" />
@@ -656,25 +789,24 @@ export default function AdmissionRegisterSuite({
             </div>
           </div>
 
-          {/* Center: Suite Tab Switcher */}
-          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 text-xs font-black">
+          {/* Center: Suite Tab Switcher (High Contrast, Bold, Vibrant) */}
+          <div className="inline-flex p-1 bg-slate-200 dark:bg-slate-800 rounded-2xl border border-slate-300 dark:border-slate-700 text-xs font-black shadow-inner gap-1">
             {[
-              { id: 'adm_register', label: '📖 Admission Register', icon: BookOpen },
-              { id: 'sentup', label: '📋 Sentup Export', icon: FileCheck },
-              { id: 'assign_ids', label: '🔢 Assign IDs', icon: CreditCard },
-              { id: 'assign_dates', label: '📅 Assign Dates', icon: Calendar }
+              { id: 'adm_register', label: '📖 Admission Register', activeClass: 'bg-amber-600 text-white shadow-md' },
+              { id: 'sentup', label: '📋 Sentup Export', activeClass: 'bg-sky-700 text-white shadow-md' },
+              { id: 'assign_ids', label: '🔢 Assign IDs', activeClass: 'bg-indigo-700 text-white shadow-md' },
+              { id: 'assign_dates', label: '📅 Assign Dates', activeClass: 'bg-emerald-700 text-white shadow-md' }
             ].map(t => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id)}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer select-none font-black ${
                   activeTab === t.id
-                    ? 'bg-amber-600 text-white shadow-sm font-black'
-                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    ? t.activeClass
+                    : 'bg-white/80 dark:bg-slate-900/80 text-slate-800 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-900 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
-                <t.icon size={13} />
                 <span>{t.label}</span>
               </button>
             ))}
@@ -685,23 +817,23 @@ export default function AdmissionRegisterSuite({
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
                 {/* Zoom Controls */}
-                <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                <div className="hidden md:flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold shadow-2xs">
                   <button
                     type="button"
-                    onClick={() => setZoomLevel(prev => Math.max(0.6, prev - 0.1))}
-                    className="p-1 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
+                    onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
+                    className="p-1 text-slate-700 hover:text-slate-950 dark:text-slate-300 cursor-pointer"
                     title="Zoom Out"
                   >
-                    <ZoomOut size={13} />
+                    <ZoomOut size={14} />
                   </button>
-                  <span className="px-1 text-[11px] font-mono font-extrabold">{Math.round(zoomLevel * 100)}%</span>
+                  <span className="px-1 text-[11px] font-mono font-black">{Math.round(zoomLevel * 100)}%</span>
                   <button
                     type="button"
-                    onClick={() => setZoomLevel(prev => Math.min(1.4, prev + 0.1))}
-                    className="p-1 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
+                    onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
+                    className="p-1 text-slate-700 hover:text-slate-950 dark:text-slate-300 cursor-pointer"
                     title="Zoom In"
                   >
-                    <ZoomIn size={13} />
+                    <ZoomIn size={14} />
                   </button>
                 </div>
 
@@ -709,7 +841,7 @@ export default function AdmissionRegisterSuite({
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
                 >
                   <Printer size={14} />
                   <span>Print {activeTab === 'adm_register' ? 'Register' : 'Sentup'}</span>
@@ -719,10 +851,10 @@ export default function AdmissionRegisterSuite({
                 <button
                   type="button"
                   onClick={activeTab === 'adm_register' ? handleExportRegisterCSV : handleExportSentupCSV}
-                  className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
                 >
                   <Download size={14} />
-                  <span>CSV</span>
+                  <span>Export CSV</span>
                 </button>
               </>
             )}
@@ -742,14 +874,29 @@ export default function AdmissionRegisterSuite({
         </div>
       )}
 
-      {/* ─── SUB-TOOLBAR: SESSION & CLASS FILTERS (FOR REGISTER & SENTUP) ─── */}
+      {/* ─── SUB-TOOLBAR: DYNAMIC FILTERS & SECTION SELECTOR (FOR REGISTER & SENTUP) ─── */}
       {(activeTab === 'adm_register' || activeTab === 'sentup') && (
-        <div className="no-print bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2">
+        <div className="no-print bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 shadow-2xs">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap text-xs">
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Session Selector */}
+              {/* 1. Status Filter (CRITICAL: Approved by default) */}
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-slate-600 dark:text-slate-400">Session:</span>
+                <span className="font-black text-slate-700 dark:text-slate-300">Status:</span>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="p-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="Approved">✓ Approved (Standard Default)</option>
+                  <option value="Submitted">Submitted & Approved</option>
+                  <option value="Provisional">Provisional Only</option>
+                  <option value="ALL">All Application Statuses</option>
+                </select>
+              </div>
+
+              {/* 2. Academic Session Selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-slate-700 dark:text-slate-300">Session:</span>
                 <select
                   value={selectedSession}
                   onChange={(e) => setSelectedSession(e.target.value)}
@@ -762,11 +909,11 @@ export default function AdmissionRegisterSuite({
                 </select>
               </div>
 
-              {/* Class Selector */}
+              {/* 3. Class Scope Selector */}
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-slate-600 dark:text-slate-400">Class:</span>
-                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                  {['ALL', '11th', '12th', '10th', '9th'].map(c => (
+                <span className="font-black text-slate-700 dark:text-slate-300">Class:</span>
+                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-bold">
+                  {['ALL', ...availableClasses].map(c => (
                     <button
                       key={c}
                       type="button"
@@ -774,7 +921,7 @@ export default function AdmissionRegisterSuite({
                       className={`px-2.5 py-1 rounded-lg text-xs font-black cursor-pointer transition-all ${
                         selectedClass === c
                           ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                       }`}
                     >
                       {c}
@@ -783,26 +930,79 @@ export default function AdmissionRegisterSuite({
                 </div>
               </div>
 
-              {/* Quick Search */}
+              {/* 4. Stream Filter (If available) */}
+              {availableStreams.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-slate-700 dark:text-slate-300">Stream:</span>
+                  <select
+                    value={selectedStream}
+                    onChange={(e) => setSelectedStream(e.target.value)}
+                    className="p-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="ALL">All Streams</option>
+                    {availableStreams.map(str => (
+                      <option key={str} value={str}>{str}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* 5. Quick Search */}
               <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Filter name, roll, reg no..."
+                  placeholder="Filter name, roll, reg no, mobile..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-7 pr-3 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 w-48 sm:w-60 focus:ring-2 focus:ring-amber-500"
+                  className="pl-7 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 w-52 sm:w-64 focus:ring-2 focus:ring-amber-500"
                 />
               </div>
             </div>
 
             {/* Scope Summary Badge */}
-            <div className="flex items-center gap-2 text-[11px] font-black text-slate-600 dark:text-slate-300">
-              <span className="px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                {filteredStudents.length} Students ({pageChunks.length} Pages)
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-black text-xs flex items-center gap-1.5">
+                <CheckCircle2 size={13} className="text-amber-600" />
+                <span>{filteredStudents.length} {selectedStatus === 'ALL' ? 'Total' : selectedStatus} Students ({pageChunks.length} Spreads)</span>
               </span>
             </div>
           </div>
+
+          {/* Sub-view Section Switcher (For Admission Register) */}
+          {activeTab === 'adm_register' && (
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 pt-2 mt-2 border-t border-slate-200 dark:border-slate-800 flex-wrap">
+              <div className="flex items-center gap-1 text-xs font-bold text-slate-600 dark:text-slate-400">
+                <span>View Section:</span>
+                <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                  {[
+                    { id: 'all', label: '📑 All Spreads & Pages' },
+                    { id: 'cover', label: '📜 Cover Page' },
+                    { id: 'spreads', label: '📖 Ledger Sheets' },
+                    { id: 'summary', label: '📊 Statement Summary' },
+                    { id: 'notes', label: '📝 Explanatory Notes' },
+                  ].map(sec => (
+                    <button
+                      key={sec.id}
+                      type="button"
+                      onClick={() => setRegisterViewSection(sec.id)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-black cursor-pointer transition-all ${
+                        registerViewSection === sec.id
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {sec.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-[11px] font-semibold text-slate-500">
+                Tip: Use <strong>Print Register</strong> to generate physical hard-copy ledgers in 100% compliant Legal Landscape.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -810,349 +1010,357 @@ export default function AdmissionRegisterSuite({
       <main className="flex-1 p-3 sm:p-6 overflow-x-auto">
         <div className="max-w-7xl mx-auto">
           {/* ============================================================== */}
-          {/* TAB 1: ADMISSION REGISTER (PRINT-READY 2-PAGE DUAL SPREAD)     */}
+          {/* TAB 1: ADMISSION REGISTER (PRINT-READY DUAL SPREAD)            */}
           {/* ============================================================== */}
           {activeTab === 'adm_register' && (
             <div className="space-y-8" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}>
               {/* 1. COVER PAGE */}
-              <div className="page-container cover-page bg-white p-12 rounded-2xl border border-slate-300 shadow-md text-center flex flex-col items-center justify-center min-h-[215.9mm] max-w-[355.6mm] mx-auto page-break-after">
-                <div className="w-20 h-20 rounded-full border-4 border-red-800 flex items-center justify-center mb-6 text-red-800 font-black text-2xl">
-                  HSS
+              {(registerViewSection === 'all' || registerViewSection === 'cover') && (
+                <div className="page-container cover-page bg-white p-12 rounded-2xl border-2 border-red-800 shadow-md text-center flex flex-col items-center justify-center min-h-[215.9mm] max-w-[355.6mm] mx-auto page-break-after">
+                  <div className="w-24 h-24 rounded-full border-4 border-red-800 flex items-center justify-center mb-6 text-red-800 font-black text-3xl font-serif">
+                    HSS
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-black text-red-800 tracking-tight uppercase mb-4 font-serif">
+                    Official Admission Register
+                  </h1>
+                  <h2 className="text-xl md:text-2xl font-bold text-emerald-800 mb-6 font-serif">
+                    Classes 11th & 12th • Academic Session {selectedSession}
+                  </h2>
+                  <div className="w-56 h-1.5 bg-red-800 mb-6 rounded-full"></div>
+                  <h3 className="text-2xl md:text-3xl font-black text-slate-900 uppercase">
+                    {SCHOOL_NAME}
+                  </h3>
+                  <p className="text-sm font-bold text-slate-600 mt-2">
+                    {SCHOOL_SUBTITLE}
+                  </p>
+                  <div className="mt-16 text-xs font-bold text-slate-500 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                    Total Enrolled Approved Candidates: <strong>{filteredStudents.length}</strong> • Ledger Formatted for Physical School Audit Records
+                  </div>
                 </div>
-                <h1 className="text-4xl md:text-5xl font-black text-red-800 tracking-tight uppercase mb-4 font-serif">
-                  Official Admission Register
-                </h1>
-                <h2 className="text-xl md:text-2xl font-bold text-emerald-800 mb-6">
-                  Classes 11th & 12th • Academic Session {selectedSession}
-                </h2>
-                <div className="w-48 h-1 bg-red-800 mb-6"></div>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 uppercase">
-                  {SCHOOL_NAME}
-                </h3>
-                <p className="text-sm font-bold text-slate-600 mt-2">
-                  {SCHOOL_SUBTITLE}
-                </p>
-                <div className="mt-16 text-xs font-bold text-slate-500">
-                  Total Admitted Candidates: <strong>{filteredStudents.length}</strong> • Ledger Formatted for Physical School Archives
-                </div>
-              </div>
+              )}
 
               {/* 2. DUAL-SPREAD REGISTER PAGES */}
-              {pageChunks.map((chunk, chunkIdx) => {
-                const pageNum = chunkIdx + 1;
-                return (
-                  <div key={pageNum} className="spread-container flex flex-col gap-6 max-w-[355.6mm] mx-auto page-break-after">
-                    {/* LEFT PAGE: PART 1 (Personal & Contact) */}
-                    <div className="page-container bg-white p-6 rounded-2xl border border-slate-300 shadow-md">
-                      <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-3">
-                        <div className="text-xs font-black text-slate-600">Page {pageNum} (Part 1 - Identification & Contact)</div>
-                        <div className="text-center">
-                          <h2 className="text-base font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
-                          <div className="text-[10px] font-extrabold text-emerald-800 mt-0.5">
-                            Admission Register of Classes 11th & 12th • Session {selectedSession}
+              {(registerViewSection === 'all' || registerViewSection === 'spreads') && (
+                pageChunks.map((chunk, chunkIdx) => {
+                  const pageNum = chunkIdx + 1;
+                  return (
+                    <div key={pageNum} className="spread-container flex flex-col gap-6 max-w-[355.6mm] mx-auto page-break-after">
+                      {/* LEFT PAGE: PART 1 (Personal & Contact Details) */}
+                      <div className="page-container bg-white p-5 rounded-2xl border border-slate-300 shadow-md">
+                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-3">
+                          <div className="text-xs font-black text-slate-600">Page {pageNum} (Part 1 - Identification & Contact)</div>
+                          <div className="text-center">
+                            <h2 className="text-base font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
+                            <div className="text-[10px] font-extrabold text-emerald-800 mt-0.5">
+                              Admission Register of Classes 11th & 12th • Session {selectedSession} • {selectedStatus} Records
+                            </div>
+                          </div>
+                          <div className="w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
+                            {pageNum}
                           </div>
                         </div>
-                        <div className="w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
-                          {pageNum}
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
+                            <thead>
+                              <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-6 h-grey">S.No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10 h-grey">Photo</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 h-grey">Class Roll</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Form No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Online Subm.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Adm. Date</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Adm. No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 h-grey">Class</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24 h-grey">Board Reg. No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-28 text-left pl-2 h-grey">Student's Name</th>
+                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Parentage</th>
+                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Date of Birth</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10 h-grey">Gender</th>
+                                <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">Residence</th>
+                                <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">Contact</th>
+                              </tr>
+                              <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[8px]">
+                                <th className="border border-slate-900 px-1 py-0.5 h-grey">Father's Name</th>
+                                <th className="border border-slate-900 px-1 py-0.5 h-grey">Mother's Name</th>
+                                <th className="border border-slate-900 px-1 py-0.5 w-14 h-grey">Figures</th>
+                                <th className="border border-slate-900 px-1 py-0.5 w-24 h-grey">In Words</th>
+                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Village/Town</th>
+                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Block</th>
+                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Tehsil</th>
+                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">District</th>
+                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Student Mobile</th>
+                                <th className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">Parent Mobile</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-900 text-slate-900">
+                              {chunk.map((s) => (
+                                <tr key={s.id} className="h-12 hover:bg-slate-50">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.sno}</td>
+                                  <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-100">
+                                    {s.photo ? (
+                                      <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-[7px] text-slate-400">Photo</span>
+                                    )}
+                                  </td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700">{s.rollNo}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.formNo}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-[8px]">{s.onlineStatus}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.admDate}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[10px]">{s.admNo}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase">{s.name}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8.5px]">{s.father}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8.5px]">{s.mother}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.dobFigures}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-serif">{s.dobWords}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.gender}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.village}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.block}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.tehsil}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.district}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono">{s.mobile}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono">{s.parentMobile}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Footer Signatures */}
+                        <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
+                          <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                          <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
+                          <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
-                          <thead>
-                            <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-6">S.No.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10">Photo</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8">Class Roll</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Form No.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Online Subm.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Adm. Date</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Adm. No.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8">Class</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24">Board Reg. No.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-28 text-left pl-2">Student's Name</th>
-                              <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center">Parentage</th>
-                              <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center">Date of Birth</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-10">Gender</th>
-                              <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-100">Residence</th>
-                              <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-100">Contact</th>
-                            </tr>
-                            <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[8px]">
-                              <th className="border border-slate-900 px-1 py-0.5">Father's Name</th>
-                              <th className="border border-slate-900 px-1 py-0.5">Mother's Name</th>
-                              <th className="border border-slate-900 px-1 py-0.5 w-14">Figures</th>
-                              <th className="border border-slate-900 px-1 py-0.5 w-24">In Words</th>
-                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Village/Town</th>
-                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Block</th>
-                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Tehsil</th>
-                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">District</th>
-                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Student Mobile</th>
-                              <th className="border border-slate-900 px-1 py-0.5 bg-yellow-50">Parent Mobile</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-900 text-slate-900">
-                            {chunk.map((s) => (
-                              <tr key={s.id} className="h-12 hover:bg-slate-50">
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.sno}</td>
-                                <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-100">
-                                  {s.photo ? (
-                                    <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <span className="text-[7px] text-slate-400">No Photo</span>
-                                  )}
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700">{s.rollNo}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.formNo}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center text-[8px]">{s.onlineStatus}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.admDate}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[10px]">{s.admNo}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
-                                <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase">{s.name}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8.5px]">{s.father}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8.5px]">{s.mother}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.dobFigures}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-serif">{s.dobWords}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.gender}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.village}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.block}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.tehsil}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50/50">{s.district}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-mono">{s.mobile}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-mono">{s.parentMobile}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Footer Signatures */}
-                      <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
-                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
-                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
-                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
-                      </div>
-                    </div>
-
-                    {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
-                    <div className="page-container bg-white p-6 rounded-2xl border border-slate-300 shadow-md">
-                      <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-3">
-                        <div className="text-xs font-black text-slate-600">Page {pageNum} (Part 2 - Academic Details & Ledger)</div>
-                        <div className="text-center">
-                          <h2 className="text-base font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
-                          <div className="text-[10px] font-extrabold text-emerald-800 mt-0.5">
-                            Admission Register of Classes 11th & 12th • Session {selectedSession}
+                      {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
+                      <div className="page-container bg-white p-5 rounded-2xl border border-slate-300 shadow-md">
+                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-3">
+                          <div className="text-xs font-black text-slate-600">Page {pageNum} (Part 2 - Academic Details & Ledger)</div>
+                          <div className="text-center">
+                            <h2 className="text-base font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
+                            <div className="text-[10px] font-extrabold text-emerald-800 mt-0.5">
+                              Admission Register of Classes 11th & 12th • Session {selectedSession} • {selectedStatus} Records
+                            </div>
+                          </div>
+                          <div className="w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
+                            {pageNum}
                           </div>
                         </div>
-                        <div className="w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
-                          {pageNum}
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
+                            <thead>
+                              <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Stream</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24 h-grey">Subjects</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-200 text-slate-900 h-yellow">Aadhaar No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-200 text-slate-900 h-yellow">Soc. Cat.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-200 text-slate-900 h-yellow">Socio-Econ</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-200 text-slate-900 h-yellow">Blood</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-200 text-slate-900 h-yellow">A/C No.</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 bg-yellow-200 text-slate-900 h-yellow">IFSC</th>
+                                <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">Previous Academic Record</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 h-grey">PEN (UDISE)</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-emerald-800 bg-emerald-100 h-green">Admtd. Vide DC/CC</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 text-red-800 bg-red-100 h-red">Withdrawal</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-red-800 bg-red-100 h-red">Issued DC/CC</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-32 text-red-800 bg-red-100 h-red">Receipt</th>
+                                <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 h-grey">Remarks</th>
+                              </tr>
+                              <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[8px]">
+                                <th className="border border-slate-900 px-1 py-0.5 h-grey">Previous School</th>
+                                <th className="border border-slate-900 px-1 py-0.5 w-12 h-grey">Prev Roll</th>
+                                <th className="border border-slate-900 px-1 py-0.5 w-12 h-grey">Prev Result</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-900 text-slate-900">
+                              {chunk.map((s) => (
+                                <tr key={s.id} className="h-12 hover:bg-slate-50">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-medium">{s.subs}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50">{s.aadhar}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50">{s.socioEcon}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold">{s.blood}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px] bg-yellow-50">{s.account}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px] bg-yellow-50">{s.ifsc}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[8px] leading-tight">{s.prevSchool}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.prevRoll}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px]">{s.pen}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7.5px] bg-emerald-50">{s.prevCC}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center text-red-800 text-[8px] bg-red-50">{s.withdrawal}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] bg-red-50 leading-tight">
+                                    <div>C.No. _______</div>
+                                    <div>Dt. _______</div>
+                                  </td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight bg-red-50">
+                                    <div>Received DC/CC vide C. No. ___</div>
+                                    <div>On _______ Sig. _______</div>
+                                  </td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px]">{s.remarks}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Footer Signatures */}
+                        <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
+                          <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                          <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
+                          <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
                         </div>
                       </div>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
-                          <thead>
-                            <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12">Stream</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-24">Subjects</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-100">Aadhaar No.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-100">Soc. Cat.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-100">Socio-Econ</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-8 bg-yellow-100">Blood</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20 bg-yellow-100">A/C No.</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 bg-yellow-100">IFSC</th>
-                              <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center">Previous Academic Record</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16">PEN (UDISE)</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-emerald-800 bg-emerald-50">Admtd. Vide DC/CC</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-14 text-red-800 bg-red-50">Withdrawal</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-16 text-red-800 bg-red-50">Issued DC/CC</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-32 text-red-800 bg-red-50">Receipt</th>
-                              <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-20">Remarks</th>
-                            </tr>
-                            <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[8px]">
-                              <th className="border border-slate-900 px-1 py-0.5">Previous School</th>
-                              <th className="border border-slate-900 px-1 py-0.5 w-12">Prev Roll</th>
-                              <th className="border border-slate-900 px-1 py-0.5 w-12">Prev Result</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-900 text-slate-900">
-                            {chunk.map((s) => (
-                              <tr key={s.id} className="h-12 hover:bg-slate-50">
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight font-medium">{s.subs}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50/50">{s.aadhar}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-black">{s.category}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50">{s.socioEcon}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50/50 font-bold">{s.blood}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px] bg-yellow-50/50">{s.account}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px] bg-yellow-50/50">{s.ifsc}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[8px] leading-tight">{s.prevSchool}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.prevRoll}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8px]">{s.pen}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7.5px] bg-emerald-50/30">{s.prevCC}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center text-red-800 text-[8px] bg-red-50/30">{s.withdrawal}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] bg-red-50/30">
-                                  <div>C.No. _______</div>
-                                  <div>Dt. _______</div>
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight bg-red-50/30">
-                                  <div>Received DC/CC vide C. No. ___</div>
-                                  <div>On _______ Sig. _______</div>
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px]">{s.remarks}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Footer Signatures */}
-                      <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-300 text-xs font-black text-red-800">
-                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
-                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
-                        <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
-                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
 
               {/* 3. CONSOLIDATED SUMMARY PAGE */}
-              <div className="page-container bg-white p-10 rounded-2xl border border-slate-300 shadow-md max-w-[355.6mm] mx-auto page-break-after">
-                <div className="text-center border-b-2 border-red-800 pb-4 mb-6">
-                  <h1 className="text-2xl font-black text-red-800 uppercase tracking-wide">
-                    Consolidated Admission Statement
-                  </h1>
-                  <h2 className="text-sm font-extrabold text-slate-700 mt-1">
-                    Roll & Enrollment Statement for Session {selectedSession} • {SCHOOL_NAME}
-                  </h2>
-                </div>
+              {(registerViewSection === 'all' || registerViewSection === 'summary') && (
+                <div className="page-container bg-white p-10 rounded-2xl border-2 border-red-800 shadow-md max-w-[355.6mm] mx-auto page-break-after">
+                  <div className="text-center border-b-2 border-red-800 pb-4 mb-6">
+                    <h1 className="text-2xl font-black text-red-800 uppercase tracking-wide">
+                      Consolidated Admission Statement
+                    </h1>
+                    <h2 className="text-sm font-extrabold text-slate-700 mt-1">
+                      Roll & Enrollment Statement for Session {selectedSession} • {SCHOOL_NAME}
+                    </h2>
+                  </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-center border-collapse border-2 border-red-800 text-sm">
-                    <thead>
-                      <tr className="bg-red-100 text-slate-900 font-black">
-                        <th className="border-2 border-red-800 p-2.5">Class</th>
-                        <th className="border-2 border-red-800 p-2.5 text-left pl-6">Stream</th>
-                        <th className="border-2 border-red-800 p-2.5 w-24">Male</th>
-                        <th className="border-2 border-red-800 p-2.5 w-24">Female</th>
-                        <th className="border-2 border-red-800 p-2.5 w-24">Total</th>
-                        <th className="border-2 border-red-800 p-2.5 w-32">Class Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y-2 divide-red-800 font-bold text-slate-900">
-                      {Object.keys(summaryStats).sort().map(cls => {
-                        const streams = Object.keys(summaryStats[cls]).sort();
-                        const clsTotal = Object.values(summaryStats[cls]).reduce((acc, curr) => acc + curr.total, 0);
-                        return streams.map((st, idx) => {
-                          const item = summaryStats[cls][st];
-                          return (
-                            <tr key={`${cls}_${st}`} className="hover:bg-red-50/50">
-                              {idx === 0 && (
-                                <td rowSpan={streams.length} className="border-2 border-red-800 p-2 font-black text-lg bg-slate-50">
-                                  {cls}
-                                </td>
-                              )}
-                              <td className="border-2 border-red-800 p-2 text-left pl-6 font-semibold">{st}</td>
-                              <td className="border-2 border-red-800 p-2">{item.male}</td>
-                              <td className="border-2 border-red-800 p-2">{item.female}</td>
-                              <td className="border-2 border-red-800 p-2 font-black">{item.total}</td>
-                              {idx === 0 && (
-                                <td rowSpan={streams.length} className="border-2 border-red-800 p-2 font-black text-xl text-red-800 bg-red-50/60">
-                                  {clsTotal}
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        });
-                      })}
-                      <tr className="bg-red-200 text-red-900 font-black text-base">
-                        <td colSpan="2" className="border-2 border-red-800 p-3 text-right pr-6">Overall Grand Total</td>
-                        <td className="border-2 border-red-800 p-3">{overallSummaryTotals.male}</td>
-                        <td className="border-2 border-red-800 p-3">{overallSummaryTotals.female}</td>
-                        <td colSpan="2" className="border-2 border-red-800 p-3 text-xl">{overallSummaryTotals.grandTotal}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-center border-collapse border-2 border-red-800 text-sm">
+                      <thead>
+                        <tr className="bg-red-100 text-slate-900 font-black">
+                          <th className="border-2 border-red-800 p-2.5">Class</th>
+                          <th className="border-2 border-red-800 p-2.5 text-left pl-6">Stream</th>
+                          <th className="border-2 border-red-800 p-2.5 w-24">Male</th>
+                          <th className="border-2 border-red-800 p-2.5 w-24">Female</th>
+                          <th className="border-2 border-red-800 p-2.5 w-24">Total</th>
+                          <th className="border-2 border-red-800 p-2.5 w-32">Class Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y-2 divide-red-800 font-bold text-slate-900">
+                        {Object.keys(summaryStats).sort().map(cls => {
+                          const streams = Object.keys(summaryStats[cls]).sort();
+                          const clsTotal = Object.values(summaryStats[cls]).reduce((acc, curr) => acc + curr.total, 0);
+                          return streams.map((st, idx) => {
+                            const item = summaryStats[cls][st];
+                            return (
+                              <tr key={`${cls}_${st}`} className="hover:bg-red-50/50">
+                                {idx === 0 && (
+                                  <td rowSpan={streams.length} className="border-2 border-red-800 p-2 font-black text-lg bg-slate-50">
+                                    {cls}
+                                  </td>
+                                )}
+                                <td className="border-2 border-red-800 p-2 text-left pl-6 font-semibold">{st}</td>
+                                <td className="border-2 border-red-800 p-2">{item.male}</td>
+                                <td className="border-2 border-red-800 p-2">{item.female}</td>
+                                <td className="border-2 border-red-800 p-2 font-black">{item.total}</td>
+                                {idx === 0 && (
+                                  <td rowSpan={streams.length} className="border-2 border-red-800 p-2 font-black text-xl text-red-800 bg-red-50/60">
+                                    {clsTotal}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          });
+                        })}
+                        <tr className="bg-red-200 text-red-900 font-black text-base">
+                          <td colSpan="2" className="border-2 border-red-800 p-3 text-right pr-6">Overall Grand Total</td>
+                          <td className="border-2 border-red-800 p-3">{overallSummaryTotals.male}</td>
+                          <td className="border-2 border-red-800 p-3">{overallSummaryTotals.female}</td>
+                          <td colSpan="2" className="border-2 border-red-800 p-3 text-xl">{overallSummaryTotals.grandTotal}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
-                {/* Institutional Certification Paragraph */}
-                <div className="mt-8 p-4 bg-slate-50 border border-slate-300 rounded-xl text-xs font-serif leading-relaxed text-slate-800">
-                  <p className="font-bold mb-1">Institutional Certification:</p>
-                  <p>
-                    Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
-                  </p>
-                </div>
+                  {/* Institutional Certification Paragraph */}
+                  <div className="mt-8 p-4 bg-slate-50 border border-slate-300 rounded-xl text-xs font-serif leading-relaxed text-slate-800">
+                    <p className="font-bold mb-1">Institutional Certification:</p>
+                    <p>
+                      Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
+                    </p>
+                  </div>
 
-                {/* Footer Signatures */}
-                <div className="flex justify-between items-center mt-12 pt-6 border-t-2 border-red-800 text-xs font-black text-red-800">
-                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
-                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Checked By</div>
-                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Principal</div>
+                  {/* Footer Signatures */}
+                  <div className="flex justify-between items-center mt-12 pt-6 border-t-2 border-red-800 text-xs font-black text-red-800">
+                    <div className="text-center w-40 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                    <div className="text-center w-40 border-t-2 border-red-800 pt-1">Checked By</div>
+                    <div className="text-center w-40 border-t-2 border-red-800 pt-1">Principal</div>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* 4. EDITABLE OFFICIAL NOTES PAGE */}
-              <div className="page-container bg-white p-10 rounded-2xl border border-slate-300 shadow-md max-w-[355.6mm] mx-auto">
-                <div className="flex items-center justify-between border-b-2 border-red-800 pb-3 mb-4">
-                  <h1 className="text-xl font-black text-red-800 uppercase">
-                    Official Explanatory Notes & Ledger Annexure
-                  </h1>
-                  <button
-                    type="button"
-                    onClick={handleAddNote}
-                    className="no-print px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus size={13} />
-                    <span>Add Note Item</span>
-                  </button>
-                </div>
+              {(registerViewSection === 'all' || registerViewSection === 'notes') && (
+                <div className="page-container bg-white p-10 rounded-2xl border border-slate-300 shadow-md max-w-[355.6mm] mx-auto">
+                  <div className="flex items-center justify-between border-b-2 border-red-800 pb-3 mb-4">
+                    <h1 className="text-xl font-black text-red-800 uppercase">
+                      Official Explanatory Notes & Ledger Annexure
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={handleAddNote}
+                      className="no-print px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={13} />
+                      <span>Add Note Item</span>
+                    </button>
+                  </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-slate-400 text-xs">
-                    <thead>
-                      <tr className="bg-slate-100 text-slate-900 font-black">
-                        <th className="border border-slate-400 p-2 w-12 text-center">#</th>
-                        <th className="border border-slate-400 p-2 text-left">Explanatory Note / Ledger Directive</th>
-                        <th className="no-print border border-slate-400 p-2 w-12 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-300 text-slate-800">
-                      {registerNotes.map((note, idx) => (
-                        <tr key={note.id}>
-                          <td className="border border-slate-400 p-2 text-center font-bold bg-slate-50">{idx + 1}</td>
-                          <td className="border border-slate-400 p-2 font-medium">
-                            <textarea
-                              value={note.text}
-                              onChange={(e) => handleUpdateNote(note.id, e.target.value)}
-                              rows={2}
-                              className="w-full p-1.5 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-xs font-medium resize-y focus:bg-white"
-                            />
-                          </td>
-                          <td className="no-print border border-slate-400 p-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveNote(note.id)}
-                              className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
-                              title="Delete Note"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-slate-400 text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-900 font-black">
+                          <th className="border border-slate-400 p-2 w-12 text-center">#</th>
+                          <th className="border border-slate-400 p-2 text-left">Explanatory Note / Ledger Directive</th>
+                          <th className="no-print border border-slate-400 p-2 w-12 text-center">Action</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-300 text-slate-800">
+                        {registerNotes.map((note, idx) => (
+                          <tr key={note.id}>
+                            <td className="border border-slate-400 p-2 text-center font-bold bg-slate-50">{idx + 1}</td>
+                            <td className="border border-slate-400 p-2 font-medium">
+                              <textarea
+                                value={note.text}
+                                onChange={(e) => handleUpdateNote(note.id, e.target.value)}
+                                rows={2}
+                                className="w-full p-1.5 border border-transparent hover:border-slate-300 focus:border-amber-500 rounded bg-transparent text-xs font-medium resize-y focus:bg-white"
+                              />
+                            </td>
+                            <td className="no-print border border-slate-400 p-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveNote(note.id)}
+                                className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
+                                title="Delete Note"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                {/* Footer Signatures */}
-                <div className="flex justify-between items-center mt-12 pt-6 border-t-2 border-red-800 text-xs font-black text-red-800">
-                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
-                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Checked By</div>
-                  <div className="text-center w-40 border-t-2 border-red-800 pt-1">Principal</div>
+                  {/* Footer Signatures */}
+                  <div className="flex justify-between items-center mt-12 pt-6 border-t-2 border-red-800 text-xs font-black text-red-800">
+                    <div className="text-center w-40 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
+                    <div className="text-center w-40 border-t-2 border-red-800 pt-1">Checked By</div>
+                    <div className="text-center w-40 border-t-2 border-red-800 pt-1">Principal</div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -1173,7 +1381,7 @@ export default function AdmissionRegisterSuite({
                       <div className="absolute left-0 top-0 text-xs font-black text-slate-500">Page {pageNum}</div>
                       <h1 className="text-lg font-black text-red-800 uppercase tracking-tight">{SCHOOL_NAME}</h1>
                       <div className="text-[11px] font-extrabold text-slate-800 mt-0.5">
-                        JKBOSE Sentup & Candidate Roll Sheet for Class {selectedClass} • Session {selectedSession}
+                        JKBOSE Sentup & Candidate Roll Sheet for Class {selectedClass} • Session {selectedSession} • {selectedStatus} Candidates
                       </div>
                       <div className="absolute right-0 top-0 w-6 h-6 rounded-full border border-slate-900 text-center text-[10px] font-black leading-5">
                         {pageNum}
@@ -1307,7 +1515,7 @@ export default function AdmissionRegisterSuite({
                 <div>
                   <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 mb-1">Target Classes:</label>
                   <div className="flex items-center gap-1 flex-wrap">
-                    {['9th', '10th', '11th', '12th'].map(cls => {
+                    {availableClasses.map(cls => {
                       const checked = assignClasses.includes(cls);
                       return (
                         <label
@@ -1529,10 +1737,9 @@ export default function AdmissionRegisterSuite({
                     className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold"
                   >
                     <option value="ALL">All Classes</option>
-                    <option value="11th">11th</option>
-                    <option value="12th">12th</option>
-                    <option value="10th">10th</option>
-                    <option value="9th">9th</option>
+                    {availableClasses.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
               </div>
