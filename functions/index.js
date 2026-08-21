@@ -61,8 +61,7 @@ exports.initializeUserClaims = functions.auth.user().onCreate(async (user) => {
     ? { role: 'SuperAdmin', admin: true, permissions: ['*'] }
     : { role: 'Student', admin: false, teacher: false, permissions: [] };
   await admin.auth().setCustomUserClaims(user.uid, claims);
-  const profileId = String(user.email || user.uid).toLowerCase();
-  await admin.firestore().collection('users').doc(profileId).set({
+  await admin.firestore().collection('users').doc(user.uid).set({
     uid: user.uid,
     email: String(user.email || '').toLowerCase(),
     name: user.displayName || '',
