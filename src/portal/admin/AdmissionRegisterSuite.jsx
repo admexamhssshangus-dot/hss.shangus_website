@@ -4,7 +4,8 @@ import {
   BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer,
   RefreshCw, Check, Search, ZoomIn, ZoomOut,
   Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
-  UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight
+  UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight,
+  Filter, Eye, ChevronDown, Sparkles, SlidersHorizontal
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -168,11 +169,41 @@ export default function AdmissionRegisterSuite({
   const [selectedSession, setSelectedSession] = useState('2025-26');
   const [selectedStatus, setSelectedStatus] = useState('Approved'); // 'Approved' (Default) | 'Submitted' | 'Provisional' | 'ALL'
   const [selectedAdmissionType, setSelectedAdmissionType] = useState('ALL'); // 'ALL' | 'fresh' | 'readmission'
-  const [selectedClass, setSelectedClass] = useState('ALL');
+  const [selectedClass, setSelectedClass] = useState('11th'); // DEFAULT: Class 11th
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
+
+  // Popover Dropdown States for Consolidated Toolbar
+  const [showFiltersPopover, setShowFiltersPopover] = useState(false);
+  const [showViewPopover, setShowViewPopover] = useState(false);
+  const filtersPopoverRef = useRef(null);
+  const viewPopoverRef = useRef(null);
+
+  // Count active non-default filters
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedSession !== '2025-26') count++;
+    if (selectedStatus !== 'Approved') count++;
+    if (selectedAdmissionType !== 'ALL') count++;
+    if (selectedStream !== 'ALL') count++;
+    return count;
+  }, [selectedSession, selectedStatus, selectedAdmissionType, selectedStream]);
+
+  // Close popovers on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (filtersPopoverRef.current && !filtersPopoverRef.current.contains(e.target)) {
+        setShowFiltersPopover(false);
+      }
+      if (viewPopoverRef.current && !viewPopoverRef.current.contains(e.target)) {
+        setShowViewPopover(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   // Readmission Management Modal State (Universal Candidate Search & Class Mapper)
   const [readmissionModalStudent, setReadmissionModalStudent] = useState(null);
@@ -1220,7 +1251,7 @@ export default function AdmissionRegisterSuite({
             background: #ffffff !important;
             color: #000000 !important;
             overflow: visible !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+            font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -1273,6 +1304,7 @@ export default function AdmissionRegisterSuite({
             break-after: page !important;
             margin: 0 !important;
             padding: 0 !important;
+            border: none !important;
           }
 
           .page-container {
@@ -1320,12 +1352,28 @@ export default function AdmissionRegisterSuite({
           .h-green { background-color: #dcfce7 !important; color: #15803d !important; }
           .h-red { background-color: #fee2e2 !important; color: #b91c1c !important; }
         }
+
+        /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700;800&family=Merriweather:wght@400;700;900&display=swap');
+
+        .school-header-font {
+          font-family: 'Cinzel', 'Merriweather', serif !important;
+          letter-spacing: 0.04em;
+        }
+
+        .ledger-data-font {
+          font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif !important;
+        }
+
+        .ledger-mono-font {
+          font-family: 'JetBrains Mono', monospace !important;
+        }
       `}</style>
 
-      {/* ─── SINGLE COMPACT UNIFIED TOOLBAR ROW (STRICT 1-ROW ON DESKTOP) ─── */}
-      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 py-1">
+      {/* ─── ULTRA-COMPACT CONSOLIDATED 1-ROW TOOLBAR ─── */}
+      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2.5 py-1">
         <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-x-auto whitespace-nowrap">
-          {/* Left Cluster: Module Selector Dropdown & Core DB Filters */}
+          {/* Left Cluster: Module Selector, Direct Class Scope, + Re-Adm, and Filters Popover */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {/* 1. Main Suite Module Dropdown */}
             <select
@@ -1341,48 +1389,21 @@ export default function AdmissionRegisterSuite({
 
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
-                {/* 2. Academic Session */}
+                {/* 2. Direct Class Scope Selector (Defaults to 11th) */}
                 <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs cursor-pointer shrink-0"
-                  title="Academic Session"
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="py-0.5 px-2 text-[11px] rounded-lg border-2 border-indigo-500/40 bg-indigo-50/70 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 font-black shadow-2xs cursor-pointer shrink-0"
+                  title="Select Register Class Scope"
                 >
-                  {availableSessions.map(sess => (
-                    <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
-                  ))}
+                  <option value="11th">Class 11th</option>
+                  <option value="9th">Class 9th</option>
+                  <option value="10th">Class 10th</option>
+                  <option value="12th">Class 12th</option>
+                  <option value="ALL">All Classes</option>
                 </select>
 
-                {/* 3. Status Filter */}
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 shadow-2xs cursor-pointer shrink-0"
-                  title="Admission Status"
-                >
-                  <option value="Approved">Approved ({statusCounts.approved})</option>
-                  <option value="Submitted">Submitted ({statusCounts.submitted})</option>
-                  <option value="Provisional">Provisional ({statusCounts.provisional})</option>
-                  <option value="ALL">All ({statusCounts.total})</option>
-                </select>
-
-                {/* 4. Admission Type (Fresh vs Re-Adm) */}
-                <select
-                  value={selectedAdmissionType}
-                  onChange={(e) => setSelectedAdmissionType(e.target.value)}
-                  className={`py-0.5 px-1.5 text-[11px] rounded-lg border font-bold shadow-2xs cursor-pointer shrink-0 ${
-                    selectedAdmissionType === 'readmission'
-                      ? 'border-purple-400 bg-purple-50 text-purple-900 dark:bg-purple-950 dark:text-purple-200'
-                      : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
-                  }`}
-                  title="Filter Admission Type"
-                >
-                  <option value="ALL">All Types</option>
-                  <option value="fresh">Fresh ({statusCounts.fresh})</option>
-                  <option value="readmission">Re-Adm ({statusCounts.readmissions})</option>
-                </select>
-
-                {/* 4b. Universal Add / Tag Re-admission Button */}
+                {/* 3. Universal Add / Tag Re-admission Button (Kept prominent) */}
                 <button
                   type="button"
                   onClick={handleOpenUniversalReadmissionModal}
@@ -1393,35 +1414,118 @@ export default function AdmissionRegisterSuite({
                   <span>+ Re-Adm</span>
                 </button>
 
-                {/* 5. Class Scope Selector */}
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer shrink-0"
-                  title="Class Scope"
-                >
-                  <option value="ALL">All Classes</option>
-                  {availableClasses.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-
-                {/* 6. Stream Filter */}
-                {availableStreams.length > 0 && (
-                  <select
-                    value={selectedStream}
-                    onChange={(e) => setSelectedStream(e.target.value)}
-                    className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer shrink-0"
-                    title="Stream"
+                {/* 4. Grouped Filters Dropdown Popover (Session, Status, Admission Type, Stream) */}
+                <div className="relative shrink-0" ref={filtersPopoverRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFiltersPopover(prev => !prev);
+                      setShowViewPopover(false);
+                    }}
+                    className={`py-0.5 px-2 rounded-lg border text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs ${
+                      activeFiltersCount > 0
+                        ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50'
+                    }`}
+                    title="Configure Database Filters (Session, Status, Admission Type, Stream)"
                   >
-                    <option value="ALL">All Streams</option>
-                    {availableStreams.map(str => (
-                      <option key={str} value={str}>{str}</option>
-                    ))}
-                  </select>
-                )}
+                    <Filter size={11} className={activeFiltersCount > 0 ? 'text-amber-700' : 'text-slate-500'} />
+                    <span>Filters</span>
+                    {activeFiltersCount > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-black flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                    <ChevronDown size={10} className="text-slate-400" />
+                  </button>
 
-                {/* 7. Quick Search */}
+                  {/* Filter Popover Dropdown Panel */}
+                  {showFiltersPopover && (
+                    <div className="absolute left-0 mt-1 w-64 p-3 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 space-y-2.5 whitespace-normal animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Filter size={12} className="text-amber-600" /> Filter Register
+                        </span>
+                        {activeFiltersCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSession('2025-26');
+                              setSelectedStatus('Approved');
+                              setSelectedAdmissionType('ALL');
+                              setSelectedStream('ALL');
+                            }}
+                            className="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Session */}
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Academic Session:</label>
+                        <select
+                          value={selectedSession}
+                          onChange={(e) => setSelectedSession(e.target.value)}
+                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300"
+                        >
+                          {availableSessions.map(sess => (
+                            <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Admission Status:</label>
+                        <select
+                          value={selectedStatus}
+                          onChange={(e) => setSelectedStatus(e.target.value)}
+                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800 text-emerald-900 dark:text-emerald-200"
+                        >
+                          <option value="Approved">Approved ({statusCounts.approved})</option>
+                          <option value="Submitted">Submitted ({statusCounts.submitted})</option>
+                          <option value="Provisional">Provisional ({statusCounts.provisional})</option>
+                          <option value="ALL">All ({statusCounts.total})</option>
+                        </select>
+                      </div>
+
+                      {/* Admission Type */}
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Admission Type:</label>
+                        <select
+                          value={selectedAdmissionType}
+                          onChange={(e) => setSelectedAdmissionType(e.target.value)}
+                          className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800"
+                        >
+                          <option value="ALL">All Types</option>
+                          <option value="fresh">Fresh Only ({statusCounts.fresh})</option>
+                          <option value="readmission">Re-admission Only ({statusCounts.readmissions})</option>
+                        </select>
+                      </div>
+
+                      {/* Stream */}
+                      {availableStreams.length > 0 && (
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Stream Scope:</label>
+                          <select
+                            value={selectedStream}
+                            onChange={(e) => setSelectedStream(e.target.value)}
+                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800"
+                          >
+                            <option value="ALL">All Streams</option>
+                            {availableStreams.map(str => (
+                              <option key={str} value={str}>{str}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Quick Search */}
                 <div className="relative shrink-0">
                   <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
@@ -1429,117 +1533,159 @@ export default function AdmissionRegisterSuite({
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-5 pr-1.5 py-0.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-24 xl:w-32 shadow-2xs"
+                    className="pl-5 pr-1.5 py-0.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-24 xl:w-28 shadow-2xs"
                   />
                 </div>
               </>
             )}
           </div>
 
-          {/* Right Cluster: View Controls, Layout Toggle, Margins, Zoom, Excel & Print */}
+          {/* Right Cluster: Consolidated View & Layout Popover, Count Badge, Excel & Print */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
-            {activeTab === 'adm_register' && (
-              <>
-                {/* Sub-view Section Dropdown */}
-                <select
-                  value={registerViewSection}
-                  onChange={(e) => setRegisterViewSection(e.target.value)}
-                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer shrink-0"
-                  title="View Section"
-                >
-                  <option value="all">📑 All Spreads</option>
-                  <option value="cover">📜 Cover Page</option>
-                  <option value="spreads">📖 Ledger Table Only</option>
-                  <option value="summary">📊 Summary Statement</option>
-                  <option value="notes">📝 Notes & Annexure</option>
-                </select>
-
-                {/* Side-by-Side Dual Spread View Mode Switcher */}
-                <button
-                  type="button"
-                  onClick={() => setSpreadLayoutMode(prev => prev === 'side_by_side' ? 'stacked' : 'side_by_side')}
-                  className={`py-0.5 px-2 rounded-lg border text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs shrink-0 ${
-                    spreadLayoutMode === 'side_by_side'
-                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-700'
-                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                  }`}
-                  title="Toggle Side-by-Side Book View vs Stacked Pages"
-                >
-                  <Columns size={11} />
-                  <span>{spreadLayoutMode === 'side_by_side' ? 'Side-by-Side' : 'Stacked'}</span>
-                </button>
-              </>
-            )}
-
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
-                {/* Dynamic Margins Button & Popover */}
-                <div className="relative shrink-0">
+                {/* 1. Grouped View & Layout Popover (Section, Book View, Margins, Zoom) */}
+                <div className="relative shrink-0" ref={viewPopoverRef}>
                   <button
                     type="button"
-                    onClick={() => setShowMarginControls(prev => !prev)}
-                    className="py-0.5 px-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-100 shadow-2xs"
-                    title="Print Margins (Legal Landscape)"
+                    onClick={() => {
+                      setShowViewPopover(prev => !prev);
+                      setShowFiltersPopover(false);
+                    }}
+                    className="py-0.5 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-50 shadow-2xs"
+                    title="View Section, Book Layout, Margins & Zoom Settings"
                   >
-                    <Sliders size={10} className="text-indigo-600" />
-                    <span>{printMargin}in</span>
+                    <Eye size={11} className="text-indigo-600" />
+                    <span>View & Layout</span>
+                    <ChevronDown size={10} className="text-slate-400" />
                   </button>
 
-                  {showMarginControls && (
-                    <div className="absolute right-0 mt-1 w-52 p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 space-y-1.5 whitespace-normal">
-                      <div className="flex items-center justify-between text-xs font-bold">
-                        <span>Dynamic Margins:</span>
-                        <span className="font-mono text-indigo-600">{printMargin} in</span>
+                  {/* View Popover Dropdown Panel */}
+                  {showViewPopover && (
+                    <div className="absolute right-0 mt-1 w-64 p-3 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 space-y-2.5 whitespace-normal animate-in fade-in zoom-in-95">
+                      <div className="border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Eye size={12} className="text-indigo-600" /> Display & Print Settings
+                        </span>
                       </div>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="0.8"
-                        step="0.05"
-                        value={printMargin}
-                        onChange={(e) => setPrintMargin(parseFloat(e.target.value))}
-                        className="w-full cursor-pointer accent-indigo-600"
-                      />
-                      <div className="grid grid-cols-4 gap-1 pt-0.5">
-                        {[0.2, 0.3, 0.4, 0.5].map(m => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setPrintMargin(m)}
-                            className={`py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                              printMargin === m ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
-                            }`}
+
+                      {/* Sub-view Section Selector */}
+                      {activeTab === 'adm_register' && (
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Section to Display:</label>
+                          <select
+                            value={registerViewSection}
+                            onChange={(e) => setRegisterViewSection(e.target.value)}
+                            className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800"
                           >
-                            {m}" {m === 0.3 ? '★' : ''}
+                            <option value="all">📑 All Spreads (Full Register)</option>
+                            <option value="cover">📜 Cover Page Only</option>
+                            <option value="spreads">📖 Ledger Table Only</option>
+                            <option value="summary">📊 Summary Statement Only</option>
+                            <option value="notes">📝 Notes & Annexure Only</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Screen Layout Mode (Side-by-Side Book View vs Stacked) */}
+                      {activeTab === 'adm_register' && (
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-1">Book Layout:</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSpreadLayoutMode('side_by_side')}
+                              className={`py-1 px-2 rounded-lg border text-[10.5px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                spreadLayoutMode === 'side_by_side'
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200'
+                              }`}
+                            >
+                              <Columns size={11} />
+                              <span>Side-by-Side</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSpreadLayoutMode('stacked')}
+                              className={`py-1 px-2 rounded-lg border text-[10.5px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                spreadLayoutMode === 'stacked'
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200'
+                              }`}
+                            >
+                              <LayoutGrid size={11} />
+                              <span>Stacked Pages</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Margins */}
+                      <div>
+                        <div className="flex items-center justify-between text-[10.5px] font-bold mb-0.5">
+                          <span className="text-slate-600 dark:text-slate-400">Print Margins:</span>
+                          <span className="font-mono text-indigo-600 font-black">{printMargin} in</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="0.8"
+                          step="0.05"
+                          value={printMargin}
+                          onChange={(e) => setPrintMargin(parseFloat(e.target.value))}
+                          className="w-full cursor-pointer accent-indigo-600"
+                        />
+                        <div className="grid grid-cols-4 gap-1 pt-0.5">
+                          {[0.2, 0.3, 0.4, 0.5].map(m => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setPrintMargin(m)}
+                              className={`py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                printMargin === m ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                              }`}
+                            >
+                              {m}" {m === 0.3 ? '★' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Zoom Controls */}
+                      <div>
+                        <div className="flex items-center justify-between text-[10.5px] font-bold mb-0.5">
+                          <span className="text-slate-600 dark:text-slate-400">Screen Zoom:</span>
+                          <span className="font-mono text-slate-800 dark:text-slate-200">{Math.round(zoomLevel * 100)}%</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
+                            className="px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-xs font-black text-slate-700 dark:text-slate-200 cursor-pointer shadow-2xs"
+                          >
+                            -
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => setZoomLevel(1.0)}
+                            className="text-[10.5px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          >
+                            Reset 100%
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
+                            className="px-2 py-0.5 bg-white dark:bg-slate-700 rounded text-xs font-black text-slate-700 dark:text-slate-200 cursor-pointer shadow-2xs"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Zoom Controls */}
-                <div className="hidden 2xl:flex items-center gap-0.5 bg-white dark:bg-slate-900 px-1 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] shadow-2xs shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
-                    className="p-0.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut size={10} />
-                  </button>
-                  <span className="px-0.5 font-mono font-bold">{Math.round(zoomLevel * 100)}%</span>
-                  <button
-                    type="button"
-                    onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
-                    className="p-0.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
-                    title="Zoom In"
-                  >
-                    <ZoomIn size={10} />
-                  </button>
-                </div>
-
-                {/* Record count badge */}
+                {/* 2. Record count badge */}
                 <div className="py-0.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black shrink-0 shadow-2xs">
                   {filteredStudents.length} Students
                   {statusCounts.readmissions > 0 && (
@@ -1549,7 +1695,7 @@ export default function AdmissionRegisterSuite({
                   )}
                 </div>
 
-                {/* Excel Export */}
+                {/* 3. Excel Export */}
                 <button
                   type="button"
                   onClick={handleExportExcel}
@@ -1560,7 +1706,7 @@ export default function AdmissionRegisterSuite({
                   <span>Excel</span>
                 </button>
 
-                {/* Print */}
+                {/* 4. Print */}
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -1915,15 +2061,15 @@ export default function AdmissionRegisterSuite({
                     >
                       {/* LEFT PAGE: PART 1 (Personal & Contact Details) */}
                       <div
-                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm ${
+                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
                           spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-[50%]' : 'w-full'
                         }`}
                         style={{ padding: `${printMargin}in` }}
                       >
-                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-2">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5">
                           <div className="text-[10px] font-bold text-slate-600">(Part 1 - Identification & Contact Details)</div>
                           <div className="text-center">
-                            <h2 className="text-sm font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
+                            <h2 className="text-sm font-black text-red-800 uppercase leading-none school-header-font">{SCHOOL_NAME}</h2>
                             <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
                               Admission Register • Session {selectedSession} • {selectedStatus} Records
                             </div>
@@ -1937,7 +2083,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900">
+                          <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-6 h-grey">S.No.</th>
@@ -1974,7 +2120,7 @@ export default function AdmissionRegisterSuite({
                                 const photoSrc = getResolvedStudentPhoto(s);
                                 return (
                                   <tr key={s.id} className="h-11 hover:bg-slate-50 group">
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.sno}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
                                     <td className="border border-slate-900 p-0 text-center w-10 h-11 overflow-hidden bg-slate-50 print:bg-transparent">
                                       {photoSrc ? (
                                         <img
@@ -1995,21 +2141,21 @@ export default function AdmissionRegisterSuite({
                                         Photo
                                       </div>
                                     </td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700">{s.rollNo}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.formNo}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font">{s.rollNo}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.formNo}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px]">{s.onlineStatus}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.admDate}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold ledger-mono-font">{s.admDate}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
-                                      <div>{s.admNo || '—'}</div>
+                                      <div className="ledger-mono-font font-black">{s.admNo || '—'}</div>
                                       {s.isReadmission && s.oldAdmNo && s.oldAdmNo !== s.admNo && (
                                         <div className="text-[7.5px] font-mono text-purple-700 font-bold">({s.oldAdmNo})</div>
                                       )}
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
                                     <td className="border border-slate-900 px-1.5 py-0.5 text-left">
                                       <div className="flex items-center justify-between gap-1">
-                                        <span className="font-black uppercase">{s.name}</span>
+                                        <span className="font-black uppercase tracking-tight">{s.name}</span>
                                         {/* Clickable Re-admission indicator badge */}
                                         <button
                                           type="button"
@@ -2027,15 +2173,15 @@ export default function AdmissionRegisterSuite({
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.father}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.mother}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.dobFigures}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.dobFigures}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-serif">{s.dobWords}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.gender}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.village}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.block}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.tehsil}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.district}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono">{s.mobile}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono">{s.parentMobile}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font">{s.mobile}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font">{s.parentMobile}</td>
                                   </tr>
                                 );
                               })}
@@ -2044,7 +2190,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-4 pt-2 border-t border-slate-300 text-[11px] font-black text-red-800">
+                        <div className="flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
@@ -2053,15 +2199,15 @@ export default function AdmissionRegisterSuite({
 
                       {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
                       <div
-                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm ${
+                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
                           spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-[50%]' : 'w-full'
                         }`}
                         style={{ padding: `${printMargin}in` }}
                       >
-                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-2">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5">
                           <div className="text-[10px] font-bold text-slate-600">(Part 2 - Academic Details & Ledger)</div>
                           <div className="text-center">
-                            <h2 className="text-sm font-black text-red-800 uppercase leading-none">{SCHOOL_NAME}</h2>
+                            <h2 className="text-sm font-black text-red-800 uppercase leading-none school-header-font">{SCHOOL_NAME}</h2>
                             <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
                               Admission Register • Session {selectedSession} • {selectedStatus} Records
                             </div>
@@ -2075,7 +2221,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900">
+                          <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
                                 <th rowSpan="2" className="border border-slate-900 px-1 py-1 w-12 h-grey">Stream</th>
@@ -2105,16 +2251,16 @@ export default function AdmissionRegisterSuite({
                                 <tr key={s.id} className="h-11 hover:bg-slate-50">
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium">{s.subs}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50">{s.aadhar}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font">{s.aadhar}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50">{s.socioEcon}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold">{s.blood}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] bg-yellow-50">{s.account}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] bg-yellow-50">{s.ifsc}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] bg-yellow-50 ledger-mono-font">{s.account}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] bg-yellow-50 ledger-mono-font">{s.ifsc}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight">{s.prevSchool}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono">{s.prevRoll}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px]">{s.pen}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] ledger-mono-font">{s.pen}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-800 font-bold text-[7px] bg-emerald-50">
                                     {s.prevCC}
                                   </td>
@@ -2135,7 +2281,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-4 pt-2 border-t border-slate-300 text-[11px] font-black text-red-800">
+                        <div className="flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                           <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
@@ -2149,11 +2295,11 @@ export default function AdmissionRegisterSuite({
               {/* 3. CONSOLIDATED SUMMARY PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'summary') && (
                 <div
-                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm max-w-[355.6mm] mx-auto page-break-after"
+                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
                   style={{ padding: `${printMargin}in` }}
                 >
-                  <div className="text-center border-b-2 border-red-800 pb-3 mb-4">
-                    <h1 className="text-xl font-black text-red-800 uppercase tracking-wide">
+                  <div className="text-center border-b-2 border-red-800 pb-2 mb-3">
+                    <h1 className="text-xl font-black text-red-800 uppercase tracking-wide school-header-font">
                       Consolidated Admission Statement
                     </h1>
                     <h2 className="text-xs font-extrabold text-slate-700 mt-0.5">
@@ -2162,7 +2308,7 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-center border-collapse border-2 border-red-800 text-xs">
+                    <table className="w-full text-center border-collapse border-2 border-red-800 text-xs ledger-data-font">
                       <thead>
                         <tr className="bg-red-100 text-slate-900 font-black">
                           <th className="border-2 border-red-800 p-2">Class</th>
@@ -2188,12 +2334,12 @@ export default function AdmissionRegisterSuite({
                                   </td>
                                 )}
                                 <td className="border-2 border-red-800 p-1.5 text-left pl-4 font-semibold">{st}</td>
-                                <td className="border-2 border-red-800 p-1.5">{item.male}</td>
-                                <td className="border-2 border-red-800 p-1.5">{item.female}</td>
-                                <td className="border-2 border-red-800 p-1.5 text-purple-800 font-bold">{item.reAdm || 0}</td>
-                                <td className="border-2 border-red-800 p-1.5 font-black">{item.total}</td>
+                                <td className="border-2 border-red-800 p-1.5 ledger-mono-font">{item.male}</td>
+                                <td className="border-2 border-red-800 p-1.5 ledger-mono-font">{item.female}</td>
+                                <td className="border-2 border-red-800 p-1.5 text-purple-800 font-bold ledger-mono-font">{item.reAdm || 0}</td>
+                                <td className="border-2 border-red-800 p-1.5 font-black ledger-mono-font">{item.total}</td>
                                 {idx === 0 && (
-                                  <td rowSpan={streams.length} className="border-2 border-red-800 p-1.5 font-black text-lg text-red-800 bg-red-50/60">
+                                  <td rowSpan={streams.length} className="border-2 border-red-800 p-1.5 font-black text-lg text-red-800 bg-red-50/60 ledger-mono-font">
                                     {clsTotal}
                                   </td>
                                 )}
@@ -2203,17 +2349,17 @@ export default function AdmissionRegisterSuite({
                         })}
                         <tr className="bg-red-200 text-red-900 font-black text-sm">
                           <td colSpan="2" className="border-2 border-red-800 p-2 text-right pr-4">Overall Grand Total</td>
-                          <td className="border-2 border-red-800 p-2">{overallSummaryTotals.male}</td>
-                          <td className="border-2 border-red-800 p-2">{overallSummaryTotals.female}</td>
-                          <td className="border-2 border-red-800 p-2 text-purple-900">{overallSummaryTotals.totalReAdm}</td>
-                          <td colSpan="2" className="border-2 border-red-800 p-2 text-base">{overallSummaryTotals.grandTotal}</td>
+                          <td className="border-2 border-red-800 p-2 ledger-mono-font">{overallSummaryTotals.male}</td>
+                          <td className="border-2 border-red-800 p-2 ledger-mono-font">{overallSummaryTotals.female}</td>
+                          <td className="border-2 border-red-800 p-2 text-purple-900 ledger-mono-font">{overallSummaryTotals.totalReAdm}</td>
+                          <td colSpan="2" className="border-2 border-red-800 p-2 text-base ledger-mono-font">{overallSummaryTotals.grandTotal}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
                   {/* Institutional Certification Paragraph */}
-                  <div className="mt-5 p-3 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-serif leading-relaxed text-slate-800">
+                  <div className="mt-4 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-[11px] font-serif leading-relaxed text-slate-800">
                     <p className="font-bold mb-0.5">Institutional Certification:</p>
                     <p>
                       Certified that the above-mentioned <strong>{overallSummaryTotals.grandTotal}</strong> students (including <strong>{overallSummaryTotals.totalReAdm}</strong> readmitted gap candidates placed at the end of their respective class rolls) have been formally admitted to <strong>{SCHOOL_NAME}</strong> for the academic session <strong>{selectedSession}</strong>. Their credentials, eligibility, dates of birth, marks certificates, and categories as entered in this official ledger have been verified against original Board/School records and found correct in all respects.
@@ -2221,10 +2367,10 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   {/* Footer Signatures */}
-                  <div className="flex justify-between items-center mt-7 pt-3 border-t-2 border-red-800 text-[11px] font-black text-red-800">
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
+                  <div className="flex justify-between items-center mt-3 pt-1 border-t-2 border-red-800 text-[11px] font-black text-red-800">
+                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
+                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Checked By</div>
+                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Principal</div>
                   </div>
                 </div>
               )}
@@ -2232,11 +2378,11 @@ export default function AdmissionRegisterSuite({
               {/* 4. EDITABLE OFFICIAL NOTES PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'notes') && (
                 <div
-                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm max-w-[355.6mm] mx-auto"
+                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto"
                   style={{ padding: `${printMargin}in` }}
                 >
                   <div className="flex items-center justify-between border-b-2 border-red-800 pb-2 mb-3">
-                    <h1 className="text-lg font-black text-red-800 uppercase">
+                    <h1 className="text-lg font-black text-red-800 uppercase school-header-font">
                       Official Explanatory Notes & Ledger Annexure
                     </h1>
                     <button
@@ -2250,7 +2396,7 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-slate-400 text-[11px]">
+                    <table className="w-full border-collapse border border-slate-400 text-[11px] ledger-data-font">
                       <thead>
                         <tr className="bg-slate-100 text-slate-900 font-black">
                           <th className="border border-slate-400 p-1.5 w-10 text-center">#</th>
@@ -2261,7 +2407,7 @@ export default function AdmissionRegisterSuite({
                       <tbody className="divide-y divide-slate-300 text-slate-800">
                         {registerNotes.map((note, idx) => (
                           <tr key={note.id}>
-                            <td className="border border-slate-400 p-1.5 text-center font-bold bg-slate-50">{idx + 1}</td>
+                            <td className="border border-slate-400 p-1.5 text-center font-bold bg-slate-50 ledger-mono-font">{idx + 1}</td>
                             <td className="border border-slate-400 p-1.5 font-medium">
                               <textarea
                                 value={note.text}
@@ -2287,10 +2433,10 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   {/* Footer Signatures */}
-                  <div className="flex justify-between items-center mt-7 pt-3 border-t-2 border-red-800 text-[11px] font-black text-red-800">
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-1">Incharge Admissions</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-1">Checked By</div>
-                    <div className="text-center w-36 border-t-2 border-red-800 pt-1">Principal</div>
+                  <div className="flex justify-between items-center mt-3 pt-1 border-t-2 border-red-800 text-[11px] font-black text-red-800">
+                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Incharge Admissions</div>
+                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Checked By</div>
+                    <div className="text-center w-36 border-t-2 border-red-800 pt-0.5">Principal</div>
                   </div>
                 </div>
               )}
@@ -2310,13 +2456,13 @@ export default function AdmissionRegisterSuite({
                 return (
                   <div
                     key={pageNum}
-                    className="page-container bg-white rounded-xl border border-slate-300 shadow-sm max-w-[355.6mm] mx-auto page-break-after"
+                    className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
                     <div className="text-center border-b border-slate-900 pb-1 mb-2 relative">
                       <div className="absolute left-0 top-0 text-[10px] font-bold text-slate-500">Candidate Roll Sheet</div>
-                      <h1 className="text-base font-black text-red-800 uppercase tracking-tight">{SCHOOL_NAME}</h1>
+                      <h1 className="text-base font-black text-red-800 uppercase tracking-tight school-header-font">{SCHOOL_NAME}</h1>
                       <div className="text-[9.5px] font-bold text-slate-800 mt-0.5">
                         JKBOSE Sentup Roll Sheet • Class {selectedClass} • Session {selectedSession} • {selectedStatus} Candidates
                       </div>
@@ -2325,7 +2471,7 @@ export default function AdmissionRegisterSuite({
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-[9px] border-collapse border border-slate-900">
+                      <table className="w-full text-left text-[9px] border-collapse border border-slate-900 ledger-data-font">
                         <thead>
                           <tr className={`${themeHeaderBg} uppercase font-black text-center text-[8.5px]`}>
                             <th className="border border-slate-900 px-1 py-1 w-10">S.No.<br /><span className="text-[7px] opacity-80">[Adm No.]</span></th>
@@ -2348,10 +2494,10 @@ export default function AdmissionRegisterSuite({
                             return (
                               <tr key={s.id} className="h-12 hover:bg-slate-50">
                                 <td className="border border-slate-900 px-1 py-0.5 text-center">
-                                  <div className="font-black text-xs">{s.sno}</div>
-                                  <div className="text-[7.5px] font-mono text-slate-500">[{s.admNo || '—'}]</div>
+                                  <div className="font-black text-xs ledger-mono-font">{s.sno}</div>
+                                  <div className="text-[7.5px] font-mono text-slate-500 ledger-mono-font">[{s.admNo || '—'}]</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800">{s.rollNo}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800 ledger-mono-font">{s.rollNo}</td>
                                 <td className="border border-slate-900 p-0 text-center w-10 h-12 overflow-hidden bg-slate-50 print:bg-transparent">
                                   {photoSrc ? (
                                     <img
@@ -2372,10 +2518,10 @@ export default function AdmissionRegisterSuite({
                                     Photo
                                   </div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center">{formatBoardRegSplit(s.boardReg)}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
                                 <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[10px]">
                                   <div className="flex items-center justify-between gap-1">
-                                    <span>{s.name}</span>
+                                    <span className="tracking-tight">{s.name}</span>
                                     {s.isReadmission && (
                                       <span className="text-[7px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800">
                                         Re-Adm
@@ -2387,11 +2533,11 @@ export default function AdmissionRegisterSuite({
                                   <div className="font-bold border-b border-slate-200 pb-0.5">{s.father}</div>
                                   <div className="text-slate-500 text-[7.5px] pt-0.5">{s.mother}</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8.5px]">{s.dobFigures}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8.5px] ledger-mono-font">{s.dobFigures}</td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px] leading-tight font-medium">
                                   {s.subs ? s.subs.split(',').map((sub, i) => <div key={i}>{sub.trim()}</div>) : '—'}
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs">{s.raw?.exam_r_no_current || '—'}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">{s.raw?.exam_r_no_current || '—'}</td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">{s.raw?.result_current || '—'}</td>
                                 <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
                                   <div className="border-t border-slate-900 pt-0.5">Signature</div>
@@ -2416,7 +2562,7 @@ export default function AdmissionRegisterSuite({
                     </div>
 
                     {/* Footer Signatures */}
-                    <div className="flex justify-between items-center mt-4 pt-2 border-t border-slate-300 text-[11px] font-black text-red-800">
+                    <div className="flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge</div>
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
