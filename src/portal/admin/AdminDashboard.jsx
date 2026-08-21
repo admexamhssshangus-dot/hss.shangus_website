@@ -315,10 +315,12 @@ export default function AdminDashboard() {
 
       <div className="w-full max-w-[1750px] mx-auto space-y-0.5">
         {/* Global Firestore Data Synchronization & Network Status Ribbon */}
-        <GlobalDataSyncHUD
-          isActive={loading}
-          recordCount={applications.length}
-        />
+        <div className="no-print">
+          <GlobalDataSyncHUD
+            isActive={loading}
+            recordCount={applications.length}
+          />
+        </div>
 
         {/* Workspace Card */}
         <div className="rounded-xl p-0.5 sm:p-1 border shadow-sm space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
@@ -327,7 +329,7 @@ export default function AdminDashboard() {
             const currentModule = TOOL_MODULES.find(m => m.id === activeTab) || { id: activeTab, label: 'Admin Tool', icon: Wrench };
             const CurrentIcon = currentModule.icon;
             return (
-              <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-xl border text-xs font-bold flex-wrap md:flex-nowrap bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-2xs">
+              <div className="no-print flex items-center justify-between gap-1.5 p-1.5 rounded-xl border text-xs font-bold flex-wrap md:flex-nowrap bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-2xs">
                 
                 {/* Left Slot: Brand & Active Module Title (Strictly Anchored Left) */}
                 <div className="flex min-w-0 items-center gap-1.5 flex-nowrap shrink-0 order-1">
