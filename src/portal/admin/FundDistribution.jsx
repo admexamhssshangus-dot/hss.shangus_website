@@ -1427,15 +1427,30 @@ export default function FundDistribution() {
           records: [],
           totalAmount: 0,
           totalStudents: 0,
+          totalScienceStudents: 0,
           classTotals: {}
         };
       }
       groups[y].records.push(item);
       groups[y].totalAmount += (parseFloat(item.totalAmount) || 0);
-      groups[y].totalStudents += (parseInt(item.paidStudents || item.onRoll || 0, 10) || 0);
+      const paid = parseInt(item.paidStudents || item.onRoll || 0, 10) || 0;
+      const sci = parseInt(item.scienceStudents || 0, 10) || 0;
+      groups[y].totalStudents += paid;
+      groups[y].totalScienceStudents += sci;
 
       const cls = item.class || 'Other';
-      groups[y].classTotals[cls] = (groups[y].classTotals[cls] || 0) + (parseFloat(item.totalAmount) || 0);
+      if (!groups[y].classTotals[cls]) {
+        groups[y].classTotals[cls] = {
+          amount: 0,
+          paidStudents: 0,
+          sciStudents: 0,
+          reportCount: 0
+        };
+      }
+      groups[y].classTotals[cls].amount += (parseFloat(item.totalAmount) || 0);
+      groups[y].classTotals[cls].paidStudents += paid;
+      groups[y].classTotals[cls].sciStudents += sci;
+      groups[y].classTotals[cls].reportCount += 1;
     });
     return Object.values(groups).sort((a, b) => String(b.year).localeCompare(String(a.year)));
   }, [filteredHistory]);
@@ -2207,17 +2222,45 @@ export default function FundDistribution() {
                       {/* Group Table */}
                       {!isCollapsed && (
                         <div>
-                          {/* Class-wise Totals Breakdown Bar */}
-                          <div className="px-4 py-2 bg-slate-50/70 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 flex-wrap text-xs">
-                            <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400">Class Totals:</span>
+                          {/* Class-wise Totals Breakdown Bar (Compact & Prominent) */}
+                          <div className="px-3.5 py-1.5 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 flex-wrap text-xs">
+                            <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                              Class Totals:
+                            </span>
                             {['9th', '10th', '11th', '12th'].map(clsKey => {
                               const cData = group.classTotals[clsKey];
-                              if (!cData) return null;
+                              if (!cData || cData.amount <= 0) return null;
                               return (
-                                <div key={clsKey} className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
-                                  <span className="font-black text-blue-600 dark:text-blue-400 text-[10.5px]">{clsKey}:</span>
-                                  <span className="font-mono font-black text-slate-900 dark:text-white text-[10.5px]">{formatCurrency(cData.amount)}</span>
-                                  <span className="text-[9px] font-bold text-slate-400">({cData.count} std)</span>
+                                <div
+                                  key={clsKey}
+                                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs text-[10.5px]"
+                                >
+                                  <span className="font-black text-blue-600 dark:text-blue-400">{clsKey}:</span>
+                                  <span className="font-mono font-black text-slate-900 dark:text-white">
+                                    {formatCurrency(cData.amount)}
+                                  </span>
+                                  <span className="text-[9px] font-bold font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300">
+                                    {cData.paidStudents} std{cData.sciStudents > 0 ? ` (${cData.sciStudents} sci)` : ''}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {Object.keys(group.classTotals).filter(k => !['9th', '10th', '11th', '12th'].includes(k)).map(clsKey => {
+                              const cData = group.classTotals[clsKey];
+                              if (!cData || cData.amount <= 0) return null;
+                              return (
+                                <div
+                                  key={clsKey}
+                                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs text-[10.5px]"
+                                >
+                                  <span className="font-black text-slate-600 dark:text-slate-400">{clsKey}:</span>
+                                  <span className="font-mono font-black text-slate-900 dark:text-white">
+                                    {formatCurrency(cData.amount)}
+                                  </span>
+                                  <span className="text-[9px] font-bold font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300">
+                                    {cData.paidStudents} std
+                                  </span>
                                 </div>
                               );
                             })}
