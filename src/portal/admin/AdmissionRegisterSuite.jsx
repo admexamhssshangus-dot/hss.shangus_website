@@ -4,7 +4,7 @@ import {
   BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer,
   RefreshCw, Check, Search, ZoomIn, ZoomOut,
   Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
-  UserCheck, UserX, AlertCircle, X, Edit3
+  UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -174,9 +174,20 @@ export default function AdmissionRegisterSuite({
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
 
-  // Readmission Management Modal State
+  // Readmission Management Modal State (Universal Candidate Search & Class Mapper)
   const [readmissionModalStudent, setReadmissionModalStudent] = useState(null);
-  const [reAdmFormState, setReAdmFormState] = useState({ isReAdm: true, oldAdmNo: '', reason: 'Gap in Studies / Re-enrolled' });
+  const [isUniversalModalOpen, setIsUniversalModalOpen] = useState(false);
+  const [searchCandidateQuery, setSearchCandidateQuery] = useState('');
+  const [reAdmFormState, setReAdmFormState] = useState({
+    isReAdm: true,
+    targetSession: '2025-26',
+    targetClass: '11th',
+    targetStream: 'General',
+    assignedAdmNo: '',
+    oldAdmNo: '',
+    prevSchoolOrClass: '',
+    reason: 'Gap in Studies / Re-enrolled'
+  });
   const [savingReAdm, setSavingReAdm] = useState(false);
 
   // Loading States for Session Data
@@ -207,6 +218,90 @@ export default function AdmissionRegisterSuite({
     const cached = getCachedCollectionSync('masterRegisters');
     return Array.isArray(cached) && cached.length > 0 ? cached : [];
   });
+
+  // Calculate Next Available Sequential Admission Number
+  const nextSequentialAdmNo = useMemo(() => {
+    let max = 5000;
+    (dataset || []).forEach(s => {
+      const rawNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.']);
+      const num = parseInt(rawNo, 10);
+      if (!isNaN(num) && num > max) max = num;
+    });
+    return String(max + 1);
+  }, [dataset]);
+
+  // Index All Historical & Current Students Across Database for Universal Candidate Search
+  const allAvailableDatabaseStudents = useMemo(() => {
+    const map = new Map();
+    // 1. Current dataset (admissions)
+    (dataset || []).forEach((s, idx) => {
+      const id = cleanStr(s.id || s.docId || s.formNo || `adm_${idx}`);
+      if (!map.has(id)) {
+        map.set(id, {
+          raw: s,
+          id,
+          name: cleanStr(s.studentName || s["Student's Name (as per school records)"] || s['Student Name'] || s.name),
+          father: cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.father),
+          class: cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th'),
+          session: cleanStr(s.session || s.Session || s['Academic Session'] || selectedSession),
+          stream: cleanStr(s.stream || s.Stream || 'General'),
+          rollNo: cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no),
+          admNo: cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s.admissionNumber),
+          oldAdmNo: cleanStr(s['Old Admission No.'] || s['Old Adm. No.'] || s.oldAdmNo || s['old_adm_no']),
+          boardReg: cleanStr(s.boardRegNo || s['Board Registration Number'] || s.boardReg || s['Board Reg. No.']),
+          dob: cleanStr(s.dob || s['DoB (as per school records)'] || s['Date of Birth']),
+          mobile: cleanStr(s.mobile || s['Mobile No. (with working WhatsApp)'] || s['Student Mobile']),
+          isReadmission: String(s.readmission || s['Re-admission'] || s.isReadmission || '').toLowerCase() === 'yes' || s.readmission === true || s.isReadmission === true
+        });
+      }
+    });
+    // 2. Master registers history
+    (historyDataset || []).forEach(h => {
+      const pSess = cleanStr(h.session || h.Session || h['Academic Session'] || '');
+      const chunk = h.items || h.students || h.records || h.data;
+      if (Array.isArray(chunk)) {
+        chunk.forEach((item, i) => {
+          const id = cleanStr(item.id || item['Form Number'] || `${h.id}_${i}`);
+          if (!map.has(id)) {
+            map.set(id, {
+              raw: item,
+              id,
+              name: cleanStr(item.studentName || item["Student's Name (as per school records)"] || item['Student Name'] || item.name),
+              father: cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"] || item.father),
+              class: cleanStr(item.class || item.Class || '10th'),
+              session: cleanStr(item.session || item.Session || pSess || 'Past Session'),
+              stream: cleanStr(item.stream || item.Stream || 'General'),
+              rollNo: cleanStr(item.classRollNo || item['Class Roll No'] || item.rollNo || item.RollNo),
+              admNo: cleanStr(item.admNo || item['Adm. No.'] || item['Admission No.']),
+              oldAdmNo: cleanStr(item['Old Admission No.'] || item.oldAdmNo),
+              boardReg: cleanStr(item.boardRegNo || item['Board Registration Number'] || item.boardReg),
+              dob: cleanStr(item.dob || item['Date of Birth']),
+              mobile: cleanStr(item.mobile || item['Mobile No.']),
+              isReadmission: String(item.readmission || item['Re-admission'] || item.isReadmission || '').toLowerCase() === 'yes' || item.readmission === true
+            });
+          }
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [dataset, historyDataset, selectedSession]);
+
+  // Candidates Search Results
+  const candidateSearchResults = useMemo(() => {
+    if (!searchCandidateQuery.trim()) return allAvailableDatabaseStudents.slice(0, 15);
+    const q = searchCandidateQuery.toLowerCase().trim();
+    return allAvailableDatabaseStudents.filter(s => {
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.father.toLowerCase().includes(q) ||
+        s.rollNo.toLowerCase().includes(q) ||
+        s.admNo.toLowerCase().includes(q) ||
+        s.oldAdmNo.toLowerCase().includes(q) ||
+        s.boardReg.toLowerCase().includes(q) ||
+        s.class.toLowerCase().includes(q)
+      );
+    }).slice(0, 20);
+  }, [allAvailableDatabaseStudents, searchCandidateQuery]);
 
   // 1. DYNAMICALLY FETCH ALL SESSIONS AVAILABLE IN DATABASE
   const [availableSessions, setAvailableSessions] = useState(['2025-26', '2024-25', '2023-24', '2022-23']);
@@ -604,12 +699,63 @@ export default function AdmissionRegisterSuite({
     );
   };
 
-  // Open Readmission Modal
+  // Open Universal Readmission Modal (Candidate Search Mode)
+  const handleOpenUniversalReadmissionModal = () => {
+    setReadmissionModalStudent(null);
+    setIsUniversalModalOpen(true);
+    setSearchCandidateQuery('');
+    setReAdmFormState({
+      isReAdm: true,
+      targetSession: selectedSession || '2025-26',
+      targetClass: selectedClass !== 'ALL' ? selectedClass : '11th',
+      targetStream: selectedStream !== 'ALL' ? selectedStream : 'General',
+      assignedAdmNo: nextSequentialAdmNo,
+      oldAdmNo: '',
+      prevSchoolOrClass: '',
+      reason: 'Gap in Studies / Re-enrolled'
+    });
+  };
+
+  // Select Candidate for Readmission from Search Results
+  const handleSelectCandidateForReadmission = (candidate) => {
+    setReadmissionModalStudent(candidate);
+    setIsUniversalModalOpen(false);
+
+    // Smartly determine target register class:
+    // If student was in 10th (or 10th sentup/board), default target register class is 9th (or 10th);
+    // If student was in 12th (or 12th sentup/board), default target register class is 11th (or 12th);
+    const prevCls = candidate.class || '10th';
+    let defaultTargetCls = '11th';
+    if (prevCls.includes('10') || prevCls.includes('9')) {
+      defaultTargetCls = '9th';
+    } else if (prevCls.includes('12') || prevCls.includes('11')) {
+      defaultTargetCls = '11th';
+    }
+
+    setReAdmFormState({
+      isReAdm: true,
+      targetSession: selectedSession || '2025-26',
+      targetClass: defaultTargetCls,
+      targetStream: candidate.stream || (selectedStream !== 'ALL' ? selectedStream : 'General'),
+      assignedAdmNo: candidate.admNo || nextSequentialAdmNo,
+      oldAdmNo: candidate.oldAdmNo || candidate.admNo || '',
+      prevSchoolOrClass: `HSS Shangus (Class ${prevCls}, ${candidate.session || 'Past Session'})`,
+      reason: 'Gap in Studies / Re-enrolled'
+    });
+  };
+
+  // Open Readmission Modal from a specific row in the table
   const handleOpenReadmissionModal = (student) => {
     setReadmissionModalStudent(student);
+    setIsUniversalModalOpen(false);
     setReAdmFormState({
-      isReAdm: !student.isReadmission, // toggle suggestion
-      oldAdmNo: student.oldAdmNo || '',
+      isReAdm: !student.isReadmission,
+      targetSession: student.session || selectedSession || '2025-26',
+      targetClass: student.class || '11th',
+      targetStream: student.stream || 'General',
+      assignedAdmNo: student.admNo || nextSequentialAdmNo,
+      oldAdmNo: student.oldAdmNo || (student.isReadmission ? '' : student.admNo) || '',
+      prevSchoolOrClass: `HSS Shangus (Class ${student.class || '11th'})`,
       reason: student.isReadmission ? 'Fresh Admission' : 'Gap in Studies / Re-enrolled'
     });
   };
@@ -620,42 +766,76 @@ export default function AdmissionRegisterSuite({
     setSavingReAdm(true);
     try {
       const isRe = reAdmFormState.isReAdm;
+      const targetSess = reAdmFormState.targetSession || selectedSession;
+      const targetCls = reAdmFormState.targetClass || readmissionModalStudent.class || '11th';
+      const targetStr = reAdmFormState.targetStream || readmissionModalStudent.stream || 'General';
+      const assignedAdm = cleanStr(reAdmFormState.assignedAdmNo || readmissionModalStudent.admNo || nextSequentialAdmNo);
       const oldAdm = cleanStr(reAdmFormState.oldAdmNo);
-      const docRef = doc(db, 'admissions', readmissionModalStudent.id);
+      const reasonText = cleanStr(reAdmFormState.reason) || 'Gap in Studies / Re-enrolled';
+
+      // Doc ID determination
+      const docId = readmissionModalStudent.id && !readmissionModalStudent.id.startsWith('adm_') && !readmissionModalStudent.id.includes('_')
+        ? readmissionModalStudent.id
+        : (readmissionModalStudent.formNo ? `form_${readmissionModalStudent.formNo}` : `adm_${Date.now()}`);
+
+      const docRef = doc(db, 'admissions', docId);
+      const baseData = readmissionModalStudent.raw || {};
 
       const updates = {
+        ...baseData,
+        id: docId,
+        studentName: readmissionModalStudent.name || baseData.studentName || '',
+        fatherName: readmissionModalStudent.father || baseData.fatherName || '',
+        session: targetSess,
+        Session: targetSess,
+        'Academic Session': targetSess,
+        class: targetCls,
+        Class: targetCls,
+        'Admission sought for class': targetCls,
+        stream: targetStr,
+        Stream: targetStr,
+        admNo: assignedAdm,
+        'Adm. No.': assignedAdm,
+        'Admission No.': assignedAdm,
         readmission: isRe ? 'Yes' : 'No',
         'Re-admission': isRe ? 'Yes' : 'No',
         isReadmission: isRe,
         oldAdmNo: isRe ? oldAdm : '',
         'Old Admission No.': isRe ? oldAdm : '',
+        remarks: isRe ? `Re-admission (${reasonText})${oldAdm ? ` • Prev Adm: ${oldAdm}` : ''}` : cleanStr(baseData.remarks || ''),
         updatedAt: new Date().toISOString(),
         lastEditedBy: `Admin (${user?.email || 'Readmission Tool'})`
       };
 
       await setDoc(docRef, updates, { merge: true });
-      updateCachedItem('admissions', readmissionModalStudent.id, updates);
+      updateCachedItem('admissions', docId, updates);
 
       // Update local dataset state
-      setDataset(prev => prev.map(item => {
-        if (item.id === readmissionModalStudent.id || item.formNo === readmissionModalStudent.formNo) {
-          return { ...item, ...updates };
+      setDataset(prev => {
+        const exists = prev.some(item => item.id === docId || (readmissionModalStudent.formNo && item.formNo === readmissionModalStudent.formNo));
+        if (exists) {
+          return prev.map(item => (item.id === docId || (readmissionModalStudent.formNo && item.formNo === readmissionModalStudent.formNo)) ? { ...item, ...updates } : item);
         }
-        return item;
-      }));
+        if (targetSess === selectedSession) {
+          return [updates, ...prev];
+        }
+        return prev;
+      });
 
       await logAdminActivity({
         actionType: 'student_readmission_update',
-        actionTitle: `Updated Readmission Status: ${readmissionModalStudent.name}`,
-        details: `${readmissionModalStudent.name} set as ${isRe ? `Re-admission (Old Adm: ${oldAdm || 'N/A'})` : 'Fresh Admission'}.`,
-        metadata: { studentId: readmissionModalStudent.id, isReadmission: isRe, oldAdmNo: oldAdm }
+        actionTitle: `Configured Re-admission: ${readmissionModalStudent.name} (${targetCls})`,
+        details: `${readmissionModalStudent.name} mapped to Class ${targetCls} Session ${targetSess} as ${isRe ? `Re-admission (Adm No: ${assignedAdm || '—'}, Old Adm: ${oldAdm || 'N/A'})` : 'Fresh'}.`,
+        metadata: { studentId: docId, targetClass: targetCls, targetSession: targetSess, isReadmission: isRe, oldAdmNo: oldAdm }
       });
 
       setToast({
-        message: `✨ ${readmissionModalStudent.name} updated to ${isRe ? 'Re-admission' : 'Fresh Admission'}!`,
+        message: `✨ ${readmissionModalStudent.name} mapped to Class ${targetCls} (${targetSess}) as ${isRe ? 'Re-admission' : 'Fresh'}!`,
         type: 'success'
       });
       setReadmissionModalStudent(null);
+      setIsUniversalModalOpen(false);
+      setSearchCandidateQuery('');
       if (onDataUpdated) onDataUpdated();
     } catch (err) {
       console.error('Error saving readmission:', err);
@@ -1195,12 +1375,23 @@ export default function AdmissionRegisterSuite({
                       ? 'border-purple-400 bg-purple-50 text-purple-900 dark:bg-purple-950 dark:text-purple-200'
                       : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
                   }`}
-                  title="Admission Type"
+                  title="Filter Admission Type"
                 >
                   <option value="ALL">All Types</option>
                   <option value="fresh">Fresh ({statusCounts.fresh})</option>
                   <option value="readmission">Re-Adm ({statusCounts.readmissions})</option>
                 </select>
+
+                {/* 4b. Universal Add / Tag Re-admission Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenUniversalReadmissionModal}
+                  className="py-0.5 px-2 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 dark:hover:bg-purple-900 border border-purple-300 dark:border-purple-800 font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0"
+                  title="Tag / Map any student (from 10th, 12th, or past sessions) as a Re-admission into 9th or 11th register"
+                >
+                  <UserPlus size={11} className="text-purple-700 dark:text-purple-300" />
+                  <span>+ Re-Adm</span>
+                </button>
 
                 {/* 5. Class Scope Selector */}
                 <select
@@ -1396,103 +1587,276 @@ export default function AdmissionRegisterSuite({
         </div>
       )}
 
-      {/* ─── READMISSION MANAGER MODAL ─── */}
-      {readmissionModalStudent && (
+      {/* ─── UNIVERSAL READMISSION MANAGER MODAL ─── */}
+      {(readmissionModalStudent || isUniversalModalOpen) && (
         <div className="no-print fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in fade-in zoom-in-95">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center">
-                  <Edit3 size={16} />
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center shadow-xs">
+                  <UserPlus size={18} />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">Admission Type & Re-admission Status</h3>
-                  <p className="text-[11px] text-slate-500">{readmissionModalStudent.name} (Class: {readmissionModalStudent.class})</p>
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                    {readmissionModalStudent ? 'Assign Re-admission / Register Mapping' : 'Universal Re-admission Student Finder'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {readmissionModalStudent
+                      ? `Configuring ${readmissionModalStudent.name} for Admission Register`
+                      : 'Search any student across all classes (10th/12th/9th/11th) and past sessions'}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setReadmissionModalStudent(null)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 cursor-pointer"
+                onClick={() => {
+                  setReadmissionModalStudent(null);
+                  setIsUniversalModalOpen(false);
+                  setSearchCandidateQuery('');
+                }}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Admission Category:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: false }))}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                      !reAdmFormState.isReAdm
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <UserCheck size={14} />
-                    <span>Fresh Admission</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: true }))}
-                    className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                      reAdmFormState.isReAdm
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <RefreshCw size={14} />
-                    <span>Re-admission (Gap)</span>
-                  </button>
+            {/* View 1: Search & Select Student if no student is selected */}
+            {!readmissionModalStudent ? (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search candidate by name, father, roll no, board reg, class (10th/12th)..."
+                    value={searchCandidateQuery}
+                    onChange={(e) => setSearchCandidateQuery(e.target.value)}
+                    autoFocus
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 font-medium focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                  <p className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider px-1">
+                    Select a student to map as Re-admission ({candidateSearchResults.length} found):
+                  </p>
+                  {candidateSearchResults.map((candidate) => (
+                    <div
+                      key={candidate.id}
+                      onClick={() => handleSelectCandidateForReadmission(candidate)}
+                      className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50/50 dark:hover:bg-purple-950/40 cursor-pointer transition-all flex items-center justify-between gap-2 group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black text-xs flex items-center justify-center shrink-0 border">
+                          {candidate.name ? candidate.name[0].toUpperCase() : 'S'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs text-slate-900 dark:text-white truncate group-hover:text-purple-700 dark:group-hover:text-purple-300">
+                            {candidate.name}
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 truncate">
+                            S/o {candidate.father || '—'} • Class: <span className="font-bold text-indigo-600 dark:text-indigo-400">{candidate.class}</span> ({candidate.session})
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {candidate.admNo && (
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">
+                            Adm: {candidate.admNo}
+                          </span>
+                        )}
+                        <span className="p-1 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                          <ChevronRight size={13} />
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {candidateSearchResults.length === 0 && (
+                    <div className="p-4 text-center text-xs text-slate-400 border border-dashed rounded-xl">
+                      No matching student found for "{searchCandidateQuery}".
+                    </div>
+                  )}
                 </div>
               </div>
+            ) : (
+              /* View 2: Configure Re-admission & Target Class Mapping */
+              <div className="space-y-3.5 text-xs">
+                {/* Selected Student Information Banner */}
+                <div className="p-3 bg-purple-50/70 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-extrabold text-purple-700 dark:text-purple-300 uppercase tracking-wider">Candidate Selected</span>
+                    <h4 className="font-black text-sm text-slate-900 dark:text-white">{readmissionModalStudent.name}</h4>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      S/o {readmissionModalStudent.father || '—'} • Original Record: Class {readmissionModalStudent.class} ({readmissionModalStudent.session || 'Past'})
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReadmissionModalStudent(null)}
+                    className="px-2 py-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 dark:text-purple-300 bg-white dark:bg-slate-900 rounded-lg border border-purple-200 dark:border-purple-800 cursor-pointer shadow-2xs"
+                  >
+                    Change
+                  </button>
+                </div>
 
-              {reAdmFormState.isReAdm && (
-                <div className="p-3 bg-purple-50/70 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 space-y-2.5 animate-in fade-in">
+                {/* Admission Category Selector */}
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Admission Category:</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: false }))}
+                      className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                        !reAdmFormState.isReAdm
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <UserCheck size={13} />
+                      <span>Fresh Admission</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: true }))}
+                      className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                        reAdmFormState.isReAdm
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <RefreshCw size={13} />
+                      <span>Re-admission (Gap)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Target Session & Class Mapping Fields */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Target Academic Session:</label>
+                    <select
+                      value={reAdmFormState.targetSession}
+                      onChange={(e) => setReAdmFormState(prev => ({ ...prev, targetSession: e.target.value }))}
+                      className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-indigo-700 dark:text-indigo-300"
+                    >
+                      {availableSessions.map(sess => (
+                        <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Admission Register Class:</label>
+                    <select
+                      value={reAdmFormState.targetClass}
+                      onChange={(e) => setReAdmFormState(prev => ({ ...prev, targetClass: e.target.value }))}
+                      className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-900 dark:text-slate-100"
+                    >
+                      <option value="11th">Class 11th Register</option>
+                      <option value="9th">Class 9th Register</option>
+                      <option value="12th">Class 12th</option>
+                      <option value="10th">Class 10th</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Stream and Reason */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Academic Stream:</label>
+                    <select
+                      value={reAdmFormState.targetStream}
+                      onChange={(e) => setReAdmFormState(prev => ({ ...prev, targetStream: e.target.value }))}
+                      className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold"
+                    >
+                      <option value="Science (Medical)">Science (Medical)</option>
+                      <option value="Science (Non-Medical)">Science (Non-Medical)</option>
+                      <option value="Arts">Arts</option>
+                      <option value="Commerce">Commerce</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Re-admission Reason:</label>
+                    <select
+                      value={reAdmFormState.reason}
+                      onChange={(e) => setReAdmFormState(prev => ({ ...prev, reason: e.target.value }))}
+                      className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    >
+                      <option value="Gap in Studies / Re-enrolled">Gap in Studies</option>
+                      <option value="Failed in Previous Examination">Failed / Repeat</option>
+                      <option value="Non-Appearance in Board Exam">Board Exam Non-Appearance</option>
+                      <option value="Medical / Domestic Leave">Medical / Personal Gap</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Admission Numbers (New & Historical Audit) */}
+                <div className="grid grid-cols-2 gap-2.5 p-3 bg-purple-50/60 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800">
                   <div>
                     <label className="block text-[11px] font-bold text-purple-950 dark:text-purple-200 mb-1">
-                      Previous Admission Number (Recorded in Historical Audit):
+                      Assigned Admission No:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 5480"
+                      value={reAdmFormState.assignedAdmNo}
+                      onChange={(e) => setReAdmFormState(prev => ({ ...prev, assignedAdmNo: e.target.value }))}
+                      className="w-full p-1.5 text-xs rounded-lg border border-purple-300 dark:border-purple-700 font-mono font-bold bg-white dark:bg-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-purple-950 dark:text-purple-200 mb-1">
+                      Previous Admission No (Audit):
                     </label>
                     <input
                       type="text"
                       placeholder="e.g. 4312"
                       value={reAdmFormState.oldAdmNo}
                       onChange={(e) => setReAdmFormState(prev => ({ ...prev, oldAdmNo: e.target.value }))}
-                      className="w-full p-2 text-xs rounded-lg border border-purple-300 dark:border-purple-700 font-mono font-bold bg-white dark:bg-slate-900"
+                      className="w-full p-1.5 text-xs rounded-lg border border-purple-300 dark:border-purple-700 font-mono font-bold bg-white dark:bg-slate-900"
                     />
-                    <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-1">
-                      Will format in register as: <strong>{readmissionModalStudent.admNo || '5480'} ({reAdmFormState.oldAdmNo || 'Old Adm'})</strong>
-                    </p>
                   </div>
 
-                  <div className="text-[10.5px] text-purple-800 dark:text-purple-300 flex items-start gap-1.5 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="col-span-2 text-[10.5px] text-purple-800 dark:text-purple-300 flex items-start gap-1.5 pt-1">
                     <AlertCircle size={13} className="shrink-0 mt-0.5 text-purple-600" />
-                    <span>Re-admission students will be neatly ordered at the end of their respective class register section as per departmental guidelines.</span>
+                    <span>
+                      Will print in the <strong>Class {reAdmFormState.targetClass} ({reAdmFormState.targetSession})</strong> ledger at the end of the section as:{' '}
+                      <strong className="font-mono bg-purple-100 dark:bg-purple-900 px-1 py-0.5 rounded">
+                        {reAdmFormState.assignedAdmNo || '5480'} ({reAdmFormState.oldAdmNo || '4312'})
+                      </strong>
+                    </span>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
+            {/* Modal Actions */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setReadmissionModalStudent(null)}
+                onClick={() => {
+                  setReadmissionModalStudent(null);
+                  setIsUniversalModalOpen(false);
+                  setSearchCandidateQuery('');
+                }}
                 className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleSaveReadmission}
-                disabled={savingReAdm}
-                className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {savingReAdm ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                <span>Save Status</span>
-              </button>
+              {readmissionModalStudent && (
+                <button
+                  type="button"
+                  onClick={handleSaveReadmission}
+                  disabled={savingReAdm}
+                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingReAdm ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  <span>Save Re-admission Mapping</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
