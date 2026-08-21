@@ -70,6 +70,104 @@ export function normalizeSessionVal(sess) {
   return str;
 }
 
+// ─── CANONICAL JKBOSE SUBJECT CODES & COMPARISON ENGINE ───
+export function getCanonicalSubjectCodes(raw) {
+  if (!raw) return new Set();
+  const tokens = Array.isArray(raw)
+    ? raw
+    : String(raw).split(/[,;+/|\n\r]+/).map(s => s.trim()).filter(Boolean);
+
+  const codes = new Set();
+
+  tokens.forEach(token => {
+    const t = String(token).toLowerCase().trim();
+    if (!t || t === '—' || t === 'n/a' || t === '-' || t.includes('same as')) return;
+
+    // English
+    if (t === 'ge' || t === 'en' || t.includes('english')) { codes.add('GE'); return; }
+    // Environmental Science
+    if (t === 'es' || t === 'evs' || t.includes('environmental') || t.includes('environment')) { codes.add('ES'); return; }
+    // Physics
+    if (t === 'ph' || t.includes('physic')) { codes.add('PH'); return; }
+    // Chemistry
+    if (t === 'ch' || t.includes('chemist')) { codes.add('CH'); return; }
+    // Biology / Botany / Zoology
+    if (t === 'bi' || t.includes('biolog')) { codes.add('BI'); return; }
+    if (t === 'bo' || t.includes('botan')) { codes.add('BO'); return; }
+    if (t === 'zo' || t.includes('zoolog')) { codes.add('ZO'); return; }
+    if (t === 'bt' || t.includes('biotech')) { codes.add('BT'); return; }
+    // Mathematics
+    if (t === 'ma' || t === 'math' || t === 'maths' || t.includes('mathemat')) { codes.add('MA'); return; }
+    // Physical Education
+    if (t === 'pd' || t === 'phe' || t.includes('physical')) { codes.add('PD'); return; }
+    // IT & ITES
+    if (t === 'ite' || t === 'it' || t.includes('information tech') || t.includes('ites') || t.includes('it & ites') || t.includes('it and ites')) { codes.add('ITE'); return; }
+    // Computer Science
+    if (t === 'cs' || t === 'ip' || t.includes('computer') || t.includes('informatics')) { codes.add('CS'); return; }
+    // Healthcare
+    if (t === 'htc' || t === 'hc' || t.includes('health') || t.includes('healthcare')) { codes.add('HTC'); return; }
+    // Tourism
+    if (t === 'th' || t === 'tt' || t.includes('tourism') || t.includes('hospitality')) { codes.add('TH'); return; }
+    // Agriculture
+    if (t === 'ag' || t === 'at' || t.includes('agricult')) { codes.add('AG'); return; }
+    // Commerce
+    if (t === 'ac' || t === 'act' || t.includes('account')) { codes.add('AC'); return; }
+    if (t === 'bs' || t === 'bst' || t.includes('business')) { codes.add('BS'); return; }
+    if (t === 'ep' || t.includes('entrepreneur')) { codes.add('EP'); return; }
+    // Humanities
+    if (t === 'ec' || t.includes('econom')) { codes.add('EC'); return; }
+    if (t === 'ht' || t.includes('histor')) { codes.add('HT'); return; }
+    if (t === 'ps' || t.includes('pol') || t.includes('politic')) { codes.add('PS'); return; }
+    if (t === 'ed' || t.includes('educat')) { codes.add('ED'); return; }
+    if (t === 'so' || t.includes('sociol')) { codes.add('SO'); return; }
+    if (t === 'ur' || t.includes('urdu')) { codes.add('UR'); return; }
+    if (t === 'ar' || t.includes('arabic')) { codes.add('AR'); return; }
+    if (t === 'ka' || t === 'ks' || t.includes('kashmir')) { codes.add('KA'); return; }
+    if (t === 'hi' || t.includes('hindi')) { codes.add('HI'); return; }
+    if (t === 'is' || t.includes('islamic')) { codes.add('IS'); return; }
+    if (t === 'gg' || t.includes('geograph')) { codes.add('GG'); return; }
+    if (t === 'pl' || t.includes('philosoph')) { codes.add('PL'); return; }
+    if (t === 'py' || t.includes('psycholog')) { codes.add('PY'); return; }
+    if (t === 'hs' || t.includes('home sci')) { codes.add('HS'); return; }
+
+    // Direct 2-4 letter uppercase abbreviation
+    if (/^[a-zA-Z]{2,4}$/.test(t)) {
+      codes.add(t.toUpperCase());
+    }
+  });
+
+  return codes;
+}
+
+export function areSubjectSetsMatching(raw1, raw2) {
+  if (!raw1 || !raw2 || raw1 === '—' || raw2 === '—') return true;
+  const codes1 = getCanonicalSubjectCodes(raw1);
+  const codes2 = getCanonicalSubjectCodes(raw2);
+
+  if (codes1.size === 0 || codes2.size === 0) return true;
+
+  // Filter out compulsory common subjects (GE, ES) when checking elective mismatches
+  const electives1 = new Set([...codes1].filter(c => c !== 'GE' && c !== 'ES'));
+  const electives2 = new Set([...codes2].filter(c => c !== 'GE' && c !== 'ES'));
+
+  if (electives1.size === 0 || electives2.size === 0) {
+    return codes1.size === codes2.size && [...codes1].every(c => codes2.has(c));
+  }
+
+  // Exact elective match
+  if (electives1.size === electives2.size && [...electives1].every(c => electives2.has(c))) {
+    return true;
+  }
+
+  // If both have at least 3 matching core electives and size difference <= 1
+  const common = [...electives1].filter(c => electives2.has(c));
+  if (common.length >= 3 && Math.abs(electives1.size - electives2.size) <= 1) {
+    if (electives1.size === electives2.size) return true;
+  }
+
+  return false;
+}
+
 // ─── Global Helper to resolve authentic student stream without 'Same as in class 11th' ───
 export function resolveStudentStream(st, masterMatch = null) {
   if (!st && !masterMatch) return 'General';
@@ -93,9 +191,10 @@ export function resolveStudentStream(st, masterMatch = null) {
       const trimmed = cand.trim();
       const lower = trimmed.toLowerCase();
       if (lower && !lower.includes('same as') && lower !== '—' && lower !== 'n/a' && lower !== 'null' && lower !== 'undefined' && lower !== '-') {
-        if (lower.includes('sci') || lower.includes('med')) return 'Science';
         if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
         if (lower.includes('com')) return 'Commerce';
+        if (lower.includes('sci') || lower.includes('med')) return 'Science';
+        if (lower.includes('home sci') || lower.includes('home-sci')) return 'Home Science';
         if (lower.includes('gen')) return 'General';
         return trimmed;
       }
@@ -108,7 +207,7 @@ export function resolveStudentStream(st, masterMatch = null) {
     return 'General';
   }
 
-  // 3. Infer canonically from subjects (even if form says "Same as in class 11th")
+  // 3. Infer canonically from subjects using canonical subject codes
   const rawSubjs = (
     String(st?.subs || '') + ' ' +
     String(st?.Subjects || '') + ' ' +
@@ -124,30 +223,23 @@ export function resolveStudentStream(st, masterMatch = null) {
     String(st?.Subject6 || '') + ' ' +
     String(masterMatch?.subs || '') + ' ' +
     String(masterMatch?.Subjects || '')
-  ).toLowerCase();
+  );
 
-  if (
-    rawSubjs.includes('physics') || rawSubjs.includes('chemistry') || rawSubjs.includes('biology') ||
-    rawSubjs.includes('botany') || rawSubjs.includes('zoology') || rawSubjs.includes('mathematics') ||
-    rawSubjs.includes('computer') || rawSubjs.includes('information tech') || rawSubjs.includes('biotech') ||
-    rawSubjs.includes('environmental science') || rawSubjs.includes('evs')
-  ) {
+  const codes = getCanonicalSubjectCodes(rawSubjs);
+
+  // Pure Science: (Physics && Chemistry) or (Physics && Biology) or (Chemistry && Biology) or pure science codes
+  if ((codes.has('PH') && codes.has('CH')) || (codes.has('PH') && codes.has('BI')) || (codes.has('CH') && codes.has('BI')) || (codes.has('PH') && codes.has('MA')) || codes.has('BO') || codes.has('ZO') || codes.has('BT')) {
     return 'Science';
   }
 
-  if (
-    rawSubjs.includes('political') || rawSubjs.includes('history') || rawSubjs.includes('education') ||
-    rawSubjs.includes('sociology') || rawSubjs.includes('economics') || rawSubjs.includes('urdu') ||
-    rawSubjs.includes('kashmiri') || rawSubjs.includes('arabic') || rawSubjs.includes('geography') ||
-    rawSubjs.includes('islamic') || rawSubjs.includes('philosophy') || rawSubjs.includes('psychology')
-  ) {
-    return 'Humanities';
+  // Commerce Core:
+  if (codes.has('AC') || codes.has('BS') || codes.has('EP')) {
+    return 'Commerce';
   }
 
-  if (
-    rawSubjs.includes('accountancy') || rawSubjs.includes('business studies') || rawSubjs.includes('commerce')
-  ) {
-    return 'Commerce';
+  // Humanities Core:
+  if (codes.has('HT') || codes.has('PS') || codes.has('ED') || codes.has('EC') || codes.has('SO') || codes.has('UR') || codes.has('AR') || codes.has('KA') || codes.has('HI') || codes.has('IS') || codes.has('GG') || codes.has('PL') || codes.has('PY')) {
+    return 'Humanities';
   }
 
   if (cls.includes('11') || cls.includes('12')) {
@@ -2683,17 +2775,6 @@ const COLUMN_DEFS = [
 
       const getStreamDetails = (st, rawSubs) => {
         const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
-        const abbrSubjs = abbreviateSubjects(rawSubs);
-
-        // If no subjects and draft/empty
-        if (!rawSubs || rawSubs === '—' || abbrSubjs === '—') {
-          if (cls.includes('9') || cls.includes('10')) {
-            return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
-          }
-          return { code: '', label: '', style: '' };
-        }
-
-        // 9th & 10th grade is always General (G)
         if (cls.includes('9') || cls.includes('10')) {
           return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
         }
@@ -2707,91 +2788,55 @@ const COLUMN_DEFS = [
           ''
         ).toLowerCase();
 
-        const allSubjs = (
-          String(rawSubs || '') + ' ' +
-          String(abbrSubjs || '') + ' ' +
-          String(st?.subs || '') + ' ' +
-          String(st?.Subjects || '') + ' ' +
-          String(st?.Subjects1 || '') + ' ' +
-          String(st?.Subjects2 || '') + ' ' +
-          String(st?.Subjects3 || '') + ' ' +
-          String(st?.Subjects4 || '') + ' ' +
-          String(st?.Subjects5 || '')
-        ).toLowerCase();
+        const abbrSubjs = abbreviateSubjects(rawSubs);
+        const allSubjStr = `${rawSubs || ''} ${st?.subs || ''} ${st?.Subjects || ''} ${abbrSubjs || ''}`;
+        const codes = getCanonicalSubjectCodes(allSubjStr);
 
-        const upperAbbr = String(abbrSubjs || '').toUpperCase();
+        // 1. Science Core Check (Physics + Chemistry, or Physics + Bio, or Chemistry + Bio, or Pure Science codes)
+        const hasScienceSubjects =
+          (codes.has('PH') && codes.has('CH')) ||
+          (codes.has('PH') && codes.has('BI')) ||
+          (codes.has('CH') && codes.has('BI')) ||
+          (codes.has('PH') && codes.has('MA')) ||
+          codes.has('BO') || codes.has('ZO') || codes.has('BT');
 
-        // 1. Core Science subjects check (Physics, Chemistry, Biology/Botany/Zoology, Math, ITE, CS)
-        const hasCoreScience =
-          rawStream.includes('science') ||
-          rawStream.includes('med') ||
-          allSubjs.includes('physics') ||
-          allSubjs.includes('chemistry') ||
-          allSubjs.includes('biology') ||
-          allSubjs.includes('botany') ||
-          allSubjs.includes('zoology') ||
-          allSubjs.includes('mathematics') ||
-          allSubjs.includes('computer science') ||
-          allSubjs.includes('information tech') ||
-          allSubjs.includes('biotechnology') ||
-          upperAbbr.includes('PH') ||
-          upperAbbr.includes('CH') ||
-          upperAbbr.includes('BI') ||
-          upperAbbr.includes('BO') ||
-          upperAbbr.includes('ZO') ||
-          upperAbbr.includes('MA') ||
-          upperAbbr.includes('ITE') ||
-          upperAbbr.includes('CS');
+        const hasScienceStream = rawStream.includes('sci') || rawStream.includes('med');
 
-        // 2. Core Commerce check
-        const hasCoreCommerce =
+        // 2. Commerce Core Check
+        const hasCommerce =
           rawStream.includes('commerce') ||
-          allSubjs.includes('accountancy') ||
-          allSubjs.includes('business studies') ||
-          allSubjs.includes('entrepreneurship') ||
-          upperAbbr.includes('AC') ||
-          upperAbbr.includes('BS') ||
-          upperAbbr.includes('COM');
+          codes.has('AC') ||
+          codes.has('BS') ||
+          codes.has('EP');
 
-        // 3. Core Humanities subjects check (History, Political Science, Education, Economics, Urdu, Sociology, Geography, etc.)
-        const hasCoreHumanities =
-          rawStream.includes('humanities') ||
-          rawStream.includes('arts') ||
-          allSubjs.includes('history') ||
-          allSubjs.includes('political science') ||
-          allSubjs.includes('education') ||
-          allSubjs.includes('sociology') ||
-          allSubjs.includes('geography') ||
-          allSubjs.includes('psychology') ||
-          allSubjs.includes('philosophy') ||
-          allSubjs.includes('islamic studies') ||
-          allSubjs.includes('economics') ||
-          allSubjs.includes('urdu') ||
-          allSubjs.includes('kashmiri') ||
-          allSubjs.includes('arabic') ||
-          allSubjs.includes('hindi') ||
-          upperAbbr.includes('HT') ||
-          upperAbbr.includes('PS') ||
-          upperAbbr.includes('ED') ||
-          upperAbbr.includes('EC') ||
-          upperAbbr.includes('SO') ||
-          upperAbbr.includes('UR') ||
-          upperAbbr.includes('KA') ||
-          upperAbbr.includes('AR') ||
-          upperAbbr.includes('HI') ||
-          upperAbbr.includes('HTC') ||
-          upperAbbr.includes('IS') ||
-          upperAbbr.includes('GG');
+        // 3. Humanities Core Check
+        const hasHumanitiesSubjects =
+          codes.has('HT') ||
+          codes.has('PS') ||
+          codes.has('ED') ||
+          codes.has('EC') ||
+          codes.has('SO') ||
+          codes.has('UR') ||
+          codes.has('AR') ||
+          codes.has('KA') ||
+          codes.has('HI') ||
+          codes.has('IS') ||
+          codes.has('GG') ||
+          codes.has('PL') ||
+          codes.has('PY');
 
-        if (hasCoreScience) {
+        const hasHumanitiesStream = rawStream.includes('hum') || rawStream.includes('art');
+
+        // If Physics + Chemistry or pure science stream without humanities subjects
+        if (hasScienceSubjects || (hasScienceStream && !hasHumanitiesSubjects)) {
           return { code: 'S', label: 'Science', style: 'bg-blue-600 dark:bg-blue-600 text-white border-blue-700' };
         }
 
-        if (hasCoreCommerce) {
+        if (hasCommerce) {
           return { code: 'C', label: 'Commerce', style: 'bg-amber-600 text-white border-amber-700' };
         }
 
-        if (hasCoreHumanities) {
+        if (hasHumanitiesSubjects || hasHumanitiesStream) {
           return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
         }
 
@@ -2805,17 +2850,38 @@ const COLUMN_DEFS = [
       const streamInfo = getStreamDetails(student, val);
 
       return (
-        <span
-          title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
-          className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline"
-        >
-          <span>{abbr}</span>
-          {streamInfo.code && (
-            <span className={`inline-block align-baseline ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
-              ({streamInfo.code})
+        <div className="flex flex-col leading-tight">
+          <span
+            title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
+            className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline-flex items-center gap-1"
+          >
+            <span>{abbr}</span>
+            {streamInfo.code && (
+              <span className={`inline-block ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
+                ({streamInfo.code})
+              </span>
+            )}
+          </span>
+
+          {/* 12th vs 11th Stream / Subject Mismatch Alert Badge */}
+          {student?.hasStreamMismatch && (
+            <span
+              className="mt-0.5 inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-amber-100/90 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-[8.5px] font-extrabold text-amber-800 dark:text-amber-200"
+              title={`11th Ground Truth: ${student.stream11th} (prev session) | 12th Form Opted: ${student.optedStream12th}`}
+            >
+              <span>⚠️ 12th Opted "{student.optedStream12th}" (11th: "{student.stream11th}")</span>
             </span>
           )}
-        </span>
+
+          {student?.hasSubsMismatch && !student?.hasStreamMismatch && (
+            <span
+              className="mt-0.5 inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-[8px] font-bold text-amber-700 dark:text-amber-300"
+              title={`11th Subjects: ${student.subs11th} (prev session) | 12th Form Opted: ${student.optedSubs12th}`}
+            >
+              <span>⚠️ 12th Subjs: [{student.optedSubs12th}] (11th: [{student.subs11th}])</span>
+            </span>
+          )}
+        </div>
       );
     }
   },
@@ -4881,6 +4947,11 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
     const masterRecordByIdentity = new Map();
     const assignedRollByIdentity = new Map();
 
+    // ─── DEDICATED 11TH GRADE INDEX (FOR 12TH STREAM & SUBJECT CONTINUITY / MISMATCH DETECTION) ───
+    const record11thByReg = new Map();
+    const record11thByAdm = new Map();
+    const record11thByName = new Map();
+
     // ─── CLASS PHOTO GROUP: 9th+10th share 'lower' bucket; 11th+12th share 'upper' bucket ───
     // This means a photo uploaded in 9th is reused for 10th, and a photo in 11th is reused for 12th.
     // Last record scanned wins — so if a student re-uploads in 12th, it replaces the 11th photo.
@@ -4989,7 +5060,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       return keys;
     };
 
-    // PASS 1: Scan records to index identities, adm numbers, photo URLs, and assigned roll numbers
+    // PASS 1: Scan records to index identities, adm numbers, photo URLs, assigned roll numbers, and 11th grade subjects/stream
     const allRawDocs = [...currentAdmissions, ...masterHistoricalRecords];
 
     allRawDocs.forEach(rec => {
@@ -5000,6 +5071,7 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const rollVal = extractClassRoll(rec);
       const photoVal = !isHist ? extractPhotoVal(rec) : '';
       const recName = getStudentName(rec);
+      const recFather = getFatherName(rec);
 
       const recCls = normalizeClassVal(rec['Admission sought for class'] || rec['Class']);
       const recSess = normalizeSessionVal(rec['Session']);
@@ -5007,6 +5079,22 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const rawOldAdm = cleanAdmNoVal(
         rec['Old Admission No.'] || rec['Old Adm. No.'] || rec['oldAdmNo'] || rec['Previous Adm. No.']
       );
+
+      // Index Class 11th record for authentic stream & subject verification in 12th
+      if (recCls === '11th') {
+        const regKey = extractRegNoClean(rec);
+        const admKey = cleanedAdm;
+        const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
+        if (regKey && isValidRegNo(regKey) && !record11thByReg.has(regKey)) {
+          record11thByReg.set(regKey, rec);
+        }
+        if (admKey && admKey !== '—' && !record11thByAdm.has(admKey)) {
+          record11thByAdm.set(admKey, rec);
+        }
+        if (nameKey && !record11thByName.has(nameKey)) {
+          record11thByName.set(nameKey, rec);
+        }
+      }
 
       keys.forEach(k => {
         if (!admNoSetByIdentity.has(k)) admNoSetByIdentity.set(k, new Set());
@@ -5223,13 +5311,65 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const sVillage = a['Name of your village'] || a['Village/Town'] || 'Shangus';
       const sGender = a['Gender'] || '—';
       const sCategory = a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General';
-      const sStream = resolveStudentStream(a, masterMatch);
-      const sSubs = formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec);
+      let sStream = resolveStudentStream(a, masterMatch);
+      let sSubs = formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec);
+
+      // ─── 11th vs 12th STREAM & SUBJECT VERIFICATION (MATCHED ON BOARD REG NO) ───
+      let stream11th = null;
+      let subs11th = null;
+      const optedStream12th = sStream;
+      const optedSubs12th = sSubs;
+      let hasStreamMismatch = false;
+      let hasSubsMismatch = false;
+      let streamMismatchNotice = null;
+      let subsMismatchNotice = null;
+      let matched11thRec = null;
+
+      if (targetClass === '12th') {
+        const regKey = extractRegNoClean(a) || extractRegNoClean(mergedRec);
+        const admKey = cleanAdmNoVal(finalAdmNo);
+        const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
+
+        if (regKey && isValidRegNo(regKey)) {
+          matched11thRec = record11thByReg.get(regKey);
+        }
+        if (!matched11thRec && admKey && admKey !== '—') {
+          matched11thRec = record11thByAdm.get(admKey);
+        }
+        if (!matched11thRec && nameKey) {
+          matched11thRec = record11thByName.get(nameKey);
+        }
+
+        if (matched11thRec) {
+          stream11th = resolveStudentStream(matched11thRec);
+          subs11th = formatStudentSubjects(matched11thRec);
+
+          if (stream11th && stream11th !== 'General') {
+            if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
+              hasStreamMismatch = true;
+              streamMismatchNotice = `⚠️ Stream Mismatch: Opted "${optedStream12th}" in 12th vs "${stream11th}" in 11th`;
+              // Ground truth stream from 11th takes precedence!
+              sStream = stream11th;
+            }
+          }
+
+          if (subs11th && subs11th !== '—' && optedSubs12th && optedSubs12th !== '—') {
+            const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
+            if (!isMatch) {
+              hasSubsMismatch = true;
+              subsMismatchNotice = `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
+              // Ground truth subjects from 11th takes precedence!
+              sSubs = subs11th;
+            }
+          }
+        }
+      }
+
       const sMobile = a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—';
       const sAadhar = a['Aadhar No.'] || a.aadhar || '—';
       const sPen = a['PEN No.'] || '—';
 
-      const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${activeClassRoll} ${finalBoardRegNo} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory}`.toLowerCase();
+      const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${activeClassRoll} ${finalBoardRegNo} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${optedStream12th} ${optedSubs12th} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory} ${hasStreamMismatch ? 'mismatch stream' : ''} ${hasSubsMismatch ? 'mismatch subjects' : ''}`.toLowerCase();
 
       const uniqueDocId = a.docId || a._docId || a.id || (cleanFNo && cleanFNo !== '—' ? `adm_${cleanFNo}` : `adm_${idx}`);
 
@@ -5266,6 +5406,15 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         status: activeResolvedStatus,
         stream: sStream,
         subs: sSubs,
+        hasStreamMismatch,
+        hasSubsMismatch,
+        hasMismatch: hasStreamMismatch || hasSubsMismatch,
+        stream11th,
+        subs11th,
+        optedStream12th,
+        optedSubs12th,
+        streamMismatchNotice,
+        subsMismatchNotice,
         photoId: extractPhotoVal(a) || extractPhotoVal(mergedRec) || getStudentPhotoUrl(a) || getStudentPhotoUrl(mergedRec) || '',
         mobile: sMobile,
         aadhar: sAadhar,
@@ -5373,13 +5522,63 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
       const sVillage = m['Permanent Address'] || m['Name of your village'] || m['Village/Town'] || m['Address'] || m.village || 'Shangus';
       const sGender = m['Gender'] || m.gender || '—';
       const sCategory = m['Cat._JKBOSE'] || m['Category'] || m['Social Category'] || m.category || 'General';
-      const sStream = resolveStudentStream(m, null);
-      const sSubs = formatStudentSubjects(m);
+      let sStream = resolveStudentStream(m, null);
+      let sSubs = formatStudentSubjects(m);
+
+      // ─── 11th vs 12th STREAM & SUBJECT VERIFICATION FOR HISTORICAL RECORDS ───
+      let stream11th = null;
+      let subs11th = null;
+      const optedStream12th = sStream;
+      const optedSubs12th = sSubs;
+      let hasStreamMismatch = false;
+      let hasSubsMismatch = false;
+      let streamMismatchNotice = null;
+      let subsMismatchNotice = null;
+      let matched11thRec = null;
+
+      if (targetClass === '12th') {
+        const regKey = extractRegNoClean(m);
+        const admKey = cleanAdmNoVal(finalAdmNo);
+        const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
+
+        if (regKey && isValidRegNo(regKey)) {
+          matched11thRec = record11thByReg.get(regKey);
+        }
+        if (!matched11thRec && admKey && admKey !== '—') {
+          matched11thRec = record11thByAdm.get(admKey);
+        }
+        if (!matched11thRec && nameKey) {
+          matched11thRec = record11thByName.get(nameKey);
+        }
+
+        if (matched11thRec) {
+          stream11th = resolveStudentStream(matched11thRec);
+          subs11th = formatStudentSubjects(matched11thRec);
+
+          if (stream11th && stream11th !== 'General') {
+            if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
+              hasStreamMismatch = true;
+              streamMismatchNotice = `⚠️ Stream Mismatch: Opted "${optedStream12th}" in 12th vs "${stream11th}" in 11th`;
+              sStream = stream11th;
+            }
+          }
+
+          if (subs11th && subs11th !== '—' && optedSubs12th && optedSubs12th !== '—') {
+            const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
+            if (!isMatch) {
+              hasSubsMismatch = true;
+              subsMismatchNotice = `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
+              sSubs = subs11th;
+            }
+          }
+        }
+      }
+
       const sMobile = m['Mobile No. (with working WhatsApp)'] || m["Student's Contact"] || m['Account Mobile'] || m.mobile || '—';
       const sAadhar = m['Aadhar No.'] || m.aadhar || '—';
       const sPen = m['PEN No.'] || m.penNo || '—';
 
-      const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${rawRoll} ${rawReg} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory}`.toLowerCase();
+      const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${rawRoll} ${rawReg} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${optedStream12th} ${optedSubs12th} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory} ${hasStreamMismatch ? 'mismatch stream' : ''} ${hasSubsMismatch ? 'mismatch subjects' : ''}`.toLowerCase();
 
       const uniqueHistId = m.id || `hist_${targetSession}_${targetClass}_${cleanFNo || rawReg || idx}`;
 
@@ -5418,6 +5617,15 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
         status: m['Status'] || m.status || 'Approved',
         stream: sStream,
         subs: sSubs,
+        hasStreamMismatch,
+        hasSubsMismatch,
+        hasMismatch: hasStreamMismatch || hasSubsMismatch,
+        stream11th,
+        subs11th,
+        optedStream12th,
+        optedSubs12th,
+        streamMismatchNotice,
+        subsMismatchNotice,
         photoId: extractPhotoVal(m) || '',
         mobile: sMobile,
         aadhar: sAadhar,

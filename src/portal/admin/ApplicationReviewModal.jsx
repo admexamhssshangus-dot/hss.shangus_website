@@ -263,6 +263,30 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
             </div>
           </div>
 
+          {/* 11th vs 12th Stream / Subject Discrepancy Warning */}
+          {(app?.hasStreamMismatch || app?.hasSubsMismatch) && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1.5 animate-fadeIn">
+              <div className="font-extrabold text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                <span>⚠️ Stream / Subject Discrepancy Detected (11th vs 12th)</span>
+              </div>
+              <div className="text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-amber-500/20">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-bold block text-[10px]">11th Record (Authentic / Prev Session):</span>
+                  <div className="font-bold text-emerald-700 dark:text-emerald-400">Stream: {app.stream11th || 'N/A'}</div>
+                  <div className="text-slate-700 dark:text-slate-300">Subjects: {app.subs11th || '—'}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 font-bold block text-[10px]">12th Form (Opted / Entered):</span>
+                  <div className="font-bold text-amber-700 dark:text-amber-400">Stream: {app.optedStream12th || 'N/A'}</div>
+                  <div className="text-slate-700 dark:text-slate-300">Subjects: {app.optedSubs12th || '—'}</div>
+                </div>
+              </div>
+              <div className="text-[10px] text-amber-800 dark:text-amber-300 font-medium">
+                * Note: System has automatically defaulted this student's authoritative stream to <strong>{app.stream11th}</strong> to maintain strict 11th-to-12th continuity.
+              </div>
+            </div>
+          )}
+
           {/* Contact Details */}
           <div className="space-y-2">
             <h4 className="font-extrabold text-slate-400 uppercase text-[10px] flex items-center gap-1">

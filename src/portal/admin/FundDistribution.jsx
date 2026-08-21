@@ -419,17 +419,60 @@ export default function FundDistribution() {
     const streamField = String(
       s.stream || s.Stream || s['Stream for Class 11th'] || s['Stream opted in Class 11th'] ||
       s['Stream & Subjects for Class 12th'] || s['Stream / Faculty'] || s.faculty || s.streamName || ''
-    ).trim();
+    ).trim().toLowerCase();
 
     const subjectsField = String(
       s.subs || s.subjects || s.chosenSubjects || s['Subjects Opted'] || s['Subjects Chosen'] ||
       s['Chosen Subjects'] || s['Stream & Subjects for Class 12th'] || s['Subject 1'] || s['Subject 2'] ||
       s['Subject 3'] || s['Subject 4'] || s['Subject 5'] || ''
-    ).trim();
+    ).trim().toLowerCase();
 
-    const rawCombined = `${streamField} ${subjectsField}`.toLowerCase();
+    // 1. Direct explicit stream indication
+    if (streamField && !streamField.includes('same as') && streamField !== '—' && streamField !== 'n/a') {
+      if (streamField.includes('hum') || streamField.includes('art')) return 'Humanities';
+      if (streamField.includes('comm')) return 'Commerce';
+      if (streamField.includes('home sci') || streamField.includes('home-sci')) return 'Home Science';
+      if (streamField.includes('sci') || streamField.includes('med')) return 'Science';
+    }
 
-    // 1. Science Stream Check (Medical / Non-Medical / PCB / PCM / PCMB / Physics / Chemistry / Biology / etc.)
+    const rawCombined = `${streamField} ${subjectsField}`;
+
+    // 2. Humanities Check (History, Political Science, Education, Economics, Urdu, Sociology, Arabic, Kashmiri, Islamic Studies, Geography, Philosophy, etc.)
+    if (
+      rawCombined.includes('political') ||
+      rawCombined.includes('history') ||
+      rawCombined.includes('education') ||
+      rawCombined.includes('sociology') ||
+      rawCombined.includes('economics') ||
+      rawCombined.includes('urdu') ||
+      rawCombined.includes('kashmiri') ||
+      rawCombined.includes('arabic') ||
+      rawCombined.includes('geography') ||
+      rawCombined.includes('islamic') ||
+      rawCombined.includes('philosophy') ||
+      rawCombined.includes('psychology') ||
+      /\b(ht|ps|ed|ec|so|ur|ka|ar|hi|is|gg|pl|py)\b/i.test(rawCombined)
+    ) {
+      return 'Humanities';
+    }
+
+    // 3. Commerce Check
+    if (
+      rawCombined.includes('comm') ||
+      rawCombined.includes('account') ||
+      rawCombined.includes('business') ||
+      rawCombined.includes('entrepreneur') ||
+      /\b(ac|act|bs|bst|com|ep)\b/i.test(rawCombined)
+    ) {
+      return 'Commerce';
+    }
+
+    // 4. Home Science Check
+    if (rawCombined.includes('home sci') || rawCombined.includes('home-sci') || rawCombined.includes('homesci')) {
+      return 'Home Science';
+    }
+
+    // 5. Science Stream Check (Medical / Non-Medical / PCB / PCM / PCMB / Physics / Chemistry / Biology / Botany / Zoology / Biotech)
     if (
       rawCombined.includes('sci') ||
       rawCombined.includes('med') ||
@@ -439,29 +482,12 @@ export default function FundDistribution() {
       rawCombined.includes('botan') ||
       rawCombined.includes('zoolog') ||
       rawCombined.includes('biotech') ||
-      rawCombined.includes('math') ||
-      /\b(ph|ch|bi|pcb|pcm|pcmb)\b/i.test(rawCombined)
+      /\b(ph|ch|bi|bo|zo|bt|pcb|pcm|pcmb)\b/i.test(rawCombined)
     ) {
       return 'Science';
     }
 
-    // 2. Commerce Stream Check
-    if (
-      rawCombined.includes('comm') ||
-      rawCombined.includes('account') ||
-      rawCombined.includes('business') ||
-      rawCombined.includes('entrepreneur') ||
-      /\b(bs|act|acc)\b/i.test(rawCombined)
-    ) {
-      return 'Commerce';
-    }
-
-    // 3. Home Science Check
-    if (rawCombined.includes('home sci') || rawCombined.includes('home-sci') || rawCombined.includes('homesci')) {
-      return 'Home Science';
-    }
-
-    // 4. Humanities / Arts Stream Check (Default for general higher secondary arts)
+    // 6. Default fallback for higher secondary
     return 'Humanities';
   };
 
