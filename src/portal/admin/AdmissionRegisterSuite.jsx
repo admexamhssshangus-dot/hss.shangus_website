@@ -1142,94 +1142,34 @@ export default function AdmissionRegisterSuite({
         }
       `}</style>
 
-      {/* ─── ULTRA-COMPACT UNIFIED 2-ROW MODERN TOOLBAR ─── */}
-      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs">
-        {/* ROW 1: PRIMARY SUITE NAVIGATION & ACTIONS */}
-        <div className="max-w-[1800px] mx-auto px-3 py-1.5 flex items-center justify-between gap-2.5 flex-wrap">
-          {/* Left: School Logo & Title (Back button removed) */}
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="School Logo" className="w-5 h-5 object-contain" />
-            <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-              <span>Admission Register & Sentup Suite</span>
-              {isLoadingSession ? (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                  <Loader2 size={10} className="animate-spin" /> Loading Session...
-                </span>
-              ) : (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                  {selectedSession}
-                </span>
-              )}
+      {/* ─── SINGLE COMPACT UNIFIED TOOLBAR ROW ─── */}
+      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2.5 py-1">
+        <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-1.5 flex-wrap">
+          {/* Left Cluster: Module Selector Dropdown & Core DB Filters */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* 1. Main Suite Module Dropdown */}
+            <div className="flex items-center gap-1">
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value)}
+                className="py-1 px-2.5 text-xs rounded-lg border-2 border-amber-600/40 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 font-black cursor-pointer shadow-2xs focus:ring-1 focus:ring-amber-500"
+              >
+                <option value="adm_register">📖 Admission Register</option>
+                <option value="sentup">📋 Sentup Export</option>
+                <option value="assign_ids">🔢 Assign IDs</option>
+                <option value="assign_dates">📅 Assign Dates</option>
+              </select>
             </div>
-          </div>
 
-          {/* Center: Modern Segmented Switcher */}
-          <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-2xs">
-            {[
-              { id: 'adm_register', label: 'Admission Register', icon: BookOpen },
-              { id: 'sentup', label: 'Sentup Export', icon: FileCheck },
-              { id: 'assign_ids', label: 'Assign IDs', icon: CreditCard },
-              { id: 'assign_dates', label: 'Assign Dates', icon: Calendar }
-            ].map(t => {
-              const active = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setActiveTab(t.id)}
-                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer select-none text-xs ${
-                    active
-                      ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 font-black shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <t.icon size={13} className={active ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'} />
-                  <span>{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Right: Actions */}
-          <div className="flex items-center gap-1.5">
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                >
-                  <Printer size={13} />
-                  <span>Print</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                  title="Export Official Ledger to Excel (.xlsx)"
-                >
-                  <FileSpreadsheet size={13} />
-                  <span>Excel</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ROW 2: DYNAMIC DATABASE FILTERS & VIEW STRIP (SINGLE COMPACT ROW) */}
-        {(activeTab === 'adm_register' || activeTab === 'sentup') && (
-          <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 px-3 py-1 text-xs">
-            <div className="max-w-[1800px] mx-auto flex items-center justify-between gap-2 flex-wrap">
-              {/* Left Filters */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* 1. Academic Session */}
+                {/* 2. Academic Session */}
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500">Session:</span>
+                  <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Session:</span>
                   <select
                     value={selectedSession}
                     onChange={(e) => setSelectedSession(e.target.value)}
-                    className="py-0.5 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-black bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs"
+                    className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs cursor-pointer"
                   >
                     {availableSessions.map(sess => (
                       <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
@@ -1237,68 +1177,60 @@ export default function AdmissionRegisterSuite({
                   </select>
                 </div>
 
-                {/* 2. Status Filter */}
+                {/* 3. Status Filter */}
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500">Status:</span>
+                  <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Status:</span>
                   <select
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="py-0.5 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200"
+                    className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 shadow-2xs cursor-pointer"
                   >
-                    <option value="Approved">Approved (Has Roll: {statusCounts.approved})</option>
-                    <option value="Submitted">Submitted (Pending Roll: {statusCounts.submitted})</option>
+                    <option value="Approved">Approved ({statusCounts.approved})</option>
+                    <option value="Submitted">Submitted ({statusCounts.submitted})</option>
                     <option value="Provisional">Provisional ({statusCounts.provisional})</option>
-                    <option value="ALL">All Records ({statusCounts.total})</option>
+                    <option value="ALL">All Statuses ({statusCounts.total})</option>
                   </select>
                 </div>
 
-                {/* 3. Admission Type Filter (Fresh vs Re-admission) */}
+                {/* 4. Admission Type (Fresh vs Re-Adm) */}
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500">Type:</span>
                   <select
                     value={selectedAdmissionType}
                     onChange={(e) => setSelectedAdmissionType(e.target.value)}
-                    className={`py-0.5 px-2 text-xs rounded-lg border font-bold shadow-2xs ${
+                    className={`py-1 px-2 text-xs rounded-lg border font-bold shadow-2xs cursor-pointer ${
                       selectedAdmissionType === 'readmission'
                         ? 'border-purple-400 bg-purple-50 text-purple-900 dark:bg-purple-950 dark:text-purple-200'
-                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100'
+                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
                     }`}
                   >
-                    <option value="ALL">All Types ({statusCounts.total})</option>
-                    <option value="fresh">Fresh Only ({statusCounts.fresh})</option>
-                    <option value="readmission">Re-admission Only ({statusCounts.readmissions})</option>
+                    <option value="ALL">All Types</option>
+                    <option value="fresh">Fresh ({statusCounts.fresh})</option>
+                    <option value="readmission">Re-Adm ({statusCounts.readmissions})</option>
                   </select>
                 </div>
 
-                {/* 4. Class Scope Selector */}
+                {/* 5. Class Scope Selector */}
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500">Class:</span>
-                  <div className="inline-flex rounded-lg p-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                    {['ALL', ...availableClasses].map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setSelectedClass(c)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all ${
-                          selectedClass === c
-                            ? 'bg-indigo-600 text-white shadow-2xs font-extrabold'
-                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                        }`}
-                      >
-                        {c}
-                      </button>
+                  <span className="text-[11px] font-bold text-slate-500 hidden md:inline">Class:</span>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
+                  >
+                    <option value="ALL">All Classes</option>
+                    {availableClasses.map(c => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
 
-                {/* 5. Stream Filter */}
+                {/* 6. Stream Filter */}
                 {availableStreams.length > 0 && (
                   <div className="flex items-center gap-1">
-                    <span className="text-[11px] font-bold text-slate-500">Stream:</span>
                     <select
                       value={selectedStream}
                       onChange={(e) => setSelectedStream(e.target.value)}
-                      className="py-0.5 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                      className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                     >
                       <option value="ALL">All Streams</option>
                       {availableStreams.map(str => (
@@ -1308,74 +1240,67 @@ export default function AdmissionRegisterSuite({
                   </div>
                 )}
 
-                {/* 6. Quick Search */}
+                {/* 7. Quick Search */}
                 <div className="relative">
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search name, roll, reg..."
+                    placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-7 pr-2 py-0.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-medium bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-36 sm:w-44 shadow-2xs"
+                    className="pl-6 pr-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-28 sm:w-36 shadow-2xs"
                   />
                 </div>
-              </div>
+              </>
+            )}
+          </div>
 
-              {/* Right View Switcher & Margin Settings */}
-              <div className="flex items-center gap-2">
-                {/* Sub-view Section Switcher */}
-                {activeTab === 'adm_register' && (
-                  <div className="inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-[11px]">
-                    {[
-                      { id: 'all', label: 'All Spreads' },
-                      { id: 'cover', label: 'Cover' },
-                      { id: 'spreads', label: 'Ledger' },
-                      { id: 'summary', label: 'Summary' },
-                      { id: 'notes', label: 'Notes' },
-                    ].map(sec => (
-                      <button
-                        key={sec.id}
-                        type="button"
-                        onClick={() => setRegisterViewSection(sec.id)}
-                        className={`px-2 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all ${
-                          registerViewSection === sec.id
-                            ? 'bg-amber-600 text-white shadow-2xs'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                        }`}
-                      >
-                        {sec.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+          {/* Right Cluster: View Controls, Layout Toggle, Margins, Zoom, Excel & Print */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activeTab === 'adm_register' && (
+              <>
+                {/* Sub-view Section Dropdown */}
+                <select
+                  value={registerViewSection}
+                  onChange={(e) => setRegisterViewSection(e.target.value)}
+                  className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                >
+                  <option value="all">📑 All Spreads</option>
+                  <option value="cover">📜 Cover Page</option>
+                  <option value="spreads">📖 Ledger Table Only</option>
+                  <option value="summary">📊 Summary Statement</option>
+                  <option value="notes">📝 Notes & Annexure</option>
+                </select>
 
                 {/* Side-by-Side Dual Spread View Mode Switcher */}
-                {activeTab === 'adm_register' && (
-                  <button
-                    type="button"
-                    onClick={() => setSpreadLayoutMode(prev => prev === 'side_by_side' ? 'stacked' : 'side_by_side')}
-                    className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
-                      spreadLayoutMode === 'side_by_side'
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-700'
-                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
-                    title="Toggle Side-by-Side Book View vs Stacked Pages"
-                  >
-                    <Columns size={12} />
-                    <span>{spreadLayoutMode === 'side_by_side' ? 'Side-by-Side View' : 'Stacked View'}</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setSpreadLayoutMode(prev => prev === 'side_by_side' ? 'stacked' : 'side_by_side')}
+                  className={`px-2 py-1 rounded-lg border text-xs font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                    spreadLayoutMode === 'side_by_side'
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-700'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}
+                  title="Toggle Side-by-Side Book View vs Stacked Pages"
+                >
+                  <Columns size={12} />
+                  <span className="hidden xl:inline">{spreadLayoutMode === 'side_by_side' ? 'Side-by-Side' : 'Stacked'}</span>
+                </button>
+              </>
+            )}
 
+            {(activeTab === 'adm_register' || activeTab === 'sentup') && (
+              <>
                 {/* Dynamic Margins Button & Popover */}
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setShowMarginControls(prev => !prev)}
-                    className="px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-100 shadow-2xs"
-                    title="Configure Print Margins (Default 0.3in on Legal)"
+                    className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-100 shadow-2xs"
+                    title="Print Margins (Legal Landscape)"
                   >
                     <Sliders size={11} className="text-indigo-600" />
-                    <span>Margin: <strong>{printMargin}in</strong></span>
+                    <span>{printMargin}in</span>
                   </button>
 
                   {showMarginControls && (
@@ -1412,7 +1337,7 @@ export default function AdmissionRegisterSuite({
                 </div>
 
                 {/* Zoom Controls */}
-                <div className="hidden sm:flex items-center gap-1 bg-white dark:bg-slate-900 px-1 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs shadow-2xs">
+                <div className="hidden 2xl:flex items-center gap-0.5 bg-white dark:bg-slate-900 px-1 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs shadow-2xs">
                   <button
                     type="button"
                     onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
@@ -1421,7 +1346,7 @@ export default function AdmissionRegisterSuite({
                   >
                     <ZoomOut size={11} />
                   </button>
-                  <span className="px-1 text-[10.5px] font-mono font-bold">{Math.round(zoomLevel * 100)}%</span>
+                  <span className="px-1 text-[10px] font-mono font-bold">{Math.round(zoomLevel * 100)}%</span>
                   <button
                     type="button"
                     onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
@@ -1433,18 +1358,39 @@ export default function AdmissionRegisterSuite({
                 </div>
 
                 {/* Record count badge */}
-                <div className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black whitespace-nowrap shadow-2xs">
-                  {filteredStudents.length} Students ({pageChunks.length} Spreads)
+                <div className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-black whitespace-nowrap shadow-2xs">
+                  {filteredStudents.length} Students
                   {statusCounts.readmissions > 0 && (
                     <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
-                      • {statusCounts.readmissions} Re-Adm
+                      ({statusCounts.readmissions} Re-Adm)
                     </span>
                   )}
                 </div>
-              </div>
-            </div>
+
+                {/* Excel Export */}
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  title="Export Official Ledger to Excel (.xlsx)"
+                >
+                  <FileSpreadsheet size={12} />
+                  <span>Excel</span>
+                </button>
+
+                {/* Print */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                >
+                  <Printer size={12} />
+                  <span>Print</span>
+                </button>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </header>
 
       {/* ─── TOAST NOTIFICATION ─── */}
