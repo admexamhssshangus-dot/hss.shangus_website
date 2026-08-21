@@ -274,10 +274,105 @@ export function extractStudentSubjects(s) {
   return '—';
 }
 
-// Robust Stream Extractor
+// Robust Subject Abbreviation Formatter (converts full subject names to standard register abbreviations)
+export function abbreviateSubjects(str) {
+  if (!str || str === '—' || str === '-') return '—';
+  const parts = String(str).split(/[,/&]+/).map(s => s.trim()).filter(Boolean);
+  const map = {
+    'General English': 'EN',
+    'English': 'EN',
+    'GE': 'EN',
+    'EN': 'EN',
+    'Physics': 'PH',
+    'PH': 'PH',
+    'Chemistry': 'CH',
+    'CH': 'CH',
+    'Biology': 'BI',
+    'Botany': 'BI',
+    'Zoology': 'BI',
+    'BI': 'BI',
+    'Mathematics': 'MA',
+    'Maths': 'MA',
+    'Math': 'MA',
+    'MA': 'MA',
+    'Environmental Science': 'ES',
+    'EVS': 'ES',
+    'ES': 'ES',
+    'Physical Education': 'PD',
+    'Physical Education & Sports': 'PD',
+    'PES': 'PD',
+    'PD': 'PD',
+    'Health Care': 'HTC',
+    'Healthcare': 'HTC',
+    'HTC': 'HTC',
+    'IT & ITES': 'ITE',
+    'IT and ITES': 'ITE',
+    'ITE': 'ITE',
+    'History': 'HT',
+    'HT': 'HT',
+    'Political Science': 'PS',
+    'PS': 'PS',
+    'Economics': 'EC',
+    'EC': 'EC',
+    'Education': 'ED',
+    'ED': 'ED',
+    'Urdu': 'UR',
+    'UR': 'UR',
+    'Sociology': 'SO',
+    'SO': 'SO',
+    'Arabic': 'AR',
+    'AR': 'AR',
+    'Kashmiri': 'KA',
+    'KA': 'KA',
+    'Hindi': 'HI',
+    'HI': 'HI',
+    'Geography': 'GEO',
+    'Accountancy': 'ACC',
+    'Business Studies': 'BST',
+    'Retail': 'RET',
+    'Tourism': 'TOU'
+  };
+
+  const abbrParts = parts.map(part => {
+    if (map[part]) return map[part];
+    const foundKey = Object.keys(map).find(k => k.toLowerCase() === part.toLowerCase());
+    if (foundKey) return map[foundKey];
+
+    if (/general english|functional english|english/i.test(part)) return 'EN';
+    if (/math/i.test(part)) return 'MA';
+    if (/physics/i.test(part)) return 'PH';
+    if (/chemistry/i.test(part)) return 'CH';
+    if (/biology|botany|zoology/i.test(part)) return 'BI';
+    if (/environmental|evs/i.test(part)) return 'ES';
+    if (/health/i.test(part)) return 'HTC';
+    if (/it and ites|it & ites|information tech|ites/i.test(part)) return 'ITE';
+    if (/physical education/i.test(part)) return 'PD';
+    if (/history/i.test(part)) return 'HT';
+    if (/political/i.test(part)) return 'PS';
+    if (/sociology/i.test(part)) return 'SO';
+    if (/economics/i.test(part)) return 'EC';
+    if (/education/i.test(part)) return 'ED';
+    if (/urdu/i.test(part)) return 'UR';
+    if (/arabic/i.test(part)) return 'AR';
+    if (/kashmiri/i.test(part)) return 'KA';
+    if (/hindi/i.test(part)) return 'HI';
+    if (/geography/i.test(part)) return 'GEO';
+    if (/account/i.test(part)) return 'ACC';
+    if (/business/i.test(part)) return 'BST';
+
+    if (part.length > 4) {
+      return part.slice(0, 3).toUpperCase();
+    }
+    return part.toUpperCase();
+  });
+
+  return abbrParts.join(', ');
+}
+
+// Robust Standard Stream Extractor & Normalizer
 export function extractStudentStream(s, subs = '') {
   if (!s) return 'General';
-  const rawStream = cleanStr(
+  let rawStream = cleanStr(
     s['Stream / Subject combination chosen'] ||
     s['Stream chosen'] ||
     s['Stream & Subjects for Class 11th'] ||
@@ -287,22 +382,51 @@ export function extractStudentStream(s, subs = '') {
     s.Stream ||
     ''
   );
-  if (rawStream && rawStream.toLowerCase() !== 'general' && rawStream !== '—') {
-    return rawStream;
+
+  // If raw stream is invalid placeholder like "Same as in class 11th" or dashes, clean it
+  if (/same as/i.test(rawStream) || rawStream === '—' || rawStream === '-') {
+    rawStream = '';
   }
 
-  // Infer stream from subjects if stream is General / unassigned
-  const subText = (subs || '').toUpperCase();
-  if (subText.includes('BI') || subText.includes('BIO') || (subText.includes('PH') && subText.includes('CH'))) {
-    if (subText.includes('MA') || subText.includes('MATH')) return 'Science (Non-Med/Med)';
-    return 'Science (Med)';
+  // Check subjects for accurate determination
+  const subText = (typeof subs === 'string' ? subs : JSON.stringify(subs)).toUpperCase();
+  const hasBio = /\b(BI|BIO|BIOLOGY|BOTANY|ZOOLOGY)\b/i.test(subText);
+  const hasMath = /\b(MA|MATH|MATHS|MATHEMATICS)\b/i.test(subText);
+  const hasPhy = /\b(PH|PHYSICS)\b/i.test(subText);
+  const hasChem = /\b(CH|CHEMISTRY)\b/i.test(subText);
+  const hasArts = /\b(HT|PS|UR|ED|SO|AR|KA|HI|GEO|HISTORY|POLITICAL|EDUCATION|URDU|SOCIOLOGY|ARABIC|KASHMIRI)\b/i.test(subText);
+  const hasComm = /\b(ACC|BST|ACCOUNTANCY|BUSINESS)\b/i.test(subText);
+
+  if (hasBio && hasMath && (hasPhy || hasChem)) {
+    return 'Science (Med/Non-Med)';
   }
-  if (subText.includes('ACC') || subText.includes('BST') || subText.includes('COMMERCE')) {
+  if (hasBio && (hasPhy || hasChem)) {
+    return 'Science (Medical)';
+  }
+  if (hasMath && (hasPhy || hasChem)) {
+    return 'Science (Non-Medical)';
+  }
+  if (hasComm) {
     return 'Commerce';
   }
-  if (subText.includes('HT') || subText.includes('PS') || subText.includes('UR') || subText.includes('ED') || subText.includes('ARTS')) {
+  if (hasArts) {
     return 'Arts';
   }
+
+  // Normalize rawStream string if present
+  if (rawStream) {
+    const low = rawStream.toLowerCase();
+    if (low.includes('non-med') || low.includes('non med') || low.includes('nonmed')) return 'Science (Non-Medical)';
+    if (low.includes('med') || low.includes('bio')) return 'Science (Medical)';
+    if (low.includes('sci')) return 'Science';
+    if (low.includes('art') || low.includes('human')) return 'Arts';
+    if (low.includes('comm')) return 'Commerce';
+    if (low !== 'general') return rawStream;
+  }
+
+  // Fallback for classes 9th/10th or general
+  const cls = cleanStr(s.class || s.Class || '');
+  if (cls.includes('9') || cls.includes('10')) return 'General';
 
   return rawStream || 'General';
 }
@@ -773,6 +897,49 @@ export default function AdmissionRegisterSuite({
     } catch (_) {}
   }, []);
 
+  // 1. Flatten all masterRegisters history records into a clean searchable lookup array
+  const flatHistoryRecords = useMemo(() => {
+    if (!Array.isArray(historyDataset) || historyDataset.length === 0) return [];
+    const flat = [];
+    historyDataset.forEach(docItem => {
+      if (!docItem) return;
+      const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
+      if (Array.isArray(chunk) && chunk.length > 0) {
+        chunk.forEach((item, itemIdx) => {
+          if (item && typeof item === 'object') {
+            flat.push({
+              ...item,
+              id: item.id || item['Form Number'] || item['Form No.'] || `${docItem.id}_${itemIdx}`,
+              boardRegNo: cleanStr(item.boardRegNo || item['Board Registration Number'] || item['Board Reg. No.'] || item['Board Reg No'] || item['Registration Number'] || item['Reg. No.']),
+              classRollNo: cleanStr(item.classRollNo || item['Class Roll No'] || item.rollNo || item['Roll No'] || item['RL. NO.']),
+              studentName: cleanStr(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || item['Student Name']),
+              fatherName: cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"]),
+              aadhar: cleanStr(item.aadhar || item['Aadhar No.'] || item['Aadhaar No.']),
+              penNo: cleanStr(item.penNo || item['PEN No.'] || item['PEN (UDISE)']),
+              bankAccount: cleanStr(item.bankAccount || item['Bank Account No.'] || item.accountNo),
+              ifsc: cleanStr(item.ifsc || item['IFSC code'] || item.ifscCode),
+              prevSchool: cleanStr(item.prevSchool || item['Previous School'] || item['Name of Previous School'] || 'Govt. Higher Secondary School Shangus')
+            });
+          }
+        });
+      } else {
+        flat.push({
+          ...docItem,
+          boardRegNo: cleanStr(docItem.boardRegNo || docItem['Board Registration Number'] || docItem['Board Reg. No.'] || docItem['Board Reg No']),
+          classRollNo: cleanStr(docItem.classRollNo || docItem['Class Roll No'] || docItem.rollNo || docItem['Roll No']),
+          studentName: cleanStr(docItem.studentName || docItem["Student's Name (as per school records)"] || docItem["Student's Name"] || docItem['Student Name']),
+          fatherName: cleanStr(docItem.fatherName || docItem["Father's/Guardian's Name (as per school records)"] || docItem["Father's Name"]),
+          aadhar: cleanStr(docItem.aadhar || docItem['Aadhar No.'] || docItem['Aadhaar No.']),
+          penNo: cleanStr(docItem.penNo || docItem['PEN No.']),
+          bankAccount: cleanStr(docItem.bankAccount || docItem['Bank Account No.']),
+          ifsc: cleanStr(docItem.ifsc || docItem['IFSC code']),
+          prevSchool: cleanStr(docItem.prevSchool || docItem['Previous School'] || 'Govt. Higher Secondary School Shangus')
+        });
+      }
+    });
+    return flat;
+  }, [historyDataset]);
+
   // Normalized Student Object Mapper with Re-admission Parsing & Complete Multi-Alias Firebase Field Resolution
   const normalizedStudents = useMemo(() => {
     const list = [];
@@ -793,8 +960,9 @@ export default function AdmissionRegisterSuite({
       const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s['Mother Name'] || s.mother);
       const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['DoB (figures)'] || s['Date of Birth'] || s['DOB']);
       const gender = cleanStr(s.gender || s.Gender || 'Male');
-      const subs = extractStudentSubjects(s);
-      const stream = extractStudentStream(s, subs);
+      const rawSubs = extractStudentSubjects(s);
+      const subs = abbreviateSubjects(rawSubs);
+      const stream = extractStudentStream(s, rawSubs);
       const aadhar = cleanStr(s.aadhar || s['Aadhar No.'] || s['Aadhaar No.'] || s['Aadhaar Number'] || s['Aadhar Number'] || s.aadhaar || s.aadharNo || s.aadhaarNo);
       const village = cleanStr(s.village || s['Name of your village'] || s['Village/Town'] || s['Village']);
       const block = cleanStr(s.block || s.Block || s['Block/Zone'] || 'Shangus');
@@ -835,6 +1003,36 @@ export default function AdmissionRegisterSuite({
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
       const directPhoto = getStudentPhotoUrl(s, '');
 
+      // Lookup match in historical archive to fill in missing Board Reg No, PEN, Previous School, etc.
+      let histMatch = null;
+      if (flatHistoryRecords.length > 0) {
+        if (prevRoll) {
+          histMatch = flatHistoryRecords.find(h => cleanStr(h.classRollNo || h['Class Roll No'] || h.rollNo || h.examRoll10th) === prevRoll);
+        }
+        if (!histMatch && formNo) {
+          histMatch = flatHistoryRecords.find(h => cleanStr(h.formNo || h['Form Number'] || h['Form No.']) === formNo);
+        }
+        if (!histMatch && name && father) {
+          const normName = name.toLowerCase().replace(/[^a-z]/g, '');
+          const normFather = father.toLowerCase().replace(/[^a-z]/g, '');
+          histMatch = flatHistoryRecords.find(h => {
+            const hN = cleanStr(h.studentName || h["Student's Name"]).toLowerCase().replace(/[^a-z]/g, '');
+            const hF = cleanStr(h.fatherName || h["Father's Name"]).toLowerCase().replace(/[^a-z]/g, '');
+            return hN === normName && (hF.includes(normFather.slice(0, 4)) || normFather.includes(hF.slice(0, 4)));
+          });
+        }
+        if (!histMatch && aadhar && aadhar.length >= 10) {
+          histMatch = flatHistoryRecords.find(h => cleanStr(h.aadhar || h['Aadhar No.'] || h['Aadhaar No.']) === aadhar);
+        }
+      }
+
+      const finalBoardReg = boardReg || (histMatch ? cleanStr(histMatch.boardRegNo || histMatch['Board Registration Number']) : '');
+      const finalPrevSchool = prevSchool || (histMatch ? 'Govt. Higher Secondary School Shangus' : '');
+      const finalPrevRoll = prevRoll || (histMatch ? cleanStr(histMatch.classRollNo || histMatch['Class Roll No'] || histMatch.rollNo) : '');
+      const finalPen = (pen && pen !== 'NA') ? pen : (histMatch ? cleanStr(histMatch.penNo || histMatch['PEN No.'] || 'NA') : 'NA');
+      const finalAccount = account || (histMatch ? cleanStr(histMatch.bankAccount || histMatch['Bank Account No.']) : '');
+      const finalIfsc = ifsc || (histMatch ? cleanStr(histMatch.ifsc || histMatch['IFSC code']) : '');
+
       list.push({
         raw: s,
         id: docId,
@@ -845,7 +1043,7 @@ export default function AdmissionRegisterSuite({
         displayAdmNo,
         isReadmission,
         rollNo,
-        boardReg,
+        boardReg: finalBoardReg,
         name: name || 'Student Record',
         father,
         mother,
@@ -866,23 +1064,23 @@ export default function AdmissionRegisterSuite({
         category,
         socioEcon,
         blood,
-        account,
-        ifsc,
-        pen,
-        prevSchool,
-        prevRoll,
+        account: finalAccount,
+        ifsc: finalIfsc,
+        pen: finalPen,
+        prevSchool: finalPrevSchool,
+        prevRoll: finalPrevRoll,
         prevResult,
         admDate,
         onlineStatus,
         status,
         directPhoto,
-        prevCC: isReadmission ? 'Re-admitted (Gap)' : (prevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC'),
+        prevCC: isReadmission ? 'Re-admitted (Gap)' : (finalPrevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC'),
         withdrawal: '—',
         remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || '')
       });
     });
     return list;
-  }, [dataset, selectedSession]);
+  }, [dataset, selectedSession, flatHistoryRecords]);
 
   // 4. DYNAMIC CLASSES TAILORED STRICTLY TO LOADED SESSION DATA
   const availableClasses = useMemo(() => {
@@ -1621,17 +1819,22 @@ export default function AdmissionRegisterSuite({
             box-shadow: none !important;
           }
 
-          .admission-suite-root, #root, main {
-            display: block !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: transparent !important;
-            transform: none !important;
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
+          .admission-suite-root, #root, main, .page-container, .spread-container, .overflow-x-auto, div {
             overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            box-shadow: none !important;
+          }
+
+          * {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+          }
+
+          ::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
           }
 
           .space-y-6, .space-y-4, .space-y-3 {
@@ -1705,10 +1908,17 @@ export default function AdmissionRegisterSuite({
 
           th, td {
             border: 1px solid #000000 !important;
-            padding: 1px 2.5px !important;
+            padding: 1.5px 2.5px !important;
           }
 
           tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          .signature-footer {
+            margin-top: 24px !important;
+            padding-top: 6px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
@@ -1731,6 +1941,58 @@ export default function AdmissionRegisterSuite({
             background-color: #fee2e2 !important; 
             color: #991b1b !important; 
           }
+        }
+
+        /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (OVERRIDES ANY THEME CASCADE) ─── */
+        .register-popover-panel {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border: 1px solid #cbd5e1 !important;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .register-popover-panel label,
+        .register-popover-panel .popover-label {
+          color: #0f172a !important;
+          font-weight: 800 !important;
+        }
+
+        .register-popover-panel select,
+        .register-popover-panel .popover-select {
+          background-color: #f8fafc !important;
+          color: #0f172a !important;
+          border: 1.5px solid #94a3b8 !important;
+          font-weight: 700 !important;
+        }
+
+        .register-popover-panel select option {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          font-weight: 700 !important;
+        }
+
+        .register-popover-panel .popover-btn-inactive {
+          background-color: #f1f5f9 !important;
+          color: #1e293b !important;
+          border: 1px solid #cbd5e1 !important;
+          font-weight: 700 !important;
+        }
+
+        .register-popover-panel .popover-btn-inactive:hover {
+          background-color: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+
+        .register-popover-panel .popover-badge {
+          background-color: #eef2ff !important;
+          color: #3730a3 !important;
+          border: 1px solid #c7d2fe !important;
+          font-weight: 800 !important;
+        }
+
+        .register-popover-panel .popover-zoom-box {
+          background-color: #f1f5f9 !important;
+          border: 1px solid #cbd5e1 !important;
         }
 
         /* ─── PREMIUM TYPOGRAPHY SYSTEM ─── */
@@ -1821,10 +2083,10 @@ export default function AdmissionRegisterSuite({
 
                   {/* Filter Popover Dropdown Panel */}
                   {showFiltersPopover && (
-                    <div className="absolute left-0 top-full mt-1.5 w-72 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] space-y-3 whitespace-normal animate-in fade-in zoom-in-95">
-                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                        <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Filter size={13} className="text-amber-600 dark:text-amber-400" /> Filter Register
+                    <div className="register-popover-panel absolute left-0 top-full mt-1.5 w-72 p-4 rounded-2xl shadow-2xl z-[100] space-y-3 whitespace-normal animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                          <Filter size={13} className="text-amber-600" /> Filter Register
                         </span>
                         {activeFiltersCount > 0 && (
                           <button
@@ -1835,7 +2097,7 @@ export default function AdmissionRegisterSuite({
                               setSelectedAdmissionType('ALL');
                               setSelectedStream('ALL');
                             }}
-                            className="text-[11px] font-black text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                            className="text-[11px] font-black text-rose-600 hover:underline cursor-pointer"
                           >
                             Reset Filters
                           </button>
@@ -1844,14 +2106,14 @@ export default function AdmissionRegisterSuite({
 
                       {/* Session */}
                       <div>
-                        <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Academic Session:</label>
+                        <label className="block text-[11px] font-black text-slate-800 mb-1">Academic Session:</label>
                         <select
                           value={selectedSession}
                           onChange={(e) => setSelectedSession(e.target.value)}
-                          className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           {availableSessions.map(sess => (
-                            <option key={sess} value={sess} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                            <option key={sess} value={sess} className="bg-white text-slate-900 font-bold">
                               {sess} {sess === '2025-26' ? '(Live)' : ''}
                             </option>
                           ))}
@@ -1860,45 +2122,45 @@ export default function AdmissionRegisterSuite({
 
                       {/* Status */}
                       <div>
-                        <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Admission Status:</label>
+                        <label className="block text-[11px] font-black text-slate-800 mb-1">Admission Status:</label>
                         <select
                           value={selectedStatus}
                           onChange={(e) => setSelectedStatus(e.target.value)}
-                          className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
-                          <option value="Approved" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Approved ({statusCounts.approved})</option>
-                          <option value="Submitted" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Submitted ({statusCounts.submitted})</option>
-                          <option value="Provisional" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Provisional ({statusCounts.provisional})</option>
-                          <option value="ALL" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">All ({statusCounts.total})</option>
+                          <option value="Approved" className="bg-white text-slate-900 font-bold">Approved ({statusCounts.approved})</option>
+                          <option value="Submitted" className="bg-white text-slate-900 font-bold">Submitted ({statusCounts.submitted})</option>
+                          <option value="Provisional" className="bg-white text-slate-900 font-bold">Provisional ({statusCounts.provisional})</option>
+                          <option value="ALL" className="bg-white text-slate-900 font-bold">All ({statusCounts.total})</option>
                         </select>
                       </div>
 
                       {/* Admission Type */}
                       <div>
-                        <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Admission Type:</label>
+                        <label className="block text-[11px] font-black text-slate-800 mb-1">Admission Type:</label>
                         <select
                           value={selectedAdmissionType}
                           onChange={(e) => setSelectedAdmissionType(e.target.value)}
-                          className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
-                          <option value="ALL" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">All Types</option>
-                          <option value="fresh" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Fresh Only ({statusCounts.fresh})</option>
-                          <option value="readmission" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">Re-admission Only ({statusCounts.readmissions})</option>
+                          <option value="ALL" className="bg-white text-slate-900 font-bold">All Types</option>
+                          <option value="fresh" className="bg-white text-slate-900 font-bold">Fresh Only ({statusCounts.fresh})</option>
+                          <option value="readmission" className="bg-white text-slate-900 font-bold">Re-admission Only ({statusCounts.readmissions})</option>
                         </select>
                       </div>
 
                       {/* Stream */}
                       {availableStreams.length > 0 && (
                         <div>
-                          <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Stream Scope:</label>
+                          <label className="block text-[11px] font-black text-slate-800 mb-1">Stream Scope:</label>
                           <select
                             value={selectedStream}
                             onChange={(e) => setSelectedStream(e.target.value)}
-                            className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                            className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                           >
-                            <option value="ALL" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">All Streams</option>
+                            <option value="ALL" className="bg-white text-slate-900 font-bold">All Streams</option>
                             {availableStreams.map(str => (
-                              <option key={str} value={str} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">{str}</option>
+                              <option key={str} value={str} className="bg-white text-slate-900 font-bold">{str}</option>
                             ))}
                           </select>
                         </div>
@@ -1915,7 +2177,7 @@ export default function AdmissionRegisterSuite({
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-5 pr-1.5 py-0.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-24 xl:w-28 shadow-2xs"
+                    className="pl-5 pr-1.5 py-0.5 text-[11px] rounded-lg border border-slate-300 bg-white text-slate-900 w-24 xl:w-28 shadow-2xs"
                   />
                 </div>
               </>
@@ -1934,7 +2196,7 @@ export default function AdmissionRegisterSuite({
                       setShowViewPopover(prev => !prev);
                       setShowFiltersPopover(false);
                     }}
-                    className="py-0.5 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-50 shadow-2xs"
+                    className="py-0.5 px-2 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer hover:bg-slate-50 shadow-2xs"
                     title="View Section, Book Layout, Margins, Row Height & Zoom Settings"
                   >
                     <Eye size={11} className="text-indigo-600" />
@@ -1944,27 +2206,27 @@ export default function AdmissionRegisterSuite({
 
                   {/* View Popover Dropdown Panel */}
                   {showViewPopover && (
-                    <div className="absolute right-0 top-full mt-1.5 w-80 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] space-y-3.5 whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
-                      <div className="border-b border-slate-200 dark:border-slate-800 pb-2">
-                        <span className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Eye size={13} className="text-indigo-600 dark:text-indigo-400" /> Display & Table Layout
+                    <div className="register-popover-panel absolute right-0 top-full mt-1.5 w-80 p-4 rounded-2xl shadow-2xl z-[100] space-y-3.5 whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
+                      <div className="border-b border-slate-200 pb-2">
+                        <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                          <Eye size={13} className="text-indigo-600" /> Display & Table Layout
                         </span>
                       </div>
 
                       {/* Sub-view Section Selector */}
                       {activeTab === 'adm_register' && (
                         <div>
-                          <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Section to Display:</label>
+                          <label className="block text-[11px] font-black text-slate-800 mb-1">Section to Display:</label>
                           <select
                             value={registerViewSection}
                             onChange={(e) => setRegisterViewSection(e.target.value)}
-                            className="w-full py-1.5 px-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-600 font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                            className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                           >
-                            <option value="all" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📑 All Spreads (Full Register)</option>
-                            <option value="cover" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📜 Cover Page Only</option>
-                            <option value="spreads" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📖 Ledger Table Only</option>
-                            <option value="summary" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📊 Summary Statement Only</option>
-                            <option value="notes" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">📝 Notes & Annexure Only</option>
+                            <option value="all" className="bg-white text-slate-900 font-bold">📑 All Spreads (Full Register)</option>
+                            <option value="cover" className="bg-white text-slate-900 font-bold">📜 Cover Page Only</option>
+                            <option value="spreads" className="bg-white text-slate-900 font-bold">📖 Ledger Table Only</option>
+                            <option value="summary" className="bg-white text-slate-900 font-bold">📊 Summary Statement Only</option>
+                            <option value="notes" className="bg-white text-slate-900 font-bold">📝 Notes & Annexure Only</option>
                           </select>
                         </div>
                       )}
@@ -1972,15 +2234,15 @@ export default function AdmissionRegisterSuite({
                       {/* Screen Layout Mode (Side-by-Side Book View vs Stacked) */}
                       {activeTab === 'adm_register' && (
                         <div>
-                          <label className="block text-[11px] font-black text-slate-700 dark:text-slate-200 mb-1">Book Layout:</label>
-                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <label className="block text-[11px] font-black text-slate-800 mb-1">Book Layout:</label>
+                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
                             <button
                               type="button"
                               onClick={() => setSpreadLayoutMode('side_by_side')}
                               className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                 spreadLayoutMode === 'side_by_side'
                                   ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                                  : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
                               }`}
                             >
                               <Columns size={12} />
@@ -1992,7 +2254,7 @@ export default function AdmissionRegisterSuite({
                               className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                                 spreadLayoutMode === 'stacked'
                                   ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-transparent text-slate-700 dark:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                                  : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
                               }`}
                             >
                               <LayoutGrid size={12} />
@@ -2005,8 +2267,8 @@ export default function AdmissionRegisterSuite({
                       {/* Dynamic Row Height Manager */}
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                          <span className="text-slate-700 dark:text-slate-200">Row Height:</span>
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono font-black text-[11px] border border-indigo-200 dark:border-indigo-800">{rowHeight} px</span>
+                          <span className="text-slate-800">Row Height:</span>
+                          <span className="px-2 py-0.5 rounded-md popover-badge font-mono font-black text-[11px]">{rowHeight} px</span>
                         </div>
                         <input
                           type="range"
@@ -2026,7 +2288,7 @@ export default function AdmissionRegisterSuite({
                               className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
                                 rowHeight === h
                                   ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                                  : 'popover-btn-inactive'
                               }`}
                             >
                               {h === 34 ? 'Compact' : h === 44 ? 'Default' : 'Spacious'} ({h}px)
@@ -2038,8 +2300,8 @@ export default function AdmissionRegisterSuite({
                       {/* Margins */}
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                          <span className="text-slate-700 dark:text-slate-200">Print Margins:</span>
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono font-black text-[11px] border border-indigo-200 dark:border-indigo-800">{printMargin} in</span>
+                          <span className="text-slate-800">Print Margins:</span>
+                          <span className="px-2 py-0.5 rounded-md popover-badge font-mono font-black text-[11px]">{printMargin} in</span>
                         </div>
                         <input
                           type="range"
@@ -2059,7 +2321,7 @@ export default function AdmissionRegisterSuite({
                               className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
                                 printMargin === m
                                   ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                                  : 'popover-btn-inactive'
                               }`}
                             >
                               {m}" {m === 0.3 ? '★' : ''}
@@ -2071,28 +2333,28 @@ export default function AdmissionRegisterSuite({
                       {/* Zoom Controls */}
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                          <span className="text-slate-700 dark:text-slate-200">Screen Zoom:</span>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-mono font-black text-[11px] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">{Math.round(zoomLevel * 100)}%</span>
+                          <span className="text-slate-800">Screen Zoom:</span>
+                          <span className="px-2 py-0.5 rounded-md bg-white font-mono font-black text-[11px] text-slate-800 border border-slate-300">{Math.round(zoomLevel * 100)}%</span>
                         </div>
-                        <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center justify-between p-1.5 rounded-xl popover-zoom-box">
                           <button
                             type="button"
                             onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
-                            className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg text-xs font-black text-slate-800 dark:text-slate-100 cursor-pointer shadow-2xs"
+                            className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
                           >
                             -
                           </button>
                           <button
                             type="button"
                             onClick={() => setZoomLevel(1.0)}
-                            className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                            className="text-[11px] font-black text-indigo-600 hover:underline cursor-pointer"
                           >
                             Reset 100%
                           </button>
                           <button
                             type="button"
                             onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
-                            className="w-7 h-7 flex items-center justify-center bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg text-xs font-black text-slate-800 dark:text-slate-100 cursor-pointer shadow-2xs"
+                            className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
                           >
                             +
                           </button>
@@ -2100,7 +2362,7 @@ export default function AdmissionRegisterSuite({
                       </div>
 
                       {/* Save to Firebase & Reset to Original Buttons */}
-                      <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2">
+                      <div className="border-t border-slate-200 pt-3 space-y-2">
                         <button
                           type="button"
                           onClick={handleSaveLayoutToFirebase}
@@ -2114,7 +2376,7 @@ export default function AdmissionRegisterSuite({
                         <button
                           type="button"
                           onClick={handleResetLayoutToOriginal}
-                          className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                          className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
                           title="Reset columns and row heights to original factory format"
                         >
                           <RotateCcw size={13} />
@@ -2643,10 +2905,10 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-3 pt-1 text-xs font-black text-red-700">
-                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
-                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
-                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
+                        <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700">
+                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
+                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
+                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
                         </div>
                       </div>
 
@@ -2734,10 +2996,10 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="flex justify-between items-center mt-3 pt-1 text-xs font-black text-red-700">
-                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
-                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
-                          <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
+                        <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700">
+                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
+                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
+                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
                         </div>
                       </div>
                     </div>
