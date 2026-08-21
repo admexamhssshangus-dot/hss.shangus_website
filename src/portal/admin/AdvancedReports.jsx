@@ -2609,7 +2609,48 @@ function OnDemandStudentPhotoCell({ student, val }) {
 
 function SubjectStreamCell({ val, student }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [popoverCoords, setPopoverCoords] = useState(null);
+  const btnRef = useRef(null);
   const abbr = abbreviateSubjects(val);
+
+  // Close popup on outside click or escape key
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handleOutsideClick = (e) => {
+      if (btnRef.current && btnRef.current.contains(e.target)) return;
+      setIsExpanded(false);
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsExpanded(false);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isExpanded]);
+
+  const togglePopover = (e) => {
+    e.stopPropagation();
+    if (isExpanded) {
+      setIsExpanded(false);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const popoverWidth = 290;
+      let left = rect.right - popoverWidth;
+      if (left < 12) left = 12;
+      if (left + popoverWidth > window.innerWidth - 12) left = window.innerWidth - popoverWidth - 12;
+
+      let top = rect.bottom + 6;
+      if (top + 220 > window.innerHeight) {
+        top = Math.max(12, rect.top - 220);
+      }
+
+      setPopoverCoords({ top, left });
+      setIsExpanded(true);
+    }
+  };
 
   const getStreamDetails = (st, rawSubs) => {
     const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
@@ -2682,18 +2723,16 @@ function SubjectStreamCell({ val, student }) {
   };
 
   const streamInfo = getStreamDetails(student, val);
-  const hasMismatch = student?.hasStreamMismatch || student?.hasSubsMismatch;
+  const hasMismatch = Boolean(student?.hasStreamMismatch || student?.hasSubsMismatch || student?.hasMismatch);
 
   return (
     <div className="flex flex-col leading-tight relative pr-4">
       {/* Warning icon pinned at TOP-RIGHT of cell */}
       {hasMismatch && (
         <button
+          ref={btnRef}
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsExpanded(!isExpanded);
-          }}
+          onClick={togglePopover}
           className="absolute top-0 right-0 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 dark:bg-amber-950/90 border border-amber-400 dark:border-amber-600 text-[9px] text-amber-800 dark:text-amber-300 font-black hover:scale-125 transition-transform cursor-pointer shadow-xs z-10"
           title="⚠️ 11th vs 12th Discrepancy — Click to view details"
         >
@@ -2714,35 +2753,65 @@ function SubjectStreamCell({ val, student }) {
         )}
       </span>
 
-      {/* Expandable Mismatch Details Popup */}
-      {hasMismatch && isExpanded && (
+      {/* Expandable Mismatch Details Portal (Fixed to Body - Never Clipped) */}
+      {hasMismatch && isExpanded && popoverCoords && createPortal(
         <div
+          style={{
+            position: 'fixed',
+            top: `${popoverCoords.top}px`,
+            left: `${popoverCoords.left}px`,
+            zIndex: 999999
+          }}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-full mt-1 p-2.5 rounded-2xl bg-amber-50/98 dark:bg-slate-900/98 border border-amber-400 dark:border-amber-600 shadow-2xl text-[9.5px] leading-snug z-50 min-w-[240px] max-w-[300px] animate-fadeIn"
+          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border-2 border-amber-500 shadow-2xl text-[10px] leading-snug w-[290px] max-w-[95vw] animate-fadeIn text-slate-800 dark:text-slate-100"
         >
-          <div className="flex items-center justify-between font-black text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-slate-700 pb-1 mb-1.5">
-            <span>⚠️ 11th vs 12th Discrepancy</span>
+          <div className="flex items-center justify-between font-black text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-slate-800 pb-1.5 mb-2">
+            <span className="flex items-center gap-1">
+              <span>⚠️</span>
+              <span>11th vs 12th Discrepancy</span>
+            </span>
             <button
               type="button"
               onClick={() => setIsExpanded(false)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold px-1 cursor-pointer"
+              className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 font-black cursor-pointer text-xs"
             >
               ✕
             </button>
           </div>
-          <div className="space-y-1.5">
-            <div>
-              <span className="font-extrabold text-emerald-700 dark:text-emerald-400 block text-[9px]">11th Record (Authentic / Prev Session):</span>
-              <div className="text-slate-700 dark:text-slate-300 font-medium">Stream: <strong>{student.stream11th || 'N/A'}</strong></div>
-              <div className="text-slate-600 dark:text-slate-400">Subjs: {student.subs11th || '—'}</div>
+
+          <div className="space-y-2">
+            <div className="p-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+              <span className="font-extrabold text-emerald-800 dark:text-emerald-300 block text-[9.5px] uppercase tracking-wider">
+                11th Record (Authentic / Prev Session):
+              </span>
+              <div className="text-slate-800 dark:text-slate-200 font-bold mt-0.5">
+                Stream: <span className="text-emerald-700 dark:text-emerald-300 font-black">{student.stream11th || student.stream || 'N/A'}</span>
+              </div>
+              <div className="text-slate-600 dark:text-slate-400 text-[9px] mt-0.5 font-mono">
+                Subjs: {student.subs11th || student.subs || '—'}
+              </div>
             </div>
-            <div className="pt-1 border-t border-amber-100 dark:border-slate-800">
-              <span className="font-extrabold text-amber-700 dark:text-amber-400 block text-[9px]">12th Form (Opted / Form Entry):</span>
-              <div className="text-slate-700 dark:text-slate-300 font-medium">Stream: <strong>{student.optedStream12th || 'N/A'}</strong></div>
-              <div className="text-slate-600 dark:text-slate-400">Subjs: {student.optedSubs12th || '—'}</div>
+
+            <div className="p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+              <span className="font-extrabold text-amber-800 dark:text-amber-300 block text-[9.5px] uppercase tracking-wider">
+                12th Form (Opted / Form Entry):
+              </span>
+              <div className="text-slate-800 dark:text-slate-200 font-bold mt-0.5">
+                Stream: <span className="text-amber-700 dark:text-amber-300 font-black">{student.optedStream12th || student.stream || 'N/A'}</span>
+              </div>
+              <div className="text-slate-600 dark:text-slate-400 text-[9px] mt-0.5 font-mono">
+                Subjs: {student.optedSubs12th || student.subs || '—'}
+              </div>
             </div>
+
+            {student.subsMismatchNotice && (
+              <div className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-950/60 p-1.5 rounded-lg border border-amber-300/60">
+                {student.subsMismatchNotice}
+              </div>
+            )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
