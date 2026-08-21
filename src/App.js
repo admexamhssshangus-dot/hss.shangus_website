@@ -60,6 +60,7 @@ const TeacherDashboard = lazyWithChunkRecovery(() => import('./portal/teacher/Te
 const AttendancePage = lazyWithChunkRecovery(() => import('./portal/teacher/AttendancePage'), 'attendance');
 const PracticalsPage = lazyWithChunkRecovery(() => import('./portal/teacher/PracticalsPage'), 'practicals');
 const AdminDashboard = lazyWithChunkRecovery(() => import('./portal/admin/AdminDashboard'), 'admin-dashboard');
+const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./portal/admin/AdmissionRegisterSuite'), 'adm-register-suite');
 
 // A stable, responsive placeholder while route bundles are downloaded.
 const LazyFallback = () => <PublicPageSkeleton label="Loading page…" />;
@@ -163,6 +164,7 @@ function App() {
 
               {/* Admin-only routes (SuperAdmin is also allowed) */}
               <Route path="admin" element={<RoleGuard allowedRoles={['admin']}><AdminDashboard /></RoleGuard>} />
+              <Route path="admin/admission-register" element={<RoleGuard allowedRoles={['admin']}><AdmissionRegisterSuite /></RoleGuard>} />
             </Route>
 
             <Route path="/gk-test" element={<GkTestRegistration />} />

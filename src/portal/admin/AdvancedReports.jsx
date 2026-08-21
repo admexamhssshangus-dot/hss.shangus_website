@@ -8787,14 +8787,25 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                   </ul>
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex gap-3 pt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowToolsModal(false);
+                      if (setActiveTab) setActiveTab('admRegisterSuite');
+                    }}
+                    className="flex-1 py-3 rounded-xl font-black text-white bg-amber-600 hover:bg-amber-500 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <BookOpen size={16} />
+                    <span>Open Full Printable Admission Register Suite</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleExportAdmRegister}
-                    className="flex-1 py-3 rounded-xl font-black text-white bg-teal-700 hover:bg-teal-600 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    className="py-3 px-4 rounded-xl font-black text-white bg-teal-700 hover:bg-teal-600 shadow-md flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <FileSpreadsheet size={16} />
-                    <span>Download Official Admission Register (Excel/CSV)</span>
+                    <span>Export CSV</span>
                   </button>
                 </div>
               </div>
@@ -8815,14 +8826,25 @@ export default function AdvancedReports({ setActiveTab, setCounts, user, onLogou
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex gap-3 pt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowToolsModal(false);
+                      if (setActiveTab) setActiveTab('admRegisterSuite');
+                    }}
+                    className="flex-1 py-3 rounded-xl font-black text-white bg-purple-700 hover:bg-purple-600 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <BookOpen size={16} />
+                    <span>Open Sentup Print & Export Suite</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleExportSentup}
-                    className="flex-1 py-3 rounded-xl font-black text-white bg-purple-700 hover:bg-purple-600 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    className="py-3 px-4 rounded-xl font-black text-white bg-slate-700 hover:bg-slate-600 shadow-md flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <FileSpreadsheet size={16} />
-                    <span>Export Sentup Roll Sheet (JKBOSE Format)</span>
+                    <span>Export CSV</span>
                   </button>
                 </div>
               </div>
