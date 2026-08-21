@@ -83,8 +83,13 @@ async function authenticate(event) {
   const role = String(decoded.role || '').toLowerCase();
   if (!['student', 'user'].includes(role)) {
     const email = String(decoded.email || '').toLowerCase();
-    const profile = email ? await getFirestore(getAdminApp()).collection('users').doc(email).get() : null;
-    const profileRole = profile?.exists ? String(profile.data().role || profile.data().Role || '').toLowerCase() : 'student';
+    const uid = decoded.uid;
+    const db = getFirestore(getAdminApp());
+    let profile = uid ? await db.collection('users').doc(uid).get() : null;
+    if (!profile?.exists && email) {
+      profile = await db.collection('users').doc(email).get();
+    }
+    const profileRole = profile?.exists ? String(profile.data().role || profile.data().Role || profile.data().requestedRole || '').toLowerCase() : 'student';
     if (!['student', 'user', ''].includes(profileRole)) {
       throw Object.assign(new Error('A registered student account is required.'), { status: 403 });
     }
