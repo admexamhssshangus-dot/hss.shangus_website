@@ -4,7 +4,7 @@ import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, A
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import { db } from '../../services/firebase';
+import { auth, db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import appsScriptApi from '../../services/appsScriptApi';
@@ -81,9 +81,20 @@ export default function StudentDashboard() {
     }
     setSavingProfile(true);
     try {
-      const userEmailClean = (user?.email || '').toLowerCase().trim();
+      const uid = user?.uid || auth?.currentUser?.uid;
+      const userEmailClean = (user?.email || auth?.currentUser?.email || '').toLowerCase().trim();
 
-      if (userEmailClean) {
+      if (uid) {
+        const userDocRef = doc(db, 'users', uid);
+        await setDoc(userDocRef, {
+          uid: uid,
+          email: userEmailClean,
+          name: profileName.trim(),
+          mobile: profileMobile.trim(),
+          residence: profileResidence.trim(),
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      } else if (userEmailClean) {
         const userDocRef = doc(db, 'users', userEmailClean);
         await setDoc(userDocRef, {
           name: profileName.trim(),

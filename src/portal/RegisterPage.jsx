@@ -1,118 +1,72 @@
 import React, { useState } from 'react';
 import { useOutletContext, useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, User, Lock, Mail, Phone, Eye, EyeOff, AlertCircle, CheckCircle, ArrowRight, ArrowLeft, RefreshCw, GraduationCap, UserCheck, BookOpen, Layers, Briefcase, Calendar, KeyRound } from 'lucide-react';
+import { 
+  ShieldCheck, User, Lock, Mail, Phone, Eye, EyeOff, 
+  AlertCircle, CheckCircle, ArrowRight, ArrowLeft, RefreshCw, 
+  GraduationCap, Sparkles, Check, School, ChevronRight
+} from 'lucide-react';
 
 import SEO from '../components/SEO';
-import { auth, db } from '../services/firebase';
-import { createUserWithEmailAndPassword, sendEmailVerification, signOut, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-
-// Master List of Official School Subjects
-const MASTER_SUBJECTS = [
-  'General English',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Botany',
-  'Zoology',
-  'Environmental Science',
-  'Physical Education',
-  'IT And ITES',
-  'Healthcare',
-  'Computer Science',
-  'Geography',
-  'Mathematics',
-  'Urdu',
-  'Education',
-  'History',
-  'Political Science',
-  'Economics',
-  'Sociology',
-  'Psychology',
-  'Accountancy',
-  'Business Studies',
-  'Entrepreneurship',
-  'Arabic',
-  'Persian',
-];
+import { auth, db, googleProvider } from '../services/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  sendEmailVerification, 
+  updateProfile, 
+  signInWithPopup, 
+  getIdTokenResult 
+} from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function RegisterPage() {
   const { onLoginSuccess } = useOutletContext();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1);
-  const [role, setRole] = useState('Student'); // 'Student' | 'Teacher' | 'Admin'
-
-  // General Form Fields
-  const [email, setEmail] = useState('');
+  // Form Fields (All-in-One Single Window)
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // UI States
   const [showPassword, setShowPassword] = useState(false);
-
-  // Teacher / Faculty Specific Fields
-  const [teacherClass, setTeacherClass] = useState('11th & 12th Class');
-  const [teacherSubject, setTeacherSubject] = useState('Physics');
-  const [teacherDesignation, setTeacherDesignation] = useState('Lecturer');
-
-  // Academic session — default to current/next academic year
-  const currentYear = new Date().getFullYear();
-  const sessionOptions = [
-    `${currentYear - 1}-${String(currentYear).slice(-2)}`,
-    `${currentYear}-${String(currentYear + 1).slice(-2)}`,
-    `${currentYear + 1}-${String(currentYear + 2).slice(-2)}`,
-  ];
-  const [academicSession, setAcademicSession] = useState(sessionOptions[1]);
-
-  // Status & loading
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState(null);
 
-  const handleRoleChange = (newRole) => {
-    setRole(newRole);
-    if (newRole === 'Admin') {
-      setAlert({
-        type: 'error',
-        text: 'Admin account creation is restricted and managed internally by the Institution Administration. Public Admin registration is disabled.',
-      });
-    } else if (newRole === 'Teacher') {
-      setAlert({
-        type: 'error',
-        text: 'Teacher account registration is restricted. Teacher accounts can only be created and provisioned directly by the Administrator.',
-      });
-    } else {
-      setAlert(null);
-    }
-  };
+  // Quick Client-Side Validation Helpers
+  const cleanMobile = mobile.replace(/\D/g, '').slice(0, 10);
+  const isMobileValid = cleanMobile.length === 10;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isPasswordValid = password.length >= 8;
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
 
-  // Step 1: Submit Details & Verify Account Availability
-  const handleDetailsSubmit = async (e) => {
-    e.preventDefault();
+  // Handle Form Submission
+  const handleRegister = async (e) => {
+    if (e) e.preventDefault();
 
-    if (role === 'Admin') {
-      setAlert({
-        type: 'error',
-        text: 'Admin account creation is restricted and managed internally by the Institution Administration. Public Admin registration is disabled.',
-      });
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Client-side quick UX guards
+    if (!cleanName || cleanName.length < 2) {
+      setAlert({ type: 'error', text: 'Please enter your full name (at least 2 characters).' });
       return;
     }
-
-    if (role === 'Teacher') {
-      setAlert({
-        type: 'error',
-        text: 'Teacher account registration is restricted. Teacher accounts can only be created and provisioned directly by the Administrator.',
-      });
+    if (!cleanMobile || cleanMobile.length !== 10) {
+      setAlert({ type: 'error', text: 'Please enter a valid 10-digit mobile number.' });
       return;
     }
-
-    if (!email || !name) {
-      setAlert({ type: 'error', text: 'Please fill in required fields (Name & Email).' });
+    if (!isEmailValid) {
+      setAlert({ type: 'error', text: 'Please enter a valid email address.' });
       return;
     }
-
-    if (role === 'Teacher' && (!teacherClass || !teacherSubject)) {
-      setAlert({ type: 'error', text: 'Please select your assigned Class and teaching Subject.' });
+    if (password.length < 8) {
+      setAlert({ type: 'error', text: 'Password must be at least 8 characters long.' });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAlert({ type: 'error', text: 'Passwords do not match. Please re-enter matching passwords.' });
       return;
     }
 
@@ -120,393 +74,403 @@ export default function RegisterPage() {
     setAlert(null);
 
     try {
-      const userEmailClean = email.trim().toLowerCase();
+      // 1. Create Firebase Auth user (Single atomic network call with duplicate check)
+      const userCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+      const fbUser = userCred.user;
 
-      // Check if user already exists
-      try {
-        const userDocRef = doc(db, 'users', userEmailClean);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists()) {
-          setAlert({ type: 'error', text: 'An account with this email address already exists. Please log in.' });
-          setIsLoading(false);
-          return;
+      // 2. Set displayName in Firebase Auth
+      await updateProfile(fbUser, { displayName: cleanName }).catch((err) => {
+        console.warn('Profile name update note:', err);
+      });
+
+      // 3. Non-blocking verification email trigger (runs in background)
+      sendEmailVerification(fbUser, {
+        url: `${window.location.origin}/portal/login`,
+        handleCodeInApp: false,
+      }).catch((emailErr) => {
+        console.warn('Email verification send note:', emailErr);
+      });
+
+      // 4. Save user demographic profile to Firestore using UID as document ID
+      // NOTE: We only send requestedRole: 'Student'. Privilege escalation is blocked on server.
+      const userData = {
+        uid: fbUser.uid,
+        email: cleanEmail,
+        name: cleanName,
+        mobile: cleanMobile,
+        requestedRole: 'Student',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
+
+      // 5. Seamless Auto-Login: Firebase Auth is already authenticated!
+      // Retrieve token and immediately transition to Student Dashboard.
+      const tokenResult = await getIdTokenResult(fbUser, true).catch(() => ({ token: null, claims: {} }));
+      const userSession = {
+        email: cleanEmail,
+        name: cleanName,
+        role: 'Student',
+        uid: fbUser.uid,
+        photoURL: fbUser.photoURL || null,
+        perms: [],
+      };
+
+      setAlert({ type: 'success', text: 'Account created successfully! Entering Student Portal...' });
+
+      setTimeout(() => {
+        if (onLoginSuccess) {
+          onLoginSuccess({ user: userSession, token: tokenResult.token }, true);
+        } else {
+          navigate('/portal/student', { replace: true });
         }
-      } catch (e) {
-        console.warn('User lookup note:', e);
-      }
+      }, 500);
 
-      // ── Teacher uniqueness check ─────────────────────────────────────────────
-      // One teacher per subject+class combination per academic session.
-      if (role === 'Teacher') {
-        try {
-          const q = query(
-            collection(db, 'users'),
-            where('role', '==', 'Teacher'),
-            where('assignedClass', '==', teacherClass),
-            where('teachingSubject', '==', teacherSubject),
-            where('academicSession', '==', academicSession)
-          );
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            setAlert({
-              type: 'error',
-              text: `A teacher is already registered for "${teacherSubject}" in "${teacherClass}" for the ${academicSession} session. Each subject-class combination can only have one registered teacher per session. Please contact the administration if this is incorrect.`,
-            });
-            setIsLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.warn('Teacher uniqueness check note:', e);
-        }
-      }
-      // ────────────────────────────────────────────────────────────────────────
-
-      setStep(2);
     } catch (err) {
-      console.error('Registration validation error:', err);
-      setAlert({ type: 'error', text: err.message || 'Validation failed. Please try again.' });
+      console.error('Registration failed:', err);
+      let errMsg = 'Failed to create account. Please try again.';
+      if (err.code === 'auth/email-already-in-use') {
+        errMsg = 'An account with this email address already exists. Please sign in instead.';
+      } else if (err.code === 'auth/weak-password') {
+        errMsg = 'The password is too weak. Please use at least 8 characters.';
+      } else if (err.code === 'auth/invalid-email') {
+        errMsg = 'The email address is invalid.';
+      } else if (err.message) {
+        errMsg = err.message;
+      }
+      setAlert({ type: 'error', text: errMsg });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Step 2: Set Password & Create Account
-  const handleRegister = async (e) => {
-    e.preventDefault();
-
-    if (role === 'Admin') {
-      setAlert({
-        type: 'error',
-        text: 'Admin account creation is restricted and managed internally by the Institution Administration.',
-      });
-      return;
-    }
-
-    if (!password || password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
-      setAlert({ type: 'error', text: 'Use at least 12 characters with uppercase, lowercase, and a number.' });
-      return;
-    }
-    if (password !== confirmPassword) {
-      setAlert({ type: 'error', text: 'Passwords do not match.' });
-      return;
-    }
-
+  // Handle Google 1-Click Registration / Sign-In
+  const handleGoogleSignUp = async () => {
     setIsLoading(true);
     setAlert(null);
-
-    const userEmailClean = email.trim().toLowerCase();
-
     try {
-      // 1. Create Firebase Auth user
-      let userCred = null;
-      try {
-        userCred = await createUserWithEmailAndPassword(auth, userEmailClean, password);
-        await updateProfile(userCred.user, { displayName: name.trim() });
-        await sendEmailVerification(userCred.user, {
-          url: `${window.location.origin}/portal/login`,
-          handleCodeInApp: false,
-        });
-      } catch (authErr) {
-        if (authErr.code === 'auth/email-already-in-use') {
-          setAlert({ type: 'error', text: 'An account with this email address already exists. Please log in.' });
-          setIsLoading(false);
-          return;
-        } else {
-          console.warn('Firebase Auth user creation note:', authErr);
-        }
-      }
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
+      const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
-      // 2. Save user account record in Firestore ('users' collection)
-      // NOTE: Passwords are NEVER stored in Firestore — Firebase Auth handles authentication.
-      const userDocRef = doc(db, 'users', userEmailClean);
+      // Save demographic profile using UID as document ID
       const userData = {
-        email: userEmailClean,
-        name: name.trim(),
-        mobile: mobile.trim(),
-        requestedRole: role,
-        uid: userCred ? userCred.user.uid : null,
-        createdAt: new Date().toISOString(),
+        uid: fbUser.uid,
+        email: cleanEmail,
+        name: displayName,
+        mobile: fbUser.phoneNumber || '',
+        requestedRole: 'Student',
         updatedAt: new Date().toISOString(),
       };
+      await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
 
-      if (role === 'Teacher') {
-        userData.assignedClass = teacherClass;
-        userData.teachingSubject = teacherSubject;
-        userData.designation = teacherDesignation;
-        userData.academicSession = academicSession;
-      }
+      const tokenResult = await getIdTokenResult(fbUser, true).catch(() => ({ token: null, claims: {} }));
+      const userSession = {
+        email: cleanEmail,
+        name: displayName,
+        role: tokenResult.claims?.role || 'Student',
+        uid: fbUser.uid,
+        photoURL: fbUser.photoURL || null,
+        perms: tokenResult.claims?.permissions || [],
+      };
 
-      await setDoc(userDocRef, userData, { merge: true });
-
-      setAlert({ type: 'success', text: role === 'Teacher'
-        ? 'Registration received. Verify your email; an administrator must approve the Teacher role before sign-in.'
-        : 'Account created. Verify your email before signing in.' });
-      await signOut(auth);
-
+      setAlert({ type: 'success', text: 'Google sign-in successful! Entering Student Portal...' });
       setTimeout(() => {
-        navigate('/portal/login', { state: { message: 'Check your inbox and verify your email before signing in.' } });
-      }, 1200);
+        if (onLoginSuccess) {
+          onLoginSuccess({ user: userSession, token: tokenResult.token }, true);
+        } else {
+          navigate('/portal/student', { replace: true });
+        }
+      }, 400);
     } catch (err) {
-      console.error('Registration failed:', err);
-      setAlert({ type: 'error', text: 'Failed to create account. Please try again.' });
+      console.error('Google Sign-Up failed:', err);
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setAlert({ type: 'error', text: err.message || 'Google Sign-In failed. Please try again.' });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="portal-auth-page w-full flex-1 py-8 sm:py-12 px-4 sm:px-6 flex flex-col items-center justify-center" style={{ backgroundColor: 'var(--bg-page, #f5f3ff)' }}>
+    <div className="portal-auth-page w-full min-h-[calc(100vh-var(--site-header-height,64px))] flex items-center justify-center py-6 px-3 sm:px-6 lg:px-8 relative overflow-hidden transition-colors duration-300">
       <SEO
-        title="Create Portal Account"
-        description="Register for Govt HSS Shangus student or faculty portal account."
+        title="Student Registration | Govt HSS Shangus"
+        description="Fast and secure student portal account registration for Govt Higher Secondary School Shangus."
         path="/portal/register"
       />
 
-      <div className="w-full max-w-md space-y-6">
-        {/* Main Card */}
-        <div
-          key={step}
-          className="rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-          style={{
-            animation: 'registerFadeSlide 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
-          }}
-        >
-          <style>{`
-            @keyframes registerFadeSlide {
-              from { opacity: 0; transform: translateY(18px) scale(0.97); }
-              to   { opacity: 1; transform: translateY(0) scale(1); }
-            }
-          `}</style>
+      {/* Ambient Glowing Background Orbs */}
+      <div className="absolute top-1/4 -left-20 w-72 sm:w-96 h-72 sm:h-96 blur-3xl rounded-full pointer-events-none bg-teal-500/15 transition-all duration-700" />
+      <div className="absolute bottom-10 -right-20 w-72 sm:w-96 h-72 sm:h-96 blur-3xl rounded-full pointer-events-none bg-cyan-500/15 transition-all duration-700" />
+
+      {/* Single Window Centered Card */}
+      <div className="w-full max-w-lg mx-auto relative z-10">
+        <div className="rounded-3xl p-6 sm:p-8 border shadow-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-slate-200/80 dark:border-slate-800/80 space-y-5">
+          
+          {/* Top Bar: Back Button & Institution Badge */}
           <div className="flex justify-between items-center gap-2">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs"
               title="Go back"
             >
               <ArrowLeft size={14} />
               <span>Back</span>
             </button>
 
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-teal-500/10 text-teal-600 border border-teal-500/20">
-              <ShieldCheck size={13} />
-              <span className="hidden sm:inline">Govt. HSS Shangus</span>
-              <span className="sm:hidden">HSS Shangus</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+              <School size={13} />
+              <span>Govt. HSS Shangus</span>
             </div>
-
-            <span className="text-xs font-black text-slate-400">Step {step} of 2</span>
           </div>
 
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-              CREATE ACCOUNT
-            </h1>
-            <p className="text-xs font-bold text-slate-400">
-              {step === 1 ? 'Select your role and enter your details' : 'Set up password for your portal account'}
-            </p>
+          {/* Card Header */}
+          <div className="space-y-1 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center p-1.5 shadow-xs">
+                <GraduationCap size={22} className="text-teal-600 dark:text-teal-400" />
+              </div>
+              <div>
+                <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  Student Registration
+                </h1>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  Create your digital portal account in one easy step
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Role Switcher */}
-          {step === 1 && (
-            <div className="grid grid-cols-3 p-1 rounded-2xl border text-xs font-bold bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => handleRoleChange('Student')}
-                className={`py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  role === 'Student' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <GraduationCap size={14} /> Student
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleRoleChange('Teacher')}
-                className={`py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer opacity-70 ${
-                  role === 'Teacher' ? 'bg-amber-600 text-white shadow-sm opacity-100' : 'text-slate-600 dark:text-slate-400'
-                }`}
-                title="Teacher account registration is restricted"
-              >
-                <Lock size={14} /> Teacher
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleRoleChange('Admin')}
-                className={`py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer opacity-70 ${
-                  role === 'Admin' ? 'bg-rose-600 text-white shadow-sm opacity-100' : 'text-slate-600 dark:text-slate-400'
-                }`}
-                title="Admin registration is restricted"
-              >
-                <Lock size={14} /> Admin
-              </button>
-            </div>
-          )}
-
+          {/* Alert Notification */}
           {alert && (
             <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 animate-fadeIn ${
               alert.type === 'error'
-                ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600'
-                : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600'
+                ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400'
+                : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
             }`}>
               {alert.type === 'error' ? <AlertCircle size={16} className="flex-shrink-0 mt-0.5" /> : <CheckCircle size={16} className="flex-shrink-0 mt-0.5" />}
               <span>{alert.text}</span>
             </div>
           )}
 
-          {role === 'Teacher' || role === 'Admin' ? (
-            <div className="py-6 px-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-4 animate-fadeIn">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-500/20 shadow-xs">
-                <Lock size={24} />
-              </div>
-
-              <div className="space-y-1.5">
-                <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
-                  {role} Account Registration Restricted
-                </h3>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
-                  {role} accounts are created, provisioned, and assigned directly by the School Administration. Public self-registration is disabled.
-                </p>
-              </div>
-
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-center gap-2">
-                <Link
-                  to="/portal/login"
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <UserCheck size={14} />
-                  <span>Sign In to Portal</span>
-                </Link>
-
-                <Link
-                  to="/portal/forgot-password"
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <KeyRound size={14} />
-                  <span>Reset Password</span>
-                </Link>
+          {/* Main 1-Window Form */}
+          <form onSubmit={handleRegister} className="space-y-3.5">
+            
+            {/* Full Name */}
+            <div className="space-y-1 text-left">
+              <label htmlFor="reg-name" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                Full Name <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="reg-name"
+                  type="text"
+                  placeholder="e.g. Aaqib Hussain Dar"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoComplete="name"
+                  className="w-full pl-10 pr-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all"
+                />
               </div>
             </div>
-          ) : step === 1 ? (
-            <form onSubmit={handleDetailsSubmit} className="space-y-4">
+
+            {/* Grid for Mobile & Email on tablet/desktop, stacked on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-left">
+              
+              {/* Mobile Number */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Full Name *</label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="reg-mobile" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                    Mobile Number <span className="text-rose-500">*</span>
+                  </label>
+                  {mobile.length > 0 && (
+                    <span className={`text-[10px] font-black ${isMobileValid ? 'text-emerald-500' : 'text-slate-400'}`}>
+                      {cleanMobile.length}/10 digits
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
-                  <User size={16} className="absolute left-3.5 top-3 text-slate-400" />
+                  <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    id="reg-mobile"
+                    type="tel"
+                    placeholder="10-digit mobile"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                    autoComplete="tel"
+                    className={`w-full pl-10 pr-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold border focus:outline-none focus:ring-2 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all ${
+                      mobile.length > 0 && isMobileValid
+                        ? 'border-emerald-500/50 focus:ring-emerald-500'
+                        : 'border-slate-200 dark:border-slate-800 focus:ring-teal-500'
+                    }`}
                   />
                 </div>
               </div>
 
+              {/* Email Address */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Email Address *</label>
+                <label htmlFor="reg-email" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  Email Address <span className="text-rose-500">*</span>
+                </label>
                 <div className="relative">
-                  <Mail size={16} className="absolute left-3.5 top-3 text-slate-400" />
+                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    id="reg-email"
                     type="email"
-                    placeholder="Enter email address"
+                    placeholder="student@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                    autoComplete="email"
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Mobile Number</label>
-                <div className="relative">
-                  <Phone size={16} className="absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type="tel"
-                    placeholder="Enter 10-digit mobile"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isLoading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                <span>Continue to Password Setup</span>
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister} className="space-y-4">
+            {/* Grid for Password & Confirm Password */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-left">
+              
+              {/* Create Password */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Create Password *</label>
+                <label htmlFor="reg-password" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  Password <span className="text-rose-500">*</span>
+                </label>
                 <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-3 text-slate-400" />
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    id="reg-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="At least 6 characters"
+                    placeholder="Min. 8 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                    autoComplete="new-password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all"
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
               </div>
 
+              {/* Confirm Password */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Confirm Password *</label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="reg-confirm-password" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                    Confirm Password <span className="text-rose-500">*</span>
+                  </label>
+                  {confirmPassword.length > 0 && (
+                    <span className={`text-[10px] font-black ${passwordsMatch ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {passwordsMatch ? '✓ Matches' : '✗ Mismatch'}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-3 text-slate-400" />
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    id="reg-confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="Re-enter password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold border focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                    autoComplete="new-password"
+                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl text-xs sm:text-sm font-bold border focus:outline-none focus:ring-2 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all ${
+                      confirmPassword.length > 0
+                        ? passwordsMatch
+                          ? 'border-emerald-500/50 focus:ring-emerald-500'
+                          : 'border-rose-500/50 focus:ring-rose-500'
+                        : 'border-slate-200 dark:border-slate-800 focus:ring-teal-500'
+                    }`}
                   />
+                  <button
+                    type="button"
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="w-1/3 py-3.5 rounded-2xl font-extrabold text-xs border border-slate-300 text-slate-600 hover:bg-slate-100"
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-2/3 py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isLoading ? <RefreshCw size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-                  <span>Complete Registration</span>
-                </button>
-              </div>
-            </form>
-          )}
+            </div>
 
-          <div className="text-center text-xs pt-2">
-            <span className="text-slate-400 font-bold">Already have an account? </span>
-            <Link to="/portal/login" className="text-teal-600 font-extrabold hover:underline">
-              Sign In Here
+            {/* Quick Security & Length Requirement Hint */}
+            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100/60 dark:bg-slate-800/60 px-3 py-2 rounded-xl">
+              <ShieldCheck size={14} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+              <span>Password must be at least 8 characters long. Your credentials are securely encrypted.</span>
+            </div>
+
+            {/* Single Primary Action Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white bg-teal-600 hover:bg-teal-500 shadow-xl shadow-teal-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] group mt-2"
+            >
+              {isLoading ? (
+                <RefreshCw size={16} className="animate-spin" />
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  <span>Create Account &amp; Enter Portal</span>
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Social Google OAuth Button */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={handleGoogleSignUp}
+              disabled={isLoading}
+              className="w-full py-3 rounded-2xl font-extrabold text-xs sm:text-sm border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-2xs hover:shadow-sm"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Quick Sign Up with Google</span>
+            </button>
+          </div>
+
+          {/* Institutional Faculty / Admin Note */}
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-1">
+            <span className="text-[11px] font-black text-amber-700 dark:text-amber-400 block">
+              Faculty &amp; Staff Registration Notice
+            </span>
+            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+              Teacher and Administrator portal accounts are provisioned internally by School Administration. Self-registration creates a Student account.
+            </p>
+          </div>
+
+          {/* Sign In Footer Link */}
+          <div className="text-center text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-slate-500 font-bold">Already have an account? </span>
+            <Link to="/portal/login" className="text-teal-600 dark:text-teal-400 font-black hover:underline inline-flex items-center gap-1">
+              Sign In Here <ChevronRight size={13} />
             </Link>
           </div>
+
         </div>
       </div>
     </div>
