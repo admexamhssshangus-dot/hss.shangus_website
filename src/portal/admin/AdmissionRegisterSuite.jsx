@@ -1142,113 +1142,103 @@ export default function AdmissionRegisterSuite({
         }
       `}</style>
 
-      {/* ─── SINGLE COMPACT UNIFIED TOOLBAR ROW ─── */}
-      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2.5 py-1">
-        <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-1.5 flex-wrap">
+      {/* ─── SINGLE COMPACT UNIFIED TOOLBAR ROW (STRICT 1-ROW ON DESKTOP) ─── */}
+      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 py-1">
+        <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-x-auto whitespace-nowrap">
           {/* Left Cluster: Module Selector Dropdown & Core DB Filters */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {/* 1. Main Suite Module Dropdown */}
-            <div className="flex items-center gap-1">
-              <select
-                value={activeTab}
-                onChange={(e) => setActiveTab(e.target.value)}
-                className="py-1 px-2.5 text-xs rounded-lg border-2 border-amber-600/40 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 font-black cursor-pointer shadow-2xs focus:ring-1 focus:ring-amber-500"
-              >
-                <option value="adm_register">📖 Admission Register</option>
-                <option value="sentup">📋 Sentup Export</option>
-                <option value="assign_ids">🔢 Assign IDs</option>
-                <option value="assign_dates">📅 Assign Dates</option>
-              </select>
-            </div>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="py-0.5 px-2 text-[11.5px] rounded-lg border-2 border-amber-600/50 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 font-black cursor-pointer shadow-2xs focus:ring-1 focus:ring-amber-500 shrink-0"
+            >
+              <option value="adm_register">📖 Admission Register</option>
+              <option value="sentup">📋 Sentup Export</option>
+              <option value="assign_ids">🔢 Assign IDs</option>
+              <option value="assign_dates">📅 Assign Dates</option>
+            </select>
 
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
                 {/* 2. Academic Session */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Session:</span>
-                  <select
-                    value={selectedSession}
-                    onChange={(e) => setSelectedSession(e.target.value)}
-                    className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs cursor-pointer"
-                  >
-                    {availableSessions.map(sess => (
-                      <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs cursor-pointer shrink-0"
+                  title="Academic Session"
+                >
+                  {availableSessions.map(sess => (
+                    <option key={sess} value={sess}>{sess} {sess === '2025-26' ? '(Live)' : ''}</option>
+                  ))}
+                </select>
 
                 {/* 3. Status Filter */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Status:</span>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 shadow-2xs cursor-pointer"
-                  >
-                    <option value="Approved">Approved ({statusCounts.approved})</option>
-                    <option value="Submitted">Submitted ({statusCounts.submitted})</option>
-                    <option value="Provisional">Provisional ({statusCounts.provisional})</option>
-                    <option value="ALL">All Statuses ({statusCounts.total})</option>
-                  </select>
-                </div>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 shadow-2xs cursor-pointer shrink-0"
+                  title="Admission Status"
+                >
+                  <option value="Approved">Approved ({statusCounts.approved})</option>
+                  <option value="Submitted">Submitted ({statusCounts.submitted})</option>
+                  <option value="Provisional">Provisional ({statusCounts.provisional})</option>
+                  <option value="ALL">All ({statusCounts.total})</option>
+                </select>
 
                 {/* 4. Admission Type (Fresh vs Re-Adm) */}
-                <div className="flex items-center gap-1">
-                  <select
-                    value={selectedAdmissionType}
-                    onChange={(e) => setSelectedAdmissionType(e.target.value)}
-                    className={`py-1 px-2 text-xs rounded-lg border font-bold shadow-2xs cursor-pointer ${
-                      selectedAdmissionType === 'readmission'
-                        ? 'border-purple-400 bg-purple-50 text-purple-900 dark:bg-purple-950 dark:text-purple-200'
-                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
-                    }`}
-                  >
-                    <option value="ALL">All Types</option>
-                    <option value="fresh">Fresh ({statusCounts.fresh})</option>
-                    <option value="readmission">Re-Adm ({statusCounts.readmissions})</option>
-                  </select>
-                </div>
+                <select
+                  value={selectedAdmissionType}
+                  onChange={(e) => setSelectedAdmissionType(e.target.value)}
+                  className={`py-0.5 px-1.5 text-[11px] rounded-lg border font-bold shadow-2xs cursor-pointer shrink-0 ${
+                    selectedAdmissionType === 'readmission'
+                      ? 'border-purple-400 bg-purple-50 text-purple-900 dark:bg-purple-950 dark:text-purple-200'
+                      : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
+                  }`}
+                  title="Admission Type"
+                >
+                  <option value="ALL">All Types</option>
+                  <option value="fresh">Fresh ({statusCounts.fresh})</option>
+                  <option value="readmission">Re-Adm ({statusCounts.readmissions})</option>
+                </select>
 
                 {/* 5. Class Scope Selector */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 hidden md:inline">Class:</span>
-                  <select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
-                  >
-                    <option value="ALL">All Classes</option>
-                    {availableClasses.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer shrink-0"
+                  title="Class Scope"
+                >
+                  <option value="ALL">All Classes</option>
+                  {availableClasses.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
 
                 {/* 6. Stream Filter */}
                 {availableStreams.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <select
-                      value={selectedStream}
-                      onChange={(e) => setSelectedStream(e.target.value)}
-                      className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
-                    >
-                      <option value="ALL">All Streams</option>
-                      {availableStreams.map(str => (
-                        <option key={str} value={str}>{str}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    value={selectedStream}
+                    onChange={(e) => setSelectedStream(e.target.value)}
+                    className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer shrink-0"
+                    title="Stream"
+                  >
+                    <option value="ALL">All Streams</option>
+                    {availableStreams.map(str => (
+                      <option key={str} value={str}>{str}</option>
+                    ))}
+                  </select>
                 )}
 
                 {/* 7. Quick Search */}
-                <div className="relative">
-                  <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <div className="relative shrink-0">
+                  <Search size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-6 pr-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-28 sm:w-36 shadow-2xs"
+                    className="pl-5 pr-1.5 py-0.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 w-24 xl:w-32 shadow-2xs"
                   />
                 </div>
               </>
@@ -1256,14 +1246,15 @@ export default function AdmissionRegisterSuite({
           </div>
 
           {/* Right Cluster: View Controls, Layout Toggle, Margins, Zoom, Excel & Print */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {activeTab === 'adm_register' && (
               <>
                 {/* Sub-view Section Dropdown */}
                 <select
                   value={registerViewSection}
                   onChange={(e) => setRegisterViewSection(e.target.value)}
-                  className="py-1 px-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                  className="py-0.5 px-1.5 text-[11px] rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer shrink-0"
+                  title="View Section"
                 >
                   <option value="all">📑 All Spreads</option>
                   <option value="cover">📜 Cover Page</option>
@@ -1276,15 +1267,15 @@ export default function AdmissionRegisterSuite({
                 <button
                   type="button"
                   onClick={() => setSpreadLayoutMode(prev => prev === 'side_by_side' ? 'stacked' : 'side_by_side')}
-                  className={`px-2 py-1 rounded-lg border text-xs font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs ${
+                  className={`py-0.5 px-2 rounded-lg border text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-2xs shrink-0 ${
                     spreadLayoutMode === 'side_by_side'
                       ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-700'
                       : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                   }`}
                   title="Toggle Side-by-Side Book View vs Stacked Pages"
                 >
-                  <Columns size={12} />
-                  <span className="hidden xl:inline">{spreadLayoutMode === 'side_by_side' ? 'Side-by-Side' : 'Stacked'}</span>
+                  <Columns size={11} />
+                  <span>{spreadLayoutMode === 'side_by_side' ? 'Side-by-Side' : 'Stacked'}</span>
                 </button>
               </>
             )}
@@ -1292,19 +1283,19 @@ export default function AdmissionRegisterSuite({
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
                 {/* Dynamic Margins Button & Popover */}
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowMarginControls(prev => !prev)}
-                    className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-100 shadow-2xs"
+                    className="py-0.5 px-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer hover:bg-slate-100 shadow-2xs"
                     title="Print Margins (Legal Landscape)"
                   >
-                    <Sliders size={11} className="text-indigo-600" />
+                    <Sliders size={10} className="text-indigo-600" />
                     <span>{printMargin}in</span>
                   </button>
 
                   {showMarginControls && (
-                    <div className="absolute right-0 mt-1 w-52 p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 space-y-1.5">
+                    <div className="absolute right-0 mt-1 w-52 p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 space-y-1.5 whitespace-normal">
                       <div className="flex items-center justify-between text-xs font-bold">
                         <span>Dynamic Margins:</span>
                         <span className="font-mono text-indigo-600">{printMargin} in</span>
@@ -1337,28 +1328,28 @@ export default function AdmissionRegisterSuite({
                 </div>
 
                 {/* Zoom Controls */}
-                <div className="hidden 2xl:flex items-center gap-0.5 bg-white dark:bg-slate-900 px-1 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs shadow-2xs">
+                <div className="hidden 2xl:flex items-center gap-0.5 bg-white dark:bg-slate-900 px-1 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] shadow-2xs shrink-0">
                   <button
                     type="button"
                     onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
                     className="p-0.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
                     title="Zoom Out"
                   >
-                    <ZoomOut size={11} />
+                    <ZoomOut size={10} />
                   </button>
-                  <span className="px-1 text-[10px] font-mono font-bold">{Math.round(zoomLevel * 100)}%</span>
+                  <span className="px-0.5 font-mono font-bold">{Math.round(zoomLevel * 100)}%</span>
                   <button
                     type="button"
                     onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
                     className="p-0.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 cursor-pointer"
                     title="Zoom In"
                   >
-                    <ZoomIn size={11} />
+                    <ZoomIn size={10} />
                   </button>
                 </div>
 
                 {/* Record count badge */}
-                <div className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-black whitespace-nowrap shadow-2xs">
+                <div className="py-0.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black shrink-0 shadow-2xs">
                   {filteredStudents.length} Students
                   {statusCounts.readmissions > 0 && (
                     <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
@@ -1371,10 +1362,10 @@ export default function AdmissionRegisterSuite({
                 <button
                   type="button"
                   onClick={handleExportExcel}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  className="py-0.5 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
                   title="Export Official Ledger to Excel (.xlsx)"
                 >
-                  <FileSpreadsheet size={12} />
+                  <FileSpreadsheet size={11} />
                   <span>Excel</span>
                 </button>
 
@@ -1382,9 +1373,9 @@ export default function AdmissionRegisterSuite({
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                  className="py-0.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
                 >
-                  <Printer size={12} />
+                  <Printer size={11} />
                   <span>Print</span>
                 </button>
               </>
