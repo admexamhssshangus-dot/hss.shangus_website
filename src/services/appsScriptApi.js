@@ -610,39 +610,60 @@ async function legacySaveApplication(payload) {
 }
 
 async function getStudentApplication() {
-  // Plain CRA localhost does not host Netlify Functions. Use the same
-  // owner-scoped Firestore read locally so dashboard/form loading stays clean;
-  // writes still require the authoritative Netlify workflow.
-  if (process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return { success: true, applications: [], historicalRecords: [], data: { applications: [], historicalRecords: [] } };
-    const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
-    const applications = snap.docs
-      .map(item => ({ docId: item.id, ...item.data() }))
-      .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
+  try {
+    // Plain CRA localhost does not host Netlify Functions. Use the same
+    // owner-scoped Firestore read locally so dashboard/form loading stays clean;
+    // writes still require the authoritative Netlify workflow.
+    if (process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return { success: true, applications: [], historicalRecords: [], data: { applications: [], historicalRecords: [] } };
+      try {
+        const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
+        const applications = snap.docs
+          .map(item => ({ docId: item.id, ...item.data() }))
+          .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
+        return {
+          success: true,
+          applications,
+          historicalRecords: [],
+          data: { applications, historicalRecords: [] },
+          localReadOnly: true,
+        };
+      } catch (err) {
+        console.warn('Local Firestore admissions lookup note:', err);
+        return {
+          success: true,
+          applications: [],
+          historicalRecords: [],
+          data: { applications: [], historicalRecords: [] },
+          localReadOnly: true,
+        };
+      }
+    }
+    const workspace = await loadAdmissionWorkspace();
+    const applications = Array.isArray(workspace.applications) ? workspace.applications : [];
     return {
       success: true,
       applications,
       historicalRecords: [],
-      data: { applications, historicalRecords: [] },
-      localReadOnly: true,
-    };
-  }
-  const workspace = await loadAdmissionWorkspace();
-  const applications = Array.isArray(workspace.applications) ? workspace.applications : [];
-  return {
-    success: true,
-    applications,
-    historicalRecords: [],
-    activeSession: workspace.activeSession,
-    admissionAvailability: workspace.admissionAvailability || {},
-    data: {
-      applications,
-      historicalRecords: [],
       activeSession: workspace.activeSession,
       admissionAvailability: workspace.admissionAvailability || {},
-    },
-  };
+      data: {
+        applications,
+        historicalRecords: [],
+        activeSession: workspace.activeSession,
+        admissionAvailability: workspace.admissionAvailability || {},
+      },
+    };
+  } catch (e) {
+    console.warn('getStudentApplication fallback note:', e);
+    return {
+      success: true,
+      applications: [],
+      historicalRecords: [],
+      data: { applications: [], historicalRecords: [] },
+    };
+  }
 }
 
 async function saveApplication(payload) {

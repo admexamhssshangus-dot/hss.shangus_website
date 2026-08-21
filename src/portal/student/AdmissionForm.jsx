@@ -99,14 +99,25 @@ export default function AdmissionForm() {
     setLoading(true);
     setAlert(null);
     try {
-      const [structRes, subjCfgRes, appDataRes] = await Promise.all([
+      const [structResult, subjCfgResult, appDataResult] = await Promise.allSettled([
         appsScriptApi.getFormStructure(),
         appsScriptApi.getSubjectsConfig(),
         appsScriptApi.getStudentApplication()
       ]);
 
-      if (structRes && structRes.data) setFormStructure(structRes.data);
-      else if (structRes && Array.isArray(structRes)) setFormStructure(structRes);
+      const structRes = structResult.status === 'fulfilled' ? structResult.value : null;
+      const subjCfgRes = subjCfgResult.status === 'fulfilled' ? subjCfgResult.value : null;
+      const appDataRes = appDataResult.status === 'fulfilled' ? appDataResult.value : null;
+
+      if (structRes && structRes.data && Array.isArray(structRes.data) && structRes.data.length > 0) {
+        setFormStructure(structRes.data);
+      } else if (structRes && Array.isArray(structRes) && structRes.length > 0) {
+        setFormStructure(structRes);
+      } else {
+        // Safe fallback to default form structure
+        const defStruct = require('../../services/appsScriptApi').DEFAULT_FORM_STRUCTURE;
+        if (Array.isArray(defStruct)) setFormStructure(defStruct);
+      }
 
       if (subjCfgRes && subjCfgRes.data) setSubjectsConfig(subjCfgRes.data);
       else if (subjCfgRes) setSubjectsConfig(subjCfgRes);

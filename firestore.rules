@@ -49,7 +49,7 @@ service cloud.firestore {
 
     function isStudent() {
       return isAuthenticated() && (
-        normalizedRole() in ['student', 'user'] ||
+        normalizedRole() in ['student', 'user', ''] ||
         isTeacher()
       );
     }
