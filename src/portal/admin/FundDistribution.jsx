@@ -167,7 +167,7 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
         </div>
 
         {/* Dynamic 2-Column Fee Breakdown Grid for All Configured Accounts */}
-        <div className="border-t border-dotted border-slate-200 dark:border-slate-700 pt-2 grid grid-cols-2 gap-x-3.5 gap-y-1.5 text-[10.5px]">
+        <div className="border-t border-dotted border-slate-200 dark:border-slate-700 pt-2 grid grid-cols-2 gap-x-3.5 gap-y-2 text-[10.5px]">
           {accounts.map(acc => {
             const count = acc.isScienceOnly ? sciCount : paidCount;
             const rateVal = cRate[acc.key] || 0;
@@ -176,12 +176,23 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
               : (rateVal * count);
 
             return (
-              <div key={acc.key} className="flex justify-between items-center gap-1">
-                <span className="text-slate-500 truncate" title={acc.name}>
-                  {acc.name}
-                  {acc.isScienceOnly && <span className="text-[8.5px] text-purple-600 font-extrabold ml-1">Sci</span>}
+              <div key={acc.key} className="flex justify-between items-start gap-1 py-0.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-slate-600 dark:text-slate-400 truncate flex items-center gap-1 font-bold" title={acc.name}>
+                    <span className="truncate">{acc.name}</span>
+                    {acc.isScienceOnly && (
+                      <span className="text-[8px] px-1 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold flex-shrink-0">
+                        Sci
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 font-bold leading-tight">
+                    {count} × ₹{rateVal}
+                  </div>
+                </div>
+                <span className="font-mono font-black flex-shrink-0 text-slate-900 dark:text-white pt-0.5">
+                  {formatCurrency(val)}
                 </span>
-                <span className="font-mono font-black flex-shrink-0">{formatCurrency(val)}</span>
               </div>
             );
           })}
