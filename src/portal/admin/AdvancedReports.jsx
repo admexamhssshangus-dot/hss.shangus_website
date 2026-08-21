@@ -2685,46 +2685,42 @@ function SubjectStreamCell({ val, student }) {
   const hasMismatch = student?.hasStreamMismatch || student?.hasSubsMismatch;
 
   return (
-    <div className="flex flex-col leading-tight relative">
-      {/* Subject abbreviations */}
+    <div className="flex flex-col leading-tight relative pr-4">
+      {/* Warning icon pinned at TOP-RIGHT of cell */}
+      {hasMismatch && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          className="absolute top-0 right-0 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 dark:bg-amber-950/90 border border-amber-400 dark:border-amber-600 text-[9px] text-amber-800 dark:text-amber-300 font-black hover:scale-125 transition-transform cursor-pointer shadow-xs z-10"
+          title="⚠️ 11th vs 12th Discrepancy — Click to view details"
+        >
+          ⚠️
+        </button>
+      )}
+
+      {/* Subject abbreviations + Stream badge INLINE */}
       <span
         title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
-        className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help"
+        className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline-flex items-center flex-wrap gap-1"
       >
-        {abbr}
+        <span>{abbr}</span>
+        {streamInfo.code && (
+          <span className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
+            ({streamInfo.code})
+          </span>
+        )}
       </span>
-
-      {/* Stream badge + warning icon at bottom-right */}
-      {(streamInfo.code || hasMismatch) && (
-        <div className="flex items-center justify-end gap-1 mt-0.5">
-          {streamInfo.code && (
-            <span className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
-              ({streamInfo.code})
-            </span>
-          )}
-          {hasMismatch && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsExpanded(!isExpanded);
-              }}
-              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 dark:bg-amber-950/80 border border-amber-400 dark:border-amber-600 text-[10px] text-amber-800 dark:text-amber-300 font-black hover:scale-125 transition-transform cursor-pointer shadow-xs"
-              title="⚠️ 11th vs 12th Discrepancy — Click to view details"
-            >
-              ⚠️
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Expandable Mismatch Details Popup */}
       {hasMismatch && isExpanded && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="mt-1.5 p-2 rounded-xl bg-amber-50/95 dark:bg-slate-900/95 border border-amber-400 dark:border-amber-600 shadow-lg text-[9.5px] leading-snug z-30 min-w-[220px] max-w-[280px] animate-fadeIn"
+          className="absolute right-0 top-full mt-1 p-2.5 rounded-2xl bg-amber-50/98 dark:bg-slate-900/98 border border-amber-400 dark:border-amber-600 shadow-2xl text-[9.5px] leading-snug z-50 min-w-[240px] max-w-[300px] animate-fadeIn"
         >
-          <div className="flex items-center justify-between font-black text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-slate-700 pb-1 mb-1">
+          <div className="flex items-center justify-between font-black text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-slate-700 pb-1 mb-1.5">
             <span>⚠️ 11th vs 12th Discrepancy</span>
             <button
               type="button"
@@ -2734,13 +2730,13 @@ function SubjectStreamCell({ val, student }) {
               ✕
             </button>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div>
               <span className="font-extrabold text-emerald-700 dark:text-emerald-400 block text-[9px]">11th Record (Authentic / Prev Session):</span>
               <div className="text-slate-700 dark:text-slate-300 font-medium">Stream: <strong>{student.stream11th || 'N/A'}</strong></div>
               <div className="text-slate-600 dark:text-slate-400">Subjs: {student.subs11th || '—'}</div>
             </div>
-            <div className="pt-0.5 border-t border-amber-100 dark:border-slate-800">
+            <div className="pt-1 border-t border-amber-100 dark:border-slate-800">
               <span className="font-extrabold text-amber-700 dark:text-amber-400 block text-[9px]">12th Form (Opted / Form Entry):</span>
               <div className="text-slate-700 dark:text-slate-300 font-medium">Stream: <strong>{student.optedStream12th || 'N/A'}</strong></div>
               <div className="text-slate-600 dark:text-slate-400">Subjs: {student.optedSubs12th || '—'}</div>

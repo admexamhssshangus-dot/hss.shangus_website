@@ -68,6 +68,7 @@ import {
   downloadTransactionAnalysisPdf,
   printTransactionAnalysisLetter
 } from '../../utils/fundDistributionPdfGenerator';
+import { getCanonicalSubjectCodes, resolveStudentStream } from './AdvancedReports';
 
 /**
  * Reusable Live Report Preview Card for both Entry and History views
@@ -414,83 +415,6 @@ export default function FundDistribution() {
   // Helper string cleaner
   const cleanStr = (v) => (v !== null && v !== undefined ? String(v).trim() : '');
 
-  // ─── ACCURATE STREAM RESOLUTION FOR 11TH & 12TH STUDENTS ───
-  const resolveStudentStream = (s) => {
-    const streamField = String(
-      s.stream || s.Stream || s['Stream for Class 11th'] || s['Stream opted in Class 11th'] ||
-      s['Stream & Subjects for Class 12th'] || s['Stream / Faculty'] || s.faculty || s.streamName || ''
-    ).trim().toLowerCase();
-
-    const subjectsField = String(
-      s.subs || s.subjects || s.chosenSubjects || s['Subjects Opted'] || s['Subjects Chosen'] ||
-      s['Chosen Subjects'] || s['Stream & Subjects for Class 12th'] || s['Subject 1'] || s['Subject 2'] ||
-      s['Subject 3'] || s['Subject 4'] || s['Subject 5'] || ''
-    ).trim().toLowerCase();
-
-    // 1. Direct explicit stream indication
-    if (streamField && !streamField.includes('same as') && streamField !== '—' && streamField !== 'n/a') {
-      if (streamField.includes('hum') || streamField.includes('art')) return 'Humanities';
-      if (streamField.includes('comm')) return 'Commerce';
-      if (streamField.includes('home sci') || streamField.includes('home-sci')) return 'Home Science';
-      if (streamField.includes('sci') || streamField.includes('med')) return 'Science';
-    }
-
-    const rawCombined = `${streamField} ${subjectsField}`;
-
-    // 2. Humanities Check (History, Political Science, Education, Economics, Urdu, Sociology, Arabic, Kashmiri, Islamic Studies, Geography, Philosophy, etc.)
-    if (
-      rawCombined.includes('political') ||
-      rawCombined.includes('history') ||
-      rawCombined.includes('education') ||
-      rawCombined.includes('sociology') ||
-      rawCombined.includes('economics') ||
-      rawCombined.includes('urdu') ||
-      rawCombined.includes('kashmiri') ||
-      rawCombined.includes('arabic') ||
-      rawCombined.includes('geography') ||
-      rawCombined.includes('islamic') ||
-      rawCombined.includes('philosophy') ||
-      rawCombined.includes('psychology') ||
-      /\b(ht|ps|ed|ec|so|ur|ka|ar|hi|is|gg|pl|py)\b/i.test(rawCombined)
-    ) {
-      return 'Humanities';
-    }
-
-    // 3. Commerce Check
-    if (
-      rawCombined.includes('comm') ||
-      rawCombined.includes('account') ||
-      rawCombined.includes('business') ||
-      rawCombined.includes('entrepreneur') ||
-      /\b(ac|act|bs|bst|com|ep)\b/i.test(rawCombined)
-    ) {
-      return 'Commerce';
-    }
-
-    // 4. Home Science Check
-    if (rawCombined.includes('home sci') || rawCombined.includes('home-sci') || rawCombined.includes('homesci')) {
-      return 'Home Science';
-    }
-
-    // 5. Science Stream Check (Medical / Non-Medical / PCB / PCM / PCMB / Physics / Chemistry / Biology / Botany / Zoology / Biotech)
-    if (
-      rawCombined.includes('sci') ||
-      rawCombined.includes('med') ||
-      rawCombined.includes('physic') ||
-      rawCombined.includes('chemist') ||
-      rawCombined.includes('biolog') ||
-      rawCombined.includes('botan') ||
-      rawCombined.includes('zoolog') ||
-      rawCombined.includes('biotech') ||
-      /\b(ph|ch|bi|bo|zo|bt|pcb|pcm|pcmb)\b/i.test(rawCombined)
-    ) {
-      return 'Science';
-    }
-
-    // 6. Default fallback for higher secondary
-    return 'Humanities';
-  };
-
   // Fetch live rates, accounts, distributions, admissions, and master registers
   const fetchData = useCallback(async () => {
     setIsSyncing(true);
@@ -638,6 +562,33 @@ export default function FundDistribution() {
     const targetSession = String(fundSession || formSession || '2025-26').trim().toLowerCase();
     const processedIds = new Set();
 
+    // Cross-referencing index for authentic 11th records (for 12th students with 'Same as in class 11th' or subject verification)
+    const record11thByReg = new Map();
+    const record11thByAdm = new Map();
+    const record11thByName = new Map();
+
+    const index11thRecord = (item) => {
+      const cls = String(item.class || item.Class || item['Admission sought for class'] || '').toLowerCase();
+      if (cls.includes('11') || cls.includes('xi')) {
+        const reg = String(item.boardRegNo || item['Board Reg No'] || item.regNo || '').trim().toLowerCase();
+        const adm = String(item.admNo || item['Admission No'] || item.admissionNo || '').trim().toLowerCase();
+        const name = String(item.name || item.studentName || item["Student's Name"] || '').trim().toLowerCase();
+        const parent = String(item.fatherName || item["Father's Name"] || '').trim().toLowerCase();
+        if (reg && reg !== '—' && reg !== 'n/a') record11thByReg.set(reg, item);
+        if (adm && adm !== '—' && adm !== 'n/a') record11thByAdm.set(adm, item);
+        if (name && parent) record11thByName.set(`${name}_${parent}`, item);
+      }
+    };
+
+    (masterRegisters || []).forEach(h => {
+      const items = h.items || h.students || h.records || h.data;
+      if (Array.isArray(items)) {
+        items.forEach(index11thRecord);
+      }
+    });
+
+    (rawStudents || []).forEach(index11thRecord);
+
     const processStudent = (s, idx) => {
       const id = String(s.id || s.docId || s.formNo || s['Form Number'] || `std_${idx}`);
       if (processedIds.has(id)) return;
@@ -671,8 +622,20 @@ export default function FundDistribution() {
       processedIds.add(id);
       stats[cls].total += 1;
 
-      // Stream resolution for 11th and 12th
-      const stdStream = resolveStudentStream(s);
+      // Find 11th record match if student is in 12th
+      let masterMatch = null;
+      if (cls === '12th') {
+        const reg = String(s.boardRegNo || s['Board Reg No'] || s.regNo || '').trim().toLowerCase();
+        const adm = String(s.admNo || s['Admission No'] || s.admissionNo || '').trim().toLowerCase();
+        const name = String(s.name || s.studentName || s["Student's Name"] || '').trim().toLowerCase();
+        const parent = String(s.fatherName || s["Father's Name"] || '').trim().toLowerCase();
+        if (reg && reg !== '—' && reg !== 'n/a') masterMatch = record11thByReg.get(reg);
+        if (!masterMatch && adm && adm !== '—' && adm !== 'n/a') masterMatch = record11thByAdm.get(adm);
+        if (!masterMatch && name && parent) masterMatch = record11thByName.get(`${name}_${parent}`);
+      }
+
+      // Accurate stream resolution using canonical JKBOSE codes & 11th cross-referencing
+      const stdStream = resolveStudentStream(s, masterMatch);
       stats[cls].streams[stdStream] = (stats[cls].streams[stdStream] || 0) + 1;
       if (stdStream === 'Science') {
         stats[cls].science += 1;
