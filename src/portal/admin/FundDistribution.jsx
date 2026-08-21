@@ -96,15 +96,15 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden animate-fadeIn flex flex-col max-h-[calc(100vh-96px)]">
       {/* Compact Preview Header — Sticky inside Card */}
-      <div className="bg-blue-600 px-3.5 py-2 text-white flex items-center justify-between flex-shrink-0">
-        <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 flex items-center gap-1.5">
+      <div className="bg-blue-600 px-3.5 py-2 text-white flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 flex-shrink-0">
+        <span className="text-[10px] font-black uppercase tracking-wider text-blue-100 flex items-center gap-1.5 whitespace-nowrap">
           <FileText size={13} /> REPORT PREVIEW
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
           <button
             type="button"
             onClick={() => exportFundDistributionToExcel(report, rates, accounts)}
-            className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] flex items-center gap-1 transition-colors cursor-pointer"
+            className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0"
             title="Download Excel Sheet for Bank Operations"
           >
             <FileSpreadsheet size={11} /> Excel
@@ -112,7 +112,7 @@ function ReportPreviewCard({ report, rates, accounts = DEFAULT_SUBSIDIARY_ACCOUN
           <button
             type="button"
             onClick={() => printFundDistributionLetter(report, rates, accounts)}
-            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white font-black text-[9px] flex items-center gap-1 transition-colors cursor-pointer"
+            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white font-black text-[9px] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0"
           >
             <Printer size={11} /> Print PDF
           </button>
@@ -1628,7 +1628,7 @@ export default function FundDistribution() {
       {activeTab === 'entry' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
           {/* Left Column: Combined Entry Form & Recent Generations with Integrated Header */}
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-6 xl:col-span-7">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-2xs space-y-3">
               {/* Card Section Header */}
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -2015,7 +2015,7 @@ export default function FundDistribution() {
           </div>
 
           {/* Right Column: Naturally Compact Live Report Preview Card */}
-          <div className="lg:col-span-5 lg:sticky lg:top-[76px]">
+          <div className="lg:col-span-6 xl:col-span-5 lg:sticky lg:top-[76px]">
             <ReportPreviewCard
               report={previewReport}
               rates={rates}
@@ -2028,11 +2028,11 @@ export default function FundDistribution() {
         </div>
       )}
 
-      {/* ─────────────────── TAB 2: GROUPED HISTORY ACCORDION / TABLE ─────────────────── */}
+      {/* ─────────────────── TAB 2: AUDIT STATEMENT HISTORY & RECONCILIATION ─────────────────── */}
       {activeTab === 'history' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
           {/* Left Column: History Controls & Scrollable Grouped Tables */}
-          <div className="lg:col-span-7 space-y-2.5 flex flex-col">
+          <div className="lg:col-span-6 xl:col-span-7 space-y-2.5 flex flex-col">
             {/* History Controls Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex-shrink-0">
               <div className="flex items-center gap-2 flex-1">
@@ -2373,7 +2373,7 @@ export default function FundDistribution() {
           </div>
 
           {/* Right Column: Naturally Compact Live Report Preview Card */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-6 xl:col-span-5">
             <ReportPreviewCard
               report={previewReport}
               rates={rates}

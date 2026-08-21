@@ -87,8 +87,10 @@ export function getCanonicalSubjectCodes(raw) {
     if (t === 'ge' || t === 'en' || t.includes('english')) { codes.add('GE'); return; }
     // Environmental Science
     if (t === 'es' || t === 'evs' || t.includes('environmental') || t.includes('environment')) { codes.add('ES'); return; }
+    // Physical Education (MUST be checked BEFORE Physics since "physical education" contains "physic")
+    if (t === 'pd' || t === 'phe' || t === 'physical education' || t.includes('physical edu')) { codes.add('PD'); return; }
     // Physics
-    if (t === 'ph' || t.includes('physic')) { codes.add('PH'); return; }
+    if (t === 'ph' || t === 'physics' || (t.includes('physic') && !t.includes('education'))) { codes.add('PH'); return; }
     // Chemistry
     if (t === 'ch' || t.includes('chemist')) { codes.add('CH'); return; }
     // Biology / Botany / Zoology
@@ -98,8 +100,6 @@ export function getCanonicalSubjectCodes(raw) {
     if (t === 'bt' || t.includes('biotech')) { codes.add('BT'); return; }
     // Mathematics
     if (t === 'ma' || t === 'math' || t === 'maths' || t.includes('mathemat')) { codes.add('MA'); return; }
-    // Physical Education
-    if (t === 'pd' || t === 'phe' || t.includes('physical')) { codes.add('PD'); return; }
     // IT & ITES
     if (t === 'ite' || t === 'it' || t.includes('information tech') || t.includes('ites') || t.includes('it & ites') || t.includes('it and ites')) { codes.add('ITE'); return; }
     // Computer Science
@@ -2607,6 +2607,151 @@ function OnDemandStudentPhotoCell({ student, val }) {
   );
 }
 
+function SubjectStreamCell({ val, student }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const abbr = abbreviateSubjects(val);
+
+  const getStreamDetails = (st, rawSubs) => {
+    const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
+    if (cls.includes('9') || cls.includes('10')) {
+      return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
+    }
+
+    const rawStream = String(
+      st?.stream ||
+      st?.Stream ||
+      st?.['Stream for Class 11th'] ||
+      st?.['Stream opted in Class 11th'] ||
+      st?.['Stream & Subjects for Class 12th'] ||
+      ''
+    ).toLowerCase();
+
+    const abbrSubjs = abbreviateSubjects(rawSubs);
+    const allSubjStr = `${rawSubs || ''} ${st?.subs || ''} ${st?.Subjects || ''} ${abbrSubjs || ''}`;
+    const codes = getCanonicalSubjectCodes(allSubjStr);
+
+    const hasScienceSubjects =
+      (codes.has('PH') && codes.has('CH')) ||
+      (codes.has('PH') && codes.has('BI')) ||
+      (codes.has('CH') && codes.has('BI')) ||
+      (codes.has('PH') && codes.has('MA')) ||
+      codes.has('BO') || codes.has('ZO') || codes.has('BT');
+
+    const hasScienceStream = rawStream.includes('sci') || rawStream.includes('med');
+
+    const hasCommerce =
+      rawStream.includes('commerce') ||
+      codes.has('AC') ||
+      codes.has('BS') ||
+      codes.has('EP');
+
+    const hasHumanitiesSubjects =
+      codes.has('HT') ||
+      codes.has('PS') ||
+      codes.has('ED') ||
+      codes.has('EC') ||
+      codes.has('SO') ||
+      codes.has('UR') ||
+      codes.has('AR') ||
+      codes.has('KA') ||
+      codes.has('HI') ||
+      codes.has('IS') ||
+      codes.has('GG') ||
+      codes.has('PL') ||
+      codes.has('PY');
+
+    const hasHumanitiesStream = rawStream.includes('hum') || rawStream.includes('art');
+
+    if (hasScienceSubjects || (hasScienceStream && !hasHumanitiesSubjects)) {
+      return { code: 'S', label: 'Science', style: 'bg-blue-600 dark:bg-blue-600 text-white border-blue-700' };
+    }
+
+    if (hasCommerce) {
+      return { code: 'C', label: 'Commerce', style: 'bg-amber-600 text-white border-amber-700' };
+    }
+
+    if (hasHumanitiesSubjects || hasHumanitiesStream) {
+      return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+    }
+
+    if (cls.includes('11') || cls.includes('12')) {
+      return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
+    }
+
+    return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
+  };
+
+  const streamInfo = getStreamDetails(student, val);
+  const hasMismatch = student?.hasStreamMismatch || student?.hasSubsMismatch;
+
+  return (
+    <div className="flex flex-col leading-tight relative">
+      {/* Subject abbreviations */}
+      <span
+        title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
+        className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help"
+      >
+        {abbr}
+      </span>
+
+      {/* Stream badge + warning icon at bottom-right */}
+      {(streamInfo.code || hasMismatch) && (
+        <div className="flex items-center justify-end gap-1 mt-0.5">
+          {streamInfo.code && (
+            <span className={`inline-block px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
+              ({streamInfo.code})
+            </span>
+          )}
+          {hasMismatch && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
+              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 dark:bg-amber-950/80 border border-amber-400 dark:border-amber-600 text-[10px] text-amber-800 dark:text-amber-300 font-black hover:scale-125 transition-transform cursor-pointer shadow-xs"
+              title="⚠️ 11th vs 12th Discrepancy — Click to view details"
+            >
+              ⚠️
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Expandable Mismatch Details Popup */}
+      {hasMismatch && isExpanded && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="mt-1.5 p-2 rounded-xl bg-amber-50/95 dark:bg-slate-900/95 border border-amber-400 dark:border-amber-600 shadow-lg text-[9.5px] leading-snug z-30 min-w-[220px] max-w-[280px] animate-fadeIn"
+        >
+          <div className="flex items-center justify-between font-black text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-slate-700 pb-1 mb-1">
+            <span>⚠️ 11th vs 12th Discrepancy</span>
+            <button
+              type="button"
+              onClick={() => setIsExpanded(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold px-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1">
+            <div>
+              <span className="font-extrabold text-emerald-700 dark:text-emerald-400 block text-[9px]">11th Record (Authentic / Prev Session):</span>
+              <div className="text-slate-700 dark:text-slate-300 font-medium">Stream: <strong>{student.stream11th || 'N/A'}</strong></div>
+              <div className="text-slate-600 dark:text-slate-400">Subjs: {student.subs11th || '—'}</div>
+            </div>
+            <div className="pt-0.5 border-t border-amber-100 dark:border-slate-800">
+              <span className="font-extrabold text-amber-700 dark:text-amber-400 block text-[9px]">12th Form (Opted / Form Entry):</span>
+              <div className="text-slate-700 dark:text-slate-300 font-medium">Stream: <strong>{student.optedStream12th || 'N/A'}</strong></div>
+              <div className="text-slate-600 dark:text-slate-400">Subjs: {student.optedSubs12th || '—'}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const COLUMN_DEFS = [
   { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
   {
@@ -2662,7 +2807,7 @@ const COLUMN_DEFS = [
         return (
           <span className="font-mono font-black text-slate-900 dark:text-white" title={`Re-admission student. New Adm No: ${formatted}, Old Adm No: ${oldAdm}`}>
             <span className="text-amber-800 dark:text-amber-300 font-extrabold">{formatted}</span>
-            <span className="ml-1 text-[10px] text-indigo-700 dark:text-indigo-400 font-black">({oldAdm})</span>
+            <span className="ml-1 text-[10px] text-indigo-700 dark:indigo-400 font-black">({oldAdm})</span>
           </span>
         );
       }
@@ -2770,120 +2915,9 @@ const COLUMN_DEFS = [
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap' },
   { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap' },
   {
-    key: 'subs', label: 'SUBS (STREAM)', className: 'whitespace-normal break-words leading-tight', render: (val, student) => {
-      const abbr = abbreviateSubjects(val);
-
-      const getStreamDetails = (st, rawSubs) => {
-        const cls = String(st?.class || st?.Class || st?.['Admission sought for class'] || '').trim().toLowerCase();
-        if (cls.includes('9') || cls.includes('10')) {
-          return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
-        }
-
-        const rawStream = String(
-          st?.stream ||
-          st?.Stream ||
-          st?.['Stream for Class 11th'] ||
-          st?.['Stream opted in Class 11th'] ||
-          st?.['Stream & Subjects for Class 12th'] ||
-          ''
-        ).toLowerCase();
-
-        const abbrSubjs = abbreviateSubjects(rawSubs);
-        const allSubjStr = `${rawSubs || ''} ${st?.subs || ''} ${st?.Subjects || ''} ${abbrSubjs || ''}`;
-        const codes = getCanonicalSubjectCodes(allSubjStr);
-
-        // 1. Science Core Check (Physics + Chemistry, or Physics + Bio, or Chemistry + Bio, or Pure Science codes)
-        const hasScienceSubjects =
-          (codes.has('PH') && codes.has('CH')) ||
-          (codes.has('PH') && codes.has('BI')) ||
-          (codes.has('CH') && codes.has('BI')) ||
-          (codes.has('PH') && codes.has('MA')) ||
-          codes.has('BO') || codes.has('ZO') || codes.has('BT');
-
-        const hasScienceStream = rawStream.includes('sci') || rawStream.includes('med');
-
-        // 2. Commerce Core Check
-        const hasCommerce =
-          rawStream.includes('commerce') ||
-          codes.has('AC') ||
-          codes.has('BS') ||
-          codes.has('EP');
-
-        // 3. Humanities Core Check
-        const hasHumanitiesSubjects =
-          codes.has('HT') ||
-          codes.has('PS') ||
-          codes.has('ED') ||
-          codes.has('EC') ||
-          codes.has('SO') ||
-          codes.has('UR') ||
-          codes.has('AR') ||
-          codes.has('KA') ||
-          codes.has('HI') ||
-          codes.has('IS') ||
-          codes.has('GG') ||
-          codes.has('PL') ||
-          codes.has('PY');
-
-        const hasHumanitiesStream = rawStream.includes('hum') || rawStream.includes('art');
-
-        // If Physics + Chemistry or pure science stream without humanities subjects
-        if (hasScienceSubjects || (hasScienceStream && !hasHumanitiesSubjects)) {
-          return { code: 'S', label: 'Science', style: 'bg-blue-600 dark:bg-blue-600 text-white border-blue-700' };
-        }
-
-        if (hasCommerce) {
-          return { code: 'C', label: 'Commerce', style: 'bg-amber-600 text-white border-amber-700' };
-        }
-
-        if (hasHumanitiesSubjects || hasHumanitiesStream) {
-          return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
-        }
-
-        if (cls.includes('11') || cls.includes('12')) {
-          return { code: 'H', label: 'Humanities', style: 'bg-purple-700 text-white border-purple-800' };
-        }
-
-        return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
-      };
-
-      const streamInfo = getStreamDetails(student, val);
-
-      return (
-        <div className="flex flex-col leading-tight">
-          <span
-            title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
-            className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help inline-flex items-center gap-1"
-          >
-            <span>{abbr}</span>
-            {streamInfo.code && (
-              <span className={`inline-block ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap ${streamInfo.style}`}>
-                ({streamInfo.code})
-              </span>
-            )}
-          </span>
-
-          {/* 12th vs 11th Stream / Subject Mismatch Alert Badge */}
-          {student?.hasStreamMismatch && (
-            <span
-              className="mt-0.5 inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-amber-100/90 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-[8.5px] font-extrabold text-amber-800 dark:text-amber-200"
-              title={`11th Ground Truth: ${student.stream11th} (prev session) | 12th Form Opted: ${student.optedStream12th}`}
-            >
-              <span>⚠️ 12th Opted "{student.optedStream12th}" (11th: "{student.stream11th}")</span>
-            </span>
-          )}
-
-          {student?.hasSubsMismatch && !student?.hasStreamMismatch && (
-            <span
-              className="mt-0.5 inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-[8px] font-bold text-amber-700 dark:text-amber-300"
-              title={`11th Subjects: ${student.subs11th} (prev session) | 12th Form Opted: ${student.optedSubs12th}`}
-            >
-              <span>⚠️ 12th Subjs: [{student.optedSubs12th}] (11th: [{student.subs11th}])</span>
-            </span>
-          )}
-        </div>
-      );
-    }
+    key: 'subs', label: 'SUBS (STREAM)', className: 'whitespace-normal break-words leading-tight', render: (val, student) => (
+      <SubjectStreamCell val={val} student={student} />
+    )
   },
   {
     key: 'mobile',
