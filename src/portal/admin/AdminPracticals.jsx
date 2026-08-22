@@ -2937,169 +2937,210 @@ function SettingsPermissionsView({
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. Subject Permissions Management */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
-        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-          <Shield size={16} className="text-indigo-500" /> Teacher Evaluation Permissions
-        </h3>
-        <form onSubmit={grantPerm} className="flex flex-wrap items-center gap-2 text-xs">
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-start">
+      {/* LEFT COLUMN: Teacher Evaluation Permissions (xl:col-span-5) */}
+      <div className="xl:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <Shield size={16} className="text-indigo-500" /> Teacher Permissions
+          </h3>
+          <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-black border border-indigo-100 dark:border-indigo-800">
+            {(settings.permissions || []).length} Active
+          </span>
+        </div>
+
+        <form onSubmit={grantPerm} className="space-y-2 text-xs">
           <input
             type="email"
             placeholder="Teacher Email Address..."
             value={grantEmail}
             onChange={e => setGrantEmail(e.target.value)}
-            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold flex-1 min-w-[200px]"
+            className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
           />
-          <select value={grantClass} onChange={e => setGrantClass(e.target.value)} className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold">
-            <option value="11th">Class 11th</option>
-            <option value="12th">Class 12th</option>
-          </select>
-          <select value={grantSubject} onChange={e => setGrantSubject(e.target.value)} className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold">
-            {CODES.map(c => <option key={c} value={c}>{NAMES[c]} ({c})</option>)}
-          </select>
-          <button type="submit" disabled={saving} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold cursor-pointer shadow-xs">
-            Grant Permission
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={grantClass}
+              onChange={e => setGrantClass(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer"
+            >
+              <option value="11th">Class 11th</option>
+              <option value="12th">Class 12th</option>
+            </select>
+            <select
+              value={grantSubject}
+              onChange={e => setGrantSubject(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer truncate"
+            >
+              {CODES.map(c => <option key={c} value={c}>{NAMES[c]} ({c})</option>)}
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs cursor-pointer shadow-2xs transition-all flex items-center justify-center gap-1"
+          >
+            <Shield size={13} /> Grant Evaluation Permission
           </button>
         </form>
 
-        <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+        <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs pr-1">
           {(settings.permissions || []).map((p, idx) => (
-            <div key={idx} className="py-2 flex items-center justify-between">
-              <div>
-                <span className="font-bold text-slate-900 dark:text-white">{p.email}</span> • <span className="text-indigo-600 font-bold">{p.className}</span> • <span>{NAMES[p.subject] || p.subject}</span>
+            <div key={idx} className="py-2 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-slate-900 dark:text-white truncate text-[11px]">{p.email}</div>
+                <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5">
+                  <span className="text-indigo-600 font-bold">{p.className}</span> • <span>{NAMES[p.subject] || p.subject}</span>
+                </div>
               </div>
-              <button onClick={() => revokePerm(idx)} className="text-rose-600 hover:underline font-bold text-[11px] cursor-pointer">
+              <button
+                type="button"
+                onClick={() => revokePerm(idx)}
+                className="text-rose-600 hover:text-rose-700 hover:underline font-black text-[10.5px] cursor-pointer shrink-0"
+              >
                 Revoke
               </button>
             </div>
           ))}
           {(!settings.permissions || settings.permissions.length === 0) && (
-            <div className="py-3 text-slate-400 text-center font-bold">No active teacher permissions granted yet.</div>
+            <div className="py-6 text-slate-400 text-center font-bold text-xs">No active teacher permissions granted yet.</div>
           )}
         </div>
       </div>
 
-      {/* 2. Global Configuration */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-4">
-        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-          <Settings size={16} className="text-indigo-500" /> Global System Configuration
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Default Academic Session</label>
-            <input
-              type="text"
-              value={settings.currentAcademicSession || '2025-26'}
-              onChange={e => setSettings({ ...settings, currentAcademicSession: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
-              placeholder="2025-26"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Default Evaluation Type</label>
-            <select
-              value={settings.defaultEvaluationType || 'internal'}
-              onChange={e => setSettings({ ...settings, defaultEvaluationType: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
+      {/* RIGHT COLUMN: Global Configuration & Print Defaults (xl:col-span-7) */}
+      <div className="xl:col-span-7 space-y-3.5">
+        {/* Card 1: Global System Configuration */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Settings size={16} className="text-indigo-500" /> Global System Configuration
+            </h3>
+            <button
+              onClick={handleSaveSys}
+              disabled={saving}
+              className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+                sysSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
             >
-              <option value="internal">Internal Assessment</option>
-              <option value="external">External / Outside Assessment</option>
-            </select>
+              {sysSaved ? <Check size={13} /> : <Save size={13} />} {sysSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Configuration'}
+            </button>
           </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Global Absent Marker Symbol</label>
-            <input
-              type="text"
-              value={settings.absentMarker || 'AB'}
-              onChange={e => setSettings({ ...settings, absentMarker: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
-              placeholder="AB"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Class 11th Non-Practical Subjects</label>
-            <input
-              type="text"
-              value={settings.nonPractical11 || ''}
-              onChange={e => setSettings({ ...settings, nonPractical11: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
-              placeholder="Comma separated codes (e.g. EN, MA)"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Class 12th Non-Practical Subjects</label>
-            <input
-              type="text"
-              value={settings.nonPractical12 || ''}
-              onChange={e => setSettings({ ...settings, nonPractical12: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold"
-              placeholder="Comma separated codes (e.g. EN, MA)"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSaveSys}
-            disabled={saving}
-            className={`px-4 py-2 ${sysSaved ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-500'} text-white rounded-xl text-xs font-black cursor-pointer shadow-xs flex items-center gap-1.5 transition-all`}
-          >
-            {sysSaved ? <Check size={14} /> : <Save size={14} />} {sysSaved ? 'Saved Successfully!' : saving ? 'Saving...' : 'Save System Configuration'}
-          </button>
-          {sysSaved && (
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 size={13} /> Settings Updated
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* 3. Print Defaults Configuration */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-4">
-        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-          <Printer size={16} className="text-emerald-500" /> Print Document Defaults & Headers
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          {['11th', '12th'].map(c => (
-            <div key={c} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-              <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs">Class {c} Print Headers</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Academic Session</label>
               <input
                 type="text"
-                placeholder="Institution Name"
-                value={settings.printDetails?.[c]?.instName || 'Govt. Higher Secondary School Shangus'}
-                onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], instName: e.target.value } } }))}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
-              />
-              <input
-                type="text"
-                placeholder="Session Text (e.g. 2025-26)"
-                value={settings.printDetails?.[c]?.sessionText || '2025-26'}
-                onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], sessionText: e.target.value } } }))}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
-              />
-              <input
-                type="text"
-                placeholder="Principal / Incharge Name"
-                value={settings.printDetails?.[c]?.inchargeName || 'Mr. Sheikh Gulfam'}
-                onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeName: e.target.value } } }))}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold"
+                value={settings.currentAcademicSession || '2025-26'}
+                onChange={e => setSettings({ ...settings, currentAcademicSession: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                placeholder="2025-26"
               />
             </div>
-          ))}
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Evaluation Type</label>
+              <select
+                value={settings.defaultEvaluationType || 'internal'}
+                onChange={e => setSettings({ ...settings, defaultEvaluationType: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer"
+              >
+                <option value="internal">Internal Assessment</option>
+                <option value="external">External / Outside Assessment</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Absent Symbol</label>
+              <input
+                type="text"
+                value={settings.absentMarker || 'AB'}
+                onChange={e => setSettings({ ...settings, absentMarker: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                placeholder="AB"
+              />
+            </div>
+            <div className="sm:col-span-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Class 11th Non-Practical Subjects</label>
+              <input
+                type="text"
+                value={settings.nonPractical11 || ''}
+                onChange={e => setSettings({ ...settings, nonPractical11: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                placeholder="Codes (e.g. HTC, ITE)"
+              />
+            </div>
+            <div className="sm:col-span-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Class 12th Non-Practical Subjects</label>
+              <input
+                type="text"
+                value={settings.nonPractical12 || ''}
+                onChange={e => setSettings({ ...settings, nonPractical12: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                placeholder="Codes (e.g. HTC, ITE)"
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSavePrint}
-            disabled={saving}
-            className={`px-4 py-2 ${printSaved ? 'bg-indigo-600' : 'bg-emerald-600 hover:bg-emerald-500'} text-white rounded-xl text-xs font-black cursor-pointer shadow-xs flex items-center gap-1.5 transition-all`}
-          >
-            {printSaved ? <Check size={14} /> : <Save size={14} />} {printSaved ? 'Saved Successfully!' : saving ? 'Saving...' : 'Save Print Defaults'}
-          </button>
-          {printSaved && (
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 size={13} /> Print Defaults Updated
-            </span>
-          )}
+
+        {/* Card 2: Print Document Defaults & Headers */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Printer size={16} className="text-emerald-500" /> Print Document Defaults & Headers
+            </h3>
+            <button
+              onClick={handleSavePrint}
+              disabled={saving}
+              className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+                printSaved ? 'bg-indigo-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
+            >
+              {printSaved ? <Check size={13} /> : <Save size={13} />} {printSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Print Defaults'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {['11th', '12th'].map(c => (
+              <div key={c} className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1">
+                  <Award size={13} className="text-indigo-500" /> Class {c} Print Headers
+                </h4>
+                <div className="space-y-1.5">
+                  <div>
+                    <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Institution Name</label>
+                    <input
+                      type="text"
+                      placeholder="Institution Name"
+                      value={settings.printDetails?.[c]?.instName || 'Govt. Higher Secondary School Shangus'}
+                      onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], instName: e.target.value } } }))}
+                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Session Text</label>
+                      <input
+                        type="text"
+                        placeholder="Session (e.g. 2025-26)"
+                        value={settings.printDetails?.[c]?.sessionText || '2025-26'}
+                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], sessionText: e.target.value } } }))}
+                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Name</label>
+                      <input
+                        type="text"
+                        placeholder="Incharge Name"
+                        value={settings.printDetails?.[c]?.inchargeName || 'Mr. Sheikh Gulfam'}
+                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeName: e.target.value } } }))}
+                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
