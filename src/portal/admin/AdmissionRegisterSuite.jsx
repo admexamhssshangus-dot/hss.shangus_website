@@ -3676,8 +3676,7 @@ export default function AdmissionRegisterSuite({
                                 <ResizableTh colKey="p2_cat" width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOC. CAT.</ResizableTh>
                                 <ResizableTh colKey="p2_socio" width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOCIO-ECON CAT.</ResizableTh>
                                 <ResizableTh colKey="p2_blood" width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">BLOOD GRP</ResizableTh>
-                                <ResizableTh colKey="p2_account" width={columnWidths.p2_account} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C NO.</ResizableTh>
-                                <ResizableTh colKey="p2_ifsc" width={columnWidths.p2_ifsc} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">IFSC CODE</ResizableTh>
+                                <ResizableTh colKey="p2_account" width={columnWidths.p2_account || 86} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C NO. & IFSC</ResizableTh>
                                 <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PREVIOUS ACADEMIC DETAILS</th>
                                 <ResizableTh colKey="p2_pen" width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
                                 <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC<br />(No.; Date)</ResizableTh>
@@ -3701,8 +3700,16 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50">{s.socioEcon}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold">{s.blood}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] bg-yellow-50 ledger-mono-font">{s.account}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] bg-yellow-50 ledger-mono-font">{s.ifsc}</td>
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden">
+                                     <div className="font-bold text-[7.5px] text-slate-900 leading-tight">
+                                       {s.account && s.account !== '—' ? s.account : '—'}
+                                     </div>
+                                     {s.ifsc && s.ifsc !== '—' && s.ifsc !== 'NA' && (
+                                       <div className="text-[6.5px] text-slate-600 font-medium leading-tight mt-0.5">
+                                         {s.ifsc}
+                                       </div>
+                                     )}
+                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight">{s.prevSchool}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
