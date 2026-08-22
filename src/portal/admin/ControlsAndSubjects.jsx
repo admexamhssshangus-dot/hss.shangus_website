@@ -1,22 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck } from 'lucide-react';
+import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, PanelsTopLeft } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
 
 export const ALL_ADMIN_MODULES = [
   { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
+  { code: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', desc: 'Official ledger, JKBOSE sentup roll, bulk assign IDs & dates' },
+  { code: 'docStudio', label: 'Official Documents & Registers Studio', desc: 'Custom student lists, fee sheets & official letterhead writer' },
+  { code: 'idCards', label: 'Student ID Cards Studio', desc: 'Generate batch ID Card PDFs & print cards' },
+  { code: 'gkTest', label: 'GK Test & OMR System', desc: 'Manage GK registrations, admit cards, centers & OMR' },
   { code: 'controls', label: 'System & Emergency Controls', desc: 'Enable/disable 9th-12th classes, sessions, print settings' },
   { code: 'subjects', label: 'Subject Configuration Rules', desc: 'Configure streams, groups A/B/C, min/max limits' },
-  { code: 'gkTest', label: 'GK Test & OMR System', desc: 'Manage GK registrations, admit cards, centers & OMR' },
   { code: 'practicals', label: 'Practicals & Awards', desc: 'Practical marks entry, examiners, awards locking' },
   { code: 'attendanceMgmt', label: 'Attendance Management', desc: 'Class attendance registers, log attendance & reports' },
   { code: 'rollNo', label: 'Roll Number Assignment', desc: 'Auto-assign roll numbers & roll series configuration' },
-  { code: 'idCards', label: 'Student ID Cards Studio', desc: 'Generate batch ID Card PDFs & print cards' },
+  { code: 'mergeStudio', label: 'Application Merger & Deduplication', desc: 'Scan, review side-by-side & merge duplicate records by Reg No' },
   { code: 'automations', label: 'Email & Automations', desc: 'Group Email Composer, broadcast notifications & logs' },
   { code: 'funds', label: 'Fund & Fee Accounts', desc: 'Fee structures, student fee ledgers & account distribution' },
+  { code: 'cms', label: 'Website CMS & Administration', desc: 'Website content, access and publishing' },
   { code: 'ingestion', label: 'Direct Ingestion & CSV Import', desc: 'Express student creation & raw CSV data importer' },
   { code: 'adminMgmt', label: 'Admin Permissions Manager', desc: 'Add, edit, or revoke other admin accounts & permissions' },
 ];
@@ -38,19 +42,19 @@ const DEFAULT_ADMIN_USERS = [
     name: 'Nawaz Ahmad Shah (Admin)',
     email: 'shahnawaz@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ['reports', 'admRegisterSuite'],
   },
   {
     name: 'Bilal Ahmad Khandy',
     email: 'bilalhcu@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ['reports', 'admRegisterSuite'],
   },
   {
     name: 'Majid Hassan Najar',
     email: 'majidhassannajar@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ['reports', 'admRegisterSuite'],
   },
 ];
 
@@ -301,7 +305,7 @@ export default function ControlsAndSubjects() {
   const [adminUsers, setAdminUsers] = useState(DEFAULT_ADMIN_USERS);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
-  const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'idCards'] });
+  const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'admRegisterSuite', 'attendanceMgmt', 'rollNo', 'idCards'] });
   const [userToDelete, setUserToDelete] = useState(null);
 
   // LAB Test Data Generator & Session Rollover State
@@ -316,8 +320,7 @@ export default function ControlsAndSubjects() {
   useEffect(() => {
     async function loadConfigs() {
       try {
-        const [subjRes, appRes, siteSettings] = await Promise.all([
-          appsScriptApi.getSubjectsConfig().catch(() => null),
+        const [appRes, siteSettings] = await Promise.all([
           appsScriptApi.getPublicSettings().catch(() => null),
           loadSiteSettings().catch(() => null)
         ]);
@@ -332,8 +335,65 @@ export default function ControlsAndSubjects() {
           if (siteSettings.session) setSession(siteSettings.session);
           if (siteSettings.practicalsSubmissionOpen !== undefined) setPracticalsSubmissionOpen(Boolean(siteSettings.practicalsSubmissionOpen));
           if (siteSettings.attendanceSubmissionOpen !== undefined) setAttendanceSubmissionOpen(Boolean(siteSettings.attendanceSubmissionOpen));
+
+          // Populate class admission toggles
+          if (siteSettings.allow_9th !== undefined) setAllow9th(Boolean(siteSettings.allow_9th));
+          else if (siteSettings.allow9th !== undefined) setAllow9th(Boolean(siteSettings.allow9th));
+          else if (siteSettings.admissionsClosed?.['9th'] !== undefined) setAllow9th(!siteSettings.admissionsClosed['9th']);
+
+          if (siteSettings.allow_10th !== undefined) setAllow10th(Boolean(siteSettings.allow_10th));
+          else if (siteSettings.allow10th !== undefined) setAllow10th(Boolean(siteSettings.allow10th));
+          else if (siteSettings.admissionsClosed?.['10th'] !== undefined) setAllow10th(!siteSettings.admissionsClosed['10th']);
+
+          if (siteSettings.allow_11th !== undefined) setAllow11th(Boolean(siteSettings.allow_11th));
+          else if (siteSettings.allow11th !== undefined) setAllow11th(Boolean(siteSettings.allow11th));
+          else if (siteSettings.admissionsClosed?.['11th'] !== undefined) setAllow11th(!siteSettings.admissionsClosed['11th']);
+
+          if (siteSettings.allow_12th !== undefined) setAllow12th(Boolean(siteSettings.allow_12th));
+          else if (siteSettings.allow12th !== undefined) setAllow12th(Boolean(siteSettings.allow12th));
+          else if (siteSettings.admissionsClosed?.['12th'] !== undefined) setAllow12th(!siteSettings.admissionsClosed['12th']);
+
+          // Populate automated email triggers
+          if (siteSettings.email_submission !== undefined) setEmailSubmission(Boolean(siteSettings.email_submission));
+          if (siteSettings.email_upgrade_pdf !== undefined) setEmailUpgradePdf(Boolean(siteSettings.email_upgrade_pdf));
+          if (siteSettings.email_rejection !== undefined) setEmailRejection(Boolean(siteSettings.email_rejection));
+          if (siteSettings.email_reg_otp !== undefined) setEmailRegOtp(Boolean(siteSettings.email_reg_otp));
+          if (siteSettings.email_reset_otp !== undefined) setEmailResetOtp(Boolean(siteSettings.email_reset_otp));
         }
       } catch (e) {}
+
+      // Load Firestore Subjects Configuration
+      try {
+        const snap = await getDocs(collection(db, 'subjectsConfig'));
+        if (!snap.empty) {
+          const loadedMap = { ...INITIAL_SUBJECT_MAP };
+          snap.docs.forEach(docSnap => {
+            const d = docSnap.data();
+            const cls = d.Class || d.className || d.class;
+            const stream = d.Stream || d.stream || 'General';
+            if (cls) {
+              const k = `${cls}_${stream}`;
+              loadedMap[k] = {
+                groupA: d.groupA || d.compulsory || d['Compulsory Subjects'] || [],
+                groupB: d.groupB || d.group1 || d['Group1 Options'] || [],
+                groupC: d.groupC || d.group2 || d['Group2 Options'] || [],
+                minSubjects: d.minSubjects !== undefined ? Number(d.minSubjects) : 5,
+                maxSubjects: d.maxSubjects !== undefined ? Number(d.maxSubjects) : 6,
+                g1Min: d.g1Min !== undefined ? Number(d.g1Min) : (d['G1 Min'] !== undefined ? Number(d['G1 Min']) : 1),
+                g1Max: d.g1Max !== undefined ? Number(d.g1Max) : (d['G1 Max'] !== undefined ? Number(d['G1 Max']) : 1),
+                g2Min: d.g2Min !== undefined ? Number(d.g2Min) : (d['G2 Min'] !== undefined ? Number(d['G2 Min']) : 0),
+                g2Max: d.g2Max !== undefined ? Number(d.g2Max) : (d['G2 Max'] !== undefined ? Number(d['G2 Max']) : 1),
+              };
+            }
+          });
+          setSubjectConfigMap(loadedMap);
+          try {
+            localStorage.setItem('hss_subject_config_map_v2', JSON.stringify(loadedMap));
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.warn('Firestore subjectsConfig load note:', err);
+      }
 
       // Load Firestore Admin Permissions
       try {
@@ -370,6 +430,16 @@ export default function ControlsAndSubjects() {
         allow_10th: allow10th,
         allow_11th: allow11th,
         allow_12th: allow12th,
+        allow9th,
+        allow10th,
+        allow11th,
+        allow12th,
+        admissionsClosed: {
+          "9th": !allow9th,
+          "10th": !allow10th,
+          "11th": !allow11th,
+          "12th": !allow12th
+        },
         practicalsSubmissionOpen,
         attendanceSubmissionOpen,
         email_submission: emailSubmission,
@@ -424,6 +494,29 @@ export default function ControlsAndSubjects() {
     try {
       localStorage.setItem('hss_subject_config_map_v2', JSON.stringify(updatedMap));
     } catch (err) {}
+
+    // Save directly to Firestore collection 'subjectsConfig' for instant global sync
+    try {
+      await setDoc(doc(db, 'subjectsConfig', `${selectedClass}_${selectedStream}`), {
+        Class: selectedClass,
+        Stream: selectedStream,
+        compulsory: groupA,
+        group1: groupB,
+        group2: groupC,
+        'Compulsory Subjects': groupA,
+        'Group1 Options': groupB,
+        'Group2 Options': groupC,
+        'G1 Min': parseInt(g1Min, 10),
+        'G1 Max': parseInt(g1Max, 10),
+        'G2 Min': parseInt(g2Min, 10),
+        'G2 Max': parseInt(g2Max, 10),
+        minSubjects: parseInt(minSubjects, 10),
+        maxSubjects: parseInt(maxSubjects, 10),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore subjectsConfig direct write note:', err);
+    }
 
     try {
       const res = await appsScriptApi.call('saveSubjectsConfig', { config: newConfig });
