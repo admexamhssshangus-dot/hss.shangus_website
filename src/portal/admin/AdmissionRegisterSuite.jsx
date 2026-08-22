@@ -2535,11 +2535,18 @@ export default function AdmissionRegisterSuite({
                       setShowViewPopover(prev => !prev);
                       setShowFiltersPopover(false);
                     }}
-                    className="py-0.5 px-2 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-slate-700 flex items-center gap-1 cursor-pointer hover:bg-slate-50 shadow-2xs"
+                    className={`py-0.5 px-2 rounded-lg border text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all ${
+                      isLayoutModified
+                        ? 'border-amber-400 bg-amber-50/90 text-amber-900 font-black ring-1 ring-amber-400'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
                     title="View Section, Book Layout, Margins, Row Height & Zoom Settings"
                   >
-                    <Eye size={11} className="text-indigo-600" />
+                    <Eye size={11} className={isLayoutModified ? "text-amber-600" : "text-indigo-600"} />
                     <span>View & Layout</span>
+                    {isLayoutModified && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    )}
                     <ChevronDown size={10} className="text-slate-400" />
                   </button>
 
@@ -2700,27 +2707,38 @@ export default function AdmissionRegisterSuite({
                         </div>
                       </div>
 
-                      {/* Save to Firebase & Reset to Original Buttons */}
-                      <div className="border-t border-slate-200 pt-3 space-y-2">
-                        <button
-                          type="button"
-                          onClick={handleSaveLayoutToFirebase}
-                          disabled={savingLayout}
-                          className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
-                          title="Save custom column widths, row height and margins to Firebase default"
-                        >
-                          {savingLayout ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                          <span>Set this to Default (Firebase)</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleResetLayoutToOriginal}
-                          className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
-                          title="Reset columns and row heights to original factory format"
-                        >
-                          <RotateCcw size={13} />
-                          <span>Reset to Original Form</span>
-                        </button>
+                      {/* Compact Table Layout Actions & Modified Alert */}
+                      <div className="border-t border-slate-200 pt-2.5 space-y-1.5">
+                        {isLayoutModified && (
+                          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
+                            <span className="flex items-center gap-1.5">
+                              <SlidersHorizontal size={12} className="text-amber-600 shrink-0" />
+                              <span>Table Layout Modified</span>
+                            </span>
+                            <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 bg-amber-200/80 px-1.5 py-0.5 rounded">Modified</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-5 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleSaveLayoutToFirebase}
+                            disabled={savingLayout}
+                            className="col-span-3 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all active:scale-95 disabled:opacity-50"
+                            title="Save custom column widths, row height and margins to Firebase default"
+                          >
+                            {savingLayout ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                            <span className="truncate">Set to Default (Firebase)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleResetLayoutToOriginal}
+                            className="col-span-2 py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            title="Reset columns and row heights to original factory format"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Reset</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3964,36 +3982,6 @@ export default function AdmissionRegisterSuite({
         </div>
       </main>
 
-      {/* Floating Notification & Action Bar when Custom Layout is Modified */}
-      {isLayoutModified && (
-        <div className="no-print fixed bottom-5 right-5 z-[120] bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border-2 border-amber-500/80 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
-          <div className="flex items-center gap-1.5 text-xs font-black text-amber-300">
-            <SlidersHorizontal size={14} className="text-amber-400" />
-            <span>Table Layout Modified</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSaveLayoutToFirebase}
-              disabled={savingLayout}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50"
-              title="Save custom column widths and row height to Firebase default"
-            >
-              {savingLayout ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              <span>Set to Default (Firebase)</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleResetLayoutToOriginal}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-              title="Reset columns and row heights to original factory format"
-            >
-              <RotateCcw size={12} />
-              <span>Reset</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
