@@ -2379,7 +2379,7 @@ export default function AdmissionRegisterSuite({
             height: auto !important;
             min-height: 0 !important;
             max-height: none !important;
-            padding: 4mm !important;
+            padding: ${printMargin}in !important;
             margin: 0 !important;
             border: none !important;
             border-radius: 0 !important;
@@ -2433,7 +2433,7 @@ export default function AdmissionRegisterSuite({
 
           th, td {
             border: 1px solid #000000 !important;
-            padding: 1px 2px !important;
+            padding: 1.5px 2.5px !important;
             overflow-wrap: anywhere !important;
             box-sizing: border-box !important;
           }
@@ -2447,6 +2447,7 @@ export default function AdmissionRegisterSuite({
             table-layout: fixed !important;
             width: 100% !important;
             border-collapse: collapse !important;
+            font-size: 8.5px !important;
           }
 
           .admission-spread-table thead {
@@ -2462,9 +2463,10 @@ export default function AdmissionRegisterSuite({
           .admission-spread-table thead th {
             height: 7mm !important;
             max-height: 7mm !important;
-            padding: 1px 2px !important;
-            font-size: 7px !important;
-            line-height: 1.05 !important;
+            padding: 1.5px 2px !important;
+            font-size: 8px !important;
+            font-weight: 800 !important;
+            line-height: 1.1 !important;
             vertical-align: middle !important;
             text-align: center !important;
             box-sizing: border-box !important;
@@ -2485,8 +2487,9 @@ export default function AdmissionRegisterSuite({
           .register-resizable-row > td {
             height: var(--register-row-height) !important;
             max-height: var(--register-row-height) !important;
-            padding: 1px 2px !important;
-            line-height: 1.12 !important;
+            padding: 1.5px 3px !important;
+            font-size: 8.5px !important;
+            line-height: 1.15 !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
