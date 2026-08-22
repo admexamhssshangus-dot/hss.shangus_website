@@ -66,21 +66,21 @@ export const isClassMatch = (stc, trc) => {
 
 export const getRollNo = (st) => {
   if (!st) return '';
-  const roll = String(
-    st['Class Roll No'] ||
-    st['Class Roll No.'] ||
-    st.classRollNo ||
-    st['Class Roll'] ||
-    st.rollNo ||
-    st.roll_no ||
-    st.roll ||
-    st['Roll No'] ||
-    st['Roll No.'] ||
-    st.ClassRoll ||
-    ''
-  ).trim();
-  if (/^\d{8,}$/.test(roll)) return '—';
-  return roll;
+  const keys = [
+    'Class Roll No', 'Class Roll No.', 'classRollNo', 'Class Roll', 'Class R.No.', 'Class R.No', 'Class R. No.',
+    'rollNo', 'RollNo', 'Roll No', 'Roll No.', 'roll_no', 'roll', 'ClassRoll', 'ClassRollNo', 'class_roll_no',
+    'RollNumber', 'Roll_No', 'classRoll', 'crNo', 'class_roll', 'assignedRollNo', 'currentRollNo',
+    'Class Roll No (Class 12th)', 'Class Roll No (Class 11th)', 'Class Roll No.', 'Roll_Number'
+  ];
+  for (const k of keys) {
+    if (st[k] !== undefined && st[k] !== null) {
+      const val = String(st[k]).trim();
+      if (val && val !== '—' && val !== '-' && val !== 'N/A' && val !== 'null' && val !== 'undefined') {
+        if (!/^\d{8,}$/.test(val)) return val;
+      }
+    }
+  }
+  return '';
 };
 
 export function getStudentSession(st) {
@@ -264,11 +264,12 @@ export const checkStudentApprovalState = (st) => {
     rollVal !== '0'
   );
 
-  const statusStr = String(st.Status || st.status || st['Admission Status'] || '').toLowerCase();
+  const statusStr = String(st.Status || st.status || st['Admission Status'] || st.admissionStatus || '').toLowerCase();
   const isRejected = statusStr.includes('reject') || statusStr.includes('cancel') || st.isRejected === true;
 
-  // Once class roll is assigned, the application is approved. Without a roll, it is pending.
-  const isApproved = !isRejected && hasRoll;
+  // Once class roll is assigned, the student is approved. Also approved if marked as approved/admitted/completed or from master registers.
+  const isExplicitApproved = statusStr.includes('approv') || statusStr.includes('admit') || statusStr.includes('complet') || statusStr.includes('active') || st.isApproved === true || st._source === 'masterRegisters';
+  const isApproved = !isRejected && (hasRoll || isExplicitApproved);
   const isPending = !isApproved && !isRejected;
 
   return { isApproved, isRejected, isPending, hasRoll };
@@ -501,7 +502,7 @@ export default function AdminPracticals() {
         const father = cleanStr(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName);
         const reg = cleanRegistrationNumber(st['Board Registration Number'] || st.regNo || '');
         const form = String(st['Form No.'] || '').trim();
-        const roll = String(st['Class Roll No'] || '').trim();
+        const roll = String(getRollNo(st) || '').trim();
         const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || '').trim().toUpperCase();
 
         // STRICT GUARD: Skip empty / ghost rows
@@ -546,6 +547,10 @@ export default function AdminPracticals() {
           const existingSubs = existing.Subjects || existing.Subs || existing.subjects || existing['Subjects to be taken in Class 12th'] || existing['Subjects to be taken in Class 11th'] || '';
           const finalSubs = existingSubs || stSubs || '';
 
+          const finalRoll = getRollNo(st) || getRollNo(existing) || '—';
+          const finalExam = (exam && exam !== '—' && exam !== 'NA' && exam !== 'N/A') ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—');
+          const finalReg = (reg && reg !== '—' && reg !== 'N/A') ? reg : (existing['Board Registration Number'] || existing.regNo || '—');
+
           // Session priority: prefer '2025-26' if present in either existing or new record
           const finalSess = (sess === '2025-26' || existing.session === '2025-26' || existing.Session === '2025-26')
             ? '2025-26'
@@ -565,9 +570,12 @@ export default function AdminPracticals() {
             Subjects: finalSubs,
             Subs: finalSubs,
             subjects: finalSubs,
-            'Class Roll No': (!/^\d{8,}$/.test(st['Class Roll No']) ? st['Class Roll No'] : '') || (!/^\d{8,}$/.test(existing['Class Roll No']) ? existing['Class Roll No'] : '') || '—',
-            'Exam R.No. (Current)': (exam && exam !== '—' && exam !== 'NA' && exam !== 'N/A') ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—'),
-            'Board Registration Number': (reg && reg !== '—' && reg !== 'N/A') ? reg : (existing['Board Registration Number'] || existing.regNo || '—'),
+            'Class Roll No': finalRoll,
+            classRollNo: finalRoll,
+            'Exam R.No. (Current)': finalExam,
+            examRollNo: finalExam,
+            'Board Registration Number': finalReg,
+            boardRegNo: finalReg,
             _source: existing._source || source,
           };
           studentsMap.set(existingId, merged);
@@ -604,43 +612,88 @@ export default function AdminPracticals() {
 
       setSubmissions(parsedSubmissions);
 
-      // 1. Ingest Primary School Student Registers (masterRegisters)
+      // 1. Ingest Master Registers (Canonical School Registers across Sessions)
       (masterRegistersData || []).forEach(d => {
-        const items = d.items || d.data || d.records;
-        const docSession = d.Session || d.session || d.groupKey?.split('_')[0] || d.id?.split('_')[0] || '2024-25 (Oct-Nov)';
-        const docClass = d.class || d.Class || d.groupKey?.split('_')[1] || '';
+        const items = d.items || d.students || d.records || d.data;
+        const groupKey = d.groupKey || '';
+        let docSession = d.Session || d.session || d['Academic Session'] || '';
+        if (!docSession) {
+          if (groupKey) docSession = groupKey.split('_')[0];
+          else if (d.id?.startsWith('part_')) docSession = d.id.replace(/^part_/, '').split('_')[0];
+          else docSession = d.id?.split('_')[0] || '2024-25 (Oct-Nov)';
+        }
+        const docClass = d.class || d.Class || d.className || (groupKey ? groupKey.split('_')[1] : '') || '';
 
         if (Array.isArray(items)) {
           items.forEach(it => {
-            const itemSess = it.Session || it.session || docSession;
+            if (!it || typeof it !== 'object') return;
+            const itemSess = it.Session || it.session || it['Academic Session'] || docSession;
             addOrMergeStudent({
               ...it,
               session: itemSess,
               Session: itemSess,
-              class: it.class || it.Class || it['Class'] || docClass
+              class: it.class || it.Class || it['Class'] || docClass,
+              _source: 'masterRegisters'
             }, 'masterRegisters');
           });
         } else if (d.StudentName || d["Student's Name"] || d.name) {
           addOrMergeStudent({
             ...d,
-            session: d.Session || d.session || docSession,
-            Session: d.Session || d.session || docSession,
-            class: d.class || d.Class || d['Class'] || docClass
+            session: docSession,
+            Session: docSession,
+            class: docClass || d.class || d.Class,
+            _source: 'masterRegisters'
           }, 'masterRegisters');
         }
       });
 
-      // 2. Ingest Active Admissions
+      // 2. Ingest Active Student Admissions (Current Live Intake 2025-26 & Registered Students)
       (admissionsData || []).forEach(st => {
         const sess = getStudentSession(st) || '2025-26';
         addOrMergeStudent({
           ...st,
           session: sess,
-          Session: sess
+          Session: sess,
+          _source: 'admissions'
         }, 'admissions');
       });
 
-      // 3. Ingest Practical Submissions
+      // 3. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions
+      parsedSubmissions.forEach(sub => {
+        const subCls = sub.className || (String(sub.id).startsWith('12') ? '12th' : '11th');
+        const subSess = normalizePracticalSession(sub.sessionText || sub.session || '2024-25 (Oct-Nov)');
+
+        (sub.records || []).forEach(r => {
+          const rawReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
+          const rawExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
+          const rName = cleanStr(r.name || r.studentName);
+          const rFather = cleanStr(r.parentage || r.parentName || r.fatherName);
+
+          // Find if this student already exists in studentsMap to enrich them
+          const clsNum = subCls.replace(/[^0-9]/g, '');
+          let existingId = null;
+          if (rawReg && indexByReg.has(`reg_${rawReg}_cls_${clsNum}_sess_${subSess}`)) {
+            existingId = indexByReg.get(`reg_${rawReg}_cls_${clsNum}_sess_${subSess}`);
+          } else if (rawExam && indexByExam.has(`exam_${rawExam}_cls_${clsNum}_sess_${subSess}`)) {
+            existingId = indexByExam.get(`exam_${rawExam}_cls_${clsNum}_sess_${subSess}`);
+          } else if (rName && rFather && indexByName.has(`cls_${clsNum}_sess_${subSess}_name_${rName}_${rFather}`)) {
+            existingId = indexByName.get(`cls_${clsNum}_sess_${subSess}_name_${rName}_${rFather}`);
+          }
+
+          if (existingId && studentsMap.has(existingId)) {
+            const existing = studentsMap.get(existingId);
+            studentsMap.set(existingId, {
+              ...existing,
+              'Exam R.No. (Current)': (rawExam && rawExam !== '—') ? rawExam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—'),
+              examRollNo: (rawExam && rawExam !== '—') ? rawExam : (existing.examRollNo || existing['Exam R.No. (Current)'] || '—'),
+              'Board Registration Number': (rawReg && rawReg !== '—') ? rawReg : (existing['Board Registration Number'] || existing.regNo || '—'),
+              boardRegNo: (rawReg && rawReg !== '—') ? rawReg : (existing.boardRegNo || existing['Board Registration Number'] || '—'),
+            });
+          }
+        });
+      });
+
+      // 4. Final Processing of submissions to list
       parsedSubmissions.forEach(sub => {
         const subCls = sub.className || (String(sub.id).startsWith('12') ? '12th' : '11th');
         const subSess = normalizePracticalSession(sub.sessionText || sub.session || '2024-25 (Oct-Nov)');
@@ -648,7 +701,7 @@ export default function AdminPracticals() {
 
         (sub.records || []).forEach(r => {
           const rawReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
-          const rawExam = String(r.examRollNo || (isExternal ? r.rollNo : '') || '').trim();
+          const rawExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
           let rawClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.sNo || '').trim();
           
           if (/^\d{8,}$/.test(rawClassRoll)) {
@@ -1070,6 +1123,7 @@ export default function AdminPracticals() {
             selSub={selSub}
             onClose={() => setSelSub(null)}
             absentMarker={settings.absentMarker}
+            allStudents={students}
           />
         )}
 
@@ -2088,8 +2142,39 @@ function CsvImportModal({ onClose, onSuccess }) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL
 // ─────────────────────────────────────────────────────────────
-function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
+function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = [] }) {
   const [modalSearch, setModalSearch] = useState('');
+
+  // Build high-performance lookup maps from database for full student enrichment (Hooks called unconditionally)
+  const studentByReg = useMemo(() => {
+    const m = new Map();
+    (allStudents || []).forEach(st => {
+      const reg = cleanRegistrationNumber(st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '');
+      if (reg && reg.length >= 8) m.set(reg, st);
+    });
+    return m;
+  }, [allStudents]);
+
+  const studentByExam = useMemo(() => {
+    const m = new Map();
+    (allStudents || []).forEach(st => {
+      const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || '').trim().toUpperCase();
+      if (exam && exam !== '—' && exam !== 'NA' && exam.length >= 6) m.set(exam, st);
+    });
+    return m;
+  }, [allStudents]);
+
+  const studentByName = useMemo(() => {
+    const m = new Map();
+    (allStudents || []).forEach(st => {
+      const name = toTitleCase(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').trim().toLowerCase();
+      const father = toTitleCase(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').trim().toLowerCase();
+      if (name && father) m.set(`${name}_${father}`, st);
+      else if (name) m.set(name, st);
+    });
+    return m;
+  }, [allStudents]);
+
   if (!selSub) return null;
   const records = Array.isArray(selSub.records) ? selSub.records : [];
   const canonicalSession = normalizePracticalSession(selSub.sessionText || selSub.session || selSub.Session || '2024-25 (Oct-Nov)');
@@ -2156,7 +2241,7 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
           </span>
         </div>
 
-        {/* Data Table */}
+        {/* Data Table with Full Database Cross-Referencing */}
         <div className="flex-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 dark:bg-slate-900 text-[10px] uppercase font-black tracking-wider text-slate-500 sticky top-0 shadow-xs">
@@ -2177,10 +2262,23 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
                 const v = String(r.totalMarks ?? r.practicalMarks ?? '').toUpperCase();
                 const isAbs = v === (absentMarker || 'AB') || v === 'A' || v === 'ABS';
                 
-                const classRoll = r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '—');
-                const examRoll = r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '—');
-                const boardReg = r.boardRegNo || r.regNo || r['Board Reg. No.'] || '—';
-                const parent = r.parentage || r.parentName || r.fatherName || r.parent || '—';
+                const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
+                const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+                const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
+                const rFather = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
+
+                // Cross-reference with database students
+                const dbSt = (cleanReg && studentByReg.get(cleanReg)) ||
+                             (cleanExam && studentByExam.get(cleanExam)) ||
+                             (rName && rFather && studentByName.get(`${rName}_${rFather}`)) ||
+                             (rName && studentByName.get(rName));
+
+                const studentName = toTitleCase(r.name || r.studentName || (dbSt && (dbSt["Student's Name (as per school records)"] || dbSt["Student's Name"] || dbSt.studentName)) || '—');
+                const parent = toTitleCase(r.parentage || r.parentName || r.fatherName || (dbSt && (dbSt["Father's/Guardian's Name (as per school records)"] || dbSt["Father's Name"] || dbSt.fatherName)) || '—');
+                const classRoll = r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || (dbSt ? getRollNo(dbSt) : '') || '—';
+                const examRoll = cleanExam || (dbSt ? (dbSt['Exam R.No. (Current)'] || dbSt.examRollNo) : '') || '—';
+                const boardReg = cleanReg || (dbSt ? (dbSt['Board Registration Number'] || dbSt.regNo) : '') || '—';
+                const streamVal = r.stream || (dbSt ? (getStudentStreamStr(dbSt, selSub.className || selSub.Class) || dbSt.Stream || dbSt.stream) : '') || '';
 
                 return (
                   <tr key={i} className={'hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ' + (isAbs ? 'bg-rose-50/50 dark:bg-rose-950/20' : '')}>
@@ -2188,12 +2286,12 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
                     <td className="py-2 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{classRoll}</td>
                     <td className="py-2 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">{examRoll}</td>
                     <td className="py-2 px-3 font-mono text-[11px] text-slate-500">{boardReg}</td>
-                    <td className="py-2 px-3 font-bold text-slate-900 dark:text-slate-100">{toTitleCase(r.name || r.studentName || '—')}</td>
-                    <td className="py-2 px-3 text-slate-500">{toTitleCase(parent)}</td>
+                    <td className="py-2 px-3 font-bold text-slate-900 dark:text-slate-100">{studentName}</td>
+                    <td className="py-2 px-3 text-slate-500">{parent}</td>
                     <td className="py-2 px-3">
-                      {r.stream ? (
+                      {streamVal ? (
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                          {toTitleCase(r.stream)}
+                          {toTitleCase(streamVal)}
                         </span>
                       ) : (
                         <span className="text-slate-400 text-[10px]">—</span>
