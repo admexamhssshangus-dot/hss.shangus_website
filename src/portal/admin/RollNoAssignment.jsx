@@ -298,16 +298,25 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
         chunk.forEach(s => {
           const cleanRoll = s.rollNo.trim();
           const targetRef = doc(db, 'admissions', String(s.docId));
+          const hasAssignedRoll = Boolean(cleanRoll && cleanRoll !== '—' && cleanRoll !== 'N/A' && cleanRoll !== '0');
+          const statusVal = hasAssignedRoll ? 'Approved' : 'Submitted';
+
           batch.set(targetRef, {
             'Class Roll No': cleanRoll,
             classRollNo: cleanRoll,
+            Status: statusVal,
+            status: statusVal,
+            isApproved: hasAssignedRoll,
             updatedAt: new Date().toISOString()
           }, { merge: true });
 
           // Optimistically update local cache
           updateCachedItem('admissions', String(s.docId), {
             'Class Roll No': cleanRoll,
-            classRollNo: cleanRoll
+            classRollNo: cleanRoll,
+            Status: statusVal,
+            status: statusVal,
+            isApproved: hasAssignedRoll
           });
         });
 
