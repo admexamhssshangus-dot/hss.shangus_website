@@ -253,33 +253,22 @@ export const isSessionMatch = (rawSess, targetFilter) => {
 };
 
 export const checkStudentApprovalState = (st) => {
-  const rollVal = String(
-    st['Class Roll No'] ||
-    st['Class Roll No.'] ||
-    st.classRollNo ||
-    st['Class Roll'] ||
-    st.rollNo ||
-    st.RollNo ||
-    st.roll_no ||
-    ''
-  ).trim();
-  const hasRoll = !!(rollVal && rollVal !== '—' && rollVal !== '-' && rollVal !== 'N/A' && rollVal !== 'null' && rollVal !== 'undefined' && rollVal !== '0');
+  const rollVal = getRollNo(st);
+  const hasRoll = Boolean(
+    rollVal &&
+    rollVal !== '—' &&
+    rollVal !== '-' &&
+    rollVal !== 'N/A' &&
+    rollVal !== 'null' &&
+    rollVal !== 'undefined' &&
+    rollVal !== '0'
+  );
 
   const statusStr = String(st.Status || st.status || st['Admission Status'] || '').toLowerCase();
   const isRejected = statusStr.includes('reject') || statusStr.includes('cancel') || st.isRejected === true;
 
-  // Once class roll is assigned, the application is approved
-  const isApproved = !isRejected && (
-    hasRoll ||
-    st.isApproved === true ||
-    st.Status === 'Approved' ||
-    st.status === 'Approved' ||
-    statusStr.includes('approved') ||
-    statusStr.includes('admitted') ||
-    st._source === 'masterRegisters' ||
-    st._source === 'practicalsData'
-  );
-
+  // Once class roll is assigned, the application is approved. Without a roll, it is pending.
+  const isApproved = !isRejected && hasRoll;
   const isPending = !isApproved && !isRejected;
 
   return { isApproved, isRejected, isPending, hasRoll };
@@ -1303,11 +1292,21 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
       let bVal = '';
 
       if (sortField === 'roll') {
-        const aR = parseInt(getRollNo(a), 10);
-        const bR = parseInt(getRollNo(b), 10);
-        if (!isNaN(aR) && !isNaN(bR)) return sortDirection === 'asc' ? aR - bR : bR - aR;
-        aVal = getRollNo(a);
-        bVal = getRollNo(b);
+        const aRoll = getRollNo(a);
+        const bRoll = getRollNo(b);
+        const aR = parseInt(aRoll, 10);
+        const bR = parseInt(bRoll, 10);
+        const aHas = Boolean(aRoll && aRoll !== '—' && aRoll !== '-' && !isNaN(aR) && aR > 0);
+        const bHas = Boolean(bRoll && bRoll !== '—' && bRoll !== '-' && !isNaN(bR) && bR > 0);
+
+        if (aHas && bHas) {
+          return sortDirection === 'asc' ? aR - bR : bR - aR;
+        }
+        if (aHas && !bHas) return -1; // Students with assigned roll always come first
+        if (!aHas && bHas) return 1;  // Unassigned students go to the bottom
+
+        aVal = String(a['Exam R.No. (Current)'] || a["Student's Name (as per school records)"] || a.studentName || a.name || '').toLowerCase();
+        bVal = String(b['Exam R.No. (Current)'] || b["Student's Name (as per school records)"] || b.studentName || b.name || '').toLowerCase();
       } else if (sortField === 'name') {
         aVal = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.studentName || a.name || '').toLowerCase();
         bVal = String(b["Student's Name (as per school records)"] || b["Student's Name"] || b.studentName || b.name || '').toLowerCase();
@@ -1334,8 +1333,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
 
   const selectedStudentsList = selectedRolls.size > 0
     ? sortedStudents.filter(st => {
-      const roll = getRollNo(st) || st['Board Registration Number'] || st.examRollNo || `20100${2000 + cSts.indexOf(st)}`;
-      return selectedRolls.has(roll);
+      const roll = getRollNo(st);
+      const uniqueKey = roll && roll !== '—' ? roll : (st['Board Registration Number'] || st.examRollNo || st.id);
+      return selectedRolls.has(uniqueKey) || (roll && roll !== '—' && selectedRolls.has(roll));
     })
     : sortedStudents;
 
@@ -1346,12 +1346,15 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
 
   const toggleAllStudents = () => {
     if (selectedRolls.size === sortedStudents.length) setSelectedRolls(new Set());
-    else setSelectedRolls(new Set(sortedStudents.map((st, i) => getRollNo(st) || st['Board Registration Number'] || st.examRollNo || `20100${2000 + i}`)));
+    else setSelectedRolls(new Set(sortedStudents.map((st, i) => {
+      const roll = getRollNo(st);
+      return roll && roll !== '—' ? roll : (st['Board Registration Number'] || st.examRollNo || st.id || `st_${i}`);
+    })));
   };
 
-  const toggleStudentRoll = (roll) => {
+  const toggleStudentRoll = (stKey) => {
     const next = new Set(selectedRolls);
-    if (next.has(roll)) next.delete(roll); else next.add(roll);
+    if (next.has(stKey)) next.delete(stKey); else next.add(stKey);
     setSelectedRolls(next);
   };
 
@@ -1650,7 +1653,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold bg-white dark:bg-slate-900">
             {sortedStudents.map((st, idx) => {
-              const rollNo = String(st['Class Roll No'] || st.rollNo || st.classRollNo || st['Class Roll'] || '—').trim();
+              const rollNo = getRollNo(st) || '—';
               const rawName = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
               const rawFather = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '—';
               const name = toTitleCase(rawName);
@@ -1659,7 +1662,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               const streamDisplay = streamRaw ? toTitleCase(streamRaw) : 'Science';
               const streamLower = streamRaw.toLowerCase();
               const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Board Registration Number'] || st.boardRegNo || 'NA').trim();
-              const isSelected = selectedRolls.has(rollNo);
+              const uniqueKey = rollNo !== '—' ? rollNo : (st['Board Registration Number'] || st.examRollNo || st.id || `st_${idx}`);
+              const isSelected = selectedRolls.has(uniqueKey) || (rollNo !== '—' && selectedRolls.has(rollNo));
               const stSess = getStudentSession(st);
               const effectiveSess = selectedSession !== 'all' ? selectedSession : (stSess || '2025-26');
               let rowHashTotal = 0;
@@ -1668,7 +1672,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-950/40 transition-colors ${!isSelected ? 'opacity-40 bg-slate-50/50 dark:bg-slate-950/30' : ''}`}>
                   <td className="py-1.5 px-2 text-center text-slate-400 font-mono text-[10px]">{idx + 1}</td>
                   <td className="py-1.5 px-2 text-center">
-                    <input type="checkbox" checked={isSelected} onChange={() => toggleStudentRoll(rollNo)} className="w-3 h-3 text-indigo-600 cursor-pointer" />
+                    <input type="checkbox" checked={isSelected} onChange={() => toggleStudentRoll(uniqueKey)} className="w-3 h-3 text-indigo-600 cursor-pointer" />
                   </td>
                   <td className="py-1.5 px-2 font-mono font-bold text-indigo-600">{rollNo}</td>
                   <td className="py-1.5 px-2 font-bold text-slate-900 dark:text-slate-100">{name}</td>
