@@ -24,6 +24,8 @@ const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
 
 export const DEFAULT_ROW_HEIGHT = 44; // Standard row height in px
+const MIN_REGISTER_ROW_HEIGHT = 32;
+const MAX_REGISTER_ROW_HEIGHT = 54; // Keeps 10 aligned rows plus signature space on Legal landscape.
 
 export const DEFAULT_COLUMN_WIDTHS = {
   // PART 1
@@ -165,7 +167,7 @@ function ResizableDataRow({ rowHeight, onResize, className = '', children, ...re
     const startHeight = rowHeight;
 
     const onMouseMove = (moveEvent) => {
-      const nextHeight = Math.min(96, Math.max(32, Math.round(startHeight + moveEvent.clientY - startY)));
+      const nextHeight = Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, Math.round(startHeight + moveEvent.clientY - startY)));
       onResize(nextHeight);
     };
     const onMouseUp = () => {
@@ -306,6 +308,51 @@ const CURRENT_RESULT_KEYS = [
   'result_current', 'currentResult', 'boardResult', 'Board Result', 'Result',
   'Current Result', 'Result (Current Examination)', 'examResult'
 ];
+
+const ADMITTED_VIDE_KEYS = [
+  'prevCcDc', 'prevCC',
+  'CC/DC No. & Date (Prev. insitution)',
+  'CC/DC No. & Date (Prev. institution)',
+  'CC/DC No. & Date (Previous Institution)',
+  'Admitted Vide DC/CC', 'Admtd. Vide DC/CC',
+  'Admitted vide CC/DC', 'Admission Vide DC/CC', 'DC/CC Details'
+];
+
+const WITHDRAWAL_DATE_KEYS = [
+  'withdrawalDate', 'Date of withdrawl/result', 'Date of withdrawl',
+  'Date of withdrawal', 'Result Date', 'Withdrawal Date', 'Date withdrawl'
+];
+
+const ISSUED_CC_KEYS = [
+  'currCcDc', 'No. & Date of CC/DC Issued (This Institution)',
+  'No. & Date of CC/DC Issued', 'CC/DC No. & Date', 'ccDcNo',
+  'Certf. No.', 'cc/dc s.no.', 'Certf No'
+];
+
+const CC_RECEIPT_KEYS = [
+  'ccDcReceipt', 'CC/DC Receipt', 'Certificate Receipt',
+  'receivedCcDc', 'Received CC/DC'
+];
+
+function formatBloodGroup(value) {
+  const normalized = cleanStr(value);
+  return !normalized || /^(unknown|not known|na|n\/a|nil|none)$/i.test(normalized)
+    ? '-'
+    : normalized;
+}
+
+function StreamLabel({ value }) {
+  const text = cleanStr(value) || 'General';
+  const match = text.match(/^([^()]+?)\s*(\([^()]+\))$/);
+  if (!match) return <span className="font-bold">{text}</span>;
+
+  return (
+    <span className="inline-flex flex-wrap items-baseline justify-center gap-x-0.5 leading-tight">
+      <span className="font-bold">{match[1].trim()}</span>
+      <span className="text-[6.5px] font-semibold">{match[2]}</span>
+    </span>
+  );
+}
 
 function getBoardRegistration(record, classValue) {
   const numericClass = parseInt(cleanStr(classValue || record?.class || record?.Class || record?.['Admission sought for class']), 10);
@@ -691,7 +738,7 @@ export default function AdmissionRegisterSuite({
             setColumnWidths(prev => ({ ...prev, ...data.columnWidths }));
           }
           if (data.rowHeight && typeof data.rowHeight === 'number') {
-            setRowHeight(data.rowHeight);
+            setRowHeight(Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, data.rowHeight)));
           }
           if (data.printMargin && typeof data.printMargin === 'number') {
             setPrintMargin(data.printMargin);
@@ -713,7 +760,7 @@ export default function AdmissionRegisterSuite({
   };
 
   const handleRowHeightChange = (newHeight) => {
-    setRowHeight(newHeight);
+    setRowHeight(Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, newHeight)));
     setIsLayoutModified(true);
   };
 
@@ -1148,7 +1195,7 @@ export default function AdmissionRegisterSuite({
       const parentMobile = cleanStr(s.parentContact || s["Parent's Mobile No. (must be working)"] || s["Parent's Mobile No."] || s["Parent's Contact"] || s["Father's Mobile No."] || s["Guardian's Mobile No."] || s['Parent Mobile'] || s.parentMobile);
       const category = cleanStr(s.category || s['Cat._JKBOSE'] || s['Social category'] || s['Social Category'] || s['Category'] || s.socialCategory || s.category_jkbose);
       const socioEcon = cleanStr(s.socioEconomic || s['Socio-economic category'] || s['Socio-Economic Category'] || s['Socio Economic Category'] || s['Ration Card Type'] || s.socioEconomicCategory || s.socioEcon || '');
-      const blood = cleanStr(s.blood || s['Blood Group'] || s['Blood GRP'] || s.bloodGroup || '—');
+      const blood = firstCleanValue(s, ['blood', 'bloodType', 'Blood Type', 'Blood Group', 'Blood GRP', 'bloodGroup']);
       const account = cleanStr(s.bankAccount || s['Bank Account No.'] || s['Bank Account Number'] || s['Account Number'] || s['A/C No.'] || s.accountNo || s.account);
       const ifsc = cleanStr(s.ifsc || s['IFSC code'] || s['IFSC Code'] || s['IFSC'] || s.ifscCode);
       const pen = cleanStr(s.penNo || s['PEN number (given by UDISE portal)'] || s['PEN No.'] || s['PEN Number'] || s['PEN (UDISE)'] || s['UDISE PEN'] || s.pen || s.udisePen || '');
@@ -1163,10 +1210,10 @@ export default function AdmissionRegisterSuite({
       const admissionDateValue = s.admDate || s.admissionDate || s['Date of Admission'] || s['Admission Date'] || s['Adm. Date'] || s['Adm Date'];
       const admDate = formatRegisterDate(admissionDateValue);
       const onlineStatus = formatRegisterDate(submittedAt, true) || cleanStr(s.onlineStatus || s['Online Submission Status'] || 'Submitted');
-      const admittedVide = firstCleanValue(s, ['prevCC', 'prevCcDc', 'CC/DC No. & Date (Prev. insitution)', 'CC/DC No. & Date (Prev. institution)', 'Admitted Vide DC/CC', 'Admtd. Vide DC/CC']);
-      const withdrawal = formatRegisterDate(firstCleanValue(s, ['withdrawalDate', 'Date of withdrawl/result', 'Date of withdrawl', 'Date of withdrawal', 'Result Date', 'Withdrawal Date', 'Date withdrawl']));
-      const issuedCC = firstCleanValue(s, ['currCcDc', 'No. & Date of CC/DC Issued (This Institution)', 'No. & Date of CC/DC Issued', 'CC/DC No. & Date', 'ccDcNo', 'Certf. No.', 'cc/dc s.no.', 'Certf No']);
-      const receipt = firstCleanValue(s, ['ccDcReceipt', 'CC/DC Receipt', 'Certificate Receipt', 'receivedCcDc', 'Received CC/DC']);
+      const admittedVide = firstCleanValue(s, ADMITTED_VIDE_KEYS);
+      const withdrawal = formatRegisterDate(firstRawValue(s, WITHDRAWAL_DATE_KEYS));
+      const issuedCC = firstCleanValue(s, ISSUED_CC_KEYS);
+      const receipt = firstCleanValue(s, CC_RECEIPT_KEYS);
       const status = resolveEffectiveStatus(s);
 
       // Re-admission Identification
@@ -1242,7 +1289,11 @@ export default function AdmissionRegisterSuite({
       const finalParentMobile = parentMobile || firstCleanValue(histMatch, ['parentContact', "Parent's Mobile No. (must be working)", "Parent's Mobile No.", "Parent's Contact", "Father's Mobile No.", 'parentMobile']);
       const finalCategory = category || firstCleanValue(histMatch, ['category', 'Cat._JKBOSE', 'Social category', 'Social Category', 'Category', 'socialCategory']);
       const finalSocioEcon = socioEcon || firstCleanValue(histMatch, ['socioEconomic', 'Socio-economic category', 'Socio-Economic Category', 'Socio Economic Category', 'socioEconomicCategory']);
-      const finalBlood = blood || firstCleanValue(histMatch, ['blood', 'Blood Group', 'Blood Type', 'bloodGroup']);
+      const finalBlood = formatBloodGroup(blood || firstCleanValue(histMatch, ['blood', 'bloodType', 'Blood Type', 'Blood Group', 'Blood GRP', 'bloodGroup']));
+      const finalAdmittedVide = admittedVide || firstCleanValue(histMatch, ADMITTED_VIDE_KEYS);
+      const finalWithdrawal = withdrawal || formatRegisterDate(firstRawValue(histMatch, WITHDRAWAL_DATE_KEYS));
+      const finalIssuedCC = issuedCC || firstCleanValue(histMatch, ISSUED_CC_KEYS);
+      const finalReceipt = receipt || firstCleanValue(histMatch, CC_RECEIPT_KEYS);
 
       list.push({
         raw: s,
@@ -1287,10 +1338,12 @@ export default function AdmissionRegisterSuite({
         onlineStatus,
         status,
         directPhoto,
-        prevCC: admittedVide || (isReadmission ? 'Re-admitted (Gap)' : (finalPrevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC')),
-        withdrawal: withdrawal || '—',
-        issuedCC,
-        receipt,
+        // This legal register value must come from the matched database record.
+        // Never infer it from the previous-school name or re-admission status.
+        prevCC: finalAdmittedVide || '—',
+        withdrawal: finalWithdrawal || '—',
+        issuedCC: finalIssuedCC,
+        receipt: finalReceipt,
         remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || '')
       });
     });
@@ -2219,13 +2272,22 @@ export default function AdmissionRegisterSuite({
             height: var(--register-row-height) !important;
             max-height: var(--register-row-height) !important;
             overflow: hidden !important;
+            line-height: 1.12 !important;
+            vertical-align: middle !important;
           }
 
           .signature-footer {
             margin-top: auto !important;
-            padding-top: 6px !important;
+            min-height: 24mm !important;
+            padding: 10mm 0 2mm !important;
+            align-items: flex-end !important;
+            box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+          }
+
+          .signature-footer > .signature-block {
+            flex: 0 0 40mm !important;
           }
 
           img {
@@ -2266,6 +2328,8 @@ export default function AdmissionRegisterSuite({
           height: var(--register-row-height);
           max-height: var(--register-row-height);
           overflow: hidden;
+          line-height: 1.12;
+          vertical-align: middle;
         }
 
         .register-resizable-row:hover > td {
@@ -2618,8 +2682,8 @@ export default function AdmissionRegisterSuite({
                         </div>
                         <input
                           type="range"
-                          min="28"
-                          max="70"
+                          min={MIN_REGISTER_ROW_HEIGHT}
+                          max={MAX_REGISTER_ROW_HEIGHT}
                           step="2"
                           value={rowHeight}
                           onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
@@ -3265,9 +3329,9 @@ export default function AdmissionRegisterSuite({
 
                         {/* Footer Signatures */}
                         <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700">
-                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
-                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
-                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
+                          <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
+                          <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
+                          <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
                         </div>
                       </div>
 
@@ -3323,7 +3387,7 @@ export default function AdmissionRegisterSuite({
                             <tbody className="divide-y divide-slate-900 text-slate-900">
                               {chunk.map((s) => (
                                 <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center"><StreamLabel value={s.stream} /></td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium">{s.subs}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font">{s.aadhar}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
@@ -3354,9 +3418,9 @@ export default function AdmissionRegisterSuite({
 
                         {/* Footer Signatures */}
                         <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700">
-                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
-                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
-                          <div className="text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
+                          <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
+                          <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
+                          <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
                         </div>
                       </div>
                     </div>
@@ -3627,9 +3691,9 @@ export default function AdmissionRegisterSuite({
 
                     {/* Footer Signatures */}
                     <div className="signature-footer flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
-                      <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge</div>
-                      <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
-                      <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
+                      <div className="signature-block text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge</div>
+                      <div className="signature-block text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
+                      <div className="signature-block text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
                     </div>
                   </div>
                 );
