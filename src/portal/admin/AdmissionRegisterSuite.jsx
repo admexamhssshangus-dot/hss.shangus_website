@@ -811,6 +811,12 @@ export default function AdmissionRegisterSuite({
     return DEFAULT_ROW_HEIGHT;
   });
 
+  const [rowHeightInput, setRowHeightInput] = useState(() => String(rowHeight));
+
+  useEffect(() => {
+    setRowHeightInput(String(rowHeight));
+  }, [rowHeight]);
+
   const [isLayoutModified, setIsLayoutModified] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
 
@@ -2915,11 +2921,31 @@ export default function AdmissionRegisterSuite({
                               type="number"
                               min={MIN_REGISTER_ROW_HEIGHT}
                               max={MAX_REGISTER_ROW_HEIGHT}
-                              value={rowHeight}
+                              value={rowHeightInput}
                               onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                if (!isNaN(val)) {
+                                const raw = e.target.value;
+                                setRowHeightInput(raw);
+                                const val = parseInt(raw, 10);
+                                if (!isNaN(val) && val >= MIN_REGISTER_ROW_HEIGHT && val <= MAX_REGISTER_ROW_HEIGHT) {
                                   handleRowHeightChange(val);
+                                }
+                              }}
+                              onBlur={() => {
+                                const val = parseInt(rowHeightInput, 10);
+                                if (isNaN(val) || val < MIN_REGISTER_ROW_HEIGHT) {
+                                  handleRowHeightChange(MIN_REGISTER_ROW_HEIGHT);
+                                  setRowHeightInput(String(MIN_REGISTER_ROW_HEIGHT));
+                                } else if (val > MAX_REGISTER_ROW_HEIGHT) {
+                                  handleRowHeightChange(MAX_REGISTER_ROW_HEIGHT);
+                                  setRowHeightInput(String(MAX_REGISTER_ROW_HEIGHT));
+                                } else {
+                                  handleRowHeightChange(val);
+                                  setRowHeightInput(String(val));
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
                                 }
                               }}
                               className="w-14 text-center py-0.5 px-1 rounded-md bg-white border border-slate-300 font-mono font-black text-[11px] text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
