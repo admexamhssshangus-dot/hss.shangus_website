@@ -2857,203 +2857,217 @@ export default function AdmissionRegisterSuite({
 
                   {/* View Popover Dropdown Panel */}
                   {showViewPopover && (
-                    <div className="register-popover-panel absolute right-0 top-full mt-1.5 w-80 p-4 rounded-2xl shadow-2xl z-[100] space-y-3.5 whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
-                      <div className="border-b border-slate-200 pb-2">
+                    <div className="register-popover-panel absolute right-0 top-full mt-1.5 w-[540px] sm:w-[580px] max-w-[92vw] p-4 rounded-2xl shadow-2xl z-[100] whitespace-normal animate-in fade-in zoom-in-95 max-h-[88vh] overflow-y-auto">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
                         <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
                           <Eye size={13} className="text-indigo-600" /> Display & Table Layout
                         </span>
+                        {isLayoutModified && (
+                          <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                            Custom Modified
+                          </span>
+                        )}
                       </div>
 
-                      {/* Sub-view Section Selector */}
-                      {activeTab === 'adm_register' && (
-                        <div>
-                          <label className="block text-[11px] font-black text-slate-800 mb-1">Section to Display:</label>
-                          <select
-                            value={registerViewSection}
-                            onChange={(e) => setRegisterViewSection(e.target.value)}
-                            className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                          >
-                            <option value="all" className="bg-white text-slate-900 font-bold">📑 All Spreads (Full Register)</option>
-                            <option value="cover" className="bg-white text-slate-900 font-bold">📜 Cover Page Only</option>
-                            <option value="spreads" className="bg-white text-slate-900 font-bold">📖 Ledger Table Only</option>
-                            <option value="summary" className="bg-white text-slate-900 font-bold">📊 Summary Statement Only</option>
-                            <option value="notes" className="bg-white text-slate-900 font-bold">📝 Notes & Annexure Only</option>
-                          </select>
-                        </div>
-                      )}
+                      {/* 2-Column Grid Layout */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                        {/* COLUMN 1: Views & Zoom */}
+                        <div className="space-y-3.5 flex flex-col justify-between">
+                          {/* Sub-view Section Selector */}
+                          {activeTab === 'adm_register' && (
+                            <div>
+                              <label className="block text-[11px] font-black text-slate-800 mb-1">Section to Display:</label>
+                              <select
+                                value={registerViewSection}
+                                onChange={(e) => setRegisterViewSection(e.target.value)}
+                                className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                              >
+                                <option value="all" className="bg-white text-slate-900 font-bold">📑 All Spreads (Full Register)</option>
+                                <option value="cover" className="bg-white text-slate-900 font-bold">📜 Cover Page Only</option>
+                                <option value="spreads" className="bg-white text-slate-900 font-bold">📖 Ledger Table Only</option>
+                                <option value="summary" className="bg-white text-slate-900 font-bold">📊 Summary Statement Only</option>
+                                <option value="notes" className="bg-white text-slate-900 font-bold">📝 Notes & Annexure Only</option>
+                              </select>
+                            </div>
+                          )}
 
-                      {/* Screen Layout Mode (Side-by-Side Book View vs Stacked) */}
-                      {activeTab === 'adm_register' && (
-                        <div>
-                          <label className="block text-[11px] font-black text-slate-800 mb-1">Book Layout:</label>
-                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                            <button
-                              type="button"
-                              onClick={() => setSpreadLayoutMode('side_by_side')}
-                              className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                spreadLayoutMode === 'side_by_side'
-                                  ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
-                              }`}
-                            >
-                              <Columns size={12} />
-                              <span>Side-by-Side</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSpreadLayoutMode('stacked')}
-                              className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                spreadLayoutMode === 'stacked'
-                                  ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
-                              }`}
-                            >
-                              <LayoutGrid size={12} />
-                              <span>Stacked Pages</span>
-                            </button>
+                          {/* Screen Layout Mode (Side-by-Side Book View vs Stacked) */}
+                          {activeTab === 'adm_register' && (
+                            <div>
+                              <label className="block text-[11px] font-black text-slate-800 mb-1">Book Layout:</label>
+                              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => setSpreadLayoutMode('side_by_side')}
+                                  className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                    spreadLayoutMode === 'side_by_side'
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
+                                  }`}
+                                >
+                                  <Columns size={12} />
+                                  <span>Side-by-Side</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSpreadLayoutMode('stacked')}
+                                  className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                    spreadLayoutMode === 'stacked'
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
+                                  }`}
+                                >
+                                  <LayoutGrid size={12} />
+                                  <span>Stacked Pages</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Zoom Controls */}
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                              <span className="text-slate-800">Screen Zoom:</span>
+                              <span className="px-2 py-0.5 rounded-md bg-white font-mono font-black text-[11px] text-slate-800 border border-slate-300">{Math.round(zoomLevel * 100)}%</span>
+                            </div>
+                            <div className="flex items-center justify-between p-1 rounded-xl popover-zoom-box bg-slate-50 border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
+                                className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
+                              >
+                                -
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setZoomLevel(1.0)}
+                                className="text-[11px] font-black text-indigo-600 hover:underline cursor-pointer"
+                              >
+                                Reset 100%
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
+                                className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      )}
 
-                      {/* Dynamic Row Height Manager */}
-                      <div>
-                        <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                          <span className="text-slate-800">Row Height:</span>
-                          <div className="flex items-center gap-1">
+                        {/* COLUMN 2: Dimensions & Printing */}
+                        <div className="space-y-3.5 flex flex-col justify-between">
+                          {/* Dynamic Row Height Manager */}
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                              <span className="text-slate-800">Row Height:</span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={MIN_REGISTER_ROW_HEIGHT}
+                                  max={MAX_REGISTER_ROW_HEIGHT}
+                                  value={rowHeightInput}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setRowHeightInput(raw);
+                                    const val = parseInt(raw, 10);
+                                    if (!isNaN(val) && val >= MIN_REGISTER_ROW_HEIGHT && val <= MAX_REGISTER_ROW_HEIGHT) {
+                                      handleRowHeightChange(val);
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    const val = parseInt(rowHeightInput, 10);
+                                    if (isNaN(val) || val < MIN_REGISTER_ROW_HEIGHT) {
+                                      handleRowHeightChange(MIN_REGISTER_ROW_HEIGHT);
+                                      setRowHeightInput(String(MIN_REGISTER_ROW_HEIGHT));
+                                    } else if (val > MAX_REGISTER_ROW_HEIGHT) {
+                                      handleRowHeightChange(MAX_REGISTER_ROW_HEIGHT);
+                                      setRowHeightInput(String(MAX_REGISTER_ROW_HEIGHT));
+                                    } else {
+                                      handleRowHeightChange(val);
+                                      setRowHeightInput(String(val));
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  className="w-14 text-center py-0.5 px-1 rounded-md bg-white border border-slate-300 font-mono font-black text-[11px] text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                                  title="Enter custom row height in px (30-100)"
+                                />
+                                <span className="text-[10px] font-bold text-slate-500">px</span>
+                              </div>
+                            </div>
                             <input
-                              type="number"
+                              type="range"
                               min={MIN_REGISTER_ROW_HEIGHT}
                               max={MAX_REGISTER_ROW_HEIGHT}
-                              value={rowHeightInput}
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                setRowHeightInput(raw);
-                                const val = parseInt(raw, 10);
-                                if (!isNaN(val) && val >= MIN_REGISTER_ROW_HEIGHT && val <= MAX_REGISTER_ROW_HEIGHT) {
-                                  handleRowHeightChange(val);
-                                }
-                              }}
-                              onBlur={() => {
-                                const val = parseInt(rowHeightInput, 10);
-                                if (isNaN(val) || val < MIN_REGISTER_ROW_HEIGHT) {
-                                  handleRowHeightChange(MIN_REGISTER_ROW_HEIGHT);
-                                  setRowHeightInput(String(MIN_REGISTER_ROW_HEIGHT));
-                                } else if (val > MAX_REGISTER_ROW_HEIGHT) {
-                                  handleRowHeightChange(MAX_REGISTER_ROW_HEIGHT);
-                                  setRowHeightInput(String(MAX_REGISTER_ROW_HEIGHT));
-                                } else {
-                                  handleRowHeightChange(val);
-                                  setRowHeightInput(String(val));
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                              className="w-14 text-center py-0.5 px-1 rounded-md bg-white border border-slate-300 font-mono font-black text-[11px] text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                              title="Enter custom row height in px (30-100)"
+                              step="1"
+                              value={rowHeight}
+                              onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
+                              className="w-full cursor-pointer accent-indigo-600 mb-1.5"
                             />
-                            <span className="text-[10px] font-bold text-slate-500">px</span>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {[
+                                { label: 'Compact', val: 40 },
+                                { label: 'Default', val: 56, star: true },
+                                { label: 'Spacious', val: 75 }
+                              ].map(({ label, val, star }) => (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  onClick={() => handleRowHeightChange(val)}
+                                  className={`py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all ${
+                                    rowHeight === val
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'popover-btn-inactive'
+                                  }`}
+                                >
+                                  {label} ({val}px){star ? ' ★' : ''}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Margins */}
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-black mb-1">
+                              <span className="text-slate-800">Print Margins:</span>
+                              <span className="px-2 py-0.5 rounded-md popover-badge font-mono font-black text-[11px]">{printMargin} in</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="0.8"
+                              step="0.05"
+                              value={printMargin}
+                              onChange={(e) => setPrintMargin(parseFloat(e.target.value))}
+                              className="w-full cursor-pointer accent-indigo-600 mb-1.5"
+                            />
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {[0.2, 0.3, 0.4, 0.5].map(m => (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => setPrintMargin(m)}
+                                  className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
+                                    printMargin === m
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'popover-btn-inactive'
+                                  }`}
+                                >
+                                  {m}" {m === 0.3 ? '★' : ''}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                        <input
-                          type="range"
-                          min={MIN_REGISTER_ROW_HEIGHT}
-                          max={MAX_REGISTER_ROW_HEIGHT}
-                          step="1"
-                          value={rowHeight}
-                          onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
-                          className="w-full cursor-pointer accent-indigo-600"
-                        />
-                        <div className="grid grid-cols-3 gap-1.5 pt-1">
-                          {[
-                            { label: 'Compact', val: 40 },
-                            { label: 'Default', val: 56, star: true },
-                            { label: 'Spacious', val: 75 }
-                          ].map(({ label, val, star }) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => handleRowHeightChange(val)}
-                              className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
-                                rowHeight === val
-                                  ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'popover-btn-inactive'
-                              }`}
-                            >
-                              {label} ({val}px){star ? ' ★' : ''}
-                            </button>
-                          ))}
-                        </div>
                       </div>
 
-                      {/* Margins */}
-                      <div>
-                        <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                          <span className="text-slate-800">Print Margins:</span>
-                          <span className="px-2 py-0.5 rounded-md popover-badge font-mono font-black text-[11px]">{printMargin} in</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0.1"
-                          max="0.8"
-                          step="0.05"
-                          value={printMargin}
-                          onChange={(e) => setPrintMargin(parseFloat(e.target.value))}
-                          className="w-full cursor-pointer accent-indigo-600"
-                        />
-                        <div className="grid grid-cols-4 gap-1.5 pt-1">
-                          {[0.2, 0.3, 0.4, 0.5].map(m => (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => setPrintMargin(m)}
-                              className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
-                                printMargin === m
-                                  ? 'bg-indigo-600 text-white shadow-xs'
-                                  : 'popover-btn-inactive'
-                              }`}
-                            >
-                              {m}" {m === 0.3 ? '★' : ''}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Zoom Controls */}
-                      <div>
-                        <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                          <span className="text-slate-800">Screen Zoom:</span>
-                          <span className="px-2 py-0.5 rounded-md bg-white font-mono font-black text-[11px] text-slate-800 border border-slate-300">{Math.round(zoomLevel * 100)}%</span>
-                        </div>
-                        <div className="flex items-center justify-between p-1.5 rounded-xl popover-zoom-box">
-                          <button
-                            type="button"
-                            onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
-                            className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
-                          >
-                            -
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setZoomLevel(1.0)}
-                            className="text-[11px] font-black text-indigo-600 hover:underline cursor-pointer"
-                          >
-                            Reset 100%
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
-                            className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Compact Table Layout Actions & Modified Alert */}
-                      <div className="border-t border-slate-200 pt-2.5 space-y-1.5">
+                      {/* Footer Actions */}
+                      <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
                         {isLayoutModified && (
                           <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
                             <span className="flex items-center gap-1.5">
@@ -3063,25 +3077,25 @@ export default function AdmissionRegisterSuite({
                             <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 bg-amber-200/80 px-1.5 py-0.5 rounded">Modified</span>
                           </div>
                         )}
-                        <div className="grid grid-cols-5 gap-1.5">
+                        <div className="grid grid-cols-5 gap-2">
                           <button
                             type="button"
                             onClick={handleSaveLayoutToFirebase}
                             disabled={savingLayout}
-                            className="col-span-3 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center justify-center gap-1 cursor-pointer shadow-2xs transition-all active:scale-95 disabled:opacity-50"
+                            className="col-span-3 py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95 disabled:opacity-50"
                             title="Save custom column widths, row height and margins to Firebase default"
                           >
-                            {savingLayout ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                            {savingLayout ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                             <span className="truncate">Set to Default (Firebase)</span>
                           </button>
                           <button
                             type="button"
                             onClick={handleResetLayoutToOriginal}
-                            className="col-span-2 py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            className="col-span-2 py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
                             title="Reset columns and row heights to original factory format"
                           >
-                            <RotateCcw size={12} />
-                            <span>Reset</span>
+                            <RotateCcw size={13} />
+                            <span>Reset Defaults</span>
                           </button>
                         </div>
                       </div>
