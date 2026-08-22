@@ -1484,36 +1484,33 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     <div className="space-y-2.5 animate-in fade-in duration-300">
       {/* Unified Compact Control Panel Card */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-2.5 sm:p-3 shadow-2xs space-y-2">
-        {/* UNIFIED COMPACT TOOLBAR */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-2">
+        {/* UNIFIED SINGLE-ROW COMPACT TOOLBAR */}
+        <div className="flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap pb-1.5 border-b border-slate-100 dark:border-slate-800/80 custom-scrollbar">
           {/* Left: Summary Title & Status Badges */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 shrink-0">
             <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
-              Class {cls} - Consolidated Awards
+              Class {cls}
             </h2>
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-              <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong> / {cSts.length} Students
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong>/{cSts.length} Sts
               {pendingCount > 0 && selectedStatusFilter === 'approved' && (
-                <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">({pendingCount} unassigned hidden)</span>
-              )}
-              {pendingCount > 0 && selectedStatusFilter === 'all' && (
-                <span className="text-slate-500 font-semibold ml-1">({approvedCount} with roll • {pendingCount} pending)</span>
+                <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">({pendingCount} unassigned)</span>
               )}
               {' • '}
-              <strong className="text-emerald-600">{activeSubjects.length}</strong> Subs Active
+              <strong className="text-emerald-600">{activeSubjects.length}</strong> Subs
             </span>
           </div>
 
           {/* Right: Compact Search, Dropdowns & Action Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Search Input */}
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search student, roll..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-36 sm:w-44 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs transition-all placeholder:text-[11px]"
+                className="w-24 sm:w-32 focus:w-44 px-2 py-0.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs transition-all placeholder:text-[10.5px]"
               />
             </div>
 
@@ -1522,12 +1519,12 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               <button
                 type="button"
                 onClick={() => setShowSubjectsDropdown(prev => !prev)}
-                className="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-black cursor-pointer flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-all"
+                className="px-2 py-0.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-all"
                 title="Select subjects to display in practical awards matrix"
               >
-                <BookOpen size={12} />
-                <span>Subjects ({selectedSubCodes.length}/{activeCodesList.length})</span>
-                <ChevronDown size={11} className={`transition-transform duration-200 ${showSubjectsDropdown ? 'rotate-180' : ''}`} />
+                <BookOpen size={11} />
+                <span>Subjects ({selectedSubCodes.length})</span>
+                <ChevronDown size={10} className={`transition-transform duration-200 ${showSubjectsDropdown ? 'rotate-180' : ''}`} />
               </button>
 
               {showSubjectsDropdown && (
@@ -1576,7 +1573,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
             <button
               type="button"
               onClick={() => setShowFilterTray(prev => !prev)}
-              className={`px-2.5 py-1 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1.5 border shadow-2xs transition-all ${
+              className={`px-2 py-0.5 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1 border shadow-2xs transition-all ${
                 showFilterTray || selectedStatusFilter !== 'approved' || selectedSession !== '2025-26' || localPrintOpts.practicalType === 'external'
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 dark:shadow-none'
                   : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -1585,98 +1582,99 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
             >
               <Filter size={11} />
               <span>Filters</span>
-              <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
+              <ChevronDown size={10} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
             </button>
 
+            {/* Subtle Divider */}
+            <div className="h-4 w-[1px] bg-slate-200 dark:border-slate-700 mx-0.5" />
+
             {/* Export & Print Action Buttons */}
-            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700">
-              <button
-                onClick={() => {
-                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  if (!listToPrint || listToPrint.length === 0) {
-                    alert(`No student records available for Class ${cls}.`);
-                    return;
-                  }
-                  exportCurrentRosterToExcel({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    subjectCode: activeSubjects[0] || 'BO',
-                    evaluationType: localPrintOpts.practicalType
-                  });
-                }}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-slate-200 dark:border-slate-700 shadow-2xs"
-                title="Export current students roster to Excel (.xlsx) for offline grading"
-              >
-                <FileSpreadsheet size={12} /> Export Excel
-              </button>
-              <button
-                onClick={() => {
-                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  if (!listToPrint || listToPrint.length === 0) {
-                    alert(`No student records available to print for Class ${cls}.`);
-                    return;
-                  }
-                  printConsolidatedAwardRoll({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    submissions,
-                    isExternal: localPrintOpts.practicalType === 'external',
-                    selectedSubjectCodes: activeSubjects,
-                    printDetails: localPrintOpts
-                  });
-                }}
-                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-              >
-                <Printer size={12} /> Print Awards
-              </button>
-              <button
-                onClick={() => {
-                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  if (!listToPrint || listToPrint.length === 0) {
-                    alert(`No student records available to print for Class ${cls}.`);
-                    return;
-                  }
-                  printAttendanceSheet({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    isExternal: localPrintOpts.practicalType === 'external'
-                  });
-                }}
-                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-              >
-                <ClipboardCheck size={12} /> Attendance
-              </button>
-              <button
-                onClick={() => {
-                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                  if (!listToPrint || listToPrint.length === 0) {
-                    alert(`No student records available to print for Class ${cls}.`);
-                    return;
-                  }
-                  printFailList({
-                    className: cls,
-                    session: localPrintOpts.sessionText,
-                    students: listToPrint,
-                    submissions,
-                    selectedSubjectCodes: activeSubjects,
-                    isExternal: localPrintOpts.practicalType === 'external'
-                  });
-                }}
-                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-              >
-                <AlertTriangle size={12} /> Fail List
-              </button>
-              <button
-                onClick={() => setShowOptsModal(true)}
-                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold cursor-pointer flex items-center border border-slate-200 dark:border-slate-700 shadow-2xs"
-                title="Print layout & in-charge options"
-              >
-                <Settings size={12} />
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                if (!listToPrint || listToPrint.length === 0) {
+                  alert(`No student records available for Class ${cls}.`);
+                  return;
+                }
+                exportCurrentRosterToExcel({
+                  className: cls,
+                  session: localPrintOpts.sessionText,
+                  students: listToPrint,
+                  subjectCode: activeSubjects[0] || 'BO',
+                  evaluationType: localPrintOpts.practicalType
+                });
+              }}
+              className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-slate-200 dark:border-slate-700 shadow-2xs"
+              title="Export current students roster to Excel (.xlsx)"
+            >
+              <FileSpreadsheet size={11} /> Excel
+            </button>
+            <button
+              onClick={() => {
+                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                if (!listToPrint || listToPrint.length === 0) {
+                  alert(`No student records available to print for Class ${cls}.`);
+                  return;
+                }
+                printConsolidatedAwardRoll({
+                  className: cls,
+                  session: localPrintOpts.sessionText,
+                  students: listToPrint,
+                  submissions,
+                  isExternal: localPrintOpts.practicalType === 'external',
+                  selectedSubjectCodes: activeSubjects,
+                  printDetails: localPrintOpts
+                });
+              }}
+              className="px-2.5 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+            >
+              <Printer size={11} /> Awards
+            </button>
+            <button
+              onClick={() => {
+                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                if (!listToPrint || listToPrint.length === 0) {
+                  alert(`No student records available to print for Class ${cls}.`);
+                  return;
+                }
+                printAttendanceSheet({
+                  className: cls,
+                  session: localPrintOpts.sessionText,
+                  students: listToPrint,
+                  isExternal: localPrintOpts.practicalType === 'external'
+                });
+              }}
+              className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+            >
+              <ClipboardCheck size={11} /> Attendance
+            </button>
+            <button
+              onClick={() => {
+                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                if (!listToPrint || listToPrint.length === 0) {
+                  alert(`No student records available to print for Class ${cls}.`);
+                  return;
+                }
+                printFailList({
+                  className: cls,
+                  session: localPrintOpts.sessionText,
+                  students: listToPrint,
+                  submissions,
+                  selectedSubjectCodes: activeSubjects,
+                  isExternal: localPrintOpts.practicalType === 'external'
+                });
+              }}
+              className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+            >
+              <AlertTriangle size={11} /> Fail List
+            </button>
+            <button
+              onClick={() => setShowOptsModal(true)}
+              className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold cursor-pointer flex items-center border border-slate-200 dark:border-slate-700 shadow-2xs"
+              title="Print layout & in-charge options"
+            >
+              <Settings size={11} />
+            </button>
           </div>
         </div>
 
