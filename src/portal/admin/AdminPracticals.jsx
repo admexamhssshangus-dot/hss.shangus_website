@@ -1182,11 +1182,33 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     return ['EN', 'PH', 'CH', 'BI', 'MA', 'UR', 'ED', 'HT', 'PS', 'EC', 'ES', 'PD', 'HTC', 'ITE'];
   }, [bioMode]);
 
-  const [selectedSubCodes, setSelectedSubCodes] = useState(activeCodesList);
+  // Helper to compute default checked subjects based on Evaluation Type & Non-Practical Settings
+  const getDefaultCheckedCodes = useCallback(() => {
+    const isExternal = localPrintOpts.practicalType === 'external';
+
+    // 1. External practicals (only Laboratory Science subjects have external practicals)
+    if (isExternal) {
+      return bioMode === 'separate' ? ['PH', 'CH', 'BO', 'ZO'] : ['PH', 'CH', 'BI'];
+    }
+
+    // 2. Internal practicals: automatically uncheck configured non-practical subjects (e.g. HTC, ITE)
+    const is12 = String(cls || '').includes('12');
+    const nonPracticalConfig = String(
+      (is12 ? settings.nonPractical12 : settings.nonPractical11) || settings.nonPractical || 'HTC,ITE'
+    ).toUpperCase();
+
+    const excludedCodes = new Set(
+      nonPracticalConfig.split(/[\s,+/]+/).map(s => s.trim()).filter(Boolean)
+    );
+
+    return activeCodesList.filter(code => !excludedCodes.has(code));
+  }, [cls, localPrintOpts.practicalType, bioMode, settings.nonPractical11, settings.nonPractical12, settings.nonPractical, activeCodesList]);
+
+  const [selectedSubCodes, setSelectedSubCodes] = useState(() => getDefaultCheckedCodes());
 
   useEffect(() => {
-    setSelectedSubCodes(activeCodesList);
-  }, [activeCodesList]);
+    setSelectedSubCodes(getDefaultCheckedCodes());
+  }, [getDefaultCheckedCodes]);
 
   // Total students enrolled in this class and session regardless of approval status
   const totalClassStudents = useMemo(() => {
