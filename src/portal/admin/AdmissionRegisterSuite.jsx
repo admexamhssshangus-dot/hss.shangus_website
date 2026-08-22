@@ -23,9 +23,9 @@ import { getStudentPhotoUrl } from '../../utils/imageCompressor';
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
 
-export const DEFAULT_ROW_HEIGHT = 44; // Standard row height in px
-const MIN_REGISTER_ROW_HEIGHT = 32;
-const MAX_REGISTER_ROW_HEIGHT = 54; // Keeps 10 aligned rows plus signature space on Legal landscape.
+export const DEFAULT_ROW_HEIGHT = 56; // Standard row height in px
+const MIN_REGISTER_ROW_HEIGHT = 30;
+const MAX_REGISTER_ROW_HEIGHT = 100; // Allows up to 100px custom row height
 
 export const DEFAULT_COLUMN_WIDTHS = {
   // PART 1
@@ -2678,30 +2678,50 @@ export default function AdmissionRegisterSuite({
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-black mb-1">
                           <span className="text-slate-800">Row Height:</span>
-                          <span className="px-2 py-0.5 rounded-md popover-badge font-mono font-black text-[11px]">{rowHeight} px</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min={MIN_REGISTER_ROW_HEIGHT}
+                              max={MAX_REGISTER_ROW_HEIGHT}
+                              value={rowHeight}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val)) {
+                                  handleRowHeightChange(val);
+                                }
+                              }}
+                              className="w-14 text-center py-0.5 px-1 rounded-md bg-white border border-slate-300 font-mono font-black text-[11px] text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                              title="Enter custom row height in px (30-100)"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500">px</span>
+                          </div>
                         </div>
                         <input
                           type="range"
                           min={MIN_REGISTER_ROW_HEIGHT}
                           max={MAX_REGISTER_ROW_HEIGHT}
-                          step="2"
+                          step="1"
                           value={rowHeight}
                           onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
                           className="w-full cursor-pointer accent-indigo-600"
                         />
                         <div className="grid grid-cols-3 gap-1.5 pt-1">
-                          {[34, 44, 54].map(h => (
+                          {[
+                            { label: 'Compact', val: 40 },
+                            { label: 'Default', val: 56, star: true },
+                            { label: 'Spacious', val: 75 }
+                          ].map(({ label, val, star }) => (
                             <button
-                              key={h}
+                              key={val}
                               type="button"
-                              onClick={() => handleRowHeightChange(h)}
+                              onClick={() => handleRowHeightChange(val)}
                               className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
-                                rowHeight === h
+                                rowHeight === val
                                   ? 'bg-indigo-600 text-white shadow-xs'
                                   : 'popover-btn-inactive'
                               }`}
                             >
-                              {h === 34 ? 'Compact' : h === 44 ? 'Default' : 'Spacious'} ({h}px)
+                              {label} ({val}px){star ? ' ★' : ''}
                             </button>
                           ))}
                         </div>
