@@ -129,53 +129,55 @@ export function findStudentMarkRecord(subDoc, student) {
 }
 
 const PRINT_ENGINE_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Cinzel:wght@700;800;900&display=swap');
+
   @media print {
     @page { size: A4 portrait; margin: 6mm 6mm 6mm 6mm; }
-    body { font-family: 'Times New Roman', Times, serif; color: #000; background: #fff; margin: 0; padding: 0; font-size: 11pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; font-size: 10.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page-break { page-break-after: always; break-after: page; }
     .no-print { display: none !important; }
   }
-  body { font-family: 'Times New Roman', Times, serif; color: #000; background: #fff; margin: 0; padding: 0; }
+  body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; }
   .award-page { width: 100%; max-width: 210mm; margin: 0 auto; box-sizing: border-box; padding: 10px; background: #fff; }
   
-  /* 2-Column Award Roll Layout (Screenshot 2) */
+  /* 2-Column Award Roll Layout */
   .two-col-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: start; }
   .award-col-box { width: 100%; box-sizing: border-box; }
-  .award-header-block { font-size: 10.5pt; text-align: center; margin-bottom: 6px; line-height: 1.25; border-bottom: 1.5px solid #000; padding-bottom: 4px; }
-  .award-header-block h2 { font-size: 12pt; font-weight: bold; margin: 0 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px; }
-  .award-info-line { display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: bold; margin-bottom: 3px; }
+  .award-header-block { font-size: 10pt; text-align: center; margin-bottom: 6px; line-height: 1.3; border-bottom: 1.5px solid #0f172a; padding-bottom: 5px; }
+  .award-header-block h2 { font-family: 'Cinzel', 'Plus Jakarta Sans', serif; font-size: 11.5pt; font-weight: 800; margin: 0 0 3px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; }
+  .award-info-line { display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-bottom: 3px; color: #334155; }
   
-  table.award-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 9.5pt; text-align: center; }
-  table.award-table th, table.award-table td { border: 1.2px solid #000; padding: 3.5px 4px; }
-  table.award-table th { background: #e2e8f0 !important; font-weight: bold; font-size: 8.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .centre-num-row { background: #fff; color: #cc0000; font-weight: bold; font-size: 10pt; text-align: center; border-top: 2px solid #000; border-bottom: 2px solid #000; }
-  .absent-text { color: #cc0000; font-weight: bold; }
+  table.award-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 9pt; text-align: center; }
+  table.award-table th, table.award-table td { border: 1px solid #475569; padding: 3.5px 4px; }
+  table.award-table th { background: #f1f5f9 !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .centre-num-row { background: #fff; color: #b91c1c; font-weight: 800; font-size: 9.5pt; text-align: center; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; }
+  .absent-text { color: #b91c1c; font-weight: 800; }
   
-  .award-footer { font-size: 8.5pt; font-weight: bold; line-height: 1.6; margin-top: 6px; border-top: 1.5px solid #000; padding-top: 4px; }
-  .sig-row { display: flex; justify-content: space-between; margin-top: 12px; font-size: 8.5pt; font-weight: bold; }
+  .award-footer { font-size: 8.5pt; font-weight: 700; line-height: 1.6; margin-top: 6px; border-top: 1.5px solid #0f172a; padding-top: 4px; color: #1e293b; }
+  .sig-row { display: flex; justify-content: space-between; margin-top: 14px; font-size: 8.5pt; font-weight: 800; color: #0f172a; }
 
-  /* Consolidated Cover Letter & Table Matrix Layout (Screenshots 3 & 4) */
-  .letter-container { font-size: 11pt; line-height: 1.6; padding: 25px 30px; font-family: 'Times New Roman', Times, serif; }
-  .letter-header { font-weight: bold; margin-bottom: 25px; font-size: 12pt; }
-  .letter-subj { font-weight: bold; text-decoration: underline; margin: 20px 0; font-size: 11.5pt; }
-  .letter-body { text-align: justify; margin-bottom: 16px; text-indent: 25px; }
-  .gist-table { width: 85%; margin: 20px auto; border-collapse: collapse; font-size: 9.5pt; }
-  .gist-table th, .gist-table td { border: 1.2px solid #000; padding: 5px 10px; text-align: left; }
-  .gist-table th { background: #e2e8f0 !important; text-align: center; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .gist-table td.num { text-align: center; font-weight: bold; }
+  /* Consolidated Cover Letter & Table Matrix Layout */
+  .letter-container { font-size: 10.5pt; line-height: 1.65; padding: 25px 30px; font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; }
+  .letter-header { font-weight: 800; margin-bottom: 20px; font-size: 11.5pt; line-height: 1.4; color: #0f172a; }
+  .letter-subj { font-weight: 800; text-decoration: underline; margin: 18px 0; font-size: 11pt; color: #0f172a; }
+  .letter-body { text-align: justify; margin-bottom: 14px; text-indent: 25px; color: #1e293b; font-weight: 500; }
+  .gist-table { width: 85%; margin: 18px auto; border-collapse: collapse; font-size: 9pt; }
+  .gist-table th, .gist-table td { border: 1px solid #475569; padding: 5px 12px; text-align: left; }
+  .gist-table th { background: #f1f5f9 !important; text-align: center; font-weight: 800; text-transform: uppercase; font-size: 8.5pt; letter-spacing: 0.3px; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gist-table td.num { text-align: center; font-weight: 800; font-family: 'Plus Jakarta Sans', monospace; color: #0f172a; }
   
-  /* Matrix Table (Screenshot 3) */
-  .matrix-title-block { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 6px; }
-  .matrix-title-block h1 { font-size: 14pt; font-weight: bold; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
-  .matrix-title-block h2 { font-size: 11pt; font-weight: bold; margin: 4px 0; }
-  .matrix-title-block p { font-size: 9.5pt; margin: 2px 0; font-weight: bold; }
+  /* Matrix Table */
+  .matrix-title-block { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #0f172a; padding-bottom: 6px; }
+  .matrix-title-block h1 { font-family: 'Cinzel', 'Plus Jakarta Sans', serif; font-size: 13pt; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.6px; color: #0f172a; }
+  .matrix-title-block h2 { font-size: 10.5pt; font-weight: 800; margin: 4px 0; color: #1e293b; }
+  .matrix-title-block p { font-size: 9pt; margin: 2px 0; font-weight: 700; color: #475569; }
   
   table.matrix-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; text-align: center; }
-  table.matrix-table th, table.matrix-table td { border: 1.2px solid #000; padding: 3px 2px; }
-  table.matrix-table th { background: #dbeafe !important; font-weight: bold; font-size: 8pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  table.matrix-table td.mark-val { font-weight: bold; color: #1e3a8a; }
-  table.matrix-table td.no-sub { color: #64748b; font-weight: normal; }
-  table.matrix-table td.hash-tot { font-weight: bold; background: #f8fafc !important; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.matrix-table th, table.matrix-table td { border: 1px solid #64748b; padding: 3px 2px; }
+  table.matrix-table th { background: #e0e7ff !important; font-weight: 800; font-size: 7.8pt; text-transform: uppercase; letter-spacing: 0.2px; color: #1e1b4b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.matrix-table td.mark-val { font-weight: 800; color: #1e40af; }
+  table.matrix-table td.no-sub { color: #94a3b8; font-weight: normal; }
+  table.matrix-table td.hash-tot { font-weight: 800; background: #f8fafc !important; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 `;
 
 function triggerPrintWindow(htmlContent) {
@@ -431,7 +433,7 @@ export function printConsolidatedAwardRoll({
     return selectedSubjectCodes.includes(s.code);
   });
 
-  // Build subject gist count for Page 1 Forwarding Cover Letter (Screenshot 4)
+  // Build subject gist count for Page 1 Forwarding Cover Letter
   const gistList = activeSubs.map((sub, idx) => {
     let count = 0;
 
@@ -442,8 +444,20 @@ export function printConsolidatedAwardRoll({
       students.forEach(st => {
         const clsName = String(className).toLowerCase();
         const stStream = String(st.stream || st.Stream || st['Stream'] || '').toLowerCase();
+        
+        const multiSubCols = [
+          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+        ].filter(Boolean).join(', ');
+
         const stSubs = String(
-          (clsName.includes('12') ? st['Subjects to be taken in Class 12th'] : st['Subjects to be taken in Class 11th']) || 
+          st['Subs'] ||
+          st['subs'] ||
+          (clsName.includes('12') ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+          multiSubCols ||
+          st['Subjects to be taken in Class 11th'] ||
+          st['Subjects Studied in Class 11th'] ||
           st['Subjects'] || 
           st['Subject Combination'] || 
           st['streamSubjects'] || 
@@ -451,15 +465,24 @@ export function printConsolidatedAwardRoll({
           ''
         ).toLowerCase();
 
+        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
+        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
+
         let hasSub = false;
 
         // Physics & Chemistry are compulsory for ALL Science students!
         if (sub.code === 'PH' || sub.code === 'CH') {
-          if (stStream.includes('science') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) {
+          if (isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) {
             hasSub = true;
           }
-        } else if (sub.code === 'BO' || sub.code === 'ZO') {
+        } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
           if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) {
+            hasSub = true;
+          } else if (isScience && !isNonMed) {
+            hasSub = true; // All Medical Science students are enrolled in Botany & Zoology!
+          }
+        } else if (sub.code === 'MA') {
+          if (stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed)) {
             hasSub = true;
           }
         } else {
@@ -467,6 +490,22 @@ export function printConsolidatedAwardRoll({
             const regex = new RegExp(`\\b${kw}\\b`, 'i');
             return regex.test(stSubs) || stSubs.includes(kw);
           });
+        }
+
+        // Also check if this student has an actual submitted mark for this subject!
+        if (!hasSub && submissions && submissions.length > 0) {
+          const clsTarget = String(className).toLowerCase().includes('12') ? '12' : '11';
+          const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
+          const subDoc = submissions.find(s => {
+            const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+            if (!matchClass) return false;
+            const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+            return codeStr === sub.code || codeStr.includes(sub.code);
+          });
+          if (subDoc && subDoc.records && rNo) {
+            const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
+            if (hasRec) hasSub = true;
+          }
         }
 
         if (hasSub) count++;
