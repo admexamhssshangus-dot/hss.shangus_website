@@ -63,11 +63,11 @@ export const DEFAULT_COLUMN_WIDTHS = {
   p2_prevSchool: 86,
   p2_prevRoll: 48,
   p2_prevResult: 48,
-  p2_pen: 64,
-  p2_prevCC: 72,
+  p2_pen: 92,
+  p2_prevCC: 76,
   p2_withdrawal: 56,
-  p2_issuedCC: 64,
-  p2_receipt: 128,
+  p2_issuedCC: 76,
+  p2_receipt: 140,
   p2_remarks: 80,
 
   // SENTUP
@@ -721,9 +721,35 @@ export default function AdmissionRegisterSuite({
   const filtersPopoverRef = useRef(null);
   const viewPopoverRef = useRef(null);
 
-  // ─── DYNAMIC COLUMN WIDTHS & ROW HEIGHT STATE (FIREBASE-PRESERVED) ───
-  const [columnWidths, setColumnWidths] = useState(DEFAULT_COLUMN_WIDTHS);
-  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
+  const LAYOUT_STORAGE_KEY = 'hss_admission_register_layout_v2';
+
+  // ─── DYNAMIC COLUMN WIDTHS & ROW HEIGHT STATE (FIREBASE + LOCAL STORAGE PRESERVED) ───
+  const [columnWidths, setColumnWidths] = useState(() => {
+    try {
+      const cached = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.columnWidths && typeof parsed.columnWidths === 'object') {
+          return { ...DEFAULT_COLUMN_WIDTHS, ...parsed.columnWidths };
+        }
+      }
+    } catch (_) {}
+    return DEFAULT_COLUMN_WIDTHS;
+  });
+
+  const [rowHeight, setRowHeight] = useState(() => {
+    try {
+      const cached = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (typeof parsed.rowHeight === 'number') {
+          return Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, parsed.rowHeight));
+        }
+      }
+    } catch (_) {}
+    return DEFAULT_ROW_HEIGHT;
+  });
+
   const [isLayoutModified, setIsLayoutModified] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
 
@@ -731,7 +757,13 @@ export default function AdmissionRegisterSuite({
   useEffect(() => {
     const loadFirebaseLayout = async () => {
       try {
-        const snap = await getDoc(doc(db, 'system_settings', 'admission_register_layout'));
+        let snap = await getDoc(doc(db, 'systemSettings', 'admission_register_layout'));
+        if (!snap.exists()) {
+          snap = await getDoc(doc(db, 'system_settings', 'admission_register_layout'));
+        }
+        if (!snap.exists()) {
+          snap = await getDoc(doc(db, 'adminSettings', 'admission_register_layout'));
+        }
         if (snap.exists()) {
           const data = snap.data();
           if (data.columnWidths && typeof data.columnWidths === 'object') {
@@ -743,50 +775,102 @@ export default function AdmissionRegisterSuite({
           if (data.printMargin && typeof data.printMargin === 'number') {
             setPrintMargin(data.printMargin);
           }
+          try {
+            localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(data));
+          } catch (_) {}
         }
       } catch (err) {
-        console.warn('Could not load saved register layout from Firebase:', err);
+        console.warn('Could not load saved register layout from Firebase (using local settings):', err);
       }
     };
     loadFirebaseLayout();
   }, []);
 
   const handleColumnResize = (colKey, newWidth) => {
-    setColumnWidths(prev => ({
-      ...prev,
-      [colKey]: newWidth
-    }));
+    setColumnWidths(prev => {
+      const updated = {
+        ...prev,
+        [colKey]: newWidth
+      };
+      try {
+        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
+          columnWidths: updated,
+          rowHeight,
+          printMargin,
+          updatedAt: new Date().toISOString()
+        }));
+      } catch (_) {}
+      return updated;
+    });
     setIsLayoutModified(true);
   };
 
   const handleRowHeightChange = (newHeight) => {
-    setRowHeight(Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, newHeight)));
+    const clamped = Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, newHeight));
+    setRowHeight(clamped);
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
+        columnWidths,
+        rowHeight: clamped,
+        printMargin,
+        updatedAt: new Date().toISOString()
+      }));
+    } catch (_) {}
     setIsLayoutModified(true);
   };
 
   const handleSaveLayoutToFirebase = async () => {
+    const layoutPayload = {
+      columnWidths,
+      rowHeight,
+      printMargin,
+      updatedAt: new Date().toISOString()
+    };
+
+    // 1. Immediately preserve in LocalStorage so settings are NEVER lost
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutPayload));
+    } catch (_) {}
+
     try {
       setSavingLayout(true);
-      const layoutPayload = {
-        columnWidths,
-        rowHeight,
-        printMargin,
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(doc(db, 'system_settings', 'admission_register_layout'), layoutPayload, { merge: true });
-      setIsLayoutModified(false);
-      setToast({
-        message: '✅ Table layout (column widths & row height) preserved as Firebase institution default!',
-        type: 'success'
-      });
+      let firebaseSaved = false;
       try {
-        logAdminActivity(user?.email || 'Admin', 'UPDATE_REGISTER_LAYOUT', `Saved custom admission register column widths & row height (${rowHeight}px) to Firebase default.`);
-      } catch (_) {}
+        await setDoc(doc(db, 'systemSettings', 'admission_register_layout'), layoutPayload, { merge: true });
+        firebaseSaved = true;
+      } catch (err1) {
+        try {
+          await setDoc(doc(db, 'system_settings', 'admission_register_layout'), layoutPayload, { merge: true });
+          firebaseSaved = true;
+        } catch (err2) {
+          try {
+            await setDoc(doc(db, 'adminSettings', 'admission_register_layout'), layoutPayload, { merge: true });
+            firebaseSaved = true;
+          } catch (_) {}
+        }
+      }
+
+      setIsLayoutModified(false);
+      if (firebaseSaved) {
+        setToast({
+          message: '✅ Table layout (column widths & row height) saved to Firebase and device default!',
+          type: 'success'
+        });
+        try {
+          logAdminActivity(user?.email || 'Admin', 'UPDATE_REGISTER_LAYOUT', `Saved custom admission register column widths & row height (${rowHeight}px) to Firebase default.`);
+        } catch (_) {}
+      } else {
+        setToast({
+          message: '💾 Table layout preserved permanently on your browser device!',
+          type: 'info'
+        });
+      }
     } catch (err) {
       console.error('Failed to save layout to Firebase:', err);
+      setIsLayoutModified(false);
       setToast({
-        message: `❌ Failed to save layout: ${err.message || 'Could not save to Firebase.'}`,
-        type: 'error'
+        message: '💾 Layout preserved locally in browser storage!',
+        type: 'info'
       });
     } finally {
       setSavingLayout(false);
@@ -797,6 +881,9 @@ export default function AdmissionRegisterSuite({
     setColumnWidths(DEFAULT_COLUMN_WIDTHS);
     setRowHeight(DEFAULT_ROW_HEIGHT);
     setPrintMargin(0.35);
+    try {
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    } catch (_) {}
     setIsLayoutModified(true);
     setToast({
       message: '🔄 Column widths and row heights restored to factory format. Click "Set to Default" to save permanently.',
@@ -3471,18 +3558,32 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight">{s.prevSchool}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] ledger-mono-font">{s.pen}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] ledger-mono-font whitespace-nowrap overflow-hidden">{s.pen}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
                                     {s.prevCC}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 leading-tight">
-                                    {s.issuedCC ? <div>{s.issuedCC}</div> : <><div>C.No. _______</div><div>Dt. _______</div></>}
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
+                                    {s.issuedCC ? (
+                                      <div className="text-[7px] leading-tight font-medium py-0.5">{s.issuedCC}</div>
+                                    ) : (
+                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
+                                        <div>C.No. _________</div>
+                                        <div>Dt. _________</div>
+                                      </div>
+                                    )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50">
-                                    {s.receipt ? <div>{s.receipt}</div> : <><div>received DC/CC vide C. No. ___</div><div>on _______ Sig. _______</div></>}
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
+                                    {s.receipt ? (
+                                      <div className="text-[7px] leading-tight font-medium py-0.5">{s.receipt}</div>
+                                    ) : (
+                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
+                                        <div>received DC/CC vide C. No. _________</div>
+                                        <div>on _________ Sig. _________</div>
+                                      </div>
+                                    )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px]">{s.remarks}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight overflow-hidden">{s.remarks}</td>
                                 </ResizableDataRow>
                               ))}
                             </tbody>
