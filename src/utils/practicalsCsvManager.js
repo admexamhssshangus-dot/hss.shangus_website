@@ -1,11 +1,12 @@
 /**
  * practicalsCsvManager.js
- * Comprehensive CSV Import / Export / Template Management for Practicals Portal
+ * Comprehensive Excel & Spreadsheet Import / Export / Template Management for Practicals Portal
  * Govt. Higher Secondary School Shangus
  */
 
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import * as XLSX from 'xlsx';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -25,6 +26,8 @@ export const CSV_COLUMNS = [
   'Practical Marks',
   'Max Marks'
 ];
+
+export const EXCEL_COLUMNS = CSV_COLUMNS;
 
 export const VALID_SUBJECT_CODES = {
   BO: 'Botany',
@@ -80,26 +83,24 @@ export function cleanRegistrationNumber(val) {
 }
 
 /**
- * Helper to escape a value for standard CSV formatting.
+ * Trigger file download from Blob
  */
-function escapeCsvCell(val, isTextOnly = false) {
-  if (val === undefined || val === null) return '""';
-  const str = String(val).trim();
-  if (isTextOnly && /^\d{10,}$/.test(str)) {
-    // Wrap long numerical strings as explicit text formula so spreadsheet apps never truncate or convert to scientific notation
-    return `="${str}"`;
-  }
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return `"${str}"`;
+function downloadFileBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /**
- * Generate a standardized blank or sample CSV template for download.
+ * Generate a standardized blank or sample Excel (.xlsx) template for download.
+ * Formats all columns as text ('@') to guarantee 16-digit Reg numbers never convert to scientific notation.
  */
-export function generatePracticalsCsvTemplate() {
-  const headers = CSV_COLUMNS.map(c => escapeCsvCell(c)).join(',');
+export function generatePracticalsExcelTemplate() {
   const sampleRows = [
     [
       '11th',
@@ -157,17 +158,61 @@ export function generatePracticalsCsvTemplate() {
     ]
   ];
 
-  const csvBody = [
-    headers,
-    ...sampleRows.map(row => row.map((cell, idx) => escapeCsvCell(cell, idx === 7 || idx === 8)).join(','))
-  ].join('\r\n');
-  triggerCsvDownload(csvBody, 'Practicals_Import_Template_HSS_Shangus.csv');
+  const aoaData = [EXCEL_COLUMNS, ...sampleRows];
+  const ws = XLSX.utils.aoa_to_sheet(aoaData);
+
+  // Force ALL cells to explicit Text format ('@')
+  Object.keys(ws).forEach((cellKey) => {
+    if (cellKey.startsWith('!')) return;
+    const cell = ws[cellKey];
+    if (cell) {
+      cell.t = 's';
+      cell.v = String(cell.v || '');
+      cell.w = String(cell.v || '');
+      cell.z = '@';
+    }
+  });
+
+  // Column width styling
+  ws['!cols'] = [
+    { wch: 10 }, // Class
+    { wch: 20 }, // Session
+    { wch: 16 }, // Evaluation Type
+    { wch: 14 }, // Subject Code
+    { wch: 22 }, // Subject Name
+    { wch: 22 }, // Teacher Name
+    { wch: 26 }, // Teacher Email
+    { wch: 26 }, // Board Registration Number
+    { wch: 16 }, // Exam Roll No
+    { wch: 14 }, // Class Roll No
+    { wch: 26 }, // Student Name
+    { wch: 26 }, // Father Name
+    { wch: 18 }, // Stream
+    { wch: 28 }, // Subjects
+    { wch: 16 }, // Practical Marks
+    { wch: 12 }  // Max Marks
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Practicals_Awards');
+
+  const filename = 'Practicals_Import_Template_HSS_Shangus.xlsx';
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadFileBlob(blob, filename);
 }
 
 /**
- * Export current active student roster prefilled for a given class, session, subject, and evaluation type.
+ * Generate CSV template fallback
  */
-export function exportCurrentRosterToCsv({
+export function generatePracticalsCsvTemplate() {
+  generatePracticalsExcelTemplate();
+}
+
+/**
+ * Export current active student roster to Excel (.xlsx) prefilled for a given class, session, subject, and evaluation type.
+ */
+export function exportCurrentRosterToExcel({
   className = '11th',
   session = '2025-26',
   students = [],
@@ -176,7 +221,6 @@ export function exportCurrentRosterToCsv({
   teacherName = '',
   teacherEmail = ''
 }) {
-  const headers = CSV_COLUMNS.map(c => escapeCsvCell(c)).join(',');
   const subName = VALID_SUBJECT_CODES[subjectCode] || subjectCode;
 
   const rows = students.map((st, idx) => {
@@ -209,28 +253,56 @@ export function exportCurrentRosterToCsv({
     ];
   });
 
-  const csvBody = [
-    headers,
-    ...rows.map(row => row.map((cell, idx) => escapeCsvCell(cell, idx === 7 || idx === 8)).join(','))
-  ].join('\r\n');
+  const aoaData = [EXCEL_COLUMNS, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(aoaData);
 
-  const filename = `Roster_${className}_${subjectCode}_${evaluationType}_${session.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
-  triggerCsvDownload(csvBody, filename);
+  // Force ALL cells to explicit Text format ('@')
+  Object.keys(ws).forEach((cellKey) => {
+    if (cellKey.startsWith('!')) return;
+    const cell = ws[cellKey];
+    if (cell) {
+      cell.t = 's';
+      cell.v = String(cell.v || '');
+      cell.w = String(cell.v || '');
+      cell.z = '@';
+    }
+  });
+
+  ws['!cols'] = [
+    { wch: 10 },
+    { wch: 20 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 26 },
+    { wch: 26 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 26 },
+    { wch: 26 },
+    { wch: 18 },
+    { wch: 28 },
+    { wch: 16 },
+    { wch: 12 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Student_Roster');
+
+  const cleanSess = String(session).replace(/[^a-zA-Z0-9]/g, '_');
+  const filename = `Roster_${className}_${subjectCode}_${evaluationType}_${cleanSess}.xlsx`;
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadFileBlob(blob, filename);
 }
 
 /**
- * Triggers a browser download for CSV string content.
+ * Alias for backward compatibility
  */
-function triggerCsvDownload(csvString, filename) {
-  const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export function exportCurrentRosterToCsv(opts) {
+  exportCurrentRosterToExcel(opts);
 }
 
 /**
@@ -286,15 +358,33 @@ export function parseCsvText(text) {
 }
 
 /**
- * Parse and validate practicals CSV text, returning grouped Firestore submission documents.
+ * Parse and validate practicals spreadsheet (Excel .xlsx / .xls or CSV text)
+ * Returning grouped Firestore submission documents.
  */
-export function parseAndValidatePracticalsCsv(csvText) {
-  const rawRows = parseCsvText(csvText);
-  if (!rawRows || rawRows.length < 2) {
-    return { success: false, error: 'CSV file is empty or missing data rows.' };
+export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true) {
+  let rawRows = [];
+
+  try {
+    if (isBinary) {
+      const wb = XLSX.read(fileData, { type: 'array', cellText: true, raw: false });
+      const firstSheetName = wb.SheetNames[0];
+      if (!firstSheetName) {
+        return { success: false, error: 'Spreadsheet has no valid sheets.' };
+      }
+      const ws = wb.Sheets[firstSheetName];
+      rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+    } else {
+      rawRows = parseCsvText(String(fileData || ''));
+    }
+  } catch (err) {
+    return { success: false, error: `Failed to read spreadsheet file: ${err.message}` };
   }
 
-  const rawHeaders = rawRows[0].map(h => h.toLowerCase().trim().replace(/[^a-z0-9]/g, ''));
+  if (!rawRows || rawRows.length < 2) {
+    return { success: false, error: 'File is empty or missing data rows.' };
+  }
+
+  const rawHeaders = (rawRows[0] || []).map(h => String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''));
   
   // Header matching helper with exact preference and specific primary aliases
   const findColIdx = (primaryAliases, fallbackAliases = []) => {
@@ -327,7 +417,7 @@ export function parseAndValidatePracticalsCsv(csvText) {
   if (colClass === -1 || colSession === -1 || colSubCode === -1 || colMarks === -1) {
     return {
       success: false,
-      error: 'CSV is missing mandatory header columns. Required: Class, Session, Subject Code, Practical Marks.'
+      error: 'Spreadsheet is missing mandatory header columns. Required: Class, Session, Subject Code, Practical Marks.'
     };
   }
 
@@ -337,31 +427,31 @@ export function parseAndValidatePracticalsCsv(csvText) {
 
   for (let i = 1; i < rawRows.length; i++) {
     const r = rawRows[i];
-    if (r.length === 0 || (r.length === 1 && !r[0])) continue;
+    if (!r || r.length === 0 || (r.length === 1 && !r[0])) continue;
     totalRows++;
 
     const rowNum = i + 1;
-    let clsRaw = r[colClass] || '11th';
+    let clsRaw = String(r[colClass] || '11th').trim();
     let cls = clsRaw.toLowerCase().includes('12') ? '12th' : '11th';
 
-    let sess = r[colSession] || '2024-25 (Oct-Nov)';
-    let evalType = (colType !== -1 ? r[colType] : 'internal')?.toLowerCase().includes('ext') ? 'external' : 'internal';
-    let subCode = (r[colSubCode] || 'XX').toUpperCase().trim();
-    let subName = (colSubName !== -1 ? r[colSubName] : '') || VALID_SUBJECT_CODES[subCode] || subCode;
+    let sess = String(r[colSession] || '2024-25 (Oct-Nov)').trim();
+    let evalType = (colType !== -1 ? String(r[colType] || '') : 'internal').toLowerCase().includes('ext') ? 'external' : 'internal';
+    let subCode = String(r[colSubCode] || 'XX').toUpperCase().trim();
+    let subName = (colSubName !== -1 ? String(r[colSubName] || '') : '') || VALID_SUBJECT_CODES[subCode] || subCode;
 
-    let teacherName = (colTeacherName !== -1 ? r[colTeacherName] : '') || 'Faculty Member';
-    let teacherEmail = (colTeacherEmail !== -1 ? r[colTeacherEmail] : '') || 'admin@hssshangus.edu';
+    let teacherName = (colTeacherName !== -1 ? String(r[colTeacherName] || '') : '') || 'Faculty Member';
+    let teacherEmail = (colTeacherEmail !== -1 ? String(r[colTeacherEmail] || '') : '') || 'admin@hssshangus.edu';
 
-    let rawReg = (colRegNo !== -1 ? r[colRegNo] : '') || '';
+    let rawReg = colRegNo !== -1 ? r[colRegNo] : '';
     let regNo = cleanRegistrationNumber(rawReg);
-    let examRoll = (colExamRoll !== -1 ? r[colExamRoll] : '') || '';
-    let classRoll = (colClassRoll !== -1 ? r[colClassRoll] : '') || '';
-    let stName = (colStudentName !== -1 ? r[colStudentName] : '') || '';
-    let fatherName = (colFatherName !== -1 ? r[colFatherName] : '') || '';
-    let stream = (colStream !== -1 ? r[colStream] : '') || (evalType === 'external' ? 'External / Outside' : 'Science');
-    let subjects = (colSubjects !== -1 ? r[colSubjects] : '') || '';
-    let marksRaw = (r[colMarks] || '').trim().toUpperCase();
-    let maxMarks = parseInt((colMaxMarks !== -1 ? r[colMaxMarks] : '10') || '10', 10) || 10;
+    let examRoll = (colExamRoll !== -1 ? String(r[colExamRoll] || '') : '').trim();
+    let classRoll = (colClassRoll !== -1 ? String(r[colClassRoll] || '') : '').trim();
+    let stName = (colStudentName !== -1 ? String(r[colStudentName] || '') : '').trim();
+    let fatherName = (colFatherName !== -1 ? String(r[colFatherName] || '') : '').trim();
+    let stream = (colStream !== -1 ? String(r[colStream] || '') : '') || (evalType === 'external' ? 'External / Outside' : 'Science');
+    let subjects = (colSubjects !== -1 ? String(r[colSubjects] || '') : '').trim();
+    let marksRaw = String(r[colMarks] || '').trim().toUpperCase();
+    let maxMarks = parseInt((colMaxMarks !== -1 ? String(r[colMaxMarks] || '10') : '10') || '10', 10) || 10;
 
     if (!stName && !regNo && !examRoll) {
       errors.push(`Row ${rowNum}: Missing student identity (Name, Reg No, or Exam Roll).`);
@@ -436,7 +526,14 @@ export function parseAndValidatePracticalsCsv(csvText) {
 }
 
 /**
- * Batch write parsed CSV practical submission documents into Firestore.
+ * Backward compatibility parser for CSV string
+ */
+export function parseAndValidatePracticalsCsv(csvText) {
+  return parseAndValidatePracticalsSpreadsheet(csvText, false);
+}
+
+/**
+ * Batch write parsed practical submission documents into Firestore.
  */
 export async function importPracticalsCsvToFirestore(documents, onProgress) {
   if (!documents || documents.length === 0) {
