@@ -18,9 +18,11 @@ import {
   PRACTICAL_SUBJECT_DEFS
 } from '../../utils/practicalsPdfGenerator';
 import {
+  generatePracticalsExcelTemplate,
   generatePracticalsCsvTemplate,
+  exportCurrentRosterToExcel,
   exportCurrentRosterToCsv,
-  parseAndValidatePracticalsCsv,
+  parseAndValidatePracticalsSpreadsheet,
   importPracticalsCsvToFirestore,
   cleanRegistrationNumber,
   VALID_SUBJECT_CODES
@@ -797,7 +799,7 @@ export default function AdminPracticals() {
             </div>
             <div>
               <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight">Practicals & Awards Admin</h1>
-              <p className="text-[10px] font-semibold text-slate-500">Evaluations, CSV imports/exports, prints & permissions.</p>
+              <p className="text-[10px] font-semibold text-slate-500">Evaluations, Excel imports/exports, prints & permissions.</p>
             </div>
           </div>
 
@@ -865,21 +867,21 @@ export default function AdminPracticals() {
               </button>
             </div>
 
-            {/* CSV Quick Actions Group */}
+            {/* Excel Quick Actions Group */}
             <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700">
               <button
-                onClick={() => generatePracticalsCsvTemplate()}
+                onClick={() => generatePracticalsExcelTemplate()}
                 className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer border border-emerald-200 dark:border-emerald-800 shadow-2xs"
-                title="Download standardized blank or sample CSV template"
+                title="Download standardized blank or sample Excel template (.xlsx)"
               >
                 <Download size={12} /> Template
               </button>
               <button
                 onClick={() => setShowImportModal(true)}
                 className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800 shadow-2xs"
-                title="Import practical marks from CSV file"
+                title="Import practical marks from Excel (.xlsx / .xls) or CSV file"
               >
-                <Upload size={12} /> Import CSV
+                <Upload size={12} /> Import Excel
               </button>
             </div>
           </div>
@@ -960,14 +962,14 @@ export default function AdminPracticals() {
           />
         )}
 
-        {/* CSV Import Modal */}
+        {/* Excel / CSV Import Modal */}
         {showImportModal && (
           <CsvImportModal
             onClose={() => setShowImportModal(false)}
             onSuccess={() => {
               setShowImportModal(false);
               loadData(true);
-              showAlert('success', 'CSV practical records imported successfully.');
+              showAlert('success', 'Practical awards imported successfully to cloud database.');
             }}
           />
         )}
@@ -1254,7 +1256,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   alert(`No student records available for Class ${cls}.`);
                   return;
                 }
-                exportCurrentRosterToCsv({
+                exportCurrentRosterToExcel({
                   className: cls,
                   session: localPrintOpts.sessionText,
                   students: listToPrint,
@@ -1263,9 +1265,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 });
               }}
               className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-slate-200 dark:border-slate-700 shadow-2xs"
-              title="Export current students table to CSV for offline grading"
+              title="Export current students roster to Excel (.xlsx) for offline grading"
             >
-              <FileSpreadsheet size={12} /> Export CSV
+              <FileSpreadsheet size={12} /> Export Excel
             </button>
             <button
               onClick={() => {
@@ -1609,18 +1611,21 @@ function CsvImportModal({ onClose, onSuccess }) {
     setParsedResult(null);
 
     setParsing(true);
+    const fileName = (f.name || '').toLowerCase();
+    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const text = event.target?.result || '';
-        const res = parseAndValidatePracticalsCsv(text);
+        const fileData = event.target?.result;
+        const res = parseAndValidatePracticalsSpreadsheet(fileData, isExcel);
         if (!res.success) {
-          setErrorMsg(res.error || 'Failed to parse CSV file.');
+          setErrorMsg(res.error || 'Failed to parse spreadsheet file.');
         } else {
           setParsedResult(res);
         }
       } catch (err) {
-        setErrorMsg('Error reading CSV file: ' + err.message);
+        setErrorMsg('Error reading spreadsheet file: ' + err.message);
       } finally {
         setParsing(false);
       }
@@ -1629,7 +1634,12 @@ function CsvImportModal({ onClose, onSuccess }) {
       setErrorMsg('Failed to read file.');
       setParsing(false);
     };
-    reader.readAsText(f);
+
+    if (isExcel) {
+      reader.readAsArrayBuffer(f);
+    } else {
+      reader.readAsText(f);
+    }
   };
 
   const handleStartImport = async () => {
@@ -1675,7 +1685,7 @@ function CsvImportModal({ onClose, onSuccess }) {
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">Import Practicals Data & Awards</h3>
-              <p className="text-[11px] font-semibold text-slate-500">Upload standardized CSV. Supports 16-digit Board Reg No and overwrites matching session awards.</p>
+              <p className="text-[11px] font-semibold text-slate-500">Upload completed Excel spreadsheet (.xlsx/.xls) or CSV. Preserves 16-digit Board Reg No and overwrites matching session awards.</p>
             </div>
           </div>
           <button onClick={onClose} disabled={importing} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer text-slate-400">
@@ -1688,12 +1698,12 @@ function CsvImportModal({ onClose, onSuccess }) {
           <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-8 sm:p-12 text-center space-y-3 bg-slate-50/50 dark:bg-slate-950/40">
             <FileSpreadsheet size={42} className="mx-auto text-indigo-500 opacity-80 animate-pulse" />
             <div>
-              <p className="text-sm font-black text-slate-800 dark:text-slate-200">Choose a Practicals CSV File to Upload</p>
+              <p className="text-sm font-black text-slate-800 dark:text-slate-200">Choose an Excel Spreadsheet (.xlsx / .xls) or CSV File</p>
               <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">Supports Internal and External evaluations. 16-digit Board Registration numbers are automatically cleaned and preserved as exact text strings.</p>
             </div>
             <label className="inline-block px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-xs transition-all">
-              <span>{parsing ? 'Parsing CSV File...' : 'Browse & Select CSV File'}</span>
-              <input type="file" accept=".csv" onChange={handleFileChange} disabled={parsing} className="hidden" />
+              <span>{parsing ? 'Reading Spreadsheet File...' : 'Browse & Select Excel / CSV File'}</span>
+              <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} disabled={parsing} className="hidden" />
             </label>
           </div>
         )}
@@ -1710,7 +1720,7 @@ function CsvImportModal({ onClose, onSuccess }) {
             {/* Top Overview Cards & Overwrite Alert */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
               <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                <p className="text-[10px] font-black text-slate-400 uppercase">Total CSV Rows</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase">Total Rows</p>
                 <p className="text-base font-black text-slate-900 dark:text-white">{parsedResult.totalRows}</p>
               </div>
               <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300">
