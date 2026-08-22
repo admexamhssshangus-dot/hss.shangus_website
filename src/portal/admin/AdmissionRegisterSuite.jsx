@@ -982,6 +982,49 @@ export default function AdmissionRegisterSuite({
     return () => { active = false; };
   }, [historyDataset.length]);
 
+  // 1. Flatten all masterRegisters history records into a clean searchable lookup array
+  const flatHistoryRecords = useMemo(() => {
+    if (!Array.isArray(historyDataset) || historyDataset.length === 0) return [];
+    const flat = [];
+    historyDataset.forEach(docItem => {
+      if (!docItem) return;
+      const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
+      if (Array.isArray(chunk) && chunk.length > 0) {
+        chunk.forEach((item, itemIdx) => {
+          if (item && typeof item === 'object') {
+            flat.push({
+              ...item,
+              id: item.id || item['Form Number'] || item['Form No.'] || `${docItem.id}_${itemIdx}`,
+              boardRegNo: getBoardRegistration(item),
+              classRollNo: cleanStr(item.classRollNo || item['Class Roll No'] || item.rollNo || item['Roll No'] || item['RL. NO.']),
+              studentName: cleanStr(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || item['Student Name']),
+              fatherName: cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"]),
+              aadhar: cleanStr(item.aadhar || item['Aadhar No.'] || item['Aadhaar No.']),
+              penNo: cleanStr(item.penNo || item['PEN No.'] || item['PEN (UDISE)']),
+              bankAccount: cleanStr(item.bankAccount || item['Bank Account No.'] || item.accountNo),
+              ifsc: cleanStr(item.ifsc || item['IFSC code'] || item.ifscCode),
+              prevSchool: cleanStr(item.prevSchool || item['Previous School'] || item['Name of Previous School'])
+            });
+          }
+        });
+      } else {
+        flat.push({
+          ...docItem,
+          boardRegNo: getBoardRegistration(docItem),
+          classRollNo: cleanStr(docItem.classRollNo || docItem['Class Roll No'] || docItem.rollNo || docItem['Roll No']),
+          studentName: cleanStr(docItem.studentName || docItem["Student's Name (as per school records)"] || docItem["Student's Name"] || docItem['Student Name']),
+          fatherName: cleanStr(docItem.fatherName || docItem["Father's/Guardian's Name (as per school records)"] || docItem["Father's Name"]),
+          aadhar: cleanStr(docItem.aadhar || docItem['Aadhar No.'] || docItem['Aadhaar No.']),
+          penNo: cleanStr(docItem.penNo || docItem['PEN No.']),
+          bankAccount: cleanStr(docItem.bankAccount || docItem['Bank Account No.']),
+          ifsc: cleanStr(docItem.ifsc || docItem['IFSC code']),
+          prevSchool: cleanStr(docItem.prevSchool || docItem['Previous School'])
+        });
+      }
+    });
+    return flat;
+  }, [historyDataset]);
+
   // Calculate Next Available Sequential Admission Number
   const nextSequentialAdmNo = useMemo(() => {
     let max = 5000;
@@ -1226,50 +1269,7 @@ export default function AdmissionRegisterSuite({
     } catch (_) {}
   }, []);
 
-  // 1. Flatten all masterRegisters history records into a clean searchable lookup array
-  const flatHistoryRecords = useMemo(() => {
-    if (!Array.isArray(historyDataset) || historyDataset.length === 0) return [];
-    const flat = [];
-    historyDataset.forEach(docItem => {
-      if (!docItem) return;
-      const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
-      if (Array.isArray(chunk) && chunk.length > 0) {
-        chunk.forEach((item, itemIdx) => {
-          if (item && typeof item === 'object') {
-            flat.push({
-              ...item,
-              id: item.id || item['Form Number'] || item['Form No.'] || `${docItem.id}_${itemIdx}`,
-              boardRegNo: getBoardRegistration(item),
-              classRollNo: cleanStr(item.classRollNo || item['Class Roll No'] || item.rollNo || item['Roll No'] || item['RL. NO.']),
-              studentName: cleanStr(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || item['Student Name']),
-              fatherName: cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"]),
-              aadhar: cleanStr(item.aadhar || item['Aadhar No.'] || item['Aadhaar No.']),
-              penNo: cleanStr(item.penNo || item['PEN No.'] || item['PEN (UDISE)']),
-              bankAccount: cleanStr(item.bankAccount || item['Bank Account No.'] || item.accountNo),
-              ifsc: cleanStr(item.ifsc || item['IFSC code'] || item.ifscCode),
-              prevSchool: cleanStr(item.prevSchool || item['Previous School'] || item['Name of Previous School'])
-            });
-          }
-        });
-      } else {
-        flat.push({
-          ...docItem,
-          boardRegNo: getBoardRegistration(docItem),
-          classRollNo: cleanStr(docItem.classRollNo || docItem['Class Roll No'] || docItem.rollNo || docItem['Roll No']),
-          studentName: cleanStr(docItem.studentName || docItem["Student's Name (as per school records)"] || docItem["Student's Name"] || docItem['Student Name']),
-          fatherName: cleanStr(docItem.fatherName || docItem["Father's/Guardian's Name (as per school records)"] || docItem["Father's Name"]),
-          aadhar: cleanStr(docItem.aadhar || docItem['Aadhar No.'] || docItem['Aadhaar No.']),
-          penNo: cleanStr(docItem.penNo || docItem['PEN No.']),
-          bankAccount: cleanStr(docItem.bankAccount || docItem['Bank Account No.']),
-          ifsc: cleanStr(docItem.ifsc || docItem['IFSC code']),
-          prevSchool: cleanStr(docItem.prevSchool || docItem['Previous School'])
-        });
-      }
-    });
-    return flat;
-  }, [historyDataset]);
-
-  // Normalized Student Object Mapper with Re-admission Parsing & Complete Multi-Alias Firebase Field Resolution
+  // 2. Normalized Student Object Mapper with Re-admission Parsing & Complete Multi-Alias Firebase Field Resolution
   const normalizedStudents = useMemo(() => {
     const list = [];
     (dataset || []).forEach((s, idx) => {
