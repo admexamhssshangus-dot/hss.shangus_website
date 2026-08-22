@@ -251,12 +251,17 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
 // Helper: Extract student class from any potential schema key
 function extractStudentClass(st) {
   if (!st) return '';
-  return (
+  const c = String(
     st.class || st.Class || st['Class'] ||
     st['Class for which Admission Sought'] ||
     st['Admission sought for class'] ||
     st['Class Enrolled'] || st.className || ''
-  );
+  ).trim();
+  if (c.includes('12') || c.includes('XII') || c.toLowerCase().includes('twelve')) return '12th';
+  if (c.includes('11') || c.includes('XI') || c.toLowerCase().includes('eleven')) return '11th';
+  if (c.includes('10') || c.includes('X') || c.toLowerCase().includes('ten')) return '10th';
+  if (c.includes('9') || c.includes('IX') || c.toLowerCase().includes('nine')) return '9th';
+  return c;
 }
 
 // Helper: Check if student has assigned Class Roll No
@@ -268,15 +273,24 @@ function hasAssignedClassRoll(st) {
     st['Class R.No.'] ||
     st['Class R.No'] ||
     st['Class R. No.'] ||
+    st['Class R. No'] ||
     st.classRollNo ||
     st.rollNo ||
     st['Roll No.'] ||
     st['Roll No'] ||
     st.roll_no ||
+    st['RL. NO.'] ||
+    st['RL. NO'] ||
+    st.assignedRollNo ||
+    st.currentRollNo ||
+    st.crNo ||
+    st.class_roll ||
+    st.ClassRoll ||
+    st.ClassRollNo ||
     ''
   ).trim();
 
-  if (!roll || roll === '—' || roll === 'N/A' || roll.toLowerCase() === 'undefined' || roll.toLowerCase() === 'null') {
+  if (!roll || roll === '—' || roll === '-' || roll === '0' || roll === 'N/A' || roll.toLowerCase() === 'undefined' || roll.toLowerCase() === 'null') {
     return false;
   }
   return true;
