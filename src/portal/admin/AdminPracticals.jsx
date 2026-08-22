@@ -770,7 +770,6 @@ export default function AdminPracticals() {
             const inheritedSubjects = prevMatch.subjects || curSubjects;
 
             return {
-              ...prevMatch.st,
               ...st,
               Stream: st.Stream || inheritedStream,
               stream: st.stream || inheritedStream,
@@ -1149,7 +1148,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
   const [bioMode, setBioMode] = useState('separate'); // 'separate' (BO & ZO) | 'combined' (BI)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState('2025-26');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('approved');
   const [selectedRolls, setSelectedRolls] = useState(new Set());
   const [sortField, setSortField] = useState('roll');
   const [sortDirection, setSortDirection] = useState('asc');
