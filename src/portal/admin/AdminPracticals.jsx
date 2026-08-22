@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
-  Award, AlertTriangle, X, Sliders, Users, Mail,
+  Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Check, Search,
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield
 } from 'lucide-react';
 import { db, functions } from '../../services/firebase';
@@ -735,28 +735,88 @@ export default function AdminPracticals() {
 
   const getPD = (cls) => settings.printDetails?.[cls] || {};
 
-  const handleWhatsAppShare = (phone, text) => {
-    let cleanPhone = String(phone || '').replace(/\D/g, '');
-    if (!cleanPhone) {
-      const input = prompt('Enter WhatsApp Mobile Number (10 digits):');
-      if (!input) return;
-      cleanPhone = String(input).replace(/\D/g, '');
+  const handleSaveTeacherPhone = async (teacher, newPhone) => {
+    if (!teacher) return false;
+    let cleanPhone = String(newPhone || '').replace(/\D/g, '');
+    if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
+      cleanPhone = cleanPhone.slice(2);
     }
-    const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-    const waUrl = targetPhone
-      ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(text)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    if (cleanPhone && cleanPhone.length !== 10) {
+      alert('Please enter a valid 10-digit Indian mobile number.');
+      return false;
+    }
+
+    try {
+      const payload = {
+        phone: cleanPhone,
+        mobile: cleanPhone,
+        phoneNumber: cleanPhone,
+        whatsapp: cleanPhone,
+        updatedAt: new Date().toISOString()
+      };
+
+      const docId = teacher.id || teacher.uid || teacher.email;
+      if (docId) {
+        await setDoc(doc(db, 'users', docId), payload, { merge: true });
+      }
+
+      const tEmail = String(teacher.email || '').toLowerCase().trim();
+      if (tEmail && tEmail !== docId) {
+        try {
+          await setDoc(doc(db, 'users', tEmail), payload, { merge: true });
+        } catch (_) {}
+      }
+
+      setTeachers(prev => prev.map(t => {
+        if (t.id === teacher.id || (tEmail && String(t.email || '').toLowerCase().trim() === tEmail)) {
+          return { ...t, ...payload };
+        }
+        return t;
+      }));
+
+      showAlert('success', `Mobile number ${cleanPhone ? `(${cleanPhone}) ` : ''}saved to Firebase for ${teacher.name || teacher.displayName || 'Faculty'}.`);
+      return cleanPhone;
+    } catch (e) {
+      console.error('Error saving teacher phone to Firebase:', e);
+      showAlert('error', 'Failed to save mobile number to Firebase.');
+      return false;
+    }
+  };
+
+  const handleWhatsAppShare = async (teacher, customText) => {
+    if (!teacher) return;
+    let phone = teacher.phone || teacher.mobile || teacher.phoneNumber || teacher.whatsapp;
+    let cleanPhone = String(phone || '').replace(/\D/g, '');
+    if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
+      cleanPhone = cleanPhone.slice(2);
+    }
+
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      const input = prompt(`Enter 10-digit WhatsApp Mobile Number for ${teacher.name || teacher.displayName || 'Faculty Member'} (will be saved to database):`, cleanPhone || '');
+      if (!input) return;
+      const saved = await handleSaveTeacherPhone(teacher, input);
+      if (!saved) return;
+      cleanPhone = saved;
+    }
+
+    const targetPhone = `91${cleanPhone}`;
+    const defaultText = `Assalamu Alaikum / Greetings ${teacher.name || teacher.displayName || 'Sir/Madam'},\n\nKindly check the practical awards and evaluations assigned to you on the HSS Shangus Portal.\n\nPortal: https://hssshangus.edu.in`;
+    const text = customText || defaultText;
+    const waUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
   };
 
-  const handleEmailShare = (email, subject, bodyText) => {
-    let targetEmail = email;
-    if (!targetEmail) {
-      const input = prompt('Enter Recipient Email Address:');
+  const handleEmailShare = (teacher, customSubject, customBody) => {
+    if (!teacher) return;
+    const email = teacher.email;
+    if (!email) {
+      const input = prompt(`Enter Email Address for ${teacher.name || teacher.displayName || 'Faculty Member'}:`);
       if (!input) return;
-      targetEmail = input.trim();
+      teacher.email = input.trim();
     }
-    const mailtoUrl = `mailto:${targetEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    const subject = customSubject || `Practicals & Awards Notice: HSS Shangus`;
+    const body = customBody || `Dear ${teacher.name || teacher.displayName || 'Faculty Member'},\n\nKindly review and complete the practical awards and evaluations assigned to you on the HSS Shangus Portal.\n\nPortal Link: https://hssshangus.edu.in\n\nRegards,\nExamination & Practical Cell\nGovt. Higher Secondary School Shangus`;
+    const mailtoUrl = `mailto:${teacher.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoUrl, '_blank');
   };
 
@@ -931,6 +991,7 @@ export default function AdminPracticals() {
               emailSt={emailSt}
               handleWhatsAppShare={handleWhatsAppShare}
               handleEmailShare={handleEmailShare}
+              handleSaveTeacherPhone={handleSaveTeacherPhone}
               setSelSub={setSelSub}
             />
           )}
@@ -2098,31 +2159,95 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
 // ─────────────────────────────────────────────────────────────
 // TEACHERS VIEW COMPONENT
 // ─────────────────────────────────────────────────────────────
-function TeachersView({ teachers, submissions, sendEmail, emailSt, handleWhatsAppShare, handleEmailShare, setSelSub }) {
-  const facultyMembers = teachers.filter(t => {
-    const r = String(t.role || '').toLowerCase();
-    return r === 'teacher' || r === 'faculty' || r === 'examiner' || r === 'staff' || r === 'admin';
-  });
+function TeachersView({
+  teachers,
+  submissions,
+  sendEmail,
+  emailSt,
+  handleWhatsAppShare,
+  handleEmailShare,
+  handleSaveTeacherPhone,
+  setSelSub
+}) {
+  const [editingPhoneId, setEditingPhoneId] = useState(null);
+  const [phoneInputVal, setPhoneInputVal] = useState('');
+  const [savingPhoneId, setSavingPhoneId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const facultyMembers = useMemo(() => {
+    return teachers.filter(t => {
+      const r = String(t.role || '').toLowerCase();
+      const isRoleMatch = r === 'teacher' || r === 'faculty' || r === 'examiner' || r === 'staff' || r === 'admin';
+      if (!isRoleMatch) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const name = String(t.name || t.displayName || '').toLowerCase();
+        const email = String(t.email || '').toLowerCase();
+        const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '');
+        const role = String(t.role || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || phone.includes(q) || role.includes(q);
+      }
+      return true;
+    });
+  }, [teachers, searchQuery]);
+
+  const startEditPhone = (t) => {
+    setEditingPhoneId(t.id);
+    const existing = t.phone || t.mobile || t.phoneNumber || t.whatsapp || '';
+    setPhoneInputVal(existing);
+  };
+
+  const cancelEditPhone = () => {
+    setEditingPhoneId(null);
+    setPhoneInputVal('');
+  };
+
+  const savePhone = async (t) => {
+    setSavingPhoneId(t.id);
+    const ok = await handleSaveTeacherPhone(t, phoneInputVal);
+    setSavingPhoneId(null);
+    if (ok !== false) {
+      setEditingPhoneId(null);
+      setPhoneInputVal('');
+    }
+  };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs p-4 space-y-3">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
-        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-          <Users size={16} className="text-indigo-500" /> Faculty & Examiner Roster ({facultyMembers.length})
-        </h3>
-        <span className="text-[11px] font-bold text-slate-400">
-          Click teacher contact buttons or submission counts to inspect awards
-        </span>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs p-3 sm:p-4 space-y-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div>
+          <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <Users size={16} className="text-indigo-500" /> Faculty & Examiner Roster ({facultyMembers.length})
+          </h3>
+          <p className="text-[11px] font-semibold text-slate-500">
+            Save mobile numbers to Firebase to enable one-click WhatsApp chats and official email notices.
+          </p>
+        </div>
+
+        {/* Quick Search */}
+        <div className="relative w-full sm:w-64">
+          <input
+            type="text"
+            placeholder="Search faculty name, phone, email..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+          />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        </div>
       </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
             <tr>
-              <th className="py-2 px-3">Faculty Name</th>
-              <th className="py-2 px-3">Email Address</th>
-              <th className="py-2 px-3">Role</th>
-              <th className="py-2 px-3 text-center">Submissions</th>
-              <th className="py-2 px-3 text-right">Actions</th>
+              <th className="py-2.5 px-3">Faculty Name</th>
+              <th className="py-2.5 px-3">Email Address</th>
+              <th className="py-2.5 px-3">Mobile / WhatsApp Number</th>
+              <th className="py-2.5 px-3">Role</th>
+              <th className="py-2.5 px-3 text-center">Submissions</th>
+              <th className="py-2.5 px-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
@@ -2133,10 +2258,71 @@ function TeachersView({ teachers, submissions, sendEmail, emailSt, handleWhatsAp
                 return em && em === tEmail;
               });
 
+              const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '').trim();
+              const isEditingThis = editingPhoneId === t.id;
+
               return (
-                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">{toTitleCase(t.name || t.displayName || 'Faculty Member')}</td>
-                  <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">{t.email}</td>
+                <tr key={`tch_${t.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                  <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
+                    {toTitleCase(t.name || t.displayName || 'Faculty Member')}
+                  </td>
+                  <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">
+                    {t.email || '—'}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    {isEditingThis ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="tel"
+                          maxLength={10}
+                          placeholder="10-digit mobile"
+                          value={phoneInputVal}
+                          onChange={e => setPhoneInputVal(e.target.value.replace(/\D/g, ''))}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') savePhone(t);
+                            if (e.key === 'Escape') cancelEditPhone();
+                          }}
+                          autoFocus
+                          className="w-28 px-2 py-0.5 rounded-lg border border-indigo-400 bg-white dark:bg-slate-950 font-mono text-xs font-bold outline-none shadow-2xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => savePhone(t)}
+                          disabled={savingPhoneId === t.id}
+                          className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-2xs"
+                          title="Save mobile to Firebase"
+                        >
+                          <Check size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditPhone}
+                          className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 text-slate-600 cursor-pointer"
+                          title="Cancel"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {phone ? (
+                          <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1">
+                            <span className="text-slate-400 text-[10px]">+91</span> {phone}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No mobile</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => startEditPhone(t)}
+                          className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                          title="Edit & Save mobile to Firebase"
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
                   <td className="py-2.5 px-3">
                     <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
                       {t.role || 'Teacher'}
@@ -2155,23 +2341,36 @@ function TeachersView({ teachers, submissions, sendEmail, emailSt, handleWhatsAp
                       <span className="font-mono text-slate-400">0</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-3 text-right space-x-1.5">
+                  <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
                     <button
-                      onClick={() => handleEmailShare(t.email, 'Practicals Update: HSS Shangus', 'Kindly check your practical awards submissions on the portal.')}
-                      className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[10px] font-bold cursor-pointer"
+                      onClick={() => handleEmailShare(t)}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                      title="Send email notice"
                     >
-                      Email
+                      <Mail size={11} /> Email
                     </button>
                     <button
-                      onClick={() => handleWhatsAppShare(t.phone || t.mobile, 'Practicals Update: HSS Shangus')}
-                      className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-[10px] font-bold cursor-pointer"
+                      onClick={() => handleWhatsAppShare(t)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs transition-all ${
+                        phone
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                      }`}
+                      title={phone ? `Open WhatsApp chat with ${phone}` : 'Add mobile and open WhatsApp'}
                     >
-                      WhatsApp
+                      <MessageCircle size={11} /> WhatsApp
                     </button>
                   </td>
                 </tr>
               );
             })}
+            {facultyMembers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                  No faculty members found matching search query.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
