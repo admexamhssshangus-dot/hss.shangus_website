@@ -234,24 +234,36 @@ export const isSessionMatch = (rawSess, targetFilter) => {
 };
 
 export const checkStudentApprovalState = (st) => {
+  const rollVal = String(
+    st['Class Roll No'] ||
+    st['Class Roll No.'] ||
+    st.classRollNo ||
+    st['Class Roll'] ||
+    st.rollNo ||
+    st.RollNo ||
+    st.roll_no ||
+    ''
+  ).trim();
+  const hasRoll = !!(rollVal && rollVal !== '—' && rollVal !== '-' && rollVal !== 'N/A' && rollVal !== 'null' && rollVal !== 'undefined' && rollVal !== '0');
+
   const statusStr = String(st.Status || st.status || st['Admission Status'] || '').toLowerCase();
-  const isApproved =
+  const isRejected = statusStr.includes('reject') || statusStr.includes('cancel') || st.isRejected === true;
+
+  // Once class roll is assigned, the application is approved
+  const isApproved = !isRejected && (
+    hasRoll ||
     st.isApproved === true ||
     st.Status === 'Approved' ||
     st.status === 'Approved' ||
     statusStr.includes('approved') ||
     statusStr.includes('admitted') ||
-    statusStr.includes('active') ||
-    statusStr.includes('pass') ||
-    !!st['Class Roll No'] ||
-    !!st['Class Roll'] ||
     st._source === 'masterRegisters' ||
-    st._source === 'practicalsData';
+    st._source === 'practicalsData'
+  );
 
-  const isRejected = statusStr.includes('reject') || statusStr.includes('cancel') || st.isRejected === true;
   const isPending = !isApproved && !isRejected;
 
-  return { isApproved, isRejected, isPending };
+  return { isApproved, isRejected, isPending, hasRoll };
 };
 
 const normalizeStudentFields = (st, source = 'masterRegisters') => {
@@ -1004,15 +1016,11 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
     if (!classMatch) return false;
 
-    const { isRejected, isApproved, isPending } = checkStudentApprovalState(st);
+    const { isRejected, isApproved, isPending, hasRoll } = checkStudentApprovalState(st);
     if (isRejected) return false;
 
-    const rollVal = String(st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st['Class Roll'] || st.rollNo || '').trim();
-    const hasRoll = !!(rollVal && rollVal !== '—' && rollVal !== '-');
-
-    if (selectedStatusFilter === 'approved' && (!isApproved || !hasRoll)) return false;
-    if (selectedStatusFilter === 'unassigned' && (!isApproved || hasRoll)) return false;
-    if (selectedStatusFilter === 'pending' && !isPending) return false;
+    if (selectedStatusFilter === 'approved' && !isApproved) return false;
+    if (selectedStatusFilter === 'pending' && isApproved) return false;
 
     if (selectedSession !== 'all') {
       const sess = getStudentSession(st);
@@ -1415,7 +1423,6 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               className="px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-black outline-none cursor-pointer shadow-2xs"
             >
               <option value="approved">Approved & Roll Only</option>
-              <option value="unassigned">Approved (Pending Roll No)</option>
               <option value="pending">Pending Only</option>
               <option value="all">All Students</option>
             </select>
