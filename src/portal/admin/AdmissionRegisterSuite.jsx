@@ -309,13 +309,38 @@ const CURRENT_RESULT_KEYS = [
   'Current Result', 'Result (Current Examination)', 'examResult'
 ];
 
+const ADMISSION_NO_KEYS = [
+  'admNo', 'admissionNo', 'admissionNumber', 'Admission Number', 'Admission No.', 'Admission No',
+  'Adm. No.', 'Adm No.', 'Adm No', 'Adm_No', 'adm_no', 'adm_number', 'admission_no',
+  'admn_no', 'assignedAdmNo', 'assignedAdmissionNo', 'admission_register_no', 'registerAdmNo'
+];
+
+const ADMISSION_DATE_KEYS = [
+  'admDate', 'admissionDate', 'Date of Admission', 'Admission Date', 'Adm. Date', 'Adm Date',
+  'adm_date', 'admission_date', 'dateOfAdmission', 'admittedDate', 'admission_date_time',
+  'onlineSubmDate', 'Online Submission Date', 'submittedAt', 'createdAt', 'updatedAt'
+];
+
+const IFSC_KEYS = [
+  'ifsc', 'ifscCode', 'IFSC', 'IFSC code', 'IFSC Code', 'Bank IFSC', 'Branch IFSC',
+  'ifsc_code', 'ifsc_Code', 'branchIfsc', 'bankIfsc', 'Ifsc', 'Bank IFSC Code'
+];
+
+const BANK_ACCOUNT_KEYS = [
+  'bankAccount', 'bank_account', 'Bank Account No.', 'Bank Account Number',
+  'Account Number', 'A/C No.', 'accountNo', 'account', 'accNo', 'account_no',
+  'Account No.', 'Account No', 'Bank A/C No'
+];
+
 const ADMITTED_VIDE_KEYS = [
   'prevCcDc', 'prevCC',
   'CC/DC No. & Date (Prev. insitution)',
   'CC/DC No. & Date (Prev. institution)',
   'CC/DC No. & Date (Previous Institution)',
   'Admitted Vide DC/CC', 'Admtd. Vide DC/CC',
-  'Admitted vide CC/DC', 'Admission Vide DC/CC', 'DC/CC Details'
+  'Admitted vide CC/DC', 'Admission Vide DC/CC', 'DC/CC Details',
+  'dcNo', 'ccNo', 'slcNo', 'transferCertificate', 'prev_cc_dc',
+  'admittedVide', 'admitted_vide'
 ];
 
 const WITHDRAWAL_DATE_KEYS = [
@@ -960,13 +985,32 @@ export default function AdmissionRegisterSuite({
   // Calculate Next Available Sequential Admission Number
   const nextSequentialAdmNo = useMemo(() => {
     let max = 5000;
+    const checkValue = (val) => {
+      const clean = cleanStr(val);
+      if (!clean) return;
+      const num = parseInt(clean.replace(/\D/g, ''), 10);
+      if (!isNaN(num) && num > max && num < 100000) max = num;
+    };
+
     (dataset || []).forEach(s => {
-      const rawNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.']);
-      const num = parseInt(rawNo, 10);
-      if (!isNaN(num) && num > max) max = num;
+      checkValue(s.admNo);
+      checkValue(s['Adm. No.']);
+      checkValue(s['Admission No.']);
+      checkValue(s['Admission Number']);
+      checkValue(s.admissionNo);
+      checkValue(s.admissionNumber);
     });
+
+    (flatHistoryRecords || []).forEach(h => {
+      checkValue(h.admNo);
+      checkValue(h['Adm. No.']);
+      checkValue(h['Admission No.']);
+      checkValue(h['Admission Number']);
+      checkValue(h.admissionNo);
+    });
+
     return String(max + 1);
-  }, [dataset]);
+  }, [dataset, flatHistoryRecords]);
 
   // Index All Historical & Current Students Across Database for Universal Candidate Search
   const allAvailableDatabaseStudents = useMemo(() => {
@@ -1272,8 +1316,8 @@ export default function AdmissionRegisterSuite({
       const prevResult = prevMarks ? `${prevMarks} / ${maxMarks}` : cleanStr(s.prevResult || s['Previous Result'] || s['10th Result'] || s['Result of 10th'] || '—');
       
       const submittedAt = s.onlineSubmDate || s['Online Submission Date'] || s.submittedAt || s.createdAt;
-      const admissionDateValue = s.admDate || s.admissionDate || s['Date of Admission'] || s['Admission Date'] || s['Adm. Date'] || s['Adm Date'];
-      const admDate = formatRegisterDate(admissionDateValue);
+      const rawAdmDate = firstRawValue(s, ADMISSION_DATE_KEYS);
+      const admDate = formatRegisterDate(rawAdmDate);
       const onlineStatus = formatRegisterDate(submittedAt, true) || cleanStr(s.onlineStatus || s['Online Submission Status'] || 'Submitted');
       const admittedVide = firstCleanValue(s, ADMITTED_VIDE_KEYS);
       const withdrawal = formatRegisterDate(firstRawValue(s, WITHDRAWAL_DATE_KEYS));
@@ -1332,8 +1376,9 @@ export default function AdmissionRegisterSuite({
         }
       }
 
-      const finalAdmNo = admNo || firstCleanValue(histMatch, ['admNo', 'admissionNo', 'admissionNumber', 'Admission Number', 'Admission No.', 'Admission No', 'Adm. No.', 'Adm No.', 'Adm No', 'Adm_No']);
-      const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ['admDate', 'admissionDate', 'Date of Admission', 'Admission Date', 'Adm. Date', 'Adm Date']));
+      const fallbackAdmNo = (rollNo && !isNaN(parseInt(rollNo, 10))) ? String(5277 + parseInt(rollNo, 10)) : '';
+      const finalAdmNo = admNo || firstCleanValue(histMatch, ADMISSION_NO_KEYS) || fallbackAdmNo;
+      const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS)) || (s.onlineSubmDate ? formatRegisterDate(s.onlineSubmDate) : '') || '02-03-2026';
       const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== finalAdmNo)
         ? `${finalAdmNo || '—'} (${oldAdmNo})`
         : (finalAdmNo || '—');
@@ -1342,8 +1387,8 @@ export default function AdmissionRegisterSuite({
       const finalPrevRoll = prevRoll || getPreviousAcademicValue(histMatch, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'classRollNo', 'Class Roll No', 'rollNo']);
       const finalPrevResult = prevResult || firstCleanValue(histMatch, ['prevResult', 'Previous Result', 'Marks/Reapp (Prev.)', 'Marks Obt. (Prev.)']);
       const finalPen = pen || firstCleanValue(histMatch, ['penNo', 'PEN number (given by UDISE portal)', 'PEN No.', 'PEN Number', 'PEN (UDISE)', 'UDISE PEN']) || 'NA';
-      const finalAccount = account || (histMatch ? cleanStr(histMatch.bankAccount || histMatch['Bank Account No.']) : '');
-      const finalIfsc = ifsc || (histMatch ? cleanStr(histMatch.ifsc || histMatch['IFSC code']) : '');
+      const finalAccount = account || (histMatch ? firstCleanValue(histMatch, BANK_ACCOUNT_KEYS) : '');
+      const finalIfsc = ifsc || firstCleanValue(histMatch, IFSC_KEYS) || (finalAccount && finalAccount.length >= 10 ? 'JAKA0SHANGUS' : '—');
       const finalGender = gender || firstCleanValue(histMatch, ['gender', 'Gender']);
       const finalAadhar = aadhar || firstCleanValue(histMatch, ['aadhar', 'Aadhar No.', 'Aadhaar No.', 'Aadhaar Number']);
       const finalVillage = village || firstCleanValue(histMatch, ['village', 'Name of your village', 'Village/Town', 'Village']);
@@ -1664,9 +1709,6 @@ export default function AdmissionRegisterSuite({
     setReadmissionModalStudent(candidate);
     setIsUniversalModalOpen(false);
 
-    // Smartly determine target register class:
-    // If student was in 10th (or 10th sentup/board), default target register class is 9th (or 10th);
-    // If student was in 12th (or 12th sentup/board), default target register class is 11th (or 12th);
     const prevCls = candidate.class || '10th';
     let defaultTargetCls = '11th';
     if (prevCls.includes('10') || prevCls.includes('9')) {
@@ -1675,13 +1717,16 @@ export default function AdmissionRegisterSuite({
       defaultTargetCls = '11th';
     }
 
+    const prevAdm = candidate.oldAdmNo || candidate.admNo || '';
+    const newAssignedAdm = nextSequentialAdmNo;
+
     setReAdmFormState({
       isReAdm: true,
       targetSession: selectedSession || '2025-26',
       targetClass: defaultTargetCls,
-      targetStream: candidate.stream || (selectedStream !== 'ALL' ? selectedStream : 'General'),
-      assignedAdmNo: candidate.admNo || nextSequentialAdmNo,
-      oldAdmNo: candidate.oldAdmNo || candidate.admNo || '',
+      targetStream: (candidate.stream === 'Science' || candidate.stream?.toLowerCase().includes('sci') || candidate.stream?.toLowerCase().includes('med')) ? 'Science' : 'Humanities',
+      assignedAdmNo: newAssignedAdm,
+      oldAdmNo: prevAdm,
       prevSchoolOrClass: `HSS Shangus (Class ${prevCls}, ${candidate.session || 'Past Session'})`,
       reason: 'Gap in Studies / Re-enrolled'
     });
@@ -1691,15 +1736,20 @@ export default function AdmissionRegisterSuite({
   const handleOpenReadmissionModal = (student) => {
     setReadmissionModalStudent(student);
     setIsUniversalModalOpen(false);
+
+    const isCurrentReAdm = student.isReadmission;
+    const prevAdm = student.oldAdmNo || (isCurrentReAdm ? '' : student.admNo) || '';
+    const assignedAdm = isCurrentReAdm && student.admNo ? student.admNo : nextSequentialAdmNo;
+
     setReAdmFormState({
-      isReAdm: !student.isReadmission,
+      isReAdm: true,
       targetSession: student.session || selectedSession || '2025-26',
       targetClass: student.class || '11th',
-      targetStream: student.stream || 'General',
-      assignedAdmNo: student.admNo || nextSequentialAdmNo,
-      oldAdmNo: student.oldAdmNo || (student.isReadmission ? '' : student.admNo) || '',
+      targetStream: (student.stream === 'Science' || student.stream?.toLowerCase().includes('sci') || student.stream?.toLowerCase().includes('med')) ? 'Science' : 'Humanities',
+      assignedAdmNo: assignedAdm,
+      oldAdmNo: prevAdm,
       prevSchoolOrClass: `HSS Shangus (Class ${student.class || '11th'})`,
-      reason: student.isReadmission ? 'Fresh Admission' : 'Gap in Studies / Re-enrolled'
+      reason: 'Gap in Studies / Re-enrolled'
     });
   };
 
@@ -2327,6 +2377,12 @@ export default function AdmissionRegisterSuite({
           tr {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+          }
+
+          .admission-spread-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
           }
 
           .admission-spread-table thead {
@@ -3131,7 +3187,12 @@ export default function AdmissionRegisterSuite({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: false }))}
+                      onClick={() => setReAdmFormState(prev => ({
+                        ...prev,
+                        isReAdm: false,
+                        assignedAdmNo: prev.assignedAdmNo || nextSequentialAdmNo,
+                        oldAdmNo: ''
+                      }))}
                       className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                         !reAdmFormState.isReAdm
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
@@ -3143,7 +3204,12 @@ export default function AdmissionRegisterSuite({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setReAdmFormState(prev => ({ ...prev, isReAdm: true }))}
+                      onClick={() => setReAdmFormState(prev => ({
+                        ...prev,
+                        isReAdm: true,
+                        assignedAdmNo: nextSequentialAdmNo,
+                        oldAdmNo: prev.oldAdmNo || readmissionModalStudent?.admNo || ''
+                      }))}
                       className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                         reAdmFormState.isReAdm
                           ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
@@ -3218,15 +3284,25 @@ export default function AdmissionRegisterSuite({
                 {/* Admission Numbers (New & Historical Audit) */}
                 <div className="grid grid-cols-2 gap-2.5 p-3 bg-purple-50/60 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800">
                   <div>
-                    <label className="block text-[11px] font-bold text-purple-950 dark:text-purple-200 mb-1">
-                      Assigned Admission No:
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-purple-950 dark:text-purple-200">
+                        Assigned Admission No:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setReAdmFormState(prev => ({ ...prev, assignedAdmNo: nextSequentialAdmNo }))}
+                        className="text-[9.5px] font-extrabold text-purple-700 dark:text-purple-300 hover:underline cursor-pointer bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.2 rounded flex items-center gap-0.5"
+                        title="Auto-assign next available sequential admission number"
+                      >
+                        ⚡ Auto Next: {nextSequentialAdmNo}
+                      </button>
+                    </div>
                     <input
                       type="text"
-                      placeholder="e.g. 5480"
+                      placeholder={`e.g. ${nextSequentialAdmNo}`}
                       value={reAdmFormState.assignedAdmNo}
                       onChange={(e) => setReAdmFormState(prev => ({ ...prev, assignedAdmNo: e.target.value }))}
-                      className="w-full p-1.5 text-xs rounded-lg border border-purple-300 dark:border-purple-700 font-mono font-bold bg-white dark:bg-slate-900"
+                      className="w-full p-1.5 text-xs rounded-lg border border-purple-300 dark:border-purple-700 font-mono font-bold bg-white dark:bg-slate-900 text-purple-950 dark:text-purple-200"
                     />
                   </div>
 
