@@ -246,9 +246,9 @@ export function normalizePracticalSession(sess) {
     str.includes('2025-26') ||
     str.includes('2025–26') ||
     str.includes('2025-2026') ||
+    str === '2026' ||
     str.includes('current') ||
-    str.includes('live') ||
-    str === '2025-26'
+    str.includes('live')
   ) {
     return '2025-26';
   }
@@ -258,16 +258,12 @@ export function normalizePracticalSession(sess) {
     str.includes('2024-25') ||
     str.includes('2024–25') ||
     str.includes('2024-2025') ||
-    str.includes('2024') ||
+    str === '2025' ||
     str.includes('oct') ||
-    str.includes('nov')
+    str.includes('nov') ||
+    str.includes('previous')
   ) {
     return '2024-25 (Oct-Nov)';
-  }
-
-  // 3. Year number fallbacks
-  if (str.includes('2026') || str.includes('2025')) {
-    return '2025-26';
   }
 
   return sess;
@@ -650,26 +646,30 @@ export default function AdminPracticals() {
 
       setSubmissions(parsedSubmissions);
 
-      // 1. Ingest Master Registers (Canonical School Registers across Sessions)
+      // 1. Ingest Master Registers (Canonical School Historical Registers across Sessions)
       (masterRegistersData || []).forEach(d => {
         const items = d.items || d.students || d.records || d.data;
         const groupKey = d.groupKey || '';
         let docSession = d.Session || d.session || d['Academic Session'] || '';
         if (!docSession) {
-          if (groupKey) docSession = groupKey.split('_')[0];
-          else if (d.id?.startsWith('part_')) docSession = d.id.replace(/^part_/, '').split('_')[0];
-          else docSession = d.id?.split('_')[0] || '2024-25 (Oct-Nov)';
+          if (groupKey && /\d{4}/.test(groupKey)) docSession = groupKey.split('_')[0];
+          else if (d.id && /\d{4}/.test(d.id)) docSession = d.id.replace(/^part_/, '').split('_')[0];
+          else docSession = '2024-25 (Oct-Nov)';
         }
+        if (!/\d{4}/.test(docSession)) {
+          docSession = '2024-25 (Oct-Nov)';
+        }
+        const canonicalDocSess = normalizePracticalSession(docSession);
         const docClass = d.class || d.Class || d.className || (groupKey ? groupKey.split('_')[1] : '') || '';
 
         if (Array.isArray(items)) {
           items.forEach(it => {
             if (!it || typeof it !== 'object') return;
-            const itemSess = it.Session || it.session || it['Academic Session'] || docSession;
+            const itemSess = it.Session || it.session || it['Academic Session'] || canonicalDocSess;
             addOrMergeStudent({
               ...it,
-              session: itemSess,
-              Session: itemSess,
+              session: normalizePracticalSession(itemSess),
+              Session: normalizePracticalSession(itemSess),
               class: it.class || it.Class || it['Class'] || docClass,
               _source: 'masterRegisters'
             }, 'masterRegisters');
@@ -677,8 +677,8 @@ export default function AdminPracticals() {
         } else if (d.StudentName || d["Student's Name"] || d.name) {
           addOrMergeStudent({
             ...d,
-            session: docSession,
-            Session: docSession,
+            session: canonicalDocSess,
+            Session: canonicalDocSess,
             class: docClass || d.class || d.Class,
             _source: 'masterRegisters'
           }, 'masterRegisters');
@@ -1719,7 +1719,10 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               const streamRaw = getStudentStreamStr(st, cls);
               const streamDisplay = streamRaw ? toTitleCase(streamRaw) : 'Science';
               const streamLower = streamRaw.toLowerCase();
-              const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Board Registration Number'] || st.boardRegNo || 'NA').trim();
+              const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Exam Roll Number'] || '').trim();
+              const isCurrSession = normalizePracticalSession(getStudentSession(st)) === '2025-26';
+              // For current session 2025-26, board exam roll numbers are not yet issued. Show '—'.
+              const examRoll = (!isCurrSession && rawExam && rawExam !== '—' && rawExam !== 'NA' && rawExam !== 'N/A') ? rawExam : '—';
               const uniqueKey = rollNo !== '—' ? rollNo : (st['Board Registration Number'] || st.examRollNo || st.id || `st_${idx}`);
               const isSelected = selectedRolls.has(uniqueKey) || (rollNo !== '—' && selectedRolls.has(rollNo));
               const stSess = getStudentSession(st);
