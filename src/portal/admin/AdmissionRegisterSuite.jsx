@@ -147,6 +147,55 @@ function ResizableTh({
   );
 }
 
+function ResizableDataRow({ rowHeight, onResize, className = '', children, ...rest }) {
+  const isNearBottomEdge = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return rect.bottom - event.clientY <= 7;
+  };
+
+  const handleMouseMove = (event) => {
+    event.currentTarget.style.cursor = isNearBottomEdge(event) ? 'row-resize' : '';
+  };
+
+  const handleMouseDown = (event) => {
+    if (!isNearBottomEdge(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    const startHeight = rowHeight;
+
+    const onMouseMove = (moveEvent) => {
+      const nextHeight = Math.min(96, Math.max(32, Math.round(startHeight + moveEvent.clientY - startY)));
+      onResize(nextHeight);
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  return (
+    <tr
+      {...rest}
+      className={`register-resizable-row ${className}`}
+      style={{ height: `${rowHeight}px`, '--register-row-height': `${rowHeight}px` }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={(event) => { event.currentTarget.style.cursor = ''; }}
+      onMouseDown={handleMouseDown}
+      title="Drag the lower edge to resize every row on both register pages"
+    >
+      {children}
+    </tr>
+  );
+}
+
 // Convert date (DD-MM-YYYY or YYYY-MM-DD) to formal English words
 export function formatDateToWords(dateStr) {
   if (!dateStr) return '—';
@@ -229,6 +278,15 @@ function firstCleanValue(record, keys) {
   return '';
 }
 
+function firstRawValue(record, keys) {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+
 const BOARD_REGISTRATION_KEYS = [
   'boardRegNo', 'Board Registration Number', 'Board Registration No.', 'Board Registration No',
   'Board Reg. No.', 'Board Reg No', 'Board Registration No. (Class 12th)',
@@ -261,6 +319,61 @@ function getBoardRegistration(record, classValue) {
           ? 'DIET Registration No.'
           : '';
   return firstCleanValue(record, preferredKey ? [preferredKey, ...BOARD_REGISTRATION_KEYS] : BOARD_REGISTRATION_KEYS);
+}
+
+function getPreviousClassLabel(classValue) {
+  const numericClass = parseInt(cleanStr(classValue), 10);
+  if (numericClass === 12) return '11th';
+  if (numericClass === 11) return '10th';
+  // The current admission form stores junior-school history against Class 8th.
+  if (numericClass === 10 || numericClass === 9) return '8th';
+  return '';
+}
+
+function getPreviousAcademicValue(record, classValue, fieldPrefix, fallbackKeys = []) {
+  const previousClass = getPreviousClassLabel(classValue);
+  const keys = previousClass
+    ? [`${fieldPrefix} (${previousClass})`, `${fieldPrefix} ${previousClass}`, ...fallbackKeys]
+    : fallbackKeys;
+  return firstCleanValue(record, keys);
+}
+
+function valueAsDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value?.toDate === 'function') {
+    const converted = value.toDate();
+    return Number.isNaN(converted.getTime()) ? null : converted;
+  }
+  if (typeof value === 'object' && Number.isFinite(value.seconds)) {
+    const converted = new Date(value.seconds * 1000);
+    return Number.isNaN(converted.getTime()) ? null : converted;
+  }
+  const text = cleanStr(value);
+  if (!text) return null;
+  const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dmy) {
+    const converted = new Date(
+      Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]),
+      Number(dmy[4] || 0), Number(dmy[5] || 0), Number(dmy[6] || 0)
+    );
+    return Number.isNaN(converted.getTime()) ? null : converted;
+  }
+  const converted = new Date(text);
+  return Number.isNaN(converted.getTime()) ? null : converted;
+}
+
+function formatRegisterDate(value, includeTime = false) {
+  const date = valueAsDate(value);
+  if (!date) return cleanStr(value);
+  const datePart = [date.getDate(), date.getMonth() + 1, date.getFullYear()]
+    .map((part, index) => index < 2 ? String(part).padStart(2, '0') : String(part))
+    .join('-');
+  if (!includeTime) return datePart;
+  const timePart = [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map(part => String(part).padStart(2, '0'))
+    .join(':');
+  return `${datePart} ${timePart}`;
 }
 
 // Robust Subject Extractor across all Firebase form variations & array types
@@ -850,14 +963,16 @@ export default function AdmissionRegisterSuite({
   useEffect(() => {
     if (!selectedSession) return;
 
-    if (sessionCacheRef.current[selectedSession]) {
-      setDataset(sessionCacheRef.current[selectedSession]);
-      return;
-    }
-
+    // Dashboard data hydrates progressively (first page, then the complete collection).
+    // Always let the newest current-session prop replace an older session cache snapshot.
     if (selectedSession === '2025-26' && Array.isArray(propStudents) && propStudents.length > 0) {
       sessionCacheRef.current['2025-26'] = propStudents;
       setDataset(propStudents);
+      return;
+    }
+
+    if (sessionCacheRef.current[selectedSession]) {
+      setDataset(sessionCacheRef.current[selectedSession]);
       return;
     }
 
@@ -976,7 +1091,7 @@ export default function AdmissionRegisterSuite({
               penNo: cleanStr(item.penNo || item['PEN No.'] || item['PEN (UDISE)']),
               bankAccount: cleanStr(item.bankAccount || item['Bank Account No.'] || item.accountNo),
               ifsc: cleanStr(item.ifsc || item['IFSC code'] || item.ifscCode),
-              prevSchool: cleanStr(item.prevSchool || item['Previous School'] || item['Name of Previous School'] || 'Govt. Higher Secondary School Shangus')
+              prevSchool: cleanStr(item.prevSchool || item['Previous School'] || item['Name of Previous School'])
             });
           }
         });
@@ -991,7 +1106,7 @@ export default function AdmissionRegisterSuite({
           penNo: cleanStr(docItem.penNo || docItem['PEN No.']),
           bankAccount: cleanStr(docItem.bankAccount || docItem['Bank Account No.']),
           ifsc: cleanStr(docItem.ifsc || docItem['IFSC code']),
-          prevSchool: cleanStr(docItem.prevSchool || docItem['Previous School'] || 'Govt. Higher Secondary School Shangus')
+          prevSchool: cleanStr(docItem.prevSchool || docItem['Previous School'])
         });
       }
     });
@@ -1006,7 +1121,7 @@ export default function AdmissionRegisterSuite({
       const name = cleanStr(s.studentName || s["Student's Name (as per school records)"] || s["Student's Name"] || s['Student Name'] || s.name || s['Account Name']);
       const father = cleanStr(s.fatherName || s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s['Father Name'] || s.father);
       const rollNo = cleanStr(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s['RL. NO.'] || s['RL. NO'] || s['Class R.No.'] || s['Class R. No.'] || s.rollNo || s.RollNo || s.roll_no);
-      const admNo = cleanStr(s.admNo || s['Adm. No.'] || s['Admission No.'] || s['Admission Number'] || s.admissionNumber || s.admissionNo);
+      const admNo = firstCleanValue(s, ['admNo', 'admissionNo', 'admissionNumber', 'Admission Number', 'Admission No.', 'Admission No', 'Adm. No.', 'Adm No.', 'Adm No', 'Adm_No']);
       const formNo = cleanStr(s.formNo || s['Form Number'] || s['Form No.'] || s['Form No'] || s.FormNo);
       const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '11th');
       const boardReg = getBoardRegistration(s, cls);
@@ -1018,33 +1133,40 @@ export default function AdmissionRegisterSuite({
 
       const sess = cleanStr(s.session || s.Session || s['Academic Session'] || selectedSession);
       const mother = cleanStr(s.motherName || s["Mother's Name (as per school records)"] || s["Mother's Name"] || s['Mother Name'] || s.mother);
-      const dob = cleanStr(s.dob || s['DoB (as per school records)'] || s['DoB (figures)'] || s['Date of Birth'] || s['DOB']);
-      const gender = cleanStr(s.gender || s.Gender || 'Male');
+      const rawDob = s.dob || s['DoB (as per school records)'] || s['DoB (figures)'] || s['Date of Birth'] || s['DOB'];
+      const dob = formatRegisterDate(rawDob);
+      const gender = cleanStr(s.gender || s.Gender);
       const rawSubs = extractStudentSubjects(s);
       const subs = abbreviateSubjects(rawSubs);
       const stream = extractStudentStream(s, rawSubs);
       const aadhar = cleanStr(s.aadhar || s['Aadhar No.'] || s['Aadhaar No.'] || s['Aadhaar Number'] || s['Aadhar Number'] || s.aadhaar || s.aadharNo || s.aadhaarNo);
       const village = cleanStr(s.village || s['Name of your village'] || s['Village/Town'] || s['Village']);
-      const block = cleanStr(s.block || s.Block || s['Block/Zone'] || 'Shangus');
-      const tehsil = cleanStr(s.tehsil || s.Tehsil || 'Shangus');
-      const district = cleanStr(s.district || s.District || 'Anantnag');
+      const block = cleanStr(s.block || s.Block || s['Block/Zone']);
+      const tehsil = cleanStr(s.tehsil || s.Tehsil);
+      const district = cleanStr(s.district || s.District);
       const mobile = cleanStr(s.mobile || s['Mobile No. (with working WhatsApp)'] || s["Student's Contact"] || s['Student Mobile'] || s.studentMobile);
-      const parentMobile = cleanStr(s.parentContact || s["Father's Mobile No."] || s["Guardian's Mobile No."] || s['Parent Mobile'] || s.parentMobile);
-      const category = cleanStr(s.category || s['Cat._JKBOSE'] || s['Social Category'] || s['Category'] || s.category_jkbose || 'OM');
-      const socioEcon = cleanStr(s.socioEconomic || s['Socio-Economic Category'] || s['Socio Economic Category'] || s['Ration Card Type'] || s.socioEcon || 'AAY/BPL');
+      const parentMobile = cleanStr(s.parentContact || s["Parent's Mobile No. (must be working)"] || s["Parent's Mobile No."] || s["Parent's Contact"] || s["Father's Mobile No."] || s["Guardian's Mobile No."] || s['Parent Mobile'] || s.parentMobile);
+      const category = cleanStr(s.category || s['Cat._JKBOSE'] || s['Social category'] || s['Social Category'] || s['Category'] || s.socialCategory || s.category_jkbose);
+      const socioEcon = cleanStr(s.socioEconomic || s['Socio-economic category'] || s['Socio-Economic Category'] || s['Socio Economic Category'] || s['Ration Card Type'] || s.socioEconomicCategory || s.socioEcon || '');
       const blood = cleanStr(s.blood || s['Blood Group'] || s['Blood GRP'] || s.bloodGroup || '—');
       const account = cleanStr(s.bankAccount || s['Bank Account No.'] || s['Bank Account Number'] || s['Account Number'] || s['A/C No.'] || s.accountNo || s.account);
       const ifsc = cleanStr(s.ifsc || s['IFSC code'] || s['IFSC Code'] || s['IFSC'] || s.ifscCode);
-      const pen = cleanStr(s.penNo || s['PEN No.'] || s['PEN Number'] || s['PEN (UDISE)'] || s['UDISE PEN'] || s.pen || s.udisePen || 'NA');
+      const pen = cleanStr(s.penNo || s['PEN number (given by UDISE portal)'] || s['PEN No.'] || s['PEN Number'] || s['PEN (UDISE)'] || s['UDISE PEN'] || s.pen || s.udisePen || '');
       
-      const prevSchool = cleanStr(s.prevSchool || s['Previous School'] || s['Name of Previous School'] || s['School Last Attended'] || s['Last School Attended'] || s['Institution Last Attended'] || s['Previous Institute'] || s['Name of Institution last attended'] || '');
-      const prevRoll = cleanStr(s.prevExamRollNo || s['Previous Exam Roll No'] || s['Roll No. of 10th'] || s['10th Roll No'] || s['Class 10th Roll No'] || s['10th Roll Number'] || s['Roll No of 10th Class'] || s.examRoll10th || s.rollNo10th || '');
-      const prevMarks = cleanStr(s.marksObt || s['Marks Obtained'] || s['Marks Obtained in 10th'] || s['10th Marks'] || s['Marks of 10th'] || s.marksObt10th || '');
-      const maxMarks = cleanStr(s.maxMarks || s['Max Marks'] || s['Total Marks of 10th'] || s['Total Marks (10th)'] || s.maxMarks10th || '500');
+      const prevSchool = getPreviousAcademicValue(s, cls, 'Name of Previous School', ['prevSchool', 'Previous School', 'Name of Previous School', 'School Last Attended', 'Last School Attended', 'Institution Last Attended', 'Previous Institute', 'Name of Institution last attended', 'Name of the Institution last attended']);
+      const prevRoll = getPreviousAcademicValue(s, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'Roll No. of 10th', '10th Roll No', 'Class 10th Roll No', '10th Roll Number', 'Roll No of 10th Class', 'examRoll10th', 'rollNo10th']);
+      const prevMarks = getPreviousAcademicValue(s, cls, 'Total Marks Obtained in Class', ['marksObt', 'Marks Obtained', 'Marks Obt. (Prev.)', 'Marks Obtained (Class 10th)', 'Marks Obtained in 10th', '10th Marks', 'Marks of 10th', 'marksObt10th']);
+      const maxMarks = getPreviousAcademicValue(s, cls, 'Total Max. Marks in Class', ['maxMarks', 'Max Marks', 'Max. Marks (Prev.)', 'Max Marks (Class 10th)', 'Total Marks of 10th', 'Total Marks (10th)', 'maxMarks10th']) || '500';
       const prevResult = prevMarks ? `${prevMarks} / ${maxMarks}` : cleanStr(s.prevResult || s['Previous Result'] || s['10th Result'] || s['Result of 10th'] || '—');
       
-      const admDate = cleanStr(s.admDate || s['Adm. Date'] || s['Admission Date'] || s.admissionDate || s.submittedAt?.slice(0, 10) || '');
-      const onlineStatus = cleanStr(s.onlineSubmDate || s.submittedAt?.slice(0, 10) || 'Submitted');
+      const submittedAt = s.onlineSubmDate || s['Online Submission Date'] || s.submittedAt || s.createdAt;
+      const admissionDateValue = s.admDate || s.admissionDate || s['Date of Admission'] || s['Admission Date'] || s['Adm. Date'] || s['Adm Date'];
+      const admDate = formatRegisterDate(admissionDateValue);
+      const onlineStatus = formatRegisterDate(submittedAt, true) || cleanStr(s.onlineStatus || s['Online Submission Status'] || 'Submitted');
+      const admittedVide = firstCleanValue(s, ['prevCC', 'prevCcDc', 'CC/DC No. & Date (Prev. insitution)', 'CC/DC No. & Date (Prev. institution)', 'Admitted Vide DC/CC', 'Admtd. Vide DC/CC']);
+      const withdrawal = formatRegisterDate(firstCleanValue(s, ['withdrawalDate', 'Date of withdrawl/result', 'Date of withdrawl', 'Date of withdrawal', 'Result Date', 'Withdrawal Date', 'Date withdrawl']));
+      const issuedCC = firstCleanValue(s, ['currCcDc', 'No. & Date of CC/DC Issued (This Institution)', 'No. & Date of CC/DC Issued', 'CC/DC No. & Date', 'ccDcNo', 'Certf. No.', 'cc/dc s.no.', 'Certf No']);
+      const receipt = firstCleanValue(s, ['ccDcReceipt', 'CC/DC Receipt', 'Certificate Receipt', 'receivedCcDc', 'Received CC/DC']);
       const status = resolveEffectiveStatus(s);
 
       // Re-admission Identification
@@ -1055,11 +1177,6 @@ export default function AdmissionRegisterSuite({
 
       const oldAdmNo = cleanStr(s['Old Admission No.'] || s['Old Adm. No.'] || s.oldAdmNo || s['old_adm_no'] || s['Previous Adm. No.'] || s['Prev Adm No']);
 
-      // Formatted Adm No: e.g. 5480 (4312) for readmission
-      const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== admNo)
-        ? `${admNo || '—'} (${oldAdmNo})`
-        : (admNo || '—');
-      
       const docId = cleanStr(s.id || s.docId || (formNo ? `form_${formNo}` : `adm_${idx}`));
       const directPhoto = getStudentPhotoUrl(s, '');
 
@@ -1067,15 +1184,19 @@ export default function AdmissionRegisterSuite({
       // deliberately precede names and roll numbers to prevent cross-student data leakage.
       let histMatch = null;
       if (flatHistoryRecords.length > 0) {
+        const isSameHistoricalSession = (record) => {
+          const historicalSession = cleanStr(record.session || record.Session || record['Academic Session']);
+          return !historicalSession || !sess || historicalSession === sess;
+        };
         if (boardReg) {
           histMatch = flatHistoryRecords.find(h => getBoardRegistration(h) === boardReg);
-        }
-        if (!histMatch && formNo) {
-          histMatch = flatHistoryRecords.find(h => cleanStr(h.formNo || h['Form Number'] || h['Form No.']) === formNo);
         }
         if (!histMatch && aadhar && aadhar.replace(/\D/g, '').length >= 10) {
           const normalizedAadhar = aadhar.replace(/\D/g, '');
           histMatch = flatHistoryRecords.find(h => cleanStr(h.aadhar || h['Aadhar No.'] || h['Aadhaar No.']).replace(/\D/g, '') === normalizedAadhar);
+        }
+        if (!histMatch && formNo) {
+          histMatch = flatHistoryRecords.find(h => isSameHistoricalSession(h) && cleanStr(h.formNo || h['Form Number'] || h['Form No.']) === formNo);
         }
         if (!histMatch && admNo) {
           histMatch = flatHistoryRecords.find(h => cleanStr(h.admNo || h['Adm. No.'] || h['Admission No.'] || h['Admission Number']) === admNo);
@@ -1099,19 +1220,36 @@ export default function AdmissionRegisterSuite({
         }
       }
 
+      const finalAdmNo = admNo || firstCleanValue(histMatch, ['admNo', 'admissionNo', 'admissionNumber', 'Admission Number', 'Admission No.', 'Admission No', 'Adm. No.', 'Adm No.', 'Adm No', 'Adm_No']);
+      const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ['admDate', 'admissionDate', 'Date of Admission', 'Admission Date', 'Adm. Date', 'Adm Date']));
+      const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== finalAdmNo)
+        ? `${finalAdmNo || '—'} (${oldAdmNo})`
+        : (finalAdmNo || '—');
       const finalBoardReg = boardReg || getBoardRegistration(histMatch, cls);
-      const finalPrevSchool = prevSchool || (histMatch ? 'Govt. Higher Secondary School Shangus' : '');
-      const finalPrevRoll = prevRoll || (histMatch ? cleanStr(histMatch.classRollNo || histMatch['Class Roll No'] || histMatch.rollNo) : '');
-      const finalPen = (pen && pen !== 'NA') ? pen : (histMatch ? cleanStr(histMatch.penNo || histMatch['PEN No.'] || 'NA') : 'NA');
+      const finalPrevSchool = prevSchool || getPreviousAcademicValue(histMatch, cls, 'Name of Previous School', ['prevSchool', 'Previous School', 'Name of Previous School', 'Name of the Institution last attended']);
+      const finalPrevRoll = prevRoll || getPreviousAcademicValue(histMatch, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'classRollNo', 'Class Roll No', 'rollNo']);
+      const finalPrevResult = prevResult || firstCleanValue(histMatch, ['prevResult', 'Previous Result', 'Marks/Reapp (Prev.)', 'Marks Obt. (Prev.)']);
+      const finalPen = pen || firstCleanValue(histMatch, ['penNo', 'PEN number (given by UDISE portal)', 'PEN No.', 'PEN Number', 'PEN (UDISE)', 'UDISE PEN']) || 'NA';
       const finalAccount = account || (histMatch ? cleanStr(histMatch.bankAccount || histMatch['Bank Account No.']) : '');
       const finalIfsc = ifsc || (histMatch ? cleanStr(histMatch.ifsc || histMatch['IFSC code']) : '');
+      const finalGender = gender || firstCleanValue(histMatch, ['gender', 'Gender']);
+      const finalAadhar = aadhar || firstCleanValue(histMatch, ['aadhar', 'Aadhar No.', 'Aadhaar No.', 'Aadhaar Number']);
+      const finalVillage = village || firstCleanValue(histMatch, ['village', 'Name of your village', 'Village/Town', 'Village']);
+      const finalBlock = block || firstCleanValue(histMatch, ['block', 'Block', 'Block/Zone']);
+      const finalTehsil = tehsil || firstCleanValue(histMatch, ['tehsil', 'Tehsil']);
+      const finalDistrict = district || firstCleanValue(histMatch, ['district', 'District']);
+      const finalMobile = mobile || firstCleanValue(histMatch, ['mobile', 'Mobile No. (with working WhatsApp)', "Student's Contact", 'Student Mobile']);
+      const finalParentMobile = parentMobile || firstCleanValue(histMatch, ['parentContact', "Parent's Mobile No. (must be working)", "Parent's Mobile No.", "Parent's Contact", "Father's Mobile No.", 'parentMobile']);
+      const finalCategory = category || firstCleanValue(histMatch, ['category', 'Cat._JKBOSE', 'Social category', 'Social Category', 'Category', 'socialCategory']);
+      const finalSocioEcon = socioEcon || firstCleanValue(histMatch, ['socioEconomic', 'Socio-economic category', 'Socio-Economic Category', 'Socio Economic Category', 'socioEconomicCategory']);
+      const finalBlood = blood || firstCleanValue(histMatch, ['blood', 'Blood Group', 'Blood Type', 'bloodGroup']);
 
       list.push({
         raw: s,
         id: docId,
         sno: list.length + 1,
         formNo,
-        admNo,
+        admNo: finalAdmNo,
         oldAdmNo,
         displayAdmNo,
         isReadmission,
@@ -1124,34 +1262,36 @@ export default function AdmissionRegisterSuite({
         mother,
         dobFigures: dob,
         dobWords: formatDateToWords(dob),
-        gender,
+        gender: finalGender,
         class: cls,
         session: sess,
         stream,
         subs,
-        aadhar,
-        village,
-        block,
-        tehsil,
-        district,
-        mobile,
-        parentMobile,
-        category,
-        socioEcon,
-        blood,
+        aadhar: finalAadhar,
+        village: finalVillage,
+        block: finalBlock,
+        tehsil: finalTehsil,
+        district: finalDistrict,
+        mobile: finalMobile,
+        parentMobile: finalParentMobile,
+        category: finalCategory,
+        socioEcon: finalSocioEcon,
+        blood: finalBlood,
         account: finalAccount,
         ifsc: finalIfsc,
         pen: finalPen,
         prevSchool: finalPrevSchool,
         prevRoll: finalPrevRoll,
-        prevResult,
-        admDate,
+        prevResult: finalPrevResult,
+        admDate: finalAdmDate,
         onlineStatus,
         status,
         directPhoto,
-        prevCC: isReadmission ? 'Re-admitted (Gap)' : (finalPrevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC'),
-        withdrawal: '—',
-        remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || '')
+        prevCC: admittedVide || (isReadmission ? 'Re-admitted (Gap)' : (finalPrevSchool.toLowerCase().includes('shangus') ? 'Internal (HSS Shangus)' : 'Vide TC/CC')),
+        withdrawal: withdrawal || '—',
+        issuedCC,
+        receipt,
+        remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || '')
       });
     });
     return list;
@@ -1805,7 +1945,7 @@ export default function AdmissionRegisterSuite({
         'Village/Town', 'Block', 'Tehsil', 'District', 'Student Mobile', 'Parent Mobile',
         'Stream', 'Chosen Subjects', 'Aadhaar No.', 'Social Category', 'Socio-Economic Category', 'Blood Group',
         'Bank Account No.', 'IFSC Code', 'PEN (UDISE)', 'Previous School', 'Prev Roll No', 'Prev Result',
-        'Admtd. Vide DC/CC', 'Withdrawal Date', 'Remarks'
+        'Admtd. Vide DC/CC', 'Withdrawal Date', 'Issued DC/CC', 'DC/CC Receipt', 'Remarks'
       ];
 
       const rows = filteredStudents.map(s => [
@@ -1846,6 +1986,8 @@ export default function AdmissionRegisterSuite({
         s.prevResult || '',
         s.prevCC || '',
         s.withdrawal || '',
+        s.issuedCC || '',
+        s.receipt || '',
         s.remarks || ''
       ]);
 
@@ -2019,6 +2161,14 @@ export default function AdmissionRegisterSuite({
             overflow: visible !important;
           }
 
+          .register-ledger-page {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 205mm !important;
+            min-height: 205mm !important;
+            max-height: 205mm !important;
+          }
+
           .admission-suite-root main .space-y-6 > .page-container:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
@@ -2060,8 +2210,19 @@ export default function AdmissionRegisterSuite({
             break-inside: avoid !important;
           }
 
+          .admission-spread-table thead {
+            height: 14mm !important;
+          }
+
+          .register-resizable-row,
+          .register-resizable-row > td {
+            height: var(--register-row-height) !important;
+            max-height: var(--register-row-height) !important;
+            overflow: hidden !important;
+          }
+
           .signature-footer {
-            margin-top: 24px !important;
+            margin-top: auto !important;
             padding-top: 6px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -2089,6 +2250,37 @@ export default function AdmissionRegisterSuite({
         }
 
         .print-only { display: none; }
+
+        .register-ledger-page {
+          display: flex;
+          flex-direction: column;
+          min-height: 690px;
+        }
+
+        .admission-spread-table thead {
+          height: 58px;
+        }
+
+        .register-resizable-row,
+        .register-resizable-row > td {
+          height: var(--register-row-height);
+          max-height: var(--register-row-height);
+          overflow: hidden;
+        }
+
+        .register-resizable-row:hover > td {
+          border-bottom-color: #f59e0b !important;
+        }
+
+        .register-photo-cell,
+        .register-photo-cell img {
+          min-height: 0 !important;
+          overflow: hidden !important;
+        }
+
+        .register-ledger-page > .signature-footer {
+          margin-top: auto;
+        }
 
         /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (OVERRIDES ANY THEME CASCADE) ─── */
         .register-popover-panel {
@@ -2919,14 +3111,14 @@ export default function AdmissionRegisterSuite({
                       key={pageNum}
                       className={`spread-container ${
                         spreadLayoutMode === 'side_by_side'
-                          ? 'flex flex-col 2xl:flex-row gap-3 max-w-full mx-auto items-stretch'
+                          ? 'flex flex-row gap-3 min-w-[1500px] max-w-full mx-auto items-stretch'
                           : 'flex flex-col gap-4 max-w-[355.6mm] mx-auto'
                       }`}
                     >
                       {/* LEFT PAGE: PART 1 (Personal & Contact Details) */}
                       <div
-                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
-                          spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-[50%]' : 'w-full'
+                        className={`page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
+                          spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-0' : 'w-full'
                         }`}
                         style={{ padding: `${printMargin}in` }}
                       >
@@ -2947,7 +3139,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
+                          <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
                                 <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
@@ -2983,14 +3175,15 @@ export default function AdmissionRegisterSuite({
                               {chunk.map((s) => {
                                 const photoSrc = getResolvedStudentPhoto(s);
                                 return (
-                                  <tr key={s.id} style={{ height: `${rowHeight}px` }} className="hover:bg-slate-50 group">
+                                  <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50 group">
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
-                                    <td className="border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined }}>
+                                    <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined, height: `${rowHeight}px` }}>
                                       {photoSrc ? (
                                         <img
                                           src={photoSrc}
                                           alt={s.name}
-                                          className="w-full h-full object-cover"
+                                          className="block w-full object-cover"
+                                          style={{ height: `${Math.max(30, rowHeight - 1)}px` }}
                                           loading="eager"
                                           onError={(e) => {
                                             e.currentTarget.style.display = 'none';
@@ -3045,7 +3238,7 @@ export default function AdmissionRegisterSuite({
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.district}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font">{s.mobile}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-mono ledger-mono-font">{s.parentMobile}</td>
-                                  </tr>
+                                  </ResizableDataRow>
                                 );
                               })}
                             </tbody>
@@ -3062,8 +3255,8 @@ export default function AdmissionRegisterSuite({
 
                       {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
                       <div
-                        className={`page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
-                          spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-[50%]' : 'w-full'
+                        className={`page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
+                          spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-0' : 'w-full'
                         }`}
                         style={{ padding: `${printMargin}in` }}
                       >
@@ -3084,7 +3277,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
+                          <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
                                 <ResizableTh colKey="p2_stream" width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">STREAM</ResizableTh>
@@ -3111,7 +3304,7 @@ export default function AdmissionRegisterSuite({
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
                               {chunk.map((s) => (
-                                <tr key={s.id} style={{ height: `${rowHeight}px` }} className="hover:bg-slate-50">
+                                <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.stream}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium">{s.subs}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font">{s.aadhar}</td>
@@ -3129,15 +3322,13 @@ export default function AdmissionRegisterSuite({
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 leading-tight">
-                                    <div>C.No. _______</div>
-                                    <div>Dt. _______</div>
+                                    {s.issuedCC ? <div>{s.issuedCC}</div> : <><div>C.No. _______</div><div>Dt. _______</div></>}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50">
-                                    <div>received DC/CC vide C. No. ___</div>
-                                    <div>on _______ Sig. _______</div>
+                                    {s.receipt ? <div>{s.receipt}</div> : <><div>received DC/CC vide C. No. ___</div><div>on _______ Sig. _______</div></>}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px]">{s.remarks}</td>
-                                </tr>
+                                </ResizableDataRow>
                               ))}
                             </tbody>
                           </table>
@@ -3311,7 +3502,7 @@ export default function AdmissionRegisterSuite({
                 return (
                   <div
                     key={pageNum}
-                    className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
+                    className="page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
@@ -3347,18 +3538,19 @@ export default function AdmissionRegisterSuite({
                           {chunk.map((s) => {
                             const photoSrc = getResolvedStudentPhoto(s);
                             return (
-                              <tr key={s.id} style={{ height: `${rowHeight}px` }} className="hover:bg-slate-50">
+                              <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
                                 <td className="border border-slate-900 px-1 py-0.5 text-center">
                                   <div className="font-black text-xs ledger-mono-font">{s.sno}</div>
                                   <div className="text-[7.5px] font-mono text-slate-500 ledger-mono-font">[{s.admNo || '—'}]</div>
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800 ledger-mono-font">{s.rollNo}</td>
-                                <td className="border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined }}>
+                                <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
                                   {photoSrc ? (
                                     <img
                                       src={photoSrc}
                                       alt={s.name}
-                                      className="w-full h-full object-cover"
+                                      className="block w-full object-cover"
+                                      style={{ height: `${Math.max(30, rowHeight - 1)}px` }}
                                       loading="eager"
                                       onError={(e) => {
                                         e.currentTarget.style.display = 'none';
@@ -3408,7 +3600,7 @@ export default function AdmissionRegisterSuite({
                                     </div>
                                   </div>
                                 </td>
-                              </tr>
+                              </ResizableDataRow>
                             );
                           })}
                         </tbody>
@@ -3416,7 +3608,7 @@ export default function AdmissionRegisterSuite({
                     </div>
 
                     {/* Footer Signatures */}
-                    <div className="flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
+                    <div className="signature-footer flex justify-between items-center mt-1 pt-0.5 text-[11px] font-black text-red-800">
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Incharge</div>
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Checked By</div>
                       <div className="text-center w-32 border-t-2 border-red-800 pt-0.5">Principal</div>
