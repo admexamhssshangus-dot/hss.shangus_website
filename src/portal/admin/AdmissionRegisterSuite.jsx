@@ -3684,21 +3684,21 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
                                   <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
                                     {s.issuedCC ? (
-                                      <div className="text-[7px] leading-tight font-medium py-0.5">{s.issuedCC}</div>
+                                      <div className="text-[7px] leading-tight font-medium pt-2 pb-0.5">{s.issuedCC}</div>
                                     ) : (
-                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
-                                        <div>C.No. _________</div>
-                                        <div>Dt. _________</div>
+                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none pt-2.5 pb-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
+                                        <div className="leading-tight">C.No. _________</div>
+                                        <div className="leading-tight">Dt. _________</div>
                                       </div>
                                     )}
                                   </td>
                                   <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
                                     {s.receipt ? (
-                                      <div className="text-[7px] leading-tight font-medium py-0.5">{s.receipt}</div>
+                                      <div className="text-[7px] leading-tight font-medium pt-2 pb-0.5">{s.receipt}</div>
                                     ) : (
-                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
-                                        <div>received DC/CC vide C. No. _________</div>
-                                        <div>on _________ Sig. _________</div>
+                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none pt-2.5 pb-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
+                                        <div className="leading-tight">received DC/CC vide C. No. _________</div>
+                                        <div className="leading-tight">on _________ Sig. _________</div>
                                       </div>
                                     )}
                                   </td>
