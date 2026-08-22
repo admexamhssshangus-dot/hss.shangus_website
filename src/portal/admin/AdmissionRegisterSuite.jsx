@@ -707,7 +707,7 @@ function formatBoardRegSplit(val) {
   if (!s) return '—';
   if (s.length > 12) {
     return (
-      <div className="leading-tight text-center font-mono">
+      <div className="leading-tight text-left font-mono">
         <span className="font-extrabold">{s.substring(0, 12)}</span>
         <br />
         <span className="font-bold text-slate-600 dark:text-slate-400">{s.substring(12)}</span>
@@ -3475,8 +3475,7 @@ export default function AdmissionRegisterSuite({
                                 <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
                                 <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PHOTO</ResizableTh>
                                 <ResizableTh colKey="rollNo" width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS R.NO.</ResizableTh>
-                                <ResizableTh colKey="formNo" width={columnWidths.formNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">FORM NO.</ResizableTh>
-                                <ResizableTh colKey="onlineStatus" width={columnWidths.onlineStatus} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ONLINE SUBM.</ResizableTh>
+                                <ResizableTh colKey="formNo" width={columnWidths.formNo || 62} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">FORM NO. & ONLINE SUBM.</ResizableTh>
                                 <ResizableTh colKey="admDate" width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. DATE</ResizableTh>
                                 <ResizableTh colKey="admNo" width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. NO.</ResizableTh>
                                 <ResizableTh colKey="class" width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS ADM. TO</ResizableTh>
@@ -3528,8 +3527,14 @@ export default function AdmissionRegisterSuite({
                                       </div>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font">{s.rollNo}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.formNo}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">{renderOnlineSubmCell(s.onlineStatus)}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">
+                                      <div className="font-bold text-[8.5px] text-slate-900 leading-tight">
+                                        {s.formNo || '—'}
+                                      </div>
+                                      <div className="text-[6.5px] text-slate-600 font-medium leading-tight mt-0.5">
+                                        {renderOnlineSubmCell(s.onlineStatus)}
+                                      </div>
+                                    </td>
                                     <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">{renderAdmDateCell(s.admDate)}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
                                       <div className="ledger-mono-font font-black">{s.admNo || '—'}</div>
@@ -3538,7 +3543,7 @@ export default function AdmissionRegisterSuite({
                                       )}
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden leading-tight">{formatBoardRegSplit(s.boardReg)}</td>
                                     <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden">
                                       <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight">
                                         <span>{s.name}</span>
