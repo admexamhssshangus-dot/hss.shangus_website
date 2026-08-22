@@ -347,22 +347,34 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /adminPracticalsSettings/{documentId} {
+      allow read: if isTeacher();
+      allow create, update: if isAdmin() && hasNoCredentialFields(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /masterRegisters/{documentId} {
+      allow read: if isTeacher();
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
     // Administrative and institution-wide records.
     match /{collectionName}/{documentId} {
       allow read: if isAdmin() && collectionName in [
-        'masterRegisters', 'registerdata', 'examConfig', 'adminPracticalsSettings',
+        'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
         'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ];
       allow create, update: if isAdmin() && collectionName in [
-        'masterRegisters', 'registerdata', 'examConfig', 'adminPracticalsSettings',
+        'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
         'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ] && validStaffDocument(request.resource.data);
       allow delete: if isAdmin() && collectionName in [
-        'masterRegisters', 'registerdata', 'examConfig', 'adminPracticalsSettings',
+        'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
         'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
