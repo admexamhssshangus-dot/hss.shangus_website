@@ -326,6 +326,27 @@ function renderPenCell(pen) {
   return <div className="break-all max-w-full leading-tight text-[7px]">{str}</div>;
 }
 
+function renderAdmittedVideCell(val) {
+  if (!val || val === '—' || val === '-') return '—';
+  const str = String(val).trim();
+  if (str.includes(';')) {
+    const parts = str.split(';');
+    const noPart = parts[0].trim();
+    const datePart = parts.slice(1).join(';').trim();
+    return (
+      <div className="flex flex-col items-center justify-center leading-tight">
+        <span className="font-bold text-[7.5px] leading-none">{noPart}{datePart ? ';' : ''}</span>
+        {datePart && (
+          <span className="whitespace-nowrap font-medium text-[7px] text-emerald-950 mt-0.5 leading-none">
+            {datePart}
+          </span>
+        )}
+      </div>
+    );
+  }
+  return <span className="leading-tight break-words">{str}</span>;
+}
+
 const BOARD_REGISTRATION_KEYS = [
   'boardRegNo', 'Board Registration Number', 'Board Registration No.', 'Board Registration No',
   'Board Reg. No.', 'Board Reg No', 'Board Registration No. (Class 12th)',
@@ -3630,7 +3651,7 @@ export default function AdmissionRegisterSuite({
                                 <ResizableTh colKey="p2_ifsc" width={columnWidths.p2_ifsc} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">IFSC CODE</ResizableTh>
                                 <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PREVIOUS ACADEMIC DETAILS</th>
                                 <ResizableTh colKey="p2_pen" width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
-                                <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC</ResizableTh>
+                                <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC<br />(No.; Date)</ResizableTh>
                                 <ResizableTh colKey="p2_withdrawal" width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-100 h-red">WITHDRAWAL DATE</ResizableTh>
                                 <ResizableTh colKey="p2_issuedCC" width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">ISSUED DC/CC</ResizableTh>
                                 <ResizableTh colKey="p2_receipt" width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">RECEIPT</ResizableTh>
@@ -3658,7 +3679,7 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7px] ledger-mono-font overflow-hidden">{renderPenCell(s.pen)}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
-                                    {s.prevCC}
+                                    {renderAdmittedVideCell(s.prevCC)}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
                                   <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
