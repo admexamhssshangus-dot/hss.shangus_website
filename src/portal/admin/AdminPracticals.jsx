@@ -1503,15 +1503,26 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
 
           {/* Right: Compact Search, Dropdowns & Action Buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Search Input */}
-            <div className="relative">
+            {/* Search Input (Generous Responsive Width) */}
+            <div className="relative flex items-center">
+              <Search size={12} className="absolute left-2.5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search student name, roll, reg, father..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-24 sm:w-32 focus:w-44 px-2 py-0.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs transition-all placeholder:text-[10.5px]"
+                className="w-44 sm:w-60 md:w-72 lg:w-80 pl-7 pr-6 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-900 shadow-2xs transition-all placeholder:text-[11px] placeholder:font-semibold"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
 
             {/* Subjects Multi-Select Dropdown */}
