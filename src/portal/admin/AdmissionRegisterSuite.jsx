@@ -2254,8 +2254,9 @@ export default function AdmissionRegisterSuite({
 
           th, td {
             border: 1px solid #000000 !important;
-            padding: 1.5px 2.5px !important;
+            padding: 1px 2px !important;
             overflow-wrap: anywhere !important;
+            box-sizing: border-box !important;
           }
 
           tr {
@@ -2265,29 +2266,81 @@ export default function AdmissionRegisterSuite({
 
           .admission-spread-table thead {
             height: 14mm !important;
+            max-height: 14mm !important;
           }
 
-          .register-resizable-row,
+          .admission-spread-table thead tr {
+            height: 7mm !important;
+            max-height: 7mm !important;
+          }
+
+          .admission-spread-table thead th {
+            height: 7mm !important;
+            max-height: 7mm !important;
+            padding: 1px 2px !important;
+            font-size: 7px !important;
+            line-height: 1.05 !important;
+            vertical-align: middle !important;
+            text-align: center !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+          }
+
+          .admission-spread-table thead th[rowspan="2"] {
+            height: 14mm !important;
+            max-height: 14mm !important;
+          }
+
+          .register-resizable-row {
+            height: var(--register-row-height) !important;
+            max-height: var(--register-row-height) !important;
+            box-sizing: border-box !important;
+          }
+
           .register-resizable-row > td {
             height: var(--register-row-height) !important;
             max-height: var(--register-row-height) !important;
-            overflow: hidden !important;
+            padding: 1px 2px !important;
             line-height: 1.12 !important;
             vertical-align: middle !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+          }
+
+          .register-photo-cell {
+            padding: 0 !important;
+            height: var(--register-row-height) !important;
+            max-height: var(--register-row-height) !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+
+          .register-photo-cell img {
+            width: 100% !important;
+            height: calc(var(--register-row-height) - 2px) !important;
+            max-height: calc(var(--register-row-height) - 2px) !important;
+            object-fit: cover !important;
+            display: block !important;
+            margin: 0 auto !important;
           }
 
           .signature-footer {
-            margin-top: auto !important;
-            min-height: 24mm !important;
-            padding: 10mm 0 2mm !important;
+            display: flex !important;
+            justify-content: space-between !important;
             align-items: flex-end !important;
+            margin-top: auto !important;
+            height: 18mm !important;
+            min-height: 18mm !important;
+            max-height: 18mm !important;
+            padding: 4mm 0 1mm !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
           .signature-footer > .signature-block {
-            flex: 0 0 40mm !important;
+            flex: 0 0 42mm !important;
+            box-sizing: border-box !important;
           }
 
           img {
