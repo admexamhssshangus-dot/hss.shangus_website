@@ -962,25 +962,14 @@ export default function AdminPracticals() {
             <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
               <button
                 type="button"
-                onClick={() => setTab('submissions')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  tab === 'submissions'
+                onClick={() => setTab('faculty_submissions')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  tab === 'faculty_submissions' || tab === 'submissions' || tab === 'teachers'
                     ? 'bg-indigo-600 text-white shadow-xs font-black'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <FileText size={12} /> Submissions Log ({submissions.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('teachers')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  tab === 'teachers'
-                    ? 'bg-indigo-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Users size={12} /> Teachers Roster
+                <Users size={13} /> Faculty & Submissions ({submissions.length})
               </button>
               <button
                 type="button"
@@ -1043,16 +1032,8 @@ export default function AdminPracticals() {
             />
           )}
 
-          {tab === 'submissions' && (
-            <SubmissionsLogView
-              submissions={submissions}
-              setSelSub={setSelSub}
-              handleDeleteSubmission={handleDeleteSubmission}
-            />
-          )}
-
-          {tab === 'teachers' && (
-            <TeachersView
+          {(tab === 'faculty_submissions' || tab === 'submissions' || tab === 'teachers') && (
+            <FacultySubmissionsView
               teachers={teachers}
               submissions={submissions}
               sendEmail={sendEmail}
@@ -1061,6 +1042,7 @@ export default function AdminPracticals() {
               handleEmailShare={handleEmailShare}
               handleSaveTeacherPhone={handleSaveTeacherPhone}
               setSelSub={setSelSub}
+              handleDeleteSubmission={handleDeleteSubmission}
             />
           )}
 
@@ -2081,116 +2063,6 @@ function CsvImportModal({ onClose, onSuccess }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SUBMISSIONS LOG VIEW COMPONENT
-// ─────────────────────────────────────────────────────────────
-function SubmissionsLogView({ submissions, setSelSub, handleDeleteSubmission }) {
-  const [filterClass, setFilterClass] = useState('all');
-  const [filterSubject, setFilterSubject] = useState('all');
-
-  const filtered = submissions.filter(s => {
-    const cls = String(s.className || s.Class || s.id || '').toLowerCase();
-    const subj = String(s.subjectName || s.Subject || s.subjectCode || s.subject || '').toUpperCase();
-    if (filterClass !== 'all' && !cls.includes(filterClass.toLowerCase())) return false;
-    if (filterSubject !== 'all' && !subj.includes(filterSubject.toUpperCase())) return false;
-    return true;
-  });
-
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-xs">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-        <div>
-          <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <FileText size={16} className="text-indigo-500" /> Submissions Log ({submissions.length} Total Documents)
-          </h3>
-          <p className="text-[11px] font-semibold text-slate-500">Inspect teacher practical award submissions or delete outdated documents.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={filterClass}
-            onChange={e => setFilterClass(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
-          >
-            <option value="all">All Classes</option>
-            <option value="11th">Class 11th</option>
-            <option value="12th">Class 12th</option>
-          </select>
-          <select
-            value={filterSubject}
-            onChange={e => setFilterSubject(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
-          >
-            <option value="all">All Subjects</option>
-            {CODES.map(c => <option key={c} value={c}>{NAMES[c]} ({c})</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
-            <tr>
-              <th className="py-2.5 px-3 text-center w-10">#</th>
-              <th className="py-2.5 px-3">Document ID / Title</th>
-              <th className="py-2.5 px-3">Class & Subject</th>
-              <th className="py-2.5 px-3">Session & Type</th>
-              <th className="py-2.5 px-3">Submitted By</th>
-              <th className="py-2.5 px-3 text-center">Records</th>
-              <th className="py-2.5 px-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
-            {filtered.map((s, idx) => {
-              const recCount = Array.isArray(s.records) ? s.records.length : Object.keys(s).filter(k => k.match(/^\d+\//)).length;
-              const sessStr = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '2025-26');
-              return (
-                <tr key={`pract_row_${s.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
-                  <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
-                  <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
-                    {s.className || s.Class || 'Class'} • {s.subjectName || s.Subject || NAMES[s.subjectCode] || s.subjectCode || 'Subject'}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                      {sessStr} • {toTitleCase(s.practicalType || 'Internal')}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <div className="font-bold text-slate-800 dark:text-slate-200">{s.teacherName || s['Teacher Name'] || 'Teacher'}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{s.teacherEmail || s.Email || '-'}</div>
-                  </td>
-                  <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{recCount}</td>
-                  <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
-                    <button
-                      onClick={() => setSelSub(s)}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                    >
-                      <Eye size={12} /> View Awards
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSubmission(s.id)}
-                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                    >
-                      <Trash2 size={12} /> Delete
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
-                  No submissions found matching selected filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL
 // ─────────────────────────────────────────────────────────────
 function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
@@ -2321,9 +2193,9 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TEACHERS VIEW COMPONENT
+// COMBINED FACULTY & SUBMISSIONS VIEW COMPONENT
 // ─────────────────────────────────────────────────────────────
-function TeachersView({
+function FacultySubmissionsView({
   teachers,
   submissions,
   sendEmail,
@@ -2331,33 +2203,109 @@ function TeachersView({
   handleWhatsAppShare,
   handleEmailShare,
   handleSaveTeacherPhone,
-  setSelSub
+  setSelSub,
+  handleDeleteSubmission
 }) {
   const [editingPhoneId, setEditingPhoneId] = useState(null);
   const [phoneInputVal, setPhoneInputVal] = useState('');
   const [savingPhoneId, setSavingPhoneId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState('grouped'); // 'grouped' | 'documents'
+  const [filterClass, setFilterClass] = useState('all');
+  const [filterSubject, setFilterSubject] = useState('all');
 
+  // Filter and unify faculty members (excluding pure admin accounts with 0 submissions)
   const facultyMembers = useMemo(() => {
-    return teachers.filter(t => {
-      const r = String(t.role || '').toLowerCase();
-      const isRoleMatch = r === 'teacher' || r === 'faculty' || r === 'examiner' || r === 'staff' || r === 'admin';
-      if (!isRoleMatch) return false;
+    const mapByEmail = new Map();
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+    teachers.forEach(t => {
+      const tEmail = String(t.email || '').toLowerCase().trim();
+      const r = String(t.role || '').toLowerCase().trim();
+      const isPureAdmin = (r === 'admin' || r === 'administrator' || r === 'principal' || r === 'superadmin');
+
+      const teacherSubs = submissions.filter(s => {
+        const em = String(s.teacherEmail || s.Email || s.email || '').toLowerCase().trim();
+        return em && em === tEmail;
+      });
+
+      // Exclude pure admin accounts that do not have any practical submissions
+      if (isPureAdmin && teacherSubs.length === 0) return;
+
+      if (tEmail && !mapByEmail.has(tEmail)) {
+        mapByEmail.set(tEmail, {
+          ...t,
+          role: isPureAdmin ? 'Examiner' : (t.role || 'Teacher'),
+          submissionsList: teacherSubs
+        });
+      } else if (tEmail && mapByEmail.has(tEmail)) {
+        const prev = mapByEmail.get(tEmail);
+        mapByEmail.set(tEmail, {
+          ...prev,
+          ...t,
+          role: prev.role === 'teacher' ? 'Teacher' : (t.role || prev.role || 'Teacher'),
+          phone: prev.phone || t.phone || prev.mobile || t.mobile,
+          mobile: prev.mobile || t.mobile || prev.phone || t.phone,
+          submissionsList: [...prev.submissionsList, ...teacherSubs]
+        });
+      }
+    });
+
+    // Also include any teacher who submitted in submissions collection but wasn't in teachers
+    submissions.forEach(s => {
+      const sEmail = String(s.teacherEmail || s.Email || s.email || '').toLowerCase().trim();
+      const sName = s.teacherName || s['Teacher Name'] || 'Faculty Member';
+      if (sEmail && !mapByEmail.has(sEmail)) {
+        mapByEmail.set(sEmail, {
+          id: sEmail,
+          email: sEmail,
+          name: sName,
+          displayName: sName,
+          role: 'Teacher',
+          submissionsList: [s]
+        });
+      }
+    });
+
+    let list = Array.from(mapByEmail.values());
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(t => {
         const name = String(t.name || t.displayName || '').toLowerCase();
         const email = String(t.email || '').toLowerCase();
         const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '');
         const role = String(t.role || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || phone.includes(q) || role.includes(q);
+        const subsMatch = (t.submissionsList || []).some(s => {
+          const subj = String(s.subjectName || s.subjectCode || s.subject || '').toLowerCase();
+          const cls = String(s.className || s.Class || '').toLowerCase();
+          return subj.includes(q) || cls.includes(q);
+        });
+        return name.includes(q) || email.includes(q) || phone.includes(q) || role.includes(q) || subsMatch;
+      });
+    }
+
+    return list;
+  }, [teachers, submissions, searchQuery]);
+
+  // Raw documents filtering for the audit mode
+  const filteredDocs = useMemo(() => {
+    return submissions.filter(s => {
+      const cls = String(s.className || s.Class || s.id || '').toLowerCase();
+      const subj = String(s.subjectName || s.Subject || s.subjectCode || s.subject || '').toUpperCase();
+      if (filterClass !== 'all' && !cls.includes(filterClass.toLowerCase())) return false;
+      if (filterSubject !== 'all' && !subj.includes(filterSubject.toUpperCase())) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const id = String(s.id || '').toLowerCase();
+        const teacher = String(s.teacherName || s['Teacher Name'] || s.teacherEmail || '').toLowerCase();
+        return id.includes(q) || teacher.includes(q) || subj.toLowerCase().includes(q) || cls.includes(q);
       }
       return true;
     });
-  }, [teachers, searchQuery]);
+  }, [submissions, filterClass, filterSubject, searchQuery]);
 
   const startEditPhone = (t) => {
-    setEditingPhoneId(t.id);
+    setEditingPhoneId(t.id || t.email);
     const existing = t.phone || t.mobile || t.phoneNumber || t.whatsapp || '';
     setPhoneInputVal(existing);
   };
@@ -2368,7 +2316,7 @@ function TeachersView({
   };
 
   const savePhone = async (t) => {
-    setSavingPhoneId(t.id);
+    setSavingPhoneId(t.id || t.email);
     const ok = await handleSaveTeacherPhone(t, phoneInputVal);
     setSavingPhoneId(null);
     if (ok !== false) {
@@ -2379,167 +2327,355 @@ function TeachersView({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs p-3 sm:p-4 space-y-3">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+      {/* Top Header Strip with Controls & View Mode Toggle */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
         <div>
           <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <Users size={16} className="text-indigo-500" /> Faculty & Examiner Roster ({facultyMembers.length})
+            <Users size={16} className="text-indigo-500" /> Faculty & Submissions Management ({facultyMembers.length} Faculty • {submissions.length} Total Submissions)
           </h3>
           <p className="text-[11px] font-semibold text-slate-500">
-            Save mobile numbers to Firebase to enable one-click WhatsApp chats and official email notices.
+            Grouped Internal & External practical awards per teacher. Save mobile numbers to Firebase for instant WhatsApp chats.
           </p>
         </div>
 
-        {/* Quick Search */}
-        <div className="relative w-full sm:w-64">
-          <input
-            type="text"
-            placeholder="Search faculty name, phone, email..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-          />
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          {/* View Mode Segmented Pill */}
+          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setViewMode('grouped')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'grouped'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              👥 Grouped Faculty View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('documents')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'documents'
+                  ? 'bg-indigo-600 text-white shadow-2xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              📄 Document Audit Log ({submissions.length})
+            </button>
+          </div>
+
+          {/* Quick Search */}
+          <div className="relative w-full sm:w-60">
+            <input
+              type="text"
+              placeholder="Search faculty, subject, email..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+            />
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
-            <tr>
-              <th className="py-2.5 px-3 text-center w-10">#</th>
-              <th className="py-2.5 px-3">Faculty Name</th>
-              <th className="py-2.5 px-3">Email Address</th>
-              <th className="py-2.5 px-3">Mobile / WhatsApp Number</th>
-              <th className="py-2.5 px-3">Role</th>
-              <th className="py-2.5 px-3 text-center">Submissions</th>
-              <th className="py-2.5 px-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
-            {facultyMembers.map((t, idx) => {
-              const tEmail = String(t.email || '').toLowerCase().trim();
-              const teacherSubmissions = submissions.filter(s => {
-                const em = String(s.teacherEmail || s.Email || s.email || '').toLowerCase().trim();
-                return em && em === tEmail;
-              });
+      {/* VIEW 1: GROUPED FACULTY & TWO-SUBMISSIONS IN ONE ROW */}
+      {viewMode === 'grouped' && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
+              <tr>
+                <th className="py-2.5 px-3 text-center w-10">#</th>
+                <th className="py-2.5 px-3">Faculty / Evaluator</th>
+                <th className="py-2.5 px-3">Mobile / WhatsApp Number</th>
+                <th className="py-2.5 px-3">Role</th>
+                <th className="py-2.5 px-3">Practical Submissions (Internal & External)</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
+              {facultyMembers.map((t, idx) => {
+                const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '').trim();
+                const isEditingThis = editingPhoneId === (t.id || t.email);
 
-              const phone = String(t.phone || t.mobile || t.phoneNumber || t.whatsapp || '').trim();
-              const isEditingThis = editingPhoneId === t.id;
+                // Group this teacher's submissions by (Class + Subject)
+                const groupedMap = {};
+                (t.submissionsList || []).forEach(s => {
+                  const sCls = s.className || s.Class || (String(s.id).startsWith('12') ? '12th' : '11th');
+                  const sCode = String(s.subjectCode || s.subject || s.Subject || 'SUB').toUpperCase();
+                  const sName = s.subjectName || s.Subject || NAMES[sCode] || sCode;
+                  const key = `${sCls}_${sCode}`;
+                  if (!groupedMap[key]) {
+                    groupedMap[key] = { cls: sCls, code: sCode, name: sName, internal: null, external: null, all: [] };
+                  }
+                  const pType = String(s.practicalType || s.PracticalType || '').toLowerCase();
+                  if (pType.includes('ext')) {
+                    groupedMap[key].external = s;
+                  } else {
+                    groupedMap[key].internal = s;
+                  }
+                  groupedMap[key].all.push(s);
+                });
+                const subjectGroups = Object.values(groupedMap);
 
-              return (
-                <tr key={`tch_${t.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
-                  <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
-                    {toTitleCase(t.name || t.displayName || 'Faculty Member')}
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">
-                    {t.email || '—'}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    {isEditingThis ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="tel"
-                          maxLength={10}
-                          placeholder="10-digit mobile"
-                          value={phoneInputVal}
-                          onChange={e => setPhoneInputVal(e.target.value.replace(/\D/g, ''))}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') savePhone(t);
-                            if (e.key === 'Escape') cancelEditPhone();
-                          }}
-                          autoFocus
-                          className="w-28 px-2 py-0.5 rounded-lg border border-indigo-400 bg-white dark:bg-slate-950 font-mono text-xs font-bold outline-none shadow-2xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => savePhone(t)}
-                          disabled={savingPhoneId === t.id}
-                          className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-2xs"
-                          title="Save mobile to Firebase"
-                        >
-                          <Check size={11} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelEditPhone}
-                          className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 text-slate-600 cursor-pointer"
-                          title="Cancel"
-                        >
-                          <X size={11} />
-                        </button>
+                return (
+                  <tr key={`tch_${t.id || t.email || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                        {toTitleCase(t.name || t.displayName || 'Faculty Member')}
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        {phone ? (
-                          <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1">
-                            <span className="text-slate-400 text-[10px]">+91</span> {phone}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">No mobile</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => startEditPhone(t)}
-                          className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                          title="Edit & Save mobile to Firebase"
-                        >
-                          <Edit2 size={11} />
-                        </button>
+                      <div className="font-mono text-slate-500 text-[10.5px]">
+                        {t.email || '—'}
                       </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
-                      {t.role || 'Teacher'}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    {teacherSubmissions.length > 0 ? (
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {isEditingThis ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="tel"
+                            maxLength={10}
+                            placeholder="10-digit mobile"
+                            value={phoneInputVal}
+                            onChange={e => setPhoneInputVal(e.target.value.replace(/\D/g, ''))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') savePhone(t);
+                              if (e.key === 'Escape') cancelEditPhone();
+                            }}
+                            autoFocus
+                            className="w-28 px-2 py-0.5 rounded-lg border border-indigo-400 bg-white dark:bg-slate-950 font-mono text-xs font-bold outline-none shadow-2xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => savePhone(t)}
+                            disabled={savingPhoneId === (t.id || t.email)}
+                            className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-2xs"
+                            title="Save mobile to Firebase"
+                          >
+                            <Check size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditPhone}
+                            className="p-1 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 text-slate-600 cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          {phone ? (
+                            <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1">
+                              <span className="text-slate-400 text-[10px]">+91</span> {phone}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">No mobile</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => startEditPhone(t)}
+                            className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Edit & Save mobile to Firebase"
+                          >
+                            <Edit2 size={11} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
+                        {t.role || 'Teacher'}
+                      </span>
+                    </td>
+                    {/* COMBINED TWO-SUBMISSIONS IN ONE ROW */}
+                    <td className="py-2.5 px-3">
+                      {subjectGroups.length > 0 ? (
+                        <div className="flex flex-col gap-1.5">
+                          {subjectGroups.map((g, gIdx) => {
+                            const intCount = g.internal ? (Array.isArray(g.internal.records) ? g.internal.records.length : Object.keys(g.internal).filter(k => k.match(/^\d+\//)).length) : 0;
+                            const extCount = g.external ? (Array.isArray(g.external.records) ? g.external.records.length : Object.keys(g.external).filter(k => k.match(/^\d+\//)).length) : 0;
+
+                            return (
+                              <div key={gIdx} className="flex items-center gap-2 flex-wrap bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
+                                <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
+                                  {g.cls} • {g.name} ({g.code}):
+                                </span>
+
+                                {/* Internal Submission Button */}
+                                {g.internal ? (
+                                  <div className="inline-flex items-center gap-1">
+                                    <button
+                                      onClick={() => setSelSub(g.internal)}
+                                      className="px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-mono font-bold text-[11px] cursor-pointer border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-1 shadow-2xs"
+                                      title="Inspect Internal Practical Awards"
+                                    >
+                                      <Eye size={10} /> Internal ({intCount})
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteSubmission(g.internal.id)}
+                                      className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
+                                      title="Delete Internal Submission"
+                                    >
+                                      <Trash2 size={10} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">No Internal</span>
+                                )}
+
+                                <span className="text-slate-300 dark:text-slate-700">•</span>
+
+                                {/* External Submission Button */}
+                                {g.external ? (
+                                  <div className="inline-flex items-center gap-1">
+                                    <button
+                                      onClick={() => setSelSub(g.external)}
+                                      className="px-2.5 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-mono font-bold text-[11px] cursor-pointer border border-amber-200 dark:border-amber-800 inline-flex items-center gap-1 shadow-2xs"
+                                      title="Inspect External Practical Awards"
+                                    >
+                                      <Eye size={10} /> External ({extCount})
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteSubmission(g.external.id)}
+                                      className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
+                                      title="Delete External Submission"
+                                    >
+                                      <Trash2 size={10} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">No External</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="font-mono text-slate-400 text-[11px] italic">0 submissions (Pending)</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
                       <button
-                        onClick={() => setSelSub(teacherSubmissions[0])}
-                        className="px-2.5 py-0.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 font-mono font-bold text-xs cursor-pointer border border-indigo-200 dark:border-indigo-800 inline-flex items-center gap-1"
-                        title="Click to view submitted award records"
+                        onClick={() => handleEmailShare(t)}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                        title="Send email notice"
                       >
-                        <Eye size={10} /> {teacherSubmissions.length} View
+                        <Mail size={11} /> Email
                       </button>
-                    ) : (
-                      <span className="font-mono text-slate-400">0</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
-                    <button
-                      onClick={() => handleEmailShare(t)}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                      title="Send email notice"
-                    >
-                      <Mail size={11} /> Email
-                    </button>
-                    <button
-                      onClick={() => handleWhatsAppShare(t)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs transition-all ${
-                        phone
-                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                      }`}
-                      title={phone ? `Open WhatsApp chat with ${phone}` : 'Add mobile and open WhatsApp'}
-                    >
-                      <MessageCircle size={11} /> WhatsApp
-                    </button>
+                      <button
+                        onClick={() => handleWhatsAppShare(t)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs transition-all ${
+                          phone
+                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                        }`}
+                        title={phone ? `Open WhatsApp chat with ${phone}` : 'Add mobile and open WhatsApp'}
+                      >
+                        <MessageCircle size={11} /> WhatsApp
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {facultyMembers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                    No faculty members found matching search query.
                   </td>
                 </tr>
-              );
-            })}
-            {facultyMembers.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
-                  No faculty members found matching search query.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* VIEW 2: FLAT AUDIT DOCUMENT LOG */}
+      {viewMode === 'documents' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <select
+              value={filterClass}
+              onChange={e => setFilterClass(e.target.value)}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+            >
+              <option value="all">All Classes</option>
+              <option value="11th">Class 11th</option>
+              <option value="12th">Class 12th</option>
+            </select>
+            <select
+              value={filterSubject}
+              onChange={e => setFilterSubject(e.target.value)}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold"
+            >
+              <option value="all">All Subjects</option>
+              {CODES.map(c => <option key={c} value={c}>{NAMES[c]} ({c})</option>)}
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-500">
+                <tr>
+                  <th className="py-2.5 px-3 text-center w-10">#</th>
+                  <th className="py-2.5 px-3">Document ID / Title</th>
+                  <th className="py-2.5 px-3">Class & Subject</th>
+                  <th className="py-2.5 px-3">Session & Type</th>
+                  <th className="py-2.5 px-3">Submitted By</th>
+                  <th className="py-2.5 px-3 text-center">Records</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
+                {filteredDocs.map((s, idx) => {
+                  const recCount = Array.isArray(s.records) ? s.records.length : Object.keys(s).filter(k => k.match(/^\d+\//)).length;
+                  const sessStr = normalizePracticalSession(s.sessionText || s.session || s.Session || s.yearSuffix || '2025-26');
+                  return (
+                    <tr key={`pract_row_${s.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
+                        {s.className || s.Class || 'Class'} • {s.subjectName || s.Subject || NAMES[s.subjectCode] || s.subjectCode || 'Subject'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          {sessStr} • {toTitleCase(s.practicalType || 'Internal')}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-slate-800 dark:text-slate-200">{s.teacherName || s['Teacher Name'] || 'Teacher'}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{s.teacherEmail || s.Email || '-'}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{recCount}</td>
+                      <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => setSelSub(s)}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                        >
+                          <Eye size={12} /> View Awards
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSubmission(s.id)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredDocs.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                      No submissions found matching selected filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
