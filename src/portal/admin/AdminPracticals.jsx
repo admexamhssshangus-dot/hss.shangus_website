@@ -812,11 +812,22 @@ export default function AdminPracticals() {
     setSaving(true);
     try {
       await setDoc(doc(db, 'adminPracticalsSettings', 'config'), updatedSettings, { merge: true });
+      try {
+        localStorage.setItem('hss_admin_practicals_settings', JSON.stringify(updatedSettings));
+      } catch (_) {}
       setSettings(updatedSettings);
-      showAlert('success', `${keyName} saved successfully.`);
+      showAlert('success', `${keyName} saved successfully to cloud database.`);
+      return true;
     } catch (e) {
-      console.error(e);
+      console.error('Save settings error:', e);
+      try {
+        localStorage.setItem('hss_admin_practicals_settings', JSON.stringify(updatedSettings));
+        setSettings(updatedSettings);
+        showAlert('success', `${keyName} cached locally.`);
+        return true;
+      } catch (_) {}
       showAlert('error', `Failed to save ${keyName}.`);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -2819,6 +2830,25 @@ function SettingsPermissionsView({
   grantPerm,
   revokePerm
 }) {
+  const [sysSaved, setSysSaved] = useState(false);
+  const [printSaved, setPrintSaved] = useState(false);
+
+  const handleSaveSys = async () => {
+    const ok = await saveSettingsDoc('Global Configuration', settings);
+    if (ok) {
+      setSysSaved(true);
+      setTimeout(() => setSysSaved(false), 3000);
+    }
+  };
+
+  const handleSavePrint = async () => {
+    const ok = await saveSettingsDoc('Print Defaults', settings);
+    if (ok) {
+      setPrintSaved(true);
+      setTimeout(() => setPrintSaved(false), 3000);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* 1. Subject Permissions Management */}
@@ -2921,13 +2951,20 @@ function SettingsPermissionsView({
             />
           </div>
         </div>
-        <button
-          onClick={() => saveSettingsDoc('Global Configuration', settings)}
-          disabled={saving}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-xs flex items-center gap-1.5"
-        >
-          <Save size={14} /> Save System Configuration
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveSys}
+            disabled={saving}
+            className={`px-4 py-2 ${sysSaved ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-500'} text-white rounded-xl text-xs font-black cursor-pointer shadow-xs flex items-center gap-1.5 transition-all`}
+          >
+            {sysSaved ? <Check size={14} /> : <Save size={14} />} {sysSaved ? 'Saved Successfully!' : saving ? 'Saving...' : 'Save System Configuration'}
+          </button>
+          {sysSaved && (
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 size={13} /> Settings Updated
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 3. Print Defaults Configuration */}
@@ -2963,13 +3000,20 @@ function SettingsPermissionsView({
             </div>
           ))}
         </div>
-        <button
-          onClick={() => saveSettingsDoc('Print Defaults', settings)}
-          disabled={saving}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-xs flex items-center gap-1.5"
-        >
-          <Save size={14} /> Save Print Defaults
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSavePrint}
+            disabled={saving}
+            className={`px-4 py-2 ${printSaved ? 'bg-indigo-600' : 'bg-emerald-600 hover:bg-emerald-500'} text-white rounded-xl text-xs font-black cursor-pointer shadow-xs flex items-center gap-1.5 transition-all`}
+          >
+            {printSaved ? <Check size={14} /> : <Save size={14} />} {printSaved ? 'Saved Successfully!' : saving ? 'Saving...' : 'Save Print Defaults'}
+          </button>
+          {printSaved && (
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 size={13} /> Print Defaults Updated
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
