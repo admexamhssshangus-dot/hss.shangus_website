@@ -359,19 +359,24 @@ export function parseCsvText(text) {
 
 /**
  * Parse and validate practicals spreadsheet (Excel .xlsx / .xls or CSV text)
+ * Supporting both Flat row format and Multi-Section Matrix format (e.g. prac_data sheet).
  * Returning grouped Firestore submission documents.
  */
 export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true) {
   let rawRows = [];
+  let sheetNameUsed = '';
 
   try {
     if (isBinary) {
       const wb = XLSX.read(fileData, { type: 'array', cellText: true, raw: false });
-      const firstSheetName = wb.SheetNames[0];
-      if (!firstSheetName) {
+      
+      // Auto-detect 'prac_data' or 'practicals' or use first sheet
+      const targetSheet = wb.SheetNames.find(n => n.toLowerCase().includes('prac')) || wb.SheetNames[0];
+      if (!targetSheet) {
         return { success: false, error: 'Spreadsheet has no valid sheets.' };
       }
-      const ws = wb.Sheets[firstSheetName];
+      sheetNameUsed = targetSheet;
+      const ws = wb.Sheets[targetSheet];
       rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
     } else {
       rawRows = parseCsvText(String(fileData || ''));
@@ -384,9 +389,155 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
     return { success: false, error: 'File is empty or missing data rows.' };
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // 1. AUTO-DETECT MATRIX FORMAT (e.g. prac_data sheet)
+  // ─────────────────────────────────────────────────────────────
+  const isMatrixFormat = rawRows.some(row => {
+    if (!Array.isArray(row)) return false;
+    const rowStr = row.slice(0, 8).map(c => String(c || '').toLowerCase()).join(' ');
+    return (rowStr.includes('timestamp') && rowStr.includes('teacher')) || 
+           (rowStr.includes('email') && rowStr.includes('subject') && rowStr.includes('practicaltype'));
+  });
+
+  if (isMatrixFormat) {
+    const documentsMap = new Map();
+    const errors = [];
+    let currentSectionStudents = [];
+    let currentHeaderRow = -1;
+
+    for (let r = 0; r < rawRows.length; r++) {
+      const row = rawRows[r] || [];
+      const rowStr = row.slice(0, 8).map(c => String(c || '').toLowerCase()).join(' ');
+
+      // Detect Section Header Row (contains 'Timestamp' / 'Teacher Name' / 'Class' / 'Subject')
+      if ((rowStr.includes('timestamp') && rowStr.includes('teacher')) || (rowStr.includes('email') && rowStr.includes('class') && rowStr.includes('subject'))) {
+        currentHeaderRow = r;
+        currentSectionStudents = [];
+
+        const regRow = r >= 2 ? rawRows[r - 2] : null;
+        const examRow = r >= 1 ? rawRows[r - 1] : null;
+
+        for (let c = 7; c < row.length; c++) {
+          const sName = String(row[c] || '').trim();
+          const sReg = regRow ? cleanRegistrationNumber(regRow[c]) : '';
+          const sExam = examRow ? String(examRow[c] || '').trim() : '';
+
+          if (sName && sName.toLowerCase() !== 'none' && sName.toLowerCase() !== 'student name') {
+            currentSectionStudents.push({
+              col: c,
+              name: sName,
+              regNo: sReg || '—',
+              examRollNo: sExam || '—'
+            });
+          }
+        }
+        continue;
+      }
+
+      // If we are under an active section, check if this is a teacher submission row
+      if (currentHeaderRow !== -1 && r > currentHeaderRow) {
+        const timestamp = String(row[0] || '').trim();
+        const email = String(row[1] || '').trim();
+        const teacher = String(row[2] || '').trim();
+        const clsRaw = String(row[3] || '').trim();
+        const subjRaw = String(row[4] || '').trim();
+        const ptypeRaw = String(row[5] || '').trim();
+        const sessRaw = String(row[6] || '').trim();
+
+        if (clsRaw && subjRaw && (email || teacher)) {
+          // If this row itself is another header row, skip
+          if (email.toLowerCase().includes('email') || teacher.toLowerCase().includes('teacher')) {
+            continue;
+          }
+
+          const cls = clsRaw.toLowerCase().includes('12') ? '12th' : '11th';
+          const evalType = ptypeRaw.toLowerCase().includes('ext') ? 'external' : 'internal';
+          const sess = sessRaw || '2024-25 (Oct-Nov)';
+
+          // Extract Clean Subject Code
+          let subCode = 'XX';
+          const matchCode = subjRaw.match(/\(([A-Za-z]+)\)/);
+          if (matchCode) {
+            subCode = matchCode[1].toUpperCase();
+          } else {
+            const token = subjRaw.split(/[\s,]+/)[0].toUpperCase();
+            subCode = VALID_SUBJECT_CODES[token] ? token : (VALID_SUBJECT_CODES[subjRaw.toUpperCase()] ? subjRaw.toUpperCase() : token.substring(0, 3));
+          }
+
+          const subName = subjRaw || VALID_SUBJECT_CODES[subCode] || subCode;
+          const docId = `${cls}_${subCode}_${evalType}_${sess}`;
+
+          const records = [];
+          currentSectionStudents.forEach(st => {
+            const mVal = String(row[st.col] || '').trim().toUpperCase();
+            if (mVal && mVal !== 'NONE' && mVal !== 'NULL' && mVal !== 'UNDEFINED') {
+              records.push({
+                sNo: records.length + 1,
+                classRollNo: '—',
+                examRollNo: st.examRollNo || '—',
+                boardRegNo: st.regNo || '—',
+                name: st.name,
+                studentName: st.name,
+                parentName: '—',
+                stream: evalType === 'external' ? 'External / Outside' : 'Science',
+                practicalMarks: mVal,
+                totalMarks: mVal
+              });
+            }
+          });
+
+          if (records.length > 0) {
+            documentsMap.set(docId, {
+              id: docId,
+              className: cls,
+              sessionText: sess,
+              session: sess,
+              practicalType: evalType,
+              subjectCode: subCode,
+              subjectName: subName,
+              teacherName: teacher || 'Faculty Member',
+              teacherEmail: email || '',
+              timestamp: timestamp || new Date().toLocaleString(),
+              records: records
+            });
+          }
+        }
+      }
+    }
+
+    const documents = Array.from(documentsMap.values());
+    const previewRecords = [];
+    documents.forEach(d => {
+      d.records.forEach(r => {
+        previewRecords.push({
+          ...r,
+          className: d.className,
+          sessionText: d.sessionText,
+          subjectCode: d.subjectCode,
+          subjectName: d.subjectName,
+          practicalType: d.practicalType
+        });
+      });
+    });
+
+    return {
+      success: true,
+      mode: 'matrix',
+      sheetName: sheetNameUsed,
+      totalRows: rawRows.length,
+      validRecords: previewRecords.length,
+      documentsCount: documents.length,
+      documents,
+      previewRecords,
+      errors
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2. STANDARD FLAT ROW FORMAT
+  // ─────────────────────────────────────────────────────────────
   const rawHeaders = (rawRows[0] || []).map(h => String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''));
   
-  // Header matching helper with exact preference and specific primary aliases
   const findColIdx = (primaryAliases, fallbackAliases = []) => {
     let idx = rawHeaders.findIndex(h => primaryAliases.includes(h));
     if (idx !== -1) return idx;
@@ -463,15 +614,14 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
       continue;
     }
 
-    // Generate unique Document ID for Class + Subject + EvalType + Session
-    const sessSlug = sess.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const docId = `${cls}_${subCode.toLowerCase()}_${evalType}_${sessSlug}`;
+    const docId = `${cls}_${subCode}_${evalType}_${sess}`;
 
     if (!documentsMap.has(docId)) {
       documentsMap.set(docId, {
         id: docId,
         className: cls,
         sessionText: sess,
+        session: sess,
         practicalType: evalType,
         subjectCode: subCode,
         subjectName: subName,
@@ -490,6 +640,7 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
       examRollNo: examRoll || '—',
       boardRegNo: regNo || '—',
       name: stName,
+      studentName: stName,
       parentName: fatherName,
       stream: stream,
       subjects: subjects,
@@ -516,6 +667,7 @@ export function parseAndValidatePracticalsSpreadsheet(fileData, isBinary = true)
 
   return {
     success: true,
+    mode: 'flat',
     totalRows,
     validRecords: previewRecords.length,
     documentsCount: documents.length,
