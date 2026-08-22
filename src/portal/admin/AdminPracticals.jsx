@@ -1096,7 +1096,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
   const [bioMode, setBioMode] = useState('separate'); // 'separate' (BO & ZO) | 'combined' (BI)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState('2025-26');
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState('approved');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('all');
   const [selectedRolls, setSelectedRolls] = useState(new Set());
   const [sortField, setSortField] = useState('roll');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -1125,23 +1125,38 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     setSelectedSubCodes(activeCodesList);
   }, [activeCodesList]);
 
-  const cSts = students.filter(st => {
-    const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
-    if (!classMatch) return false;
+  // Total students enrolled in this class and session regardless of approval status
+  const totalClassStudents = useMemo(() => {
+    return students.filter(st => {
+      const classMatch = isClassMatch(st.class || st.className || st.admittedClass || st['Admission sought for class'], cls);
+      if (!classMatch) return false;
 
-    const { isRejected, isApproved, isPending, hasRoll } = checkStudentApprovalState(st);
-    if (isRejected) return false;
+      const { isRejected } = checkStudentApprovalState(st);
+      if (isRejected) return false;
 
-    if (selectedStatusFilter === 'approved' && !isApproved) return false;
-    if (selectedStatusFilter === 'pending' && isApproved) return false;
+      if (selectedSession !== 'all') {
+        const sess = getStudentSession(st);
+        const matchesSess = isSessionMatch(sess, selectedSession);
+        if (!matchesSess) return false;
+      }
+      return true;
+    });
+  }, [students, cls, selectedSession]);
 
-    if (selectedSession !== 'all') {
-      const sess = getStudentSession(st);
-      const matchesSess = isSessionMatch(sess, selectedSession);
-      if (!matchesSess) return false;
-    }
-    return true;
-  });
+  const approvedCount = useMemo(() => {
+    return totalClassStudents.filter(st => checkStudentApprovalState(st).isApproved).length;
+  }, [totalClassStudents]);
+
+  const pendingCount = totalClassStudents.length - approvedCount;
+
+  const cSts = useMemo(() => {
+    return totalClassStudents.filter(st => {
+      const { isApproved } = checkStudentApprovalState(st);
+      if (selectedStatusFilter === 'approved' && !isApproved) return false;
+      if (selectedStatusFilter === 'pending' && isApproved) return false;
+      return true;
+    });
+  }, [totalClassStudents, selectedStatusFilter]);
 
   useEffect(() => {
     if (cSts.length > 0) {
@@ -1376,7 +1391,15 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               Class {cls} - Consolidated Awards
             </h2>
             <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-              <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong> / {cSts.length} Students • <strong className="text-emerald-600">{activeSubjects.length}</strong> Subs Active
+              <strong className="text-indigo-600 dark:text-indigo-400">{selectedStudentsList.length}</strong> / {cSts.length} Students
+              {pendingCount > 0 && selectedStatusFilter === 'approved' && (
+                <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">({pendingCount} unassigned hidden)</span>
+              )}
+              {pendingCount > 0 && selectedStatusFilter === 'all' && (
+                <span className="text-slate-500 font-semibold ml-1">({approvedCount} with roll • {pendingCount} pending)</span>
+              )}
+              {' • '}
+              <strong className="text-emerald-600">{activeSubjects.length}</strong> Subs Active
             </span>
           </div>
 
@@ -1557,9 +1580,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               onChange={e => setSelectedStatusFilter(e.target.value)}
               className="px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-black outline-none cursor-pointer shadow-2xs"
             >
-              <option value="approved">Approved & Roll Only</option>
-              <option value="pending">Pending Only</option>
-              <option value="all">All Students</option>
+              <option value="all">All Students ({totalClassStudents.length})</option>
+              <option value="approved">Approved & Roll Only ({approvedCount})</option>
+              <option value="pending">Pending Roll ({pendingCount})</option>
             </select>
           </div>
 
