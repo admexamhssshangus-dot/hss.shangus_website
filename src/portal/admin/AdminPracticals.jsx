@@ -103,11 +103,18 @@ export function getStudentSubjectsStr(st, cls) {
   const is12 = clsStr.includes('12');
   const is10 = clsStr.includes('10');
 
+  const multiSubCols = [
+    st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+    st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+    st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+  ].filter(Boolean).join(', ');
+
   return String(
     st['Subs'] ||
     st['subs'] ||
-    (is12 ? (st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th'] || st['Subjects to be taken in Class 12th']) : '') ||
-    (is10 ? (st['Subjects Studied in Class 9th'] || st['Subjects in Class 9th'] || st['Subjects to be taken in Class 10th']) : '') ||
+    (is12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+    (is10 ? (st['Subjects to be taken in Class 10th'] || st['Subjects Studied in Class 9th'] || st['Subjects in Class 9th']) : '') ||
+    multiSubCols ||
     st['Subjects Studied in Class 11th'] ||
     st['Subjects to be taken in Class 11th'] ||
     st['Subjects Studied in Class 9th'] ||
