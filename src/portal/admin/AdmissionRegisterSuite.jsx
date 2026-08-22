@@ -3520,6 +3520,28 @@ export default function AdmissionRegisterSuite({
 
                         <div className="overflow-x-auto">
                           <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
+                            <colgroup>
+                              <col style={{ width: `${columnWidths.sno || 26}px` }} />
+                              <col style={{ width: `${columnWidths.photo || 40}px` }} />
+                              <col style={{ width: `${columnWidths.rollNo || 34}px` }} />
+                              <col style={{ width: `${columnWidths.formNo || 62}px` }} />
+                              <col style={{ width: `${columnWidths.admDate || 48}px` }} />
+                              <col style={{ width: `${columnWidths.admNo || 56}px` }} />
+                              <col style={{ width: `${columnWidths.class || 32}px` }} />
+                              <col style={{ width: `${columnWidths.boardReg || 96}px` }} />
+                              <col style={{ width: `${columnWidths.name || 112}px` }} />
+                              <col style={{ width: `${columnWidths.father || 90}px` }} />
+                              <col style={{ width: `${columnWidths.mother || 90}px` }} />
+                              <col style={{ width: `${columnWidths.dobFigures || 56}px` }} />
+                              <col style={{ width: `${columnWidths.dobWords || 96}px` }} />
+                              <col style={{ width: `${columnWidths.gender || 36}px` }} />
+                              <col style={{ width: `${columnWidths.village || 64}px` }} />
+                              <col style={{ width: `${columnWidths.block || 54}px` }} />
+                              <col style={{ width: `${columnWidths.tehsil || 54}px` }} />
+                              <col style={{ width: `${columnWidths.district || 54}px` }} />
+                              <col style={{ width: `${columnWidths.mobile || 66}px` }} />
+                              <col style={{ width: `${columnWidths.parentMobile || 66}px` }} />
+                            </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
                                 <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
@@ -3668,6 +3690,24 @@ export default function AdmissionRegisterSuite({
 
                         <div className="overflow-x-auto">
                           <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
+                            <colgroup>
+                              <col style={{ width: `${columnWidths.p2_stream || 48}px` }} />
+                              <col style={{ width: `${columnWidths.p2_subs || 96}px` }} />
+                              <col style={{ width: `${columnWidths.p2_aadhar || 80}px` }} />
+                              <col style={{ width: `${columnWidths.p2_cat || 32}px` }} />
+                              <col style={{ width: `${columnWidths.p2_socio || 32}px` }} />
+                              <col style={{ width: `${columnWidths.p2_blood || 32}px` }} />
+                              <col style={{ width: `${columnWidths.p2_account || 86}px` }} />
+                              <col style={{ width: `${columnWidths.p2_prevSchool || 86}px` }} />
+                              <col style={{ width: `${columnWidths.p2_prevRoll || 48}px` }} />
+                              <col style={{ width: `${columnWidths.p2_prevResult || 48}px` }} />
+                              <col style={{ width: `${columnWidths.p2_pen || 92}px` }} />
+                              <col style={{ width: `${columnWidths.p2_prevCC || 76}px` }} />
+                              <col style={{ width: `${columnWidths.p2_withdrawal || 56}px` }} />
+                              <col style={{ width: `${columnWidths.p2_issuedCC || 76}px` }} />
+                              <col style={{ width: `${columnWidths.p2_receipt || 140}px` }} />
+                              <col style={{ width: `${columnWidths.p2_remarks || 80}px` }} />
+                            </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
                                 <ResizableTh colKey="p2_stream" width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">STREAM</ResizableTh>
