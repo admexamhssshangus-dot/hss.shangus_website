@@ -3830,10 +3830,10 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   {/* Footer Signatures */}
-                  <div className="flex justify-between items-center mt-6 pt-1 text-xs font-black text-red-700">
-                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
-                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
-                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
+                  <div className="signature-footer flex justify-between items-center mt-6 pt-1 text-xs font-black text-red-700">
+                    <div className="signature-block text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
+                    <div className="signature-block text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
+                    <div className="signature-block text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
                   </div>
                 </div>
               )}
@@ -3890,10 +3890,10 @@ export default function AdmissionRegisterSuite({
                   </div>
 
                   {/* Footer Signatures */}
-                  <div className="flex justify-between items-center mt-8 pt-1 text-xs font-black text-red-700">
-                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
-                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
-                    <div className="text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
+                  <div className="signature-footer flex justify-between items-center mt-8 pt-1 text-xs font-black text-red-700">
+                    <div className="signature-block text-center w-36 border-t-2 border-red-700 pt-0.5">Incharge Admissions</div>
+                    <div className="signature-block text-center w-36 border-t-2 border-red-700 pt-0.5">Checked By</div>
+                    <div className="signature-block text-center w-36 border-t-2 border-red-700 pt-0.5">Principal</div>
                   </div>
                 </div>
               )}
