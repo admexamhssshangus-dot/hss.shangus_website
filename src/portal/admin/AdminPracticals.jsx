@@ -122,17 +122,55 @@ export function getStudentSubjectsStr(st, cls) {
 }
 
 export function getStudentStreamStr(st, cls = '') {
-  if (!st) return '';
-  const clsStr = String(cls || st.Class || st.class || '').toLowerCase();
-  const is12 = clsStr.includes('12');
+  if (!st) return 'Science';
+  const c = String(cls || st.Class || st.class || '').toLowerCase();
+  if (c.includes('9') || c.includes('10')) return 'General';
 
-  const s11 = st['Stream Studied in Class 11th'] || st['Stream for Class 11th'] || st['Stream (Class 11th)'] || st['Stream in Class 11th'];
-  const s12 = st['Stream for Class 12th'] || st['Stream (Class 12th)'] || st['Stream in Class 12th'];
-  const s9 = st['Stream Studied in Class 9th'] || st['Stream for Class 9th'];
-  const gen = st['Stream'] || st['stream'] || st['Selected Stream'] || st['Stream (Applied)'] || st['Stream for Admission'];
+  // 1. Explicit Stream property
+  const explicit = String(
+    st['Stream for Class 12th'] ||
+    st['Stream (Class 12th)'] ||
+    st['Stream in Class 12th'] ||
+    st['Stream for Class 11th'] ||
+    st['Stream (Class 11th)'] ||
+    st['Stream in Class 11th'] ||
+    st['Stream Studied in Class 11th'] ||
+    st['Stream'] ||
+    st['stream'] ||
+    st['Selected Stream'] ||
+    st['Stream (Applied)'] ||
+    st['Stream for Admission'] ||
+    ''
+  ).trim();
 
-  let res = is12 ? (s12 || s11 || gen) : (s11 || gen || s12 || s9);
-  return String(res || '').toLowerCase().trim();
+  if (explicit && !/^(N\/A|#N\/A|—|-|null|undefined|general)$/i.test(explicit)) {
+    const lower = explicit.toLowerCase();
+    if (lower.includes('med') || lower.includes('non') || lower.includes('sci')) return 'Science';
+    if (lower.includes('art') || lower.includes('hum')) return 'Humanities';
+    if (lower.includes('com')) return 'Commerce';
+  }
+
+  // 2. Infer Stream from Subjects with precision
+  const norm = (
+    String(st.subjects || st['Subjects'] || st.Subs || st['Subs'] || st.subject_combination || st.Subject || st.subs || '') + ' ' +
+    String(st.Subjects1 || '') + ' ' + String(st.Subjects2 || '') + ' ' + String(st.Subjects3 || '') + ' ' + String(st.Subjects4 || '') + ' ' + String(st.Subjects5 || '') + ' ' +
+    String(st['Subjects to be taken in Class 11th'] || '') + ' ' + String(st['Subjects to be taken in Class 12th'] || '') + ' ' +
+    String(st['Subjects Studied in Class 11th'] || '')
+  ).toLowerCase();
+
+  const hasPhysics = /\b(physics|phys)\b/i.test(norm) || /(^|[\s,/\-])ph([\s,/\-]|$)/i.test(norm);
+  const hasChemistry = /\b(chemistry|chem)\b/i.test(norm) || /(^|[\s,/\-])ch([\s,/\-]|$)/i.test(norm);
+  const hasBio = /\b(biology|botany|zoology|bio|bot|zoo)\b/i.test(norm) || /(^|[\s,/\-])(bi|bo|zo)([\s,/\-]|$)/i.test(norm);
+
+  if (hasPhysics || hasChemistry || hasBio) return 'Science';
+
+  const hasCommerce = /\b(commerce|accountancy|business studies|account)\b/i.test(norm) || /(^|[\s,/\-])(cm|bs|ac)([\s,/\-]|$)/i.test(norm);
+  if (hasCommerce) return 'Commerce';
+
+  const hasArts = /\b(political|history|education|sociology|urdu|arabic|persian|psychology)\b/i.test(norm) || /(^|[\s,/\-])(ps|ht|ed|so|ur|ar|pe|py)\b/i.test(norm);
+  if (hasArts) return 'Humanities';
+
+  return 'Humanities';
 }
 
 export function isStudentEnrolledInSubject(st, subCode, cls) {
@@ -658,7 +696,7 @@ export default function AdminPracticals() {
         }, 'admissions');
       });
 
-      // 3. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions
+      // 3. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions (NO duplicate student injections)
       parsedSubmissions.forEach(sub => {
         const subCls = sub.className || (String(sub.id).startsWith('12') ? '12th' : '11th');
         const subSess = normalizePracticalSession(sub.sessionText || sub.session || '2024-25 (Oct-Nov)');
@@ -669,7 +707,6 @@ export default function AdminPracticals() {
           const rName = cleanStr(r.name || r.studentName);
           const rFather = cleanStr(r.parentage || r.parentName || r.fatherName);
 
-          // Find if this student already exists in studentsMap to enrich them
           const clsNum = subCls.replace(/[^0-9]/g, '');
           let existingId = null;
           if (rawReg && indexByReg.has(`reg_${rawReg}_cls_${clsNum}_sess_${subSess}`)) {
@@ -690,44 +727,6 @@ export default function AdminPracticals() {
               boardRegNo: (rawReg && rawReg !== '—') ? rawReg : (existing.boardRegNo || existing['Board Registration Number'] || '—'),
             });
           }
-        });
-      });
-
-      // 4. Final Processing of submissions to list
-      parsedSubmissions.forEach(sub => {
-        const subCls = sub.className || (String(sub.id).startsWith('12') ? '12th' : '11th');
-        const subSess = normalizePracticalSession(sub.sessionText || sub.session || '2024-25 (Oct-Nov)');
-        const isExternal = sub.practicalType === 'external';
-
-        (sub.records || []).forEach(r => {
-          const rawReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
-          const rawExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
-          let rawClassRoll = String(r.classRollNo || r.classRoll || r['Class Roll No'] || r.sNo || '').trim();
-          
-          if (/^\d{8,}$/.test(rawClassRoll)) {
-            rawClassRoll = String(r.sNo || '').trim() || '—';
-          }
-
-          const rawSt = {
-            "Student's Name (as per school records)": r.name || r.studentName,
-            "Father's/Guardian's Name (as per school records)": r.parentage || r.parentName || r.fatherName,
-            'Class Roll No': rawClassRoll && rawClassRoll !== '—' ? rawClassRoll : (!isExternal && r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? String(r.rollNo) : '—'),
-            'Exam R.No. (Current)': rawExam,
-            'Board Registration Number': rawReg,
-            'Subjects': r.subjects || '',
-            'Subs': r.subjects || '',
-            'Class': subCls,
-            'class': subCls,
-            'Session': subSess,
-            'session': subSess,
-            'Status': 'Approved',
-            'isApproved': true,
-            'isExternalCandidate': isExternal,
-          };
-          if (r.stream) {
-            rawSt['Stream'] = r.stream;
-          }
-          addOrMergeStudent(rawSt, 'practicalsData');
         });
       });
 
