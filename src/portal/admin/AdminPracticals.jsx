@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
   Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Check, Search,
-  Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield
+  Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield,
+  ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers
 } from 'lucide-react';
 import { db, functions } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -1164,6 +1165,21 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
   const [sortField, setSortField] = useState('roll');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showOptsModal, setShowOptsModal] = useState(false);
+  const [showFilterTray, setShowFilterTray] = useState(false);
+  const [showSubjectsDropdown, setShowSubjectsDropdown] = useState(false);
+  const subjectsDropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (subjectsDropdownRef.current && !subjectsDropdownRef.current.contains(e.target)) {
+        setShowSubjectsDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [localPrintOpts, setLocalPrintOpts] = useState({
     sessionText: getPD(cls).sessionText || 'Annual Regular 2025',
     instName: getPD(cls).instName || 'Govt. Higher Secondary School Shangus',
@@ -1468,9 +1484,9 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     <div className="space-y-2.5 animate-in fade-in duration-300">
       {/* Unified Compact Control Panel Card */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-2.5 sm:p-3 shadow-2xs space-y-2">
-        {/* GROUP 1: Title, Count & Print Actions Bar */}
+        {/* UNIFIED COMPACT TOOLBAR */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-2">
-          {/* Left: Summary Title & Badges */}
+          {/* Left: Summary Title & Status Badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight">
               Class {cls} - Consolidated Awards
@@ -1488,227 +1504,276 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
             </span>
           </div>
 
-          {/* Right: Print & Export Actions Group */}
-          <div className="flex flex-wrap items-center gap-1">
-            <button
-              onClick={() => {
-                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                if (!listToPrint || listToPrint.length === 0) {
-                  alert(`No student records available for Class ${cls}.`);
-                  return;
-                }
-                exportCurrentRosterToExcel({
-                  className: cls,
-                  session: localPrintOpts.sessionText,
-                  students: listToPrint,
-                  subjectCode: activeSubjects[0] || 'BO',
-                  evaluationType: localPrintOpts.practicalType
-                });
-              }}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-slate-200 dark:border-slate-700 shadow-2xs"
-              title="Export current students roster to Excel (.xlsx) for offline grading"
-            >
-              <FileSpreadsheet size={12} /> Export Excel
-            </button>
-            <button
-              onClick={() => {
-                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                if (!listToPrint || listToPrint.length === 0) {
-                  alert(`No student records available to print for Class ${cls}.`);
-                  return;
-                }
-                printConsolidatedAwardRoll({
-                  className: cls,
-                  session: localPrintOpts.sessionText,
-                  students: listToPrint,
-                  submissions,
-                  isExternal: localPrintOpts.practicalType === 'external',
-                  selectedSubjectCodes: activeSubjects,
-                  printDetails: localPrintOpts
-                });
-              }}
-              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-            >
-              <Printer size={12} /> Print Awards
-            </button>
-            <button
-              onClick={() => {
-                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                if (!listToPrint || listToPrint.length === 0) {
-                  alert(`No student records available to print for Class ${cls}.`);
-                  return;
-                }
-                printAttendanceSheet({
-                  className: cls,
-                  session: localPrintOpts.sessionText,
-                  students: listToPrint,
-                  isExternal: localPrintOpts.practicalType === 'external'
-                });
-              }}
-              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-            >
-              <ClipboardCheck size={12} /> Attendance
-            </button>
-            <button
-              onClick={() => {
-                const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
-                if (!listToPrint || listToPrint.length === 0) {
-                  alert(`No student records available to print for Class ${cls}.`);
-                  return;
-                }
-                printFailList({
-                  className: cls,
-                  session: localPrintOpts.sessionText,
-                  students: listToPrint,
-                  submissions,
-                  selectedSubjectCodes: activeSubjects,
-                  isExternal: localPrintOpts.practicalType === 'external'
-                });
-              }}
-              className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
-            >
-              <AlertTriangle size={12} /> Fail List
-            </button>
-            <button
-              onClick={() => setShowOptsModal(true)}
-              className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold cursor-pointer flex items-center border border-slate-200 dark:border-slate-700 shadow-2xs"
-              title="Print layout & in-charge options"
-            >
-              <Settings size={12} />
-            </button>
-          </div>
-        </div>
+          {/* Right: Compact Search, Dropdowns & Action Buttons */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Search Input */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search student, roll..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-36 sm:w-44 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs transition-all placeholder:text-[11px]"
+              />
+            </div>
 
-        {/* GROUP 2: Filters, Modes & Toggles Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs font-bold">
-          {/* Sub-Group: Search Bar */}
-          <div className="flex items-center gap-1.5 flex-1 min-w-[160px] max-w-xs">
-            <input
-              type="text"
-              placeholder="Search student, roll, reg..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-            />
-          </div>
-
-          {/* Sub-Group: Evaluation Type Segmented */}
-          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'internal' }))}
-              className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
-                localPrintOpts.practicalType === 'internal'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Internal
-            </button>
-            <button
-              type="button"
-              onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'external' }))}
-              className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
-                localPrintOpts.practicalType === 'external'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              External
-            </button>
-          </div>
-
-          {/* Sub-Group: Biology Split/Combine Segmented */}
-          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setBioMode('separate')}
-              className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
-                bioMode === 'separate'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Show Botany (BO) and Zoology (ZO) in separate columns"
-            >
-              BO & ZO
-            </button>
-            <button
-              type="button"
-              onClick={() => setBioMode('combined')}
-              className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
-                bioMode === 'combined'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Combine Botany and Zoology into single Biology (BI) column"
-            >
-              BI Combined
-            </button>
-          </div>
-
-          {/* Sub-Group: Dropdowns */}
-          <div className="flex items-center gap-1">
-            <select
-              value={selectedSession}
-              onChange={e => setSelectedSession(e.target.value)}
-              className="px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-black outline-none cursor-pointer shadow-2xs"
-            >
-              {availablePracticalSessions.map(sess => (
-                <option key={sess.id} value={sess.id}>
-                  {sess.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedStatusFilter}
-              onChange={e => setSelectedStatusFilter(e.target.value)}
-              className="px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-black outline-none cursor-pointer shadow-2xs"
-            >
-              <option value="all">All Students ({totalClassStudents.length})</option>
-              <option value="approved">Approved & Roll Only ({approvedCount})</option>
-              <option value="pending">Pending Roll ({pendingCount})</option>
-            </select>
-          </div>
-
-          {/* Sub-Group: Select All Toggle */}
-          <label className="flex items-center gap-1.5 cursor-pointer font-black text-slate-700 dark:text-slate-300 text-xs select-none pl-1">
-            <input
-              type="checkbox"
-              checked={selectedRolls.size === sortedStudents.length && sortedStudents.length > 0}
-              onChange={toggleAllStudents}
-              className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer"
-            />
-            <span>Select All ({sortedStudents.length})</span>
-          </label>
-        </div>
-
-        {/* GROUP 3: Compact Subject Badges Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-0.5">Subjects:</span>
-            {activeCodesList.map(code => (
+            {/* Subjects Multi-Select Dropdown */}
+            <div className="relative" ref={subjectsDropdownRef}>
               <button
-                key={code}
                 type="button"
-                onClick={() => toggleSubject(code)}
-                className={`px-1.5 py-0.5 rounded-md text-[10px] font-black transition-all cursor-pointer ${
-                  selectedSubCodes.includes(code)
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200'
-                }`}
+                onClick={() => setShowSubjectsDropdown(prev => !prev)}
+                className="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-black cursor-pointer flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800 shadow-2xs transition-all"
+                title="Select subjects to display in practical awards matrix"
               >
-                {code}
+                <BookOpen size={12} />
+                <span>Subjects ({selectedSubCodes.length}/{activeCodesList.length})</span>
+                <ChevronDown size={11} className={`transition-transform duration-200 ${showSubjectsDropdown ? 'rotate-180' : ''}`} />
               </button>
-            ))}
-          </div>
 
-          <div className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
-            <button type="button" onClick={() => setSelectedSubCodes(activeCodesList)} className="hover:underline cursor-pointer">Select All</button>
-            <span>•</span>
-            <button type="button" onClick={() => setSelectedSubCodes([])} className="hover:underline cursor-pointer">Clear</button>
+              {showSubjectsDropdown && (
+                <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-500">
+                    <span className="flex items-center gap-1"><BookOpen size={11} /> Practical Subjects</span>
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                      <button type="button" onClick={() => setSelectedSubCodes(activeCodesList)} className="hover:underline cursor-pointer">All</button>
+                      <span>•</span>
+                      <button type="button" onClick={() => setSelectedSubCodes([])} className="hover:underline cursor-pointer">Clear</button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
+                    {activeCodesList.map(code => {
+                      const isChecked = selectedSubCodes.includes(code);
+                      return (
+                        <label
+                          key={code}
+                          className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors text-xs select-none ${
+                            isChecked
+                              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-white font-bold'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-500'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleSubject(code)}
+                              className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer"
+                            />
+                            <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-8">{code}</span>
+                            <span className="text-[11px] truncate max-w-[130px]">{NAMES[code] || code}</span>
+                          </div>
+                          {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Collapsible Filters Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilterTray(prev => !prev)}
+              className={`px-2.5 py-1 rounded-xl text-[11px] font-black cursor-pointer flex items-center gap-1.5 border shadow-2xs transition-all ${
+                showFilterTray || selectedStatusFilter !== 'approved' || selectedSession !== '2025-26' || localPrintOpts.practicalType === 'external'
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 dark:shadow-none'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+              title="Toggle filters for evaluation type, session, and student approval status"
+            >
+              <Filter size={11} />
+              <span>Filters</span>
+              <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterTray ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Export & Print Action Buttons */}
+            <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => {
+                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                  if (!listToPrint || listToPrint.length === 0) {
+                    alert(`No student records available for Class ${cls}.`);
+                    return;
+                  }
+                  exportCurrentRosterToExcel({
+                    className: cls,
+                    session: localPrintOpts.sessionText,
+                    students: listToPrint,
+                    subjectCode: activeSubjects[0] || 'BO',
+                    evaluationType: localPrintOpts.practicalType
+                  });
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-black cursor-pointer flex items-center gap-1 border border-slate-200 dark:border-slate-700 shadow-2xs"
+                title="Export current students roster to Excel (.xlsx) for offline grading"
+              >
+                <FileSpreadsheet size={12} /> Export Excel
+              </button>
+              <button
+                onClick={() => {
+                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                  if (!listToPrint || listToPrint.length === 0) {
+                    alert(`No student records available to print for Class ${cls}.`);
+                    return;
+                  }
+                  printConsolidatedAwardRoll({
+                    className: cls,
+                    session: localPrintOpts.sessionText,
+                    students: listToPrint,
+                    submissions,
+                    isExternal: localPrintOpts.practicalType === 'external',
+                    selectedSubjectCodes: activeSubjects,
+                    printDetails: localPrintOpts
+                  });
+                }}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+              >
+                <Printer size={12} /> Print Awards
+              </button>
+              <button
+                onClick={() => {
+                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                  if (!listToPrint || listToPrint.length === 0) {
+                    alert(`No student records available to print for Class ${cls}.`);
+                    return;
+                  }
+                  printAttendanceSheet({
+                    className: cls,
+                    session: localPrintOpts.sessionText,
+                    students: listToPrint,
+                    isExternal: localPrintOpts.practicalType === 'external'
+                  });
+                }}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+              >
+                <ClipboardCheck size={12} /> Attendance
+              </button>
+              <button
+                onClick={() => {
+                  const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
+                  if (!listToPrint || listToPrint.length === 0) {
+                    alert(`No student records available to print for Class ${cls}.`);
+                    return;
+                  }
+                  printFailList({
+                    className: cls,
+                    session: localPrintOpts.sessionText,
+                    students: listToPrint,
+                    submissions,
+                    selectedSubjectCodes: activeSubjects,
+                    isExternal: localPrintOpts.practicalType === 'external'
+                  });
+                }}
+                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
+              >
+                <AlertTriangle size={12} /> Fail List
+              </button>
+              <button
+                onClick={() => setShowOptsModal(true)}
+                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold cursor-pointer flex items-center border border-slate-200 dark:border-slate-700 shadow-2xs"
+                title="Print layout & in-charge options"
+              >
+                <Settings size={12} />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* COLLAPSIBLE FILTER TRAY (HIDDEN BY DEFAULT) */}
+        {showFilterTray && (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 dark:bg-slate-950/70 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Group 1: Evaluation Mode */}
+              <div className="flex items-center rounded-xl bg-white dark:bg-slate-900 p-0.5 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'internal' }))}
+                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+                    localPrintOpts.practicalType === 'internal'
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Internal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocalPrintOpts(p => ({ ...p, practicalType: 'external' }))}
+                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+                    localPrintOpts.practicalType === 'external'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  External
+                </button>
+              </div>
+
+              {/* Group 2: Biology Split / Combine */}
+              <div className="flex items-center rounded-xl bg-white dark:bg-slate-900 p-0.5 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setBioMode('separate')}
+                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+                    bioMode === 'separate'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                  title="Show Botany (BO) and Zoology (ZO) in separate columns"
+                >
+                  BO & ZO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBioMode('combined')}
+                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+                    bioMode === 'combined'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                  title="Combine Botany and Zoology into single Biology (BI) column"
+                >
+                  BI Combined
+                </button>
+              </div>
+
+              {/* Group 3: Session & Status Dropdowns */}
+              <select
+                value={selectedSession}
+                onChange={e => setSelectedSession(e.target.value)}
+                className="px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black outline-none cursor-pointer shadow-2xs"
+              >
+                {availablePracticalSessions.map(sess => (
+                  <option key={sess.id} value={sess.id}>
+                    {sess.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedStatusFilter}
+                onChange={e => setSelectedStatusFilter(e.target.value)}
+                className="px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black outline-none cursor-pointer shadow-2xs"
+              >
+                <option value="all">All Students ({totalClassStudents.length})</option>
+                <option value="approved">Approved & Roll Only ({approvedCount})</option>
+                <option value="pending">Pending Roll ({pendingCount})</option>
+              </select>
+            </div>
+
+            {/* Select All Checkbox */}
+            <label className="flex items-center gap-1.5 cursor-pointer font-black text-slate-700 dark:text-slate-300 text-xs select-none pl-1">
+              <input
+                type="checkbox"
+                checked={selectedRolls.size === sortedStudents.length && sortedStudents.length > 0}
+                onChange={toggleAllStudents}
+                className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer"
+              />
+              <span>Select All ({sortedStudents.length})</span>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Data Grid Table */}
