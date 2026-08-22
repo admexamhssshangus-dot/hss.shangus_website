@@ -94,7 +94,7 @@ function ResizableTh({
   colSpan,
   className = '',
   children,
-  minWidth = 20,
+  minWidth = 15,
   ...rest
 }) {
   const onMouseDown = (e) => {
@@ -287,6 +287,43 @@ function firstRawValue(record, keys) {
     if (value !== undefined && value !== null && value !== '') return value;
   }
   return null;
+}
+
+function renderOnlineSubmCell(status) {
+  if (!status) return '—';
+  const str = String(status).trim();
+  const parts = str.split(' ');
+  if (parts.length >= 2) {
+    const datePart = parts[0];
+    const timePart = parts.slice(1).join(' ');
+    return (
+      <div className="flex flex-col justify-center items-start leading-tight">
+        <span className="whitespace-nowrap font-medium text-[7.5px]">{datePart}</span>
+        <span className="whitespace-nowrap text-[6.5px] text-slate-500 font-normal">{timePart}</span>
+      </div>
+    );
+  }
+  return <span className="whitespace-nowrap font-medium text-[7.5px]">{str}</span>;
+}
+
+function renderAdmDateCell(date) {
+  if (!date || date === '—') return '—';
+  return <span className="whitespace-nowrap font-bold text-[8px] ledger-mono-font">{date}</span>;
+}
+
+function renderPenCell(pen) {
+  if (!pen || pen === 'NA' || pen === '—') return 'NA';
+  const str = String(pen).trim();
+  if (str.includes(',')) {
+    const parts = str.split(',');
+    return (
+      <div className="flex flex-col items-center justify-center leading-tight break-all max-w-full">
+        <span className="font-bold text-[7px] break-all">{parts[0].trim()}</span>
+        {parts[1] && <span className="text-[6px] text-slate-600 font-medium break-all">{parts[1].trim()}</span>}
+      </div>
+    );
+  }
+  return <div className="break-all max-w-full leading-tight text-[7px]">{str}</div>;
 }
 
 const BOARD_REGISTRATION_KEYS = [
@@ -3492,8 +3529,8 @@ export default function AdmissionRegisterSuite({
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-indigo-700 ledger-mono-font">{s.rollNo}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.formNo}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px] leading-tight">{s.onlineStatus}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold ledger-mono-font">{s.admDate}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">{renderOnlineSubmCell(s.onlineStatus)}</td>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle ledger-mono-font overflow-hidden">{renderAdmDateCell(s.admDate)}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-emerald-800 text-[9px] leading-tight">
                                       <div className="ledger-mono-font font-black">{s.admNo || '—'}</div>
                                       {s.isReadmission && s.oldAdmNo && s.oldAdmNo !== s.admNo && (
@@ -3502,23 +3539,28 @@ export default function AdmissionRegisterSuite({
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.class}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
-                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left">
-                                      <div className="flex items-center justify-between gap-1">
-                                        <span className="font-black uppercase tracking-tight">{s.name}</span>
-                                        {/* Clickable Re-admission indicator badge */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenReadmissionModal(s)}
-                                          className={`no-print px-1 py-0.2 rounded text-[7px] font-black cursor-pointer transition-all ${
-                                            s.isReadmission
-                                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300'
-                                              : 'opacity-0 group-hover:opacity-100 bg-slate-100 text-slate-500 hover:bg-purple-50 hover:text-purple-700'
-                                          }`}
-                                          title="Click to toggle Re-admission / Fresh admission status"
-                                        >
-                                          {s.isReadmission ? 'Re-Adm' : 'Set Re-Adm'}
-                                        </button>
+                                    <td className="border border-slate-900 px-1.5 py-0.5 text-left relative group/name-cell overflow-hidden">
+                                      <div className="w-full font-black uppercase tracking-tight text-slate-900 leading-tight">
+                                        <span>{s.name}</span>
+                                        {s.isReadmission && (
+                                          <span className="ml-1 inline-flex items-center px-1 py-0.2 rounded bg-purple-100 text-purple-800 text-[6.5px] font-black border border-purple-300 print:inline-block select-none" title={`Re-admission (Previous Adm: ${s.oldAdmNo || 'Historical'})`}>
+                                            (Re-Adm)
+                                          </span>
+                                        )}
                                       </div>
+                                      {/* Prominent floating hover toggle button without squeezing name width */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenReadmissionModal(s)}
+                                        className={`no-print absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded shadow-md text-[7px] font-black cursor-pointer transition-all z-20 ${
+                                          s.isReadmission
+                                            ? 'bg-purple-700 text-white hover:bg-purple-800 border border-purple-800 opacity-0 group-hover/name-cell:opacity-100'
+                                            : 'opacity-0 group-hover/name-cell:opacity-100 bg-white text-purple-700 hover:bg-purple-50 border border-purple-400'
+                                        }`}
+                                        title="Click to configure Re-admission / Fresh admission status"
+                                      >
+                                        {s.isReadmission ? '⚙ Edit Re-Adm' : '+ Set Re-Adm'}
+                                      </button>
                                     </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.father}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.mother}</td>
@@ -3609,7 +3651,7 @@ export default function AdmissionRegisterSuite({
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight">{s.prevSchool}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7.5px] ledger-mono-font whitespace-nowrap overflow-hidden">{s.pen}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7px] ledger-mono-font overflow-hidden">{renderPenCell(s.pen)}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
                                     {s.prevCC}
                                   </td>
