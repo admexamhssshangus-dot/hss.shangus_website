@@ -342,16 +342,8 @@ function formatBloodGroup(value) {
 }
 
 function StreamLabel({ value }) {
-  const text = cleanStr(value) || 'General';
-  const match = text.match(/^([^()]+?)\s*(\([^()]+\))$/);
-  if (!match) return <span className="font-bold">{text}</span>;
-
-  return (
-    <span className="inline-flex flex-wrap items-baseline justify-center gap-x-0.5 leading-tight">
-      <span className="font-bold">{match[1].trim()}</span>
-      <span className="text-[6.5px] font-semibold">{match[2]}</span>
-    </span>
-  );
+  const text = cleanStr(value) || 'Humanities';
+  return <span className="font-bold">{text}</span>;
 }
 
 function getBoardRegistration(record, classValue) {
@@ -572,9 +564,12 @@ export function abbreviateSubjects(str) {
   return abbrParts.join(', ');
 }
 
-// Robust Standard Stream Extractor & Normalizer
+// Robust Standard Stream Extractor & Normalizer (Strictly Science or Humanities for 11th & 12th)
 export function extractStudentStream(s, subs = '') {
   if (!s) return 'General';
+  const cls = cleanStr(s.class || s.Class || s['Admission sought for class'] || '');
+  if (cls.includes('9') || cls.includes('10')) return 'General';
+
   let rawStream = cleanStr(
     s['Stream / Subject combination chosen'] ||
     s['Stream chosen'] ||
@@ -593,45 +588,28 @@ export function extractStudentStream(s, subs = '') {
 
   // Check subjects for accurate determination
   const subText = (typeof subs === 'string' ? subs : JSON.stringify(subs)).toUpperCase();
-  const hasBio = /\b(BI|BIO|BIOLOGY|BOTANY|ZOOLOGY)\b/i.test(subText);
-  const hasMath = /\b(MA|MATH|MATHS|MATHEMATICS)\b/i.test(subText);
-  const hasPhy = /\b(PH|PHYSICS)\b/i.test(subText);
-  const hasChem = /\b(CH|CHEMISTRY)\b/i.test(subText);
-  const hasArts = /\b(HT|PS|UR|ED|SO|AR|KA|HI|GEO|HISTORY|POLITICAL|EDUCATION|URDU|SOCIOLOGY|ARABIC|KASHMIRI)\b/i.test(subText);
-  const hasComm = /\b(ACC|BST|ACCOUNTANCY|BUSINESS)\b/i.test(subText);
+  const hasScience = /\b(BI|BIO|BIOLOGY|BOTANY|ZOOLOGY|PH|PHYSICS|CH|CHEMISTRY|MA|MATH|MATHS|MATHEMATICS)\b/i.test(subText);
+  const hasHumanities = /\b(HT|PS|UR|ED|SO|AR|KA|HI|GEO|HISTORY|POLITICAL|EDUCATION|URDU|SOCIOLOGY|ARABIC|KASHMIRI|ARTS|HUMANITIES)\b/i.test(subText);
 
-  if (hasBio && hasMath && (hasPhy || hasChem)) {
-    return 'Science (Med/Non-Med)';
+  if (hasScience && !hasHumanities) {
+    return 'Science';
   }
-  if (hasBio && (hasPhy || hasChem)) {
-    return 'Science (Medical)';
+  if (hasHumanities && !hasScience) {
+    return 'Humanities';
   }
-  if (hasMath && (hasPhy || hasChem)) {
-    return 'Science (Non-Medical)';
-  }
-  if (hasComm) {
-    return 'Commerce';
-  }
-  if (hasArts) {
-    return 'Arts';
+  if (hasScience) {
+    return 'Science';
   }
 
   // Normalize rawStream string if present
   if (rawStream) {
     const low = rawStream.toLowerCase();
-    if (low.includes('non-med') || low.includes('non med') || low.includes('nonmed')) return 'Science (Non-Medical)';
-    if (low.includes('med') || low.includes('bio')) return 'Science (Medical)';
-    if (low.includes('sci')) return 'Science';
-    if (low.includes('art') || low.includes('human')) return 'Arts';
+    if (low.includes('sci') || low.includes('med') || low.includes('bio') || low.includes('non')) return 'Science';
+    if (low.includes('art') || low.includes('human') || low.includes('soc')) return 'Humanities';
     if (low.includes('comm')) return 'Commerce';
-    if (low !== 'general') return rawStream;
   }
 
-  // Fallback for classes 9th/10th or general
-  const cls = cleanStr(s.class || s.Class || '');
-  if (cls.includes('9') || cls.includes('10')) return 'General';
-
-  return rawStream || 'General';
+  return 'Humanities'; // Standard fallback for 11th/12th
 }
 
 // Check if student has been assigned a Class Roll Number
@@ -929,7 +907,7 @@ export default function AdmissionRegisterSuite({
     isReAdm: true,
     targetSession: '2025-26',
     targetClass: '11th',
-    targetStream: 'General',
+    targetStream: 'Science',
     assignedAdmNo: '',
     oldAdmNo: '',
     prevSchoolOrClass: '',
@@ -3217,11 +3195,8 @@ export default function AdmissionRegisterSuite({
                       onChange={(e) => setReAdmFormState(prev => ({ ...prev, targetStream: e.target.value }))}
                       className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold"
                     >
-                      <option value="Science (Medical)">Science (Medical)</option>
-                      <option value="Science (Non-Medical)">Science (Non-Medical)</option>
-                      <option value="Arts">Arts</option>
-                      <option value="Commerce">Commerce</option>
-                      <option value="General">General</option>
+                      <option value="Science">Science</option>
+                      <option value="Humanities">Humanities</option>
                     </select>
                   </div>
 

@@ -3968,9 +3968,8 @@ CRITICAL INSTRUCTIONS:
                                 >
                                   <option value="General">General</option>
                                   <option value="Science">Science</option>
-                                  <option value="Arts">Arts</option>
+                                  <option value="Humanities">Humanities</option>
                                   <option value="Commerce">Commerce</option>
-                                  <option value="Home Science">Home Science</option>
                                 </select>
                               </div>
                             ) : (
