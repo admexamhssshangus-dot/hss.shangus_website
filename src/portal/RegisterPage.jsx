@@ -113,12 +113,15 @@ export default function RegisterPage() {
         email: cleanEmail,
         name: cleanName,
         mobile: cleanMobile,
+        role: 'Student',
         requestedRole: 'Student',
+        authProvider: 'password',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
       await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
+      await setDoc(doc(db, 'users', cleanEmail), userData, { merge: true });
 
       // 5. Seamless Auto-Login: Firebase Auth is already authenticated!
       const tokenResult = await getIdTokenResult(fbUser, true).catch(() => ({ token: null, claims: {} }));
@@ -170,16 +173,20 @@ export default function RegisterPage() {
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
-      // Save demographic profile using UID as document ID
+      // Save demographic profile using UID and email in Firestore
       const userData = {
         uid: fbUser.uid,
         email: cleanEmail,
         name: displayName,
         mobile: fbUser.phoneNumber || '',
+        role: 'Student',
         requestedRole: 'Student',
+        authProvider: 'google.com',
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
+      await setDoc(doc(db, 'users', cleanEmail), userData, { merge: true });
 
       const tokenResult = await getIdTokenResult(fbUser, true).catch(() => ({ token: null, claims: {} }));
       const userSession = {
@@ -201,7 +208,12 @@ export default function RegisterPage() {
       }, 400);
     } catch (err) {
       console.error('Google Sign-Up failed:', err);
-      if (err.code !== 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        setAlert({
+          type: 'error',
+          text: 'An account with this email address already exists. Please sign in with your email and password, or reset your password.'
+        });
+      } else if (err.code !== 'auth/popup-closed-by-user') {
         setAlert({ type: 'error', text: err.message || 'Google Sign-In failed. Please try again.' });
       }
     } finally {
