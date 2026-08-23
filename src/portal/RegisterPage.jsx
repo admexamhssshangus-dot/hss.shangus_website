@@ -304,7 +304,7 @@ export default function RegisterPage() {
             </span>
             <span className="flex items-center gap-1.5">
               <Award size={14} className="text-indigo-600 dark:text-indigo-400" />
-              Session 2026-27
+              Session 2025-26
             </span>
           </div>
 

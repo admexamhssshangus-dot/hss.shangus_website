@@ -10,6 +10,19 @@ import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '..
 import appsScriptApi from '../../services/appsScriptApi';
 import { withdrawAdmission } from '../../services/admissionWorkflowApi';
 
+function getCurrentAcademicSession() {
+  const now = new Date();
+  const calYear = now.getFullYear();
+  const calMonth = now.getMonth() + 1; // 1-12 (Aug = 8, Oct = 10, Nov = 11)
+  const calDay = now.getDate(); // 1-31
+  // Till Oct 31st of the current calendar year: Academic Session is strictly 2025-26
+  // From Nov 1st onwards: Session rolls over to 2026-27
+  const isPastCutoff = calMonth > 10 || (calMonth === 10 && calDay > 31);
+  const sessionEndYear = isPastCutoff ? calYear + 1 : calYear;
+  const sessionStartYear = sessionEndYear - 1;
+  return `${sessionStartYear}-${String(sessionEndYear).slice(-2)}`;
+}
+
 export default function StudentDashboard() {
   const { user, onLogout, refreshSession } = useOutletContext();
   const navigate = useNavigate();
@@ -17,7 +30,7 @@ export default function StudentDashboard() {
   // Dashboard Data State
   const [loading, setLoading] = useState(true);
   const [appData, setAppData] = useState(null);
-  const [sessionInfo, setSessionInfo] = useState('');
+  const [sessionInfo, setSessionInfo] = useState(() => getCurrentAcademicSession());
   const [alert, setAlert] = useState(null);
 
   // Edit Profile Modal State
@@ -40,7 +53,7 @@ export default function StudentDashboard() {
 
     // Owner-scoped server load; never scan or cache every student's record.
     try {
-      let activeSession = '2026-27';
+      let activeSession = getCurrentAcademicSession();
       try {
         const settingsSnap = await getDoc(doc(db, 'site', 'settings'));
         if (settingsSnap.exists()) {
@@ -57,7 +70,8 @@ export default function StudentDashboard() {
         activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
         setSessionInfo(activeSession);
         const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
-        setAppData(applications[0] || null);
+        const currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
+        setAppData(currentApp);
       } catch (appErr) {
         console.warn('Student applications load note:', appErr);
       }

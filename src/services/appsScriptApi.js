@@ -609,24 +609,48 @@ async function legacySaveApplication(payload) {
   };
 }
 
+function getCurrentAcademicSession() {
+  const now = new Date();
+  const calYear = now.getFullYear();
+  const calMonth = now.getMonth() + 1; // 1-12
+  const calDay = now.getDate();
+  const isPastCutoff = calMonth > 10 || (calMonth === 10 && calDay > 31);
+  const sessionEndYear = isPastCutoff ? calYear + 1 : calYear;
+  const sessionStartYear = sessionEndYear - 1;
+  return `${sessionStartYear}-${String(sessionEndYear).slice(-2)}`;
+}
+
 async function getStudentApplication() {
+  const computedSession = getCurrentAcademicSession();
   try {
     // Plain CRA localhost does not host Netlify Functions. Use the same
     // owner-scoped Firestore read locally so dashboard/form loading stays clean;
     // writes still require the authoritative Netlify workflow.
     if (process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
       const uid = auth.currentUser?.uid;
-      if (!uid) return { success: true, applications: [], historicalRecords: [], data: { applications: [], historicalRecords: [] } };
+      const email = (auth.currentUser?.email || '').toLowerCase().trim();
+      if (!uid && !email) {
+        return { success: true, applications: [], historicalRecords: [], activeSession: computedSession, data: { applications: [], historicalRecords: [], activeSession: computedSession } };
+      }
       try {
-        const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
-        const applications = snap.docs
+        let appDocs = [];
+        if (uid) {
+          const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
+          appDocs.push(...snap.docs);
+        }
+        if (email && appDocs.length === 0) {
+          const emailSnap = await getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email)));
+          appDocs.push(...emailSnap.docs);
+        }
+        const applications = appDocs
           .map(item => ({ docId: item.id, ...item.data() }))
           .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
         return {
           success: true,
           applications,
           historicalRecords: [],
-          data: { applications, historicalRecords: [] },
+          activeSession: computedSession,
+          data: { applications, historicalRecords: [], activeSession: computedSession },
           localReadOnly: true,
         };
       } catch (err) {
@@ -635,23 +659,25 @@ async function getStudentApplication() {
           success: true,
           applications: [],
           historicalRecords: [],
-          data: { applications: [], historicalRecords: [] },
+          activeSession: computedSession,
+          data: { applications: [], historicalRecords: [], activeSession: computedSession },
           localReadOnly: true,
         };
       }
     }
     const workspace = await loadAdmissionWorkspace();
     const applications = Array.isArray(workspace.applications) ? workspace.applications : [];
+    const activeSession = workspace.activeSession || computedSession;
     return {
       success: true,
       applications,
       historicalRecords: [],
-      activeSession: workspace.activeSession,
+      activeSession,
       admissionAvailability: workspace.admissionAvailability || {},
       data: {
         applications,
         historicalRecords: [],
-        activeSession: workspace.activeSession,
+        activeSession,
         admissionAvailability: workspace.admissionAvailability || {},
       },
     };
@@ -661,7 +687,8 @@ async function getStudentApplication() {
       success: true,
       applications: [],
       historicalRecords: [],
-      data: { applications: [], historicalRecords: [] },
+      activeSession: computedSession,
+      data: { applications: [], historicalRecords: [], activeSession: computedSession },
     };
   }
 }

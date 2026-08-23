@@ -4,15 +4,15 @@ import appsScriptApi from '../../services/appsScriptApi';
 import { getFormNumberConfig, saveFormNumberConfig, getNextAvailableFormNumber, getDeletedFormsHistory } from '../../services/formNumberService';
 
 export default function AppSettings() {
-  const [session, setSession] = useState('2026-27');
+  const [session, setSession] = useState('2025-26');
   const [allow9th, setAllow9th] = useState(true);
   const [allow10th, setAllow10th] = useState(true);
   const [allow11th, setAllow11th] = useState(true);
   const [allow12th, setAllow12th] = useState(true);
 
   // Form Number Control States
-  const [startingSeries, setStartingSeries] = useState(260001);
-  const [nextFormNumber, setNextFormNumber] = useState(260001);
+  const [startingSeries, setStartingSeries] = useState(250001);
+  const [nextFormNumber, setNextFormNumber] = useState(250001);
   const [cutoffMonth, setCutoffMonth] = useState(10); // 10 = October
   const [cutoffDay, setCutoffDay] = useState(31); // 31st
   const [digitFormat, setDigitFormat] = useState('YY0000'); // YY0000 -> 260001
