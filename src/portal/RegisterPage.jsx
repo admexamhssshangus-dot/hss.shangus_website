@@ -384,15 +384,15 @@ export default function RegisterPage() {
             )}
 
             {/* Main Single-Window Form */}
-            <form onSubmit={handleRegister} className="space-y-3.5 relative z-10">
+            <form onSubmit={handleRegister} className="space-y-4 relative z-10">
               
               {/* Full Name */}
-              <div className="space-y-1 text-left">
-                <label htmlFor="reg-name" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                  Full Name <span className="text-rose-500">*</span>
+              <div className="space-y-1.5 text-left">
+                <label htmlFor="reg-name" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                  Full Name <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <div className="relative">
-                  <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="relative group">
+                  <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                   <input
                     id="reg-name"
                     type="text"
@@ -401,28 +401,28 @@ export default function RegisterPage() {
                     onChange={(e) => setName(e.target.value)}
                     required
                     autoComplete="name"
-                    className="w-full pl-10 pr-3 py-2.5 rounded-2xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                   />
                 </div>
               </div>
 
               {/* Grid for Mobile & Email on tablet/desktop */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-left">
                 
                 {/* Mobile Number */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="reg-mobile" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                      Mobile Number <span className="text-rose-500">*</span>
+                    <label htmlFor="reg-mobile" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                      Mobile Number <span className="text-rose-500 font-bold">*</span>
                     </label>
                     {mobile.length > 0 && (
-                      <span className={`text-[10px] font-black ${isMobileValid ? 'text-emerald-500' : 'text-slate-400'}`}>
+                      <span className={`text-[10.5px] font-bold px-1.5 py-0.5 rounded ${isMobileValid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
                         {cleanMobile.length}/10 {isMobileValid ? '✓' : ''}
                       </span>
                     )}
                   </div>
-                  <div className="relative">
-                    <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="relative group">
+                    <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                     <input
                       id="reg-mobile"
                       type="tel"
@@ -431,22 +431,22 @@ export default function RegisterPage() {
                       onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       required
                       autoComplete="tel"
-                      className={`w-full pl-10 pr-3 py-2.5 rounded-2xl text-xs sm:text-sm font-bold border focus:outline-none focus:ring-2 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all ${
+                      className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-3 transition-all duration-150 ${
                         mobile.length > 0 && isMobileValid
-                          ? 'border-emerald-500/50 focus:ring-emerald-500'
-                          : 'border-slate-200 dark:border-slate-800 focus:ring-teal-500'
+                          ? 'border-emerald-500/60 focus:border-emerald-600 focus:ring-emerald-500/15'
+                          : 'border-slate-200 dark:border-slate-700 focus:border-teal-600 dark:focus:border-teal-500 focus:ring-teal-500/15 dark:focus:ring-teal-500/25'
                       }`}
                     />
                   </div>
                 </div>
 
                 {/* Email Address */}
-                <div className="space-y-1">
-                  <label htmlFor="reg-email" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                    Email Address <span className="text-rose-500">*</span>
+                <div className="space-y-1.5">
+                  <label htmlFor="reg-email" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                    Email Address <span className="text-rose-500 font-bold">*</span>
                   </label>
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="relative group">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                     <input
                       id="reg-email"
                       type="email"
@@ -455,7 +455,7 @@ export default function RegisterPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       autoComplete="email"
-                      className="w-full pl-10 pr-3 py-2.5 rounded-2xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                     />
                   </div>
                 </div>
@@ -463,24 +463,28 @@ export default function RegisterPage() {
               </div>
 
               {/* Grid for Password & Confirm Password */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-left">
                 
                 {/* Create Password */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="reg-password" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                      Password <span className="text-rose-500">*</span>
+                    <label htmlFor="reg-password" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                      Password <span className="text-rose-500 font-bold">*</span>
                     </label>
                     {password.length > 0 && (
-                      <span className={`text-[10px] font-black ${
-                        passwordStrength >= 3 ? 'text-emerald-500' : passwordStrength >= 2 ? 'text-amber-500' : 'text-slate-400'
+                      <span className={`text-[10.5px] font-bold px-1.5 py-0.5 rounded ${
+                        passwordStrength >= 3 
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300' 
+                          : passwordStrength >= 2 
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300' 
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                       }`}>
                         {passwordStrength >= 3 ? 'Strong' : passwordStrength >= 2 ? 'Good' : 'Min 8 chars'}
                       </span>
                     )}
                   </div>
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="relative group">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                     <input
                       id="reg-password"
                       type={showPassword ? 'text' : 'password'}
@@ -489,13 +493,13 @@ export default function RegisterPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       autoComplete="new-password"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-2xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                     />
                     <button
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                     >
                       {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
@@ -503,19 +507,19 @@ export default function RegisterPage() {
                 </div>
 
                 {/* Confirm Password */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="reg-confirm-password" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                      Confirm Password <span className="text-rose-500">*</span>
+                    <label htmlFor="reg-confirm-password" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                      Confirm Password <span className="text-rose-500 font-bold">*</span>
                     </label>
                     {confirmPassword.length > 0 && (
-                      <span className={`text-[10px] font-black ${passwordsMatch ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <span className={`text-[10.5px] font-bold px-1.5 py-0.5 rounded ${passwordsMatch ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/40 dark:text-rose-300'}`}>
                         {passwordsMatch ? '✓ Matches' : '✗ Mismatch'}
                       </span>
                     )}
                   </div>
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="relative group">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                     <input
                       id="reg-confirm-password"
                       type={showConfirmPassword ? 'text' : 'password'}
@@ -524,19 +528,19 @@ export default function RegisterPage() {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                       autoComplete="new-password"
-                      className={`w-full pl-10 pr-10 py-2.5 rounded-2xl text-xs sm:text-sm font-bold border focus:outline-none focus:ring-2 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all ${
+                      className={`w-full pl-10 pr-10 py-2.5 rounded-xl text-[13.5px] font-medium border bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-3 transition-all duration-150 ${
                         confirmPassword.length > 0
                           ? passwordsMatch
-                            ? 'border-emerald-500/50 focus:ring-emerald-500'
-                            : 'border-rose-500/50 focus:ring-rose-500'
-                          : 'border-slate-200 dark:border-slate-800 focus:ring-teal-500'
+                            ? 'border-emerald-500/60 focus:border-emerald-600 focus:ring-emerald-500/15'
+                            : 'border-rose-500/60 focus:border-rose-600 focus:ring-rose-500/15'
+                          : 'border-slate-200 dark:border-slate-700 focus:border-teal-600 dark:focus:border-teal-500 focus:ring-teal-500/15 dark:focus:ring-teal-500/25'
                       }`}
                     />
                     <button
                       type="button"
                       aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                     >
                       {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
@@ -548,7 +552,7 @@ export default function RegisterPage() {
               {/* Password Strength Indicator Bar */}
               {password.length > 0 && (
                 <div className="space-y-1 pt-0.5">
-                  <div className="grid grid-cols-3 gap-1.5 h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="grid grid-cols-3 gap-1.5 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all duration-300 ${
                       passwordStrength >= 1 ? 'bg-rose-500' : 'bg-transparent'
                     }`} />
@@ -562,11 +566,11 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {/* Main Submit CTA Button with Gradient & Pulse Effect */}
+              {/* Main Submit CTA Button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white bg-teal-600 hover:bg-teal-500 shadow-xl shadow-teal-600/30 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] group mt-3 animate-portal-pulse"
+                className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-md shadow-teal-700/20 hover:shadow-lg hover:shadow-teal-700/30 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-3"
               >
                 {isLoading ? (
                   <RefreshCw size={16} className="animate-spin" />
@@ -574,7 +578,7 @@ export default function RegisterPage() {
                   <>
                     <Sparkles size={16} />
                     <span>Create Account &amp; Enter Portal</span>
-                    <ArrowRight size={16} className="animate-bounce-x" />
+                    <ArrowRight size={16} />
                   </>
                 )}
               </button>
@@ -586,7 +590,7 @@ export default function RegisterPage() {
                 type="button"
                 onClick={handleGoogleSignUp}
                 disabled={isLoading}
-                className="w-full py-3 rounded-2xl font-extrabold text-xs sm:text-sm border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-2xs hover:shadow-sm"
+                className="w-full py-2.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -599,19 +603,19 @@ export default function RegisterPage() {
             </div>
 
             {/* Institutional Faculty / Admin Note */}
-            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-1 relative z-10 mt-3">
-              <span className="text-[11px] font-black text-amber-700 dark:text-amber-400 block">
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center space-y-1 relative z-10 mt-3">
+              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 block">
                 Faculty &amp; Staff Registration Notice
               </span>
-              <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-[10.5px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
                 Teacher and Administrator portal accounts are provisioned internally by School Administration. Self-registration creates a Student account.
               </p>
             </div>
 
             {/* Sign In Footer Link */}
             <div className="text-center text-xs relative z-10 pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
-              <span className="text-slate-500 font-bold">Already have an account? </span>
-              <Link to="/portal/login" className="text-teal-600 dark:text-teal-400 font-black hover:underline inline-flex items-center gap-1">
+              <span className="text-slate-500 font-medium">Already have an account? </span>
+              <Link to="/portal/login" className="text-teal-600 dark:text-teal-400 font-bold hover:underline inline-flex items-center gap-1">
                 Sign In Here <ChevronRight size={13} />
               </Link>
             </div>
