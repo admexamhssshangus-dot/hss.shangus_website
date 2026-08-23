@@ -115,7 +115,7 @@ export default function StudentCertificateStudioView({
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
       const formNo = extractFormNo(st) || st.id || '';
-      const session = extractSession(st) || '2026-27';
+      const session = extractSession(st) || '2025-26';
       const dob = extractDob(st) || '';
       const rawGender = extractGender(st);
       const gender = (rawGender || 'M').toUpperCase().startsWith('F') ? 'F' : 'M';
@@ -221,7 +221,7 @@ export default function StudentCertificateStudioView({
   const [rollNo, setRollNo] = useState('1101');
   const [regNo, setRegNo] = useState('24SHG1101');
   const [dobRaw, setDobRaw] = useState('2007-08-15');
-  const [session, setSession] = useState('2026-27');
+  const [session, setSession] = useState('2025-26');
   const [address, setAddress] = useState('Shangus, Anantnag — 192201 (J&K)');
   const [gender, setGender] = useState('M');
   const [withdrawalDate, setWithdrawalDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -671,7 +671,7 @@ export default function StudentCertificateStudioView({
     setRollNo(st.rollNo || '—');
     setRegNo(st.regNo || '—');
     setDobRaw(st.dob || '');
-    setSession(st.session || '2026-27');
+    setSession(st.session || '2025-26');
     setAddress(st.address || 'Shangus, Anantnag');
     setGender(st.gender || 'M');
     
@@ -966,7 +966,7 @@ export default function StudentCertificateStudioView({
     setIsDeletingTemplate(true);
     try {
       await deleteCloudDocTemplate(id, 'certificate');
-      showToast(`🗑️  Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
+      showToast(`🗑️   Template "${name}" permanently deleted from Cloud & workspace.`, 'info');
     } catch (err) {
       console.warn(err);
       showToast(`Template "${name}" deleted locally.`, 'info');
@@ -1093,7 +1093,7 @@ export default function StudentCertificateStudioView({
     setStream(st.stream || 'Arts');
     setRollNo(st.rollNo || '');
     setRegNo(st.regNo || '');
-    setSession(st.session || '2026-27');
+    setSession(st.session || '2025-26');
     setGender(st.gender || 'M');
     setDobRaw(st.dob || '');
     setAddress(st.address || '');
@@ -1739,7 +1739,7 @@ export default function StudentCertificateStudioView({
       '{REG_NO}': regNo || '—',
       '{DOB_FIGURES}': parsedDob.figures || '—',
       '{DOB_WORDS}': parsedDob.words || '—',
-      '{SESSION}': session || '2026-27',
+      '{SESSION}': session || '2025-26',
       '{ADDRESS}': address || 'Shangus, Anantnag',
       '{REF_NO}': refNo || '—',
       '{DATE}': dateStr || new Date().toLocaleDateString('en-GB'),
