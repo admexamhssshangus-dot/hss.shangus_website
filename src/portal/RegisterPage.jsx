@@ -113,15 +113,16 @@ export default function RegisterPage() {
         email: cleanEmail,
         name: cleanName,
         mobile: cleanMobile,
-        role: 'Student',
         requestedRole: 'Student',
-        authProvider: 'password',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
-      await setDoc(doc(db, 'users', cleanEmail), userData, { merge: true });
+      try {
+        await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
+      } catch (fsErr) {
+        console.warn('Firestore profile write note:', fsErr);
+      }
 
       // 5. Seamless Auto-Login: Firebase Auth is already authenticated!
       const tokenResult = await getIdTokenResult(fbUser, true).catch(() => ({ token: null, claims: {} }));
@@ -173,20 +174,21 @@ export default function RegisterPage() {
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
-      // Save demographic profile using UID and email in Firestore
+      // Save demographic profile using UID in Firestore
       const userData = {
         uid: fbUser.uid,
         email: cleanEmail,
         name: displayName,
         mobile: fbUser.phoneNumber || '',
-        role: 'Student',
         requestedRole: 'Student',
-        authProvider: 'google.com',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
-      await setDoc(doc(db, 'users', cleanEmail), userData, { merge: true });
+      try {
+        await setDoc(doc(db, 'users', fbUser.uid), userData, { merge: true });
+      } catch (fsErr) {
+        console.warn('Firestore profile write note:', fsErr);
+      }
 
       const tokenResult = await getIdTokenResult(fbUser, true).catch(() => ({ token: null, claims: {} }));
       const userSession = {
