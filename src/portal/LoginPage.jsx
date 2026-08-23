@@ -108,7 +108,7 @@ export default function LoginPage() {
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
-      // Save demographic profile using UID as document ID and email as secondary
+      // Save demographic profile using UID as document ID
       // so student account is fully initialized with Student role in Firestore
       try {
         const userPayload = {
@@ -116,13 +116,10 @@ export default function LoginPage() {
           email: cleanEmail,
           name: displayName,
           mobile: fbUser.phoneNumber || '',
-          role: 'Student',
           requestedRole: 'Student',
-          authProvider: 'google.com',
           updatedAt: new Date().toISOString(),
         };
         await setDoc(doc(db, 'users', fbUser.uid), userPayload, { merge: true });
-        await setDoc(doc(db, 'users', cleanEmail), userPayload, { merge: true });
       } catch (fsErr) {
         console.warn('Firestore profile sync note:', fsErr);
       }
