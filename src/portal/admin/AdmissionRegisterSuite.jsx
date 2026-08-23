@@ -718,6 +718,14 @@ function matchesClassVal(selectedClasses, classVal) {
   const cleanVal = strVal.replace(/class/gi, '').trim();
   const targetClean = String(selectedClasses).toLowerCase().replace(/class/gi, '').trim();
   if (cleanVal === targetClean) return true;
+
+  // Handle paired combinations like '11th & 12th', '9th & 10th', '11th, 12th', '11th-12th', '11th and 12th'
+  if (targetClean.includes('&') || targetClean.includes(',') || targetClean.includes('-') || targetClean.includes('and')) {
+    const targetDigits = targetClean.match(/\d+/g) || [];
+    const valDigit = cleanVal.match(/\d+/)?.[0];
+    if (valDigit && targetDigits.includes(valDigit)) return true;
+  }
+
   const d1 = targetClean.match(/\d+/)?.[0];
   const d2 = cleanVal.match(/\d+/)?.[0];
   return !!(d1 && d2 && d1 === d2);
@@ -1912,11 +1920,65 @@ export default function AdmissionRegisterSuite({
     return chunks;
   }, [filteredStudents]);
 
+  // Summary Target Students: strictly aggregates the paired classes (e.g. 11th & 12th or 9th & 10th)
+  // so the roll statement on the Consolidated Summary page always presents both classes together!
+  const summaryTargetStudents = useMemo(() => {
+    const targetClasses = [];
+    const is11or12 = selectedClass.includes('11') || selectedClass.includes('12');
+    const is9or10 = selectedClass.includes('9') || selectedClass.includes('10');
+
+    if (is11or12) {
+      targetClasses.push('11th', '12th');
+    } else if (is9or10) {
+      targetClasses.push('9th', '10th');
+    } else {
+      // ALL
+      availableClasses.forEach(c => targetClasses.push(c));
+    }
+
+    return normalizedStudents.filter(s => {
+      // 1. Status Filter (Applies to summary as well, e.g. Approved students)
+      if (selectedStatus !== 'ALL') {
+        if (selectedStatus === 'Approved') {
+          if (s.status !== 'Approved') return false;
+        } else if (selectedStatus === 'Submitted') {
+          if (s.status !== 'Submitted' && s.status !== 'Approved') return false;
+        } else if (selectedStatus === 'Provisional') {
+          if (s.status !== 'Provisional') return false;
+        } else if (s.status !== selectedStatus) {
+          return false;
+        }
+      }
+
+      // 2. Admission Type Filter
+      if (selectedAdmissionType === 'fresh' && s.isReadmission) return false;
+      if (selectedAdmissionType === 'readmission' && !s.isReadmission) return false;
+
+      // 3. Class Filter: Match paired classes
+      const sCls = String(s.class || '').toLowerCase();
+      const matchCls = targetClasses.some(tc => matchesClassVal(tc, sCls));
+      if (!matchCls) return false;
+
+      // 4. Stream Filter
+      if (selectedStream !== 'ALL') {
+        if (s.stream !== selectedStream) return false;
+      }
+
+      return true;
+    });
+  }, [normalizedStudents, selectedClass, selectedStatus, selectedAdmissionType, selectedStream, availableClasses]);
+
   // Consolidated Summary Breakdown Stats
   const summaryStats = useMemo(() => {
     const map = {};
-    filteredStudents.forEach(s => {
-      const c = s.class || '11th';
+    summaryTargetStudents.forEach(s => {
+      let c = cleanStr(s.class) || '11th';
+      if (!c.endsWith('th')) c = `${c}th`;
+      if (c.includes('11')) c = '11th';
+      else if (c.includes('12')) c = '12th';
+      else if (c.includes('10')) c = '10th';
+      else if (c.includes('9')) c = '9th';
+
       const str = s.stream || 'General';
       if (!map[c]) map[c] = {};
       if (!map[c][str]) map[c][str] = { male: 0, female: 0, total: 0, reAdm: 0 };
@@ -1927,12 +1989,24 @@ export default function AdmissionRegisterSuite({
       map[c][str].total++;
     });
     return map;
-  }, [filteredStudents]);
+  }, [summaryTargetStudents]);
 
-  // Total Counts
+  const sortedSummaryClasses = useMemo(() => {
+    const order = ['9th', '10th', '11th', '12th'];
+    return Object.keys(summaryStats).sort((a, b) => {
+      const idxA = order.indexOf(a);
+      const idxB = order.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      const numA = parseInt(a, 10) || 0;
+      const numB = parseInt(b, 10) || 0;
+      return numA - numB;
+    });
+  }, [summaryStats]);
+
+  // Total Counts for the Consolidated Summary
   const overallSummaryTotals = useMemo(() => {
     let m = 0, f = 0, tot = 0, re = 0;
-    filteredStudents.forEach(s => {
+    summaryTargetStudents.forEach(s => {
       const isFemale = s.gender.toLowerCase().startsWith('f');
       if (isFemale) f++;
       else m++;
@@ -1940,7 +2014,7 @@ export default function AdmissionRegisterSuite({
       tot++;
     });
     return { male: m, female: f, grandTotal: tot, totalReAdm: re };
-  }, [filteredStudents]);
+  }, [summaryTargetStudents]);
 
   // Editable Register Notes Page State
   const [registerNotes, setRegisterNotes] = useState([
@@ -2675,17 +2749,19 @@ export default function AdmissionRegisterSuite({
 
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
-                {/* 2. Direct Class Scope Selector (Defaults to 11th) */}
+                {/* 2. Direct Class Scope Selector with Paired Class Options */}
                 <select
                   value={selectedClass}
                   onChange={(e) => setSelectedClass(e.target.value)}
                   className="py-0.5 px-2 text-[11px] rounded-lg border-2 border-indigo-500/40 bg-indigo-50/70 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 font-black shadow-2xs cursor-pointer shrink-0"
                   title="Select Register Class Scope"
                 >
+                  <option value="11th & 12th">Classes 11th & 12th</option>
                   <option value="11th">Class 11th</option>
-                  {availableClasses.filter(c => c !== '11th').map(c => (
-                    <option key={c} value={c}>Class {c}</option>
-                  ))}
+                  <option value="12th">Class 12th</option>
+                  <option value="9th & 10th">Classes 9th & 10th</option>
+                  <option value="10th">Class 10th</option>
+                  <option value="9th">Class 9th</option>
                   <option value="ALL">All Classes</option>
                 </select>
 
@@ -3481,7 +3557,11 @@ export default function AdmissionRegisterSuite({
                       ADMISSION REGISTER
                     </h1>
                     <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-red-700 uppercase tracking-tight font-sans mb-3">
-                      {selectedClass === 'ALL' ? 'OF CLASSES 11th AND 12th' : `OF CLASS ${selectedClass.toUpperCase()}`}
+                      {selectedClass === 'ALL'
+                        ? 'OF CLASSES 11th AND 12th'
+                        : (selectedClass.includes('&') || selectedClass.includes('and'))
+                        ? `OF CLASSES ${selectedClass.replace('&', 'AND').toUpperCase()}`
+                        : `OF CLASS ${selectedClass.toUpperCase()}`}
                     </h2>
                     <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-emerald-700 font-sans mb-4 sm:mb-6">
                       Session {selectedSession}
@@ -3521,7 +3601,7 @@ export default function AdmissionRegisterSuite({
                           <div className="text-center">
                             <h2 className="text-base font-black text-red-700 uppercase leading-none font-sans">{SCHOOL_NAME}</h2>
                             <div className="text-[10.5px] font-bold text-emerald-700 mt-0.5">
-                              Admission Register of classes 11th and 12th, session {selectedSession}
+                              Admission Register of {selectedClass === 'ALL' ? 'classes 11th and 12th' : (selectedClass.includes('&') || selectedClass.includes('and')) ? `classes ${selectedClass.replace('&', 'and')}` : `class ${selectedClass}`}, session {selectedSession}
                             </div>
                           </div>
                           {/* Blank circle for manual hand-stamping of serial number */}
@@ -3691,7 +3771,7 @@ export default function AdmissionRegisterSuite({
                           <div className="text-center">
                             <h2 className="text-base font-black text-red-700 uppercase leading-none font-sans">{SCHOOL_NAME}</h2>
                             <div className="text-[10.5px] font-bold text-emerald-700 mt-0.5">
-                              Admission Register of classes 11th and 12th, session {selectedSession}
+                              Admission Register of {selectedClass === 'ALL' ? 'classes 11th and 12th' : (selectedClass.includes('&') || selectedClass.includes('and')) ? `classes ${selectedClass.replace('&', 'and')}` : `class ${selectedClass}`}, session {selectedSession}
                             </div>
                           </div>
                           {/* Blank circle for manual hand-stamping of serial number */}
@@ -3839,9 +3919,9 @@ export default function AdmissionRegisterSuite({
                         </tr>
                       </thead>
                       <tbody className="divide-y-2 divide-red-700 font-bold text-slate-900">
-                        {Object.keys(summaryStats).sort().map(cls => {
-                          const streams = Object.keys(summaryStats[cls]).sort();
-                          const clsTotal = Object.values(summaryStats[cls]).reduce((acc, curr) => acc + curr.total, 0);
+                        {sortedSummaryClasses.map(cls => {
+                          const streams = Object.keys(summaryStats[cls] || {}).sort();
+                          const clsTotal = Object.values(summaryStats[cls] || {}).reduce((acc, curr) => acc + curr.total, 0);
                           return streams.map((st, idx) => {
                             const item = summaryStats[cls][st];
                             return (
