@@ -537,12 +537,23 @@ async function legacySaveApplication(payload) {
     }
   }
 
+  const computedSession = getCurrentAcademicSession();
+  const sessionUser = sessionManager.getUser();
   const payloadData = {
     ...data,
-    ownerUid: auth.currentUser?.uid || data.ownerUid,
+    ownerUid: auth.currentUser?.uid || sessionUser?.uid || sessionUser?.id || data.ownerUid || '',
+    emailNormalized: userEmail || (auth.currentUser?.email || sessionUser?.email || '').toLowerCase().trim(),
+    'Email Address': data['Email Address'] || userEmail || (auth.currentUser?.email || sessionUser?.email || ''),
+    email: userEmail || (auth.currentUser?.email || sessionUser?.email || ''),
     'Form Number': formNo,
+    FormNo: formNo,
+    formNo: formNo,
+    Session: session || data.Session || data.session || computedSession,
+    session: session || data.Session || data.session || computedSession,
     isProvisional: isProvisional,
-    Status: data.Status || 'Submitted',
+    Status: data.Status || data.status || 'Submitted',
+    status: data.Status || data.status || 'Submitted',
+    submittedAt: data.submittedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...(isUpgradeMode ? { upgradedAt: new Date().toISOString(), isProvisional: false } : {}),
   };
@@ -623,28 +634,71 @@ function getCurrentAcademicSession() {
 async function getStudentApplication() {
   const computedSession = getCurrentAcademicSession();
   try {
-    // Plain CRA localhost does not host Netlify Functions. Use the same
-    // owner-scoped Firestore read locally so dashboard/form loading stays clean;
-    // writes still require the authoritative Netlify workflow.
-    if (process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-      const uid = auth.currentUser?.uid;
-      const email = (auth.currentUser?.email || '').toLowerCase().trim();
+    const isLocalDev = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname));
+    const sessionUser = sessionManager.getUser();
+    const uid = auth.currentUser?.uid || sessionUser?.uid || sessionUser?.id || '';
+    const email = (auth.currentUser?.email || sessionUser?.email || '').toLowerCase().trim();
+
+    if (isLocalDev) {
       if (!uid && !email) {
         return { success: true, applications: [], historicalRecords: [], activeSession: computedSession, data: { applications: [], historicalRecords: [], activeSession: computedSession } };
       }
       try {
-        let appDocs = [];
+        const appDocs = [];
+        const seenDocIds = new Set();
+        const collectDocs = (snap) => {
+          if (!snap || snap.empty) return;
+          snap.docs.forEach(d => {
+            if (!seenDocIds.has(d.id)) {
+              seenDocIds.add(d.id);
+              appDocs.push(d);
+            }
+          });
+        };
+
         if (uid) {
-          const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
-          appDocs.push(...snap.docs);
+          try {
+            const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
+            collectDocs(snap);
+          } catch (_) {}
         }
-        if (email && appDocs.length === 0) {
-          const emailSnap = await getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email)));
-          appDocs.push(...emailSnap.docs);
+        if (email) {
+          try {
+            const emailSnap1 = await getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email)));
+            collectDocs(emailSnap1);
+          } catch (_) {}
+          try {
+            const emailSnap2 = await getDocs(query(collection(db, 'admissions'), where('Email Address', '==', email)));
+            collectDocs(emailSnap2);
+          } catch (_) {}
+          try {
+            const emailSnap3 = await getDocs(query(collection(db, 'admissions'), where('email', '==', email)));
+            collectDocs(emailSnap3);
+          } catch (_) {}
         }
+
+        // Comprehensive fallback: scan all admissions if index or field exact match missed
+        if (appDocs.length === 0) {
+          try {
+            const allSnap = await getDocs(collection(db, 'admissions'));
+            allSnap.docs.forEach(docSnap => {
+              const data = docSnap.data();
+              const dEmail = String(data['Email Address'] || data.email || data.emailNormalized || '').toLowerCase().trim();
+              const dUid = String(data.ownerUid || '').trim();
+              if ((uid && dUid && dUid === uid) || (email && dEmail && (dEmail === email || email.includes(dEmail) || dEmail.includes(email)))) {
+                if (!seenDocIds.has(docSnap.id)) {
+                  seenDocIds.add(docSnap.id);
+                  appDocs.push(docSnap);
+                }
+              }
+            });
+          } catch (_) {}
+        }
+
         const applications = appDocs
           .map(item => ({ docId: item.id, ...item.data() }))
           .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
+
         return {
           success: true,
           applications,
