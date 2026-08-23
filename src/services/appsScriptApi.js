@@ -697,12 +697,20 @@ async function saveApplication(payload) {
   const role = String(sessionManager.getUser()?.role || '').toLowerCase();
   if (role.includes('admin')) return legacySaveApplication(payload);
   const data = payload.formData || payload;
-  return submitAdmission({
-    formData: data,
-    applicationId: payload.applicationId || data.docId || data.applicationId || '',
-    submissionKey: payload.submissionKey,
-    upgradeMode: Boolean(payload._upgradeMode || data._upgradeMode),
-  });
+  try {
+    return await submitAdmission({
+      formData: data,
+      applicationId: payload.applicationId || data.docId || data.applicationId || '',
+      submissionKey: payload.submissionKey,
+      upgradeMode: Boolean(payload._upgradeMode || data._upgradeMode),
+    });
+  } catch (err) {
+    if (err.isServiceUnavailable || err.status === 404 || process.env.NODE_ENV === 'development') {
+      console.warn('Admission workflow function unavailable, falling back to direct Firestore submission:', err);
+      return legacySaveApplication(payload);
+    }
+    throw err;
+  }
 }
 
 async function deleteStudentApplication(formNoOrDocId) {
