@@ -13,7 +13,14 @@ function maskEmailAddress(value) {
 }
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('email') || '';
+    } catch (_) {
+      return '';
+    }
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState(null);
   const [emailSent, setEmailSent] = useState(false);
