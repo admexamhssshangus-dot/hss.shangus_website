@@ -590,12 +590,12 @@ function md5(str) {
             <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
               
               {/* Email Input */}
-              <div className="space-y-1 text-left">
-                <label htmlFor="login-email" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                  Email Address
+              <div className="space-y-1.5 text-left">
+                <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                  Email Address <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="relative group">
+                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                   <input
                     id="login-email"
                     type="email"
@@ -603,18 +603,18 @@ function md5(str) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full pl-10 pr-3 py-3 rounded-2xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all duration-200"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                   />
                 </div>
               </div>
 
               {/* Password Input */}
-              <div className="space-y-1 text-left">
-                <label htmlFor="login-password" className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                  Password
+              <div className="space-y-1.5 text-left">
+                <label htmlFor="login-password" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                  Password <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <div className="relative">
-                  <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="relative group">
+                  <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                   <input
                     id="login-password"
                     type={showPassword ? 'text' : 'password'}
@@ -622,21 +622,21 @@ function md5(str) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full pl-10 pr-10 py-3 rounded-2xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 bg-slate-50/80 dark:bg-slate-950/80 text-slate-900 dark:text-white transition-all duration-200"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                   />
                   <button
                     type="button"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer transition-colors p-1"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
               </div>
 
               {/* Options Row: Keep Logged In + Forgot Password */}
-              <div className="flex items-center justify-between text-xs font-extrabold pt-0.5">
+              <div className="flex items-center justify-between text-xs font-bold pt-0.5">
                 <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
                   <input
                     type="checkbox"
@@ -647,21 +647,21 @@ function md5(str) {
                   <span>Keep me logged in</span>
                 </label>
 
-                <Link to="/portal/forgot-password" className="text-teal-600 dark:text-teal-400 hover:underline font-black">
+                <Link to="/portal/forgot-password" className="text-teal-600 dark:text-teal-400 hover:underline font-bold">
                   Forgot Password?
                 </Link>
               </div>
 
-              {/* Main Submit CTA Button with Attention-Grabbing Pulse & Animated Arrow */}
+              {/* Main Submit CTA Button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm text-white shadow-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99] group animate-portal-pulse ${
+                className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-2 ${
                   isSuperAdmin
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/30'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
                     : selectedRole === 'teacher'
-                    ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
-                    : 'bg-teal-600 hover:bg-teal-500 shadow-teal-600/30'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/25'
+                    : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-600/25'
                 }`}
               >
                 {isLoading ? (
@@ -669,7 +669,7 @@ function md5(str) {
                 ) : (
                   <>
                     <span>{isSuperAdmin ? 'Sign In as SUPERADMIN' : `Sign In as ${selectedRole.toUpperCase()}`}</span>
-                    <ArrowRight size={16} className="animate-bounce-x" />
+                    <ArrowRight size={16} />
                   </>
                 )}
               </button>
@@ -681,7 +681,7 @@ function md5(str) {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={isLoading}
-                className="w-full py-3 rounded-2xl font-extrabold text-xs sm:text-sm border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-2xs hover:shadow-sm"
+                className="w-full py-2.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -694,9 +694,9 @@ function md5(str) {
             </div>
 
             {/* Registration Footer Link */}
-            <div className="text-center text-xs relative z-10 pt-4 border-t border-slate-100 dark:border-slate-800 mt-4">
-              <span className="text-slate-500 font-bold">Don't have an account? </span>
-              <Link to="/portal/register" className="text-teal-600 dark:text-teal-400 font-black hover:underline inline-flex items-center gap-1">
+            <div className="text-center text-xs relative z-10 pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
+              <span className="text-slate-500 font-medium">Don't have an account? </span>
+              <Link to="/portal/register" className="text-teal-600 dark:text-teal-400 font-bold hover:underline inline-flex items-center gap-1">
                 Create New Account <ChevronRight size={13} />
               </Link>
             </div>
