@@ -1397,11 +1397,6 @@ export function buildProvisionalFormHtml(studentData) {
   return `
     <!-- PROVISIONAL ADMISSION SLIP — COMPACT SINGLE PAGE -->
     <div class="print-page prov-page" style="padding:16px 22px; font-family:'Times New Roman', Times, serif; color:#000; font-size:10pt; line-height:1.2; box-sizing:border-box; background:#fff; position:relative;">
-      
-      <!-- Single Clean Watermark Logo (No Duplicate Text Overlap) -->
-      <div style="position:absolute; top:48%; left:50%; transform:translate(-50%,-50%); opacity:0.06; pointer-events:none; z-index:0; text-align:center;">
-        <img src="/logo.png" style="width:360px; height:auto;" />
-      </div>
 
       <!-- Header with Seal (Left), School Details (Center), and Verification QR Code (Right) -->
       <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #881337; padding-bottom:6px; margin-bottom:8px; position:relative; z-index:1;">
@@ -1437,13 +1432,13 @@ export function buildProvisionalFormHtml(studentData) {
           <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Class admitted to:</td>
           <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#475569;">Class ${classSought} (${stream})</td>
           <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Roll No.:</td>
-          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#94a3b8;">[ Office Use ]</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#cbd5e1; font-size:8pt; opacity:0.6; letter-spacing:0.3px;">[ Office Use ]</td>
         </tr>
         <tr>
           <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Adm. No. (Date):</td>
-          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#94a3b8;">[ Office Use ]</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#cbd5e1; font-size:8pt; opacity:0.6; letter-spacing:0.3px;">[ Office Use ]</td>
           <td style="padding:3px 6px; border:1px solid #fda4af; font-weight:bold; color:#881337;">Section:</td>
-          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#94a3b8;">[ Office Use ]</td>
+          <td style="padding:3px 6px; border:1px solid #fda4af; font-style:italic; color:#cbd5e1; font-size:8pt; opacity:0.6; letter-spacing:0.3px;">[ Office Use ]</td>
         </tr>
       </table>
 
