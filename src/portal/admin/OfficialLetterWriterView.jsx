@@ -37,6 +37,7 @@ import {
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import DocumentHistoryModal from './DocumentHistoryModal';
 import ConfirmModal from '../components/ConfirmModal';
+import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 
 // Built-in Institutional Letter Templates for HSS Shangus
 const BUILTIN_LETTER_TEMPLATES = [
@@ -1352,9 +1353,8 @@ export default function OfficialLetterWriterView({
     if (mode === 'humanize' || mode === 'formalize' || mode === 'shorten' || mode === 'expand') {
       setAiPrompt('');
     }
-    const currentKeys = getStoredGeminiKeys();
-    setGeminiKeys(currentKeys);
-    setKeysInputText(currentKeys.join('\n'));
+    setGeminiKeys([]);
+    setKeysInputText('');
     setActiveLeftTab('ai');
     if (isDesktop && leftSplitPct < 32) {
       setLeftSplitPct(34);
@@ -1362,21 +1362,13 @@ export default function OfficialLetterWriterView({
   };
 
   const handleSaveKeys = async () => {
-    const lines = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
-    const saved = await saveCloudGeminiKeys(lines);
-    setGeminiKeys(saved);
+    setGeminiKeys([]);
+    setKeysInputText('');
     setShowKeysConfig(false);
-    setAiError('');
-    showToast(`✓ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
+    setAiError('Gemini credentials are managed securely in the server environment.');
   };
 
   const handleGenerateAi = async () => {
-    if (geminiKeys.length === 0) {
-      setShowKeysConfig(true);
-      setAiError('Please add at least one Gemini API key before generating.');
-      return;
-    }
-
     setIsGeneratingAi(true);
     setAiError('');
     setAiGeneratedHtml('');
@@ -1389,11 +1381,10 @@ export default function OfficialLetterWriterView({
         currentContent,
         mode: aiMode,
         tone: aiTone,
-        model: aiModel,
-        customKeys: geminiKeys
+        model: aiModel
       });
 
-      setAiGeneratedHtml(result.html);
+      setAiGeneratedHtml(sanitizeRichHtml(result.html));
       setAiSuccessKeyIndex(result.usedKeyIndex);
       savePreferredGeminiModel(aiModel);
     } catch (err) {
@@ -1407,13 +1398,14 @@ export default function OfficialLetterWriterView({
   const handleApplyAiContent = (action = 'replace') => {
     if (!editorRef.current || !aiGeneratedHtml) return;
     pushSnapshot();
+    const safeAiHtml = sanitizeRichHtml(aiGeneratedHtml);
 
     if (action === 'replace') {
-      editorRef.current.innerHTML = aiGeneratedHtml;
+      editorRef.current.innerHTML = safeAiHtml;
     } else if (action === 'append') {
-      editorRef.current.innerHTML += `<br/>${aiGeneratedHtml}`;
+      editorRef.current.innerHTML += `<br/>${safeAiHtml}`;
     } else if (action === 'insert') {
-      executeFormat('insertHTML', aiGeneratedHtml);
+      executeFormat('insertHTML', safeAiHtml);
     }
 
     setTimeout(pushSnapshot, 50);
@@ -1596,21 +1588,10 @@ export default function OfficialLetterWriterView({
             </div>
 
             {activeLeftTab === 'ai' && (
-              <button
-                type="button"
-                onClick={() => setShowKeysConfig(!showKeysConfig)}
-                className={`px-2 py-0.5 rounded text-[9px] font-black border cursor-pointer transition-all flex items-center gap-1 ${
-                  showKeysConfig
-                    ? 'bg-amber-600 text-white border-amber-700'
-                    : geminiKeys.length === 0
-                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-400 animate-pulse'
-                    : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'
-                }`}
-                title="Configure Gemini API Keys"
-              >
-                <Key size={9} className="text-amber-500" />
-                <span>{geminiKeys.length === 0 ? 'Add Key' : `${geminiKeys.length} Keys`}</span>
-              </button>
+              <span className="px-2 py-0.5 rounded text-[9px] font-black border bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300 flex items-center gap-1" title="Gemini credentials are held only by the server">
+                <Shield size={9} />
+                Server secured
+              </span>
             )}
           </div>
 
@@ -1788,7 +1769,7 @@ export default function OfficialLetterWriterView({
 
                   <div
                     className="p-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-[10.5px] max-h-36 overflow-y-auto leading-relaxed shadow-inner"
-                    dangerouslySetInnerHTML={{ __html: aiGeneratedHtml }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
                   />
 
                   {/* Real-time Insert Actions */}

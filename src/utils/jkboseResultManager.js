@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import { db } from '../services/firebase';
 import { doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { updateCachedItem } from '../services/dbCache';
-import { fetchCloudGeminiKeys, getPreferredGeminiModel } from '../services/geminiLetterService';
+import { generateStructuredWithGemini, getPreferredGeminiModel } from '../services/geminiLetterService';
 
 /**
  * Standard JKBOSE Subject Code Definitions
@@ -732,13 +732,8 @@ export async function analyzeGazetteWithGemini(
   selectedSession = '2025-26'
 ) {
   try {
-    if (progressCallback) progressCallback('Fetching Gemini AI API credentials...');
-    const keys = await fetchCloudGeminiKeys();
-    if (!keys || keys.length === 0) {
-      throw new Error('No Gemini API keys found. Please configure a valid Google Gemini API Key in the settings.');
-    }
-
-    const preferredModel = getPreferredGeminiModel() || 'gemini-3.7-flash';
+    if (progressCallback) progressCallback('Connecting to the secure Gemini service...');
+    const preferredModel = getPreferredGeminiModel();
 
     if (progressCallback) progressCallback(`Processing document with ${preferredModel}...`);
 
@@ -782,56 +777,18 @@ Example:
   }
 ]`;
 
-    let lastError = null;
-    let jsonText = '';
-
-    // Key rotation pool
-    for (let i = 0; i < keys.length; i++) {
-      const apiKey = keys[i];
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${preferredModel}:generateContent?key=${apiKey}`;
-        
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inline_data: {
-                      mime_type: mimeType,
-                      data: fileBase64.split(',')[1] || fileBase64
-                    }
-                  }
-                ]
-              }
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              topP: 0.95,
-              maxOutputTokens: 8192
-            }
-          })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (jsonText) break; // Success!
-      } catch (err) {
-        lastError = err;
-        console.warn(`Gemini Key #${i + 1} failed:`, err.message);
-      }
-    }
+    const aiResult = await generateStructuredWithGemini({
+      prompt,
+      inlineData: {
+        mimeType,
+        data: fileBase64.split(',')[1] || fileBase64,
+      },
+      model: preferredModel,
+    });
+    const jsonText = aiResult.text || '';
 
     if (!jsonText) {
-      throw new Error(`Gemini AI analysis failed: ${lastError?.message || 'Empty response'}`);
+      throw new Error('Gemini AI analysis returned an empty response.');
     }
 
     // Clean JSON response

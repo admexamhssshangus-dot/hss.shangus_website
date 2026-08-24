@@ -50,6 +50,7 @@ import {
   savePreferredGeminiModel,
   generateCertificateWithGemini
 } from '../../services/geminiLetterService';
+import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import {
   extractStudentName,
   extractFatherName,
@@ -2055,28 +2056,19 @@ export default function StudentCertificateStudioView({
     if (mode === 'humanize' || mode === 'formalize' || mode === 'shorten') {
       setAiPrompt('');
     }
-    const currentKeys = getStoredGeminiKeys();
-    setGeminiKeys(currentKeys);
-    setKeysInputText(currentKeys.join('\n'));
+    setGeminiKeys([]);
+    setKeysInputText('');
     setShowAiModal(true);
   };
 
   const handleSaveKeys = async () => {
-    const lines = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
-    const saved = await saveCloudGeminiKeys(lines);
-    setGeminiKeys(saved);
+    setGeminiKeys([]);
+    setKeysInputText('');
     setShowKeysConfig(false);
-    setAiError('');
-    showToast(`✓ ${saved.length} Gemini API key(s) successfully saved to Cloud Database!`, 'success');
+    setAiError('Gemini credentials are managed securely in the server environment.');
   };
 
   const handleGenerateAi = async () => {
-    if (geminiKeys.length === 0) {
-      setShowKeysConfig(true);
-      setAiError('Please add at least one Gemini API key before generating.');
-      return;
-    }
-
     setIsGeneratingAi(true);
     setAiError('');
     setAiGeneratedHtml('');
@@ -2104,11 +2096,10 @@ export default function StudentCertificateStudioView({
         },
         mode: aiMode,
         tone: aiTone,
-        model: aiModel,
-        customKeys: geminiKeys
+        model: aiModel
       });
 
-      setAiGeneratedHtml(result.html);
+      setAiGeneratedHtml(sanitizeRichHtml(result.html));
       setAiSuccessKeyIndex(result.usedKeyIndex);
       savePreferredGeminiModel(aiModel);
     } catch (err) {
@@ -2122,21 +2113,22 @@ export default function StudentCertificateStudioView({
   const handleApplyAiContent = (action = 'replace') => {
     if (!aiGeneratedHtml) return;
     pushSnapshot();
+    const safeAiHtml = sanitizeRichHtml(aiGeneratedHtml);
 
     if (action === 'replace') {
-      setCustomCanvasHtml(aiGeneratedHtml);
+      setCustomCanvasHtml(safeAiHtml);
       if (editorRef.current) {
-        editorRef.current.innerHTML = aiGeneratedHtml;
+        editorRef.current.innerHTML = safeAiHtml;
       }
     } else if (action === 'append') {
       const current = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
-      const merged = `${current}<br/>${aiGeneratedHtml}`;
+      const merged = `${current}<br/>${safeAiHtml}`;
       setCustomCanvasHtml(merged);
       if (editorRef.current) {
         editorRef.current.innerHTML = merged;
       }
     } else if (action === 'insert') {
-      executeFormat('insertHTML', aiGeneratedHtml);
+      executeFormat('insertHTML', safeAiHtml);
     }
 
     setTimeout(pushSnapshot, 50);
@@ -3398,18 +3390,8 @@ export default function StudentCertificateStudioView({
                         <Scissors size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
                         <span>Shorten Wording</span>
                       </button>
-                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => { setShowKeysConfig(true); setShowAiModal(true); setShowAskGeminiMenu(false); }}
-                          className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-between text-[9.5px]"
-                        >
-                          <span className="flex items-center gap-1">
-                            <Key size={9} />
-                            <span>API Key Pool</span>
-                          </span>
-                          <span className="font-mono text-[8px] bg-slate-100 dark:bg-slate-800 px-1 rounded">{geminiKeys.length} Keys</span>
-                        </button>
+                      <div className="pt-1 border-t border-slate-100 dark:border-slate-800 px-2 py-1 text-[9.5px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                        <Shield size={9} /> Server-secured AI
                       </div>
                     </div>
                   )}
@@ -4881,19 +4863,9 @@ export default function StudentCertificateStudioView({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowKeysConfig(prev => !prev)}
-                  className={`px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 cursor-pointer transition-all ${
-                    geminiKeys.length === 0
-                      ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                      : 'bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800'
-                  }`}
-                  title="Configure Gemini API Keys"
-                >
-                  <Key size={11} />
-                  <span>{geminiKeys.length === 0 ? '⚠️  Add API Key' : `${geminiKeys.length} Keys`}</span>
-                </button>
+                <span className="px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-300" title="Gemini credentials are held only by the server">
+                  <Shield size={11} /> Server secured
+                </span>
 
                 <button
                   type="button"
@@ -5078,7 +5050,7 @@ export default function StudentCertificateStudioView({
 
                 <div
                   className="p-3 rounded-2xl border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs max-h-48 overflow-y-auto leading-relaxed shadow-inner font-serif"
-                  dangerouslySetInnerHTML={{ __html: aiGeneratedHtml }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
                 />
 
                 {/* Real-time Insert Actions */}

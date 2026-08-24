@@ -19,6 +19,30 @@ if (fs.existsSync(netlifyModulesPath) && !module.paths.includes(netlifyModulesPa
 }
 
 module.exports = function(app) {
+  const cleanPublicText = (value, maxLength) => String(value || '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+
+  const toPublicFaculty = (items) => (Array.isArray(items) ? items : [])
+    .filter((member) => member && typeof member === 'object' && member.hidden !== true)
+    .map((member) => ({
+      name: cleanPublicText(member.name, 120),
+      designation: cleanPublicText(member.designation, 120),
+      subject: cleanPublicText(member.subject, 120),
+      department: cleanPublicText(member.department, 80),
+      photo: cleanPublicText(member.photo, 2048),
+    }))
+    .filter((member) => member.name && member.designation)
+    .map((member) => ({
+      ...member,
+      photo: /^\/slides\/[a-zA-Z0-9._-]+\.(?:jpe?g|png|webp)$/i.test(member.photo) ||
+        /^https:\/\/(?:firebasestorage\.googleapis\.com|[^/]+\.googleusercontent\.com)\//i.test(member.photo)
+        ? member.photo
+        : '',
+    }))
+    .slice(0, 150);
+
   // Inject basic security headers
   app.use((req, res, next) => {
     res.setHeader('X-Frame-Options', 'DENY');
@@ -31,6 +55,7 @@ module.exports = function(app) {
   app.use(express.json({ limit: '10mb' }));
 
   const slidesDir = path.join(__dirname, '..', 'public', 'slides');
+  const privateRuntimeDir = path.join(__dirname, '..', 'scripts', 'backup', 'local-runtime');
 
   // Shared localhost + host header guard
   function assertLocalhost(req, res) {
@@ -143,6 +168,36 @@ module.exports = function(app) {
     upstream.end(body);
   });
 
+  app.post('/.netlify/functions/ai-generate', async (req, res) => {
+    if (!assertLocalhost(req, res)) return;
+
+    try {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON &&
+          (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY)) {
+        try { delete require.cache[require.resolve('../netlify/functions/ai-generate')]; } catch (e) {}
+        const { handler } = require('../netlify/functions/ai-generate');
+        const result = await handler({
+          httpMethod: 'POST',
+          headers: {
+            authorization: req.headers.authorization || '',
+            origin: req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`,
+            'x-firebase-appcheck': req.headers['x-firebase-appcheck'] || '',
+          },
+          body: JSON.stringify(req.body || {}),
+        });
+        Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
+        return res.status(result.statusCode || 500).send(result.body || '');
+      }
+    } catch (error) {
+      console.error('Local AI function error:', error.message);
+      return res.status(500).json({ error: 'The local AI service could not start.' });
+    }
+
+    return res.status(503).json({
+      error: 'Configure FIREBASE_SERVICE_ACCOUNT_JSON and GEMINI_API_KEYS in .env.local to use AI locally.'
+    });
+  });
+
   // Ensure slidesDir exists
   function ensureSlidesDir() {
     if (!fs.existsSync(slidesDir)) {
@@ -150,11 +205,17 @@ module.exports = function(app) {
     }
   }
 
+  function ensurePrivateRuntimeDir() {
+    if (!fs.existsSync(privateRuntimeDir)) {
+      fs.mkdirSync(privateRuntimeDir, { recursive: true });
+    }
+  }
+
   app.post('/api/save-config', (req, res) => {
     try {
       if (!assertLocalhost(req, res)) return;
 
-      const { settings, noticesText, faculty, admins, slidesText } = req.body;
+      const { settings, noticesText, faculty, slidesText } = req.body;
 
       ensureSlidesDir();
 
@@ -175,18 +236,10 @@ module.exports = function(app) {
       }
 
       if (faculty) {
-        const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
+        const cleanedFaculty = toPublicFaculty(faculty);
         fs.writeFileSync(
           path.join(slidesDir, 'faculty.json'),
           JSON.stringify(cleanedFaculty, null, 2),
-          'utf8'
-        );
-      }
-
-      if (admins) {
-        fs.writeFileSync(
-          path.join(slidesDir, 'admins.json'),
-          JSON.stringify(admins, null, 2),
           'utf8'
         );
       }
@@ -213,9 +266,9 @@ module.exports = function(app) {
     try {
       if (!assertLocalhost(req, res)) return;
 
-      ensureSlidesDir();
+      ensurePrivateRuntimeDir();
 
-      const filePath = path.join(slidesDir, 'messages.json');
+      const filePath = path.join(privateRuntimeDir, 'messages.json');
       if (!fs.existsSync(filePath)) {
         return res.status(200).json([]);
       }
@@ -233,9 +286,9 @@ module.exports = function(app) {
     try {
       if (!assertLocalhost(req, res)) return;
 
-      ensureSlidesDir();
+      ensurePrivateRuntimeDir();
 
-      const filePath = path.join(slidesDir, 'messages.json');
+      const filePath = path.join(privateRuntimeDir, 'messages.json');
 
       const { message } = req.body || {};
       // Accept either { message } or direct message fields payload

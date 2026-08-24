@@ -5,7 +5,6 @@ import Footer from './components/Footer';
 import ThemeSelector from './components/ThemeSelector';
 import PublicPageSkeleton from './components/PublicPageSkeleton';
 import Home from './pages/Home';
-import GkTestRegistration from './pages/GkTestRegistration';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import './portal/portal.css';
 import './styles/ui-system.css';
@@ -61,6 +60,7 @@ const AttendancePage = lazyWithChunkRecovery(() => import('./portal/teacher/Atte
 const PracticalsPage = lazyWithChunkRecovery(() => import('./portal/teacher/PracticalsPage'), 'practicals');
 const AdminDashboard = lazyWithChunkRecovery(() => import('./portal/admin/AdminDashboard'), 'admin-dashboard');
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./portal/admin/AdmissionRegisterSuite'), 'adm-register-suite');
+const GkTestRegistration = lazyWithChunkRecovery(() => import('./pages/GkTestRegistration'), 'gk-test');
 
 // A stable, responsive placeholder while route bundles are downloaded.
 const LazyFallback = () => <PublicPageSkeleton label="Loading page…" />;

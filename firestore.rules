@@ -214,6 +214,29 @@ service cloud.firestore {
                 !data.paymentGatewayConfig.razorpay.keys().hasAny(['keySecret', 'secret', 'secretKey'])))));
     }
 
+    function validPublicFaculty(data) {
+      return data is map &&
+        data.keys().hasAll(['name', 'designation', 'subject', 'department', 'photo']) &&
+        data.keys().hasOnly(['name', 'designation', 'subject', 'department', 'photo']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.designation is string && data.designation.size() >= 1 && data.designation.size() <= 120 &&
+        data.subject is string && data.subject.size() <= 120 &&
+        data.department is string && data.department.size() <= 80 &&
+        data.photo is string && data.photo.size() <= 2048 &&
+        (data.photo == '' ||
+          data.photo.matches('^/slides/[a-zA-Z0-9._-]+\\.(jpg|jpeg|png|webp)$') ||
+          data.photo.matches('^https://firebasestorage\\.googleapis\\.com/.*$') ||
+          data.photo.matches('^https://[^/]+\\.googleusercontent\\.com/.*$'));
+    }
+
+    function validFacultySummary(data) {
+      return data is map &&
+        data.keys().hasAll(['principalName']) &&
+        data.keys().hasOnly(['principalName', 'updatedAt']) &&
+        data.principalName is string && data.principalName.size() <= 120 &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
     function validOmrRegistration(data) {
       return data is map &&
         data.keys().hasAll(['examNumber', 'name', 'className', 'session', 'status', 'ownerUid']) &&
@@ -237,10 +260,21 @@ service cloud.firestore {
 
     // Public, non-sensitive website content.
     match /site/{documentId} {
-      allow get: if documentId in ['settings', 'notices', 'faculty', 'slideshow', 'pages'] ||
+      allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages'] ||
         documentId.matches('^page_[a-zA-Z0-9_-]{1,64}$');
+      allow get: if documentId == 'faculty' && isAdmin();
       allow list: if false;
-      allow create, update: if isAdmin() && validPublicSiteDocument(documentId, request.resource.data);
+      allow create, update: if isAdmin() && (
+        (documentId == 'facultySummary' && validFacultySummary(request.resource.data)) ||
+        (documentId != 'facultySummary' && validPublicSiteDocument(documentId, request.resource.data))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Explicitly published, data-minimised faculty directory.
+    match /facultyPublic/{documentId} {
+      allow get, list: if true;
+      allow create, update: if isAdmin() && validPublicFaculty(request.resource.data);
       allow delete: if isAdmin();
     }
 
@@ -361,19 +395,25 @@ service cloud.firestore {
 
     // Administrative and institution-wide records.
     match /{collectionName}/{documentId} {
-      allow read: if isAdmin() && collectionName in [
+      allow read: if isAdmin() &&
+        !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
+        collectionName in [
         'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
         'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ];
-      allow create, update: if isAdmin() && collectionName in [
+      allow create, update: if isAdmin() &&
+        !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
+        collectionName in [
         'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
         'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
       ] && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin() && collectionName in [
+      allow delete: if isAdmin() &&
+        !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
+        collectionName in [
         'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',

@@ -105,6 +105,12 @@ function getLocalDraftKey(uid = 'guest') {
   return `hss_student_draft_${uid}`;
 }
 
+const LOCAL_DRAFT_TTL_MS = 30 * 60 * 1000;
+
+function localFirestoreFallbackEnabled() {
+  return isLocalEnvironment() && process.env.REACT_APP_ENABLE_LOCAL_FIRESTORE_FALLBACK === 'true';
+}
+
 export async function loadAdmissionWorkspace() {
   const user = auth.currentUser;
   try {
@@ -114,10 +120,14 @@ export async function loadAdmissionWorkspace() {
     if (err.isServiceUnavailable || err.status === 404 || isLocalEnvironment()) {
       console.warn('Admission remote backend unavailable, checking local draft storage.');
       try {
-        const raw = localStorage.getItem(getLocalDraftKey(user?.uid));
+        const raw = sessionStorage.getItem(getLocalDraftKey(user?.uid));
         if (raw) {
           const parsed = JSON.parse(raw);
-          return { application: parsed, admissionWindow: { isOpen: true }, isLocalFallback: true };
+          const updatedAt = Date.parse(parsed?.updatedAt || '');
+          if (Number.isFinite(updatedAt) && Date.now() - updatedAt <= LOCAL_DRAFT_TTL_MS) {
+            return { application: parsed, admissionWindow: { isOpen: true }, isLocalFallback: true };
+          }
+          sessionStorage.removeItem(getLocalDraftKey(user?.uid));
         }
       } catch (e) {
         console.warn('Local draft load error:', e);
@@ -134,15 +144,17 @@ export async function saveAdmissionDraft({ formData, applicationId, force = fals
   ['Aadhar No.', "Father's Aadhar No.", 'Bank Account No.', 'Student Photo', 'photo_id', 'photo', 'photoUrl'].forEach(key => delete safeDraft[key]);
   
   const user = auth.currentUser;
-  // Always persist local backup
+  // Keep a short-lived, tab-scoped recovery copy. Never persist student PII
+  // across browser restarts on shared devices.
   try {
-    localStorage.setItem(getLocalDraftKey(user?.uid), JSON.stringify({
+    localStorage.removeItem(getLocalDraftKey(user?.uid));
+    sessionStorage.setItem(getLocalDraftKey(user?.uid), JSON.stringify({
       formData: safeDraft,
       applicationId: applicationId || `draft_${user?.uid || 'local'}`,
       updatedAt: new Date().toISOString(),
     }));
   } catch (e) {
-    console.warn('LocalStorage draft write error:', e);
+    console.warn('Session draft write error:', e);
   }
 
   try {
@@ -169,7 +181,7 @@ export async function submitAdmission({ formData, applicationId, submissionKey, 
       upgradeMode,
     });
   } catch (err) {
-    if (err.isServiceUnavailable || err.status === 404 || isLocalEnvironment()) {
+    if (localFirestoreFallbackEnabled()) {
       console.warn('Admission Netlify workflow function unavailable, submitting directly to Firestore:', err);
       const user = auth.currentUser;
       const formNo = String(cleanFormData['Form Number'] || cleanFormData['FormNo'] || cleanFormData.formNo || `25${String(Date.now()).slice(-4)}`);
@@ -203,7 +215,7 @@ export async function withdrawAdmission(applicationId) {
   try {
     return await request('withdraw', { applicationId });
   } catch (err) {
-    if (err.isServiceUnavailable || err.status === 404 || isLocalEnvironment()) {
+    if (localFirestoreFallbackEnabled()) {
       if (applicationId) {
         try {
           await setDoc(doc(db, 'admissions', String(applicationId)), {

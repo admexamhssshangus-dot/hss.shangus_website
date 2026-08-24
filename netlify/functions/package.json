@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",
-    "frontend": "file:../.."
+    "frontend": "file:../..",
+    "sanitize-html": "^2.17.7"
   }
 }

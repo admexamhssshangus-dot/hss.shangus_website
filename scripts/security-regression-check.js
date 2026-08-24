@@ -20,6 +20,10 @@ const mergerStudio = read('src/portal/admin/ApplicationMergerStudio.jsx');
 const appShell = read('src/App.js');
 const photoResolver = read('src/utils/imageCompressor.js');
 const rosterBuilder = read('src/portal/admin/CustomRosterDocumentBuilderView.jsx');
+const publicFaculty = JSON.parse(read('public/slides/faculty.json'));
+const geminiClient = read('src/services/geminiLetterService.js');
+const aiFunction = read('netlify/functions/ai-generate.js');
+const serviceWorker = read('public/service-worker.js');
 
 assert(!/allow\s+(read|write|create|update|delete)(?:\s*,\s*\w+)*\s*:\s*if\s+true\b/.test(rules), 'Firestore contains unconditional access');
 assert(/match \/\{document=\*\*\}[\s\S]*allow read, write: if false;/.test(rules), 'Firestore default deny is missing');
@@ -65,5 +69,21 @@ assert(!/classPhoto = p9 \|\| p10 \|\| p11 \|\| p12/.test(photoResolver), 'Secon
 assert(!/classPhoto = p11 \|\| p12 \|\| p9 \|\| p10/.test(photoResolver), 'Higher-secondary photos can still fall through to the secondary band');
 assert(/const printableRows = await Promise\.all\(processedRows\.map/.test(rosterBuilder), 'Roster printing does not wait for canonical photo resolution');
 assert(/setPhotoSrc\(''\);[\s\S]{0,220}const fast/.test(rosterBuilder), 'Roster photo cells can retain a previous student image while a new lookup is pending');
+assert(!['public/slides/admins.json', 'public/slides/messages.json', 'public/slides/faculty_roster.csv', 'public/slides/faculty_roster_custom.csv']
+  .some(file => fs.existsSync(path.join(root, file))), 'A legacy sensitive public file still exists');
+assert(!fs.existsSync(path.join(root, 'scripts/rest-seed.js')), 'The unauthenticated legacy REST seeder still exists');
+assert(publicFaculty.length > 0 && publicFaculty.every(member => {
+  const keys = Object.keys(member).sort();
+  return JSON.stringify(keys) === JSON.stringify(['department', 'designation', 'name', 'photo', 'subject']);
+}), 'Public faculty projection contains non-allowlisted fields');
+assert(/match \/facultyPublic\/\{documentId\}/.test(rules) && /validPublicFaculty/.test(rules), 'Public faculty Firestore validation is missing');
+assert(/documentId == 'faculty' && isAdmin\(\)/.test(rules), 'Legacy faculty document is not admin-only');
+assert(!/generativelanguage\.googleapis\.com/.test(geminiClient), 'Gemini is still called directly from the browser');
+assert(!/setDoc|apiKeys\s*:/.test(geminiClient), 'Gemini secrets can still be stored by the browser');
+assert(/verifyIdToken/.test(aiFunction) && /verifyToken\(appCheckToken\)/.test(aiFunction), 'AI endpoint authentication or App Check is missing');
+assert(/sanitizeHtml/.test(aiFunction), 'AI-generated HTML is not sanitized server-side');
+assert(serviceWorker.includes('(?:csv|json|txt)') && /NEVER_CACHE_PATHS/.test(serviceWorker), 'Service worker may cache sensitive data responses');
+assert(/sessionStorage\.setItem\(getLocalDraftKey/.test(admissionClient), 'Admission recovery drafts are not tab-scoped');
+assert(!/localStorage\.setItem\(getLocalDraftKey/.test(admissionClient), 'Admission drafts are persisted across browser restarts');
 
 console.log('Security regression checks passed.');

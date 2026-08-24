@@ -72,7 +72,7 @@ function allowedOrigin(event) {
     .split(',').map(v => v.trim().replace(/\/$/, '')).filter(Boolean);
   const defaults = [process.env.URL, process.env.DEPLOY_PRIME_URL, 'https://hssshangus.netlify.app']
     .filter(Boolean).map(v => String(v).replace(/\/$/, ''));
-  return origin && [...configured, ...defaults].includes(origin) ? origin : (origin || 'http://localhost:3000');
+  return origin && [...configured, ...defaults].includes(origin) ? origin : '';
 }
 
 async function authenticate(event) {
@@ -97,7 +97,7 @@ async function authenticate(event) {
   if (process.env.REQUIRE_VERIFIED_STUDENT_EMAIL === 'true' && decoded.email_verified !== true) {
     throw Object.assign(new Error('Please verify your email address before using admissions.'), { status: 403 });
   }
-  if (process.env.REQUIRE_APP_CHECK === 'true') {
+  if (process.env.REQUIRE_APP_CHECK !== 'false') {
     const appCheckToken = String(event.headers['x-firebase-appcheck'] || '');
     if (!appCheckToken) throw Object.assign(new Error('App verification is required.'), { status: 401 });
     await getAppCheck(getAdminApp()).verifyToken(appCheckToken);
@@ -485,7 +485,7 @@ async function saveDraft(db, token, body) {
   const sanitized = sanitizeValue(body.formData || {});
   const requestedId = cleanString(body.applicationId, 128);
   if (requestedId && !/^[a-zA-Z0-9_-]{1,128}$/.test(requestedId)) throw Object.assign(new Error('Invalid application ID.'), { status: 400 });
-  ['Aadhar No.', 'Bank Account No.', 'Student Photo', 'photo_id', 'photo', 'photoUrl', 'photoPath'].forEach(key => delete sanitized[key]);
+  ['Aadhar No.', "Father's Aadhar No.", 'Bank Account No.', 'Student Photo', 'photo_id', 'photo', 'photoUrl', 'photoPath'].forEach(key => delete sanitized[key]);
   const ref = requestedId ? db.collection('admissions').doc(requestedId) : db.collection('admissions').doc();
   const existing = await ref.get();
   if (existing.exists) {

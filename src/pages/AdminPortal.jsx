@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw } from 'lucide-react';
 import { DEFAULT_SETTINGS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import { db, storage, auth } from '../firebase';
-import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { publicFacultyDocumentId, toPublicFacultyList } from '../utils/facultyPrivacy';
 
 // ==========================================
 // IndexedDB Helpers for Storing Folder Handle
@@ -44,8 +45,6 @@ async function getFolderHandle() {
     req.onerror = () => reject(req.error);
   });
 }
-
-const ADMIN_PASSWORD_HASH = '337c3ede57bd0445487f19ce491960c04e86b801c2b26655e9241b9d539e7482';
 
 // Default fallback admin. `hashAlgo` is explicit so the login routine
 // can deterministically pick the proper verification method.
@@ -151,7 +150,33 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
   // Write core documents
   await setDoc(doc(db, 'site', 'settings'), sanitizePublicSettings(settings));
   await setDoc(doc(db, 'site', 'notices'), { text: noticesText || '' });
-  await setDoc(doc(db, 'site', 'faculty'), { items: (faculty || []).map(({ id, ...r }) => r) });
+  const privateFaculty = (faculty || []).map(({ id, ...record }) => record).slice(0, 150);
+  const publicFaculty = toPublicFacultyList(privateFaculty);
+  await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), {
+    items: privateFaculty,
+    updatedAt: serverTimestamp(),
+    privacyVersion: 2
+  });
+  // Keep the old document non-sensitive during migration. New public clients
+  // use facultyPublic and never read this legacy path.
+  await setDoc(doc(db, 'site', 'faculty'), {
+    items: publicFaculty,
+    updatedAt: serverTimestamp(),
+    privacyVersion: 2
+  });
+  const principal = publicFaculty.find((member) => member.designation.toLowerCase() === 'principal');
+  await setDoc(doc(db, 'site', 'facultySummary'), {
+    principalName: principal?.name || '',
+    updatedAt: serverTimestamp()
+  });
+
+  const publicSnapshot = await getDocs(collection(db, 'facultyPublic'));
+  const publicBatch = writeBatch(db);
+  publicSnapshot.docs.forEach((facultyDoc) => publicBatch.delete(facultyDoc.ref));
+  publicFaculty.forEach((member, index) => {
+    publicBatch.set(doc(db, 'facultyPublic', publicFacultyDocumentId(member, index)), member);
+  });
+  await publicBatch.commit();
   if (slides) {
     await setDoc(doc(db, 'site', 'slideshow'), { items: slides });
   }
@@ -1788,18 +1813,23 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       } catch (e) { }
     }
 
-    // 2. Always fetch latest admins — Firestore first, then server, then localStorage
-    fetchAdminsFromServer(currentSessionUser);
+    // 2. Embedded CMS authorization comes from the verified portal session.
+    // Never hydrate password hashes into browser-persistent storage.
+    localStorage.removeItem('site_admins');
+    if (embeddedUser) {
+      setAdmins([]);
+    } else {
+      fetchAdminsFromServer(currentSessionUser);
+    }
 
     async function fetchAdminsFromServer(sessionUserObj) {
       // Try Firestore first
       try {
-        const snap = await getDoc(doc(db, 'site', 'admins'));
+        const snap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
         if (snap.exists()) {
           const data = snap.data();
           if (data && Array.isArray(data.items) && data.items.length > 0) {
             setAdmins(data.items);
-            localStorage.setItem('site_admins', JSON.stringify(data.items));
             if (sessionUserObj) {
               syncCurrentUserSession(data.items, sessionUserObj);
             }
@@ -1810,40 +1840,11 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         console.warn('Firestore admins read failed, falling back:', e);
       }
 
-      // Fallback: static file
-      try {
-        const r = await fetch('/slides/admins.json?t=' + Date.now(), { cache: 'no-cache' });
-        if (!r.ok) throw new Error('Not found');
-        const data = await r.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setAdmins(data);
-          localStorage.setItem('site_admins', JSON.stringify(data));
-          if (sessionUserObj) {
-            syncCurrentUserSession(data, sessionUserObj);
-          }
-          return;
-        }
-      } catch (e) {
-        // fall through
-      }
-
       loadFallbackAdmins(sessionUserObj);
     }
 
     function loadFallbackAdmins(sessionUserObj) {
-      const localAdmins = localStorage.getItem('site_admins');
-      if (localAdmins) {
-        try {
-          const parsed = JSON.parse(localAdmins);
-          setAdmins(parsed);
-          if (sessionUserObj) {
-            syncCurrentUserSession(parsed, sessionUserObj);
-          }
-          return;
-        } catch (e) { }
-      }
       setAdmins(DEFAULT_ADMINS);
-      localStorage.setItem('site_admins', JSON.stringify(DEFAULT_ADMINS));
       if (sessionUserObj) {
         syncCurrentUserSession(DEFAULT_ADMINS, sessionUserObj);
       }
@@ -2238,31 +2239,17 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       }
     })();
 
-    // 3. Load faculty directory
-    const localFaculty = localStorage.getItem('site_faculty');
-    if (localFaculty) {
-      try {
-        const parsed = JSON.parse(localFaculty);
-        if (Array.isArray(parsed)) {
-          setFaculty(parsed);
-          setLoading(false);
-        } else {
-          throw new Error('Not an array');
-        }
-      } catch (e) {
-        console.warn('Error reading site_faculty from localStorage:', e);
-        fetchFacultyFromServer();
-      }
-    } else {
-      fetchFacultyFromServer();
-    }
+    // 3. Load the admin-only faculty record. Private staff details are never
+    // cached in localStorage or written to the public faculty JSON file.
+    localStorage.removeItem('site_faculty');
+    fetchFacultyFromServer();
 
     function fetchFacultyFromServer() {
       (async () => {
         try {
-          // Try Firestore first
+          // Prefer the private admin-only document.
           try {
-            const snap = await getDoc(doc(db, 'site', 'faculty'));
+            const snap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
             if (snap.exists()) {
               const data = snap.data();
               if (data && Array.isArray(data.items)) {
@@ -2272,7 +2259,23 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
               }
             }
           } catch (e) {
-            // ignore and fallback to static fetch
+            console.warn('Failed to load the private faculty record:', e);
+          }
+
+          // Migration fallback for the former combined document. Firestore
+          // rules now restrict this legacy path to administrators.
+          try {
+            const legacySnap = await getDoc(doc(db, 'site', 'faculty'));
+            if (legacySnap.exists()) {
+              const legacyData = legacySnap.data();
+              if (legacyData && Array.isArray(legacyData.items)) {
+                setFaculty(legacyData.items);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to load the legacy faculty record:', e);
           }
 
           const r = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
@@ -2280,7 +2283,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
           if (Array.isArray(data)) setFaculty(data);
         } catch (err) {
           setFaculty([
-            { name: "Mr. Aijaz Ahmad Wagay", designation: "Principal", subject: "Chemistry", email: "ghssshangus74@gmail.com", mobile: "+91-7006034501", photo: "/slides/Principal.jpg", department: "Administration" }
+            { name: "Mr. Aijaz Ahmad Wagay", designation: "Principal", subject: "Chemistry", photo: "/slides/Principal.jpg", department: "Administration" }
           ]);
         } finally {
           setLoading(false);
@@ -3545,8 +3548,10 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     // Use setTimeout(0) so state has committed before we read updatedFaculty
     setTimeout(() => {
       if (!updatedFaculty) return;
-      // Persist to localStorage immediately
-      localStorage.setItem('site_faculty', JSON.stringify(updatedFaculty));
+      // Persist only the allow-listed public preview. Full personnel data stays
+      // in component memory until the authenticated cloud save completes.
+      localStorage.removeItem('site_faculty');
+      localStorage.setItem('hss_public_faculty', JSON.stringify(toPublicFacultyList(updatedFaculty)));
       // Broadcast live update to other tabs
       try {
         const ch = new BroadcastChannel('hss_data_sync');
@@ -3559,7 +3564,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         fetch('/api/save-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ faculty: updatedFaculty })
+          body: JSON.stringify({ faculty: toPublicFacultyList(updatedFaculty) })
         }).catch(err => console.warn('Background file sync failed:', err));
       }
     }, 0);
@@ -4325,7 +4330,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       // 3. Local Storage stage
       localStorage.setItem('site_settings', JSON.stringify(settings));
       localStorage.setItem('site_notices', noticesText);
-      localStorage.setItem('site_faculty', JSON.stringify(faculty));
+      localStorage.removeItem('site_faculty');
+      localStorage.setItem('hss_public_faculty', JSON.stringify(toPublicFacultyList(faculty)));
       localStorage.setItem('site_slides', JSON.stringify(slides));
       localStorage.setItem('site_recycle_bin', JSON.stringify(recycleBin));
 
@@ -4351,7 +4357,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
             body: JSON.stringify({
               settings,
               noticesText,
-              faculty,
+              faculty: toPublicFacultyList(faculty),
               slidesText
             })
           });
@@ -4374,7 +4380,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         try {
           const perm = await folderHandle.requestPermission({ mode: 'readwrite' });
           if (perm === 'granted') {
-            const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
+            const cleanedFaculty = toPublicFacultyList(faculty);
 
             const ok1 = await writeLocalFile(folderHandle, 'settings.json', JSON.stringify(settings, null, 2));
             const ok2 = await writeLocalFile(folderHandle, 'notices.txt', noticesText);
@@ -4460,7 +4466,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
   };
 
   const downloadFacultyJson = () => {
-    const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
+    const cleanedFaculty = toPublicFacultyList(faculty);
     const content = JSON.stringify(cleanedFaculty, null, 2);
     downloadFile('faculty.json', content, 'application/json');
   };
@@ -8534,7 +8540,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         <h4 className="font-bold text-slate-200 text-sm">faculty.json</h4>
                       </div>
                       <p className="text-xs text-slate-400 leading-relaxed">
-                        Contains the complete JSON database of faculty members. Place inside:
+                        Contains only the public faculty directory fields (name, designation, subject, department and approved photo URL). Place inside:
                       </p>
                       <code className="block text-[10.5px] font-mono bg-slate-950 p-1.5 rounded border border-slate-800 text-slate-300 mt-2 text-center select-all">
                         public/slides/faculty.json

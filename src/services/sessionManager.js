@@ -171,10 +171,20 @@ function clearSession() {
 
       // Security Guardrail: Clear admin student caches on explicit logout
       // (ensures shared/public computers never retain historical or active student data)
+      const privateCachePrefixes = [
+        'hss_cache_',
+        'hss_reports_cache_',
+        'hss_student_draft_',
+        'hss_attendance_',
+        'hss_holiday_',
+        'hss_practicals_draft_',
+        'hss_private_',
+        'hss_gemini_',
+      ];
       const keysToRemove = [];
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && (key.startsWith('hss_cache_') || key.startsWith('hss_reports_cache_'))) {
+        if (key && privateCachePrefixes.some(prefix => key.startsWith(prefix))) {
           keysToRemove.push(key);
         }
       }

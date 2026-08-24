@@ -150,20 +150,15 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     async function loadFaculty() {
-      const local = localStorage.getItem('site_faculty');
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed)) {
-            const principal = parsed.find(f => f.designation?.toLowerCase() === 'principal');
-            if (principal && active) {
-              setPrincipalName(principal.name);
-              return;
-            }
-          }
-        } catch (e) {
-          console.warn('Error reading site_faculty from localStorage:', e);
+      try {
+        const snapshot = await getDoc(doc(db, 'site', 'facultySummary'));
+        const principalName = snapshot.data()?.principalName;
+        if (typeof principalName === 'string' && principalName.trim() && active) {
+          setPrincipalName(principalName.trim());
+          return;
         }
+      } catch (err) {
+        console.warn('Failed to load the public faculty summary from Firestore:', err);
       }
 
       try {
@@ -352,7 +347,7 @@ export default function Home() {
           if (local) {
             setNotices(parseNotices(local));
           }
-          const localFaculty = localStorage.getItem('site_faculty');
+          const localFaculty = localStorage.getItem('hss_public_faculty');
           if (localFaculty) {
             try {
               const parsed = JSON.parse(localFaculty);
@@ -363,7 +358,7 @@ export default function Home() {
                 }
               }
             } catch (err) {
-              console.warn('Sync site_faculty error:', err);
+              console.warn('Sync public faculty projection error:', err);
             }
           }
           const localSlides = localStorage.getItem('site_slides');
@@ -409,7 +404,7 @@ export default function Home() {
             <Link to="/admissions" className="ui-touch-target min-h-11 px-4 sm:px-5 py-2 font-bold rounded-lg transition-all shadow-lg inline-flex items-center text-xs sm:text-sm btn-hero-primary">
               {settings?.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open 2026'}
             </Link>
-            <Link to="/about" className="min-h-9 px-3 sm:px-3.5 py-1.5 font-bold rounded-md transition-all shadow-md inline-flex items-center text-[11px] sm:text-xs btn-hero-secondary">
+            <Link to="/about" className="ui-touch-target min-h-11 px-3 sm:px-3.5 py-1.5 font-bold rounded-md transition-all shadow-md inline-flex items-center text-[11px] sm:text-xs btn-hero-secondary">
               Learn More
             </Link>
           </div>
@@ -540,7 +535,7 @@ export default function Home() {
               </ul>
             </div>
             <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
-              <Link to="/notices" className="text-xs sm:text-sm font-bold text-teal-800 hover:text-teal-950 hover:underline tracking-wide uppercase">
+              <Link to="/notices" className="ui-touch-target inline-flex items-center text-xs sm:text-sm font-bold text-teal-800 hover:text-teal-950 hover:underline tracking-wide uppercase">
                 View All Archives
               </Link>
             </div>

@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { toPublicFacultyMember } = require('./generate-public-faculty');
 
 // Try to load firebase-admin
 let admin;
@@ -64,15 +65,41 @@ async function seed() {
     console.error('❌ site/settings — failed:', e.message);
   }
 
-  // 2. Faculty
+  // 2. Faculty. The public file is already data-minimised. A private source
+  // may be supplied explicitly as argv[2], but it must not live under public/.
   try {
     const facultyRaw = fs.readFileSync(path.join(slidesDir, 'faculty.json'), 'utf8');
-    const faculty = JSON.parse(facultyRaw);
-    const cleanedFaculty = faculty.map(({ id, ...rest }) => rest);
-    await db.doc('site/faculty').set({ items: cleanedFaculty });
-    console.log('✅ site/faculty — written (' + cleanedFaculty.length + ' employees)');
+    const publicFaculty = JSON.parse(facultyRaw).map(toPublicFacultyMember).filter(Boolean);
+    const batch = db.batch();
+    const existing = await db.collection('facultyPublic').get();
+    existing.docs.forEach(doc => batch.delete(doc.ref));
+    publicFaculty.forEach((member, index) => {
+      const safeId = `${member.name}-${member.designation}-${index}`.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 96);
+      batch.set(db.collection('facultyPublic').doc(safeId || `staff-${index}`), member);
+    });
+    await batch.commit();
+    const principal = publicFaculty.find(member => member.designation.toLowerCase() === 'principal');
+    await db.doc('site/facultySummary').set({ principalName: principal?.name || '', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    await db.doc('site/faculty').set({ items: publicFaculty, privacyVersion: 2, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    console.log('✅ public faculty projection — written (' + publicFaculty.length + ' employees)');
+
+    const privateArg = process.argv[2];
+    if (privateArg) {
+      const privatePath = path.resolve(privateArg);
+      const publicRoot = path.resolve(__dirname, '..', 'public') + path.sep;
+      if (privatePath.startsWith(publicRoot)) throw new Error('Private faculty source must not be inside public/.');
+      const privateFaculty = JSON.parse(fs.readFileSync(privatePath, 'utf8'));
+      if (!Array.isArray(privateFaculty)) throw new Error('Private faculty source must be an array.');
+      await db.doc('systemSettings/facultyPrivate').set({
+        items: privateFaculty.slice(0, 150),
+        privacyVersion: 2,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log('✅ systemSettings/facultyPrivate — written from explicit private source');
+    }
   } catch (e) {
-    console.error('❌ site/faculty — failed:', e.message);
+    console.error('❌ faculty projection — failed:', e.message);
   }
 
   // 3. Notices
@@ -82,17 +109,6 @@ async function seed() {
     console.log('✅ site/notices — written (' + noticesText.split('\n').filter(Boolean).length + ' notices)');
   } catch (e) {
     console.error('❌ site/notices — failed:', e.message);
-  }
-
-  // 4. Admins
-  try {
-    const adminsRaw = fs.readFileSync(path.join(slidesDir, 'admins.json'), 'utf8');
-    const admins = JSON.parse(adminsRaw);
-    const emails = admins.map(a => (a.email || '').toLowerCase()).filter(Boolean);
-    await db.doc('site/admins').set({ items: admins, emails });
-    console.log('✅ site/admins — written (' + admins.length + ' admins, emails: ' + emails.join(', ') + ')');
-  } catch (e) {
-    console.error('❌ site/admins — failed:', e.message);
   }
 
   console.log('\n🎉 Seeding complete! Verify at:');

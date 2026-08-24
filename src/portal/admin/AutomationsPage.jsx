@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { getCachedCollectionSync, subscribeToCollection, getCachedCollection } from '../../services/dbCache';
+import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 
 const DEFAULT_FOOTER = 'Best regards, Admission & Examination Cell, Govt. Higher Secondary School Shangus';
 
@@ -1074,7 +1075,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                   <div 
                     className="prose prose-sm dark:prose-invert max-w-none"
                     dangerouslySetInnerHTML={{ 
-                      __html: emailBodyHtml || '<p class="text-slate-400 italic">No message content entered yet...</p>' 
+                      __html: sanitizeRichHtml(emailBodyHtml || '<p>No message content entered yet...</p>')
                     }} 
                   />
                 </div>

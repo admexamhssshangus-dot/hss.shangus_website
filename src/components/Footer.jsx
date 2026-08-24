@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, Award, ExternalLink, ShieldCheck, MapPin, Layers, Building2 } from 'lucide-react';
+import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
@@ -49,7 +49,7 @@ function handleEmailClick(e, email, subject = '', body = '') {
   if (!isMobile) {
     e.preventDefault();
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}${subject ? `&su=${encodeURIComponent(subject)}` : ''}${body ? `&body=${encodeURIComponent(body)}` : ''}`;
-    window.open(gmailUrl, '_blank');
+    window.open(gmailUrl, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -112,7 +112,7 @@ export default function Footer() {
                     href={settings.socialLinks.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
                     title="Facebook"
                   >
                     <FacebookIcon size={14} />
@@ -123,7 +123,7 @@ export default function Footer() {
                     href={settings.socialLinks.youtube}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
                     title="YouTube"
                   >
                     <YoutubeIcon size={14} />
@@ -134,7 +134,7 @@ export default function Footer() {
                     href={settings.socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
                     title="Twitter / X"
                   >
                     <TwitterIcon size={14} />
@@ -145,7 +145,7 @@ export default function Footer() {
                     href={settings.socialLinks.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
                     title="Instagram"
                   >
                     <InstagramIcon size={14} />
@@ -159,11 +159,11 @@ export default function Footer() {
           <div className="text-center">
             <h2 className="text-white font-bold mb-4">Quick Links</h2>
             <ul className="space-y-2 text-sm flex flex-col">
-              <Link to="/" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Home</Link>
-              <Link to="/about" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">About Us</Link>
-              <Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Admissions</Link>
-              <Link to="/login" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Login / Portal</Link>
-              <Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="hover:text-teal-400 transition-colors">Academics</Link>
+              <li><Link to="/" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Home</Link></li>
+              <li><Link to="/about" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">About Us</Link></li>
+              <li><Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Admissions</Link></li>
+              <li><Link to="/login" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Login / Portal</Link></li>
+              <li><Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Academics</Link></li>
             </ul>
           </div>
 
@@ -175,7 +175,7 @@ export default function Footer() {
               <button
                 onClick={() => setActiveModal('contactForm')}
                 aria-label="Open contact form"
-                className="btn-primary-custom rounded-md px-3 py-1 text-xs font-bold shadow-md flex items-center justify-center transition-all duration-200"
+                className="ui-touch-target btn-primary-custom rounded-md px-3 py-1 text-xs font-bold shadow-md flex items-center justify-center transition-all duration-200"
                 style={{ boxShadow: '0 6px 18px rgba(16,185,129,0.12)' }}
               >
                 <Mail size={14} />
@@ -211,18 +211,18 @@ export default function Footer() {
           <div className="text-center">
             <h2 className="text-white font-bold mb-4">Legal & Compliance</h2>
             <ul className="space-y-2 text-sm flex flex-col items-center">
-              <button onClick={() => setActiveModal('privacy')} className="hover:text-teal-400 transition-colors focus:outline-none">
+              <li><button onClick={() => setActiveModal('privacy')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
                 Privacy Policy
-              </button>
-              <button onClick={() => setActiveModal('terms')} className="hover:text-teal-400 transition-colors focus:outline-none">
+              </button></li>
+              <li><button onClick={() => setActiveModal('terms')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
                 Terms & Conditions
-              </button>
-              <button onClick={() => setActiveModal('refund')} className="hover:text-teal-400 transition-colors focus:outline-none">
+              </button></li>
+              <li><button onClick={() => setActiveModal('refund')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
                 Refund Policy
-              </button>
-              <button onClick={() => setActiveModal('contact')} className="hover:text-teal-400 transition-colors focus:outline-none">
+              </button></li>
+              <li><button onClick={() => setActiveModal('contact')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
                 Contact Us
-              </button>
+              </button></li>
             </ul>
           </div>
 
@@ -276,7 +276,7 @@ export default function Footer() {
                 <button
                   type="button"
                   onClick={() => setActiveModal('companyInfo')}
-                  className="inline-flex items-center justify-center text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer p-0.5"
+                  className="ui-touch-target inline-flex items-center justify-center text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer p-0.5"
                   title="About Next Life Technologies (NexLifTech)"
                   aria-label="About Company Info"
                 >
