@@ -8140,7 +8140,6 @@ export default function AdvancedReports({
                 { id: 'bulk_forms', label: '📄 Bulk Forms Generator' },
                 { id: 'db_editor', label: '🔄 Bulk Class & Session' },
                 { id: 'photo_manager', label: '📷 Photo Sync & Manager' },
-                { id: 'drive_backup', label: '☁️ PDF Drive Backup' },
               ].map(t => (
                 <button
                   key={t.id}
@@ -8997,53 +8996,6 @@ export default function AdvancedReports({
                     </button>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Tool Content: PDF Drive Backup */}
-            {activeToolsTab === 'drive_backup' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 animate-fadeIn">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
-                  <div>
-                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <Layers size={18} className="text-indigo-600" />
-                      Google Drive Class-Wise Application PDF Backup Hub
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
-                      Organize all student application PDFs into class-wise and session-wise Google Drive backup folders.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-2 text-xs">
-                  <div className="font-extrabold text-indigo-700 dark:text-indigo-400">Cloud Storage Architecture:</div>
-                  <ul className="list-disc list-inside space-y-1.5 text-slate-700 dark:text-slate-300 font-bold">
-                    <li>Target Storage: <strong>Official School Google Drive</strong></li>
-                    <li>Automated Hierarchy: <strong>HSS_Admissions_Backup &gt; [Class 9th–12th] &gt; [Session]</strong></li>
-                    <li>Includes: <strong>Generated Application PDFs with photographs, QR codes, and Undertakings</strong></li>
-                  </ul>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    disabled={isBackingUpPdfs}
-                    onClick={handleBackupPdfsToDrive}
-                    className="flex-1 py-3 rounded-xl font-black text-white bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 shadow-md flex items-center justify-center gap-2 cursor-pointer text-xs transition-all"
-                  >
-                    {isBackingUpPdfs ? (
-                      <>
-                        <RefreshCw size={15} className="animate-spin" />
-                        <span>Organizing & Syncing PDFs to Google Drive...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download size={15} />
-                        <span>Start Class-Wise PDF Google Drive Backup</span>
-                      </>
-                    )}
-                  </button>
-                </div>
               </div>
             )}
           </div>
