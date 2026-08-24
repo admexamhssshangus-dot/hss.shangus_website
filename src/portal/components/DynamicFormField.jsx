@@ -1,6 +1,6 @@
 import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar } from 'lucide-react';
-import compressStudentPhoto from '../../utils/imageCompressor';
+import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
 
 const PREVIOUS_SCHOOLS = [
@@ -667,8 +667,9 @@ export default function DynamicFormField({
       {(type === 'image' || type === 'file' || lowerName.includes('photo')) && (
         <div className="space-y-1">
           {(() => {
-            const isValidImageValue = value && typeof value === 'string' && (
-              value.startsWith('data:image/') || value.startsWith('http://') || value.startsWith('https://') || value.startsWith('blob:')
+            const formattedImgVal = value ? (formatPhotoDisplayUrl(value) || value) : '';
+            const isValidImageValue = formattedImgVal && typeof formattedImgVal === 'string' && (
+              formattedImgVal.startsWith('data:image/') || formattedImgVal.startsWith('http://') || formattedImgVal.startsWith('https://') || formattedImgVal.startsWith('blob:')
             );
 
             const errorToShow = photoError || error;
@@ -695,7 +696,7 @@ export default function DynamicFormField({
                   <div className="flex flex-col items-center p-1.5 rounded-xl border bg-teal-500/5 border-teal-500/30 shadow-xs w-24">
                     <div className="w-20 h-24 rounded-lg border border-teal-500/40 overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm flex-shrink-0 relative group">
                       <img
-                        src={value}
+                        src={formattedImgVal}
                         alt="Passport Preview"
                         className="w-full h-full object-cover"
                         onError={() => { onChange(name, ''); setPhotoError('Preview failed — please re-upload.'); }}

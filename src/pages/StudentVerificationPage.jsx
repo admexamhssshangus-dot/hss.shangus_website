@@ -22,8 +22,9 @@ import {
   FileCheck, Calendar, Hash, UserCheck, Lock, Award, Shield
 } from 'lucide-react';
 import { db } from '../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature } from '../utils/idCardRenderer';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 
 // Privacy Masking Helper for Public Verification
 const maskPhoneNo = (phoneStr) => {
@@ -212,6 +213,38 @@ export default function StudentVerificationPage() {
         }
 
         if (matched) {
+          // Fetch student photo from studentPhotos collection if not present on matched object
+          let resolvedPhoto = getStudentPhotoUrl(matched);
+          if (!resolvedPhoto || resolvedPhoto === '/logo.png' || resolvedPhoto === '—') {
+            const rawReg = String(matched['Board Registration Number'] || matched.boardRegNo || matched.regNo || regParam || '').replace(/[^a-zA-Z0-9]/g, '');
+            const rawForm = String(matched['Form Number'] || matched['Form No.'] || matched.formNo || fNoParam || '').replace(/[^0-9]/g, '');
+            const docCandidates = [
+              rawReg ? `photo_${rawReg}` : null,
+              rawReg || null,
+              rawForm ? `photo_form_${rawForm}` : null,
+              rawForm || null,
+              matched.id ? `photo_${matched.id}` : null,
+              matched.id || null
+            ].filter(Boolean);
+
+            for (const cand of docCandidates) {
+              try {
+                const pSnap = await getDoc(doc(db, 'studentPhotos', cand));
+                if (pSnap.exists()) {
+                  const pData = pSnap.data();
+                  const p = pData.photo_id || pData.photoData || pData.photo || pData.photoUrl;
+                  const formatted = formatPhotoDisplayUrl(p) || p;
+                  if (formatted && formatted.length > 20 && formatted !== '/logo.png') {
+                    resolvedPhoto = formatted;
+                    break;
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+          if (resolvedPhoto) {
+            matched.photo_id = resolvedPhoto;
+          }
           setStudent(matched);
         } else {
           setNotFound(true);
@@ -238,7 +271,7 @@ export default function StudentVerificationPage() {
   const vill = student ? (student['Name of your village'] || student['Village/Town'] || student.village || 'Shangus') : '';
   const dist = student ? (student['District'] || student.district || 'Anantnag') : '';
   const mob = student ? (student['Mobile No. (with working WhatsApp)'] || student.mobile || '—') : '';
-  const photo = student ? (student['Student Photo'] || student.photoId || student.photo || student.photoUrl || '/logo192.png') : '/logo192.png';
+  const photo = student ? (formatPhotoDisplayUrl(getStudentPhotoUrl(student)) || formatPhotoDisplayUrl(student.photo_id) || student['Student Photo'] || student.photoId || student.photo || student.photoUrl || '/logo192.png') : '/logo192.png';
   const session = student ? (student['Session'] || student.session || '2025-26') : '2025-26';
 
   const statusStr = student ? String(student['Status'] || student.status || '').toLowerCase() : '';

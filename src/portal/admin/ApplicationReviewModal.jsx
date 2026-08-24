@@ -18,6 +18,25 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [currentPhoto, setCurrentPhoto] = useState(initialPhoto);
   const [photoUploading, setPhotoUploading] = useState(false);
 
+  React.useEffect(() => {
+    let isMounted = true;
+    const initial = app ? getStudentPhotoUrl(app) : '';
+    if (initial && initial !== '/logo.png' && initial.length > 20) {
+      setCurrentPhoto(initial);
+      return;
+    }
+    if (app) {
+      import('../../services/dbCache').then(({ fetchStudentPhotoOnDemand }) => {
+        fetchStudentPhotoOnDemand(app).then(p => {
+          if (isMounted && p && p !== '/logo.png' && p.length > 20) {
+            setCurrentPhoto(p);
+          }
+        });
+      }).catch(() => {});
+    }
+    return () => { isMounted = false; };
+  }, [app]);
+
   if (!app) return null;
 
   const formNo = app['Form Number'] || app['FormNo'] || 'N/A';
