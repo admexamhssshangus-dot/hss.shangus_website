@@ -133,28 +133,102 @@ const PRINT_ENGINE_CSS = `
 
   @media print {
     @page { size: A4 portrait; margin: 6mm 6mm 6mm 6mm; }
-    body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; font-size: 10.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; font-size: 10pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page-break { page-break-after: always; break-after: page; }
     .no-print { display: none !important; }
   }
   body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 0; }
-  .award-page { width: 100%; max-width: 210mm; margin: 0 auto; box-sizing: border-box; padding: 10px; background: #fff; }
+  .award-page { width: 100%; max-width: 210mm; margin: 0 auto; box-sizing: border-box; padding: 4px; background: #fff; }
   
   /* 2-Column Award Roll Layout */
-  .two-col-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: start; }
-  .award-col-box { width: 100%; box-sizing: border-box; }
-  .award-header-block { font-size: 10pt; text-align: center; margin-bottom: 6px; line-height: 1.3; border-bottom: 1.5px solid #0f172a; padding-bottom: 5px; }
-  .award-header-block h2 { font-family: 'Cinzel', 'Plus Jakarta Sans', serif; font-size: 11.5pt; font-weight: 800; margin: 0 0 3px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; }
-  .award-info-line { display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-bottom: 3px; color: #334155; }
+  .two-col-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; align-items: start; }
+  .award-col-box { width: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+  .award-header-block { font-size: 9.5pt; text-align: center; margin-bottom: 6px; line-height: 1.35; border-bottom: 1.5px solid #0f172a; padding-bottom: 5px; }
+  .award-header-block h2 { font-family: 'Cinzel', 'Plus Jakarta Sans', serif; font-size: 11pt; font-weight: 800; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; }
+  .award-info-line { display: flex; justify-content: space-between; font-size: 8.8pt; font-weight: 700; margin-bottom: 3px; color: #334155; }
   
-  table.award-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 9pt; text-align: center; }
-  table.award-table th, table.award-table td { border: 1px solid #475569; padding: 3.5px 4px; }
-  table.award-table th { background: #f1f5f9 !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .centre-num-row { background: #fff; color: #b91c1c; font-weight: 800; font-size: 9.5pt; text-align: center; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; }
+  table.award-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9pt; text-align: center; }
+  table.award-table th, table.award-table td { border: 1px solid #475569; padding: 4.5px 3px; height: 21px; box-sizing: border-box; }
+  table.award-table th { background: #f1f5f9 !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #1e293b; padding: 5px 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .centre-num-row { background: #fff; color: #b91c1c; font-weight: 800; font-size: 9pt; text-align: center; border-top: 1.5px solid #0f172a; border-bottom: 1.5px solid #0f172a; padding: 3px 0 !important; }
   .absent-text { color: #b91c1c; font-weight: 800; }
   
-  .award-footer { font-size: 8.5pt; font-weight: 700; line-height: 1.6; margin-top: 6px; border-top: 1.5px solid #0f172a; padding-top: 4px; color: #1e293b; }
-  .sig-row { display: flex; justify-content: space-between; margin-top: 14px; font-size: 8.5pt; font-weight: 800; color: #0f172a; }
+  /* Generous, well-spaced footer layout filling vertical page space */
+  .award-footer { 
+    font-size: 8.8pt; 
+    font-weight: 700; 
+    line-height: 1.8; 
+    margin-top: 8px; 
+    border-top: 1.5px solid #0f172a; 
+    padding-top: 10px; 
+    color: #1e293b; 
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .award-footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8.8pt;
+    font-weight: 700;
+  }
+  .award-footer-field {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .award-footer-sig-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .award-footer-sig-line {
+    font-size: 8.8pt;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .award-footer-date-line {
+    font-size: 8.8pt;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .award-footer-head-line {
+    font-size: 8.8pt;
+    font-weight: 800;
+    text-align: right;
+    color: #0f172a;
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .fill-blank {
+    border-bottom: 1.2px solid #334155;
+    display: inline-block;
+    min-width: 48px;
+    height: 14px;
+  }
+  .fill-blank-md {
+    border-bottom: 1.2px solid #334155;
+    display: inline-block;
+    min-width: 95px;
+    height: 14px;
+  }
+  .fill-blank-lg {
+    border-bottom: 1.2px solid #334155;
+    display: inline-block;
+    min-width: 125px;
+    height: 14px;
+  }
 
   /* Consolidated Cover Letter & Table Matrix Layout */
   .letter-container { font-size: 10.5pt; line-height: 1.65; padding: 25px 30px; font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; }
@@ -313,13 +387,44 @@ export function printIndividualAwardRoll({
           </table>
 
           <div class="award-footer">
-            <div>No. of Candidates Present: __________ Absent: __________</div>
-            <div>No. of Candidates Passed: __________ Failed: __________</div>
-            <div class="sig-row">
-              <div>Signature of Examiner: __________________</div>
+            <div class="award-footer-row">
+              <div class="award-footer-field">
+                <span>No. of Candidates Present:</span>
+                <span class="fill-blank"></span>
+              </div>
+              <div class="award-footer-field">
+                <span>Absent:</span>
+                <span class="fill-blank"></span>
+              </div>
             </div>
-            <div style="margin-top: 4px;">Date of Submission of Awards: _______________</div>
-            <div style="margin-top: 6px; text-align: right;">Signature of Head of Institution: __________________</div>
+
+            <div class="award-footer-row">
+              <div class="award-footer-field">
+                <span>No. of Candidates Passed:</span>
+                <span class="fill-blank"></span>
+              </div>
+              <div class="award-footer-field">
+                <span>Failed:</span>
+                <span class="fill-blank"></span>
+              </div>
+            </div>
+
+            <div class="award-footer-sig-block">
+              <div class="award-footer-sig-line">
+                <span>Signature of Examiner:</span>
+                <span class="fill-blank-lg"></span>
+              </div>
+
+              <div class="award-footer-date-line">
+                <span>Date of Submission of Awards:</span>
+                <span class="fill-blank-md"></span>
+              </div>
+
+              <div class="award-footer-head-line">
+                <span>Signature of Head of Institution:</span>
+                <span class="fill-blank-lg"></span>
+              </div>
+            </div>
           </div>
         </div>
       `;
