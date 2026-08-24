@@ -1339,6 +1339,19 @@ export default function AdmissionForm() {
       addError("IFSC code", "Invalid IFSC code format (e.g. SBIN0001234)");
     }
 
+    // ── Universal Field Length & Constraints Sweep from formStructure ──
+    formStructure.forEach(field => {
+      const name = field.fieldName || field.name || field['Field Name'];
+      const lenStr = field['Options / Range / Length'] || field.length;
+      if (lenStr && /^\d+$/.test(String(lenStr).trim())) {
+        const maxLen = parseInt(lenStr, 10);
+        const val = formData[name];
+        if (val && typeof val === 'string' && val.length > maxLen) {
+          addError(name, `Maximum length is ${maxLen} characters (currently ${val.length})`);
+        }
+      }
+    });
+
     // ── Dynamic required-field sweep from formStructure ──
     // Skips fields already hard-checked above; also skips fields hidden by isVisible.
     const HARDCODED_FIELDS = new Set([

@@ -3,7 +3,7 @@
 // Dynamic Student Auto-Complete, DOB-to-Words Engine, Template Builder & Multi-Format Exports
 // =================================================================
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue } from 'react';
 import {
   Award, FileSpreadsheet, FileText, Printer, Download, Save,
   Search, Check, Sparkles, UserCheck, Sliders, RefreshCw, X,
@@ -170,8 +170,18 @@ export default function StudentCertificateStudioView({
 
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [debouncedStudentQuery, setDebouncedStudentQuery] = useState('');
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedStudentQuery(studentSearchQuery);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [studentSearchQuery]);
+
+  const deferredStudentQuery = useDeferredValue(debouncedStudentQuery);
 
   // Filtered search list with real cohort filters and multi-field matching
   const filteredStudents = useMemo(() => {
@@ -192,7 +202,7 @@ export default function StudentCertificateStudioView({
       pool = pool.filter(st => st.sourceType === 'past');
     }
 
-    const q = studentSearchQuery.trim().toLowerCase();
+    const q = deferredStudentQuery.trim().toLowerCase();
     if (!q) return pool.slice(0, 30);
 
     return pool.filter(st => {
@@ -210,7 +220,7 @@ export default function StudentCertificateStudioView({
         st.session.toLowerCase().includes(q)
       );
     }).slice(0, 40);
-  }, [unifiedStudentDirectory, studentSearchQuery, activeCohortFilter]);
+  }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter]);
 
   // ─── Active Certificate Form State (Auto-filled + Manual Overrides) ───
   const [studentName, setStudentName] = useState('MOHAMMAD TAHIR WANI');
