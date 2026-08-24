@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredVa
 import { createPortal } from 'react-dom';
 import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
-import { db } from '../../services/firebase';
+import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
 import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
@@ -4830,77 +4830,102 @@ export default function AdvancedReports({
     setIsFetchingData(true);
     setFetchProgress(30);
 
-    // ── ADMISSIONS: On forceRefresh (e.g. after deletion), fetch from Firebase directly ──
-    let activeList;
-    if (forceRefresh) {
-      try {
-        const freshFromFirestore = await getCachedCollection('admissions', true);
-        activeList = Array.isArray(freshFromFirestore) && freshFromFirestore.length > 0
-          ? freshFromFirestore
-          : (getCachedCollectionSync('admissions') || currentAdmissions || initialData);
-      } catch (_) {
-        activeList = getCachedCollectionSync('admissions') || currentAdmissions || initialData;
-      }
-    } else {
-      activeList = currentAdmissions.length > 0
-        ? currentAdmissions
-        : (initialData.length > 0 ? initialData : (getCachedCollectionSync('admissions') || []));
-    }
-
-    // Filter out any residual soft-deleted records or items residing in Recycle Bin
-    let recycleBinItems = [];
     try {
-      recycleBinItems = await getRecycleBinItems();
-    } catch (_) {}
+      // ── ADMISSIONS: On forceRefresh (e.g. after deletion), fetch from Firebase directly ──
+      let activeList;
+      if (forceRefresh) {
+        try {
+          const freshFromFirestore = await getCachedCollection('admissions', true);
+          activeList = Array.isArray(freshFromFirestore) && freshFromFirestore.length > 0
+            ? freshFromFirestore
+            : (getCachedCollectionSync('admissions') || currentAdmissions || initialData);
+        } catch (_) {
+          activeList = getCachedCollectionSync('admissions') || currentAdmissions || initialData;
+        }
+      } else {
+        activeList = currentAdmissions.length > 0
+          ? currentAdmissions
+          : (initialData.length > 0 ? initialData : (getCachedCollectionSync('admissions') || []));
+      }
 
-    if (Array.isArray(activeList)) {
-      activeList = filterActiveAgainstRecycleBin(activeList, recycleBinItems);
-    }
-
-    // Fallback on fresh cold login: Fetch active admissions from dbCache
-    if (!activeList || activeList.length === 0) {
+      // Filter out any residual soft-deleted records or items residing in Recycle Bin
+      let recycleBinItems = [];
       try {
-        const freshActive = await getCachedCollection('admissions');
-        if (Array.isArray(freshActive) && freshActive.length > 0) {
-          activeList = freshActive.filter(s => !s || (s.Status !== 'Deleted' && s.status !== 'Deleted' && s._deleted !== true));
-        }
-      } catch (e) {
-        console.warn('Admissions fetch note:', e);
+        recycleBinItems = await getRecycleBinItems();
+      } catch (_) {}
+
+      if (Array.isArray(activeList)) {
+        activeList = filterActiveAgainstRecycleBin(activeList, recycleBinItems);
       }
-    }
 
-    // Flatten any chunked structures and deduplicate
-    const flatAdmissions = flattenAdmissionsList(activeList);
-
-    if (flatAdmissions && flatAdmissions.length > 0) {
-      setCurrentAdmissions(flatAdmissions);
-      if (setCounts) {
-        setCounts({
-          active: flatAdmissions.length,
-          total: flatAdmissions.length
-        });
-      }
-      // Build in-memory fast search index for immediate ranked matching
-      buildLocalSearchIndex(flatAdmissions, masterHistoricalRecords);
-    }
-
-    // Lazy master registers load: Only load historical master registers on demand
-    // (when searching or explicit force refresh) to keep initial load lightweight and instant.
-    if (forceRefresh) {
-      getCachedCollection('masterRegisters', true).then((masterList) => {
-        if (Array.isArray(masterList) && masterList.length > 0) {
-          const flat = flattenAndFormatMasterRegisters(masterList);
-          setMasterHistoricalRecords(flat);
-          buildLocalSearchIndex(flatAdmissions || currentAdmissions, flat);
+      // Fallback on fresh cold login: Fetch active admissions from dbCache
+      if (!activeList || activeList.length === 0) {
+        try {
+          const freshActive = await getCachedCollection('admissions');
+          if (Array.isArray(freshActive) && freshActive.length > 0) {
+            activeList = freshActive.filter(s => !s || (s.Status !== 'Deleted' && s.status !== 'Deleted' && s._deleted !== true));
+          }
+        } catch (e) {
+          console.warn('Admissions fetch note:', e);
         }
-      }).catch(() => {});
-    }
+      }
 
-    setFetchProgress(100);
-    setLoading(false);
-    setIsFetchingData(false);
-    setTimeout(() => setFetchProgress(0), 250);
+      // Flatten any chunked structures and deduplicate
+      const flatAdmissions = flattenAdmissionsList(activeList);
+
+      if (flatAdmissions && flatAdmissions.length > 0) {
+        setCurrentAdmissions(flatAdmissions);
+        if (setCounts) {
+          setCounts({
+            active: flatAdmissions.length,
+            total: flatAdmissions.length
+          });
+        }
+        // Build in-memory fast search index for immediate ranked matching
+        buildLocalSearchIndex(flatAdmissions, masterHistoricalRecords);
+      }
+
+      // Lazy master registers load: Only load historical master registers on demand
+      // (when searching or explicit force refresh) to keep initial load lightweight and instant.
+      if (forceRefresh) {
+        getCachedCollection('masterRegisters', true).then((masterList) => {
+          if (Array.isArray(masterList) && masterList.length > 0) {
+            const flat = flattenAndFormatMasterRegisters(masterList);
+            setMasterHistoricalRecords(flat);
+            buildLocalSearchIndex(flatAdmissions || currentAdmissions, flat);
+          }
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Reports load data note:', err);
+    } finally {
+      setFetchProgress(100);
+      setLoading(false);
+      setIsFetchingData(false);
+      setTimeout(() => setFetchProgress(0), 250);
+    }
   };
+
+  // Auto-heal stuck loading states and re-authenticate on tab wake-up / window focus
+  useEffect(() => {
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        setIsFetchingData(false);
+        setIsHydratingMasterRegisters(false);
+        setFetchProgress(0);
+        if (auth?.currentUser) {
+          auth.currentUser.getIdToken(false).catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, []);
 
   useEffect(() => {
     loadReportsData();
