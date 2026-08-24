@@ -179,7 +179,14 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
     return allParsedRecipients.filter(r => {
       // 1. Status filter
       if (targetStatus !== 'All') {
-        if (r.status !== targetStatus) return false;
+        if (targetStatus === 'Submitted' || targetStatus === 'Approved') {
+          // Matches submitted / confirmed / approved / enrolled applicants
+          if (r.status === 'Draft' || r.status === 'Rejected') return false;
+        } else if (targetStatus === 'Draft') {
+          if (r.status !== 'Draft') return false;
+        } else if (targetStatus === 'Rejected') {
+          if (r.status !== 'Rejected') return false;
+        }
       }
 
       // 2. Class filter
