@@ -267,34 +267,55 @@ function validateSubmission(data, token) {
   const errors = {};
   const requiredText = (key, label, min = 1, max = 200) => {
     const val = cleanString(data[key], max);
-    if (!val || val.length < min) errors[key] = `${label} is required.`;
+    if (!val || val.length < min) {
+      errors[key] = `${label} is required.`;
+    } else if (String(data[key]).trim().length > max) {
+      errors[key] = `${label} cannot exceed ${max} characters.`;
+    }
   };
-  requiredText("Student's Name (as per school records)", 'Student name');
-  requiredText("Father's/Guardian's Name (as per school records)", 'Father/guardian name');
-  requiredText("Mother's Name (as per school records)", 'Mother name');
-  requiredText('Name of your village', 'Village/locality');
-  requiredText('District', 'District');
+
+  const optionalText = (key, label, max = 200) => {
+    const val = String(data[key] ?? '').trim();
+    if (val && val.length > max) {
+      errors[key] = `${label} cannot exceed ${max} characters.`;
+    }
+  };
+
+  requiredText("Student's Name (as per school records)", 'Student name', 2, 60);
+  requiredText("Father's/Guardian's Name (as per school records)", 'Father/guardian name', 2, 60);
+  requiredText("Mother's Name (as per school records)", 'Mother name', 2, 60);
+  requiredText('Name of your village', 'Village/locality', 2, 60);
+  requiredText('District', 'District', 2, 60);
+  optionalText('House No.', 'House No.', 30);
+  optionalText('Identification Mark (if any)', 'Identification mark', 100);
+  optionalText('Remarks/Feedback (if any)', 'Remarks', 300);
+  optionalText('PEN number (given by UDISE portal)', 'PEN number', 12);
+  optionalText('APAAR ID', 'APAAR ID', 16);
+  optionalText('Passport No. (if available)', 'Passport number', 20);
 
   const cls = normalizeClass(data['Admission sought for class']);
   if (!ALLOWED_CLASSES.has(cls)) errors['Admission sought for class'] = 'Select a valid admission class.';
   const session = normalizeSession(valueOf(data, 'Session', 'session'));
   if (!session) errors.Session = 'A valid academic session is required.';
 
-  const email = cleanString(valueOf(data, 'Email Address', 'email') || token.email, 254).toLowerCase();
+  const email = cleanString(valueOf(data, 'Email Address', 'email') || token.email, 80).toLowerCase();
   if (!EMAIL_RE.test(email) || (token.email && email !== String(token.email).toLowerCase())) {
     errors['Email Address'] = 'The application email must match the signed-in account.';
+  } else if (email.length > 80) {
+    errors['Email Address'] = 'Email address cannot exceed 80 characters.';
   }
+
   const mobile = digits(data['Mobile No. (with working WhatsApp)']);
   const parentMobile = digits(data["Parent's Mobile No. (must be working)"]);
   if (!/^[6-9]\d{9}$/.test(mobile)) errors['Mobile No. (with working WhatsApp)'] = 'Enter a valid 10-digit mobile number.';
   if (!/^[6-9]\d{9}$/.test(parentMobile)) errors["Parent's Mobile No. (must be working)"] = 'Enter a valid 10-digit parent mobile number.';
   if (mobile && mobile === parentMobile) errors["Parent's Mobile No. (must be working)"] = 'Student and parent mobile numbers must be different.';
-  if (!validAadhaar(data['Aadhar No.'])) errors['Aadhar No.'] = 'Enter a valid Aadhaar number.';
-  if (!validAadhaar(data["Father's Aadhar No."])) errors["Father's Aadhar No."] = "Enter a valid 12-digit Father's Aadhaar number.";
+  if (!validAadhaar(data['Aadhar No.'])) errors['Aadhar No.'] = 'Enter a valid 12-digit Aadhaar number with correct checksum.';
+  if (!validAadhaar(data["Father's Aadhar No."])) errors["Father's Aadhar No."] = "Enter a valid 12-digit Father's Aadhaar number with correct checksum.";
 
-  requiredText("Father's/Guardian's Occupation", "Father's occupation", 2, 80);
+  requiredText("Father's/Guardian's Occupation", "Father's occupation", 2, 60);
   if (data["Mother's Occupation"] !== undefined && String(data["Mother's Occupation"]).trim()) {
-    requiredText("Mother's Occupation", "Mother's occupation", 2, 80);
+    requiredText("Mother's Occupation", "Mother's occupation", 2, 60);
   }
 
   const dob = cleanString(valueOf(data, 'DoB (as per school records)', 'DoB', 'dob'), 30);
@@ -314,34 +335,37 @@ function validateSubmission(data, token) {
   if (!['Full', 'Provisional'].includes(admissionType)) errors['Admission Type'] = 'Select Full or Provisional admission.';
 
   if (cls === '11th') {
-    if (!['Science', 'Humanities'].includes(cleanString(data['Stream for Class 11th'], 30))) errors['Stream for Class 11th'] = 'Select a valid Class 11 stream.';
-    requiredText('Name of Previous School (Class 10th)', 'Previous school');
-    requiredText('Board (Class 10th)', 'Class 10 board');
-    requiredText('Subjects Studied in Class 10th', 'Class 10 subjects');
+    if (!['Science', 'Humanities', 'Medical', 'Non-Medical', 'Arts', 'Commerce'].includes(cleanString(data['Stream for Class 11th'], 30))) {
+      errors['Stream for Class 11th'] = 'Select a valid Class 11 stream.';
+    }
+    requiredText('Name of Previous School (Class 10th)', 'Previous school', 2, 120);
+    requiredText('Board (Class 10th)', 'Class 10 board', 2, 60);
+    requiredText('Subjects Studied in Class 10th', 'Class 10 subjects', 2, 250);
     const reason = cleanString(data['Reason for Provisional (Class 11th)'], 60);
     if (!(admissionType === 'Provisional' && reason === 'Reappear Candidate')) {
-      requiredText('Board Registration No. (Class 10th)', 'Class 10 registration number', 2, 80);
+      requiredText('Board Registration No. (Class 10th)', 'Class 10 registration number', 2, 25);
     } else {
       requiredText('Subjects to Reappear (Class 10th)', 'Reappear subjects', 2, 200);
     }
   } else if (cls === '12th') {
     if (!cleanString(data['Stream opted in Class 11th'], 30)) errors['Stream opted in Class 11th'] = 'Class 11 stream is required.';
-    requiredText('Name of Previous School (Class 11th)', 'Previous school');
-    requiredText('Board (Class 11th)', 'Class 11 board');
-    requiredText('Subjects Studied in Class 11th', 'Class 11 subjects');
+    requiredText('Name of Previous School (Class 11th)', 'Previous school', 2, 120);
+    requiredText('Board (Class 11th)', 'Class 11 board', 2, 60);
+    requiredText('Subjects Studied in Class 11th', 'Class 11 subjects', 2, 250);
     const reason = cleanString(data['Reason for Provisional (Class 12th)'], 60);
     if (!(admissionType === 'Provisional' && reason === 'Reappear Candidate')) {
-      requiredText('Board Registration No. (Class 11th)', 'Class 11 registration number', 2, 80);
+      requiredText('Board Registration No. (Class 11th)', 'Class 11 registration number', 2, 25);
     } else {
       requiredText('Subjects to Reappear (Class 11th)', 'Reappear subjects', 2, 200);
     }
   } else if (cls === '10th') {
-    requiredText('Board Registration No. (Class 9th)', 'Class 9 registration number');
-    requiredText('Name of Previous School (Class 9th)', 'Previous school');
+    requiredText('Board Registration No. (Class 9th)', 'Class 9 registration number', 2, 25);
+    requiredText('Name of Previous School (Class 9th)', 'Previous school', 2, 120);
   } else if (cls === '9th') {
-    requiredText('Name of Previous School (Class 8th)', 'Previous school');
-    requiredText('Year of Passing Class 8th', 'Class 8 passing year');
+    requiredText('Name of Previous School (Class 8th)', 'Previous school', 2, 120);
+    requiredText('Year of Passing Class 8th', 'Class 8 passing year', 2, 10);
   }
+
   const pin = digits(data['PIN code']);
   if (pin && !/^[1-9]\d{5}$/.test(pin)) errors['PIN code'] = 'Enter a valid 6-digit PIN code.';
   const bankAccount = cleanString(data['Bank Account No.'], 30).replace(/\s/g, '');

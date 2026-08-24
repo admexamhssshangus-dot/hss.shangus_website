@@ -4260,6 +4260,7 @@ export default function AdvancedReports({
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isHydratingMasterRegisters, setIsHydratingMasterRegisters] = useState(false);
 
   useEffect(() => {
     if (searchTerm === debouncedSearch) {
@@ -4270,7 +4271,7 @@ export default function AdvancedReports({
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setIsSearching(false);
-    }, 150);
+    }, 250);
     return () => clearTimeout(timer);
   }, [searchTerm, debouncedSearch]);
 
@@ -5835,14 +5836,19 @@ export default function AdvancedReports({
 
   // Lazy load masterRegisters on demand in a clean reactive useEffect (never inside useMemo)
   useEffect(() => {
-    if ((deferredSearchTerm.trim() !== '' || (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__'))) && masterHistoricalRecords.length === 0) {
+    if ((deferredSearchTerm.trim() !== '' || (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__'))) && masterHistoricalRecords.length === 0 && !isHydratingMasterRegisters) {
+      setIsHydratingMasterRegisters(true);
       getCachedCollection('masterRegisters').then(ml => {
         if (Array.isArray(ml) && ml.length > 0) {
           setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
         }
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn('Master registers lazy fetch note:', err);
+      }).finally(() => {
+        setIsHydratingMasterRegisters(false);
+      });
     }
-  }, [deferredSearchTerm, selectedSessions, masterHistoricalRecords.length]);
+  }, [deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters]);
 
   // Target dataset: when search query is active or user explicitly chooses specific/historical sessions,
   // search across all records (active + historical); when empty default view, show active admissions for 0ms speed.
@@ -9317,13 +9323,27 @@ export default function AdvancedReports({
         }}
       />
 
-      {/* Reusable Custom Confirmation Modal */}
-      {confirmModalConfig && (
-        <ConfirmDialogModal
-          {...confirmModalConfig}
-          loading={isSavingEdit || isSavingQuickEdit || bulkTableActionBusy}
-          onClose={() => setConfirmModalConfig(null)}
-        />
+      {/* Master Registers Indexing & Loading Shield HUD Overlay */}
+      {isHydratingMasterRegisters && (
+        <div className="fixed inset-0 z-[10000] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn pointer-events-auto cursor-wait select-none">
+          <div className="bg-white dark:bg-slate-900 border border-amber-500/40 rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scaleUp">
+            <div className="relative mx-auto w-14 h-14 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin" />
+              <Sparkles size={24} className="text-amber-500 animate-pulse" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-base font-black text-slate-900 dark:text-slate-100">
+                Indexing School Registers...
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                Fast-indexing 4,500+ student records across all academic registers. Please wait a moment...
+              </p>
+            </div>
+            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-amber-500 via-teal-400 to-indigo-500 w-full animate-pulse" />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast Notification */}

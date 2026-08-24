@@ -646,22 +646,37 @@ export default function DynamicFormField({
       )}
 
       {/* Textarea Field */}
-      {!isDateField && type === 'textarea' && (
-        <textarea
-          id={inputId}
-          rows={2}
-          value={value}
-          onChange={(e) => onChange(name, e.target.value)}
-          disabled={disabled}
-          required={required}
-          maxLength={length ? parseInt(length, 10) : undefined}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? errorId : undefined}
-          placeholder={placeholder || `Enter ${mainLabel}...`}
-          className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-          style={inputStyle}
-        />
-      )}
+      {!isDateField && type === 'textarea' && (() => {
+        const maxLen = length ? parseInt(length, 10) : 300;
+        const currentLen = String(value || '').length;
+        return (
+          <div className="space-y-1">
+            <textarea
+              id={inputId}
+              rows={2}
+              value={value}
+              onChange={(e) => {
+                const val = e.target.value.slice(0, maxLen);
+                onChange(name, val);
+              }}
+              disabled={disabled}
+              required={required}
+              maxLength={maxLen}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? errorId : undefined}
+              placeholder={placeholder || `Enter ${mainLabel}...`}
+              className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+              style={inputStyle}
+            />
+            <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold px-1">
+              <span>Max {maxLen} characters</span>
+              <span className={maxLen - currentLen < 30 ? 'text-amber-600 dark:text-amber-400 font-black' : ''}>
+                {currentLen}/{maxLen}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* File Upload Field / Passport Photo */}
       {(type === 'image' || type === 'file' || lowerName.includes('photo')) && (
@@ -771,20 +786,76 @@ export default function DynamicFormField({
         <>
           {(() => {
             const isSchoolInput = (lowerName.includes('previous school') || lowerName.includes('name of previous school') || lowerName.includes('last school')) && !lowerName.includes('record');
+            const isIfsc = lowerName.includes('ifsc');
+            const isEmail = lowerName.includes('email');
+            const isNameField = lowerName.includes('name') && !isSchoolInput && !lowerName.includes('bank');
+
+            let defaultMax = 80;
+            if (type === 'text_numeric') {
+              if (lowerName.includes('mobile')) defaultMax = 10;
+              else if (lowerName.includes('aadhar')) defaultMax = 12;
+              else if (lowerName.includes('pin')) defaultMax = 6;
+              else if (lowerName.includes('account')) defaultMax = 18;
+              else defaultMax = 25;
+            } else if (isIfsc) {
+              defaultMax = 11;
+            } else if (isNameField) {
+              defaultMax = 60;
+            } else if (isEmail) {
+              defaultMax = 80;
+            }
+
+            const effectiveMaxLength = length ? parseInt(length, 10) : defaultMax;
+
+            // Numeric bounds
+            let computedMin = min;
+            let computedMax = max;
+            if (type === 'number' || type === 'number_range') {
+              if (lowerName.includes('height')) {
+                computedMin = computedMin !== undefined ? computedMin : 50;
+                computedMax = computedMax !== undefined ? computedMax : 250;
+              } else if (lowerName.includes('weight')) {
+                computedMin = computedMin !== undefined ? computedMin : 15;
+                computedMax = computedMax !== undefined ? computedMax : 200;
+              } else if (lowerName.includes('marks')) {
+                computedMin = computedMin !== undefined ? computedMin : 0;
+                computedMax = computedMax !== undefined ? computedMax : 2000;
+              } else {
+                computedMin = computedMin !== undefined ? computedMin : 0;
+              }
+            }
+
+            const handleInputChange = (e) => {
+              let raw = e.target.value;
+              if (type === 'text_numeric') {
+                raw = raw.replace(/\D/g, '').slice(0, effectiveMaxLength);
+              } else if (isIfsc) {
+                raw = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11);
+              } else if (type === 'number' || type === 'number_range') {
+                if (raw !== '') {
+                  const num = Number(raw);
+                  if (computedMax !== undefined && num > computedMax) raw = String(computedMax);
+                }
+              } else {
+                raw = raw.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, effectiveMaxLength);
+              }
+              onChange(name, raw);
+            };
+
             return (
               <>
                 <input
                   id={inputId}
-                  type={type === 'text' ? 'text' : type === 'text_numeric' ? 'tel' : 'number'}
+                  type={type === 'text' ? (isEmail ? 'email' : 'text') : type === 'text_numeric' ? 'tel' : 'number'}
                   value={value}
-                  onChange={(e) => onChange(name, e.target.value)}
+                  onChange={handleInputChange}
                   disabled={disabled}
                   required={required}
-                  min={min}
-                  max={max}
-                  maxLength={length ? parseInt(length, 10) : undefined}
+                  min={computedMin}
+                  max={computedMax}
+                  maxLength={effectiveMaxLength}
                   list={isSchoolInput ? `${inputId}-schools` : undefined}
-                  inputMode={type === 'text_numeric' || type === 'number' || type === 'number_range' ? 'numeric' : undefined}
+                  inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? errorId : undefined}
                   placeholder={placeholder}
