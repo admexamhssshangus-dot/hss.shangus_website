@@ -476,7 +476,8 @@ export function exportConsolidatedAwardsToExcel({
 
   const matrixDataRows = students.map((st, idx) => {
     const classRoll = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
-    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || classRoll).trim();
+    const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+    const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'N/A' && rawExam !== 'NA') ? rawExam : '—';
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '';
     const regNo = cleanRegistrationNumber(rawReg) || '—';
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—').trim();
@@ -877,8 +878,8 @@ export async function exportConsolidatedAwardsToDocx({
   });
 
   const matrixDataRows = students.map((st, idx) => {
-    const rollNo = String(st['Class Roll No'] || st.rollNo || st.classRollNo || st['Class R.No.'] || (idx + 1)).trim();
-    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || rollNo).trim();
+    const rawExam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+    const examRoll = (rawExam && rawExam !== '—' && rawExam !== 'N/A' && rawExam !== 'NA') ? rawExam : '—';
     const stSubsStr = String(
       st['Subs'] ||
       st['subs'] ||

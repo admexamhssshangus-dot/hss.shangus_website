@@ -766,7 +766,8 @@ export function printConsolidatedAwardRoll({
   const clsTarget = isClass12 ? '12' : '11';
 
   students.forEach((st, idx) => {
-    const rollNo = String(st['Class Roll No'] || st.rollNo || st.classRollNo || st['Class R.No.'] || (idx + 1)).trim();
+    const rawExamRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+    const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
     const stSubsStr = String(
       st['Subs'] ||
       st['subs'] ||
@@ -863,7 +864,7 @@ export function printConsolidatedAwardRoll({
     matrixHtml += `
       <tr>
         <td>${idx + 1}</td>
-        <td><strong>${rollNo}</strong></td>
+        <td><strong>${displayExamRoll}</strong></td>
         ${cellHtmls}
         <td class="hash-tot">${rowHashTotal > 0 ? rowHashTotal : '—'}</td>
       </tr>
@@ -1159,12 +1160,13 @@ export function printAllIndividualAwardRolls({
       const markRec = findStudentMarkRecord(subDoc, st);
       if (isEnrolled || markRec) {
         const rawMark = markRec ? String(markRec.totalMarks ?? markRec.practicalMarks ?? '').trim() : '';
-        const rollNo = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Class Roll No'] || st.classRollNo || st.rollNo || (idx + 1);
+        const rawExamRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
+        const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
         const cNo = st.centreNo || st['Centre No.'] || centreNo;
 
         subjectStudents.push({
           sno: subjectStudents.length + 1,
-          rollNo: String(rollNo),
+          rollNo: displayExamRoll,
           marks: rawMark,
           totalMarks: rawMark,
           centreNo: cNo
