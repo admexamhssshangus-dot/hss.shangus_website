@@ -54,6 +54,53 @@ function extractClassRollNo(a) {
   return clean;
 }
 
+// Helper to extract clean Stream
+function extractStream(a) {
+  if (!a || typeof a !== 'object') return 'General';
+  const s = a['Stream for Class 11th'] || a['Stream opted in Class 11th'] || a['Stream & Subjects for Class 12th'] || a['Stream / Faculty'] || a['Stream'] || a.stream || a.Stream || '';
+  const clean = String(s).trim();
+  if (!clean || clean === '—' || clean === 'N/A' || clean === 'null' || clean === 'undefined' || clean === '-') {
+    return 'General';
+  }
+  const lower = clean.toLowerCase();
+  if (lower.includes('sci') || lower.includes('med')) return 'Science';
+  if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
+  if (lower.includes('com')) return 'Commerce';
+  if (lower.includes('gen')) return 'General';
+  return clean;
+}
+
+// Student comparator with default natural numeric roll number sorting
+function compareStudents(a, b, sortType = 'roll_asc') {
+  if (sortType === 'roll_asc' || sortType === 'roll_desc') {
+    const asc = sortType === 'roll_asc';
+    const rA = String(a.rollNo || '').trim();
+    const rB = String(b.rollNo || '').trim();
+    const numA = parseInt(rA.replace(/[^0-9]/g, ''), 10);
+    const numB = parseInt(rB.replace(/[^0-9]/g, ''), 10);
+    const hasA = !isNaN(numA) && numA > 0;
+    const hasB = !isNaN(numB) && numB > 0;
+    if (hasA && hasB) return asc ? numA - numB : numB - numA;
+    if (hasA && !hasB) return -1;
+    if (!hasA && hasB) return 1;
+    return asc ? rA.localeCompare(rB) : rB.localeCompare(rA);
+  }
+  if (sortType === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+  if (sortType === 'name_desc') return (b.name || '').localeCompare(a.name || '');
+  if (sortType === 'form_asc') {
+    const numA = parseInt(String(a.formNo).replace(/[^0-9]/g, ''), 10);
+    const numB = parseInt(String(b.formNo).replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return String(a.formNo).localeCompare(String(b.formNo));
+  }
+  if (sortType === 'stream') {
+    const strDiff = (a.stream || '').localeCompare(b.stream || '');
+    if (strDiff !== 0) return strDiff;
+    return compareStudents(a, b, 'roll_asc');
+  }
+  return 0;
+}
+
 // Normalize admission status
 function normalizeStatus(raw, rollNo = '') {
   if (rollNo) return 'Approved';
@@ -103,6 +150,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
   const [targetStatus, setTargetStatus] = useState('All'); // 'All' | 'Submitted' | 'Approved' | 'Draft' | 'Rejected'
   const [targetClass, setTargetClass] = useState('All');   // 'All' | '12th' | '11th' | '10th' | '9th'
   const [targetSession, setTargetSession] = useState('All'); // 'All' | '2025-26' | '2024-25'
+  const [sortBy, setSortBy] = useState('roll_asc'); // 'roll_asc' | 'roll_desc' | 'name_asc' | 'name_desc' | 'form_asc' | 'stream'
   const [testMode, setTestMode] = useState(false);
   const [excludedEmails, setExcludedEmails] = useState(new Set());
   const [showManageModal, setShowManageModal] = useState(false);
@@ -149,6 +197,16 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
         'Student'
       ).trim();
 
+      const fatherName = String(
+        app["Father's/Guardian's Name (as per school records)"] || 
+        app["Father's Name"] || 
+        app.fatherName || 
+        app.father || 
+        ''
+      ).trim();
+
+      const stream = extractStream(app);
+
       const rawCls = app["Admission sought for class"] || app.class || app.Class || app.className || '';
       const cls = normalizeClass(rawCls);
 
@@ -171,6 +229,8 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
         id: studentKey,
         email,
         name,
+        fatherName,
+        stream,
         class: cls,
         session,
         status,
@@ -191,9 +251,9 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
     return list.length > 0 ? list : ['2025-26', '2024-25'];
   }, [allParsedRecipients]);
 
-  // Filtered pool matching toolbar dropdowns
+  // Filtered pool matching toolbar dropdowns (Default sorted by Class Roll No)
   const matchedRecipients = useMemo(() => {
-    return allParsedRecipients.filter(r => {
+    const filtered = allParsedRecipients.filter(r => {
       // 1. Status filter (Class Roll No assigned means Approved / Enrolled)
       if (targetStatus !== 'All') {
         if (targetStatus === 'Approved') {
@@ -219,7 +279,10 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
 
       return true;
     });
-  }, [allParsedRecipients, targetStatus, targetClass, targetSession]);
+
+    // Default: Sort by Class Roll Number ascending (1 → 999) or selected sort order
+    return [...filtered].sort((a, b) => compareStudents(a, b, sortBy));
+  }, [allParsedRecipients, targetStatus, targetClass, targetSession, sortBy]);
 
   // Final selected recipients (accounting for manual exclusions)
   const finalRecipients = useMemo(() => {
@@ -781,7 +844,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setExcludedEmails(new Set())}
@@ -799,6 +862,23 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                   >
                     Deselect All
                   </button>
+
+                  {/* Order / Sort Selector */}
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Order:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="bg-transparent font-bold text-[11px] text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                    >
+                      <option value="roll_asc">Roll No: 1 → 999 (Default)</option>
+                      <option value="roll_desc">Roll No: 999 → 1</option>
+                      <option value="name_asc">Name: A → Z</option>
+                      <option value="name_desc">Name: Z → A</option>
+                      <option value="form_asc">Form No: Low → High</option>
+                      <option value="stream">Stream / Faculty</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="text-[11px] font-bold text-slate-500">
@@ -815,8 +895,10 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                   const query = manageSearch.toLowerCase();
                   return (
                     r.name.toLowerCase().includes(query) ||
+                    (r.fatherName && r.fatherName.toLowerCase().includes(query)) ||
                     r.email.toLowerCase().includes(query) ||
                     r.class.toLowerCase().includes(query) ||
+                    (r.stream && r.stream.toLowerCase().includes(query)) ||
                     r.formNo.toLowerCase().includes(query) ||
                     r.rollNo.toLowerCase().includes(query)
                   );
@@ -846,11 +928,18 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                             }
                             setExcludedEmails(next);
                           }}
-                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer flex-shrink-0"
                         />
                         <div className="min-w-0">
-                          <div className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
-                            {student.name}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                              {student.name}
+                            </span>
+                            {student.fatherName && (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate">
+                                (S/O {student.fatherName})
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
                             {student.email}
@@ -858,7 +947,21 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0 text-[10.5px]">
+                      <div className="flex items-center gap-1.5 flex-shrink-0 text-[10.5px]">
+                        {student.rollNo ? (
+                          <span className="px-2 py-0.5 rounded-md font-extrabold bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30 shadow-2xs">
+                            Roll: {student.rollNo}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md font-bold bg-slate-100 dark:bg-slate-800 text-slate-400">
+                            No Roll
+                          </span>
+                        )}
+                        {student.stream && student.stream !== 'General' && (
+                          <span className="px-2 py-0.5 rounded-md font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                            {student.stream}
+                          </span>
+                        )}
                         {student.class && (
                           <span className="px-2 py-0.5 rounded-md font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                             {student.class}
@@ -875,7 +978,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                           </span>
                         )}
                         {student.formNo && (
-                          <span className="px-2 py-0.5 rounded-md font-bold font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                          <span className="px-2 py-0.5 rounded-md font-bold font-mono bg-slate-100 dark:bg-slate-800 text-slate-500">
                             #{student.formNo}
                           </span>
                         )}
