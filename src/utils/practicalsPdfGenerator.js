@@ -252,6 +252,12 @@ const PRINT_ENGINE_CSS = `
   table.matrix-table td.mark-val { font-weight: 800; color: #1e40af; }
   table.matrix-table td.no-sub { color: #94a3b8; font-weight: normal; }
   table.matrix-table td.hash-tot { font-weight: 800; background: #f8fafc !important; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  
+  /* Attendance Table with 50px standard signature row height */
+  table.attendance-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  table.attendance-table th, table.attendance-table td { border: 1px solid #475569; }
+  table.attendance-table th { background: #f1f5f9 !important; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.3px; color: #0f172a; padding: 6px 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.attendance-table td { height: 50px !important; min-height: 50px !important; vertical-align: middle; box-sizing: border-box; }
 `;
 
 function triggerPrintWindow(htmlContent) {
@@ -888,46 +894,139 @@ export function printConsolidatedAwardRoll({
 }
 
 /**
- * 4. Print Attendance Sheet for Selected Students
+ * Get clean compact abbreviated subject list for a student (e.g. "EN, PH, CH, BO, ZO")
  */
-export function printAttendanceSheet({ className = '11th', session = 'Annual Regular 2025', students = [], isExternal = false }) {
+export function getAbbreviatedSubjects(st, className = '') {
+  if (!st) return '';
+  const clsName = String(className || st.Class || st.class || '').toLowerCase();
+  const is12 = clsName.includes('12');
+
+  const multiSubCols = [
+    st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+    st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+    st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+  ].filter(Boolean).join(', ');
+
+  const raw = String(
+    st['Subs'] ||
+    st['subs'] ||
+    (is12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+    multiSubCols ||
+    st['Subjects to be taken in Class 11th'] ||
+    st['Subjects Studied in Class 11th'] ||
+    st['Subjects'] ||
+    st['Subject Combination'] ||
+    st['streamSubjects'] ||
+    st.subjects ||
+    ''
+  ).trim();
+
+  if (!raw) {
+    const stStream = String(st.stream || st.Stream || '').toLowerCase();
+    if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'EN, PH, CH, MA';
+    if (stStream.includes('med') || stStream.includes('science')) return 'EN, PH, CH, BO, ZO';
+    if (stStream.includes('arts') || stStream.includes('humanities')) return 'EN, UR, ED, PS, EC';
+    return stStream ? stStream.toUpperCase() : 'GENERAL';
+  }
+
+  // Map known keywords to standard uppercase abbreviations
+  const subMap = [
+    { regex: /\b(general english|gen eng|english|eng|ge|en)\b/i, code: 'EN' },
+    { regex: /\b(physics|ph)\b/i, code: 'PH' },
+    { regex: /\b(chemistry|chem|ch)\b/i, code: 'CH' },
+    { regex: /\b(botany|bot|bo)\b/i, code: 'BO' },
+    { regex: /\b(zoology|zoo|zo)\b/i, code: 'ZO' },
+    { regex: /\b(biology|bio|bi)\b/i, code: 'BO, ZO' },
+    { regex: /\b(mathematics|maths|math|ma)\b/i, code: 'MA' },
+    { regex: /\b(urdu|ur)\b/i, code: 'UR' },
+    { regex: /\b(education|edu|ed)\b/i, code: 'ED' },
+    { regex: /\b(history|hist|ht)\b/i, code: 'HT' },
+    { regex: /\b(political science|pol sc|pol\. sc\.|pol science|ps)\b/i, code: 'PS' },
+    { regex: /\b(economics|eco|ec)\b/i, code: 'EC' },
+    { regex: /\b(environmental science|evs|es)\b/i, code: 'ES' },
+    { regex: /\b(physical education|phy edu|phy\. edu\.|pd|pe)\b/i, code: 'PD' },
+    { regex: /\b(healthcare|health care|htc)\b/i, code: 'HTC' },
+    { regex: /\b(it & ites|it and ites|it&ites|ite|it)\b/i, code: 'ITE' },
+    { regex: /\b(sociology|soc|so)\b/i, code: 'SO' },
+    { regex: /\b(arabic|ar)\b/i, code: 'AR' },
+    { regex: /\b(persian|pr)\b/i, code: 'PR' },
+    { regex: /\b(kashmiri|ks)\b/i, code: 'KS' },
+    { regex: /\b(geography|geo|gg)\b/i, code: 'GG' },
+    { regex: /\b(geology|gl)\b/i, code: 'GL' },
+    { regex: /\b(computer science|cs)\b/i, code: 'CS' }
+  ];
+
+  const foundCodes = [];
+  subMap.forEach(item => {
+    if (item.regex.test(raw)) {
+      item.code.split(', ').forEach(c => {
+        if (!foundCodes.includes(c)) foundCodes.push(c);
+      });
+    }
+  });
+
+  if (foundCodes.length > 0) {
+    return foundCodes.join(', ');
+  }
+
+  // Clean raw string fallback
+  return raw.replace(/,/g, ', ').replace(/\s+/g, ' ').toUpperCase();
+}
+
+/**
+ * 4. Print Attendance Sheet for Selected Students
+ * Enhanced with separate Class Roll No & Exam Roll No columns, Board Reg No, compact abbreviated subjects, and standard 50px row height for signatures.
+ */
+export function printAttendanceSheet({ className = '11th', session = 'Annual Regular 2025', students = [], isExternal = false, subjectTitle = '' }) {
   if (!students || students.length === 0) return false;
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   const examType = isExternal ? 'EXTERNAL PRACTICAL' : 'INTERNAL ASSESSMENT';
 
   let html = `
     <div class="award-page">
-      <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
-        <h1 style="font-size: 14pt; font-weight: bold; margin: 0;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">${examType} ATTENDANCE SHEET — ${hseText}</h2>
-        <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
+      <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+        <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a;">Govt. Higher Secondary School Shangus</h1>
+        <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examType} ATTENDANCE SHEET — ${hseText}${subjectTitle ? ` — ${subjectTitle}` : ''}</h2>
+        <p style="font-size: 9.5pt; font-weight: 700; margin: 2px 0; color: #475569;">Session & Year: <strong>${session}</strong></p>
+        <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-top: 6px; color: #334155;">
+          <span>No.: ____________________</span>
+          <span>Date: ____________________</span>
+        </div>
       </div>
 
-      <table class="award-table" style="font-size: 9.5pt;">
+      <table class="award-table attendance-table" style="font-size: 9.5pt; width: 100%; border-collapse: collapse;">
         <thead>
-          <tr style="background: #f1f5f9;">
-            <th style="width: 8%;">S.No.</th>
+          <tr style="background: #f1f5f9; height: 32px;">
+            <th style="width: 5%;">S.No.</th>
+            <th style="width: 9%;">Class R.No.</th>
             <th style="width: 14%;">Exam Roll No.</th>
-            <th style="width: 38%; text-align: left; padding-left: 8px;">Student Name</th>
-            <th style="width: 20%;">Stream</th>
-            <th style="width: 20%;">Candidate Signature</th>
+            <th style="width: 26%; text-align: left; padding-left: 8px;">Student Name</th>
+            <th style="width: 24%; text-align: left; padding-left: 8px;">Subject(s)</th>
+            <th style="width: 22%;">Candidate Signature</th>
           </tr>
         </thead>
         <tbody>
   `;
 
   students.forEach((st, idx) => {
-    const rollNo = st['Class Roll No'] || st.rollNo || st.examRollNo || st['Exam Roll No.'] || `20100${2000 + idx}`;
+    const classRoll = st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1);
+    const examRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—';
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
-    const stream = st['Stream for Class 11th'] || st['Stream'] || st.stream || 'Humanities';
+    const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
+    const regNo = String(rawReg).trim();
+    const subs = getAbbreviatedSubjects(st, className);
 
     html += `
-      <tr>
-        <td>${idx + 1}</td>
-        <td><strong>${rollNo}</strong></td>
-        <td style="text-align: left; padding-left: 8px;"><strong>${name}</strong></td>
-        <td>${stream}</td>
-        <td>&nbsp;</td>
+      <tr style="height: 50px; min-height: 50px;">
+        <td style="height: 50px; text-align: center; font-size: 9pt; color: #475569;">${idx + 1}</td>
+        <td style="height: 50px; text-align: center; font-weight: 800; font-size: 10pt; color: #0f172a;">${classRoll}</td>
+        <td style="height: 50px; text-align: center; font-weight: 800; font-family: monospace; font-size: 10.5pt; color: #1e293b;">${examRoll}</td>
+        <td style="height: 50px; text-align: left; padding-left: 8px;">
+          <div style="font-weight: 700; font-size: 10pt; color: #0f172a;">${toTitleCase(name)}</div>
+          ${regNo && regNo !== '—' ? `<div style="font-family: monospace; font-size: 8pt; color: #64748b; font-weight: 600; margin-top: 1px;">Reg: ${regNo}</div>` : ''}
+        </td>
+        <td style="height: 50px; text-align: left; padding-left: 8px; font-size: 8.5pt; font-weight: 700; color: #334155; line-height: 1.3;">${subs}</td>
+        <td style="height: 50px;">&nbsp;</td>
       </tr>
     `;
   });
@@ -936,7 +1035,7 @@ export function printAttendanceSheet({ className = '11th', session = 'Annual Reg
         </tbody>
       </table>
 
-      <div class="sig-row" style="margin-top: 30px; font-size: 10pt;">
+      <div class="sig-row" style="margin-top: 35px; font-size: 10pt; font-weight: bold; display: flex; justify-content: space-between;">
         <div>Superintendent Signature: __________________</div>
         <div>Principal Signature: __________________</div>
       </div>
@@ -944,6 +1043,251 @@ export function printAttendanceSheet({ className = '11th', session = 'Annual Reg
   `;
 
   triggerPrintWindow(html);
+  return true;
+}
+
+/**
+ * 4.5 Print All Individual Subject Award Rolls (for Admin Panel)
+ * Iterates through all chosen subjects and prints official 2-column 50-student/page award rolls.
+ */
+export function printAllIndividualAwardRolls({
+  className = '11th',
+  session = 'Annual Regular 2025',
+  students = [],
+  submissions = [],
+  isExternal = true,
+  selectedSubjectCodes = null,
+  printDetails = null,
+  centreNo = '201006'
+}) {
+  if (!students || students.length === 0) return false;
+
+  const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
+    if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
+    return selectedSubjectCodes.includes(s.code);
+  });
+
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass12 ? '12' : '11';
+  const examType = isExternal ? 'External Practical' : 'Internal Practical';
+  const pageSize = 50;
+
+  let combinedHtml = '';
+
+  activeSubs.forEach(sub => {
+    const subDoc = submissions.find(s => {
+      const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+      if (!matchClass) return false;
+      const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+      const targetType = isExternal ? 'external' : 'internal';
+      if (sType !== targetType) return false;
+      const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+      return codeStr === sub.code || codeStr.includes(sub.code);
+    });
+
+    const maxMarks = subDoc?.maxMarks || (sub.code === 'HTC' || sub.code === 'ITE' ? 50 : 10);
+    const minMarks = Math.ceil(maxMarks * 0.36);
+
+    const subjectStudents = [];
+
+    students.forEach((st, idx) => {
+      let isEnrolled = false;
+      const stStream = String(st.stream || st.Stream || '').toLowerCase();
+      const multiSubCols = [
+        st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+        st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+        st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+      ].filter(Boolean).join(', ');
+
+      const stSubs = String(
+        st['Subs'] ||
+        st['subs'] ||
+        (isClass12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+        multiSubCols ||
+        st['Subjects to be taken in Class 11th'] ||
+        st['Subjects Studied in Class 11th'] ||
+        st['Subjects'] ||
+        st['Subject Combination'] ||
+        st['streamSubjects'] ||
+        st.subjects ||
+        ''
+      ).toLowerCase();
+
+      const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
+      const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
+
+      if (sub.code === 'EN') {
+        isEnrolled = true;
+      } else if (sub.code === 'PH' || sub.code === 'CH') {
+        isEnrolled = isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
+      } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
+        isEnrolled = stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs) || (isScience && !isNonMed);
+      } else if (sub.code === 'MA') {
+        isEnrolled = stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed);
+      } else {
+        isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
+      }
+
+      const markRec = findStudentMarkRecord(subDoc, st);
+      if (isEnrolled || markRec) {
+        const rawMark = markRec ? String(markRec.totalMarks ?? markRec.practicalMarks ?? '').trim() : '';
+        const rollNo = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st['Class Roll No'] || st.classRollNo || st.rollNo || (idx + 1);
+        const cNo = st.centreNo || st['Centre No.'] || centreNo;
+
+        subjectStudents.push({
+          sno: subjectStudents.length + 1,
+          rollNo: String(rollNo),
+          marks: rawMark,
+          totalMarks: rawMark,
+          centreNo: cNo
+        });
+      }
+    });
+
+    if (subjectStudents.length === 0) return;
+
+    const totalPages = Math.ceil(subjectStudents.length / pageSize);
+
+    for (let p = 0; p < totalPages; p++) {
+      const pageRecords = subjectStudents.slice(p * pageSize, (p + 1) * pageSize);
+      const leftChunk = pageRecords.slice(0, 25);
+      const rightChunk = pageRecords.slice(25, 50);
+
+      const leftPageNo = p * 2 + 1;
+      const rightPageNo = p * 2 + 2;
+
+      const renderColumn = (colChunk, startSno, pageNo) => {
+        let colHtml = `
+          <div class="award-col-box">
+            <div class="award-header-block">
+              <h2>${isExternal ? 'EXTERNAL' : 'INTERNAL'} PRACTICAL AWARD ROLL</h2>
+              <div class="award-info-line">
+                <span>Examination: <strong>${examType}</strong></span>
+                <span>Page No.: <strong>${pageNo}</strong></span>
+              </div>
+              <div class="award-info-line">
+                <span>Subject: <strong>${sub.name} (${sub.code})</strong></span>
+                <span>Max.: <strong>${maxMarks}</strong>; Min.: <strong>${minMarks}</strong></span>
+              </div>
+              <div class="award-info-line">
+                <span>Session: <strong>${session}</strong></span>
+              </div>
+            </div>
+
+            <table class="award-table">
+              <thead>
+                <tr>
+                  <th style="width: 12%;">S.No.</th>
+                  <th style="width: 28%;">Exam R.No.</th>
+                  <th style="width: 28%;">Marks<br>(Figures)</th>
+                  <th style="width: 32%;">Marks<br>(Words)</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        let currentCentre = '';
+
+        colChunk.forEach((r, idx) => {
+          const sno = startSno + idx;
+          const rollNo = r.rollNo || '—';
+          const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
+          const isAbs = rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT';
+
+          const rCentre = r.centreNo || centreNo;
+          if (rCentre && rCentre !== currentCentre) {
+            currentCentre = rCentre;
+            colHtml += `
+              <tr>
+                <td colspan="4" class="centre-num-row">centre no. ${currentCentre}</td>
+              </tr>
+            `;
+          }
+
+          colHtml += `
+            <tr>
+              <td>${sno}</td>
+              <td><strong>${rollNo}</strong></td>
+              <td>${isAbs ? '<span class="absent-text">Absent</span>' : `<strong>${rawMark || '—'}</strong>`}</td>
+              <td>${isAbs ? '-' : numberToWordsInr(rawMark)}</td>
+            </tr>
+          `;
+        });
+
+        for (let pad = colChunk.length; pad < 25; pad++) {
+          colHtml += `
+            <tr>
+              <td>${startSno + pad}</td>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+          `;
+        }
+
+        colHtml += `
+              </tbody>
+            </table>
+
+            <div class="award-footer">
+              <div class="award-footer-row">
+                <div class="award-footer-field">
+                  <span>No. of Candidates Present:</span>
+                  <span class="fill-blank"></span>
+                </div>
+                <div class="award-footer-field">
+                  <span>Absent:</span>
+                  <span class="fill-blank"></span>
+                </div>
+              </div>
+
+              <div class="award-footer-row">
+                <div class="award-footer-field">
+                  <span>No. of Candidates Passed:</span>
+                  <span class="fill-blank"></span>
+                </div>
+                <div class="award-footer-field">
+                  <span>Failed:</span>
+                  <span class="fill-blank"></span>
+                </div>
+              </div>
+
+              <div class="award-footer-sig-block">
+                <div class="award-footer-sig-line">
+                  <span>Signature of Examiner:</span>
+                  <span class="fill-blank-lg"></span>
+                </div>
+
+                <div class="award-footer-date-line">
+                  <span>Date of Submission of Awards:</span>
+                  <span class="fill-blank-md"></span>
+                </div>
+
+                <div class="award-footer-head-line">
+                  <span>Signature of Head of Institution:</span>
+                  <span class="fill-blank-lg"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        return colHtml;
+      };
+
+      combinedHtml += `
+        <div class="award-page page-break">
+          <div class="two-col-grid">
+            ${renderColumn(leftChunk, p * pageSize + 1, leftPageNo)}
+            ${renderColumn(rightChunk, p * pageSize + 26, rightPageNo)}
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  if (!combinedHtml) return false;
+
+  triggerPrintWindow(combinedHtml);
   return true;
 }
 
