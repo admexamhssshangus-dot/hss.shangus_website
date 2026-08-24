@@ -709,8 +709,16 @@ export default function AttendancePage() {
 
       // Query Firestore & Cache Collection
       try {
-        const allAttDocs = await getCachedCollection('attendance', false, 2 * 60 * 1000).catch(() => []);
-        const attItems = Array.isArray(allAttDocs) ? allAttDocs : (allAttDocs?.docs ? allAttDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        let attItems = [];
+        try {
+          const snap = await getDocs(collection(db, 'attendance'));
+          if (!snap.empty) {
+            attItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          }
+        } catch (fErr) {
+          const allAttDocs = await getCachedCollection('attendance', false, 2 * 60 * 1000).catch(() => []);
+          attItems = Array.isArray(allAttDocs) ? allAttDocs : (allAttDocs?.docs ? allAttDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        }
 
         attItems.forEach(data => {
           const idParts = String(data.id || data.docId || '').split('_');
@@ -3143,6 +3151,82 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
   const [monthlyData, setMonthlyData] = useState({});
   const [internalHolidays, setInternalHolidays] = useState([]);
+  const [modalRoster, setModalRoster] = useState(roster || []);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
+
+  // Sync / load roster dynamically whenever reportClass or default roster changes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (reportClass === defaultClass && Array.isArray(roster) && roster.length > 0) {
+      setModalRoster(roster);
+      return;
+    }
+
+    let isMounted = true;
+    const loadClassRoster = async () => {
+      try {
+        const admDocs = await getCachedCollection('admissions', false, 30 * 60 * 1000).catch(() => []);
+        const list = [];
+        admDocs.forEach(data => {
+          const items = data.items || data.students || data.records;
+          if (Array.isArray(items)) {
+            items.forEach(it => {
+              const stClass = it.class || it.Class || it['Class'] || data.class || data.Class;
+              if (isClassMatch(stClass, reportClass) && hasAssignedClassRoll(it)) {
+                list.push(it);
+              }
+            });
+          } else {
+            const stClass = data.class || data.Class || data['Class'] || data['Admission sought for class'];
+            if (isClassMatch(stClass, reportClass) && hasAssignedClassRoll(data)) {
+              list.push(data);
+            }
+          }
+        });
+
+        if (list.length === 0) {
+          const masterDocs = await getCachedCollection('masterRegisters', false, 30 * 60 * 1000).catch(() => []);
+          masterDocs.forEach(data => {
+            const items = data.items || data.data || data.records;
+            if (Array.isArray(items)) {
+              items.forEach(it => {
+                const stClass = it.class || it.Class || it['Class'] || data.class || data.Class || '';
+                if (isClassMatch(stClass, reportClass) && hasAssignedClassRoll(it)) {
+                  list.push(it);
+                }
+              });
+            }
+          });
+        }
+
+        const uniqueMap = new Map();
+        list.forEach(st => {
+          const rollKey = String(st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || '').trim();
+          if (rollKey && !uniqueMap.has(rollKey)) {
+            uniqueMap.set(rollKey, {
+              rollNo: rollKey,
+              name: getStudentName(st),
+              formNo: st.formNo || st['Form No.'] || st.id || '',
+              rawSubjects: extractRawSubjectsString(st),
+              subjectsAbbr: getAbbreviatedSubjects(st),
+            });
+          }
+        });
+
+        const formatted = Array.from(uniqueMap.values()).sort((a, b) => {
+          return (parseInt(a.rollNo, 10) || 0) - (parseInt(b.rollNo, 10) || 0);
+        });
+
+        if (isMounted) setModalRoster(formatted.length > 0 ? formatted : roster || []);
+      } catch (err) {
+        console.warn('Modal roster load note:', err);
+      }
+    };
+
+    loadClassRoster();
+    return () => { isMounted = false; };
+  }, [isOpen, reportClass, defaultClass, roster]);
 
   // Fetch holidays internally if holidaysList prop is empty
   useEffect(() => {
@@ -3193,17 +3277,29 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
     return days;
   }, [reportYearMonth, effectiveHolidays]);
 
-  // Load monthly attendance records from Firestore / cache
+  // Load monthly attendance records from live Firestore + local cache
   useEffect(() => {
     if (!isOpen || !reportYearMonth || !reportClass) return;
 
     let isMounted = true;
     const fetchMonthlyData = async () => {
+      setLoadingMonthly(true);
       try {
-        const allAttDocs = await getCachedCollection('attendance', false, 10 * 60 * 1000).catch(() => []);
-        const attItems = Array.isArray(allAttDocs) ? allAttDocs : (allAttDocs?.docs ? allAttDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        // 1. Fetch live documents from Firestore
+        let attItems = [];
+        try {
+          const snap = await getDocs(collection(db, 'attendance'));
+          if (!snap.empty) {
+            attItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          }
+        } catch (fErr) {
+          console.warn('Firestore direct fetch note, fallback to cache:', fErr);
+        }
 
+        // 2. Supplement / fallback with local cache
         const dayMap = {};
+
+        // Merge from Firestore items
         attItems.forEach(data => {
           const dClassMatch = isClassMatch(data.className || data.class, reportClass);
           const dSubjMatch = isDocSubjectMatch(data.subject || data.subjectCode || data.subjectName || data.subjectFull, reportSubject);
@@ -3213,19 +3309,60 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
           if (dClassMatch && dSubjMatch && dSessionMatch && dDate.startsWith(reportYearMonth)) {
             const dayNum = parseInt(dDate.split('-')[2], 10);
             if (dayNum && Array.isArray(data.records)) {
-              const statusMap = {};
+              const statusMap = dayMap[dayNum] || {};
               data.records.forEach(r => {
-                const rKey = String(r.classRollNo || r.rollNo || '').trim();
-                if (rKey) statusMap[rKey] = r.status;
+                const rawRoll = String(r.classRollNo !== undefined && r.classRollNo !== null ? r.classRollNo : r.rollNo || '').trim();
+                const cleanRoll = rawRoll.replace(/^0+/, '');
+                if (rawRoll) statusMap[rawRoll] = r.status;
+                if (cleanRoll) statusMap[cleanRoll] = r.status;
+                if (r.rollNo) statusMap[String(r.rollNo).trim()] = r.status;
+                if (r.classRollNo) statusMap[String(r.classRollNo).trim()] = r.status;
+                if (r.formNo) statusMap[String(r.formNo).trim()] = r.status;
+                if (r.name) statusMap[String(r.name).toLowerCase().trim()] = r.status;
+                if (r.studentName) statusMap[String(r.studentName).toLowerCase().trim()] = r.status;
               });
               dayMap[dayNum] = statusMap;
             }
           }
         });
 
+        // Merge from LocalStorage device cache (for immediate offline / unsynced edits)
+        try {
+          const clsNorm = String(reportClass).replace(/class/i, '').trim();
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(`hss_att_cache_${clsNorm}_`)) {
+              const cached = JSON.parse(localStorage.getItem(key));
+              if (cached && cached.date && cached.date.startsWith(reportYearMonth)) {
+                const dSubjMatch = isDocSubjectMatch(cached.subject || cached.subjectCode, reportSubject);
+                const dSessionMatch = isSessionMatch(cached.sessionYear || cached.session, reportSession);
+                if (dSubjMatch && dSessionMatch && Array.isArray(cached.records)) {
+                  const dayNum = parseInt(cached.date.split('-')[2], 10);
+                  if (dayNum) {
+                    const statusMap = dayMap[dayNum] || {};
+                    cached.records.forEach(r => {
+                      const rawRoll = String(r.classRollNo !== undefined && r.classRollNo !== null ? r.classRollNo : r.rollNo || '').trim();
+                      const cleanRoll = rawRoll.replace(/^0+/, '');
+                      if (rawRoll) statusMap[rawRoll] = r.status;
+                      if (cleanRoll) statusMap[cleanRoll] = r.status;
+                      if (r.rollNo) statusMap[String(r.rollNo).trim()] = r.status;
+                      if (r.classRollNo) statusMap[String(r.classRollNo).trim()] = r.status;
+                      if (r.formNo) statusMap[String(r.formNo).trim()] = r.status;
+                      if (r.name) statusMap[String(r.name).toLowerCase().trim()] = r.status;
+                    });
+                    dayMap[dayNum] = statusMap;
+                  }
+                }
+              }
+            }
+          }
+        } catch (lErr) {}
+
         if (isMounted) setMonthlyData(dayMap);
       } catch (err) {
         console.warn('Monthly report fetch note:', err);
+      } finally {
+        if (isMounted) setLoadingMonthly(false);
       }
     };
 
@@ -3237,6 +3374,12 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
   const subjMaster = MASTER_SUBJECTS.find(s => s.code === reportSubject);
   const subjName = subjMaster ? subjMaster.name : (reportSubject || 'General');
+
+  // Filter roster by selected subject if subject is specific
+  const displayRoster = (modalRoster || []).filter(s => {
+    if (!reportSubject || reportSubject === 'All' || reportSubject === 'General') return true;
+    return isSubjectMatch(s, reportSubject);
+  });
 
   const handleTriggerPrint = () => {
     window.print();
@@ -3339,6 +3482,9 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
             <h3 className="text-xs font-black uppercase tracking-wider truncate text-slate-900 dark:text-slate-100">
               Attendance Register
             </h3>
+            {loadingMonthly && (
+              <RefreshCw size={13} className="animate-spin text-teal-600 ml-1.5" />
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -3413,6 +3559,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
               onChange={e => setReportSubject(e.target.value)}
               className="w-full px-2 py-1 rounded-md border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs truncate"
             >
+              <option value="General">All / General</option>
               {MASTER_SUBJECTS.map(s => (
                 <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
               ))}
@@ -3458,8 +3605,12 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
                 </tr>
               </thead>
               <tbody>
-                {roster.map((st, idx) => {
-                  const rNo = String(st.rollNo || idx + 1);
+                {displayRoster.map((st, idx) => {
+                  const rNo = String(st.rollNo !== undefined && st.rollNo !== null ? st.rollNo : idx + 1).trim();
+                  const cleanRNo = rNo.replace(/^0+/, '');
+                  const formNo = String(st.formNo || st['Form No.'] || st.id || '').trim();
+                  const stName = String(st.name || st.studentName || '').toLowerCase().trim();
+
                   let pCount = 0;
                   let aCount = 0;
                   let lCount = 0;
@@ -3475,7 +3626,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
                     // Actual saved attendance for this day takes precedence over declared holidays!
                     if (record) {
                       totalWd++;
-                      const status = record[rNo] || 'A';
+                      const status = record[rNo] || record[cleanRNo] || (formNo ? record[formNo] : null) || (stName ? record[stName] : null) || 'A';
                       if (status === 'H' || status === 'Holiday') {
                         totalWd--; // Marked as holiday in attendance
                         return { val: 'H', cls: 'text-purple-700 font-bold bg-purple-50' };
@@ -3505,7 +3656,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
                     <tr key={st.id || idx} className="hover:bg-slate-50 border-b border-slate-200">
                       <td className="border border-slate-300 px-1 py-0.5 text-center font-medium text-slate-500">{idx + 1}</td>
                       <td className="border border-slate-300 px-1 py-0.5 text-center font-black text-teal-900">{rNo}</td>
-                      <td className="border border-slate-300 px-1 py-0.5 font-bold text-slate-900 truncate max-w-[140px]">{formatProperCase(st.name)}</td>
+                      <td className="border border-slate-300 px-1 py-0.5 font-bold text-slate-900 truncate max-w-[140px]">{formatProperCase(st.name || st.studentName)}</td>
                       {dayCells.map((cell, dIdx) => (
                         <td key={dIdx} className={`border border-slate-300 px-0.5 py-0.5 text-center font-bold ${cell.cls}`}>
                           {cell.val}
