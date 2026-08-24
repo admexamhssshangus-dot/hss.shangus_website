@@ -953,19 +953,17 @@ export function getAbbreviatedSubjects(st, className = '') {
   if (!raw) {
     const stStream = String(st.stream || st.Stream || '').toLowerCase();
     if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'EN, PH, CH, MA';
-    if (stStream.includes('med') || stStream.includes('science')) return 'EN, PH, CH, BO, ZO';
+    if (stStream.includes('med') || stStream.includes('science')) return 'EN, PH, CH, BI';
     if (stStream.includes('arts') || stStream.includes('humanities')) return 'EN, UR, ED, PS, EC';
     return stStream ? stStream.toUpperCase() : 'GENERAL';
   }
 
-  // Map known keywords to standard uppercase abbreviations
+  // Map known keywords to standard uppercase abbreviations (Biology/Botany/Zoology mapped to BI)
   const subMap = [
     { regex: /\b(general english|gen eng|english|eng|ge|en)\b/i, code: 'EN' },
     { regex: /\b(physics|ph)\b/i, code: 'PH' },
     { regex: /\b(chemistry|chem|ch)\b/i, code: 'CH' },
-    { regex: /\b(botany|bot|bo)\b/i, code: 'BO' },
-    { regex: /\b(zoology|zoo|zo)\b/i, code: 'ZO' },
-    { regex: /\b(biology|bio|bi)\b/i, code: 'BO, ZO' },
+    { regex: /\b(biology|botany|zoology|bio|bot|zoo|bi|bo|zo)\b/i, code: 'BI' },
     { regex: /\b(mathematics|maths|math|ma)\b/i, code: 'MA' },
     { regex: /\b(urdu|ur)\b/i, code: 'UR' },
     { regex: /\b(education|edu|ed)\b/i, code: 'ED' },
@@ -988,9 +986,9 @@ export function getAbbreviatedSubjects(st, className = '') {
   const foundCodes = [];
   subMap.forEach(item => {
     if (item.regex.test(raw)) {
-      item.code.split(', ').forEach(c => {
-        if (!foundCodes.includes(c)) foundCodes.push(c);
-      });
+      if (!foundCodes.includes(item.code)) {
+        foundCodes.push(item.code);
+      }
     }
   });
 
@@ -998,8 +996,13 @@ export function getAbbreviatedSubjects(st, className = '') {
     return foundCodes.join(', ');
   }
 
-  // Clean raw string fallback
-  return raw.replace(/,/g, ', ').replace(/\s+/g, ' ').toUpperCase();
+  // Clean raw string fallback (normalize Botany/Zoology to BI)
+  return raw
+    .replace(/botany|zoology/gi, 'BI')
+    .replace(/biology/gi, 'BI')
+    .replace(/,/g, ', ')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
 }
 
 /**
