@@ -149,9 +149,9 @@ const PRINT_ENGINE_CSS = `
   
   table.award-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9pt; text-align: center; }
   table.award-table th, table.award-table td { border: 1px solid #475569; padding: 4.5px 3px; height: 21px; box-sizing: border-box; }
-  table.award-table th { background: #f1f5f9 !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #1e293b; padding: 5px 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .centre-num-row { background: #fff; color: #b91c1c; font-weight: 800; font-size: 9pt; text-align: center; border-top: 1.5px solid #0f172a; border-bottom: 1.5px solid #0f172a; padding: 3px 0 !important; }
-  .absent-text { color: #b91c1c; font-weight: 800; }
+  table.award-table th { background: #1e293b !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; color: #ffffff !important; padding: 5px 3px; border: 1px solid #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .centre-num-row { background: #fef2f2 !important; color: #991b1b; font-weight: 800; font-size: 9pt; text-align: center; border-top: 1.5px solid #dc2626; border-bottom: 1.5px solid #dc2626; padding: 3px 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .absent-text { color: #dc2626; font-weight: 800; }
   
   /* Generous, well-spaced footer layout filling vertical page space */
   .award-footer { 
@@ -237,7 +237,7 @@ const PRINT_ENGINE_CSS = `
   .letter-body { text-align: justify; margin-bottom: 14px; text-indent: 25px; color: #1e293b; font-weight: 500; }
   .gist-table { width: 85%; margin: 18px auto; border-collapse: collapse; font-size: 9pt; }
   .gist-table th, .gist-table td { border: 1px solid #475569; padding: 5px 12px; text-align: left; }
-  .gist-table th { background: #f1f5f9 !important; text-align: center; font-weight: 800; text-transform: uppercase; font-size: 8.5pt; letter-spacing: 0.3px; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gist-table th { background: #1e293b !important; text-align: center; font-weight: 800; text-transform: uppercase; font-size: 8.5pt; letter-spacing: 0.3px; color: #ffffff !important; border: 1px solid #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .gist-table td.num { text-align: center; font-weight: 800; font-family: 'Plus Jakarta Sans', monospace; color: #0f172a; }
   
   /* Matrix Table */
@@ -248,16 +248,44 @@ const PRINT_ENGINE_CSS = `
   
   table.matrix-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; text-align: center; }
   table.matrix-table th, table.matrix-table td { border: 1px solid #64748b; padding: 3px 2px; }
-  table.matrix-table th { background: #e0e7ff !important; font-weight: 800; font-size: 7.8pt; text-transform: uppercase; letter-spacing: 0.2px; color: #1e1b4b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.matrix-table th { background: #1e293b !important; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.2px; color: #ffffff !important; border: 1px solid #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.matrix-table thead tr:nth-child(2) th { background: #334155 !important; color: #f8fafc !important; font-size: 7.8pt; }
   table.matrix-table td.mark-val { font-weight: 800; color: #1e40af; }
-  table.matrix-table td.no-sub { color: #94a3b8; font-weight: normal; }
-  table.matrix-table td.hash-tot { font-weight: 800; background: #f8fafc !important; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.matrix-table td.no-sub { color: #94a3b8; font-weight: 600; }
+  table.matrix-table td.hash-tot { font-weight: 900; background: #e2e8f0 !important; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   
   /* Attendance Table with 50px standard signature row height */
   table.attendance-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
   table.attendance-table th, table.attendance-table td { border: 1px solid #475569; }
-  table.attendance-table th { background: #f1f5f9 !important; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.3px; color: #0f172a; padding: 6px 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.attendance-table th { background: #1e293b !important; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.3px; color: #ffffff !important; padding: 6px 4px; border: 1px solid #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   table.attendance-table td { height: 50px !important; min-height: 50px !important; vertical-align: middle; box-sizing: border-box; }
+
+  /* ─────────────────────────────────────────────────────────────
+     ALTERNATE ROW ZEBRA SHADING ACROSS ALL PRINTED TABLES
+     ───────────────────────────────────────────────────────────── */
+  table.matrix-table tbody tr:nth-child(even),
+  table.award-table tbody tr:nth-child(even),
+  table.attendance-table tbody tr:nth-child(even),
+  table.gist-table tbody tr:nth-child(even) {
+    background-color: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  table.matrix-table tbody tr:nth-child(even) td.hash-tot {
+    background-color: #cbd5e1 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  table.matrix-table tbody tr:nth-child(odd),
+  table.award-table tbody tr:nth-child(odd),
+  table.attendance-table tbody tr:nth-child(odd),
+  table.gist-table tbody tr:nth-child(odd) {
+    background-color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 `;
 
 function triggerPrintWindow(htmlContent) {
@@ -477,14 +505,14 @@ export function printIndividualWorkSheet({
 
       <table class="award-table" style="font-size: 9.5pt;">
         <thead>
-          <tr style="background: #f1f5f9;">
+          <tr>
             <th style="width: 8%;">S.No.</th>
             <th style="width: 12%;">Class R.No.</th>
-            <th style="width: 18%;">Exam R.No.</th>
+            <th style="width: 18%;">Exam Roll No.</th>
             <th style="width: 32%; text-align: left; padding-left: 8px;">Student Name</th>
             <th style="width: 10%;">Prac./Assn.</th>
             <th style="width: 10%;">Viva-voce</th>
-            <th style="width: 10%; background: #e2e8f0;">Overall</th>
+            <th style="width: 10%;">Overall</th>
           </tr>
         </thead>
         <tbody>
@@ -996,7 +1024,7 @@ export function printAttendanceSheet({ className = '11th', session = 'Annual Reg
 
       <table class="award-table attendance-table" style="font-size: 9.5pt; width: 100%; border-collapse: collapse;">
         <thead>
-          <tr style="background: #f1f5f9; height: 32px;">
+          <tr style="height: 32px;">
             <th style="width: 5%;">S.No.</th>
             <th style="width: 9%;">Class R.No.</th>
             <th style="width: 14%;">Exam Roll No.</th>
