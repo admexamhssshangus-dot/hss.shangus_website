@@ -7,6 +7,21 @@
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import * as XLSX from 'xlsx';
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  AlignmentType,
+  BorderStyle,
+  PageBreak,
+  PageOrientation,
+  HeightRule
+} from 'docx';
 import { findStudentMarkRecord } from './practicalsPdfGenerator';
 
 export const CSV_COLUMNS = [
@@ -598,9 +613,9 @@ export function exportConsolidatedAwardsToExcel({
 }
 
 /**
- * Export Consolidated Awards to Word (.doc) with identical layout to Print Preview
+ * Export Consolidated Awards to native Microsoft Word (.docx) with 0.3 inch margins and identical print styling
  */
-export function exportConsolidatedAwardsToWord({
+export async function exportConsolidatedAwardsToDocx({
   className = '11th',
   session = 'Annual Regular 2025',
   students = [],
@@ -721,8 +736,147 @@ export function exportConsolidatedAwardsToWord({
   const partText = className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
   const testType = isExternal ? 'Practical Examination' : 'Internal Assessment';
 
-  // Build matrix student rows
-  const matrixRowsHtml = students.map((st, idx) => {
+  // Standard Border Definition for DOCX Tables
+  const thinBorder = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: '64748B' },
+    bottom: { style: BorderStyle.SINGLE, size: 4, color: '64748B' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: '64748B' },
+    right: { style: BorderStyle.SINGLE, size: 4, color: '64748B' }
+  };
+  const noBorder = {
+    top: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+    bottom: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+    left: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+    right: { style: BorderStyle.NONE, size: 0, color: 'auto' }
+  };
+
+  // 1. Build Cover Letter Gist Table
+  const gistHeaderRow = new TableRow({
+    tableHeader: true,
+    height: { value: 320, rule: HeightRule.ATLEAST },
+    children: [
+      new TableCell({
+        width: { size: 15, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'S.NO.', bold: true, size: 18, font: 'Calibri', color: 'FFFFFF' })] })]
+      }),
+      new TableCell({
+        width: { size: 55, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: 'SUBJECT TITLE', bold: true, size: 18, font: 'Calibri', color: 'FFFFFF' })] })]
+      }),
+      new TableCell({
+        width: { size: 30, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'NO. OF STUDENTS', bold: true, size: 18, font: 'Calibri', color: 'FFFFFF' })] })]
+      })
+    ]
+  });
+
+  const gistDataRows = gistList.map((g, idx) => {
+    const isEven = idx % 2 === 1;
+    const bg = isEven ? 'F1F5F9' : 'FFFFFF';
+    return new TableRow({
+      height: { value: 280, rule: HeightRule.ATLEAST },
+      children: [
+        new TableCell({
+          width: { size: 15, type: WidthType.PERCENTAGE },
+          shading: { fill: bg },
+          borders: thinBorder,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(g.sno), size: 18, font: 'Calibri', color: '0F172A' })] })]
+        }),
+        new TableCell({
+          width: { size: 55, type: WidthType.PERCENTAGE },
+          shading: { fill: bg },
+          borders: thinBorder,
+          children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: `${g.name} (${g.code})`, bold: true, size: 18, font: 'Calibri', color: '0F172A' })] })]
+        }),
+        new TableCell({
+          width: { size: 30, type: WidthType.PERCENTAGE },
+          shading: { fill: bg },
+          borders: thinBorder,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(g.count), bold: true, size: 18, font: 'Calibri', color: '0F172A' })] })]
+        })
+      ]
+    });
+  });
+
+  const gistDocxTable = new Table({
+    width: { size: 85, type: WidthType.PERCENTAGE },
+    alignment: AlignmentType.CENTER,
+    rows: [gistHeaderRow, ...gistDataRows]
+  });
+
+  // 2. Build 2-Tier Matrix Table for Page 2+
+  const subjectColPct = activeSubs.length > 0 ? (70 / activeSubs.length) : 5;
+
+  const matrixHeaderRow1 = new TableRow({
+    tableHeader: true,
+    height: { value: 340, rule: HeightRule.ATLEAST },
+    children: [
+      new TableCell({
+        width: { size: 5, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'S.NO.', bold: true, size: 16, font: 'Calibri', color: 'FFFFFF' })] })]
+      }),
+      new TableCell({
+        width: { size: 15, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'EXAM ROLL NO.', bold: true, size: 16, font: 'Calibri', color: 'FFFFFF' })] })]
+      }),
+      new TableCell({
+        columnSpan: activeSubs.length,
+        width: { size: 70, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'SUBJECTS', bold: true, size: 17, font: 'Calibri', color: 'FFFFFF' })] })]
+      }),
+      new TableCell({
+        width: { size: 10, type: WidthType.PERCENTAGE },
+        shading: { fill: '1E293B' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'HASH TOTAL', bold: true, size: 16, font: 'Calibri', color: 'FFFFFF' })] })]
+      })
+    ]
+  });
+
+  const matrixHeaderRow2 = new TableRow({
+    tableHeader: true,
+    height: { value: 280, rule: HeightRule.ATLEAST },
+    children: [
+      new TableCell({
+        width: { size: 5, type: WidthType.PERCENTAGE },
+        shading: { fill: '334155' },
+        borders: thinBorder,
+        children: [new Paragraph({ children: [] })]
+      }),
+      new TableCell({
+        width: { size: 15, type: WidthType.PERCENTAGE },
+        shading: { fill: '334155' },
+        borders: thinBorder,
+        children: [new Paragraph({ children: [] })]
+      }),
+      ...activeSubs.map(s => new TableCell({
+        width: { size: subjectColPct, type: WidthType.PERCENTAGE },
+        shading: { fill: '334155' },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: s.code, bold: true, size: 15, font: 'Calibri', color: 'FFFFFF' })] })]
+      })),
+      new TableCell({
+        width: { size: 10, type: WidthType.PERCENTAGE },
+        shading: { fill: '334155' },
+        borders: thinBorder,
+        children: [new Paragraph({ children: [] })]
+      })
+    ]
+  });
+
+  const matrixDataRows = students.map((st, idx) => {
     const rollNo = String(st['Class Roll No'] || st.rollNo || st.classRollNo || st['Class R.No.'] || (idx + 1)).trim();
     const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || rollNo).trim();
     const stSubsStr = String(
@@ -743,7 +897,7 @@ export function exportConsolidatedAwardsToWord({
 
     let rowHashTotal = 0;
 
-    const cellHtmls = activeSubs.map(sub => {
+    const subjectCells = activeSubs.map(sub => {
       let isEnrolled = false;
       if (sub.code === 'EN') isEnrolled = true;
       else if (sub.code === 'PH' || sub.code === 'CH') {
@@ -753,6 +907,10 @@ export function exportConsolidatedAwardsToWord({
       } else {
         isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubsStr) || stSubsStr.includes(kw));
       }
+
+      let markText = isEnrolled ? '—' : 'x';
+      let markColor = isEnrolled ? '1E40AF' : '94A3B8';
+      let isBold = isEnrolled;
 
       if (sub.code === 'BI') {
         const boDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('BO'));
@@ -764,188 +922,222 @@ export function exportConsolidatedAwardsToWord({
         if (!isNaN(boVal) || !isNaN(zoVal)) {
           const biTot = (isNaN(boVal) ? 0 : boVal) + (isNaN(zoVal) ? 0 : zoVal);
           rowHashTotal += biTot;
-          return `<td style="color: #1e40af; font-weight: bold; text-align: center;">${biTot}</td>`;
+          markText = String(biTot);
+          markColor = '1E40AF';
+          isBold = true;
+        }
+      } else {
+        const subDoc = submissions.find(s => {
+          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+          if (!matchClass) return false;
+          const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+          const targetType = isExternal ? 'external' : 'internal';
+          if (sType !== targetType) return false;
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+          return codeStr === sub.code || codeStr.includes(sub.code);
+        });
+
+        const rec = findStudentMarkRecord(subDoc, st);
+        if (rec) {
+          const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
+          const numVal = parseInt(rawMark, 10);
+          if (!isNaN(numVal)) {
+            rowHashTotal += numVal;
+            markText = String(numVal);
+            markColor = '1E40AF';
+            isBold = true;
+          } else if (rawMark.toUpperCase() === 'AB') {
+            markText = 'AB';
+            markColor = 'DC2626';
+            isBold = true;
+          }
         }
       }
 
-      const subDoc = submissions.find(s => {
-        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-        if (!matchClass) return false;
-        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-        const targetType = isExternal ? 'external' : 'internal';
-        if (sType !== targetType) return false;
-        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
-        return codeStr === sub.code || codeStr.includes(sub.code);
+      const isEven = idx % 2 === 1;
+      const cellBg = isEven ? 'F1F5F9' : 'FFFFFF';
+
+      return new TableCell({
+        width: { size: subjectColPct, type: WidthType.PERCENTAGE },
+        shading: { fill: cellBg },
+        borders: thinBorder,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: markText, bold: isBold, size: 16, font: 'Calibri', color: markColor })] })]
       });
-
-      const rec = findStudentMarkRecord(subDoc, st);
-      if (rec) {
-        const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
-        const numVal = parseInt(rawMark, 10);
-        if (!isNaN(numVal)) {
-          rowHashTotal += numVal;
-          return `<td style="color: #1e40af; font-weight: bold; text-align: center;">${numVal}</td>`;
-        } else if (rawMark.toUpperCase() === 'AB') {
-          return `<td style="color: #dc2626; font-weight: bold; text-align: center;">AB</td>`;
-        }
-      }
-
-      if (isEnrolled) return `<td style="color: #1e40af; font-weight: bold; text-align: center;">—</td>`;
-      return `<td style="color: #94a3b8; text-align: center;">x</td>`;
-    }).join('');
+    });
 
     const isEven = idx % 2 === 1;
-    const rowBg = isEven ? '#f1f5f9' : '#ffffff';
+    const rowBg = isEven ? 'F1F5F9' : 'FFFFFF';
 
-    return `
-      <tr style="background-color: ${rowBg};">
-        <td style="text-align: center;">${idx + 1}</td>
-        <td style="text-align: center; font-weight: bold;">${examRoll}</td>
-        ${cellHtmls}
-        <td style="text-align: center; font-weight: bold; background-color: ${isEven ? '#cbd5e1' : '#e2e8f0'};">${rowHashTotal > 0 ? rowHashTotal : '—'}</td>
-      </tr>
-    `;
-  }).join('');
+    return new TableRow({
+      height: { value: 260, rule: HeightRule.ATLEAST },
+      children: [
+        new TableCell({
+          width: { size: 5, type: WidthType.PERCENTAGE },
+          shading: { fill: rowBg },
+          borders: thinBorder,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(idx + 1), size: 16, font: 'Calibri', color: '0F172A' })] })]
+        }),
+        new TableCell({
+          width: { size: 15, type: WidthType.PERCENTAGE },
+          shading: { fill: rowBg },
+          borders: thinBorder,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: examRoll, bold: true, size: 16, font: 'Calibri', color: '0F172A' })] })]
+        }),
+        ...subjectCells,
+        new TableCell({
+          width: { size: 10, type: WidthType.PERCENTAGE },
+          shading: { fill: isEven ? 'CBD5E1' : 'E2E8F0' },
+          borders: thinBorder,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: rowHashTotal > 0 ? String(rowHashTotal) : '—', bold: true, size: 17, font: 'Calibri', color: '0F172A' })] })]
+        })
+      ]
+    });
+  });
 
-  const wordHtml = `
-    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>Consolidated Practical Awards — Govt HSS Shangus</title>
-        <!--[if gte mso 9]>
-        <xml>
-          <w:WordDocument>
-            <w:View>Print</w:View>
-            <w:Zoom>100</w:Zoom>
-            <w:DoNotOptimizeForBrowser/>
-          </w:WordDocument>
-        </xml>
-        <![endif]-->
-        <style>
-          @page { size: A4 portrait; margin: 1.2cm 1.2cm 1.2cm 1.2cm; }
-          body { font-family: 'Calibri', 'Times New Roman', serif; font-size: 10pt; color: #0f172a; line-height: 1.35; }
-          .page-break { page-break-after: always; mso-special-character: line-break; }
-          table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 12px; }
-          th, td { border: 1px solid #475569; padding: 4px 3px; font-size: 8.5pt; vertical-align: middle; }
-          th { background-color: #1e293b; color: #ffffff; font-weight: bold; text-align: center; text-transform: uppercase; }
-          .gist-table th { background-color: #1e293b; color: #ffffff; }
-          .matrix-table th { background-color: #1e293b; color: #ffffff; }
-          .sub-head th { background-color: #334155; color: #ffffff; }
-          h1 { font-size: 13.5pt; font-weight: bold; text-align: center; margin: 0 0 4px 0; text-transform: uppercase; color: #0f172a; }
-          h2 { font-size: 10.5pt; font-weight: bold; text-align: center; margin: 0 0 4px 0; color: #1e293b; }
-          p { margin: 4px 0; }
-        </style>
-      </head>
-      <body>
-        <!-- PAGE 1: FORWARDING COVER LETTER -->
-        <div style="padding: 10px 15px;">
-          <p style="font-size: 11pt; font-weight: bold; margin-bottom: 18px;">
-            The Assistant Secretary,<br>
-            Sub Office Anantnag.
-          </p>
+  const matrixDocxTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    alignment: AlignmentType.CENTER,
+    rows: [matrixHeaderRow1, matrixHeaderRow2, ...matrixDataRows]
+  });
 
-          <p style="font-size: 11pt; font-weight: bold; text-decoration: underline; margin: 16px 0;">
-            Subject: Submission of ${evalTypeText} Practical Awards of ${hseText} Session ${session}.
-          </p>
+  const refDateTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noBorder,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: noBorder, children: [new Paragraph({ children: [new TextRun({ text: 'No.: ____________________', bold: true, size: 18, font: 'Calibri', color: '334155' })] })] }),
+          new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: noBorder, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Date: ____________________', bold: true, size: 18, font: 'Calibri', color: '334155' })] })] })
+        ]
+      })
+    ]
+  });
 
-          <p style="font-size: 10.5pt; font-weight: bold;">Sir,</p>
+  const sigTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noBorder,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 55, type: WidthType.PERCENTAGE },
+            borders: noBorder,
+            children: [
+              new Paragraph({ children: [new TextRun({ text: 'Signature of Incharge: __________________', bold: true, size: 18, font: 'Calibri' })] }),
+              new Paragraph({ children: [new TextRun({ text: `Name: ${inchargeName}`, bold: true, size: 18, font: 'Calibri' })] }),
+              new Paragraph({ children: [new TextRun({ text: `CPIS: ${inchargeCpis}`, bold: true, size: 18, font: 'Calibri' })] }),
+              new Paragraph({ children: [new TextRun({ text: `Mobile: ${inchargeMobile}`, bold: true, size: 18, font: 'Calibri' })] })
+            ]
+          }),
+          new TableCell({
+            width: { size: 45, type: WidthType.PERCENTAGE },
+            borders: noBorder,
+            children: [
+              new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Signature of Head of Institution', bold: true, size: 19, font: 'Calibri' })] }),
+              new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: '(with Official Seal)', size: 17, font: 'Calibri', italics: true })] })
+            ]
+          })
+        ]
+      })
+    ]
+  });
 
-          <p style="font-size: 10.5pt; text-align: justify; text-indent: 25px; margin: 12px 0;">
-            Apropos to the subject captioned above kindly find enclosed herewith the ${evalTypeText.toLowerCase()} practical awards (in triplicate) pertaining to <strong>${hseText} Examination, session ${session}</strong>, for the favour of further necessary action at your end please.
-          </p>
+  // Assemble full DOCX Document with 0.3-inch Margins (432 twips)
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 432,    // 0.3 inch = 432 twips
+              bottom: 432, // 0.3 inch = 432 twips
+              left: 432,   // 0.3 inch = 432 twips
+              right: 432   // 0.3 inch = 432 twips
+            },
+            size: {
+              orientation: PageOrientation.PORTRAIT
+            }
+          }
+        },
+        children: [
+          // ─── PAGE 1: FORWARDING COVER LETTER ───
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG', bold: true, size: 26, font: 'Calibri', color: '0F172A' })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 240 }, children: [new TextRun({ text: 'OFFICIAL FORWARDING LETTER FOR PRACTICAL AWARDS', bold: true, size: 20, font: 'Calibri', color: '1E293B' })] }),
+          new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: 'The Assistant Secretary,\nSub Office Anantnag.', bold: true, size: 20, font: 'Calibri' })] }),
+          new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: `Subject: Submission of ${evalTypeText} Practical Awards of ${hseText} Session ${session}.`, bold: true, underline: {}, size: 20, font: 'Calibri' })] }),
+          new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: 'Sir,', bold: true, size: 20, font: 'Calibri' })] }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            indent: { firstLine: 400 },
+            spacing: { after: 140 },
+            children: [
+              new TextRun({ text: `Apropos to the subject captioned above kindly find enclosed herewith the ${evalTypeText.toLowerCase()} practical awards (in triplicate) pertaining to `, size: 20, font: 'Calibri' }),
+              new TextRun({ text: `${hseText} Examination, session ${session}`, bold: true, size: 20, font: 'Calibri' }),
+              new TextRun({ text: ', for the favour of further necessary action at your end please.', size: 20, font: 'Calibri' })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            indent: { firstLine: 400 },
+            spacing: { after: 200 },
+            children: [
+              new TextRun({ text: `Furthermore, this is certified that the ${evalTypeText.toLowerCase()} tests/examinations for all the examinees of the institution, who are going to appear in the said examination, had been conducted by the institution and `, size: 20, font: 'Calibri' }),
+              new TextRun({ text: 'none among the on-roll candidates have been skipped', bold: true, size: 20, font: 'Calibri' }),
+              new TextRun({ text: ' during the preparation of award rolls. The summary of the examinees with subject wise gist is as follows:', size: 20, font: 'Calibri' })
+            ]
+          }),
+          gistDocxTable,
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 600 },
+            children: [
+              new TextRun({ text: 'Principal\nGovt. Higher Secondary School Shangus', bold: true, size: 21, font: 'Calibri' })
+            ]
+          }),
 
-          <p style="font-size: 10.5pt; text-align: justify; text-indent: 25px; margin: 12px 0;">
-            Furthermore, this is <strong>certified</strong> that the ${evalTypeText.toLowerCase()} tests/examinations for all the examinees of the institution, who are going to appear in the said examination, had been conducted by the institution and <strong>none among the on-roll candidates have been skipped</strong> during the preparation of award rolls. The summary of the examinees with subject wise gist is as follows:
-          </p>
+          // Page Break to start Matrix Table
+          new Paragraph({ children: [new PageBreak()] }),
 
-          <table class="gist-table" style="width: 85%; margin: 16px auto;">
-            <thead>
-              <tr>
-                <th style="width: 15%;">S.No.</th>
-                <th style="width: 55%; text-align: left; padding-left: 10px;">Subject</th>
-                <th style="width: 30%;">No. of Students</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${gistList.map(g => `
-                <tr>
-                  <td style="text-align: center;">${g.sno}</td>
-                  <td style="padding-left: 10px;">${g.name} (${g.code})</td>
-                  <td style="text-align: center; font-weight: bold;">${g.count}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+          // ─── PAGE 2+: CONSOLIDATED MARKS MATRIX ───
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: 'Govt. Higher Secondary School Shangus, Anantnag', bold: true, size: 25, font: 'Calibri', color: '0F172A' })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: `Record of ${evalTypeText} Practical Awards Roll for the ${hseText} Examination`, bold: true, size: 21, font: 'Calibri', color: '1E293B' })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 }, children: [new TextRun({ text: `Session & Year: ${session}   |   Institution Contact: 9682641216`, bold: true, size: 18, font: 'Calibri', color: '475569' })] }),
+          refDateTable,
+          new Paragraph({ spacing: { before: 100 } }),
+          matrixDocxTable,
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 300, after: 60 },
+            children: [new TextRun({ text: 'Certificate', bold: true, size: 21, font: 'Calibri' })]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { after: 240 },
+            children: [
+              new TextRun({
+                text: `"Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in Higher Secondary Examination ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"`,
+                size: 18,
+                font: 'Calibri'
+              })
+            ]
+          }),
+          sigTable
+        ]
+      }
+    ]
+  });
 
-          <div style="margin-top: 50px; text-align: right; font-weight: bold; font-size: 11pt; padding-right: 20px;">
-            Principal<br>
-            Govt. Higher Secondary School Shangus
-          </div>
-        </div>
-
-        <div class="page-break"></div>
-
-        <!-- PAGE 2+: CONSOLIDATED MARKS GRID MATRIX -->
-        <div>
-          <h1>Govt. Higher Secondary School Shangus, Anantnag</h1>
-          <h2>Record of ${evalTypeText} Practical Awards Roll for the ${hseText} Examination</h2>
-          <p style="text-align: center; font-weight: bold; font-size: 9.5pt;">Session & Year: <strong>${session}</strong> &nbsp;|&nbsp; Institution Contact: <strong>9682641216</strong></p>
-          <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: bold; margin: 8px 0;">
-            <span>No.: ____________________</span>
-            <span style="float: right;">Date: ____________________</span>
-          </div>
-
-          <table class="matrix-table">
-            <thead>
-              <tr>
-                <th style="width: 5%;">S.No.</th>
-                <th style="width: 15%;">Exam Roll No.</th>
-                <th colspan="${activeSubs.length}">SUBJECTS</th>
-                <th style="width: 10%;">Hash Total</th>
-              </tr>
-              <tr class="sub-head">
-                <th></th>
-                <th></th>
-                ${activeSubs.map(s => `<th>${s.code}</th>`).join('')}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${matrixRowsHtml}
-            </tbody>
-          </table>
-
-          <div style="margin-top: 25px; font-size: 9.5pt; line-height: 1.4;">
-            <div style="text-align: center; font-weight: bold; font-size: 11pt; margin-bottom: 6px;">Certificate</div>
-            <p style="text-align: justify; margin: 0 0 16px 0;">
-              "Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in Higher Secondary Examination ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"
-            </p>
-
-            <table style="width: 100%; border: none; margin-top: 25px;">
-              <tr style="border: none;">
-                <td style="width: 50%; border: none; text-align: left; font-size: 9pt;">
-                  Signature of Incharge: __________________<br>
-                  Name: <strong>${inchargeName}</strong><br>
-                  CPIS: <strong>${inchargeCpis}</strong><br>
-                  Mobile: <strong>${inchargeMobile}</strong>
-                </td>
-                <td style="width: 50%; border: none; text-align: right; vertical-align: top; font-size: 9.5pt;">
-                  <strong>Signature of Head of Institution</strong><br>
-                  (with Official Seal)
-                </td>
-              </tr>
-            </table>
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  const blob = new Blob(['\ufeff' + wordHtml], { type: 'application/msword;charset=utf-8' });
-  const filename = `Consolidated_Awards_${className}_${evalTypeText.replace(/\s+/g, '_')}_${String(session).replace(/[^a-zA-Z0-9]/g, '_')}.doc`;
+  const blob = await Packer.toBlob(doc);
+  const cleanSess = String(session).replace(/[^a-zA-Z0-9]/g, '_');
+  const filename = `Consolidated_Awards_${className}_${evalTypeText.replace(/\s+/g, '_')}_${cleanSess}.docx`;
   downloadFileBlob(blob, filename);
   return true;
 }
+
+/**
+ * Alias exportConsolidatedAwardsToWord -> exportConsolidatedAwardsToDocx for backward compatibility
+ */
+export const exportConsolidatedAwardsToWord = exportConsolidatedAwardsToDocx;
 
 /**
  * Alias for backward compatibility

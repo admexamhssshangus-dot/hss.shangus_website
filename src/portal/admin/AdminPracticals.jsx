@@ -458,18 +458,18 @@ export default function AdminPracticals() {
     permissions: [],
     printDetails: {
       '11th': {
-        sessionText: 'Annual Regular 2025',
+        sessionText: 'Annual Regular 2026',
         instName: 'Govt. Higher Secondary School Shangus',
-        inchargeName: 'Mr. Sheikh Gulfam',
-        inchargeCpis: 'GRZEDU00060041',
-        inchargeMobile: '9682547458'
+        inchargeName: 'Mr. Majid Hassan Najar',
+        inchargeCpis: 'SHGEDU00220017',
+        inchargeMobile: '7006537425'
       },
       '12th': {
-        sessionText: 'Annual Regular 2025',
+        sessionText: 'Annual Regular 2026',
         instName: 'Govt. Higher Secondary School Shangus',
-        inchargeName: 'Mr. Sheikh Gulfam',
-        inchargeCpis: 'GRZEDU00060041',
-        inchargeMobile: '9682547458'
+        inchargeName: 'Mr. Bilal Ahmad Khandy',
+        inchargeCpis: 'KGLEDU00120015',
+        inchargeMobile: '9596165142'
       }
     }
   });
@@ -1195,15 +1195,33 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [localPrintOpts, setLocalPrintOpts] = useState({
-    sessionText: getPD(cls).sessionText || 'Annual Regular 2025',
-    instName: getPD(cls).instName || 'Govt. Higher Secondary School Shangus',
-    inchargeName: getPD(cls).inchargeName || 'Mr. Sheikh Gulfam',
-    inchargeCpis: getPD(cls).inchargeCpis || 'GRZEDU00060041',
-    inchargeMobile: getPD(cls).inchargeMobile || '9682547458',
-    practicalType: settings.currentPracticalType || 'internal',
-    absentMarker: settings.absentMarker || 'A'
+  const [localPrintOpts, setLocalPrintOpts] = useState(() => {
+    const pd = getPD(cls);
+    return {
+      sessionText: pd.sessionText || 'Annual Regular 2026',
+      instName: pd.instName || 'Govt. Higher Secondary School Shangus',
+      inchargeName: pd.inchargeName || (cls === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar'),
+      inchargeCpis: pd.inchargeCpis || (cls === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017'),
+      inchargeMobile: pd.inchargeMobile || (cls === '12th' ? '9596165142' : '7006537425'),
+      practicalType: settings.currentPracticalType || 'internal',
+      absentMarker: settings.absentMarker || 'AB'
+    };
   });
+
+  // Keep localPrintOpts synchronized when settings or class change
+  useEffect(() => {
+    const pd = getPD(cls);
+    setLocalPrintOpts(prev => ({
+      ...prev,
+      sessionText: pd.sessionText || prev.sessionText,
+      instName: pd.instName || prev.instName,
+      inchargeName: pd.inchargeName || (cls === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar'),
+      inchargeCpis: pd.inchargeCpis || (cls === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017'),
+      inchargeMobile: pd.inchargeMobile || (cls === '12th' ? '9596165142' : '7006537425'),
+      practicalType: settings.currentPracticalType || prev.practicalType,
+      absentMarker: settings.absentMarker || prev.absentMarker
+    }));
+  }, [settings, cls, getPD]);
 
   // Calculate visible codes based on bioMode
   const activeCodesList = useMemo(() => {
@@ -1758,8 +1776,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   >
                     <FileText size={13} className="text-sky-600 shrink-0" />
                     <div>
-                      <div className="text-[11.5px] font-black text-sky-700 dark:text-sky-300">Export Official Word Doc (.doc)</div>
-                      <div className="text-[10px] text-slate-400 font-semibold">Ready for MS Word editing & archiving</div>
+                      <div className="text-[11.5px] font-black text-sky-700 dark:text-sky-300">Export Official Word Doc (.docx)</div>
+                      <div className="text-[10px] text-slate-400 font-semibold">Native Word (.docx) with 0.3" margins</div>
                     </div>
                   </button>
 
@@ -2080,6 +2098,20 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               <div>
                 <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Absent Marker</label>
                 <input type="text" value={localPrintOpts.absentMarker} onChange={e => setLocalPrintOpts({ ...localPrintOpts, absentMarker: e.target.value })} className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Incharge Name</label>
+              <input type="text" value={localPrintOpts.inchargeName || ''} onChange={e => setLocalPrintOpts({ ...localPrintOpts, inchargeName: e.target.value })} placeholder="e.g. Mr. Majid Hassan Najar" className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Incharge CPIS</label>
+                <input type="text" value={localPrintOpts.inchargeCpis || ''} onChange={e => setLocalPrintOpts({ ...localPrintOpts, inchargeCpis: e.target.value })} placeholder="e.g. SHGEDU00220017" className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Incharge Mobile</label>
+                <input type="tel" maxLength={10} value={localPrintOpts.inchargeMobile || ''} onChange={e => setLocalPrintOpts({ ...localPrintOpts, inchargeMobile: e.target.value.replace(/\D/g, '') })} placeholder="10-digit mobile" className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold" />
               </div>
             </div>
             <div className="pt-2 flex justify-end">
@@ -3323,8 +3355,31 @@ function SettingsPermissionsView({
                       <input
                         type="text"
                         placeholder="Incharge Name"
-                        value={settings.printDetails?.[c]?.inchargeName || 'Mr. Sheikh Gulfam'}
+                        value={settings.printDetails?.[c]?.inchargeName || (c === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar')}
                         onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeName: e.target.value } } }))}
+                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge CPIS</label>
+                      <input
+                        type="text"
+                        placeholder="CPIS Code"
+                        value={settings.printDetails?.[c]?.inchargeCpis || (c === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017')}
+                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeCpis: e.target.value } } }))}
+                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Mobile</label>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        placeholder="10-digit mobile"
+                        value={settings.printDetails?.[c]?.inchargeMobile || (c === '12th' ? '9596165142' : '7006537425')}
+                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeMobile: e.target.value.replace(/\D/g, '') } } }))}
                         className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
                       />
                     </div>
