@@ -621,6 +621,10 @@ async function submitApplication(db, token, body) {
         }, { merge: true });
       }
     }
+    const isCurrentlyProvisional = sanitized['Admission Type'] === 'Provisional' || sanitized['Admission Type (Class 11th)'] === 'Provisional' || sanitized['Admission Type (Class 12th)'] === 'Provisional';
+    const wasProvisional = existing?.isProvisional === true || existing?.wasProvisional === true || existing?.upgradedFromProvisional === true || (upgradeMode && !isCurrentlyProvisional);
+    const isUpgraded = upgradeMode || existing?.upgradedFromProvisional === true || (wasProvisional && !isCurrentlyProvisional);
+
     tx.set(appRef, {
       ...sanitized,
       ownerUid: token.uid,
@@ -636,7 +640,10 @@ async function submitApplication(db, token, body) {
       FormNo: formNumber,
       formNo: formNumber,
       Status: 'Submitted',
-      isProvisional: sanitized['Admission Type'] === 'Provisional' || sanitized['Admission Type (Class 11th)'] === 'Provisional' || sanitized['Admission Type (Class 12th)'] === 'Provisional',
+      isProvisional: isCurrentlyProvisional,
+      wasProvisional: wasProvisional,
+      upgradedFromProvisional: isUpgraded,
+      upgradedAt: isUpgraded ? (existing?.upgradedAt || now) : null,
       workflowVersion: 2,
       submissionKey,
       submittedAt: now,

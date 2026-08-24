@@ -178,12 +178,18 @@ export default function StudentDashboard() {
   const rollNo = appData?.['Class Roll No'] || appData?.['Class Roll No.'] || appData?.RollNo || '';
   const isApprovedByRollNo = Boolean(rollNo && String(rollNo).trim() !== '' && rollNo !== '—' && rollNo !== 'N/A');
 
-  // Detect provisional admission
+  // Detect provisional admission & upgrade history
   const isProvisional =
     appData?.['Admission Type (Class 11th)'] === 'Provisional' ||
     appData?.['Admission Type (Class 12th)'] === 'Provisional' ||
     appData?.['Admission Type'] === 'Provisional' ||
     appData?.isProvisional === true;
+
+  const wasUpgradedFromProvisional = Boolean(
+    appData?.upgradedFromProvisional === true ||
+    appData?.wasProvisional === true ||
+    appData?.upgradedAt
+  );
 
   const editableUntil = appData?.editableUntil;
   const editableUntilMillis = typeof editableUntil === 'object'
@@ -417,6 +423,28 @@ export default function StudentDashboard() {
                     </div>
                     <div className="mt-3 p-3 rounded-xl text-[11px] leading-relaxed" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
                       ⚠ <strong>Reminder:</strong> Original mark sheet must be submitted within <strong>30 days</strong> of result declaration. Attendance counts only after conversion to Full Admission.
+                    </div>
+                  </div>
+                )}
+
+                {/* Upgraded From Provisional History Confirmation Badge */}
+                {wasUpgradedFromProvisional && !isProvisional && (
+                  <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-fadeIn">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs">
+                        ✓
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-emerald-900 dark:text-emerald-100 flex items-center gap-1.5">
+                          <span>Full (Regular) Admission</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-200/80 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 text-[10px] font-black">
+                            Upgraded
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                          Your admission record confirms successful transition from provisional to full (regular) admission status.
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
