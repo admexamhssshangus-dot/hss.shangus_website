@@ -578,7 +578,9 @@ export default function AdminDashboard() {
                   )}
 
                   {/* TAB 5: Automations & Group Email Composer */}
-                  {activeTab === 'automations' && <AutomationsPage />}
+                  {activeTab === 'automations' && (
+                    <AutomationsPage applications={applications} user={user} />
+                  )}
 
                   {/* TAB 7: Fund Distribution */}
                   {activeTab === 'funds' && <FundDistribution />}
