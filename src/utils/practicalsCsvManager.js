@@ -299,6 +299,376 @@ export function exportCurrentRosterToExcel({
 }
 
 /**
+ * Export Consolidated Awards Workbook with Sheet 1 (Forwarding Letter) + Sheet 2 (Awards Matrix)
+ */
+export function exportConsolidatedAwardsToExcel({
+  className = '11th',
+  session = 'Annual Regular 2025',
+  students = [],
+  submissions = [],
+  isExternal = false,
+  selectedSubjectCodes = null,
+  printDetails = null
+}) {
+  if (!students || students.length === 0) return false;
+
+  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const evalTypeText = isExternal ? 'External' : 'Internal';
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass12 ? '12' : '11';
+
+  const defaultSubDefs = [
+    { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
+    { code: 'PH', name: 'Physics', keywords: ['physics', 'ph'] },
+    { code: 'CH', name: 'Chemistry', keywords: ['chemistry', 'ch'] },
+    { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
+    { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
+    { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
+    { code: 'MA', name: 'Mathematics', keywords: ['mathematics', 'math', 'maths', 'ma'] },
+    { code: 'UR', name: 'Urdu', keywords: ['urdu', 'ur'] },
+    { code: 'ED', name: 'Education', keywords: ['education', 'ed'] },
+    { code: 'HT', name: 'History', keywords: ['history', 'ht'] },
+    { code: 'PS', name: 'Political Science', keywords: ['political science', 'pol sc', 'ps'] },
+    { code: 'EC', name: 'Economics', keywords: ['economics', 'ec'] },
+    { code: 'ES', name: 'Environmental Science', keywords: ['environmental science', 'evs', 'es'] },
+    { code: 'PD', name: 'Physical Education', keywords: ['physical education', 'phy edu', 'pd'] },
+    { code: 'HTC', name: 'Healthcare', keywords: ['healthcare', 'health care', 'htc'] },
+    { code: 'ITE', name: 'IT and ITES', keywords: ['it and ites', 'it&ites', 'ite', 'information technology'] }
+  ];
+
+  const activeSubs = defaultSubDefs.filter(s => {
+    if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
+    return selectedSubjectCodes.includes(s.code);
+  });
+
+  // ──────── SHEET 1: FORWARDING COVER LETTER ────────
+  const gistCounts = activeSubs.map((sub, idx) => {
+    let count = 0;
+    if (sub.code === 'EN') {
+      count = students.length;
+    } else {
+      students.forEach(st => {
+        const stStream = String(st.stream || st.Stream || '').toLowerCase();
+        const multiSubCols = [
+          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+        ].filter(Boolean).join(', ');
+
+        const stSubs = String(
+          st['Subs'] ||
+          st['subs'] ||
+          (isClass12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+          multiSubCols ||
+          st['Subjects to be taken in Class 11th'] ||
+          st['Subjects Studied in Class 11th'] ||
+          st['Subjects'] ||
+          st['Subject Combination'] ||
+          st['streamSubjects'] ||
+          st.subjects ||
+          ''
+        ).toLowerCase();
+
+        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
+        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
+
+        let hasSub = false;
+        if (sub.code === 'PH' || sub.code === 'CH') {
+          if (isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) hasSub = true;
+        } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
+          if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) hasSub = true;
+          else if (isScience && !isNonMed) hasSub = true;
+        } else if (sub.code === 'MA') {
+          if (stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed)) hasSub = true;
+        } else {
+          hasSub = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
+        }
+
+        if (!hasSub && submissions && submissions.length > 0) {
+          const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || '').trim();
+          const subDoc = submissions.find(s => {
+            const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+            if (!matchClass) return false;
+            const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+            return codeStr === sub.code || codeStr.includes(sub.code);
+          });
+          if (subDoc && subDoc.records && rNo) {
+            const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || '').trim() === rNo);
+            if (hasRec) hasSub = true;
+          }
+        }
+
+        if (hasSub) count++;
+      });
+
+      if (count === 0 && submissions && submissions.length > 0) {
+        const subDoc = submissions.find(s => {
+          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+          if (!matchClass) return false;
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+          return codeStr === sub.code || codeStr.includes(sub.code);
+        });
+        if (subDoc && subDoc.records) count = subDoc.records.length;
+      }
+    }
+    return { sno: idx + 1, name: sub.name, code: sub.code, count };
+  }).filter(g => g.count > 0);
+
+  const letterRows = [
+    ['GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG'],
+    ['OFFICIAL FORWARDING LETTER FOR PRACTICAL AWARDS'],
+    [],
+    ['The Assistant Secretary,'],
+    ['Sub Office Anantnag.'],
+    [],
+    [`Subject: Submission of ${evalTypeText} Practical Awards of ${hseText} Session ${session}.`],
+    [],
+    ['Sir,'],
+    [`Apropos to the subject captioned above kindly find enclosed herewith the ${evalTypeText.toLowerCase()} practical awards pertaining to ${hseText} Examination, session ${session}, for the favour of further necessary action at your end please.`],
+    [`Furthermore, this is certified that the ${evalTypeText.toLowerCase()} tests/examinations for all the examinees of the institution have been conducted by the institution and none among the on-roll candidates have been skipped during the preparation of award rolls.`],
+    [],
+    ['SUMMARY OF EXAMINEES (SUBJECT-WISE GIST)'],
+    ['S.No.', 'Subject Title', 'Subject Code', 'No. of Students'],
+    ...gistCounts.map(g => [g.sno, g.name, g.code, g.count]),
+    [],
+    ['Total Enrolled Candidates in Roster:', students.length],
+    [],
+    [],
+    ['', '', 'Principal'],
+    ['', '', 'Govt. Higher Secondary School Shangus']
+  ];
+
+  const wsLetter = XLSX.utils.aoa_to_sheet(letterRows);
+  wsLetter['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 18 }, { wch: 20 }];
+
+  // ──────── SHEET 2: CONSOLIDATED AWARDS MATRIX ────────
+  const matrixHeaders = [
+    'S.No.',
+    'Class Roll No.',
+    'Exam Roll No.',
+    'Board Reg. No.',
+    'Student Name',
+    "Father's Name",
+    'Stream',
+    ...activeSubs.map(s => `${s.name} (${s.code})`),
+    'Hash Total'
+  ];
+
+  const matrixDataRows = students.map((st, idx) => {
+    const classRoll = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
+    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—').trim();
+    const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '';
+    const regNo = cleanRegistrationNumber(rawReg) || '—';
+    const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—').trim();
+    const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '—').trim();
+    const stream = String(st.stream || st.Stream || 'Science').trim();
+
+    let rowHash = 0;
+
+    const marksCols = activeSubs.map(sub => {
+      let isEnrolled = false;
+      const stStream = stream.toLowerCase();
+      const multiSubCols = [
+        st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+        st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+        st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+      ].filter(Boolean).join(', ');
+
+      const stSubs = String(
+        st['Subs'] ||
+        st['subs'] ||
+        (isClass12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+        multiSubCols ||
+        st['Subjects to be taken in Class 11th'] ||
+        st['Subjects Studied in Class 11th'] ||
+        st['Subjects'] ||
+        st['Subject Combination'] ||
+        st['streamSubjects'] ||
+        st.subjects ||
+        ''
+      ).toLowerCase();
+
+      if (sub.code === 'EN') isEnrolled = true;
+      else if (sub.code === 'PH' || sub.code === 'CH') {
+        isEnrolled = stStream.includes('science') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
+      } else if (sub.code === 'BO' || sub.code === 'ZO') {
+        isEnrolled = stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs);
+      } else {
+        isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
+      }
+
+      const subDoc = submissions.find(s => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+        if (!matchClass) return false;
+        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+        const targetType = isExternal ? 'external' : 'internal';
+        if (sType !== targetType) return false;
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code);
+      });
+
+      let foundMark = null;
+      if (subDoc && subDoc.records) {
+        const rec = subDoc.records.find(r => {
+          const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || '').toUpperCase();
+          const rExam = String(r.examRollNo || '').trim().toUpperCase();
+          const rClassRoll = String(r.classRollNo || r.classRoll || r.rollNo || '').trim();
+          const rName = String(r.name || r.studentName || '').trim().toLowerCase();
+
+          if (regNo && regNo !== '—' && rBoardReg && rBoardReg === regNo.toUpperCase()) return true;
+          if (examRoll && examRoll !== '—' && rExam && rExam === examRoll.toUpperCase()) return true;
+          if (classRoll && rClassRoll && rClassRoll === classRoll && name.toLowerCase().includes(rName)) return true;
+          if (rName && rName.length > 3 && rName === name.toLowerCase()) return true;
+          return false;
+        });
+
+        if (rec) {
+          const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
+          const num = parseInt(rawMark, 10);
+          if (!isNaN(num)) {
+            rowHash += num;
+            foundMark = num;
+          } else if (rawMark.toUpperCase() === 'AB') {
+            foundMark = 'AB';
+          }
+        }
+      }
+
+      if (foundMark !== null) return foundMark;
+      return isEnrolled ? '—' : 'x';
+    });
+
+    return [
+      idx + 1,
+      classRoll,
+      examRoll,
+      regNo,
+      name,
+      father,
+      stream,
+      ...marksCols,
+      rowHash > 0 ? rowHash : '—'
+    ];
+  });
+
+  const matrixAoa = [
+    ['GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG'],
+    [`RECORD OF ${evalTypeText.toUpperCase()} PRACTICAL AWARDS ROLL — ${hseText}`],
+    [`Session & Year: ${session} | Institution Code: 201006`],
+    [],
+    matrixHeaders,
+    ...matrixDataRows
+  ];
+
+  const wsMatrix = XLSX.utils.aoa_to_sheet(matrixAoa);
+  wsMatrix['!cols'] = [
+    { wch: 8 },  // S.No
+    { wch: 14 }, // Class Roll
+    { wch: 16 }, // Exam Roll
+    { wch: 22 }, // Reg No
+    { wch: 26 }, // Name
+    { wch: 24 }, // Father
+    { wch: 16 }, // Stream
+    ...activeSubs.map(() => ({ wch: 14 })),
+    { wch: 14 }  // Hash Total
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsLetter, 'Forwarding_Letter');
+  XLSX.utils.book_append_sheet(wb, wsMatrix, 'Awards_Matrix');
+
+  const cleanSess = String(session).replace(/[^a-zA-Z0-9]/g, '_');
+  const filename = `Consolidated_Awards_${className}_${evalTypeText}_${cleanSess}.xlsx`;
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadFileBlob(blob, filename);
+  return true;
+}
+
+/**
+ * Export Consolidated Awards to Word (.doc)
+ */
+export function exportConsolidatedAwardsToWord({
+  className = '11th',
+  session = 'Annual Regular 2025',
+  students = [],
+  submissions = [],
+  isExternal = false,
+  selectedSubjectCodes = null,
+  printDetails = null
+}) {
+  if (!students || students.length === 0) return false;
+  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const evalTypeText = isExternal ? 'External' : 'Internal';
+
+  const content = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>Practical Awards ${className} - ${session}</title>
+        <style>
+          body { font-family: 'Calibri', 'Times New Roman', serif; font-size: 11pt; color: #000; }
+          table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+          th, td { border: 1px solid #000; padding: 5px; text-align: center; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .page-break { page-break-after: always; }
+          h1, h2, h3 { text-align: center; margin: 5px 0; }
+        </style>
+      </head>
+      <body>
+        <!-- PAGE 1: COVER LETTER -->
+        <h1>Govt. Higher Secondary School Shangus</h1>
+        <h2>Forwarding Letter — ${evalTypeText} Practical Awards</h2>
+        <p><strong>To:</strong> The Assistant Secretary, Sub Office Anantnag.</p>
+        <p><strong>Subject:</strong> Submission of ${evalTypeText} Practical Awards of ${hseText} Session ${session}.</p>
+        <p>Sir,<br>Kindly find enclosed herewith the ${evalTypeText.toLowerCase()} practical awards pertaining to <strong>${hseText} Examination, session ${session}</strong> for further necessary action.</p>
+        <div style="margin-top: 40px; text-align: right; font-weight: bold;">
+          Principal<br>Govt. HSS Shangus
+        </div>
+
+        <div class="page-break"></div>
+
+        <!-- PAGE 2: MARKS MATRIX -->
+        <h1>Govt. Higher Secondary School Shangus</h1>
+        <h2>Record of ${evalTypeText} Practical Awards Roll for ${hseText} — Session: ${session}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>S.No.</th>
+              <th>Class Roll</th>
+              <th>Exam Roll</th>
+              <th>Student Name</th>
+              <th>Father Name</th>
+              <th>Stream</th>
+              <th>Hash Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${students.map((st, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${st['Class Roll No'] || st.classRollNo || st.rollNo || (i + 1)}</td>
+                <td>${st['Exam R.No. (Current)'] || st.examRollNo || '—'}</td>
+                <td style="text-align: left;">${st["Student's Name (as per school records)"] || st.studentName || st.name || '—'}</td>
+                <td style="text-align: left;">${st["Father's/Guardian's Name (as per school records)"] || st.fatherName || '—'}</td>
+                <td>${st.stream || st.Stream || 'Science'}</td>
+                <td>—</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\ufeff' + content], { type: 'application/msword;charset=utf-8' });
+  const filename = `Consolidated_Awards_${className}_${evalTypeText}_${session}.doc`;
+  downloadFileBlob(blob, filename);
+  return true;
+}
+
+/**
  * Alias for backward compatibility
  */
 export function exportCurrentRosterToCsv(opts) {
