@@ -2099,9 +2099,12 @@ const formatPhotoDisplayUrl = (val, student = null) => {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Deprecated and ignored completely per pure Firebase directive
+  // 2. Google Drive Links -> Convert to direct high-res image stream URL
   if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
-    return '';
+    const idMatch = str.match(/[-\w]{25,}/);
+    if (idMatch && idMatch[0]) {
+      return `https://lh3.googleusercontent.com/d/${idMatch[0]}=w500`;
+    }
   }
 
   // 3. Firebase Storage or standard web image URLs
