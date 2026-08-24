@@ -64,9 +64,12 @@ export function formatPhotoDisplayUrl(val) {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Deprecated and ignored completely per pure Firebase directive
+  // 2. Google Drive Links -> Convert to direct high-res image stream URL
   if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
-    return '';
+    const idMatch = str.match(/[-\w]{25,}/);
+    if (idMatch && idMatch[0]) {
+      return `https://lh3.googleusercontent.com/d/${idMatch[0]}=w500`;
+    }
   }
 
   // 3. Firebase Storage or standard web image URLs
@@ -436,13 +439,45 @@ export default function StudentIdCardManager({ students = [], onClose }) {
           } catch (_) {}
         }
 
-        // If very few students have photos (< 10% of total), fetch fresh from Firestore
-        // This happens after page refresh when base64 photos got stripped from cache
-        const threshold = Math.max(3, Math.floor(currentStudents.length * 0.10));
-        if (studentsWithPhotos.length < threshold && currentStudents.length > 0) {
-          console.info('[IDCards] Photos missing from cache, fetching from admissions...');
+        // Fetch fresh photos from centralized studentPhotos and admissions collections
+        console.info('[IDCards] Fetching student photos from central studentPhotos collection...');
+        const photoMap = {}; // docId / reg / formNo -> photoUrl
+
+        try {
+          const photosSnap = await getDocs(collection(db, 'studentPhotos'));
+          photosSnap.forEach(d => {
+            const data = d.data();
+            const docId = d.id;
+            const formNo = data['Form Number'] || data.formNo || data.formNumber;
+            const boardReg = data['Board Registration Number'] || data.boardRegNo || data.regNo;
+            const rawP = data.photo_id || data.photoData || data.photo || data.photoUrl || data.data || data.url || data.image || data.base64;
+            const formatted = formatPhotoDisplayUrl(rawP) || (typeof rawP === 'string' ? rawP.trim() : '');
+            if (formatted && formatted.length > 20 && formatted !== '/logo.png' && formatted !== '—') {
+              if (docId) photoMap[docId] = formatted;
+              if (formNo) photoMap[String(formNo)] = formatted;
+              if (formNo) photoMap[`photo_form_${formNo}`] = formatted;
+              if (boardReg) {
+                const sReg = String(boardReg).trim();
+                const cleanR = sReg.replace(/[^a-zA-Z0-9]/g, '');
+                photoMap[sReg] = formatted;
+                photoMap[cleanR] = formatted;
+                photoMap[`photo_${cleanR}`] = formatted;
+                photoMap[`reg_${cleanR}`] = formatted;
+              }
+              if (data.studentName) {
+                const cleanN = String(data.studentName).toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (cleanN && cleanN.length >= 4) {
+                  photoMap[`name_${cleanN}`] = formatted;
+                }
+              }
+            }
+          });
+        } catch (e) {
+          console.warn('[IDCards] studentPhotos fetch note:', e);
+        }
+
+        try {
           const snap = await getDocs(collection(db, 'admissions'));
-          const photoMap = {}; // docId -> photoUrl
           snap.forEach(d => {
             const data = d.data();
             const docId = d.id;
@@ -450,32 +485,57 @@ export default function StudentIdCardManager({ students = [], onClose }) {
             const boardReg = data['Board Registration Number'] || data.boardRegNo;
             for (const f of PHOTO_FIELDS) {
               const v = data[f];
-              if (v && typeof v === 'string' && v.length > 5 && v !== '—') {
-                if (docId) photoMap[docId] = v;
-                if (formNo) photoMap[String(formNo)] = v;
-                if (boardReg) photoMap[String(boardReg)] = v;
-
-                if (v.startsWith('data:')) {
-                  // Update liveStudents in memory immediately
-                  setLiveStudents(prev => prev.map(s =>
-                    (s.id === docId || s['Form Number'] === formNo)
-                      ? { ...s, photo_id: v }
-                      : s
-                  ));
+              if (v && typeof v === 'string' && v.length > 20 && v !== '—' && v !== '/logo.png') {
+                const formatted = formatPhotoDisplayUrl(v) || v.trim();
+                if (formatted) {
+                  if (docId) photoMap[docId] = formatted;
+                  if (formNo) photoMap[String(formNo)] = formatted;
+                  if (boardReg) photoMap[String(boardReg)] = formatted;
+                  if (boardReg) photoMap[String(boardReg).replace(/[^a-zA-Z0-9]/g, '')] = formatted;
+                  break;
                 }
-                break;
               }
             }
           });
+        } catch (e) {
+          console.warn('[IDCards] admissions fetch note:', e);
+        }
+
+        // Update liveStudents in memory immediately so UI refreshes with photos
+        if (Object.keys(photoMap).length > 0) {
+          setLiveStudents(prev => prev.map(s => {
+            const sReg = s['Board Registration Number'] || s.boardRegNo || s.regNo;
+            const cleanSReg = sReg ? String(sReg).replace(/[^a-zA-Z0-9]/g, '') : '';
+            const sForm = s['Form Number'] || s.formNo || s.formNumber;
+            const sId = s.id;
+            const sName = s["Student's Name (as per school records)"] || s["Student's Name"] || s.studentName;
+            const cleanName = sName ? String(sName).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+
+            const matchedPhoto =
+              (cleanSReg && photoMap[cleanSReg]) ||
+              (cleanSReg && photoMap[`photo_${cleanSReg}`]) ||
+              (cleanSReg && photoMap[`reg_${cleanSReg}`]) ||
+              (sReg && photoMap[String(sReg)]) ||
+              photoMap[sId] ||
+              photoMap[`photo_${sId}`] ||
+              (sForm && photoMap[String(sForm)]) ||
+              (sForm && photoMap[`photo_form_${sForm}`]) ||
+              (cleanName && photoMap[`name_${cleanName}`]) ||
+              s.photo_id;
+
+            if (matchedPhoto && matchedPhoto !== s.photo_id && matchedPhoto !== '/logo.png' && matchedPhoto.length > 20) {
+              return { ...s, photo_id: matchedPhoto };
+            }
+            return s;
+          }));
+
           // Persist photo URLs to mini-cache
-          if (Object.keys(photoMap).length > 0) {
-            try {
-              const existing = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
-              const merged = { ...existing, ...photoMap };
-              const str = JSON.stringify(merged);
-              if (str.length < 3500000) localStorage.setItem('hss_photo_url_cache_v1', str);
-            } catch (_) {}
-          }
+          try {
+            const existing = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
+            const merged = { ...existing, ...photoMap };
+            const str = JSON.stringify(merged);
+            if (str.length < 3500000) localStorage.setItem('hss_photo_url_cache_v1', str);
+          } catch (_) {}
         }
       } catch (e) {
         console.warn('[IDCards] Background photo recovery note:', e);

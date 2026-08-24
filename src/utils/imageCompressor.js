@@ -131,9 +131,12 @@ export const formatPhotoDisplayUrl = (val) => {
     return str;
   }
 
-  // 2. Disallow / Deprecate Google Drive links completely per user directive
+  // 2. Google Drive Links -> Convert to direct high-res image stream URL
   if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
-    return '';
+    const idMatch = str.match(/[-\w]{25,}/);
+    if (idMatch && idMatch[0]) {
+      return `https://lh3.googleusercontent.com/d/${idMatch[0]}=w500`;
+    }
   }
 
   // 3. Standard Web URLs / Firebase Storage URLs
@@ -168,11 +171,10 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     return formatPhotoDisplayUrl(st) || fallback;
   }
 
-  // Helper to check if a value is a genuine photo (not placeholder or deprecated Google Drive link)
+  // Helper to check if a value is a genuine photo (not placeholder)
   const isValidPhotoStr = (v) => {
     if (!v || typeof v !== 'string') return false;
     const t = v.trim();
-    if (t.includes('drive.google.com') || t.includes('docs.google.com') || t.includes('googleusercontent.com')) return false;
     return t.length > 20 && t !== '—' && t !== 'N/A' && t !== 'null' && t !== 'undefined' && t !== '/logo.png';
   };
 
