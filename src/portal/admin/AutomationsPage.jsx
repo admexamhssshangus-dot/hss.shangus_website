@@ -1,16 +1,92 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Mail, Send, RefreshCw, AlertCircle, 
   CheckCircle2, Users, SlidersHorizontal, Eye, X, Search, 
   Bold, Italic, Underline, Strikethrough, 
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Link2, 
-  RemoveFormatting, ShieldAlert, FileText
+  RemoveFormatting, ShieldAlert, FileText, Filter
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
+import { getCachedCollectionSync, subscribeToCollection, getCachedCollection } from '../../services/dbCache';
 
 const DEFAULT_FOOTER = 'Best regards,\nAdmission & Examination Cell\nGovt. Higher Secondary School Shangus';
 
-export default function AutomationsPage({ applications = [], user = null }) {
+// Robust email extraction across legacy & new form schemas
+function extractStudentEmail(app) {
+  if (!app || typeof app !== 'object') return '';
+  const raw = app['E-mail ID'] || 
+              app['Email Address'] || 
+              app['email'] || 
+              app['Email'] || 
+              app['emailNormalized'] || 
+              app['Email ID'] || 
+              app['Student Email'] || 
+              app['emailAddress'] || 
+              app['userEmail'] || 
+              app['ownerEmail'] || 
+              '';
+  const str = String(raw || '').trim().toLowerCase();
+  
+  // Filter out system administrative email addresses if attached as meta
+  if (str.includes('admin') || str.includes('hss.shangus@gmail.com') || str.includes('e.educational')) {
+    return '';
+  }
+  const match = str.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  return match ? match[0] : '';
+}
+
+// Normalize student academic class
+function normalizeClass(raw) {
+  const s = String(raw || '').toLowerCase().trim();
+  if (s.includes('12') || s.includes('xii')) return '12th';
+  if (s.includes('11') || s.includes('xi')) return '11th';
+  if (s.includes('10') || s.includes('x')) return '10th';
+  if (s.includes('9') || s.includes('ix')) return '9th';
+  return s || 'Other';
+}
+
+// Normalize admission status
+function normalizeStatus(raw) {
+  const s = String(raw || '').toLowerCase().trim();
+  if (s.includes('approv') || s.includes('confirm') || s.includes('enrol') || s.includes('admit')) return 'Approved';
+  if (s.includes('submit')) return 'Submitted';
+  if (s.includes('draft') || s.includes('provis')) return 'Draft';
+  if (s.includes('reject')) return 'Rejected';
+  return 'Submitted';
+}
+
+export default function AutomationsPage({ applications: propApps = [], user = null }) {
+  // Local admissions state with multi-tier cache & fallback hydration
+  const [localApps, setLocalApps] = useState(() => {
+    if (Array.isArray(propApps) && propApps.length > 0) return propApps;
+    return getCachedCollectionSync('admissions') || [];
+  });
+
+  // Sync prop changes or subscribe to real-time updates
+  useEffect(() => {
+    if (Array.isArray(propApps) && propApps.length > 0) {
+      setLocalApps(propApps);
+      return;
+    }
+    const cached = getCachedCollectionSync('admissions');
+    if (cached && cached.length > 0) {
+      setLocalApps(cached);
+    } else {
+      getCachedCollection('admissions', false).then((data) => {
+        if (Array.isArray(data) && data.length > 0) setLocalApps(data);
+      });
+    }
+
+    if (typeof subscribeToCollection === 'function') {
+      const unsub = subscribeToCollection('admissions', (live) => {
+        if (Array.isArray(live) && live.length > 0) {
+          setLocalApps(live);
+        }
+      });
+      return () => { if (typeof unsub === 'function') unsub(); };
+    }
+  }, [propApps]);
+
   // ---------------------------------------------------------------------------
   // Recipient Filters & Selection State
   // ---------------------------------------------------------------------------
@@ -42,23 +118,18 @@ export default function AutomationsPage({ applications = [], user = null }) {
   const adminEmail = user?.email || 'adm.exam.hss.shangus@gmail.com';
 
   // ---------------------------------------------------------------------------
-  // Extract & Filter Valid Recipients from Live Applications
+  // Parse all applications into structured recipient records
   // ---------------------------------------------------------------------------
   const allParsedRecipients = useMemo(() => {
-    if (!Array.isArray(applications) || applications.length === 0) return [];
+    const rawList = Array.isArray(localApps) && localApps.length > 0 ? localApps : propApps;
+    if (!Array.isArray(rawList) || rawList.length === 0) return [];
     
     const seenEmails = new Set();
     const list = [];
 
-    for (const app of applications) {
-      const email = String(
-        app['Email Address'] || app.email || app.emailNormalized || app.Email || ''
-      ).trim().toLowerCase();
-
-      // Ensure valid email and avoid duplicate sends to the same address
-      if (!email || !email.includes('@') || !email.includes('.') || seenEmails.has(email)) {
-        continue;
-      }
+    for (const app of rawList) {
+      const email = extractStudentEmail(app);
+      if (!email || seenEmails.has(email)) continue;
       seenEmails.add(email);
 
       const name = String(
@@ -69,9 +140,15 @@ export default function AutomationsPage({ applications = [], user = null }) {
         'Student'
       ).trim();
 
-      const cls = String(app["Admission sought for class"] || app.class || app.Class || '').trim();
-      const session = String(app.Session || app.session || '2025-26').trim();
-      const status = String(app.Status || app.status || 'Submitted').trim();
+      const rawCls = app["Admission sought for class"] || app.class || app.Class || app.className || '';
+      const cls = normalizeClass(rawCls);
+
+      const rawSession = app['Academic Session'] || app.Session || app.session || '2025-26';
+      const session = String(rawSession).trim();
+
+      const rawStatus = app.Status || app.status || 'Submitted';
+      const status = normalizeStatus(rawStatus);
+
       const formNo = String(app['Form Number'] || app.formNo || app.FormNo || app.id || '').trim();
       const rollNo = String(app['Class Roll No.'] || app.classRollNo || app.rollNo || '').trim();
 
@@ -87,35 +164,32 @@ export default function AutomationsPage({ applications = [], user = null }) {
     }
 
     return list;
-  }, [applications]);
+  }, [localApps, propApps]);
 
   // Available sessions in current dataset
   const availableSessions = useMemo(() => {
     const set = new Set();
     allParsedRecipients.forEach(r => { if (r.session) set.add(r.session); });
-    return Array.from(set).sort().reverse();
+    const list = Array.from(set).filter(Boolean).sort().reverse();
+    return list.length > 0 ? list : ['2025-26', '2024-25'];
   }, [allParsedRecipients]);
 
-  // Filtered pool matching top toolbar dropdowns
+  // Filtered pool matching toolbar dropdowns
   const matchedRecipients = useMemo(() => {
     return allParsedRecipients.filter(r => {
-      // Status filter
+      // 1. Status filter
       if (targetStatus !== 'All') {
-        const s = r.status.toLowerCase();
-        if (targetStatus === 'Submitted' && !s.includes('submit')) return false;
-        if (targetStatus === 'Approved' && !s.includes('approv') && !s.includes('confirm')) return false;
-        if (targetStatus === 'Draft' && !s.includes('draft')) return false;
-        if (targetStatus === 'Rejected' && !s.includes('reject')) return false;
+        if (r.status !== targetStatus) return false;
       }
 
-      // Class filter
+      // 2. Class filter
       if (targetClass !== 'All') {
-        if (!r.class.toLowerCase().includes(targetClass.toLowerCase())) return false;
+        if (r.class !== targetClass) return false;
       }
 
-      // Session filter
+      // 3. Session filter
       if (targetSession !== 'All') {
-        if (r.session !== targetSession) return false;
+        if (!r.session.includes(targetSession)) return false;
       }
 
       return true;
@@ -281,7 +355,7 @@ export default function AutomationsPage({ applications = [], user = null }) {
                 Group Email Composer
               </h2>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Broadcast notices, admission announcements, circulars &amp; official updates
+                Broadcast notices, admission announcements, circulars &amp; official updates ({allParsedRecipients.length} total verified student emails in DB)
               </p>
             </div>
           </div>
@@ -318,10 +392,10 @@ export default function AutomationsPage({ applications = [], user = null }) {
                   }}
                   className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
                 >
-                  <option value="All">Every Applicant</option>
-                  <option value="Submitted">Submitted Forms</option>
+                  <option value="All">Every Applicant (All Statuses)</option>
+                  <option value="Submitted">Submitted Applications</option>
                   <option value="Approved">Approved / Enrolled</option>
-                  <option value="Draft">Draft Forms</option>
+                  <option value="Draft">Draft Applications</option>
                   <option value="Rejected">Rejected</option>
                 </select>
               </div>
@@ -799,6 +873,16 @@ export default function AutomationsPage({ applications = [], user = null }) {
                         {student.class && (
                           <span className="px-2 py-0.5 rounded-md font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                             {student.class}
+                          </span>
+                        )}
+                        {student.status && (
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                            student.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-600' :
+                            student.status === 'Submitted' ? 'bg-teal-500/10 text-teal-600' :
+                            student.status === 'Draft' ? 'bg-amber-500/10 text-amber-600' :
+                            'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                          }`}>
+                            {student.status}
                           </span>
                         )}
                         {student.formNo && (
