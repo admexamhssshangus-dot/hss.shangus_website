@@ -1592,7 +1592,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   </div>
 
                   <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 divide-y divide-slate-50 dark:divide-slate-800/40">
-                    {activeCodesList.map(code => {
+                    {activeCodesList.map((code, idx) => {
                       const isChecked = selectedSubCodes.includes(code);
                       return (
                         <label
@@ -1608,10 +1608,11 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => toggleSubject(code)}
-                              className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer"
+                              className="w-3.5 h-3.5 rounded text-indigo-600 cursor-pointer shrink-0"
                             />
-                            <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-8">{code}</span>
-                            <span className="text-[11px] truncate max-w-[130px]">{NAMES[code] || code}</span>
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 w-4 text-right shrink-0">{idx + 1}.</span>
+                            <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10.5px] w-7 shrink-0">{code}</span>
+                            <span className="text-[11px] truncate max-w-[120px]">{NAMES[code] || code}</span>
                           </div>
                           {isChecked && <Check size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
                         </label>
