@@ -1288,9 +1288,12 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
     const term = searchTerm.toLowerCase();
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '').toLowerCase();
     const father = String(st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '').toLowerCase();
-    const roll = String(getRollNo(st) || st.examRollNo || '').toLowerCase();
-    const reg = String(st['Board Registration Number'] || st.boardRegNo || '').toLowerCase();
-    return name.includes(term) || father.includes(term) || roll.includes(term) || reg.includes(term);
+    const mother = String(st["Mother's Name (as per school records)"] || st["Mother's Name"] || st.motherName || st.mother || '').toLowerCase();
+    const roll = String(getRollNo(st) || '').toLowerCase();
+    const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '').toLowerCase();
+    const reg = String(st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '').toLowerCase();
+    const stream = String(st.stream || st.Stream || '').toLowerCase();
+    return name.includes(term) || father.includes(term) || mother.includes(term) || roll.includes(term) || exam.includes(term) || reg.includes(term) || stream.includes(term);
   });
 
   // Helper to find student record mark for a subject code
@@ -1420,6 +1423,12 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
 
         aVal = String(a['Exam R.No. (Current)'] || a["Student's Name (as per school records)"] || a.studentName || a.name || '').toLowerCase();
         bVal = String(b['Exam R.No. (Current)'] || b["Student's Name (as per school records)"] || b.studentName || b.name || '').toLowerCase();
+      } else if (sortField === 'examRoll') {
+        aVal = String(a['Exam R.No. (Current)'] || a.examRollNo || '').toLowerCase();
+        bVal = String(b['Exam R.No. (Current)'] || b.examRollNo || '').toLowerCase();
+      } else if (sortField === 'regNo') {
+        aVal = String(a['Board Registration Number'] || a['Board Reg. No.'] || a.boardRegNo || a.regNo || '').toLowerCase();
+        bVal = String(b['Board Registration Number'] || b['Board Reg. No.'] || b.boardRegNo || b.regNo || '').toLowerCase();
       } else if (sortField === 'name') {
         aVal = String(a["Student's Name (as per school records)"] || a["Student's Name"] || a.studentName || a.name || '').toLowerCase();
         bVal = String(b["Student's Name (as per school records)"] || b["Student's Name"] || b.studentName || b.name || '').toLowerCase();
@@ -1429,9 +1438,6 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
       } else if (sortField === 'stream') {
         aVal = String(a.stream || a.Stream || '').toLowerCase();
         bVal = String(b.stream || b.Stream || '').toLowerCase();
-      } else if (sortField === 'examRoll') {
-        aVal = String(a['Exam R.No. (Current)'] || a.examRollNo || '').toLowerCase();
-        bVal = String(b['Exam R.No. (Current)'] || b.examRollNo || '').toLowerCase();
       } else if (sortField === 'hashTotal') {
         const aT = typeof getStudentHashTotal(a) === 'number' ? getStudentHashTotal(a) : -1;
         const bT = typeof getStudentHashTotal(b) === 'number' ? getStudentHashTotal(b) : -1;
@@ -1937,29 +1943,32 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
       {/* Data Grid Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs overflow-x-auto">
         <table className="w-full text-left text-[11px] border-collapse">
-          <thead className="bg-sky-50 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-700 dark:text-slate-300 border-b border-sky-100">
+          <thead className="bg-sky-50 dark:bg-slate-950 text-[10px] uppercase font-black text-slate-700 dark:text-slate-300 border-b border-sky-100 dark:border-slate-800">
             <tr>
               <th className="py-2 px-2 text-center">#</th>
               <th className="py-2 px-2 text-center">
                 <input type="checkbox" checked={selectedRolls.size === sortedStudents.length && sortedStudents.length > 0} onChange={toggleAllStudents} className="w-3 h-3 text-indigo-600 cursor-pointer" />
               </th>
-              <th onClick={() => handleSort('roll')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none">
+              <th onClick={() => handleSort('roll')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none text-center whitespace-nowrap">
                 CLASS ROLL {sortField === 'roll' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
               </th>
-              <th onClick={() => handleSort('name')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none">
-                STUDENT NAME {sortField === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('father')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none">
-                FATHER NAME {sortField === 'father' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('stream')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none">
-                STREAM {sortField === 'stream' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
-              </th>
-              <th onClick={() => handleSort('examRoll')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none">
+              <th onClick={() => handleSort('examRoll')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none text-center whitespace-nowrap">
                 EXAM ROLL {sortField === 'examRoll' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
               </th>
-              {activeSubjects.map(code => <th key={code} className="py-2 px-1 text-center">{code}</th>)}
-              <th onClick={() => handleSort('hashTotal')} className="py-2 px-2 text-center font-black cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none">
+              <th onClick={() => handleSort('regNo')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none whitespace-nowrap">
+                REG NO. {sortField === 'regNo' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => handleSort('name')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none whitespace-nowrap">
+                STUDENT NAME {sortField === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => handleSort('father')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none min-w-[150px] whitespace-nowrap">
+                PARENTS' NAME {sortField === 'father' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th onClick={() => handleSort('stream')} className="py-2 px-2 cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none whitespace-nowrap">
+                STREAM {sortField === 'stream' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              {activeSubjects.map(code => <th key={code} className="py-2 px-1 text-center whitespace-nowrap">{code}</th>)}
+              <th onClick={() => handleSort('hashTotal')} className="py-2 px-2 text-center font-black cursor-pointer hover:bg-sky-100 dark:hover:bg-slate-800 select-none whitespace-nowrap">
                 HASH TOTAL {sortField === 'hashTotal' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
               </th>
             </tr>
@@ -1969,8 +1978,10 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               const rollNo = getRollNo(st) || '—';
               const rawName = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
               const rawFather = st["Father's/Guardian's Name (as per school records)"] || st["Father's Name"] || st.fatherName || '—';
+              const rawMother = st["Mother's Name (as per school records)"] || st["Mother's Name"] || st.motherName || st.mother || '';
               const name = toTitleCase(rawName);
               const father = toTitleCase(rawFather);
+              const mother = rawMother ? toTitleCase(rawMother) : '';
               const streamRaw = getStudentStreamStr(st, cls);
               const streamDisplay = streamRaw ? toTitleCase(streamRaw) : 'Science';
               const streamLower = streamRaw.toLowerCase();
@@ -1978,7 +1989,12 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               const isCurrSession = normalizePracticalSession(getStudentSession(st)) === '2025-26';
               // For current session 2025-26, board exam roll numbers are not yet issued. Show '—'.
               const examRoll = (!isCurrSession && rawExam && rawExam !== '—' && rawExam !== 'NA' && rawExam !== 'N/A') ? rawExam : '—';
-              const uniqueKey = rollNo !== '—' ? rollNo : (st['Board Registration Number'] || st.examRollNo || st.id || `st_${idx}`);
+              
+              const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st['Board Registration No. (Class 11th)'] || st['Board Registration No. (Class 10th)'] || st.boardRegNo || st.regNo || '';
+              const cleanReg = cleanRegistrationNumber(rawReg);
+              const regNo = cleanReg && cleanReg.length >= 5 ? cleanReg : '—';
+
+              const uniqueKey = rollNo !== '—' ? rollNo : (cleanReg || st.examRollNo || st.id || `st_${idx}`);
               const isSelected = selectedRolls.has(uniqueKey) || (rollNo !== '—' && selectedRolls.has(rollNo));
               const stSess = getStudentSession(st);
               const effectiveSess = selectedSession !== 'all' ? selectedSession : (stSess || '2025-26');
@@ -1990,17 +2006,35 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   <td className="py-1.5 px-2 text-center">
                     <input type="checkbox" checked={isSelected} onChange={() => toggleStudentRoll(uniqueKey)} className="w-3 h-3 text-indigo-600 cursor-pointer" />
                   </td>
-                  <td className="py-1.5 px-2 font-mono font-bold text-indigo-600">{rollNo}</td>
-                  <td className="py-1.5 px-2 font-bold text-slate-900 dark:text-slate-100">{name}</td>
-                  <td className="py-1.5 px-2 font-semibold text-slate-600 dark:text-slate-400">{father}</td>
-                  <td className="py-1.5 px-2">
+                  <td className="py-1.5 px-2 font-mono font-black text-indigo-600 dark:text-indigo-400 text-center text-[11px] whitespace-nowrap">{rollNo}</td>
+                  <td className="py-1.5 px-2 font-mono text-slate-700 dark:text-slate-300 text-center text-[10px] font-bold whitespace-nowrap">{examRoll}</td>
+                  <td className="py-1.5 px-2 font-mono text-[10px] text-slate-600 dark:text-slate-300 select-all whitespace-nowrap">
+                    {regNo !== '—' ? (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[9.5px] font-bold">
+                        {regNo}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-mono text-[10px]">—</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-2 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{name}</td>
+                  <td className="py-1.5 px-2 min-w-[140px]">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 leading-tight" title={father !== '—' ? `Father: ${father}` : ''}>
+                      {father}
+                    </div>
+                    {mother && (
+                      <div className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5" title={`Mother: ${mother}`}>
+                        {mother}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-2 whitespace-nowrap">
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                       (streamLower.includes('science') || streamLower.includes('med') || streamLower.includes('sci')) ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20' :
                       streamLower.includes('commerce') ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20' :
                       'bg-purple-50 text-purple-700 dark:bg-purple-900/20'
                     }`}>{streamDisplay}</span>
                   </td>
-                  <td className="py-1.5 px-2 font-mono text-slate-500 text-[10px]">{examRoll}</td>
                   {activeSubjects.map(subCode => {
                     const isEnrolled = isStudentEnrolledInSubject(st, subCode, cls);
                     const mark = getSubjectMarkForStudent(st, subCode, effectiveSess);
@@ -2015,7 +2049,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                     if (!isEnrolled) return <td key={subCode} className="py-1.5 px-1 text-center text-slate-300 dark:text-slate-700 text-[10px]">x</td>;
                     return <td key={subCode} className="py-1.5 px-1 text-center text-slate-400 font-bold text-[11px]">—</td>;
                   })}
-                  <td className="py-1.5 px-2 text-center font-black text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-950">{rowHashTotal > 0 ? rowHashTotal : '—'}</td>
+                  <td className="py-1.5 px-2 text-center font-black text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-950 whitespace-nowrap">{rowHashTotal > 0 ? rowHashTotal : '—'}</td>
                 </tr>
               );
             })}
