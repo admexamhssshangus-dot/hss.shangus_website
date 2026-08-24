@@ -4,12 +4,12 @@ import {
   CheckCircle2, Users, SlidersHorizontal, Eye, X, Search, 
   Bold, Italic, Underline, Strikethrough, 
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Link2, 
-  RemoveFormatting, ShieldAlert, FileText, Filter
+  RemoveFormatting, ShieldAlert, FileText
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { getCachedCollectionSync, subscribeToCollection, getCachedCollection } from '../../services/dbCache';
 
-const DEFAULT_FOOTER = 'Best regards,\nAdmission & Examination Cell\nGovt. Higher Secondary School Shangus';
+const DEFAULT_FOOTER = 'Best regards, Admission & Examination Cell, Govt. Higher Secondary School Shangus';
 
 // Robust email extraction across legacy & new form schemas
 function extractStudentEmail(app) {
@@ -322,94 +322,66 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="space-y-5 text-xs text-slate-900 dark:text-slate-100 animate-fadeIn">
+    <div className="space-y-2 text-xs text-slate-900 dark:text-slate-100 animate-fadeIn">
       
       {/* Alert Notification */}
       {alert && (
-        <div className={`p-4 rounded-2xl font-bold flex items-start gap-3 shadow-md transition-all ${
+        <div className={`py-2 px-3.5 rounded-xl font-bold flex items-center justify-between gap-2 shadow-xs transition-all ${
           alert.type === 'error' 
             ? 'bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300' 
             : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
         }`}>
-          {alert.type === 'error' ? <AlertCircle size={18} className="flex-shrink-0 mt-0.5" /> : <CheckCircle2 size={18} className="flex-shrink-0 mt-0.5" />}
-          <div className="flex-1">
-            <span className="block text-xs sm:text-sm font-extrabold">{alert.text}</span>
+          <div className="flex items-center gap-2">
+            {alert.type === 'error' ? <AlertCircle size={15} className="flex-shrink-0" /> : <CheckCircle2 size={15} className="flex-shrink-0" />}
+            <span className="text-xs font-bold">{alert.text}</span>
           </div>
-          <button type="button" onClick={() => setAlert(null)} className="opacity-60 hover:opacity-100 p-1 cursor-pointer">
-            <X size={14} />
+          <button type="button" onClick={() => setAlert(null)} className="opacity-60 hover:opacity-100 p-0.5 cursor-pointer">
+            <X size={13} />
           </button>
         </div>
       )}
 
-      {/* Full-Width Group Email Composer Card */}
-      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-6 space-y-4">
+      {/* Ultra-Compact Group Email Composer Card */}
+      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-3 sm:p-4 space-y-2.5">
         
-        {/* Header Title Bar */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
-              <Mail size={20} />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white uppercase tracking-tight">
-                Group Email Composer
-              </h2>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Broadcast notices, admission announcements, circulars &amp; official updates ({allParsedRecipients.length} total verified student emails in DB)
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Status Pill */}
-          {testMode ? (
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 animate-pulse">
-              <ShieldAlert size={14} /> Test Flight Mode
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20">
-              <Users size={14} /> Mass Broadcast Mode
-            </span>
-          )}
-        </div>
-
         {/* ======================================================================= */}
-        {/* 1. TOP RECIPIENT TOOLBAR (Compact Single Row Filter Suite) */}
+        {/* 1. TOP UNIFIED RECIPIENT TOOLBAR */}
         {/* ======================================================================= */}
-        <div className="p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-950/60 space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="p-2 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/70">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             
-            {/* Left Side: Filter Dropdowns */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            {/* Left Filter Controls */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               
-              {/* To / Status Selector */}
-              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                <span className="text-xs font-bold text-slate-400 uppercase">To:</span>
+              {/* Status / To Selector */}
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">To:</span>
                 <select
                   value={targetStatus}
                   onChange={(e) => {
                     setTargetStatus(e.target.value);
                     setExcludedEmails(new Set());
                   }}
-                  className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                  className="bg-transparent font-bold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                 >
-                  <option value="All">Every Applicant (All Statuses)</option>
-                  <option value="Submitted">Submitted Applications</option>
+                  <option value="All">Every Applicant</option>
+                  <option value="Submitted">Submitted Forms</option>
                   <option value="Approved">Approved / Enrolled</option>
-                  <option value="Draft">Draft Applications</option>
+                  <option value="Draft">Draft Forms</option>
                   <option value="Rejected">Rejected</option>
                 </select>
               </div>
 
               {/* Class Filter */}
-              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                <span className="text-xs font-bold text-slate-400 uppercase">Class:</span>
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Class:</span>
                 <select
                   value={targetClass}
                   onChange={(e) => {
                     setTargetClass(e.target.value);
                     setExcludedEmails(new Set());
                   }}
-                  className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                  className="bg-transparent font-bold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                 >
                   <option value="All">All Classes</option>
                   <option value="12th">12th Class</option>
@@ -420,15 +392,15 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
               </div>
 
               {/* Session Filter */}
-              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                <span className="text-xs font-bold text-slate-400 uppercase">Session:</span>
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Session:</span>
                 <select
                   value={targetSession}
                   onChange={(e) => {
                     setTargetSession(e.target.value);
                     setExcludedEmails(new Set());
                   }}
-                  className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                  className="bg-transparent font-bold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                 >
                   <option value="All">All Sessions</option>
                   {availableSessions.map(s => (
@@ -437,45 +409,45 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                 </select>
               </div>
 
-              {/* Live Count Badge */}
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 text-teal-700 dark:text-teal-300 font-extrabold text-xs border border-teal-500/20 shadow-2xs">
-                <Users size={14} />
+              {/* Live Count Pill */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-500/10 text-teal-700 dark:text-teal-300 font-extrabold text-xs border border-teal-500/20 shadow-2xs">
+                <Users size={13} />
                 <span>
-                  {testMode ? '1 Test Recipient' : `${finalRecipients.length} recipients`}
+                  {testMode ? '1 Test Flight' : `${finalRecipients.length} recipients`}
                 </span>
                 {excludedEmails.size > 0 && !testMode && (
                   <span className="text-[10px] text-rose-500 font-bold ml-0.5">
-                    ({excludedEmails.size} excluded)
+                    ({excludedEmails.size} excl.)
                   </span>
                 )}
               </div>
 
-              {/* Micro-Selection / Manage Button */}
+              {/* Manage Selection Button */}
               {!testMode && matchedRecipients.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowManageModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
-                  title="Select or exclude specific individual students"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
+                  title="Select or exclude individual students"
                 >
-                  <SlidersHorizontal size={14} className="text-teal-600 dark:text-teal-400" />
+                  <SlidersHorizontal size={12} className="text-teal-600 dark:text-teal-400" />
                   <span>Manage</span>
                 </button>
               )}
 
             </div>
 
-            {/* Right Side: Test To Admin Checkbox */}
-            <div className="flex items-center gap-2 pl-2">
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+            {/* Right Test Flight Checkbox */}
+            <div className="flex items-center gap-1.5 pr-1">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={testMode}
                   onChange={(e) => setTestMode(e.target.checked)}
-                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 cursor-pointer"
                 />
                 <span>Test to admin</span>
-                <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+                <span className="text-[11px] text-slate-400 font-mono hidden md:inline">
                   ({adminEmail})
                 </span>
               </label>
@@ -485,270 +457,260 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
         </div>
 
         {/* ======================================================================= */}
-        {/* 2. EMAIL SUBJECT LINE */}
+        {/* 2. COMPACT EMAIL SUBJECT LINE */}
         {/* ======================================================================= */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
-            Email Subject Line <span className="text-rose-500 font-bold">*</span>
-          </label>
+        <div>
           <input
             type="text"
             required
-            placeholder="e.g. Important Notice Regarding Class 11th Admission Verification & Document Submission"
+            placeholder="Enter Email Subject (e.g. Important Notice Regarding Class 11th Admission Verification)..."
             value={emailSubject}
             onChange={(e) => setEmailSubject(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 focus:ring-3 focus:ring-teal-500/15 transition-all"
+            className="w-full px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs hover:border-slate-300 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-500/15 transition-all"
           />
         </div>
 
         {/* ======================================================================= */}
         {/* 3. RICH TEXT WYSIWYG TOOLBAR & CANVAS */}
         {/* ======================================================================= */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
-            Email Announcement Message Body <span className="text-rose-500 font-bold">*</span>
-          </label>
-
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xs bg-white dark:bg-slate-950">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xs bg-white dark:bg-slate-950">
+          
+          {/* Formatting Toolbar Row */}
+          <div className="flex items-center gap-1 p-1 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto select-none">
             
-            {/* Formatting Toolbar Row */}
-            <div className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto select-none">
-              
-              {/* Bold */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('bold'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Bold (Ctrl+B)"
-              >
-                <Bold size={15} />
-              </button>
+            {/* Bold */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('bold'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Bold (Ctrl+B)"
+            >
+              <Bold size={13} />
+            </button>
 
-              {/* Italic */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('italic'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Italic (Ctrl+I)"
-              >
-                <Italic size={15} />
-              </button>
+            {/* Italic */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('italic'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Italic (Ctrl+I)"
+            >
+              <Italic size={13} />
+            </button>
 
-              {/* Underline */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('underline'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Underline (Ctrl+U)"
-              >
-                <Underline size={15} />
-              </button>
+            {/* Underline */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('underline'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Underline (Ctrl+U)"
+            >
+              <Underline size={13} />
+            </button>
 
-              {/* Strikethrough */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('strikeThrough'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Strikethrough"
-              >
-                <Strikethrough size={15} />
-              </button>
+            {/* Strikethrough */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('strikeThrough'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Strikethrough"
+            >
+              <Strikethrough size={13} />
+            </button>
 
-              <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+            <div className="h-3.5 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
 
-              {/* Bullet List */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('insertUnorderedList'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Bullet List"
-              >
-                <List size={15} />
-              </button>
+            {/* Bullet List */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('insertUnorderedList'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Bullet List"
+            >
+              <List size={13} />
+            </button>
 
-              {/* Numbered List */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('insertOrderedList'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Numbered List"
-              >
-                <ListOrdered size={15} />
-              </button>
+            {/* Numbered List */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('insertOrderedList'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Numbered List"
+            >
+              <ListOrdered size={13} />
+            </button>
 
-              <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+            <div className="h-3.5 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
 
-              {/* Align Left */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyLeft'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Align Left"
-              >
-                <AlignLeft size={15} />
-              </button>
+            {/* Align Left */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyLeft'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Align Left"
+            >
+              <AlignLeft size={13} />
+            </button>
 
-              {/* Align Center */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyCenter'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Align Center"
-              >
-                <AlignCenter size={15} />
-              </button>
+            {/* Align Center */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyCenter'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Align Center"
+            >
+              <AlignCenter size={13} />
+            </button>
 
-              {/* Align Right */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyRight'); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Align Right"
-              >
-                <AlignRight size={15} />
-              </button>
+            {/* Align Right */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyRight'); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Align Right"
+            >
+              <AlignRight size={13} />
+            </button>
 
-              <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+            <div className="h-3.5 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
 
-              {/* Heading Format */}
-              <select
-                onChange={(e) => {
-                  executeCmd('formatBlock', e.target.value);
-                  e.target.value = '';
-                }}
-                defaultValue=""
-                className="px-2.5 py-1 rounded-md text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="" disabled>Format / Heading</option>
-                <option value="<p>">Normal Paragraph</option>
-                <option value="<h2>">Major Heading (H2)</option>
-                <option value="<h3>">Sub Heading (H3)</option>
-                <option value="<blockquote>">Quote / Callout</option>
-              </select>
+            {/* Heading Format */}
+            <select
+              onChange={(e) => {
+                executeCmd('formatBlock', e.target.value);
+                e.target.value = '';
+              }}
+              defaultValue=""
+              className="px-2 py-0.5 rounded text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+            >
+              <option value="" disabled>Format / Heading</option>
+              <option value="<p>">Normal Paragraph</option>
+              <option value="<h2>">Major Heading (H2)</option>
+              <option value="<h3>">Sub Heading (H3)</option>
+              <option value="<blockquote>">Quote / Callout</option>
+            </select>
 
-              {/* Insert Link */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); handleInsertLink(); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer ml-auto"
-                title="Insert Hyperlink"
-              >
-                <Link2 size={15} />
-              </button>
+            {/* Insert Link */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleInsertLink(); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer ml-auto"
+              title="Insert Hyperlink"
+            >
+              <Link2 size={13} />
+            </button>
 
-              {/* Clear Format */}
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); handleClearFormat(); }}
-                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                title="Clear All Formatting"
-              >
-                <RemoveFormatting size={15} />
-              </button>
-
-            </div>
-
-            {/* Editable Body Canvas */}
-            <div
-              ref={editorRef}
-              contentEditable
-              onInput={handleEditorInput}
-              onBlur={handleEditorInput}
-              className="w-full min-h-[220px] max-h-[420px] overflow-y-auto p-4 text-xs sm:text-sm leading-relaxed text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-0"
-              style={{ minHeight: '220px' }}
-              data-placeholder="Type your email announcement message here..."
-            />
+            {/* Clear Format */}
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleClearFormat(); }}
+              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+              title="Clear All Formatting"
+            >
+              <RemoveFormatting size={13} />
+            </button>
 
           </div>
+
+          {/* Editable Body Canvas with Compact Height */}
+          <div
+            ref={editorRef}
+            contentEditable
+            onInput={handleEditorInput}
+            onBlur={handleEditorInput}
+            className="w-full min-h-[140px] max-h-[220px] overflow-y-auto p-3 text-xs leading-relaxed text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-0"
+            style={{ minHeight: '140px' }}
+            data-placeholder="Type your email announcement message here..."
+          />
+
         </div>
 
         {/* ======================================================================= */}
-        {/* 4. EMAIL FOOTER & SIGNATURE SECTION */}
+        {/* 4. COMPACT FOOTER & ACTION BAR (Single Row Two-Column Grid) */}
         {/* ======================================================================= */}
-        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <FileText size={15} className="text-teal-600" />
-              <span>Institutional Email Signature / Footer</span>
-            </span>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center pt-0.5">
+          
+          {/* Left Column: Email Footer (8 cols) */}
+          <div className="md:col-span-8 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <FileText size={13} className="text-teal-600 flex-shrink-0" />
+              {isCustomFooter ? (
+                <input
+                  type="text"
+                  value={customFooter}
+                  onChange={(e) => setCustomFooter(e.target.value)}
+                  placeholder="Custom email signature..."
+                  className="w-full px-2 py-0.5 rounded text-[11px] font-mono border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+                />
+              ) : (
+                <span className="text-[11px] italic text-slate-500 dark:text-slate-400 truncate">
+                  {DEFAULT_FOOTER}
+                </span>
+              )}
+            </div>
 
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+            <label className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 cursor-pointer select-none flex-shrink-0">
               <input
                 type="checkbox"
                 checked={isCustomFooter}
                 onChange={(e) => setIsCustomFooter(e.target.checked)}
-                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 cursor-pointer"
+                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-3 h-3 cursor-pointer"
               />
               <span>Edit Custom Footer</span>
             </label>
           </div>
 
-          {isCustomFooter ? (
-            <textarea
-              rows={2}
-              value={customFooter}
-              onChange={(e) => setCustomFooter(e.target.value)}
-              placeholder="Enter custom sign-off footer..."
-              className="w-full p-2.5 rounded-lg text-xs font-mono font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-teal-600"
-            />
-          ) : (
-            <div className="text-xs italic font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
-              {DEFAULT_FOOTER}
-            </div>
-          )}
-        </div>
+          {/* Right Column: Actions (4 cols) */}
+          <div className="md:col-span-4 flex items-center gap-2 justify-end">
+            
+            {/* Preview Button */}
+            <button
+              type="button"
+              onClick={() => setShowPreviewModal(true)}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
+            >
+              <Eye size={14} className="text-teal-600" />
+              <span>Preview</span>
+            </button>
 
-        {/* ======================================================================= */}
-        {/* 5. BOTTOM ACTION BAR (Preview + Dispatch) */}
-        {/* ======================================================================= */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          
-          {/* Preview Button */}
-          <button
-            type="button"
-            onClick={() => setShowPreviewModal(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
-          >
-            <Eye size={16} className="text-teal-600 dark:text-teal-400" />
-            <span>Preview Email</span>
-          </button>
+            {/* Send Bulk Emails Primary CTA */}
+            <button
+              type="button"
+              onClick={handleSendBulkEmail}
+              disabled={sendingEmail || finalRecipients.length === 0}
+              className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs text-white shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-[0.99] flex-1 ${
+                testMode
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
+                  : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500'
+              }`}
+            >
+              {sendingEmail ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>Sending...</span>
+                </>
+              ) : (
+                <>
+                  <Send size={14} />
+                  <span>
+                    {testMode ? 'Send Test' : `Send Bulk (${finalRecipients.length})`}
+                  </span>
+                </>
+              )}
+            </button>
 
-          {/* Main Dispatch CTA Button */}
-          <button
-            type="button"
-            onClick={handleSendBulkEmail}
-            disabled={sendingEmail || finalRecipients.length === 0}
-            className={`inline-flex items-center justify-center gap-2 px-7 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-[0.99] ${
-              testMode
-                ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20'
-                : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-700/20'
-            }`}
-          >
-            {sendingEmail ? (
-              <>
-                <RefreshCw size={16} className="animate-spin" />
-                <span>Dispatching {testMode ? 'Test Email' : 'Bulk Queue'}...</span>
-              </>
-            ) : (
-              <>
-                <Send size={16} />
-                <span>
-                  {testMode ? `Send Test Flight (${adminEmail})` : `Dispatch to ${finalRecipients.length} Students`}
-                </span>
-              </>
-            )}
-          </button>
+          </div>
 
         </div>
 
-        {/* Last Operation Audit Badge */}
+        {/* Last Operation Audit Badge (Inline Compact) */}
         {lastDispatchLog && (
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between text-xs font-bold">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 size={15} />
-              <span>Last Dispatched: &ldquo;{lastDispatchLog.subject}&rdquo; to {lastDispatchLog.count} recipients at {lastDispatchLog.timestamp}</span>
+          <div className="p-1.5 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between text-[11px] font-bold">
+            <span className="flex items-center gap-1.5 truncate">
+              <CheckCircle2 size={13} className="flex-shrink-0" />
+              <span className="truncate">Last Dispatched: &ldquo;{lastDispatchLog.subject}&rdquo; to {lastDispatchLog.count} recipients at {lastDispatchLog.timestamp}</span>
             </span>
-            <span>{lastDispatchLog.testMode ? '(Test Mode)' : '(Live Broadcast)'}</span>
+            <span className="flex-shrink-0 ml-2">{lastDispatchLog.testMode ? '(Test Mode)' : '(Live Broadcast)'}</span>
           </div>
         )}
 
