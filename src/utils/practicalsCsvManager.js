@@ -7,6 +7,7 @@
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import * as XLSX from 'xlsx';
+import { findStudentMarkRecord } from './practicalsPdfGenerator';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -313,7 +314,7 @@ export function exportConsolidatedAwardsToExcel({
   if (!students || students.length === 0) return false;
 
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const evalTypeText = isExternal ? 'External' : 'Internal';
+  const evalTypeText = isExternal ? 'External' : 'Internal Assessment';
   const isClass12 = String(className).toLowerCase().includes('12');
   const clsTarget = isClass12 ? '12' : '11';
 
@@ -414,6 +415,10 @@ export function exportConsolidatedAwardsToExcel({
     return { sno: idx + 1, name: sub.name, code: sub.code, count };
   }).filter(g => g.count > 0);
 
+  const inchargeName = printDetails?.inchargeName || (className === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar');
+  const inchargeCpis = printDetails?.inchargeCpis || (className === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017');
+  const inchargeMobile = printDetails?.inchargeMobile || (className === '12th' ? '9596165142' : '7006537425');
+
   const letterRows = [
     ['GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG'],
     ['OFFICIAL FORWARDING LETTER FOR PRACTICAL AWARDS'],
@@ -456,7 +461,7 @@ export function exportConsolidatedAwardsToExcel({
 
   const matrixDataRows = students.map((st, idx) => {
     const classRoll = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || (idx + 1)).trim();
-    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || '—').trim();
+    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || classRoll).trim();
     const rawReg = st['Board Registration Number'] || st['Board Reg. No.'] || st.boardRegNo || st.regNo || '';
     const regNo = cleanRegistrationNumber(rawReg) || '—';
     const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—').trim();
@@ -497,6 +502,20 @@ export function exportConsolidatedAwardsToExcel({
         isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
       }
 
+      if (sub.code === 'BI') {
+        const boDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('BO'));
+        const zoDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('ZO'));
+        const boRec = findStudentMarkRecord(boDoc, st);
+        const zoRec = findStudentMarkRecord(zoDoc, st);
+        const boVal = parseInt(boRec?.totalMarks ?? boRec?.practicalMarks ?? '', 10);
+        const zoVal = parseInt(zoRec?.totalMarks ?? zoRec?.practicalMarks ?? '', 10);
+        if (!isNaN(boVal) || !isNaN(zoVal)) {
+          const biTot = (isNaN(boVal) ? 0 : boVal) + (isNaN(zoVal) ? 0 : zoVal);
+          rowHash += biTot;
+          return biTot;
+        }
+      }
+
       const subDoc = submissions.find(s => {
         const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
         if (!matchClass) return false;
@@ -509,19 +528,7 @@ export function exportConsolidatedAwardsToExcel({
 
       let foundMark = null;
       if (subDoc && subDoc.records) {
-        const rec = subDoc.records.find(r => {
-          const rBoardReg = cleanRegistrationNumber(r.boardRegNo || r['Board Reg. No.'] || r.regNo || '').toUpperCase();
-          const rExam = String(r.examRollNo || '').trim().toUpperCase();
-          const rClassRoll = String(r.classRollNo || r.classRoll || r.rollNo || '').trim();
-          const rName = String(r.name || r.studentName || '').trim().toLowerCase();
-
-          if (regNo && regNo !== '—' && rBoardReg && rBoardReg === regNo.toUpperCase()) return true;
-          if (examRoll && examRoll !== '—' && rExam && rExam === examRoll.toUpperCase()) return true;
-          if (classRoll && rClassRoll && rClassRoll === classRoll && name.toLowerCase().includes(rName)) return true;
-          if (rName && rName.length > 3 && rName === name.toLowerCase()) return true;
-          return false;
-        });
-
+        const rec = findStudentMarkRecord(subDoc, st);
         if (rec) {
           const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
           const num = parseInt(rawMark, 10);
@@ -554,10 +561,14 @@ export function exportConsolidatedAwardsToExcel({
   const matrixAoa = [
     ['GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG'],
     [`RECORD OF ${evalTypeText.toUpperCase()} PRACTICAL AWARDS ROLL — ${hseText}`],
-    [`Session & Year: ${session} | Institution Code: 201006`],
+    [`Session & Year: ${session} | Institution Code: 201006 | Contact: 9682641216`],
     [],
     matrixHeaders,
-    ...matrixDataRows
+    ...matrixDataRows,
+    [],
+    ['Certificate: "Certified that the relevant data in respect of the above candidates who are appearing in Higher Secondary Examination is correct in all respects to the best of my knowledge."'],
+    [],
+    [`Signature of Incharge: ${inchargeName} (CPIS: ${inchargeCpis}, Mobile: ${inchargeMobile})`, '', '', '', '', '', '', 'Signature of Head of Institution (with Seal)']
   ];
 
   const wsMatrix = XLSX.utils.aoa_to_sheet(matrixAoa);
@@ -578,7 +589,7 @@ export function exportConsolidatedAwardsToExcel({
   XLSX.utils.book_append_sheet(wb, wsMatrix, 'Awards_Matrix');
 
   const cleanSess = String(session).replace(/[^a-zA-Z0-9]/g, '_');
-  const filename = `Consolidated_Awards_${className}_${evalTypeText}_${cleanSess}.xlsx`;
+  const filename = `Consolidated_Awards_${className}_${evalTypeText.replace(/\s+/g, '_')}_${cleanSess}.xlsx`;
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -587,7 +598,7 @@ export function exportConsolidatedAwardsToExcel({
 }
 
 /**
- * Export Consolidated Awards to Word (.doc)
+ * Export Consolidated Awards to Word (.doc) with identical layout to Print Preview
  */
 export function exportConsolidatedAwardsToWord({
   className = '11th',
@@ -599,71 +610,339 @@ export function exportConsolidatedAwardsToWord({
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
-  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const evalTypeText = isExternal ? 'External' : 'Internal';
 
-  const content = `
+  const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
+  const evalTypeText = isExternal ? 'External Practical' : 'Internal Assessment';
+  const isClass12 = String(className).toLowerCase().includes('12');
+  const clsTarget = isClass12 ? '12' : '11';
+
+  const defaultSubDefs = [
+    { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
+    { code: 'PH', name: 'Physics', keywords: ['physics', 'ph'] },
+    { code: 'CH', name: 'Chemistry', keywords: ['chemistry', 'ch'] },
+    { code: 'BO', name: 'Botany', keywords: ['botany', 'bo', 'biology'] },
+    { code: 'ZO', name: 'Zoology', keywords: ['zoology', 'zo', 'biology'] },
+    { code: 'BI', name: 'Biology (Botany & Zoology)', keywords: ['biology', 'bi', 'botany', 'zoology'] },
+    { code: 'MA', name: 'Mathematics', keywords: ['mathematics', 'math', 'maths', 'ma'] },
+    { code: 'UR', name: 'Urdu', keywords: ['urdu', 'ur'] },
+    { code: 'ED', name: 'Education', keywords: ['education', 'ed'] },
+    { code: 'HT', name: 'History', keywords: ['history', 'ht'] },
+    { code: 'PS', name: 'Political Science', keywords: ['political science', 'pol sc', 'ps'] },
+    { code: 'EC', name: 'Economics', keywords: ['economics', 'ec'] },
+    { code: 'ES', name: 'Environmental Science', keywords: ['environmental science', 'evs', 'es'] },
+    { code: 'PD', name: 'Physical Education', keywords: ['physical education', 'phy edu', 'pd'] },
+    { code: 'HTC', name: 'Healthcare', keywords: ['healthcare', 'health care', 'htc'] },
+    { code: 'ITE', name: 'IT and ITES', keywords: ['it and ites', 'it&ites', 'ite', 'information technology'] }
+  ];
+
+  const activeSubs = defaultSubDefs.filter(s => {
+    if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
+    return selectedSubjectCodes.includes(s.code);
+  });
+
+  // Calculate Gist for Page 1 Cover Letter
+  const gistList = activeSubs.map((sub, idx) => {
+    let count = 0;
+    if (sub.code === 'EN') {
+      count = students.length;
+    } else {
+      students.forEach(st => {
+        const clsName = String(className).toLowerCase();
+        const stStream = String(st.stream || st.Stream || st['Stream'] || '').toLowerCase();
+        const multiSubCols = [
+          st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
+          st['Subject1'], st['Subject2'], st['Subject3'], st['Subject4'], st['Subject5'],
+          st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
+        ].filter(Boolean).join(', ');
+
+        const stSubs = String(
+          st['Subs'] ||
+          st['subs'] ||
+          (clsName.includes('12') ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+          multiSubCols ||
+          st['Subjects to be taken in Class 11th'] ||
+          st['Subjects Studied in Class 11th'] ||
+          st['Subjects'] ||
+          st['Subject Combination'] ||
+          st['streamSubjects'] ||
+          st.subjects ||
+          ''
+        ).toLowerCase();
+
+        const isScience = stStream.includes('science') || stStream.includes('med') || stStream.includes('sci') || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs);
+        const isNonMed = stStream.includes('non-med') || stStream.includes('nonmed') || (/\b(mathematics|maths|math|ma)\b/i.test(stSubs) && !/\b(biology|botany|zoology|bio|bo|zo|bi)\b/i.test(stSubs));
+
+        let hasSub = false;
+        if (sub.code === 'PH' || sub.code === 'CH') {
+          if (isScience || stSubs.includes('physics') || stSubs.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubs)) hasSub = true;
+        } else if (sub.code === 'BO' || sub.code === 'ZO' || sub.code === 'BI') {
+          if (stSubs.includes('botany') || stSubs.includes('zoology') || stSubs.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubs)) hasSub = true;
+          else if (isScience && !isNonMed) hasSub = true;
+        } else if (sub.code === 'MA') {
+          if (stSubs.includes('mathematics') || stSubs.includes('math') || /\bma\b/i.test(stSubs) || (isScience && isNonMed)) hasSub = true;
+        } else {
+          hasSub = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubs) || stSubs.includes(kw));
+        }
+
+        if (!hasSub && submissions && submissions.length > 0) {
+          const rNo = String(st['Class Roll No'] || st['Class R.No.'] || st.classRollNo || st.rollNo || st.roll || '').trim();
+          const subDoc = submissions.find(s => {
+            const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+            if (!matchClass) return false;
+            const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+            return codeStr === sub.code || codeStr.includes(sub.code);
+          });
+          if (subDoc && subDoc.records && rNo) {
+            const hasRec = subDoc.records.some(r => String(r.classRollNo || r.classRoll || r.rollNo || r.roll || '').trim() === rNo);
+            if (hasRec) hasSub = true;
+          }
+        }
+
+        if (hasSub) count++;
+      });
+
+      if (count === 0 && submissions && submissions.length > 0) {
+        const subDoc = submissions.find(s => {
+          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+          if (!matchClass) return false;
+          const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+          return codeStr === sub.code || codeStr.includes(sub.code);
+        });
+        if (subDoc && subDoc.records) count = subDoc.records.length;
+      }
+    }
+    return { sno: idx + 1, code: sub.code, name: sub.name, count };
+  }).filter(g => g.count > 0);
+
+  // Incharge Details
+  const inchargeName = printDetails?.inchargeName || (className === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar');
+  const inchargeCpis = printDetails?.inchargeCpis || (className === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017');
+  const inchargeMobile = printDetails?.inchargeMobile || (className === '12th' ? '9596165142' : '7006537425');
+  const partText = className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
+  const testType = isExternal ? 'Practical Examination' : 'Internal Assessment';
+
+  // Build matrix student rows
+  const matrixRowsHtml = students.map((st, idx) => {
+    const rollNo = String(st['Class Roll No'] || st.rollNo || st.classRollNo || st['Class R.No.'] || (idx + 1)).trim();
+    const examRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || rollNo).trim();
+    const stSubsStr = String(
+      st['Subs'] ||
+      st['subs'] ||
+      (isClass12 ? st['Subjects to be taken in Class 12th'] : st['Subjects to be taken in Class 11th']) ||
+      st['Subjects'] ||
+      st['Subject Combination'] ||
+      st.subjects ||
+      ''
+    ).toLowerCase();
+    const stStream = String(
+      st['Stream'] ||
+      st['stream'] ||
+      (isClass12 ? st['Stream for Class 12th'] : st['Stream for Class 11th']) ||
+      ''
+    ).toLowerCase();
+
+    let rowHashTotal = 0;
+
+    const cellHtmls = activeSubs.map(sub => {
+      let isEnrolled = false;
+      if (sub.code === 'EN') isEnrolled = true;
+      else if (sub.code === 'PH' || sub.code === 'CH') {
+        isEnrolled = stStream.includes('science') || stSubsStr.includes('physics') || stSubsStr.includes('chemistry') || /\b(ph|ch)\b/i.test(stSubsStr);
+      } else if (sub.code === 'BO' || sub.code === 'ZO') {
+        isEnrolled = stSubsStr.includes('botany') || stSubsStr.includes('zoology') || stSubsStr.includes('biology') || /\b(bo|zo|bi)\b/i.test(stSubsStr);
+      } else {
+        isEnrolled = sub.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(stSubsStr) || stSubsStr.includes(kw));
+      }
+
+      if (sub.code === 'BI') {
+        const boDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('BO'));
+        const zoDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('ZO'));
+        const boRec = findStudentMarkRecord(boDoc, st);
+        const zoRec = findStudentMarkRecord(zoDoc, st);
+        const boVal = parseInt(boRec?.totalMarks ?? boRec?.practicalMarks ?? '', 10);
+        const zoVal = parseInt(zoRec?.totalMarks ?? zoRec?.practicalMarks ?? '', 10);
+        if (!isNaN(boVal) || !isNaN(zoVal)) {
+          const biTot = (isNaN(boVal) ? 0 : boVal) + (isNaN(zoVal) ? 0 : zoVal);
+          rowHashTotal += biTot;
+          return `<td style="color: #1e40af; font-weight: bold; text-align: center;">${biTot}</td>`;
+        }
+      }
+
+      const subDoc = submissions.find(s => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+        if (!matchClass) return false;
+        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+        const targetType = isExternal ? 'external' : 'internal';
+        if (sType !== targetType) return false;
+        const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
+        return codeStr === sub.code || codeStr.includes(sub.code);
+      });
+
+      const rec = findStudentMarkRecord(subDoc, st);
+      if (rec) {
+        const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim();
+        const numVal = parseInt(rawMark, 10);
+        if (!isNaN(numVal)) {
+          rowHashTotal += numVal;
+          return `<td style="color: #1e40af; font-weight: bold; text-align: center;">${numVal}</td>`;
+        } else if (rawMark.toUpperCase() === 'AB') {
+          return `<td style="color: #dc2626; font-weight: bold; text-align: center;">AB</td>`;
+        }
+      }
+
+      if (isEnrolled) return `<td style="color: #1e40af; font-weight: bold; text-align: center;">—</td>`;
+      return `<td style="color: #94a3b8; text-align: center;">x</td>`;
+    }).join('');
+
+    const isEven = idx % 2 === 1;
+    const rowBg = isEven ? '#f1f5f9' : '#ffffff';
+
+    return `
+      <tr style="background-color: ${rowBg};">
+        <td style="text-align: center;">${idx + 1}</td>
+        <td style="text-align: center; font-weight: bold;">${examRoll}</td>
+        ${cellHtmls}
+        <td style="text-align: center; font-weight: bold; background-color: ${isEven ? '#cbd5e1' : '#e2e8f0'};">${rowHashTotal > 0 ? rowHashTotal : '—'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const wordHtml = `
     <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
         <meta charset='utf-8'>
-        <title>Practical Awards ${className} - ${session}</title>
+        <title>Consolidated Practical Awards — Govt HSS Shangus</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
         <style>
-          body { font-family: 'Calibri', 'Times New Roman', serif; font-size: 11pt; color: #000; }
-          table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-          th, td { border: 1px solid #000; padding: 5px; text-align: center; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-          .page-break { page-break-after: always; }
-          h1, h2, h3 { text-align: center; margin: 5px 0; }
+          @page { size: A4 portrait; margin: 1.2cm 1.2cm 1.2cm 1.2cm; }
+          body { font-family: 'Calibri', 'Times New Roman', serif; font-size: 10pt; color: #0f172a; line-height: 1.35; }
+          .page-break { page-break-after: always; mso-special-character: line-break; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 12px; }
+          th, td { border: 1px solid #475569; padding: 4px 3px; font-size: 8.5pt; vertical-align: middle; }
+          th { background-color: #1e293b; color: #ffffff; font-weight: bold; text-align: center; text-transform: uppercase; }
+          .gist-table th { background-color: #1e293b; color: #ffffff; }
+          .matrix-table th { background-color: #1e293b; color: #ffffff; }
+          .sub-head th { background-color: #334155; color: #ffffff; }
+          h1 { font-size: 13.5pt; font-weight: bold; text-align: center; margin: 0 0 4px 0; text-transform: uppercase; color: #0f172a; }
+          h2 { font-size: 10.5pt; font-weight: bold; text-align: center; margin: 0 0 4px 0; color: #1e293b; }
+          p { margin: 4px 0; }
         </style>
       </head>
       <body>
-        <!-- PAGE 1: COVER LETTER -->
-        <h1>Govt. Higher Secondary School Shangus</h1>
-        <h2>Forwarding Letter — ${evalTypeText} Practical Awards</h2>
-        <p><strong>To:</strong> The Assistant Secretary, Sub Office Anantnag.</p>
-        <p><strong>Subject:</strong> Submission of ${evalTypeText} Practical Awards of ${hseText} Session ${session}.</p>
-        <p>Sir,<br>Kindly find enclosed herewith the ${evalTypeText.toLowerCase()} practical awards pertaining to <strong>${hseText} Examination, session ${session}</strong> for further necessary action.</p>
-        <div style="margin-top: 40px; text-align: right; font-weight: bold;">
-          Principal<br>Govt. HSS Shangus
+        <!-- PAGE 1: FORWARDING COVER LETTER -->
+        <div style="padding: 10px 15px;">
+          <p style="font-size: 11pt; font-weight: bold; margin-bottom: 18px;">
+            The Assistant Secretary,<br>
+            Sub Office Anantnag.
+          </p>
+
+          <p style="font-size: 11pt; font-weight: bold; text-decoration: underline; margin: 16px 0;">
+            Subject: Submission of ${evalTypeText} Practical Awards of ${hseText} Session ${session}.
+          </p>
+
+          <p style="font-size: 10.5pt; font-weight: bold;">Sir,</p>
+
+          <p style="font-size: 10.5pt; text-align: justify; text-indent: 25px; margin: 12px 0;">
+            Apropos to the subject captioned above kindly find enclosed herewith the ${evalTypeText.toLowerCase()} practical awards (in triplicate) pertaining to <strong>${hseText} Examination, session ${session}</strong>, for the favour of further necessary action at your end please.
+          </p>
+
+          <p style="font-size: 10.5pt; text-align: justify; text-indent: 25px; margin: 12px 0;">
+            Furthermore, this is <strong>certified</strong> that the ${evalTypeText.toLowerCase()} tests/examinations for all the examinees of the institution, who are going to appear in the said examination, had been conducted by the institution and <strong>none among the on-roll candidates have been skipped</strong> during the preparation of award rolls. The summary of the examinees with subject wise gist is as follows:
+          </p>
+
+          <table class="gist-table" style="width: 85%; margin: 16px auto;">
+            <thead>
+              <tr>
+                <th style="width: 15%;">S.No.</th>
+                <th style="width: 55%; text-align: left; padding-left: 10px;">Subject</th>
+                <th style="width: 30%;">No. of Students</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${gistList.map(g => `
+                <tr>
+                  <td style="text-align: center;">${g.sno}</td>
+                  <td style="padding-left: 10px;">${g.name} (${g.code})</td>
+                  <td style="text-align: center; font-weight: bold;">${g.count}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 50px; text-align: right; font-weight: bold; font-size: 11pt; padding-right: 20px;">
+            Principal<br>
+            Govt. Higher Secondary School Shangus
+          </div>
         </div>
 
         <div class="page-break"></div>
 
-        <!-- PAGE 2: MARKS MATRIX -->
-        <h1>Govt. Higher Secondary School Shangus</h1>
-        <h2>Record of ${evalTypeText} Practical Awards Roll for ${hseText} — Session: ${session}</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>S.No.</th>
-              <th>Class Roll</th>
-              <th>Exam Roll</th>
-              <th>Student Name</th>
-              <th>Father Name</th>
-              <th>Stream</th>
-              <th>Hash Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${students.map((st, i) => `
+        <!-- PAGE 2+: CONSOLIDATED MARKS GRID MATRIX -->
+        <div>
+          <h1>Govt. Higher Secondary School Shangus, Anantnag</h1>
+          <h2>Record of ${evalTypeText} Practical Awards Roll for the ${hseText} Examination</h2>
+          <p style="text-align: center; font-weight: bold; font-size: 9.5pt;">Session & Year: <strong>${session}</strong> &nbsp;|&nbsp; Institution Contact: <strong>9682641216</strong></p>
+          <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: bold; margin: 8px 0;">
+            <span>No.: ____________________</span>
+            <span style="float: right;">Date: ____________________</span>
+          </div>
+
+          <table class="matrix-table">
+            <thead>
               <tr>
-                <td>${i + 1}</td>
-                <td>${st['Class Roll No'] || st.classRollNo || st.rollNo || (i + 1)}</td>
-                <td>${st['Exam R.No. (Current)'] || st.examRollNo || '—'}</td>
-                <td style="text-align: left;">${st["Student's Name (as per school records)"] || st.studentName || st.name || '—'}</td>
-                <td style="text-align: left;">${st["Father's/Guardian's Name (as per school records)"] || st.fatherName || '—'}</td>
-                <td>${st.stream || st.Stream || 'Science'}</td>
-                <td>—</td>
+                <th style="width: 5%;">S.No.</th>
+                <th style="width: 15%;">Exam Roll No.</th>
+                <th colspan="${activeSubs.length}">SUBJECTS</th>
+                <th style="width: 10%;">Hash Total</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
+              <tr class="sub-head">
+                <th></th>
+                <th></th>
+                ${activeSubs.map(s => `<th>${s.code}</th>`).join('')}
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matrixRowsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 25px; font-size: 9.5pt; line-height: 1.4;">
+            <div style="text-align: center; font-weight: bold; font-size: 11pt; margin-bottom: 6px;">Certificate</div>
+            <p style="text-align: justify; margin: 0 0 16px 0;">
+              "Certified that the relevant data of ${testType} in respect of the above candidates who are appearing in Higher Secondary Examination ${partText} from this Institution is correct in all respects to the best of my knowledge and no further amendment or modifications in the above data shall be indicated or requested by the undersigned affecting the declared result of any candidate whatsoever"
+            </p>
+
+            <table style="width: 100%; border: none; margin-top: 25px;">
+              <tr style="border: none;">
+                <td style="width: 50%; border: none; text-align: left; font-size: 9pt;">
+                  Signature of Incharge: __________________<br>
+                  Name: <strong>${inchargeName}</strong><br>
+                  CPIS: <strong>${inchargeCpis}</strong><br>
+                  Mobile: <strong>${inchargeMobile}</strong>
+                </td>
+                <td style="width: 50%; border: none; text-align: right; vertical-align: top; font-size: 9.5pt;">
+                  <strong>Signature of Head of Institution</strong><br>
+                  (with Official Seal)
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
       </body>
     </html>
   `;
 
-  const blob = new Blob(['\ufeff' + content], { type: 'application/msword;charset=utf-8' });
-  const filename = `Consolidated_Awards_${className}_${evalTypeText}_${session}.doc`;
+  const blob = new Blob(['\ufeff' + wordHtml], { type: 'application/msword;charset=utf-8' });
+  const filename = `Consolidated_Awards_${className}_${evalTypeText.replace(/\s+/g, '_')}_${String(session).replace(/[^a-zA-Z0-9]/g, '_')}.doc`;
   downloadFileBlob(blob, filename);
   return true;
 }
