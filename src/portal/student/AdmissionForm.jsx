@@ -169,15 +169,20 @@ export default function AdmissionForm() {
       let localDraft = {};
       try {
         const uid = currentUser?.uid || 'guest';
-        const rawDraft = localStorage.getItem(`hss_student_draft_${uid}`) ||
-          localStorage.getItem('hss_student_draft_guest') ||
-          localStorage.getItem('hss_student_draft_local');
+        localStorage.removeItem(`hss_student_draft_${uid}`);
+        localStorage.removeItem('hss_student_draft_guest');
+        localStorage.removeItem('hss_student_draft_local');
+        const rawDraft = sessionStorage.getItem(`hss_student_draft_${uid}`) ||
+          sessionStorage.getItem('hss_student_draft_guest') ||
+          sessionStorage.getItem('hss_student_draft_local');
         if (rawDraft) {
           const parsed = JSON.parse(rawDraft);
-          if (parsed && parsed.formData && typeof parsed.formData === 'object') {
+          const updatedAt = Date.parse(parsed?.updatedAt || '');
+          const isFresh = Number.isFinite(updatedAt) && Date.now() - updatedAt <= 30 * 60 * 1000;
+          if (isFresh && parsed && parsed.formData && typeof parsed.formData === 'object') {
             localDraft = parsed.formData;
-          } else if (parsed && typeof parsed === 'object') {
-            localDraft = parsed;
+          } else if (!isFresh) {
+            sessionStorage.removeItem(`hss_student_draft_${uid}`);
           }
         }
       } catch (e) {
@@ -568,24 +573,15 @@ export default function AdmissionForm() {
       }
       return res;
     } catch (err) {
-      console.warn('Draft save error, backed up locally:', err);
-      try {
-        const uid = currentUser?.uid || 'guest';
-        localStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify({
-          formData,
-          applicationId: applicationIdRef.current || `draft_${uid}`,
-          updatedAt: new Date().toISOString(),
-        }));
-      } catch (e) {}
-      setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setDraftState('saved');
+      console.warn('Draft save error:', err);
+      setDraftState('error');
       if (!silent) {
         setAlert({
-          type: 'success',
-          text: 'Draft securely saved to your browser session. It will sync automatically upon final submission.'
+          type: 'error',
+          text: 'The draft could not be saved. Keep this page open and try again.'
         });
       }
-      return { success: true, localOnly: true };
+      throw err;
     } finally {
       if (!silent) setIsSubmitting(false);
     }
@@ -1451,6 +1447,9 @@ export default function AdmissionForm() {
         localStorage.removeItem(`hss_student_draft_${uid}`);
         localStorage.removeItem('hss_student_draft_guest');
         localStorage.removeItem('hss_student_draft_local');
+        sessionStorage.removeItem(`hss_student_draft_${uid}`);
+        sessionStorage.removeItem('hss_student_draft_guest');
+        sessionStorage.removeItem('hss_student_draft_local');
         sessionStorage.removeItem('hss_admission_upgrade');
         sessionStorage.removeItem('hss_admission_draft');
       } catch (e) { }
@@ -2698,7 +2697,7 @@ export default function AdmissionForm() {
                 })()}
 
                 {/* Bottom Actions Bar — Compact Sticky-Style */}
-                <div id="admission-form-actions" className="sticky bottom-1 z-20 grid grid-cols-2 items-stretch gap-2 rounded-xl border bg-white/95 p-2 shadow-lg backdrop-blur-xl dark:bg-slate-950/95 sm:bottom-2 sm:flex sm:items-center sm:justify-between sm:rounded-2xl sm:p-2.5" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
+                <div id="admission-form-actions" className="sticky bottom-1 z-20 grid grid-cols-2 items-stretch gap-2 rounded-xl border bg-white/95 p-2 shadow-lg backdrop-blur-xl dark:bg-slate-950/95 sm:bottom-2 sm:flex sm:items-center sm:justify-between sm:rounded-2xl sm:p-2.5" style={{ borderColor: 'var(--border-ui, #e2e8f0)', paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
                   {isFormLocked ? (
                     <div className="col-span-2 w-full text-center text-[11px] font-bold text-slate-400 py-1.5 flex items-center justify-center gap-1.5 sm:col-auto">
                       <ShieldCheck size={14} className="text-teal-500" />

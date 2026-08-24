@@ -17,7 +17,8 @@ import {
   getStoredGeminiKeys, 
   getPreferredGeminiModel, 
   savePreferredGeminiModel, 
-  AVAILABLE_GEMINI_MODELS 
+  AVAILABLE_GEMINI_MODELS,
+  generateStructuredWithGemini
 } from '../../services/geminiLetterService';
 
 const JUNIOR_CLASS_SUBJECTS = [
@@ -940,23 +941,9 @@ export default function DirectIngestionModal({ isOpen, onClose, onRecordAdded, a
     setAiStatusMessage('Connecting to Google Gemini AI API...');
 
     try {
-      const activeKeys = geminiKeys.length > 0 ? geminiKeys : await fetchCloudGeminiKeys();
-      if (!activeKeys || activeKeys.length === 0) {
-        setShowKeysConfig(true);
-        throw new Error('No Gemini API key found. Please paste your Gemini API key in the configuration panel above.');
-      }
-
       if (controller.signal.aborted) return;
 
-      const preferredModel = getPreferredGeminiModel() || 'gemini-3.7-flash';
-      const modelList = [
-        preferredModel,
-        'gemini-2.5-flash',
-        'gemini-1.5-flash',
-        'gemini-3.7-flash',
-        'gemini-3.6-flash',
-        'gemini-2.5-pro'
-      ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+      const preferredModel = getPreferredGeminiModel();
 
       const prompt = `You are a high-accuracy Institutional Student Data Extraction AI for Govt. Higher Secondary School Shangus.
 Analyze the provided document (PDF/Image) or text and extract all student admission / registration / enrollment records into a structured JSON array.
@@ -1015,61 +1002,21 @@ CRITICAL INSTRUCTIONS:
         });
       }
 
-      let lastError = null;
-      let jsonText = '';
-      let successfulModel = '';
-
-      // Multi-model rotation with automatic high-demand failover
-      for (const currentModel of modelList) {
-        if (jsonText || controller.signal.aborted) break;
-
-        for (let i = 0; i < activeKeys.length; i++) {
-          if (controller.signal.aborted) return;
-          const apiKey = activeKeys[i];
-          setAiStatusMessage(`Extracting student records using ${currentModel} (Key #${i + 1} of ${activeKeys.length})...`);
-
-          try {
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
-            const response = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              signal: controller.signal,
-              body: JSON.stringify({
-                contents: [{ parts: contentsParts }],
-                generationConfig: {
-                  temperature: 0.1,
-                  topP: 0.95,
-                  maxOutputTokens: 8192
-                }
-              })
-            });
-
-            if (!response.ok) {
-              const errData = await response.json().catch(() => ({}));
-              throw new Error(errData.error?.message || `HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-            jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (jsonText) {
-              successfulModel = currentModel;
-              break;
-            }
-          } catch (err) {
-            if (err.name === 'AbortError' || controller.signal.aborted) {
-              console.log('AI Extraction aborted by user.');
-              return;
-            }
-            lastError = err;
-            console.warn(`Gemini (${currentModel}) Key #${i + 1} note:`, err.message);
-          }
-        }
-      }
+      setAiStatusMessage(`Securely extracting student records using ${preferredModel}...`);
+      const textParts = contentsParts.filter((part) => part.text).map((part) => part.text).join('\n\n');
+      const filePart = contentsParts.find((part) => part.inline_data)?.inline_data;
+      const aiResult = await generateStructuredWithGemini({
+        prompt: textParts,
+        inlineData: filePart ? { mimeType: filePart.mime_type, data: filePart.data } : null,
+        model: preferredModel,
+        signal: controller.signal,
+      });
+      const jsonText = aiResult.text || '';
 
       if (controller.signal.aborted) return;
 
       if (!jsonText) {
-        throw new Error(`AI analysis failed across key pool: ${lastError?.message || 'Empty response from Gemini'}`);
+        throw new Error('AI analysis returned an empty response.');
       }
 
       const cleanJson = jsonText
@@ -1097,18 +1044,12 @@ CRITICAL INSTRUCTIONS:
       console.error('AI Extraction Error:', err);
       const msg = err.message || 'The AI service could not complete the extraction request.';
       const isOverloaded = msg.includes('high demand') || msg.includes('503');
-      const isQuota = msg.includes('quota') || msg.includes('429');
-
       showNotice(
         '🤖 Gemini AI Extraction Notice',
         msg,
         isOverloaded
-          ? 'Google Gemini servers are temporarily experiencing high demand. Try switching to "Gemini 2.5 Flash" or "Gemini 1.5 Flash" in the API Keys panel, or retry in a few moments.'
-          : isQuota
-          ? 'API Key quota exceeded. Please add more Gemini API keys in the key pool to distribute the load.'
-          : 'You can check your API keys or switch to a different Gemini model in the configuration panel.',
-        '🔑 Configure Keys & Model',
-        () => setShowKeysConfig(true)
+          ? 'Google Gemini is temporarily experiencing high demand. Retry in a few moments.'
+          : 'The server-managed AI service could not complete this request. Ask an administrator to verify the Netlify AI environment configuration.'
       );
     } finally {
       setAiExtracting(false);
@@ -2769,25 +2710,13 @@ CRITICAL INSTRUCTIONS:
 
                 {/* API Keys Configuration Toggle Button */}
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowKeysConfig(!showKeysConfig)}
-                    className={`px-2.5 py-1 rounded-xl text-[10.5px] font-black border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
-                      showKeysConfig
-                        ? 'bg-amber-600 text-white border-amber-700'
-                        : geminiKeys.length === 0
-                        ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-400 animate-pulse'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                    title="View, add, and configure Gemini API keys and preferred AI model"
-                  >
-                    <Key size={12} className={showKeysConfig ? 'text-white' : 'text-amber-500'} />
-                    <span>{geminiKeys.length === 0 ? '🔑 Configure API Keys' : `🔑 ${geminiKeys.length} Keys Configured`}</span>
+                  <span className="px-2.5 py-1 rounded-xl text-[10.5px] font-black border flex items-center gap-1.5 shadow-2xs bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border-emerald-300" title="Gemini credentials are held only by the server">
+                    <ShieldCheck size={12} />
+                    <span>Server-secured AI</span>
                     <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-mono text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {preferredModel.replace('gemini-', '')}
                     </span>
-                    {showKeysConfig ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                  </button>
+                  </span>
                 </div>
               </div>
 

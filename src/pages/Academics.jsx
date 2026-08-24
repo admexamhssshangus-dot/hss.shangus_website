@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Phone, Mail, User } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
 import SEO from '../components/SEO';
 import PublicPageSkeleton from '../components/PublicPageSkeleton';
+import { toPublicFacultyList } from '../utils/facultyPrivacy';
 
 // WhatsApp SVG Icon component
 function WhatsAppIcon({ size = 14, className = '' }) {
@@ -82,7 +83,7 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
       <h4 className="font-bold text-slate-800 text-xs sm:text-sm mb-0.5 leading-tight line-clamp-1" title={member.name}>{member.name}</h4>
       {duplicateNames && (
         <p className="text-[9px] text-teal-700 font-extrabold mb-0.5 px-1 py-0.5 rounded bg-teal-50/60 border border-teal-100 inline-block w-fit">
-          {member.cpis_no ? `CPIS: ${member.cpis_no}` : (member.mobile ? `Mob: ${member.mobile}` : '')}
+          Faculty member
         </p>
       )}
       <div className="flex flex-col items-center gap-1 mb-3 w-full px-2 min-h-[3rem] justify-center">
@@ -161,29 +162,27 @@ export default function Academics() {
   useEffect(() => {
     let active = true;
     async function loadFaculty() {
-      // 1. Check local storage override first (for admin instant testing)
-      const local = localStorage.getItem('site_faculty');
+      // 1. Use only the public, allow-listed preview written by the admin portal.
+      const local = localStorage.getItem('hss_public_faculty');
       if (local) {
         try {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && active) {
+          const parsed = toPublicFacultyList(JSON.parse(local));
+          if (parsed.length > 0 && active) {
             setFaculty(parsed);
             return;
           }
         } catch (e) {
-          console.warn('Error reading site_faculty from localStorage:', e);
+          console.warn('Error reading the public faculty preview:', e);
         }
       }
 
-      // 2. Try Firestore then fetch from server
+      // 2. Read the public projection. The private faculty record is admin-only.
       try {
-        const snap = await getDoc(doc(db, 'site', 'faculty'));
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data && Array.isArray(data.items)) {
-            if (active) setFaculty(data.items);
-            return;
-          }
+        const snapshot = await getDocs(collection(db, 'facultyPublic'));
+        const publicFaculty = toPublicFacultyList(snapshot.docs.map((facultyDoc) => facultyDoc.data()));
+        if (publicFaculty.length > 0) {
+          if (active) setFaculty(publicFaculty);
+          return;
         }
       } catch (e) {
         // ignore and fallback
@@ -192,18 +191,16 @@ export default function Academics() {
       try {
         const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
         if (!res.ok) throw new Error('Faculty config file not found');
-        const data = await res.json();
+        const data = toPublicFacultyList(await res.json());
         if (active) setFaculty(data);
       } catch (err) {
         console.warn('Failed to fetch faculty.json, using fallback mock data:', err);
         if (active) {
-          setFaculty([
+          setFaculty(toPublicFacultyList([
             {
               "name": "Mr. Aijaz Ahmad Wagay",
               "designation": "Principal",
               "subject": "Chemistry",
-              "email": "ghssshangus74@gmail.com",
-              "mobile": "+91-7006034501",
               "photo": "/slides/Principal.jpg",
               "department": "Administration"
             },
@@ -211,8 +208,6 @@ export default function Academics() {
               "name": "Mr. Sheikh Gulfam",
               "designation": "Lecturer",
               "subject": "Botany",
-              "email": "sheikhgulfam91@gmail.com",
-              "mobile": "+91-9682547458",
               "photo": "/slides/Gulfam.jpg",
               "department": "Science"
             },
@@ -220,8 +215,6 @@ export default function Academics() {
               "name": "Dr. Tariq Ahmad",
               "designation": "Lecturer",
               "subject": "Physics",
-              "email": "tariq.physics@gmail.com",
-              "mobile": "+91-7006123456",
               "photo": "",
               "department": "Science"
             },
@@ -229,8 +222,6 @@ export default function Academics() {
               "name": "Mrs. Shazia Kouser",
               "designation": "Lecturer",
               "subject": "Chemistry",
-              "email": "shazia.chem@gmail.com",
-              "mobile": "+91-7006234567",
               "photo": "",
               "department": "Science"
             },
@@ -238,8 +229,6 @@ export default function Academics() {
               "name": "Mr. Mohammad Yousuf",
               "designation": "Lecturer",
               "subject": "Economics",
-              "email": "yousuf.econ@gmail.com",
-              "mobile": "+91-7006345678",
               "photo": "",
               "department": "Humanities"
             },
@@ -247,8 +236,6 @@ export default function Academics() {
               "name": "Mrs. Rukhsana Akhtar",
               "designation": "Lecturer",
               "subject": "English",
-              "email": "rukhsana.eng@gmail.com",
-              "mobile": "+91-7006456789",
               "photo": "",
               "department": "Humanities"
             },
@@ -256,12 +243,10 @@ export default function Academics() {
               "name": "Mr. Fayaz Ahmad",
               "designation": "Teacher",
               "subject": "Information Technology",
-              "email": "fayaz.it@gmail.com",
-              "mobile": "+91-7006567890",
               "photo": "",
               "department": "Secondary"
             }
-          ]);
+          ]));
         }
       }
     }
@@ -275,15 +260,15 @@ export default function Academics() {
       const channel = new BroadcastChannel('hss_data_sync');
       channel.onmessage = (e) => {
         if (e.data && e.data.type === 'UPDATE_DATA') {
-          const local = localStorage.getItem('site_faculty');
+          const local = localStorage.getItem('hss_public_faculty');
           if (local) {
             try {
-              const parsed = JSON.parse(local);
-              if (Array.isArray(parsed)) {
+              const parsed = toPublicFacultyList(JSON.parse(local));
+              if (parsed.length > 0) {
                 setFaculty(parsed);
               }
             } catch (err) {
-              console.warn('Failed to sync site_faculty:', err);
+              console.warn('Failed to sync the public faculty preview:', err);
             }
           }
         }

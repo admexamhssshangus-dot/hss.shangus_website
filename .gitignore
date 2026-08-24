@@ -35,6 +35,14 @@ serviceAccountKey.json
 
 # Admin credentials — NEVER commit
 public/slides/admins.json
+public/slides/messages.json
+public/slides/*roster*.csv
+public/slides/*private*.json
+
+# Local audit and generated interpreter caches
+.codex-audit/
+**/__pycache__/
+*.pyc
 
 # Optimized photo dumps (large assets)
 optimized_photos*
@@ -50,4 +58,3 @@ scripts/*.json
 src/data/masterSeedData.json
 desktop.ini
 *.ini
-

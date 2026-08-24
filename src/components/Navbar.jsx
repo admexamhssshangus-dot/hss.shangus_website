@@ -30,7 +30,7 @@ function handleEmailClick(e, email) {
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if (!isMobile) {
     e.preventDefault();
-    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${email}`, '_blank');
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${email}`, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -170,7 +170,7 @@ export default function Navbar() {
     try {
       const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : 1024;
       const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : 768;
-      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
+      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes,noopener,noreferrer`;
       const newWin = window.open(APPSCRIPT_URL, '_blank', features);
       if (newWin) newWin.focus();
       else window.open(APPSCRIPT_URL, '_blank');
@@ -338,7 +338,7 @@ export default function Navbar() {
 
           {/* ROW 2: Logo and School Name (Edge-to-Edge Right Extreme Alignment) */}
           <div className="w-full px-4 md:px-6 py-1 md:py-1.5 flex items-center justify-between gap-4">
-            <Link to="/" className="flex items-center min-w-0 shrink">
+            <Link to="/" className="ui-touch-target flex items-center min-w-0 shrink">
               <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-10 md:w-10 mr-3 object-contain" />
               <div className="min-w-0">
                 <div className="truncate text-[14.4px] md:text-lg font-bold text-teal-800 tracking-tight leading-tight font-title" aria-label="Govt. Higher Secondary School Shangus">
@@ -429,7 +429,7 @@ export default function Navbar() {
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}
-                className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-800 bg-slate-100 border border-slate-200 shadow-sm relative"
+                className="ui-touch-target w-11 h-11 flex items-center justify-center rounded-xl text-slate-800 bg-slate-100 border border-slate-200 shadow-sm relative"
               >
                 {mobileOpen ? <X size={18} /> : <Menu size={18} />}
                 {currentUser && (

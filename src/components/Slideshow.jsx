@@ -158,14 +158,14 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-            className="bg-black/60 text-white rounded-full border border-white shadow-lg hover:bg-black/70 text-[13px] sm:text-[18px] flex items-center justify-center w-[20px] h-[20px] sm:w-[26px] sm:h-[26px]"
+            className="ui-touch-target bg-black/60 text-white rounded-full border border-white shadow-lg hover:bg-black/70 text-lg flex items-center justify-center w-11 h-11"
           >
             <span aria-hidden="true">‹</span><span className="sr-only">Previous slide</span>
           </button>
           <button
             aria-label="next"
             onClick={() => setIndex((i) => (i + 1) % slides.length)}
-            className="bg-black/60 text-white rounded-full border border-white shadow-lg hover:bg-black/70 text-[13px] sm:text-[18px] flex items-center justify-center w-[20px] h-[20px] sm:w-[26px] sm:h-[26px]"
+            className="ui-touch-target bg-black/60 text-white rounded-full border border-white shadow-lg hover:bg-black/70 text-lg flex items-center justify-center w-11 h-11"
           >
             <span aria-hidden="true">›</span><span className="sr-only">Next slide</span>
           </button>

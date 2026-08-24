@@ -24,6 +24,7 @@ import {
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
+import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 
 export default function DocumentHistoryModal({
   isOpen,
@@ -819,7 +820,7 @@ export default function DocumentHistoryModal({
                 {/* Body Snapshot */}
                 <div
                   className="text-[13px] leading-relaxed text-slate-900 my-4"
-                  dangerouslySetInnerHTML={{ __html: previewDoc.bodyHtml }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewDoc.bodyHtml) }}
                 />
               </div>
             </div>

@@ -9,7 +9,10 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "**/slides/admins.json"
+      "**/slides/admins.json",
+      "**/slides/messages.json",
+      "**/slides/*roster*.csv",
+      "**/slides/*private*.json"
     ],
     "headers": [
       {
@@ -84,6 +87,19 @@
         ]
       },
       {
+        "source": "/privacy-removed.txt",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow, noarchive"
+          }
+        ]
+      },
+      {
         "source": "**/*.@(png|jpg|jpeg|gif|webp|svg|ico)",
         "headers": [
           {
@@ -94,6 +110,22 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/slides/admins.json",
+        "destination": "/privacy-removed.txt"
+      },
+      {
+        "source": "/slides/messages.json",
+        "destination": "/privacy-removed.txt"
+      },
+      {
+        "source": "/slides/faculty_roster.csv",
+        "destination": "/privacy-removed.txt"
+      },
+      {
+        "source": "/slides/faculty_roster_custom.csv",
+        "destination": "/privacy-removed.txt"
+      },
       {
         "source": "**",
         "destination": "/index.html"

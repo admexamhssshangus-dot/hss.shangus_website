@@ -14,6 +14,30 @@
 # Define any build-time env vars here only for local testing; prefer Netlify UI for secrets
 
 [[redirects]]
+  from = "/slides/admins.json"
+  to = "/privacy-removed.txt"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/slides/messages.json"
+  to = "/privacy-removed.txt"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/slides/faculty_roster.csv"
+  to = "/privacy-removed.txt"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/slides/faculty_roster_custom.csv"
+  to = "/privacy-removed.txt"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
@@ -45,6 +69,30 @@
     Cache-Control = "public, max-age=300, stale-while-revalidate=3600"
 
 [[headers]]
+  for = "/privacy-removed.txt"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+
+[[headers]]
+  for = "/slides/admins.json"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+
+[[headers]]
+  for = "/slides/messages.json"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+
+[[headers]]
+  for = "/slides/*roster*.csv"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+
+[[headers]]
   for = "/*.png"
   [headers.values]
     Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
@@ -58,10 +106,4 @@
   for = "/*.ico"
   [headers.values]
     Cache-Control = "public, max-age=86400, stale-while-revalidate=604800"
-
-# Block direct access to admin credentials file
-[[headers]]
-  for = "/slides/admins.json"
-  [headers.values]
-    X-Robots-Tag = "noindex, nofollow"
 
