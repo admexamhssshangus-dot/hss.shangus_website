@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { 
-  ArrowLeft, UserCheck, Save, RefreshCw, AlertCircle, 
+  ArrowLeft, UserCheck, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, ArrowUpDown,
-  Bookmark, Send, AlertTriangle, FileCheck, ChevronDown, Check, SlidersHorizontal
+  Bookmark, Send, ChevronDown, Check, SlidersHorizontal
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { signOut } from 'firebase/auth';
-import { collection, getDocs, doc, setDoc, getDoc, addDoc } from 'firebase/firestore';
-import appsScriptApi from '../../services/appsScriptApi';
-import ConfirmModal from '../components/ConfirmModal';
+import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
 import { getCachedCollection } from '../../services/dbCache';
-import { printIndividualAwardRoll, printIndividualWorkSheet } from '../../utils/practicalsPdfGenerator';
+import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 
 // Subject Name to Code mapping (from legacy system)
@@ -824,9 +821,6 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
 const CURRENT_SESSION = '2025-26';
 
 export default function PracticalsPage() {
-  const { user, onLogout } = useOutletContext();
-  const navigate = useNavigate();
-
   // Filter States
   const [selectedClass, setSelectedClass] = useState('11th');
   const [practicalType, setPracticalType] = useState('Internal Assessment');

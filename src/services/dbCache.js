@@ -817,50 +817,8 @@ export async function preloadStudentPhotosCache() {
   try {
     const photoMap = window._hss_central_photo_map || {};
 
-    // 1. Fetch centralized processed passport photos directly from Firestore 'studentPhotos'
-    try {
-      const photosSnap = await getDocs(collection(db, 'studentPhotos'));
-      photosSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        const rawP = d.photo_id || d.photoData || d.photo || d.photoUrl || d.data || d.url || d.image || d.base64 || '';
-        const photoVal = formatPhotoDisplayUrl(rawP) || (typeof rawP === 'string' ? rawP.trim() : '');
-        if (photoVal && photoVal.length > 20 && photoVal !== '/logo.png' && photoVal !== '—') {
-          const docKey = docSnap.id;
-          photoMap[docKey] = photoVal;
-          photoMap[docKey.toLowerCase()] = photoVal;
-
-          const reg = d.regNo || d.boardRegNo;
-          if (reg) {
-            const cleanR = normalizeRegNoKey(reg);
-            if (cleanR) {
-              photoMap[cleanR] = photoVal;
-              photoMap[`photo_${cleanR}`] = photoVal;
-              photoMap[`reg_${cleanR}`] = photoVal;
-              photoMap[cleanR.toLowerCase()] = photoVal;
-            }
-          }
-
-          const fNo = d.formNumber || d.formNo;
-          if (fNo) {
-            const cleanF = String(fNo).trim();
-            photoMap[cleanF] = photoVal;
-            photoMap[`photo_form_${cleanF}`] = photoVal;
-            photoMap[`form_${cleanF}`] = photoVal;
-          }
-
-          if (d.studentName) {
-            const cleanN = String(d.studentName).toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (cleanN && cleanN.length >= 4) {
-              photoMap[`name_${cleanN}`] = photoVal;
-            }
-          }
-        }
-      });
-    } catch (e) {
-      console.warn('[dbCache] studentPhotos collection preload note:', e);
-    }
-
-    // 2. Scan loaded admissions & masterRegisters collections across all sessions/classes
+    // Scan loaded admissions & masterRegisters collections across all sessions/classes
+    // (Individual photo documents from 'studentPhotos' are resolved on-demand via fetchStudentPhotoOnDemand)
     try {
       const allAdmissions = getCachedCollectionSync('admissions') || [];
       const allMaster = getCachedCollectionSync('masterRegisters') || [];

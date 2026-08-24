@@ -212,6 +212,37 @@ export default function StudentVerificationPage() {
           if (matched) break;
         }
 
+        // Server lookup fallback for unauthenticated public scans
+        if (!matched && (regParam || fNoParam)) {
+          try {
+            const lookupType = regParam ? 'regNo' : 'formNo';
+            const lookupQuery = (regParam || fNoParam).trim();
+            if (lookupQuery.length >= 4) {
+              const res = await fetch('/.netlify/functions/lookup-student', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: lookupType, query: lookupQuery }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.student) {
+                  matched = {
+                    "Student's Name (as per school records)": data.student.name,
+                    "Father's/Guardian's Name (as per school records)": data.student.fatherName,
+                    "Admission sought for class": data.student.className,
+                    "Class Roll No": data.student.classRollNo,
+                    "Board Registration Number": data.student.boardRegNo,
+                    "Form Number": data.student.formNo,
+                    "Session": data.student.session,
+                    "Status": "Approved",
+                    photo_id: data.student.photoUrl,
+                  };
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
         if (matched) {
           // Fetch student photo from studentPhotos collection if not present on matched object
           let resolvedPhoto = getStudentPhotoUrl(matched);

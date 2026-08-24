@@ -784,8 +784,8 @@ async function deleteStudentApplication(formNoOrDocId) {
     `FORM_${digitsOnly}`,
     `FORM_${cleanId}`,
     cleanId.replace(/\//g, '_'),
-    cleanId.replace(/[\/\s]/g, '_').toLowerCase(),
-    cleanId.replace(/[\/\s]/g, '_').toUpperCase(),
+    cleanId.replace(/[/\s]/g, '_').toLowerCase(),
+    cleanId.replace(/[/\s]/g, '_').toUpperCase(),
   ].filter(Boolean)));
 
   const deletionTimestamp = new Date().toISOString();
