@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, Eye, Unlock, Trash2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 
 /**
  * ApplicationsTable — Sortable, Filterable Student Applications Data Table.
@@ -159,19 +160,20 @@ export default function ApplicationsTable({
                 const cls = app['Admission sought for class'] || app['Class'] || (status === 'Draft' ? 'Draft' : 'N/A');
                 const stream = app['Stream for Class 11th'] || app['Stream opted in Class 11th'] || app['Stream'] || (status === 'Draft' ? 'Draft' : 'N/A');
                 const rollNo = app['Class Roll No'] || app['Class Roll No.'] || app['RL. NO.'] || app['RL. NO'] || app['Roll No'] || app['Roll No.'] || app.classRollNo || app.rollNo || app.roll || '—';
-                const photoUrl = app['Student Photo'] || app['Student Photograph'] || app['Photo'] || app['photo_id'] || app['photoUrl'] || '';
+                const photoUrl = formatPhotoDisplayUrl(getStudentPhotoUrl(app)) || formatPhotoDisplayUrl(app.photo_id) || formatPhotoDisplayUrl(app['Student Photo']) || formatPhotoDisplayUrl(app.photoUrl) || '';
 
                 return (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="p-3 font-mono font-bold text-amber-600">{idx + 1}</td>
                     <td className="p-3">
-                      {photoUrl ? (
+                      {photoUrl && photoUrl !== '/logo.png' && photoUrl.length > 20 ? (
                         <img
                           src={photoUrl}
                           alt={name}
                           onClick={() => onReview(app)}
                           className="w-8 h-10 rounded-lg border border-teal-500/40 object-cover shadow-sm hover:scale-125 transition-transform cursor-pointer"
                           title="Click to view/update photo"
+                          onError={(e) => { e.target.style.display = 'none'; }}
                         />
                       ) : (
                         <div

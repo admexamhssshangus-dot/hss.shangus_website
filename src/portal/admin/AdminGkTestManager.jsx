@@ -3,6 +3,7 @@ import { Search, RefreshCw, Trash2, Printer, ShieldAlert, CheckCircle2, UserChec
 import { collection, getDocs, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { generateGkTestAdmitCardPdf } from '../../utils/pdfGenerator';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 
 const EXAM_PRESETS = [
   {
@@ -146,17 +147,24 @@ function PrintableAdmitCardModal({ registration, examConfig, onClose }) {
           <div className="grid grid-cols-3 gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
             {/* Photo */}
             <div className="col-span-1 flex flex-col items-center justify-center">
-              {student.photoUrl && (student.photoUrl.startsWith('http') || student.photoUrl.startsWith('data:')) ? (
-                <img
-                  src={student.photoUrl}
-                  alt={student.name}
-                  className="w-24 h-28 object-cover rounded-lg border-2 border-slate-800 shadow-sm"
-                />
-              ) : (
-                <div className="w-24 h-28 rounded-lg bg-teal-100 border-2 border-teal-700 flex items-center justify-center text-teal-800 text-3xl font-black">
-                  {initial}
-                </div>
-              )}
+              {(() => {
+                const pUrl = formatPhotoDisplayUrl(student.photoUrl || getStudentPhotoUrl(student));
+                if (pUrl && pUrl !== '/logo.png' && pUrl.length > 20) {
+                  return (
+                    <img
+                      src={pUrl}
+                      alt={student.name}
+                      className="w-24 h-28 object-cover rounded-lg border-2 border-slate-800 shadow-sm"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  );
+                }
+                return (
+                  <div className="w-24 h-28 rounded-lg bg-teal-100 border-2 border-teal-700 flex items-center justify-center text-teal-800 text-3xl font-black">
+                    {initial}
+                  </div>
+                );
+              })()}
               <span className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Candidate Photograph</span>
             </div>
 
@@ -799,13 +807,24 @@ export default function AdminGkTestManager() {
                     {/* Candidate Details */}
                     <td className="p-3">
                       <div className="flex items-center gap-2.5">
-                        {r.photoUrl && (r.photoUrl.startsWith('http') || r.photoUrl.startsWith('data:')) ? (
-                          <img src={r.photoUrl} alt={r.name} className="w-8 h-9 object-cover rounded border border-slate-300 dark:border-slate-700" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 flex items-center justify-center font-black text-xs">
-                            {(r.name || '?')[0].toUpperCase()}
-                          </div>
-                        )}
+                        {(() => {
+                          const pUrl = formatPhotoDisplayUrl(r.photoUrl || getStudentPhotoUrl(r));
+                          if (pUrl && pUrl !== '/logo.png' && pUrl.length > 20) {
+                            return (
+                              <img
+                                src={pUrl}
+                                alt={r.name}
+                                className="w-8 h-9 object-cover rounded border border-slate-300 dark:border-slate-700"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            );
+                          }
+                          return (
+                            <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 flex items-center justify-center font-black text-xs">
+                              {(r.name || '?')[0].toUpperCase()}
+                            </div>
+                          );
+                        })()}
                         <div>
                           <p className="font-bold text-slate-900 dark:text-white text-xs">{r.name || '—'}</p>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400">S/O: {r.fatherName || '—'}</p>

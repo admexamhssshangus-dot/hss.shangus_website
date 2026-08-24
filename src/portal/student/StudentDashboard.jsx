@@ -9,6 +9,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import appsScriptApi from '../../services/appsScriptApi';
 import { withdrawAdmission } from '../../services/admissionWorkflowApi';
+import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 
 function getCurrentAcademicSession() {
   const now = new Date();
@@ -225,9 +226,24 @@ export default function StudentDashboard() {
         {/* Top Welcome Hero Card */}
         <div className="rounded-2xl p-4 sm:p-5 border shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center font-extrabold text-xl text-teal-600 flex-shrink-0">
-              {(user?.name || 'S').charAt(0).toUpperCase()}
-            </div>
+            {(() => {
+              const studentAvatarPhoto = appData ? (formatPhotoDisplayUrl(getStudentPhotoUrl(appData)) || formatPhotoDisplayUrl(appData.photo_id)) : '';
+              if (studentAvatarPhoto && studentAvatarPhoto !== '/logo.png' && studentAvatarPhoto.length > 20) {
+                return (
+                  <img
+                    src={studentAvatarPhoto}
+                    alt={user?.name || 'Student'}
+                    className="w-12 h-12 rounded-xl object-cover border-2 border-teal-500/40 shadow-xs flex-shrink-0"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                );
+              }
+              return (
+                <div className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center font-extrabold text-xl text-teal-600 flex-shrink-0">
+                  {(user?.name || 'S').charAt(0).toUpperCase()}
+                </div>
+              );
+            })()}
 
             <div className="space-y-0.5">
               <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/10 text-teal-600">
