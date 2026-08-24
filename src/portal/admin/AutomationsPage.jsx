@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
-  Mail, Send, PhoneCall, Plus, Trash2, RefreshCw, AlertCircle, 
-  CheckCircle2, Users, SlidersHorizontal, Eye, X, Search, Check, 
-  CheckSquare, Square, Bold, Italic, Underline, Strikethrough, 
+  Mail, Send, RefreshCw, AlertCircle, 
+  CheckCircle2, Users, SlidersHorizontal, Eye, X, Search, 
+  Bold, Italic, Underline, Strikethrough, 
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Link2, 
-  RemoveFormatting, Sparkles, ShieldAlert, CheckCheck, HelpCircle,
-  FileText, CornerDownRight, Info
+  RemoveFormatting, ShieldAlert, FileText
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 
@@ -38,15 +37,6 @@ export default function AutomationsPage({ applications = [], user = null }) {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [alert, setAlert] = useState(null);
   const [lastDispatchLog, setLastDispatchLog] = useState(null);
-
-  // ---------------------------------------------------------------------------
-  // Whitelist State
-  // ---------------------------------------------------------------------------
-  const [whitelistEmail, setWhitelistEmail] = useState('');
-  const [whitelistMobile, setWhitelistMobile] = useState('');
-  const [whitelistReason, setWhitelistReason] = useState('');
-  const [whitelistedMobiles, setWhitelistedMobiles] = useState([]);
-  const [loadingWhitelist, setLoadingWhitelist] = useState(false);
 
   const editorRef = useRef(null);
   const adminEmail = user?.email || 'adm.exam.hss.shangus@gmail.com';
@@ -139,25 +129,6 @@ export default function AutomationsPage({ applications = [], user = null }) {
     }
     return matchedRecipients.filter(r => !excludedEmails.has(r.email));
   }, [matchedRecipients, excludedEmails, testMode, adminEmail]);
-
-  // ---------------------------------------------------------------------------
-  // Whitelist Data Sync
-  // ---------------------------------------------------------------------------
-  const fetchWhitelist = useCallback(async () => {
-    setLoadingWhitelist(true);
-    try {
-      const res = await appsScriptApi.call('getWhitelistedMobiles');
-      setWhitelistedMobiles(Array.isArray(res) ? res : res?.mobiles || []);
-    } catch (err) {
-      console.error('Fetch whitelist error:', err);
-    } finally {
-      setLoadingWhitelist(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchWhitelist();
-  }, [fetchWhitelist]);
 
   // ---------------------------------------------------------------------------
   // Rich Text Editor Commands (document.execCommand with focus preservation)
@@ -274,45 +245,6 @@ export default function AutomationsPage({ applications = [], user = null }) {
   };
 
   // ---------------------------------------------------------------------------
-  // Whitelist Handlers
-  // ---------------------------------------------------------------------------
-  const handleAddWhitelist = async (e) => {
-    e.preventDefault();
-    if (!whitelistEmail || !whitelistMobile) {
-      alert('Email and Mobile number are required.');
-      return;
-    }
-    try {
-      const res = await appsScriptApi.call('addMobileWhitelist', {
-        email: whitelistEmail.trim(),
-        mobile: whitelistMobile.trim(),
-        reason: whitelistReason.trim(),
-      });
-      if (res && res.success !== false) {
-        setWhitelistEmail('');
-        setWhitelistMobile('');
-        setWhitelistReason('');
-        fetchWhitelist();
-        setAlert({ type: 'success', text: 'Staff mobile number whitelisted successfully.' });
-      }
-    } catch (err) {
-      console.error('Add whitelist error:', err);
-      alert('Failed to whitelist mobile number.');
-    }
-  };
-
-  const handleRemoveWhitelist = async (email, mobile) => {
-    if (!window.confirm(`Remove ${mobile} from whitelist?`)) return;
-    try {
-      await appsScriptApi.call('removeMobileWhitelist', { email, mobile });
-      fetchWhitelist();
-    } catch (err) {
-      console.error('Remove whitelist error:', err);
-      alert('Failed to remove mobile from whitelist.');
-    }
-  };
-
-  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   return (
@@ -335,523 +267,416 @@ export default function AutomationsPage({ applications = [], user = null }) {
         </div>
       )}
 
-      {/* Main Two-Column Layout (Email Composer on Left, Whitelist on Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* Full-Width Group Email Composer Card */}
+      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-6 space-y-4">
         
-        {/* ========================================================================= */}
-        {/* LEFT COLUMN: ADVANCED GROUP EMAIL COMPOSER (8 cols on lg) */}
-        {/* ========================================================================= */}
-        <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-4">
-          
-          {/* Header Title Bar */}
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
-                <Mail size={18} />
-              </div>
-              <div>
-                <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white uppercase tracking-tight">
-                  Group Email Composer
-                </h2>
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  Broadcast notices, admission announcements, circulars &amp; fee updates
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Status Pill */}
-            {testMode ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 animate-pulse">
-                <ShieldAlert size={13} /> Test Flight Mode
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20">
-                <Users size={13} /> Mass Broadcast Mode
-              </span>
-            )}
-          </div>
-
-          {/* ======================================================================= */}
-          {/* 1. TOP RECIPIENT TOOLBAR (Compact Single Row Filter Suite) */}
-          {/* ======================================================================= */}
-          <div className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-950/60 space-y-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2.5">
-              
-              {/* Left Side: Filter Dropdowns */}
-              <div className="flex flex-wrap items-center gap-2">
-                
-                {/* To / Status Selector */}
-                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">To:</span>
-                  <select
-                    value={targetStatus}
-                    onChange={(e) => {
-                      setTargetStatus(e.target.value);
-                      setExcludedEmails(new Set());
-                    }}
-                    className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="All">Every Applicant</option>
-                    <option value="Submitted">Submitted Forms</option>
-                    <option value="Approved">Approved / Enrolled</option>
-                    <option value="Draft">Draft Forms</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
-                </div>
-
-                {/* Class Filter */}
-                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Class:</span>
-                  <select
-                    value={targetClass}
-                    onChange={(e) => {
-                      setTargetClass(e.target.value);
-                      setExcludedEmails(new Set());
-                    }}
-                    className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="All">All Classes</option>
-                    <option value="12th">12th Class</option>
-                    <option value="11th">11th Class</option>
-                    <option value="10th">10th Class</option>
-                    <option value="9th">9th Class</option>
-                  </select>
-                </div>
-
-                {/* Session Filter */}
-                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Session:</span>
-                  <select
-                    value={targetSession}
-                    onChange={(e) => {
-                      setTargetSession(e.target.value);
-                      setExcludedEmails(new Set());
-                    }}
-                    className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
-                  >
-                    <option value="All">All Sessions</option>
-                    {availableSessions.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Live Count Badge */}
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 text-teal-700 dark:text-teal-300 font-extrabold text-xs border border-teal-500/20 shadow-2xs">
-                  <Users size={13} />
-                  <span>
-                    {testMode ? '1 Test Recipient' : `${finalRecipients.length} recipients`}
-                  </span>
-                  {excludedEmails.size > 0 && !testMode && (
-                    <span className="text-[10px] text-rose-500 font-bold ml-0.5">
-                      ({excludedEmails.size} excluded)
-                    </span>
-                  )}
-                </div>
-
-                {/* Micro-Selection / Manage Button */}
-                {!testMode && matchedRecipients.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowManageModal(true)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
-                    title="Select or exclude specific individual students"
-                  >
-                    <SlidersHorizontal size={13} className="text-teal-600 dark:text-teal-400" />
-                    <span>Manage</span>
-                  </button>
-                )}
-
-              </div>
-
-              {/* Right Side: Test To Admin Checkbox */}
-              <div className="flex items-center gap-2 pl-2">
-                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={testMode}
-                    onChange={(e) => setTestMode(e.target.checked)}
-                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
-                  />
-                  <span>Test to admin</span>
-                  <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-                    ({adminEmail})
-                  </span>
-                </label>
-              </div>
-
-            </div>
-          </div>
-
-          {/* ======================================================================= */}
-          {/* 2. EMAIL SUBJECT LINE */}
-          {/* ======================================================================= */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
-              Email Subject Line <span className="text-rose-500 font-bold">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Important Notice Regarding Class 11th Admission Verification & Document Submission"
-              value={emailSubject}
-              onChange={(e) => setEmailSubject(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 focus:ring-3 focus:ring-teal-500/15 transition-all"
-            />
-          </div>
-
-          {/* ======================================================================= */}
-          {/* 3. RICH TEXT WYSIWYG TOOLBAR & CANVAS */}
-          {/* ======================================================================= */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
-              Email Announcement Message Body <span className="text-rose-500 font-bold">*</span>
-            </label>
-
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xs bg-white dark:bg-slate-950">
-              
-              {/* Formatting Toolbar Row */}
-              <div className="flex items-center gap-1 p-1.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto select-none">
-                
-                {/* Bold */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('bold'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Bold (Ctrl+B)"
-                >
-                  <Bold size={14} />
-                </button>
-
-                {/* Italic */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('italic'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Italic (Ctrl+I)"
-                >
-                  <Italic size={14} />
-                </button>
-
-                {/* Underline */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('underline'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Underline (Ctrl+U)"
-                >
-                  <Underline size={14} />
-                </button>
-
-                {/* Strikethrough */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('strikeThrough'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Strikethrough"
-                >
-                  <Strikethrough size={14} />
-                </button>
-
-                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
-
-                {/* Bullet List */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('insertUnorderedList'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Bullet List"
-                >
-                  <List size={14} />
-                </button>
-
-                {/* Numbered List */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('insertOrderedList'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Numbered List"
-                >
-                  <ListOrdered size={14} />
-                </button>
-
-                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
-
-                {/* Align Left */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyLeft'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Align Left"
-                >
-                  <AlignLeft size={14} />
-                </button>
-
-                {/* Align Center */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyCenter'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Align Center"
-                >
-                  <AlignCenter size={14} />
-                </button>
-
-                {/* Align Right */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyRight'); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Align Right"
-                >
-                  <AlignRight size={14} />
-                </button>
-
-                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
-
-                {/* Heading Format */}
-                <select
-                  onChange={(e) => {
-                    executeCmd('formatBlock', e.target.value);
-                    e.target.value = '';
-                  }}
-                  defaultValue=""
-                  className="px-2 py-1 rounded-md text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="" disabled>Format / Heading</option>
-                  <option value="<p>">Normal Paragraph</option>
-                  <option value="<h2>">Major Heading (H2)</option>
-                  <option value="<h3>">Sub Heading (H3)</option>
-                  <option value="<blockquote>">Quote / Callout</option>
-                </select>
-
-                {/* Insert Link */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); handleInsertLink(); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer ml-auto"
-                  title="Insert Hyperlink"
-                >
-                  <Link2 size={14} />
-                </button>
-
-                {/* Clear Format */}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); handleClearFormat(); }}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
-                  title="Clear All Formatting"
-                >
-                  <RemoveFormatting size={14} />
-                </button>
-
-              </div>
-
-              {/* Editable Body Canvas */}
-              <div
-                ref={editorRef}
-                contentEditable
-                onInput={handleEditorInput}
-                onBlur={handleEditorInput}
-                className="w-full min-h-[190px] max-h-[360px] overflow-y-auto p-3.5 text-xs sm:text-sm leading-relaxed text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-0"
-                style={{ minHeight: '190px' }}
-                data-placeholder="Type your email announcement message here..."
-              />
-
-            </div>
-          </div>
-
-          {/* ======================================================================= */}
-          {/* 4. EMAIL FOOTER & SIGNATURE SECTION */}
-          {/* ======================================================================= */}
-          <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                <FileText size={14} className="text-teal-600" />
-                <span>Institutional Email Signature / Footer</span>
-              </span>
-
-              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-400 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isCustomFooter}
-                  onChange={(e) => setIsCustomFooter(e.target.checked)}
-                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 cursor-pointer"
-                />
-                <span>Edit Custom Footer</span>
-              </label>
-            </div>
-
-            {isCustomFooter ? (
-              <textarea
-                rows={2}
-                value={customFooter}
-                onChange={(e) => setCustomFooter(e.target.value)}
-                placeholder="Enter custom sign-off footer..."
-                className="w-full p-2.5 rounded-lg text-xs font-mono font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-teal-600"
-              />
-            ) : (
-              <div className="text-[11px] italic font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
-                {DEFAULT_FOOTER}
-              </div>
-            )}
-          </div>
-
-          {/* ======================================================================= */}
-          {/* 5. BOTTOM ACTION BAR (Preview + Dispatch) */}
-          {/* ======================================================================= */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            
-            {/* Preview Button */}
-            <button
-              type="button"
-              onClick={() => setShowPreviewModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
-            >
-              <Eye size={15} className="text-teal-600 dark:text-teal-400" />
-              <span>Preview Email</span>
-            </button>
-
-            {/* Main Dispatch CTA Button */}
-            <button
-              type="button"
-              onClick={handleSendBulkEmail}
-              disabled={sendingEmail || finalRecipients.length === 0}
-              className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-[0.99] ${
-                testMode
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20'
-                  : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-700/20'
-              }`}
-            >
-              {sendingEmail ? (
-                <>
-                  <RefreshCw size={16} className="animate-spin" />
-                  <span>Dispatching {testMode ? 'Test Email' : 'Bulk Queue'}...</span>
-                </>
-              ) : (
-                <>
-                  <Send size={16} />
-                  <span>
-                    {testMode ? `Send Test Flight (${adminEmail})` : `Dispatch to ${finalRecipients.length} Students`}
-                  </span>
-                </>
-              )}
-            </button>
-
-          </div>
-
-          {/* Last Operation Audit Badge */}
-          {lastDispatchLog && (
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between text-[11px] font-bold">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={14} />
-                <span>Last Dispatched: &ldquo;{lastDispatchLog.subject}&rdquo; to {lastDispatchLog.count} recipients at {lastDispatchLog.timestamp}</span>
-              </span>
-              <span>{lastDispatchLog.testMode ? '(Test Mode)' : '(Live Broadcast)'}</span>
-            </div>
-          )}
-
-        </div>
-
-        {/* ========================================================================= */}
-        {/* RIGHT COLUMN: STAFF MOBILE WHITELIST MANAGER (4 cols on lg) */}
-        {/* ========================================================================= */}
-        <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-4">
-          
-          <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800/80 pb-3">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              <PhoneCall size={18} />
+        {/* Header Title Bar */}
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+              <Mail size={20} />
             </div>
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-tight">
-                Staff Mobile Whitelist
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white uppercase tracking-tight">
+                Group Email Composer
               </h2>
-              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Grant staff OTP &amp; WhatsApp verification access
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Broadcast notices, admission announcements, circulars &amp; official updates
               </p>
             </div>
           </div>
 
-          {/* Add Whitelist Form */}
-          <form onSubmit={handleAddWhitelist} className="space-y-2.5 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60">
-            <input
-              type="email"
-              required
-              placeholder="Staff Email (e.g. teacher@gmail.com)"
-              value={whitelistEmail}
-              onChange={(e) => setWhitelistEmail(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600"
-            />
-            <input
-              type="tel"
-              required
-              maxLength={10}
-              placeholder="10-Digit Mobile Number"
-              value={whitelistMobile}
-              onChange={(e) => setWhitelistMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              className="w-full px-3 py-2 rounded-lg text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600"
-            />
-            <input
-              type="text"
-              placeholder="Designation / Reason (Optional)"
-              value={whitelistReason}
-              onChange={(e) => setWhitelistReason(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600"
-            />
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-lg font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99]"
-            >
-              <Plus size={14} />
-              <span>Whitelist Mobile</span>
-            </button>
-          </form>
+          {/* Quick Status Pill */}
+          {testMode ? (
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 animate-pulse">
+              <ShieldAlert size={14} /> Test Flight Mode
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20">
+              <Users size={14} /> Mass Broadcast Mode
+            </span>
+          )}
+        </div>
 
-          {/* Current Whitelisted Mobiles List */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-              <span>Whitelisted Numbers</span>
-              <span>{whitelistedMobiles.length} Total</span>
+        {/* ======================================================================= */}
+        {/* 1. TOP RECIPIENT TOOLBAR (Compact Single Row Filter Suite) */}
+        {/* ======================================================================= */}
+        <div className="p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-950/60 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            
+            {/* Left Side: Filter Dropdowns */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              
+              {/* To / Status Selector */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase">To:</span>
+                <select
+                  value={targetStatus}
+                  onChange={(e) => {
+                    setTargetStatus(e.target.value);
+                    setExcludedEmails(new Set());
+                  }}
+                  className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="All">Every Applicant</option>
+                  <option value="Submitted">Submitted Forms</option>
+                  <option value="Approved">Approved / Enrolled</option>
+                  <option value="Draft">Draft Forms</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+
+              {/* Class Filter */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase">Class:</span>
+                <select
+                  value={targetClass}
+                  onChange={(e) => {
+                    setTargetClass(e.target.value);
+                    setExcludedEmails(new Set());
+                  }}
+                  className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="All">All Classes</option>
+                  <option value="12th">12th Class</option>
+                  <option value="11th">11th Class</option>
+                  <option value="10th">10th Class</option>
+                  <option value="9th">9th Class</option>
+                </select>
+              </div>
+
+              {/* Session Filter */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase">Session:</span>
+                <select
+                  value={targetSession}
+                  onChange={(e) => {
+                    setTargetSession(e.target.value);
+                    setExcludedEmails(new Set());
+                  }}
+                  className="bg-transparent font-extrabold text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="All">All Sessions</option>
+                  {availableSessions.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Live Count Badge */}
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 text-teal-700 dark:text-teal-300 font-extrabold text-xs border border-teal-500/20 shadow-2xs">
+                <Users size={14} />
+                <span>
+                  {testMode ? '1 Test Recipient' : `${finalRecipients.length} recipients`}
+                </span>
+                {excludedEmails.size > 0 && !testMode && (
+                  <span className="text-[10px] text-rose-500 font-bold ml-0.5">
+                    ({excludedEmails.size} excluded)
+                  </span>
+                )}
+              </div>
+
+              {/* Micro-Selection / Manage Button */}
+              {!testMode && matchedRecipients.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowManageModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
+                  title="Select or exclude specific individual students"
+                >
+                  <SlidersHorizontal size={14} className="text-teal-600 dark:text-teal-400" />
+                  <span>Manage</span>
+                </button>
+              )}
+
             </div>
 
-            {loadingWhitelist ? (
-              <div className="p-4 text-center text-slate-400 font-medium">Loading Whitelist...</div>
-            ) : whitelistedMobiles.length > 0 ? (
-              <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-                {whitelistedMobiles.map((item, idx) => (
-                  <div key={idx} className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between gap-2 shadow-2xs">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-mono font-extrabold text-xs text-indigo-600 dark:text-indigo-400">
-                        {item.mobile}
-                      </div>
-                      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
-                        {item.email}
-                      </div>
-                      {item.reason && (
-                        <div className="text-[10px] text-slate-400 truncate">
-                          {item.reason}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveWhitelist(item.email, item.mobile)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
-                      title="Remove from whitelist"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-4 text-center text-slate-400 text-xs italic bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-                No staff numbers whitelisted yet.
-              </div>
-            )}
+            {/* Right Side: Test To Admin Checkbox */}
+            <div className="flex items-center gap-2 pl-2">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={testMode}
+                  onChange={(e) => setTestMode(e.target.checked)}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                />
+                <span>Test to admin</span>
+                <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+                  ({adminEmail})
+                </span>
+              </label>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ======================================================================= */}
+        {/* 2. EMAIL SUBJECT LINE */}
+        {/* ======================================================================= */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+            Email Subject Line <span className="text-rose-500 font-bold">*</span>
+          </label>
+          <input
+            type="text"
+            required
+            placeholder="e.g. Important Notice Regarding Class 11th Admission Verification & Document Submission"
+            value={emailSubject}
+            onChange={(e) => setEmailSubject(e.target.value)}
+            className="w-full px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 focus:ring-3 focus:ring-teal-500/15 transition-all"
+          />
+        </div>
+
+        {/* ======================================================================= */}
+        {/* 3. RICH TEXT WYSIWYG TOOLBAR & CANVAS */}
+        {/* ======================================================================= */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+            Email Announcement Message Body <span className="text-rose-500 font-bold">*</span>
+          </label>
+
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xs bg-white dark:bg-slate-950">
+            
+            {/* Formatting Toolbar Row */}
+            <div className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto select-none">
+              
+              {/* Bold */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('bold'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Bold (Ctrl+B)"
+              >
+                <Bold size={15} />
+              </button>
+
+              {/* Italic */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('italic'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Italic (Ctrl+I)"
+              >
+                <Italic size={15} />
+              </button>
+
+              {/* Underline */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('underline'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Underline (Ctrl+U)"
+              >
+                <Underline size={15} />
+              </button>
+
+              {/* Strikethrough */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('strikeThrough'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Strikethrough"
+              >
+                <Strikethrough size={15} />
+              </button>
+
+              <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+
+              {/* Bullet List */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('insertUnorderedList'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Bullet List"
+              >
+                <List size={15} />
+              </button>
+
+              {/* Numbered List */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('insertOrderedList'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Numbered List"
+              >
+                <ListOrdered size={15} />
+              </button>
+
+              <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+
+              {/* Align Left */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyLeft'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Align Left"
+              >
+                <AlignLeft size={15} />
+              </button>
+
+              {/* Align Center */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyCenter'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Align Center"
+              >
+                <AlignCenter size={15} />
+              </button>
+
+              {/* Align Right */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); executeCmd('justifyRight'); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Align Right"
+              >
+                <AlignRight size={15} />
+              </button>
+
+              <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1" />
+
+              {/* Heading Format */}
+              <select
+                onChange={(e) => {
+                  executeCmd('formatBlock', e.target.value);
+                  e.target.value = '';
+                }}
+                defaultValue=""
+                className="px-2.5 py-1 rounded-md text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="" disabled>Format / Heading</option>
+                <option value="<p>">Normal Paragraph</option>
+                <option value="<h2>">Major Heading (H2)</option>
+                <option value="<h3>">Sub Heading (H3)</option>
+                <option value="<blockquote>">Quote / Callout</option>
+              </select>
+
+              {/* Insert Link */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleInsertLink(); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer ml-auto"
+                title="Insert Hyperlink"
+              >
+                <Link2 size={15} />
+              </button>
+
+              {/* Clear Format */}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleClearFormat(); }}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-black cursor-pointer"
+                title="Clear All Formatting"
+              >
+                <RemoveFormatting size={15} />
+              </button>
+
+            </div>
+
+            {/* Editable Body Canvas */}
+            <div
+              ref={editorRef}
+              contentEditable
+              onInput={handleEditorInput}
+              onBlur={handleEditorInput}
+              className="w-full min-h-[220px] max-h-[420px] overflow-y-auto p-4 text-xs sm:text-sm leading-relaxed text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-0"
+              style={{ minHeight: '220px' }}
+              data-placeholder="Type your email announcement message here..."
+            />
+
+          </div>
+        </div>
+
+        {/* ======================================================================= */}
+        {/* 4. EMAIL FOOTER & SIGNATURE SECTION */}
+        {/* ======================================================================= */}
+        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+              <FileText size={15} className="text-teal-600" />
+              <span>Institutional Email Signature / Footer</span>
+            </span>
+
+            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isCustomFooter}
+                onChange={(e) => setIsCustomFooter(e.target.checked)}
+                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span>Edit Custom Footer</span>
+            </label>
           </div>
 
+          {isCustomFooter ? (
+            <textarea
+              rows={2}
+              value={customFooter}
+              onChange={(e) => setCustomFooter(e.target.value)}
+              placeholder="Enter custom sign-off footer..."
+              className="w-full p-2.5 rounded-lg text-xs font-mono font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-teal-600"
+            />
+          ) : (
+            <div className="text-xs italic font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+              {DEFAULT_FOOTER}
+            </div>
+          )}
         </div>
+
+        {/* ======================================================================= */}
+        {/* 5. BOTTOM ACTION BAR (Preview + Dispatch) */}
+        {/* ======================================================================= */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          
+          {/* Preview Button */}
+          <button
+            type="button"
+            onClick={() => setShowPreviewModal(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-2xs transition-all cursor-pointer"
+          >
+            <Eye size={16} className="text-teal-600 dark:text-teal-400" />
+            <span>Preview Email</span>
+          </button>
+
+          {/* Main Dispatch CTA Button */}
+          <button
+            type="button"
+            onClick={handleSendBulkEmail}
+            disabled={sendingEmail || finalRecipients.length === 0}
+            className={`inline-flex items-center justify-center gap-2 px-7 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-[0.99] ${
+              testMode
+                ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20'
+                : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-700/20'
+            }`}
+          >
+            {sendingEmail ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                <span>Dispatching {testMode ? 'Test Email' : 'Bulk Queue'}...</span>
+              </>
+            ) : (
+              <>
+                <Send size={16} />
+                <span>
+                  {testMode ? `Send Test Flight (${adminEmail})` : `Dispatch to ${finalRecipients.length} Students`}
+                </span>
+              </>
+            )}
+          </button>
+
+        </div>
+
+        {/* Last Operation Audit Badge */}
+        {lastDispatchLog && (
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between text-xs font-bold">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={15} />
+              <span>Last Dispatched: &ldquo;{lastDispatchLog.subject}&rdquo; to {lastDispatchLog.count} recipients at {lastDispatchLog.timestamp}</span>
+            </span>
+            <span>{lastDispatchLog.testMode ? '(Test Mode)' : '(Live Broadcast)'}</span>
+          </div>
+        )}
 
       </div>
 
