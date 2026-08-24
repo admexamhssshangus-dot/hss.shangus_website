@@ -45,8 +45,18 @@ function normalizeClass(raw) {
   return s || 'Other';
 }
 
+// Robust class roll number extraction (Roll No assigned means Approved / Enrolled)
+function extractClassRollNo(a) {
+  if (!a || typeof a !== 'object') return '';
+  const r = a['Class Roll No'] ?? a['Class Roll No.'] ?? a['Class Roll Number'] ?? a['Class R.No.'] ?? a['Class R. No.'] ?? a.classRollNo ?? a.class_roll_no ?? a.rollNo ?? a['Roll No'] ?? a['Roll No.'] ?? '';
+  const clean = String(r).trim();
+  if (!clean || clean === '—' || clean === 'N/A' || clean === 'null' || clean === 'undefined' || clean === '-') return '';
+  return clean;
+}
+
 // Normalize admission status
-function normalizeStatus(raw) {
+function normalizeStatus(raw, rollNo = '') {
+  if (rollNo) return 'Approved';
   const s = String(raw || '').toLowerCase().trim();
   if (s.includes('approv') || s.includes('confirm') || s.includes('enrol') || s.includes('admit')) return 'Approved';
   if (s.includes('submit')) return 'Submitted';
@@ -146,11 +156,12 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
       const rawSession = app['Academic Session'] || app.Session || app.session || '2025-26';
       const session = String(rawSession).trim();
 
+      const rollNo = extractClassRollNo(app);
+      const isApproved = !!rollNo || String(app.Status || app.status || '').toLowerCase().includes('approv');
       const rawStatus = app.Status || app.status || 'Submitted';
-      const status = normalizeStatus(rawStatus);
+      const status = isApproved ? 'Approved' : normalizeStatus(rawStatus, rollNo);
 
       const formNo = String(app['Form Number'] || app.formNo || app.FormNo || app.id || '').trim();
-      const rollNo = String(app['Class Roll No.'] || app.classRollNo || app.rollNo || '').trim();
 
       list.push({
         email,
@@ -158,6 +169,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
         class: cls,
         session,
         status,
+        isApproved,
         formNo,
         rollNo,
       });
@@ -177,13 +189,14 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
   // Filtered pool matching toolbar dropdowns
   const matchedRecipients = useMemo(() => {
     return allParsedRecipients.filter(r => {
-      // 1. Status filter
+      // 1. Status filter (Class Roll No assigned means Approved / Enrolled)
       if (targetStatus !== 'All') {
-        if (targetStatus === 'Submitted' || targetStatus === 'Approved') {
-          // Matches submitted / confirmed / approved / enrolled applicants
+        if (targetStatus === 'Approved') {
+          if (!r.isApproved) return false;
+        } else if (targetStatus === 'Submitted') {
           if (r.status === 'Draft' || r.status === 'Rejected') return false;
         } else if (targetStatus === 'Draft') {
-          if (r.status !== 'Draft') return false;
+          if (r.isApproved || r.status !== 'Draft') return false;
         } else if (targetStatus === 'Rejected') {
           if (r.status !== 'Rejected') return false;
         }
