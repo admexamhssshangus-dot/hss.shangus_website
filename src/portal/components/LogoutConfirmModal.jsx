@@ -11,14 +11,15 @@ import { LogOut, X, ShieldAlert } from 'lucide-react';
  *     userName="Sheikh Gulfam"   // optional
  *   />
  */
-export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userName }) {
+export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, onClose, userName }) {
   if (!isOpen) return null;
+  const handleDismiss = onCancel || onClose || (() => {});
 
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleDismiss(); }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="logout-modal-title"
@@ -43,7 +44,7 @@ export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userNa
 
         {/* Close button */}
         <button
-          onClick={onCancel}
+          onClick={handleDismiss}
           className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
           aria-label="Cancel logout"
         >
@@ -77,7 +78,7 @@ export default function LogoutConfirmModal({ isOpen, onConfirm, onCancel, userNa
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleDismiss}
             className="flex-1 py-2.5 rounded-2xl text-xs font-black border transition-all hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-[0.97]"
             style={{ borderColor: 'var(--border-ui, #e2e8f0)', color: 'var(--text-muted, #64748b)' }}
           >

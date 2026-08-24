@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
 import { 
   UserCheck, CalendarCheck, RefreshCw, LogOut,
   ArrowRight, ShieldCheck, CheckCircle2, Award, Users, BookOpen
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import { db } from '../../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -41,7 +38,7 @@ export default function TeacherDashboard() {
   };
 
   // Fetch Teacher Stats & Today's Attendance overview (Fast 0ms SWR)
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
       const cachedAdmissions = getCachedCollectionSync('admissions');
       if (!cachedAdmissions) setLoading(true);
@@ -136,11 +133,11 @@ export default function TeacherDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboardStats();
-  }, []);
+  }, [fetchDashboardStats]);
 
   const userName = user?.displayName || user?.name || 'Sheikh Gulfam';
 
