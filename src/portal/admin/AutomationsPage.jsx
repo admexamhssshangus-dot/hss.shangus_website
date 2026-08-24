@@ -134,13 +134,12 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
     const rawList = Array.isArray(localApps) && localApps.length > 0 ? localApps : propApps;
     if (!Array.isArray(rawList) || rawList.length === 0) return [];
     
-    const seenEmails = new Set();
+    const seenStudentKeys = new Set();
     const list = [];
 
     for (const app of rawList) {
       const email = extractStudentEmail(app);
-      if (!email || seenEmails.has(email)) continue;
-      seenEmails.add(email);
+      if (!email) continue;
 
       const name = String(
         app["Student's Name (as per school records)"] || 
@@ -163,7 +162,13 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
 
       const formNo = String(app['Form Number'] || app.formNo || app.FormNo || app.id || '').trim();
 
+      // Unique student key to deduplicate duplicate raw submissions of the exact same student form
+      const studentKey = String(app.id || formNo || `${cls}_${rollNo || name}`).trim().toLowerCase();
+      if (seenStudentKeys.has(studentKey)) continue;
+      seenStudentKeys.add(studentKey);
+
       list.push({
+        id: studentKey,
         email,
         name,
         class: cls,
@@ -219,9 +224,9 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
   // Final selected recipients (accounting for manual exclusions)
   const finalRecipients = useMemo(() => {
     if (testMode) {
-      return [{ email: adminEmail, name: 'Administrator (Test Flight)', class: 'Admin', status: 'Test' }];
+      return [{ id: 'admin_test', email: adminEmail, name: 'Administrator (Test Flight)', class: 'Admin', status: 'Test' }];
     }
-    return matchedRecipients.filter(r => !excludedEmails.has(r.email));
+    return matchedRecipients.filter(r => !excludedEmails.has(r.id) && !excludedEmails.has(r.email));
   }, [matchedRecipients, excludedEmails, testMode, adminEmail]);
 
   // ---------------------------------------------------------------------------
@@ -787,7 +792,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                   <button
                     type="button"
                     onClick={() => {
-                      const all = new Set(matchedRecipients.map(r => r.email));
+                      const all = new Set(matchedRecipients.map(r => r.id));
                       setExcludedEmails(all);
                     }}
                     className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[11px] transition-all cursor-pointer"
@@ -812,14 +817,15 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                     r.name.toLowerCase().includes(query) ||
                     r.email.toLowerCase().includes(query) ||
                     r.class.toLowerCase().includes(query) ||
-                    r.formNo.toLowerCase().includes(query)
+                    r.formNo.toLowerCase().includes(query) ||
+                    r.rollNo.toLowerCase().includes(query)
                   );
                 })
                 .map((student) => {
-                  const isChecked = !excludedEmails.has(student.email);
+                  const isChecked = !excludedEmails.has(student.id) && !excludedEmails.has(student.email);
                   return (
                     <label
-                      key={student.email}
+                      key={student.id}
                       className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
                         isChecked 
                           ? 'bg-teal-500/5 border-teal-500/30' 
@@ -833,9 +839,10 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
                           onChange={(e) => {
                             const next = new Set(excludedEmails);
                             if (e.target.checked) {
+                              next.delete(student.id);
                               next.delete(student.email);
                             } else {
-                              next.add(student.email);
+                              next.add(student.id);
                             }
                             setExcludedEmails(next);
                           }}
