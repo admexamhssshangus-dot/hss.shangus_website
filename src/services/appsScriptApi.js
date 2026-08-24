@@ -756,7 +756,7 @@ async function saveApplication(payload) {
       formData: data,
       applicationId: payload.applicationId || data.docId || data.applicationId || '',
       submissionKey: payload.submissionKey,
-      upgradeMode: Boolean(payload._upgradeMode || data._upgradeMode),
+      upgradeMode: Boolean(payload._upgradeMode || data._upgradeMode || payload.upgradeMode || data.upgradeMode),
     });
   } catch (err) {
     if (err.isServiceUnavailable || err.status === 404 || process.env.NODE_ENV === 'development') {
