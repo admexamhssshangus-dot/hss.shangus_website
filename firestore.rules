@@ -26,9 +26,16 @@ service cloud.firestore {
         : '';
     }
 
+    function authEmail() {
+      return isAuthenticated() && request.auth.token.email is string
+        ? request.auth.token.email.lower()
+        : '';
+    }
+
     function isBootstrapAdmin() {
       return hasVerifiedEmail() &&
-        request.auth.token.email == 'adm.exam.hss.shangus@gmail.com';
+        (authEmail() == 'adm.exam.hss.shangus@gmail.com' ||
+         request.auth.token.email == 'adm.exam.hss.shangus@gmail.com');
     }
 
     function isAdmin() {
@@ -56,12 +63,6 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function authEmail() {
-      return isAuthenticated() && request.auth.token.email is string
-        ? request.auth.token.email.lower()
-        : '';
     }
 
     function ownsEmailDocument(documentId) {

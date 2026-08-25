@@ -138,7 +138,8 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
   try {
     const idToken = await getIdTokenResult(user, false);
     const claimRole = String(idToken?.claims?.role || '').toLowerCase().replace(/\s+/g, '');
-    isAdminClaim = idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole);
+    const isBootstrap = String(user.email || '').toLowerCase().trim() === 'adm.exam.hss.shangus@gmail.com';
+    isAdminClaim = idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole) || isBootstrap;
   } catch (e) {
     console.warn('Failed to retrieve admin claims:', e);
   }
@@ -4303,9 +4304,11 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       if (!user) {
         throw new Error('Authentication required to save. Please click the "Sign in with Google to Sync" button at the top first.');
       }
-      const isListedAdmin = Array.isArray(activeAdmins) && activeAdmins.some(a => (a.email || '').toLowerCase() === (user.email || '').toLowerCase());
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const isListedAdmin = Array.isArray(activeAdmins) && activeAdmins.some(a => (a.email || '').toLowerCase() === userEmail);
+      const isBootstrapAdmin = userEmail === 'adm.exam.hss.shangus@gmail.com';
       let isAdminClaim = false;
-      if (!isListedAdmin) {
+      if (!isListedAdmin && !isBootstrapAdmin) {
         try {
           const idToken = await getIdTokenResult(user, false);
           isAdminClaim = idToken?.claims?.admin === true;
@@ -4313,7 +4316,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
           console.warn('Failed to retrieve token claims:', e);
         }
       }
-      if (!isAdminClaim && !isListedAdmin) {
+      if (!isAdminClaim && !isListedAdmin && !isBootstrapAdmin) {
         throw new Error('Your Google account is not listed as an administrator. Please ask a Super Admin to add your email.');
       }
 
