@@ -528,14 +528,17 @@ export function extractClass(st) {
 
 export function extractSession(st) {
   if (!st) return '';
+  const raw = st.raw || st;
   const keys = [
+    "Exam Mode (Current)", "currExamMode", "exam_mode_current", "examMode", "Exam Mode",
     "Session", "session", "Academic Session", "academicSession", "academic_session",
     "Session / Batch", "sessionBatch", "Batch", "batch",
     "Passing Year", "passingYear", "Year", "year", "sessionTag", "academic_year"
   ];
   for (const k of keys) {
-    if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      let val = String(st[k]).trim();
+    const valObj = raw[k] || st[k];
+    if (valObj && String(valObj).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(valObj).trim())) {
+      let val = String(valObj).trim();
       if (/^20\d{2}\s*[-/]\s*20\d{2}$/.test(val)) {
         const parts = val.split(/[-/]/).map(p => p.trim());
         val = `${parts[0]}-${parts[1].slice(-2)}`;
