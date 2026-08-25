@@ -132,13 +132,30 @@ export default function BulkCertificateGeneratorModal({
     }
   };
   
+  // Auto-sync exam session title when session filter changes
+  useEffect(() => {
+    if (selectedSession && selectedSession !== 'ALL') {
+      if (/bian|bi-annual|apr/i.test(selectedSession)) {
+        setExamSessionOverride('Annual Private / Bi-Annual 2026');
+      } else if (selectedSession === '2025-26') {
+        setExamSessionOverride('Annual Regular 2025-26');
+      } else {
+        setExamSessionOverride(`Annual Regular ${selectedSession}`);
+      }
+    }
+  }, [selectedSession]);
+
   // ─── Multi-Selection State ───
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
 
-  // Extract all distinct Sessions from live combined student pool in reverse chronological order
+  // Extract distinct Sessions scoped to current Class selection (e.g. Class 12th has 94 students)
   const availableSessions = useMemo(() => {
     const sessionMap = new Map();
     combinedStudentPool.forEach(st => {
+      if (selectedClass && selectedClass !== 'ALL') {
+        const c = extractClass(st);
+        if (!c || !c.toLowerCase().includes(selectedClass.toLowerCase())) return;
+      }
       const s = extractSession(st);
       if (s && s !== '—' && s.trim()) {
         sessionMap.set(s.trim(), (sessionMap.get(s.trim()) || 0) + 1);
@@ -151,7 +168,7 @@ export default function BulkCertificateGeneratorModal({
       value: s,
       label: `${s} (${sessionMap.get(s)} Students)`
     }));
-  }, [combinedStudentPool]);
+  }, [combinedStudentPool, selectedClass]);
 
   // Extract distinct Classes from live combined student pool
   const availableClasses = useMemo(() => {
@@ -177,10 +194,18 @@ export default function BulkCertificateGeneratorModal({
     }));
   }, [combinedStudentPool]);
 
-  // Extract distinct Streams from live combined student pool
+  // Extract distinct Streams scoped to selected Class and Session
   const availableStreams = useMemo(() => {
     const streamMap = new Map();
     combinedStudentPool.forEach(st => {
+      if (selectedClass && selectedClass !== 'ALL') {
+        const c = extractClass(st);
+        if (!c || !c.toLowerCase().includes(selectedClass.toLowerCase())) return;
+      }
+      if (selectedSession && selectedSession !== 'ALL') {
+        const s = extractSession(st);
+        if (!s || !s.toLowerCase().includes(selectedSession.toLowerCase())) return;
+      }
       const s = extractStream(st);
       if (s && s !== '—' && s.trim()) {
         streamMap.set(s.trim(), (streamMap.get(s.trim()) || 0) + 1);
@@ -199,7 +224,7 @@ export default function BulkCertificateGeneratorModal({
       value: s,
       label: `${s} (${streamMap.get(s)})`
     }));
-  }, [combinedStudentPool]);
+  }, [combinedStudentPool, selectedClass, selectedSession]);
 
   // Standardized student normalized rows from real-time pool
   const normalizedStudents = useMemo(() => {
@@ -782,6 +807,7 @@ export default function BulkCertificateGeneratorModal({
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
                   <tr>
+                    <th className="p-2 w-10 text-center">S.No.</th>
                     <th className="p-2 w-8 text-center">
                       <input
                         type="checkbox"
@@ -813,6 +839,9 @@ export default function BulkCertificateGeneratorModal({
                             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                         }`}
                       >
+                        <td className="p-2 text-center font-mono font-bold text-slate-500 dark:text-slate-400 text-[11px]">
+                          {idx + 1}
+                        </td>
                         <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
