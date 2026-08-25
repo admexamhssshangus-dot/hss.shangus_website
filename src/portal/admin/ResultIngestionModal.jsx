@@ -6,7 +6,7 @@
 // and Mandatory Non-Destructive Admin Confirmation Gate.
 // =================================================================
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   X,
   Upload,
@@ -22,6 +22,7 @@ import {
   Check,
   RefreshCw,
   Eye,
+  EyeOff,
   Trash2,
   Edit2,
   ArrowRight,
@@ -29,7 +30,9 @@ import {
   UserPlus,
   BookOpen,
   Layers,
-  Award
+  Award,
+  Key,
+  ExternalLink
 } from 'lucide-react';
 import {
   generateResultImportTemplate,
@@ -41,6 +44,14 @@ import {
   calculateDivision,
   expandJkboseSubjectCodes
 } from '../../utils/jkboseResultManager';
+import {
+  fetchCloudGeminiKeys,
+  saveCloudGeminiKeys,
+  getStoredGeminiKeys,
+  getPreferredGeminiModel,
+  savePreferredGeminiModel,
+  AVAILABLE_GEMINI_MODELS
+} from '../../services/geminiLetterService';
 
 export const STANDARD_SESSIONS_LIST = [
   '2026 APR/BIAN',
@@ -68,6 +79,35 @@ export default function ResultIngestionModal({
   const [activeTab, setActiveTab] = useState('excel');
   const [selectedClass, setSelectedClass] = useState('12th');
   const [selectedSession, setSelectedSession] = useState('2026 APR/BIAN');
+
+  // Gemini API Key Pool & Cloud Sync State
+  const [showKeysConfig, setShowKeysConfig] = useState(false);
+  const [geminiKeys, setGeminiKeys] = useState(() => getStoredGeminiKeys());
+  const [keysInputText, setKeysInputText] = useState('');
+  const [preferredModel, setPreferredModel] = useState(() => getPreferredGeminiModel() || 'gemini-2.5-flash');
+  const [showKeysPreview, setShowKeysPreview] = useState(false);
+
+  // Sync Gemini keys from Cloud Firestore whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchCloudGeminiKeys().then(keys => {
+        if (Array.isArray(keys) && keys.length > 0) {
+          setGeminiKeys(keys);
+          setKeysInputText(keys.join('\n'));
+        }
+      });
+    }
+  }, [isOpen]);
+
+  const handleSaveKeys = async () => {
+    const rawList = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+    const cleaned = Array.from(new Set(rawList));
+    setGeminiKeys(cleaned);
+    await saveCloudGeminiKeys(cleaned);
+    savePreferredGeminiModel(preferredModel);
+    setShowKeysConfig(false);
+    if (showToast) showToast(`✓ Saved ${cleaned.length} Gemini API Key(s) to Cloud Firebase & LocalStorage!`, 'success');
+  };
 
   // File & Multi-Screenshot State (Up to 5 images/PDFs)
   const [isProcessing, setIsProcessing] = useState(false);
@@ -438,8 +478,94 @@ export default function ResultIngestionModal({
                 </select>
               </div>
             </div>
+
+            {/* Gemini API Key Pool Button */}
+            <button
+              type="button"
+              onClick={() => setShowKeysConfig(!showKeysConfig)}
+              className="px-2.5 py-1 rounded-lg font-black text-xs border flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer transition-all shadow-2xs whitespace-nowrap"
+              title="Manage Gemini AI API Keys (Stored in Cloud Firestore & Shared Across All Modules)"
+            >
+              <Key size={12} className="text-amber-600" />
+              <span>{geminiKeys.length > 0 ? `${geminiKeys.length} Key${geminiKeys.length > 1 ? 's' : ''} Connected` : 'Configure Key'}</span>
+            </button>
           </div>
         </div>
+
+        {/* Gemini API Key Pool Configuration Drawer */}
+        {showKeysConfig && (
+          <div className="mx-6 mt-3 p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 space-y-2.5 animate-fadeIn text-xs">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-1.5">
+                <Key size={14} className="text-amber-600" />
+                <span className="font-black text-amber-950 dark:text-amber-100 text-xs">
+                  Gemini API Key Pool ({geminiKeys.length} Active Key{geminiKeys.length !== 1 ? 's' : ''} in Cloud DB):
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowKeysPreview(!showKeysPreview)}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-slate-700 dark:text-slate-300 hover:bg-amber-100/50 flex items-center gap-1 cursor-pointer"
+                >
+                  {showKeysPreview ? <EyeOff size={11} /> : <Eye size={11} />}
+                  <span>{showKeysPreview ? 'Hide Keys' : 'Reveal Keys'}</span>
+                </button>
+
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-amber-800 dark:text-amber-300 font-black hover:underline flex items-center gap-0.5 bg-amber-200/50 dark:bg-amber-900/50 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700"
+                >
+                  <span>Get Free Key</span>
+                  <ExternalLink size={10} />
+                </a>
+              </div>
+            </div>
+
+            <textarea
+              rows={2}
+              value={keysInputText}
+              onChange={(e) => setKeysInputText(e.target.value)}
+              placeholder="Paste your Gemini API keys here (one per line or comma-separated). They will be saved to Cloud Firestore and accessible to all AI features."
+              className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500">Preferred AI Model:</span>
+                <select
+                  value={preferredModel}
+                  onChange={(e) => setPreferredModel(e.target.value)}
+                  className="px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 font-bold text-[11px]"
+                >
+                  {AVAILABLE_GEMINI_MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowKeysConfig(false)}
+                  className="px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold text-[11px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveKeys}
+                  className="px-3.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] cursor-pointer shadow-xs"
+                >
+                  ✓ Save Keys to Cloud DB
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tab Content & Upload Banners */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">

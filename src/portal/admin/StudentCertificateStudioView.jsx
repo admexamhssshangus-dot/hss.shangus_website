@@ -2056,16 +2056,20 @@ export default function StudentCertificateStudioView({
     if (mode === 'humanize' || mode === 'formalize' || mode === 'shorten') {
       setAiPrompt('');
     }
-    setGeminiKeys([]);
-    setKeysInputText('');
+    const currentKeys = getStoredGeminiKeys();
+    setGeminiKeys(currentKeys);
+    setKeysInputText(currentKeys.join('\n'));
     setShowAiModal(true);
   };
 
   const handleSaveKeys = async () => {
-    setGeminiKeys([]);
-    setKeysInputText('');
+    const rawList = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+    const cleaned = Array.from(new Set(rawList));
+    setGeminiKeys(cleaned);
+    await saveCloudGeminiKeys(cleaned);
+    savePreferredGeminiModel(aiModel);
     setShowKeysConfig(false);
-    setAiError('Gemini credentials are managed securely in the server environment.');
+    showToast(`✓ Saved ${cleaned.length} Gemini API Key(s) to Cloud Firebase & LocalStorage!`, 'success');
   };
 
   const handleGenerateAi = async () => {
@@ -4863,9 +4867,15 @@ export default function StudentCertificateStudioView({
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-300" title="Gemini credentials are held only by the server">
-                  <Shield size={11} /> Server secured
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowKeysConfig(!showKeysConfig)}
+                  className="px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer transition-colors shadow-2xs"
+                  title="Configure Gemini API Keys (Saved to Cloud Firestore & Local Storage)"
+                >
+                  <Key size={11} className="text-amber-600" />
+                  <span>{geminiKeys.length > 0 ? `${geminiKeys.length} Key${geminiKeys.length > 1 ? 's' : ''} Active` : 'Configure Key'}</span>
+                </button>
 
                 <button
                   type="button"

@@ -14,13 +14,37 @@ export const AVAILABLE_GEMINI_MODELS = [
 
 export function getStoredGeminiKeys() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_GEMINI_KEYS) || localStorage.getItem('gemini_api_key');
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter(Boolean);
-    } catch (_) {}
-    return [raw.trim()].filter(Boolean);
+    const keysFound = [];
+    const storageKeys = [
+      STORAGE_KEY_GEMINI_KEYS,
+      'gemini_api_key',
+      'hss_gemini_keys',
+      'gemini_api_keys',
+      'GEMINI_API_KEY',
+      'gemini_key'
+    ];
+
+    storageKeys.forEach(k => {
+      try {
+        const val = localStorage.getItem(k);
+        if (!val) return;
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(item => {
+              if (item && typeof item === 'string' && item.trim()) keysFound.push(item.trim());
+            });
+          } else if (typeof parsed === 'string' && parsed.trim()) {
+            keysFound.push(parsed.trim());
+          }
+        } catch (_) {
+          if (typeof val === 'string' && val.trim()) keysFound.push(val.trim());
+        }
+      } catch (_) {}
+    });
+
+    const unique = Array.from(new Set(keysFound));
+    return unique;
   } catch (_) {
     return [];
   }
@@ -29,39 +53,77 @@ export function getStoredGeminiKeys() {
 export function saveGeminiKeys(keys) {
   try {
     const list = Array.isArray(keys) ? keys : [keys];
-    const cleanList = list.filter(Boolean);
+    const cleanList = Array.from(new Set(list.map(k => (typeof k === 'string' ? k.trim() : '')).filter(Boolean)));
     if (cleanList.length > 0) {
       localStorage.setItem(STORAGE_KEY_GEMINI_KEYS, JSON.stringify(cleanList));
       localStorage.setItem('gemini_api_key', cleanList[0]);
+      localStorage.setItem('hss_gemini_keys', JSON.stringify(cleanList));
+      localStorage.setItem('gemini_api_keys', JSON.stringify(cleanList));
     }
   } catch (_) {}
 }
 
 export async function fetchCloudGeminiKeys() {
+  const discovered = new Set(getStoredGeminiKeys());
+
   try {
-    const snap = await getDoc(doc(db, 'systemSettings', 'geminiConfig'));
-    if (snap.exists()) {
-      const data = snap.data();
-      const keys = data.apiKeys || (data.apiKey ? [data.apiKey] : []);
-      if (keys.length > 0) {
-        saveGeminiKeys(keys);
-        return keys;
-      }
+    // 1. Try systemSettings/geminiConfig
+    const snap1 = await getDoc(doc(db, 'systemSettings', 'geminiConfig'));
+    if (snap1.exists()) {
+      const data = snap1.data() || {};
+      const keys = data.apiKeys || data.keys || (data.apiKey ? [data.apiKey] : []) || [];
+      if (Array.isArray(keys)) keys.forEach(k => k && discovered.add(String(k).trim()));
+      else if (typeof keys === 'string' && keys.trim()) discovered.add(keys.trim());
     }
   } catch (_) {}
-  return getStoredGeminiKeys();
+
+  try {
+    // 2. Try systemSettings/aiConfig
+    const snap2 = await getDoc(doc(db, 'systemSettings', 'aiConfig'));
+    if (snap2.exists()) {
+      const data = snap2.data() || {};
+      const keys = data.apiKeys || data.keys || data.aiKeys || (data.apiKey ? [data.apiKey] : []) || [];
+      if (Array.isArray(keys)) keys.forEach(k => k && discovered.add(String(k).trim()));
+      else if (typeof keys === 'string' && keys.trim()) discovered.add(keys.trim());
+    }
+  } catch (_) {}
+
+  try {
+    // 3. Try systemSettings/globalSettings
+    const snap3 = await getDoc(doc(db, 'systemSettings', 'globalSettings'));
+    if (snap3.exists()) {
+      const data = snap3.data() || {};
+      const keys = data.geminiKeys || (data.geminiApiKey ? [data.geminiApiKey] : []) || [];
+      if (Array.isArray(keys)) keys.forEach(k => k && discovered.add(String(k).trim()));
+    }
+  } catch (_) {}
+
+  const finalKeys = Array.from(discovered).filter(Boolean);
+  if (finalKeys.length > 0) {
+    saveGeminiKeys(finalKeys);
+  }
+  return finalKeys;
 }
 
 export async function saveCloudGeminiKeys(keys) {
-  const list = Array.isArray(keys) ? keys.filter(Boolean) : [keys].filter(Boolean);
-  saveGeminiKeys(list);
+  const list = Array.isArray(keys) ? keys : [keys];
+  const cleanList = Array.from(new Set(list.map(k => (typeof k === 'string' ? k.trim() : '')).filter(Boolean)));
+  saveGeminiKeys(cleanList);
+
+  const payload = {
+    apiKeys: cleanList,
+    apiKey: cleanList[0] || '',
+    updatedAt: new Date().toISOString()
+  };
+
   try {
-    await setDoc(doc(db, 'systemSettings', 'geminiConfig'), {
-      apiKeys: list,
-      apiKey: list[0] || '',
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (_) {}
+    await Promise.all([
+      setDoc(doc(db, 'systemSettings', 'geminiConfig'), payload, { merge: true }),
+      setDoc(doc(db, 'systemSettings', 'aiConfig'), payload, { merge: true })
+    ]);
+  } catch (err) {
+    console.warn('Could not write to systemSettings/geminiConfig:', err);
+  }
 }
 
 export function getPreferredGeminiModel() {
@@ -81,6 +143,7 @@ export function savePreferredGeminiModel(modelId) {
 
 /**
  * Direct Client-Side Gemini Call Fallback (Used when serverless function is unreachable or 404 on localhost)
+ * Supports multi-key failover pool across all connected keys in Firestore & LocalStorage.
  */
 async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, maxOutputTokens = 8192 }) {
   let keys = getStoredGeminiKeys();
@@ -95,18 +158,17 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
 
   if (!keys.length) {
     const entered = window.prompt(
-      'Gemini AI Key is required for image/gazette analysis.\nPlease enter your Google Gemini API Key:'
+      '🔑 Gemini AI API Key Required\n\nPlease enter your Google Gemini API Key. It will be saved permanently to Cloud Firestore & LocalStorage for all modules (Certificates, Bulk Import, Admit Cards, Gazette):'
     );
     if (entered && entered.trim()) {
       keys = [entered.trim()];
       saveGeminiKeys(keys);
       saveCloudGeminiKeys(keys).catch(() => {});
     } else {
-      throw new Error('Gemini API key is required. Please provide an API key to continue.');
+      throw new Error('Gemini API key is required to perform AI analysis. Please configure your key in settings.');
     }
   }
 
-  const apiKey = keys[0];
   const modelName = model || getPreferredGeminiModel() || 'gemini-2.5-flash';
 
   const parts = [{ text: prompt }];
@@ -126,33 +188,46 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
     }
   });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  let lastError = null;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        maxOutputTokens,
-        temperature: 0.1
+  // Try each key in the pool with automatic failover
+  for (let i = 0; i < keys.length; i++) {
+    const apiKey = keys[i];
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            maxOutputTokens,
+            temperature: 0.1
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const errMsg = errBody?.error?.message || `Gemini API returned HTTP ${res.status}`;
+        throw new Error(errMsg);
       }
-    })
-  });
 
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    const errMsg = errBody?.error?.message || `Gemini API returned HTTP ${res.status}`;
-    throw new Error(errMsg);
+      const resData = await res.json();
+      const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!text) {
+        throw new Error('Gemini AI returned an empty response.');
+      }
+
+      return { text, model: modelName };
+    } catch (err) {
+      console.warn(`Key #${i + 1} failed in direct Gemini client:`, err.message);
+      lastError = err;
+    }
   }
 
-  const resData = await res.json();
-  const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!text) {
-    throw new Error('Gemini AI returned an empty response.');
-  }
-
-  return { text, model: modelName };
+  throw lastError || new Error('All configured Gemini API keys failed.');
 }
 
 async function requestAi(payload, signal) {
