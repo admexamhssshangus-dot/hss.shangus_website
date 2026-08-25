@@ -4066,7 +4066,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({ ...formData });
   };
 
   return (
@@ -4198,7 +4198,6 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                   value={formData["Student's Name"]}
                   onChange={(e) => handleChange("Student's Name", e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  required
                 />
               </div>
               <div>
@@ -4713,8 +4712,16 @@ export default function AdvancedReports({
       const sStatus = updatedFields['Status'] || updatedFields.status || 'Submitted';
       const sSubs = updatedFields['Subjects'] || updatedFields['selectedSubjects'] || updatedFields.subs || '';
 
+      const sPhoto = updatedFields['Student Photo'] || updatedFields.photoId || updatedFields.photo_id || '';
+
       const payload = {
         ...updatedFields,
+        ...(sPhoto ? {
+          'Student Photo': sPhoto,
+          photoId: sPhoto,
+          photo_id: sPhoto,
+          studentPhoto: sPhoto
+        } : {}),
         ...(sName ? {
           studentName: sName,
           "Student's Name": sName,
@@ -4888,7 +4895,6 @@ export default function AdvancedReports({
       } catch (_) {}
 
       setEditingStudent(null);
-      setConfirmModalConfig(null);
       setToast({
         message: `✅ Student record for ${studentName} updated successfully across all portals!`,
         type: 'success'
@@ -4907,21 +4913,7 @@ export default function AdvancedReports({
   };
 
   const handleSaveStudentEdit = (updatedFields) => {
-    const sName = updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || editingStudent?.studentName || 'Student';
-    const fNo = updatedFields['Form Number'] || updatedFields['Form No.'] || editingStudent?.formNo || '—';
-
-    setConfirmModalConfig({
-      isOpen: true,
-      type: 'warning',
-      title: 'Confirm Student Record Update',
-      message: `Are you sure you want to save modifications for ${sName} (Form #${fNo})?`,
-      consequence: 'All changed fields will be committed directly to official student registers in Cloud Firestore and synced.',
-      confirmText: 'Confirm & Commit',
-      showReasonInput: true,
-      onConfirm: ({ reasonCategory, customReason }) => {
-        executeSaveStudentEdit(updatedFields, reasonCategory, customReason);
-      }
-    });
+    executeSaveStudentEdit(updatedFields, 'Routine Update', 'Direct Admin Update');
   };
 
   // ─── Quick Cell Edit Controls & Handlers ───
