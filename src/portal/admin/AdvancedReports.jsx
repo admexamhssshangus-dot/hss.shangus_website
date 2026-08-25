@@ -2140,13 +2140,10 @@ function OnDemandStudentPhotoCell({ student, val }) {
       return;
     }
 
-    // Do NOT fetch or track photos for historical archives — only active admissions
-    if (student?._isCurrentScope === false || student?.isHistorical || student?._isHistorical) {
-      setPhotoUrl('');
-      return;
-    }
-
-    // Lazy load photo on scroll into viewport via IntersectionObserver
+    // Historical rows are read-only, but they still need their centralized
+    // photo resolved for registers and profile previews. Keep this lazy so a
+    // large archive does not trigger a full studentPhotos scan or fetch storm.
+    // Lazy load photo on scroll into viewport via IntersectionObserver.
     if (typeof window !== 'undefined' && 'IntersectionObserver' in window && cellRef.current) {
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {

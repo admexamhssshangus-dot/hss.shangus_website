@@ -7221,28 +7221,28 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
             {/* TAB 3: FACULTY DIRECTORY */}
             {activeTab === 'faculty' && allowedTabs.includes('faculty') && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-1.5">
+              <div className="space-y-2.5 animate-in fade-in duration-200">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-2.5 mb-1">
                   <div className="max-w-2xl shrink-0">
-                    <h3 className="text-base font-bold text-slate-100">Faculty & Staff Directory</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed mt-1">Manage staff profiles, directory visibility, deployment status and roster exports. Contact and service details remain restricted to authorised administrators.</p>
+                    <h3 className="text-sm font-bold text-slate-100">Faculty & Staff Directory</h3>
+                    <p className="text-[10px] text-slate-400 leading-snug mt-0.5">Profiles, visibility, deployment and roster exports · contacts stay admin-only.</p>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 w-full xl:w-auto xl:ml-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5 w-full xl:w-auto xl:ml-auto" aria-label="Roster tools">
                     <button
                       onClick={handleDownloadCSVTemplate}
-                      className="min-h-[40px] px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-amber-400 transition-colors shadow w-full uppercase tracking-wide"
+                      className="min-h-[38px] xl:min-h-[32px] px-2.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 text-[9px] font-extrabold flex items-center justify-center gap-1 border border-amber-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Download the standard CSV template with headers and a sample row"
                     >
                       <FileSpreadsheet size={13} />
-                      Get CSV Template
+                      Template
                     </button>
                     <button
                       onClick={() => document.getElementById('csv-import-input').click()}
-                      className="min-h-[40px] px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-blue-400 transition-colors shadow w-full uppercase tracking-wide"
+                      className="min-h-[38px] xl:min-h-[32px] px-2.5 py-1.5 rounded-md bg-blue-500 hover:bg-blue-400 text-slate-950 text-[9px] font-extrabold flex items-center justify-center gap-1 border border-blue-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Upload a CSV roster of employees"
                     >
                       <Upload size={13} />
-                      Import CSV
+                      Import
                     </button>
                     <input
                       id="csv-import-input"
@@ -7253,11 +7253,11 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                     />
                     <button
                       onClick={handleCSVExport}
-                      className="min-h-[40px] px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-teal-400 transition-colors shadow w-full uppercase tracking-wide"
+                      className="min-h-[38px] xl:min-h-[32px] px-2.5 py-1.5 rounded-md bg-teal-500 hover:bg-teal-400 text-slate-950 text-[9px] font-extrabold flex items-center justify-center gap-1 border border-teal-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Choose employees and columns, then download a custom CSV roster"
                     >
                       <Download size={13} />
-                      Export CSV
+                      Export
                     </button>
                     <button
                       onClick={() => {
@@ -7266,71 +7266,71 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         setBulkPrintDept('All');
                         setShowBulkPrintModal(true);
                       }}
-                      className="min-h-[40px] px-3 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-purple-400 transition-colors shadow w-full uppercase tracking-wide"
+                      className="min-h-[38px] xl:min-h-[32px] px-2.5 py-1.5 rounded-md bg-purple-500 hover:bg-purple-400 text-slate-950 text-[9px] font-extrabold flex items-center justify-center gap-1 border border-purple-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Export multiple profile sheets as PDF at once"
                     >
                       <Printer size={13} />
-                      Bulk PDF / Print
+                      Bulk print
                     </button>
                     <button
                       onClick={() => {
                         setFieldLayoutDraft(JSON.parse(JSON.stringify(fieldLayout)));
                         setShowFieldLayoutModal(true);
                       }}
-                      className="col-span-2 md:col-span-1 min-h-[40px] px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-indigo-400 transition-colors shadow w-full uppercase tracking-wide"
+                      className="col-span-2 md:col-span-1 min-h-[38px] xl:min-h-[32px] px-2.5 py-1.5 rounded-md bg-indigo-500 hover:bg-indigo-400 text-slate-950 text-[9px] font-extrabold flex items-center justify-center gap-1 border border-indigo-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Manage how custom fields are grouped in forms and exports"
                     >
                       <Layers size={13} />
-                      Manage Field Groups
+                      Fields
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2" aria-label="Faculty directory summary">
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total staff</div>
-                    <div className="mt-0.5 text-lg font-extrabold text-slate-100">{faculty.length}</div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5" aria-label="Faculty directory summary">
+                  <div className="rounded-md border border-slate-800 bg-slate-900/40 px-2.5 py-1.5 flex items-center justify-between gap-2">
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Total staff</div>
+                    <div className="text-sm font-extrabold text-slate-100">{faculty.length}</div>
                   </div>
-                  <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-3 py-2.5">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Publicly visible</div>
-                    <div className="mt-0.5 text-lg font-extrabold text-emerald-300">{faculty.filter(member => !member.hidden).length}</div>
+                  <div className="rounded-md border border-emerald-900/60 bg-emerald-950/20 px-2.5 py-1.5 flex items-center justify-between gap-2">
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-emerald-500">Visible</div>
+                    <div className="text-sm font-extrabold text-emerald-300">{faculty.filter(member => !member.hidden).length}</div>
                   </div>
-                  <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2.5">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-amber-500">Hidden / inactive</div>
-                    <div className="mt-0.5 text-lg font-extrabold text-amber-300">{faculty.filter(member => member.hidden).length}</div>
+                  <div className="rounded-md border border-amber-900/60 bg-amber-950/20 px-2.5 py-1.5 flex items-center justify-between gap-2">
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-amber-500">Hidden</div>
+                    <div className="text-sm font-extrabold text-amber-300">{faculty.filter(member => member.hidden).length}</div>
                   </div>
-                  <div className="rounded-lg border border-blue-900/60 bg-blue-950/20 px-3 py-2.5">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-blue-500">On deployment</div>
-                    <div className="mt-0.5 text-lg font-extrabold text-blue-300">{faculty.filter(member => member.if_deployed && member.if_deployed !== 'No').length}</div>
+                  <div className="rounded-md border border-blue-900/60 bg-blue-950/20 px-2.5 py-1.5 flex items-center justify-between gap-2">
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-blue-500">Deployment</div>
+                    <div className="text-sm font-extrabold text-blue-300">{faculty.filter(member => member.if_deployed && member.if_deployed !== 'No').length}</div>
                   </div>
                 </div>
 
                 {/* Add new faculty form */}
-                <div className="bg-slate-900/30 p-3.5 rounded-xl border border-slate-800 space-y-3">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-200">Add a staff member</h4>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Only name, designation, subject, department and the approved photo are published in the public directory.</p>
+                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <h4 className="text-[11px] font-bold text-slate-200">Quick add</h4>
+                    <p className="text-[9px] text-slate-500">Public: name, role, subject, department and approved photo only.</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 items-end gap-3">
-                    <div className="xl:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-10 items-end gap-2">
+                    <div className="xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Full Name</label>
                       <input
                         type="text"
                         placeholder="Mr. Sheikh Gulfam"
                         value={newTeacher.name}
                         onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div className="xl:col-span-1">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Designation</label>
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Designation</label>
                       <select
                         value={STANDARD_DESIGNATIONS.includes(newTeacher.designation) ? newTeacher.designation : 'Other'}
                         onChange={(e) => {
                           const val = e.target.value;
                           setNewTeacher({ ...newTeacher, designation: val === 'Other' ? '' : val });
                         }}
-                        className="w-full min-h-[40px] px-2 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
                         <option value="">Select</option>
                         {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -7342,19 +7342,19 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           placeholder="Custom"
                           value={newTeacher.designation}
                           onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                          className="w-full mt-1.5 min-h-[40px] px-2 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                          className="w-full mt-1 min-h-[40px] xl:min-h-[34px] px-2 py-2 xl:py-1 rounded-md bg-slate-900 border border-slate-700 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                         />
                       )}
                     </div>
-                    <div className="xl:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Subject</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Subject</label>
                       <select
                         value={STANDARD_SUBJECTS.includes(newTeacher.subject) ? newTeacher.subject : (newTeacher.subject ? 'Other' : '')}
                         onChange={(e) => {
                           const val = e.target.value;
                           setNewTeacher({ ...newTeacher, subject: val === 'Other' ? ' ' : val });
                         }}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
                         <option value="">Select Subject</option>
                         {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -7366,12 +7366,12 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           placeholder="Custom Subject"
                           value={newTeacher.subject.trim()}
                           onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
-                          className="w-full mt-1.5 min-h-[40px] px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                          className="w-full mt-1 min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-900 border border-slate-700 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                         />
                       )}
                     </div>
-                    <div className="xl:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Department</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Department</label>
                       <select
                         value={STANDARD_DEPTS.includes(newTeacher.department) ? newTeacher.department : 'Other'}
                         onChange={(e) => {
@@ -7382,7 +7382,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             setNewTeacher({ ...newTeacher, department: val });
                           }
                         }}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
@@ -7398,36 +7398,36 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           placeholder="Enter department name..."
                           value={newTeacher.department}
                           onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                          className="w-full mt-1.5 min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                          className="w-full mt-1 min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                         />
                       )}
                     </div>
-                    <div className="xl:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Email Address</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Email</label>
                       <input
                         type="email"
                         placeholder="example@gmail.com"
                         value={newTeacher.email}
                         onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
                     <div className="xl:col-span-1">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Mobile No</label>
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Mobile</label>
                       <input
                         type="text"
                         placeholder="+91-7006XXXXXX"
                         value={newTeacher.mobile}
                         onChange={(e) => setNewTeacher({ ...newTeacher, mobile: e.target.value })}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="xl:col-span-2 sm:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Profile Photo</label>
-                      <div className="flex min-h-[40px] items-center">
-                        <label className={`w-full min-h-[40px] rounded-lg text-slate-950 text-[10px] font-extrabold cursor-pointer transition-colors flex items-center justify-center gap-1.5 border whitespace-nowrap ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
+                    <div className="sm:col-span-2 xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Photo</label>
+                      <div className="flex min-h-[40px] xl:min-h-[34px] items-center">
+                        <label className={`w-full min-h-[40px] xl:min-h-[34px] rounded-md text-slate-950 text-[9px] font-extrabold cursor-pointer transition-colors flex items-center justify-center gap-1 border whitespace-nowrap ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
                           <Upload size={13} />
-                          {newTeacherPhotoFile ? 'Photo loaded' : 'Choose photo'}
+                          {newTeacherPhotoFile ? 'Loaded' : 'Choose'}
                           <input
                             type="file"
                             accept="image/*"
@@ -7437,13 +7437,13 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         </label>
                       </div>
                       {newTeacherPhotoFile && (
-                        <div className="text-[9px] text-emerald-400 mt-1 font-semibold truncate" title={newTeacherPhotoFile.name}>
+                        <div className="text-[8px] text-emerald-400 mt-0.5 font-semibold truncate" title={newTeacherPhotoFile.name}>
                           {newTeacherPhotoFile.name}
                         </div>
                       )}
                     </div>
-                    <div className="xl:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Directory Visibility</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Visibility</label>
                       <select
                         value={newTeacher.hidden ? 'hidden' : 'visible'}
                         onChange={(e) => {
@@ -7454,29 +7454,29 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             inactiveReason: isHidden ? (newTeacher.inactiveReason || 'Transferred') : ''
                           });
                         }}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
-                        <option value="visible">Visible (Active on Frontend)</option>
+                        <option value="visible">Visible (Public)</option>
                         <option value="hidden">Hidden (Inactive)</option>
                       </select>
                     </div>
-                    <div className="xl:col-span-2">
-                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Deployment Status</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Deployment</label>
                       <select
                         value={newTeacher.if_deployed || 'No'}
                         onChange={(e) => setNewTeacher({ ...newTeacher, if_deployed: e.target.value })}
-                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="No">No Deployment</option>
                         <option value="in">Deployed In → (from another school, works here)</option>
                         <option value="out">Deployed Out ← (our employee, sent to another school)</option>
                       </select>
                     </div>
-                    <div className="xl:col-span-2 sm:col-span-2">
+                    <div className="sm:col-span-2 xl:col-span-1">
                       <button
                         type="button"
                         onClick={handleAddTeacher}
-                        className="w-full min-h-[42px] px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 border border-orange-400 transition-colors shadow uppercase tracking-wide"
+                        className="w-full min-h-[42px] xl:min-h-[34px] px-3 py-2 xl:py-1 rounded-md bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-[10px] flex items-center justify-center gap-1 border border-orange-400 transition-colors shadow uppercase tracking-wide"
                         title="Add Teacher"
                       >
                         <UserPlus size={12} />
@@ -7485,7 +7485,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                     </div>
                     {newTeacher.hidden && (
                       <div className="xl:col-span-2 animate-in fade-in duration-200">
-                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
+                        <label className="block text-[8px] font-bold text-slate-400 uppercase mb-0.5">Inactive Reason</label>
                         <select
                           value={['Transferred', 'Retired', 'Deployed Out'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
                           onChange={(e) => {
@@ -7497,7 +7497,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                               setNewTeacher({ ...newTeacher, inactiveReason: val });
                             }
                           }}
-                          className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                          className="w-full min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                         >
                           <option value="Transferred">Transferred</option>
                           <option value="Retired">Retired</option>
@@ -7510,7 +7510,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             value={newTeacher.inactiveReason}
                             onChange={(e) => setNewTeacher({ ...newTeacher, inactiveReason: e.target.value })}
                             placeholder="Enter custom reason..."
-                            className="w-full mt-1.5 min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                            className="w-full mt-1 min-h-[40px] xl:min-h-[34px] px-3 xl:px-2 py-2 xl:py-1 rounded-md bg-slate-950 border border-slate-800 text-xs xl:text-[10px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                           />
                         )}
                       </div>
@@ -7891,9 +7891,10 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       <span className="badge-theme">{t.department}</span>
                                     </td>
                                     <td className="p-1 text-slate-400">
-                                      <div className="space-y-0.5">
-                                        <div className="truncate max-w-[170px]">{t.email || '-'}</div>
-                                        <div className="text-[10px] font-mono text-slate-500">{t.mobile || '-'}</div>
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <div className="truncate max-w-[112px]" title={t.email || ''}>{t.email || '-'}</div>
+                                        <span className="text-slate-700">·</span>
+                                        <div className="text-[9px] font-mono text-slate-500 whitespace-nowrap">{t.mobile || '-'}</div>
                                       </div>
                                     </td>
                                     <td className="p-1 text-center">
@@ -7906,7 +7907,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       </span>
                                     </td>
                                     <td className="p-1.5 text-center">
-                                      <div className="mx-auto h-9 w-9 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 flex items-center justify-center" title={t.photo ? 'Profile photo configured' : 'No profile photo'}>
+                                      <div className="mx-auto h-7 w-7 overflow-hidden rounded-md border border-slate-700 bg-slate-900 flex items-center justify-center" title={t.photo ? 'Profile photo configured' : 'No profile photo'}>
                                         {t.photo ? (
                                           <img src={t.photo} alt="" loading="lazy" className="h-full w-full object-cover" />
                                         ) : (
@@ -7919,7 +7920,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       <button
                                         type="button"
                                         onClick={() => printEmployeeProfile(t)}
-                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors flex items-center justify-center"
+                                        className="min-h-[30px] min-w-[30px] p-1.5 rounded-md text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors flex items-center justify-center"
                                         title="Print Profile / PDF"
                                         aria-label={`Print profile for ${t.name}`}
                                       >
@@ -7928,7 +7929,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       <button
                                         type="button"
                                         onClick={() => openFullEdit(index)}
-                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors flex items-center justify-center"
+                                        className="min-h-[30px] min-w-[30px] p-1.5 rounded-md text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors flex items-center justify-center"
                                         title="Edit all fields"
                                         aria-label={`Edit ${t.name}`}
                                       >
@@ -7938,7 +7939,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         type="button"
                                         onClick={() => handleMoveFacultyUp(index)}
                                         disabled={index === 0}
-                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
+                                        className="min-h-[30px] min-w-[30px] p-1.5 rounded-md text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
                                         title="Move Up"
                                         aria-label={`Move ${t.name} up`}
                                       >
@@ -7948,7 +7949,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         type="button"
                                         onClick={() => handleMoveFacultyDown(index)}
                                         disabled={index === faculty.length - 1}
-                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
+                                        className="min-h-[30px] min-w-[30px] p-1.5 rounded-md text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
                                         title="Move Down"
                                         aria-label={`Move ${t.name} down`}
                                       >
@@ -7957,7 +7958,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteTeacher(index)}
-                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex items-center justify-center"
+                                        className="min-h-[30px] min-w-[30px] p-1.5 rounded-md text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex items-center justify-center"
                                         title="Delete"
                                         aria-label={`Delete ${t.name}`}
                                       >
