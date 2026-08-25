@@ -816,9 +816,9 @@ export default function StudentCertificateStudioView({
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
 
     const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
-    const ccDcNo = raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || refNo || '—';
-    const admDate = raw['Adm. Date'] || raw.admissionDate || '—';
-    const admNo = raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—';
+    const ccDcNo = refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—';
+    const effAdmDate = admissionDate || raw['Adm. Date'] || raw.admissionDate || '—';
+    const effAdmNo = admissionNo || raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—';
     const village = raw['Village/Town'] || raw.village || raw.address || address || 'Shangus';
     const tehsil = raw['Tehsil'] || raw.tehsil || 'Anantnag';
     const district = raw['District'] || raw.district || 'Anantnag';
@@ -844,13 +844,13 @@ export default function StudentCertificateStudioView({
       examName: `Class ${className || '12th'} Examination`,
       examRollNo: effExamRoll,
       examSession: effExamMode,
-      resultStatus: isPassed ? 'Pass' : (effResultStatus === 'Reap' ? 'Re-appear' : 'Did Not Qualify'),
+      resultStatus: isPassed ? 'Pass' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : 'Did Not Qualify'),
       divisionDistinction: effDiv,
       marksObtained: effMarksObt,
       maxMarks: effMaxMarks,
       reappSubjects: effReappSubjects,
-      admissionDate: admDate,
-      admissionNo: admNo,
+      admissionDate: effAdmDate,
+      admissionNo: effAdmNo,
       withdrawalDate: effectiveWd,
       conductStatus: 'Satisfactory',
       village,
@@ -859,7 +859,7 @@ export default function StudentCertificateStudioView({
       certificateNo: ccDcNo
     });
   }, [
-    templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, includeSalutations, customFields, selectedStudent, withdrawalDate,
+    templateBody, studentName, fatherName, motherName, className, stream, rollNo, regNo, parsedDob, session, address, gender, refNo, dateStr, includeSalutations, customFields, selectedStudent, withdrawalDate, admissionDate, admissionNo,
     tcMarksObtained, tcMaxMarks, tcDivision, tcExamRoll, tcExamMode, tcResultStatus, tcReappSubjects
   ]);
 
