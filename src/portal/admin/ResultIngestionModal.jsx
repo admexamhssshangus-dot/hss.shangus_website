@@ -244,6 +244,7 @@ export default function ResultIngestionModal({
   const terminalEndRef = useRef(null);
   const [keyTestResult, setKeyTestResult] = useState(null); // null | { status: 'testing'|'success'|'error', message: string }
   const [overwriteExamRoll, setOverwriteExamRoll] = useState(false); // Toggle: overwrite exam roll no for matched students
+  const [parsingProgress, setParsingProgress] = useState(0);
 
   // Auto-scroll terminal log to bottom on new events
   useEffect(() => {
@@ -272,6 +273,7 @@ export default function ResultIngestionModal({
     }
     setIsProcessing(false);
     setProcessingStatusText('');
+    setParsingProgress(0);
     if (showToast) showToast('AI analysis cancelled.', 'info');
   };
 
@@ -309,14 +311,20 @@ export default function ResultIngestionModal({
 
   const fileInputRef = useRef(null);
 
-  // Filter students by selected class and session for template generation
+  // Filter students by selected class and session for template generation (supports Bi-Annual matching)
   const classStudents = useMemo(() => {
     return unifiedStudentsList.filter(s => {
       const cls = String(s.selectedClass || s.Class || s.raw?.['Class'] || s.cls || '').trim();
       const sess = String(s.selectedSession || s.Session || s.raw?.['Session'] || s.session || '').trim();
+      const examMode = String(s.examMode || s.raw?.['Exam Mode (Current)'] || s.raw?.currExamMode || '').trim();
       const matchCls = !selectedClass || cls.toLowerCase().includes(selectedClass.toLowerCase());
-      const matchSess = !selectedSession || sess.toLowerCase().includes(selectedSession.toLowerCase()) || 
-        selectedSession.toLowerCase().includes(sess.toLowerCase());
+      
+      const isBian = /bian|bi-annual|apr/i.test(selectedSession);
+      const matchSess = !selectedSession || isBian ||
+        sess.toLowerCase().includes(selectedSession.toLowerCase()) || 
+        selectedSession.toLowerCase().includes(sess.toLowerCase()) ||
+        examMode.toLowerCase().includes(selectedSession.toLowerCase()) ||
+        selectedSession.toLowerCase().includes(examMode.toLowerCase());
       return matchCls && matchSess;
     });
   }, [unifiedStudentsList, selectedClass, selectedSession]);
@@ -327,16 +335,22 @@ export default function ResultIngestionModal({
     if (showToast) showToast(`📥 Downloaded Excel template with ${classStudents.length} students for Class ${selectedClass || 'All'} (${selectedSession})!`, 'success');
   };
 
-  // Handle File Upload (Excel)
+  // Handle File Upload (Excel) with live progress feedback
   const handleExcelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsProcessing(true);
-    setProcessingStatusText(`Reading and matching Excel records against master registers for Class ${selectedClass || 'All'} (${selectedSession})...`);
+    setParsingProgress(20);
+    setProcessingStatusText(`Reading Excel spreadsheet "${file.name}" (${(file.size / 1024).toFixed(1)} KB)...`);
 
     try {
       const buffer = await file.arrayBuffer();
+      setParsingProgress(55);
+      setProcessingStatusText(`Matching students against Class ${selectedClass || 'All'} (${selectedSession}) database records...`);
+      
+      await new Promise(r => setTimeout(r, 120));
       const result = parseAndValidateResultFile(buffer, unifiedStudentsList, selectedClass, selectedSession);
+      setParsingProgress(90);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to parse file');
@@ -344,12 +358,14 @@ export default function ResultIngestionModal({
 
       setParsedRows(result.rows);
       setParsedStats(result.stats);
-      if (showToast) showToast(`✅ Successfully parsed ${result.rows.length} records!`, 'success');
+      setParsingProgress(100);
+      if (showToast) showToast(`✅ Successfully parsed ${result.rows.length} records (${result.stats.matched} DB matched)!`, 'success');
     } catch (err) {
       console.error('Excel Import Error:', err);
       if (showToast) showToast(`Failed to parse file: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
+      setParsingProgress(0);
       setProcessingStatusText('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -1075,6 +1091,25 @@ export default function ResultIngestionModal({
                       </label>
                     </div>
                   </div>
+
+                  {/* Live Progress Bar for Excel Parsing */}
+                  {isProcessing && (
+                    <div className="p-3.5 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 space-y-2 animate-fadeIn">
+                      <div className="flex items-center justify-between text-xs font-bold text-teal-900 dark:text-teal-200">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw size={13} className="animate-spin text-teal-600 dark:text-teal-400" />
+                          <span>{processingStatusText || 'Parsing and matching spreadsheet records...'}</span>
+                        </div>
+                        <span className="font-mono text-teal-700 dark:text-teal-300">{parsingProgress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-teal-100 dark:bg-teal-900 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-all duration-300 rounded-full"
+                          style={{ width: `${parsingProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -789,6 +789,39 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     }
   }
 
+  // 5. Full Candidate Name Match (handles spelling variants like AQUB/AQIB, MOHD/MOHAMMAD, spaces)
+  if (targetName && targetName.length >= 3) {
+    const cleanTargetName = targetName.replace(/^(mr\.|ms\.|miss|master)\s+/i, '').trim();
+    const targetNorm = cleanTargetName.replace(/\b(mohd|mohammad|mohammed|muhammad)\b/g, 'm').replace(/[^a-z0-9]/g, '');
+
+    for (const s of existingStudents) {
+      const meta = extractStudentMeta(s);
+      if (!isClassMatch(meta.sCls)) continue;
+
+      const cleanDbName = lower(meta.sName).replace(/^(mr\.|ms\.|miss|master)\s+/i, '').trim();
+      const dbNorm = cleanDbName.replace(/\b(mohd|mohammad|mohammed|muhammad)\b/g, 'm').replace(/[^a-z0-9]/g, '');
+
+      if (cleanDbName === cleanTargetName || dbNorm === targetNorm) {
+        return {
+          student: meta.normalizedStudent,
+          matchType: 'Full Name & Class Match',
+          confidence: 90
+        };
+      }
+
+      // Check consonants for Kashmiri spelling variations (e.g. AQUB vs AQIB)
+      const targetConsonants = targetNorm.replace(/[aeiou]/g, '');
+      const dbConsonants = dbNorm.replace(/[aeiou]/g, '');
+      if (targetConsonants.length >= 4 && targetConsonants === dbConsonants) {
+        return {
+          student: meta.normalizedStudent,
+          matchType: 'Phonetic Name & Class Match',
+          confidence: 86
+        };
+      }
+    }
+  }
+
   return null;
 }
 
