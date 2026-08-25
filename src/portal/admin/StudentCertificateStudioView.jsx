@@ -30,7 +30,8 @@ import {
   calculateDivision,
   extractStudentResultMarks,
   extractStudentAdmissionNumber,
-  extractStudentAdmissionDate
+  extractStudentAdmissionDate,
+  extractStudentCertificateNumber
 } from '../../utils/jkboseResultManager';
 import {
   getCachedCollectionSync,
@@ -333,8 +334,8 @@ export default function StudentCertificateStudioView({
   const [tcExamMode, setTcExamMode] = useState('Annual Regular 2025 (Oct.-Nov.)');
   const [tcResultStatus, setTcResultStatus] = useState('Passed');
   const [tcReappSubjects, setTcReappSubjects] = useState('');
-  const [admissionNo, setAdmissionNo] = useState('1101');
-  const [admissionDate, setAdmissionDate] = useState('01-07-2024');
+  const [admissionNo, setAdmissionNo] = useState('');
+  const [admissionDate, setAdmissionDate] = useState('');
 
   // ─── Custom Dynamic Fields (Add/Remove/Edit values on the fly) ───
   const [customFields, setCustomFields] = useState([]);
@@ -775,8 +776,8 @@ export default function StudentCertificateStudioView({
     const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
     setWithdrawalDate(rawWd);
 
-    const admNoResolved = extractStudentAdmissionNumber(raw) || st.rollNo || '—';
-    const admDateResolved = extractStudentAdmissionDate(raw) || '01-07-2024';
+    const admNoResolved = extractStudentAdmissionNumber(raw);
+    const admDateResolved = extractStudentAdmissionDate(raw);
     setAdmissionNo(admNoResolved);
     setAdmissionDate(admDateResolved);
     
@@ -785,7 +786,7 @@ export default function StudentCertificateStudioView({
 
     // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
     const prefix = activeTpl.refPrefix || 'HSS/SHG/TC-DC';
-    const existingCertNo = raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || raw.certificateNo;
+    const existingCertNo = extractStudentCertificateNumber(raw);
     
     if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
       setRefNo(String(existingCertNo).trim());
@@ -818,7 +819,10 @@ export default function StudentCertificateStudioView({
         fetchAndResolveStudentPhoto();
       }
     }
-    if (tpl.refPrefix) {
+    const issuedCertificateNo = extractStudentCertificateNumber(selectedStudent);
+    if (issuedCertificateNo) {
+      setRefNo(issuedCertificateNo);
+    } else if (tpl.refPrefix) {
       const cleanSerial = (rollNo && rollNo !== '—' && String(rollNo).length < 8)
         ? rollNo
         : (admissionNo && admissionNo !== '—' && String(admissionNo).length < 8 ? admissionNo : '1368');
@@ -903,9 +907,9 @@ export default function StudentCertificateStudioView({
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
 
     const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
-    const ccDcNo = refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—';
-    const effAdmDate = admissionDate || raw['Adm. Date'] || raw.admissionDate || '—';
-    const effAdmNo = admissionNo || raw['Adm. No.'] || raw.admissionNo || raw.formNo || '—';
+    const ccDcNo = refNo || extractStudentCertificateNumber(raw) || '—';
+    const effAdmDate = admissionDate || extractStudentAdmissionDate(raw) || '—';
+    const effAdmNo = admissionNo || extractStudentAdmissionNumber(raw) || '—';
     const village = raw['Village/Town'] || raw.village || raw.address || address || 'Shangus';
     const tehsil = raw['Tehsil'] || raw.tehsil || 'Anantnag';
     const district = raw['District'] || raw.district || 'Anantnag';
@@ -2015,9 +2019,9 @@ export default function StudentCertificateStudioView({
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—',
-      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '01-07-2024',
-      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
+      certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—'
     };
 
@@ -2249,9 +2253,9 @@ export default function StudentCertificateStudioView({
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—',
-      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '01-07-2024',
-      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
+      certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—'
     };
 
@@ -2348,9 +2352,9 @@ export default function StudentCertificateStudioView({
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: refNo || raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || '—',
-      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '01-07-2024',
-      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || rollNo || '—',
+      certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
+      admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+      admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—'
     };
 
@@ -2916,6 +2920,37 @@ export default function StudentCertificateStudioView({
                           placeholder="DD-MM-YYYY"
                           className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
                         />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Certificate / TC-DC No.</label>
+                        <input
+                          type="text"
+                          value={refNo}
+                          onChange={(e) => {
+                            setRefNo(e.target.value);
+                            setCustomCanvasHtml(null);
+                          }}
+                          placeholder="Enter issued certificate number"
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Gender for Certificate Pronouns</label>
+                        <select
+                          value={gender}
+                          onChange={(e) => {
+                            setGender(e.target.value);
+                            setCustomCanvasHtml(null);
+                          }}
+                          className="w-full px-1.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-bold text-[11px] outline-none focus:ring-1 focus:ring-amber-500"
+                        >
+                          <option value="">Select gender</option>
+                          <option value="F">Female — D/o, Her</option>
+                          <option value="M">Male — S/o, His</option>
+                        </select>
                       </div>
                     </div>
 
@@ -4047,11 +4082,11 @@ export default function StudentCertificateStudioView({
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Admission No.:</span>
-                      <span className="font-mono font-black text-blue-700 truncate">{admissionNo || extractStudentAdmissionNumber(selectedStudent) || rollNo || '—'}</span>
+                      <span className="font-mono font-black text-blue-700 truncate">{admissionNo || extractStudentAdmissionNumber(selectedStudent) || '—'}</span>
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Date of Admission:</span>
-                      <span className="font-mono font-black text-blue-700 truncate">{admissionDate || extractStudentAdmissionDate(selectedStudent) || '01-07-2024'}</span>
+                      <span className="font-mono font-black text-blue-700 truncate">{admissionDate || extractStudentAdmissionDate(selectedStudent) || '—'}</span>
                     </div>
                   </div>
 

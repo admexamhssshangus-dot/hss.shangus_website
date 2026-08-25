@@ -206,7 +206,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
-<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
+<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <strong>{DATE}</strong></span></p>`
   },
   {
     id: 'tc_dc_reappear',
@@ -222,7 +222,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
-<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <span class="date-issue-dashes">&nbsp;</span></span></p>`
+<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <strong>{DATE}</strong></span></p>`
   }
 ];
 
@@ -311,7 +311,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     'nighat', 'fozia', 'fauzia', 'riffat', 'shahnaza', 'shahnaz', 'ishrat', 'shahzada', 'dilshada',
     'masrat', 'musarat', 'suriya', 'samreena', 'kounsar', 'arifa', 'shumaila', 'zahida', 'bilkees',
     'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema',
-    'jabeen'
+    'jabeen', 'aaliya', 'aliya', 'aalia', 'alia'
   ]);
 
   const nameWords = String(studentName || '').toLowerCase().split(/[\s,._-]+/).filter(Boolean);

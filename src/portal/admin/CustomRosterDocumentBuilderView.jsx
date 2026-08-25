@@ -532,24 +532,12 @@ export function extractSession(st) {
   const keys = [
     "Session", "session", "Academic Session", "academicSession", "academic_session",
     "Session / Batch", "sessionBatch", "Batch", "batch",
-    "Passing Year", "passingYear", "Year", "year", "sessionTag", "academic_year",
-    "Exam Mode (Current)", "currExamMode", "exam_mode_current", "examMode", "Exam Mode"
+    "Passing Year", "passingYear", "Year", "year", "sessionTag", "academic_year"
   ];
   for (const k of keys) {
     const valObj = raw[k] || st[k];
     if (valObj && String(valObj).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(valObj).trim())) {
       let val = String(valObj).trim();
-
-      // Normalize verbose JKBOSE Exam Mode strings into authentic academic session format
-      if (/^Annual\s+Regular\s+2025/i.test(val)) {
-        return '2025-26';
-      }
-      if (/^Annual\s+Regular\s+2024/i.test(val)) {
-        return '2024-25';
-      }
-      if (/^Annual\s+Regular\s+2026/i.test(val)) {
-        return '2026-27';
-      }
 
       if (/^20\d{2}\s*[-/]\s*20\d{2}$/.test(val)) {
         const parts = val.split(/[-/]/).map(p => p.trim());
@@ -941,7 +929,7 @@ export function isFemaleCandidateName(nameStr) {
     'nighat', 'fozia', 'fauzia', 'riffat', 'shahnaza', 'shahnaz', 'ishrat', 'shahzada', 'dilshada',
     'masrat', 'musarat', 'suriya', 'samreena', 'kounsar', 'arifa', 'shumaila', 'zahida', 'bilkees',
     'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema',
-    'jabeen'
+    'jabeen', 'aaliya', 'aliya', 'aalia', 'alia'
   ]);
 
   return words.some(w => femaleTokens.has(w));
@@ -965,6 +953,16 @@ export function extractGender(st) {
     }
   }
 
+  // Imported spreadsheets frequently vary punctuation/case in the heading.
+  for (const [key, value] of Object.entries(raw)) {
+    const normalizedKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!['gender', 'sex', 'studentgender', 'applicantgender', 'candidategender'].includes(normalizedKey)) continue;
+    if (!value || /^(—|-|n\/?a|null|undefined)$/i.test(String(value).trim())) continue;
+    const normalizedValue = String(value).trim().toLowerCase();
+    if (normalizedValue.startsWith('f') || normalizedValue === 'girl') return 'Female (F)';
+    if (normalizedValue.startsWith('m') || normalizedValue === 'boy') return 'Male (M)';
+  }
+
   // If gender field is not explicitly present in record, detect from candidate name
   const studentName = raw.name || raw.studentName || raw["Student's Name"] || raw['Name'] || st.name || st.studentName || '';
   if (studentName && isFemaleCandidateName(studentName)) {
@@ -983,12 +981,18 @@ export function extractDob(st) {
   if (!st) return '—';
   const keys = [
     "DoB (as per school records)", "DoB (figures)", "Date of Birth", "DOB", "dob",
-    "dobFigures", "Birth Date"
+    "dobFigures", "Birth Date", "DOB (DD-MM-YYYY)", "DOB (DD/MM/YYYY)",
+    "Date Of Birth (DD-MM-YYYY)", "Student DOB"
   ];
   for (const k of keys) {
     if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
       return String(st[k]).trim();
     }
+  }
+  for (const [key, value] of Object.entries(st?.raw || st || {})) {
+    const normalizedKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!['dob', 'dateofbirth', 'studentdob', 'candidatedob'].includes(normalizedKey)) continue;
+    if (value && !/^(—|-|n\/?a|null|undefined)$/i.test(String(value).trim())) return String(value).trim();
   }
   return '—';
 }

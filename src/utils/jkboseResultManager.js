@@ -10,6 +10,25 @@ import { doc, getDoc, setDoc, updateDoc, writeBatch, serverTimestamp } from 'fir
 import { updateCachedItem } from '../services/dbCache';
 import { generateStructuredWithGemini, getPreferredGeminiModel } from '../services/geminiLetterService';
 
+const isUsableRecordValue = (value) => {
+  if (value === undefined || value === null) return false;
+  const text = String(value).trim();
+  return Boolean(text && !/^(—|-|n\/?a|null|undefined|none|#n\/a|#value!|#ref!)$/i.test(text));
+};
+
+const normalizeRecordKey = (key) => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const findNormalizedRecordValue = (raw, aliases = []) => {
+  if (!raw || typeof raw !== 'object') return '';
+  const wanted = new Set(aliases.map(normalizeRecordKey));
+  for (const [key, value] of Object.entries(raw)) {
+    if (wanted.has(normalizeRecordKey(key)) && isUsableRecordValue(value)) return value;
+  }
+  return '';
+};
+
+const firstUsableRecordValue = (...values) => values.find(isUsableRecordValue) ?? '';
+
 /**
  * Standard JKBOSE Subject Code Definitions
  */
@@ -150,31 +169,19 @@ export function extractStudentResultMarks(st) {
                     raw['Exam Result'] ||
                     raw['Result'] ||
                     (raw.status && !['active', 'approved', 'admitted', 'enrolled', 'pending'].includes(String(raw.status).trim().toLowerCase()) ? raw.status : '') ||
+                    findNormalizedRecordValue(raw, ['Current Result', 'Result Current', 'JKBOSE Result', 'Exam Result']) ||
                     st?.resultStatus ||
                     '';
 
   // 2. Marks / Reapp Candidate Keys (Only checking valid result marks)
-  const rawMarks = raw['Marks/Reapp (Current)'] ??
-                   raw.marks_reapp_current ??
-                   raw.currMarksReapp ??
-                   raw['Marks Obtained'] ??
-                   raw.marksObtained ??
-                   raw['Marks Obt. (Prev.)'] ??
-                   raw['Marks Obt.(Prev.)'] ??
-                   raw['Marks Obt (Prev)'] ??
-                   raw['Marks Obt.'] ??
-                   raw['Marks Obt'] ??
-                   raw['Marks/Reapp'] ??
-                   raw['Marks'] ??
-                   raw.marks ??
-                   raw.result_marks ??
-                   raw['Total Marks Obtained in Class 12th'] ??
-                   raw['Total Marks in Class 12th'] ??
-                   raw['Total Marks Obtained'] ??
-                   raw['Total Marks'] ??
-                   raw.marks_12th ??
-                   st?.marksObtained ??
-                   '';
+  const rawMarks = firstUsableRecordValue(
+    raw['Marks/Reapp (Current)'], raw.marks_reapp_current, raw.currMarksReapp,
+    raw['Marks Obtained'], raw.marksObtained, raw['Marks/Reapp'], raw['Marks'], raw.marks,
+    raw.result_marks, raw['Total Marks Obtained in Class 12th'], raw['Total Marks in Class 12th'],
+    raw['Total Marks Obtained'], raw['Total Marks'], raw.marks_12th,
+    findNormalizedRecordValue(raw, ['Current Marks', 'Marks Current', 'Marks Obtained Current', 'Marks Reapp Current', 'Result Marks']),
+    st?.marksObtained
+  );
 
   // 3. Genuine Board Exam Roll No (Never fallback to internal class roll numbers like 130, 118, 21)
   const examRoll = raw['Exam R.No. (Current)'] ||
@@ -189,6 +196,7 @@ export function extractStudentResultMarks(st) {
                    raw['Board Roll No.'] ||
                    raw['JKBOSE Roll No'] ||
                    raw['Roll No (12th)'] ||
+                   findNormalizedRecordValue(raw, ['Current Exam Roll No', 'Exam Roll Number Current', 'JKBOSE Roll Number', 'Board Exam Roll No']) ||
                    st?.examRollNo ||
                    '';
 
@@ -246,13 +254,15 @@ export function extractStudentResultMarks(st) {
   }
 
   // 5. Division / Distinction
-  let division = raw['Div/Distinc (Current)'] || raw.currDiv || raw.division || raw['Division'] || raw['Distinction'] || st?.division || '';
+  let division = raw['Div/Distinc (Current)'] || raw.currDiv || raw.division || raw['Division'] || raw['Distinction'] ||
+    findNormalizedRecordValue(raw, ['Current Division', 'Division Current', 'Division Distinction Current', 'Div Distinc Current']) || st?.division || '';
   if (hasResult && !division && marksObtained) {
     division = calculateDivision(marksObtained, maxMarks).division;
   }
 
   // 6. Exam Mode / Session
-  const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.exam_mode_current || raw.examMode || raw['Exam Mode'] || '';
+  const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.exam_mode_current || raw.examMode || raw['Exam Mode'] ||
+    findNormalizedRecordValue(raw, ['Current Exam Mode', 'Exam Mode Current', 'Examination Mode']) || '';
 
   return {
     hasResult: hasResult && (isPassed || isReap || isFailed),
@@ -285,9 +295,19 @@ export function extractStudentAdmissionNumber(st) {
     raw['Adm. No'],
     raw['Adm No.'],
     raw['Adm No'],
+    raw['Adm.No.'],
+    raw['Adm.No'],
+    raw['AdmNo'],
+    raw['ADM. NO.'],
+    raw['ADM NO'],
+    raw['ADM_NO'],
     raw['admNo'],
     raw['admissionNo'],
     raw['Adm_No'],
+    raw['Admission_No'],
+    raw['Admission_Number'],
+    raw['Adm. No. (if allotted)'],
+    raw['Adm No (if allotted)'],
     raw['Adm No (11th)'],
     raw['Adm No (12th)'],
     raw['Adm. No. (Class 11th)'],
@@ -301,18 +321,17 @@ export function extractStudentAdmissionNumber(st) {
   ];
 
   for (const c of candidates) {
-    if (c !== undefined && c !== null) {
-      const s = String(c).trim();
-      if (s && !/^(—|-|n\/?a|null|undefined|none)$/i.test(s)) {
-        return s;
-      }
-    }
+    if (isUsableRecordValue(c)) return String(c).trim();
   }
 
-  // Fallback to Class Roll Number if small and numeric
-  const classRoll = String(raw['Class Roll No.'] || raw['Class Roll No'] || raw.classRollNo || raw['Roll No.'] || raw.rollNo || st?.rollNo || '').trim();
-  if (classRoll && /^\d{1,4}$/.test(classRoll) && parseInt(classRoll, 10) < 1000) {
-    return classRoll;
+  // Handle punctuation/case variants without confusing admission dates,
+  // statuses, or class-roll numbers with an admission number.
+  for (const [key, value] of Object.entries(raw)) {
+    const normalized = normalizeRecordKey(key);
+    const looksLikeAdmissionNo = (normalized.includes('admission') || normalized.startsWith('adm')) &&
+      (normalized.includes('no') || normalized.includes('number'));
+    if (!looksLikeAdmissionNo || normalized.includes('date') || normalized.includes('status') || normalized.includes('readmission')) continue;
+    if (isUsableRecordValue(value) && !/^(yes|no|true|false)$/i.test(String(value).trim())) return String(value).trim();
   }
 
   return '';
@@ -348,10 +367,6 @@ export function extractStudentAdmissionDate(st) {
     raw['doa'],
     raw['Date of Joining'],
     raw['Enrolment Date'],
-    raw['Registration Date'],
-    raw.regDate,
-    raw['Created At'],
-    raw.createdAt,
     st?.admissionDate,
     st?.admDate
   ];
@@ -382,17 +397,34 @@ export function extractStudentAdmissionDate(st) {
     }
   }
 
-  // Smart fallback based on session and class (Class 12th admitted 2 years prior; Class 11th admitted 1 year prior)
-  const cls = String(raw.Class || raw.class || raw.className || st?.cls || '12th').toLowerCase();
-  const sess = String(raw.session || raw.Session || st?.session || '').trim();
-  const sessYearMatch = sess.match(/(20\d{2})/);
-  if (sessYearMatch) {
-    const examYear = parseInt(sessYearMatch[1], 10);
-    const admYear = cls.includes('12') ? (examYear - 2) : (examYear - 1);
-    return `01-07-${admYear > 2000 ? admYear : 2024}`;
+  const fuzzyDate = findNormalizedRecordValue(raw, [
+    'Date Admission', 'Admission Date', 'Date of Admission', 'Admission Joining Date',
+    'Date of Joining', 'Enrolment Date', 'DOA'
+  ]);
+  if (fuzzyDate) {
+    return extractStudentAdmissionDate({ 'Date of Admission': fuzzyDate });
   }
 
-  return '01-07-2024';
+  return '';
+}
+
+/** Extract an already-issued TC/DC/certificate number without inventing one. */
+export function extractStudentCertificateNumber(st) {
+  if (!st) return '';
+  const raw = st?.raw || st || {};
+  const value = findNormalizedRecordValue(raw, [
+    'No. & Date of CC/DC Issued (This Institution)',
+    'No. & Date of CC/DC Issued',
+    'CC/DC No. & Date',
+    'CC DC Number',
+    'TC DC Number',
+    'Certificate Number',
+    'Certificate No',
+    'ccDcNo',
+    'certificateNo',
+    'currCcDc'
+  ]);
+  return isUsableRecordValue(value) ? String(value).trim() : '';
 }
 
 /**
@@ -1585,7 +1617,9 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
             });
 
             if (matchedPatchItem) {
-              return { ...rawItem, ...matchedPatchItem.patch };
+              const itemPatch = { ...matchedPatchItem.patch };
+              delete itemPatch.updatedAt;
+              return { ...rawItem, ...itemPatch };
             }
             return rawItem;
           });
