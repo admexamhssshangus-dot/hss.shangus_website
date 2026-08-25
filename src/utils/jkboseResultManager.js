@@ -1237,6 +1237,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = []) {
       formNo = `PVT_${item.examRollNo || item.regNo || fallbackFormCounter++}`;
     }
 
+    // === RESULT-ONLY FIELDS (always safe to write for both matched & new students) ===
     const patch = {
       'Exam Mode (Current)': item.examMode || '',
       'Exam R.No. (Current)': item.examRollNo || '',
@@ -1252,56 +1253,61 @@ export async function batchUpdateStudentResults(recordsToUpdate = []) {
       updatedAt: serverTimestamp()
     };
 
-    // If new student or missing primary fields, populate them non-destructively
-    if (item.studentName && item.studentName !== '—') {
-      patch["Student's Name"] = item.studentName;
-      patch.studentName = item.studentName;
-    }
-    if (item.fatherName && item.fatherName !== '—') {
-      patch["Father's Name"] = item.fatherName;
-      patch.fatherName = item.fatherName;
-    }
-    if (item.motherName) {
-      patch["Mother's Name"] = item.motherName;
-      patch.motherName = item.motherName;
-    }
-    if (item.regNo) {
-      patch['Board Reg. No.'] = item.regNo;
-      patch['Board Registration Number'] = item.regNo;
-      patch.boardRegNo = item.regNo;
-      patch.regNo = item.regNo;
-    }
-    if (item.className) {
-      patch['Class'] = item.className;
-      patch['Admission sought for class'] = item.className;
-      patch.class = item.className;
-    }
-    if (item.stream) {
-      patch['Stream'] = item.stream;
-      patch.stream = item.stream;
-    }
+    // Subjects/re-appear subjects are always safe to update (result data)
     if (item.subs) {
       patch['Subjects'] = item.subs;
       patch.subs = item.subs;
     }
-    if (item.examCentre) {
-      patch['Exam Centre'] = item.examCentre;
-      patch.examCentre = item.examCentre;
-    }
-    if (item.gender) {
-      patch['Gender'] = item.gender;
-      patch.gender = item.gender;
-    }
-    if (item.dob) {
-      patch['Date of Birth'] = item.dob;
-      patch.dob = item.dob;
-    }
-    if (item.examMode) {
-      patch['Session'] = item.examMode;
-      patch.session = item.examMode;
-    }
 
+    // === IDENTITY FIELDS — Only write for NEW students to avoid overwriting correct existing data ===
+    // For DB-matched students, name/regNo/father/mother/gender/DOB are already correct in Firestore.
+    // AI OCR extractions may contain errors, so we NEVER overwrite identity fields for existing students.
     if (isNewStudent) {
+      if (item.studentName && item.studentName !== '—') {
+        patch["Student's Name"] = item.studentName;
+        patch.studentName = item.studentName;
+      }
+      if (item.fatherName && item.fatherName !== '—') {
+        patch["Father's Name"] = item.fatherName;
+        patch.fatherName = item.fatherName;
+      }
+      if (item.motherName) {
+        patch["Mother's Name"] = item.motherName;
+        patch.motherName = item.motherName;
+      }
+      if (item.regNo) {
+        patch['Board Reg. No.'] = item.regNo;
+        patch['Board Registration Number'] = item.regNo;
+        patch.boardRegNo = item.regNo;
+        patch.regNo = item.regNo;
+      }
+      if (item.className) {
+        patch['Class'] = item.className;
+        patch['Admission sought for class'] = item.className;
+        patch.class = item.className;
+      }
+      if (item.stream) {
+        patch['Stream'] = item.stream;
+        patch.stream = item.stream;
+      }
+      if (item.examCentre) {
+        patch['Exam Centre'] = item.examCentre;
+        patch.examCentre = item.examCentre;
+      }
+      if (item.gender) {
+        patch['Gender'] = item.gender;
+        patch.gender = item.gender;
+      }
+      if (item.dob) {
+        patch['Date of Birth'] = item.dob;
+        patch.dob = item.dob;
+      }
+      if (item.examMode) {
+        patch['Session'] = item.examMode;
+        patch.session = item.examMode;
+      }
+
+      // New student record setup
       patch.formNo = formNo;
       patch['Form Number'] = formNo;
       patch['Form No.'] = formNo;
