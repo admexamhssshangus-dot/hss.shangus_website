@@ -159,10 +159,19 @@ export function extractStudentResultMarks(st) {
                    raw.currMarksReapp ??
                    raw['Marks Obtained'] ??
                    raw.marksObtained ??
+                   raw['Marks Obt. (Prev.)'] ??
+                   raw['Marks Obt.(Prev.)'] ??
+                   raw['Marks Obt (Prev)'] ??
+                   raw['Marks Obt.'] ??
+                   raw['Marks Obt'] ??
                    raw['Marks/Reapp'] ??
+                   raw['Marks'] ??
+                   raw.marks ??
                    raw.result_marks ??
                    raw['Total Marks Obtained in Class 12th'] ??
                    raw['Total Marks in Class 12th'] ??
+                   raw['Total Marks Obtained'] ??
+                   raw['Total Marks'] ??
                    raw.marks_12th ??
                    st?.marksObtained ??
                    '';
@@ -279,8 +288,6 @@ export function extractStudentAdmissionNumber(st) {
     raw['admNo'],
     raw['admissionNo'],
     raw['Adm_No'],
-    raw['Admission / Form No.'],
-    raw['Adm / Form No.'],
     raw['Adm No (11th)'],
     raw['Adm No (12th)'],
     raw['Adm. No. (Class 11th)'],
@@ -289,24 +296,8 @@ export function extractStudentAdmissionNumber(st) {
     raw['Admission Number (Class 12th)'],
     raw['Admission S.No.'],
     raw['Adm. S.No.'],
-    raw['S.No.'],
-    raw['S.No'],
-    raw['Serial No'],
-    raw['Form Number'],
-    raw['Form No.'],
-    raw.formNo,
-    raw.form_number,
-    raw.form_no,
-    raw['Roll No.'],
-    raw['Class Roll No.'],
-    raw['Class Roll No'],
-    raw['Roll Number'],
-    raw.rollNo,
     st?.admissionNo,
-    st?.admNo,
-    st?.rollNo,
-    st?.formNo,
-    raw.id
+    st?.admNo
   ];
 
   for (const c of candidates) {
@@ -317,6 +308,13 @@ export function extractStudentAdmissionNumber(st) {
       }
     }
   }
+
+  // Fallback to Class Roll Number if small and numeric
+  const classRoll = String(raw['Class Roll No.'] || raw['Class Roll No'] || raw.classRollNo || raw['Roll No.'] || raw.rollNo || st?.rollNo || '').trim();
+  if (classRoll && /^\d{1,4}$/.test(classRoll) && parseInt(classRoll, 10) < 1000) {
+    return classRoll;
+  }
+
   return '';
 }
 

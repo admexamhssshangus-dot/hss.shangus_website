@@ -7356,6 +7356,7 @@ export default function AdvancedReports({
           setSelectedTableDocIds(new Set());
           setToast({ type: 'success', message: `${records.length} applications moved to the Recycle Bin.` });
           setConfirmModalConfig(null);
+          loadReportsData();
         } catch (error) {
           setToast({ type: 'error', message: `Bulk archive failed: ${error.message}` });
         } finally {
