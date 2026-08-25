@@ -866,9 +866,10 @@ export function parseAndValidateResultFile(fileData, existingStudents = [], clas
       const studentName = cleanCellValue(r["Student's Name"] || r['studentName'] || r['Name'] || r['Name of Candidate'] || r['Student']);
       const fatherName = cleanCellValue(r["Father's Name"] || r['fatherName'] || r['Father']);
       const motherName = cleanCellValue(r["Mother's Name"] || r['motherName'] || r['Mother']);
-      const className = cleanCellValue(r['Class'] || r['class'] || classScope);
+      const className = cleanCellValue(r['Class'] || r['class'] || classScope || '12th');
       const stream = cleanCellValue(r['Stream'] || r['stream']);
-      const examMode = cleanCellValue(r['Exam Mode (Current)'] || r['examMode'] || r['Session'] || sessionScope || 'Annual Regular 2025 (Oct.-Nov.)');
+      const sessionVal = cleanCellValue(r['Session'] || r['session'] || sessionScope || '2026 APR/BIAN');
+      const examMode = cleanCellValue(r['Exam Mode (Current)'] || r['Exam Mode'] || r['examMode'] || 'Annual Regular 2025 (Oct.-Nov.)');
       const examRollNo = cleanCellValue(r['Exam R.No. (Current)'] || r['Exam R.No.'] || r['Exam Roll No'] || r['examRoll'] || r['Roll No'] || r['Exam Roll']);
       
       const rawResult = cleanCellValue(r['Result (Current)'] || r['result'] || r['Result'] || r['Pass/Reap/Fail'] || r['Passed'] || '');
@@ -930,8 +931,8 @@ export function parseAndValidateResultFile(fileData, existingStudents = [], clas
 
       // Database Match with Class & Session Scoping
       const matchResult = matchStudentInDatabase({
-        formNo, regNo, examRollNo, studentName, fatherName, className, session: examMode
-      }, existingStudents, classScope, sessionScope);
+        formNo, regNo, examRollNo, studentName, fatherName, className, session: sessionVal
+      }, existingStudents, classScope || className, sessionScope || sessionVal);
 
       if (matchResult) matchedCount++;
 
@@ -943,9 +944,10 @@ export function parseAndValidateResultFile(fileData, existingStudents = [], clas
         studentName: studentName || (matchResult ? matchResult.student.name : '—'),
         fatherName: fatherName || (matchResult ? matchResult.student.fatherName : '—'),
         motherName: motherName || (matchResult ? matchResult.student.motherName : ''),
-        className: className || (matchResult ? matchResult.student.selectedClass : ''),
+        className: className || (matchResult ? matchResult.student.selectedClass : '12th'),
         stream: stream || (matchResult ? matchResult.student.selectedStream : ''),
         subs: subs || (matchResult ? matchResult.student.subs : ''),
+        session: sessionVal,
         examMode,
         examRollNo,
         resultStatus,
@@ -1459,11 +1461,11 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
         patch.boardRegNo = item.regNo;
         patch.regNo = item.regNo;
       }
-      if (item.className) {
-        patch['Class'] = item.className;
-        patch['Admission sought for class'] = item.className;
-        patch.class = item.className;
-      }
+      const cls = item.className || '12th';
+      patch['Class'] = cls;
+      patch['Admission sought for class'] = cls;
+      patch.class = cls;
+
       if (item.stream) {
         patch['Stream'] = item.stream;
         patch.stream = item.stream;
@@ -1480,10 +1482,11 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
         patch['Date of Birth'] = item.dob;
         patch.dob = item.dob;
       }
-      if (item.examMode) {
-        patch['Session'] = item.examMode;
-        patch.session = item.examMode;
-      }
+      
+      const sess = item.session || '2026 APR/BIAN';
+      patch['Session'] = sess;
+      patch['Academic Session'] = sess;
+      patch.session = sess;
 
       // New student record setup
       patch.formNo = formNo;
@@ -1506,11 +1509,13 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
       patch['Remarks'] = item.remarks;
     }
 
-    const studentRef = doc(db, 'admissions', formNo);
+    const targetCollection = item.matchedStudent?._sourceCollection || item.matchedStudent?._source || 'admissions';
+    const targetDocId = item.matchedStudent?.id || item.matchedStudent?._docId || formNo;
+    const studentRef = doc(db, targetCollection, targetDocId);
     batch.set(studentRef, patch, { merge: true });
 
     // Sync localStorage / in-memory cache instantly
-    updateCachedItem('admissions', formNo, patch);
+    updateCachedItem(targetCollection, targetDocId, patch);
     updatedCount++;
   }
 
