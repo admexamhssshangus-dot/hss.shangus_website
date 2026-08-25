@@ -21,6 +21,7 @@ import { parseSearchQuery, executeGlobalSearch, buildLocalSearchIndex, cleanSear
 import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber } from '../../services/formNumberService';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
+import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -5021,6 +5022,68 @@ export default function AdvancedReports({
       return '—';
     };
 
+    const extractIndividualSubjectsList = (rec) => {
+      if (!rec) return [];
+
+      // 1. Explicit individual fields
+      const explicitSubs = [
+        rec['Subjects1'] || rec['subjects1'] || rec['Subject 1'] || rec['Subject1'] || rec['Sub1'] || rec['sub1'],
+        rec['Subjects2'] || rec['subjects2'] || rec['Subject 2'] || rec['Subject2'] || rec['Sub2'] || rec['sub2'],
+        rec['Subjects3'] || rec['subjects3'] || rec['Subject 3'] || rec['Subject3'] || rec['Sub3'] || rec['sub3'],
+        rec['Subjects4'] || rec['subjects4'] || rec['Subject 4'] || rec['Subject4'] || rec['Sub4'] || rec['sub4'],
+        rec['Subjects5'] || rec['subjects5'] || rec['Subject 5'] || rec['Subject5'] || rec['Sub5'] || rec['sub5'],
+        rec['Subject6'] || rec['Subjects6'] || rec['subjects6'] || rec['Subject 6'] || rec['Subject6'] || rec['Sub6'] || rec['sub6']
+      ].filter(s => s && String(s).trim() !== '—' && String(s).trim() !== '-');
+
+      if (explicitSubs.length > 0) {
+        return explicitSubs.map(s => {
+          const str = String(s).trim();
+          return expandJkboseSubjectCodes(str) || str;
+        });
+      }
+
+      // 2. Check all composite subject fields
+      const rawCandidates = [
+        rec['Subjects to be taken in Class 12th'],
+        rec['Subjects to be taken in Class 11th'],
+        rec['Subjects to be taken in Class 10th'],
+        rec['Subjects to be taken in Class 9th'],
+        rec['Subjects to be taken in Class 8th'],
+        rec['Subjects Studied in Class 11th'],
+        rec['Subjects Studied in Class 10th'],
+        rec['Subjects Studied in Class 9th'],
+        rec['Subjects Studied in Class 8th'],
+        rec['selectedSubjects'],
+        rec['Subjects'],
+        rec['subjects'],
+        rec['Subs'],
+        rec['subs'],
+        rec['Subjects Offered'],
+        rec['Marks Obt. (Prev.)'],
+        rec['Stream & Subjects for Class 12th']
+      ];
+
+      for (const item of rawCandidates) {
+        if (!item) continue;
+        if (Array.isArray(item) && item.length > 0) {
+          const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
+          if (cleaned.length > 0) {
+            return cleaned.map(s => expandJkboseSubjectCodes(s) || s);
+          }
+        } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
+          const parts = String(item)
+            .split(/[,;\n\r\t]+/)
+            .map(p => p.trim())
+            .filter(p => p && p !== '—' && p !== '-' && !p.toLowerCase().includes('same as'));
+          if (parts.length > 0) {
+            return parts.map(p => expandJkboseSubjectCodes(p) || p);
+          }
+        }
+      }
+
+      return [];
+    };
+
     const cleanRegNoVal = (val) => {
       if (isPlaceholderRegNo(val)) return '';
       let s = String(val).trim();
@@ -5528,6 +5591,18 @@ export default function AdvancedReports({
         }
       }
 
+      let indivSubs = extractIndividualSubjectsList(a);
+      if (indivSubs.length === 0 && mergedRec) {
+        indivSubs = extractIndividualSubjectsList(mergedRec);
+      }
+      if (indivSubs.length === 0 && matched11thRec) {
+        indivSubs = extractIndividualSubjectsList(matched11thRec);
+      }
+      if (indivSubs.length === 0 && sSubs && sSubs !== '—') {
+        const parts = String(sSubs).split(/[,;\n\r\t]+/).map(p => p.trim()).filter(p => p && p !== '—' && p !== '-');
+        indivSubs = parts.map(p => expandJkboseSubjectCodes(p) || p);
+      }
+
       const sMobile = a['Mobile No. (with working WhatsApp)'] || a["Student's Contact"] || a['Account Mobile'] || '—';
       const sAadhar = a['Aadhar No.'] || a.aadhar || '—';
       const sPen = a['PEN No.'] || '—';
@@ -5599,12 +5674,12 @@ export default function AdvancedReports({
         religion: a['Religion'] || '—',
         disabilityStatus: a['Disability Status'] || '—',
         disabilityType: a['Disability Type'] || '—',
-        subjects1: a['Subjects1'] || '—',
-        subjects2: a['Subjects2'] || '—',
-        subjects3: a['Subjects3'] || '—',
-        subjects4: a['Subjects4'] || '—',
-        subjects5: a['Subjects5'] || '—',
-        subjects6: a['Subject6'] || '—',
+        subjects1: indivSubs[0] || (a['Subjects1'] ? (expandJkboseSubjectCodes(a['Subjects1']) || a['Subjects1']) : '—'),
+        subjects2: indivSubs[1] || (a['Subjects2'] ? (expandJkboseSubjectCodes(a['Subjects2']) || a['Subjects2']) : '—'),
+        subjects3: indivSubs[2] || (a['Subjects3'] ? (expandJkboseSubjectCodes(a['Subjects3']) || a['Subjects3']) : '—'),
+        subjects4: indivSubs[3] || (a['Subjects4'] ? (expandJkboseSubjectCodes(a['Subjects4']) || a['Subjects4']) : '—'),
+        subjects5: indivSubs[4] || (a['Subjects5'] ? (expandJkboseSubjectCodes(a['Subjects5']) || a['Subjects5']) : '—'),
+        subjects6: indivSubs[5] || (a['Subject6'] ? (expandJkboseSubjectCodes(a['Subject6']) || a['Subject6']) : (a['Subjects6'] ? (expandJkboseSubjectCodes(a['Subjects6']) || a['Subjects6']) : '—')),
         email1: a['email1'] || a['Email'] || '—',
         email2: a['email2'] || '—',
         parentContact: a["Parent's Contact"] || a["Parent's Mobile No. (must be working)"] || a["Parent's Mobile No."] || a["Father's Mobile No."] || a["parentContact"] || '—',
@@ -5737,6 +5812,15 @@ export default function AdvancedReports({
         }
       }
 
+      let indivSubsHist = extractIndividualSubjectsList(m);
+      if (indivSubsHist.length === 0 && matched11thRec) {
+        indivSubsHist = extractIndividualSubjectsList(matched11thRec);
+      }
+      if (indivSubsHist.length === 0 && sSubs && sSubs !== '—') {
+        const parts = String(sSubs).split(/[,;\n\r\t]+/).map(p => p.trim()).filter(p => p && p !== '—' && p !== '-');
+        indivSubsHist = parts.map(p => expandJkboseSubjectCodes(p) || p);
+      }
+
       const sMobile = m['Mobile No. (with working WhatsApp)'] || m["Student's Contact"] || m['Account Mobile'] || m.mobile || '—';
       const sAadhar = m['Aadhar No.'] || m.aadhar || '—';
       const sPen = m['PEN No.'] || m.penNo || '—';
@@ -5797,7 +5881,13 @@ export default function AdvancedReports({
         currResult: m['Result (Current)'] || m.result || '—',
         currMarksReapp: m['Marks/Reapp (Current)'] || m.marks || '—',
         withdrawalDate: m['Date of withdrawl'] || m.withdrawalDate || '—',
-        apaarId: m['APAAR ID'] || '—'
+        apaarId: m['APAAR ID'] || '—',
+        subjects1: indivSubsHist[0] || (m['Subjects1'] ? (expandJkboseSubjectCodes(m['Subjects1']) || m['Subjects1']) : '—'),
+        subjects2: indivSubsHist[1] || (m['Subjects2'] ? (expandJkboseSubjectCodes(m['Subjects2']) || m['Subjects2']) : '—'),
+        subjects3: indivSubsHist[2] || (m['Subjects3'] ? (expandJkboseSubjectCodes(m['Subjects3']) || m['Subjects3']) : '—'),
+        subjects4: indivSubsHist[3] || (m['Subjects4'] ? (expandJkboseSubjectCodes(m['Subjects4']) || m['Subjects4']) : '—'),
+        subjects5: indivSubsHist[4] || (m['Subjects5'] ? (expandJkboseSubjectCodes(m['Subjects5']) || m['Subjects5']) : '—'),
+        subjects6: indivSubsHist[5] || (m['Subject6'] ? (expandJkboseSubjectCodes(m['Subject6']) || m['Subject6']) : (m['Subjects6'] ? (expandJkboseSubjectCodes(m['Subjects6']) || m['Subjects6']) : '—')),
       });
     });
 
