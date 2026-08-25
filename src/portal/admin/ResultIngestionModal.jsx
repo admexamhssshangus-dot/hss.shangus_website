@@ -477,81 +477,84 @@ export default function ResultIngestionModal({
     <div className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[96vh] overflow-hidden text-xs">
         
-        {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-indigo-900/50 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold shadow-inner">
-              <Database size={20} />
+        {/* Minimal Header */}
+        <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
+              <Database size={15} />
             </div>
             <div>
-              <h3 className="text-base font-black tracking-wide flex items-center gap-2">
-                JKBOSE Exam Result, Admit Card & Roll Number Ingestion Hub
-              </h3>
-              <p className="text-[11px] text-slate-300">
-                Universal Ingestion for Regular, Private & Bi-Annual Candidates across Classes 10th, 11th, 12th.
-              </p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-black tracking-tight text-slate-100">
+                  JKBOSE Result & Roll Number Ingestion
+                </h3>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30">
+                  Universal Hub
+                </span>
+              </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
           >
-            <X size={17} />
+            <X size={15} />
           </button>
         </div>
 
-        {/* Modal Navigation Tabs & Cohort Controls */}
-        <div className="px-6 pt-3 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 overflow-x-auto">
+        {/* Minimal Segmented Tabs & Cohort Controls Bar */}
+        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 shrink-0">
+          {/* Segmented Pill Tabs */}
+          <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-900 p-0.5 rounded-xl">
             <button
               type="button"
-              onClick={() => { setActiveTab('excel'); }}
-              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              onClick={() => setActiveTab('excel')}
+              className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'excel'
-                  ? 'border-teal-600 text-teal-600 dark:text-teal-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-400 shadow-xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <FileSpreadsheet size={15} />
-              <span>Pipeline A: Excel Spreadsheet Import</span>
+              <FileSpreadsheet size={13} />
+              <span>Excel Sheet</span>
             </button>
 
             <button
               type="button"
-              onClick={() => { setActiveTab('ai_gazette'); }}
-              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              onClick={() => setActiveTab('ai_gazette')}
+              className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'ai_gazette'
-                  ? 'border-purple-600 text-purple-600 dark:text-purple-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-400 shadow-xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Sparkles size={15} />
-              <span>Pipeline B: Gemini AI Result Gazette Analyzer</span>
+              <Sparkles size={13} />
+              <span>Gazette AI OCR</span>
             </button>
 
             <button
               type="button"
-              onClick={() => { setActiveTab('ai_admit'); }}
-              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              onClick={() => setActiveTab('ai_admit')}
+              className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'ai_admit'
-                  ? 'border-amber-600 text-amber-600 dark:text-amber-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-xs font-black'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <Award size={15} />
-              <span>Pipeline C: Gemini AI Admit Card Extractor</span>
+              <Award size={13} />
+              <span>Admit Card AI</span>
             </button>
           </div>
 
-          {/* Quick Scope Selectors: Class & Dynamic Session */}
-          <div className="flex items-center gap-2 pb-2">
+          {/* Quick Scope Selectors: Class & Session & AI Status */}
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
-              <span className="text-[11px] font-bold text-slate-500">Class:</span>
+              <span className="text-[10.5px] font-bold text-slate-500">Class:</span>
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs"
+                className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-[11px]"
               >
                 <option value="12th">Class 12th</option>
                 <option value="11th">Class 11th</option>
@@ -562,36 +565,29 @@ export default function ResultIngestionModal({
             </div>
 
             <div className="flex items-center gap-1">
-              <span className="text-[11px] font-bold text-slate-500">Session:</span>
-              <div className="relative">
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs"
-                >
-                  {STANDARD_SESSIONS_LIST.map(sess => (
-                    <option key={sess} value={sess}>{sess}</option>
-                  ))}
-                  {!STANDARD_SESSIONS_LIST.includes(selectedSession) && (
-                    <option value={selectedSession}>{selectedSession} (Custom)</option>
-                  )}
-                </select>
-              </div>
+              <span className="text-[10.5px] font-bold text-slate-500">Session:</span>
+              <select
+                value={selectedSession}
+                onChange={(e) => setSelectedSession(e.target.value)}
+                className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-[11px]"
+              >
+                {STANDARD_SESSIONS_LIST.map(sess => (
+                  <option key={sess} value={sess}>{sess}</option>
+                ))}
+                {!STANDARD_SESSIONS_LIST.includes(selectedSession) && (
+                  <option value={selectedSession}>{selectedSession} (Custom)</option>
+                )}
+              </select>
             </div>
 
-            {/* Gemini API Key Pool Button */}
             <button
               type="button"
               onClick={() => setShowKeysConfig(!showKeysConfig)}
-              className="px-2.5 py-1 rounded-lg font-black text-xs border flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer transition-all shadow-2xs whitespace-nowrap"
+              className="px-2 py-0.5 rounded-lg font-bold text-[10.5px] border flex items-center gap-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs whitespace-nowrap"
               title={isSuperAdmin ? "Manage Gemini AI API Keys & Models (SuperAdmin Control)" : `Gemini AI Vision Active (${preferredModel})`}
             >
-              {isSuperAdmin ? <Key size={12} className="text-amber-600" /> : <Sparkles size={12} className="text-amber-600" />}
-              <span>
-                {isSuperAdmin
-                  ? (geminiKeys.length > 0 ? `${geminiKeys.length} Keys Pool` : 'Configure Key')
-                  : `AI Engine Active`}
-              </span>
+              {isSuperAdmin ? <Key size={11} className="text-amber-600" /> : <Sparkles size={11} className="text-amber-600" />}
+              <span>{isSuperAdmin ? `${geminiKeys.length} Keys Pool` : preferredModel}</span>
             </button>
           </div>
         </div>
@@ -875,302 +871,245 @@ export default function ResultIngestionModal({
         )}
 
         {/* Tab Content & Upload Banners */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
           
           {parsedRows.length === 0 ? (
-            <div className="space-y-4">
-              {activeTab === 'excel' ? (
-                <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-teal-300 dark:border-teal-800/60 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-14 h-14 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold">
-                    <FileSpreadsheet size={32} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                      Excel Result & Roll Number Ingestion (.xlsx)
-                    </h4>
-                    <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Download the pre-populated template with all active Class {selectedClass || 'All'} students ({selectedSession}), fill in the result/roll fields (or provide <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">Marks Obt. (Prev.)</code> for re-appear subjects), and upload below.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadTemplate('xlsx')}
-                      className="px-5 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-extrabold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs"
-                    >
-                      <Download size={15} />
-                      <span>Download Excel Template (.xlsx — Text Formatted)</span>
-                    </button>
-
-                    <label className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 text-xs">
-                      <Upload size={15} />
-                      <span>Upload Completed Excel File (.xlsx)</span>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={handleExcelUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ) : activeTab === 'ai_gazette' ? (
-                <div className="p-6 rounded-3xl bg-purple-50/50 dark:bg-purple-950/20 border border-dashed border-purple-300 dark:border-purple-800/60 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
-                    <Sparkles size={32} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                      Gemini AI Multimodal Gazette Analyzer (PDF & Multi-Screenshot Support)
-                    </h4>
-                    <p className="text-xs text-slate-500 max-w-lg mt-1">
-                      Upload the official JKBOSE Result Gazette (PDF or up to 5 screenshot images). Gemini AI will extract roll numbers, names, marks, and re-appear subject abbreviations (e.g. <code className="bg-purple-100 dark:bg-purple-900/60 px-1 rounded">Reap GN ED UD PD</code>) across all pages.
-                    </p>
-                  </div>
-
-                  {/* Multi-Screenshot Preview Tray */}
-                  {uploadedFiles.length > 0 && (
-                    <div className="w-full max-w-xl p-3 rounded-2xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800/60 space-y-2 text-left">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        <span>Attached Screenshots / Pages ({uploadedFiles.length} of 5 max):</span>
-                        <button
-                          type="button"
-                          onClick={clearAllUploadedFiles}
-                          className="text-rose-600 hover:text-rose-700 text-[10.5px] cursor-pointer"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                        {uploadedFiles.map((f, idx) => (
-                          <div key={f.id} className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-1 flex flex-col items-center">
-                            <span className="absolute top-1 left-1 px-1 rounded bg-slate-900/80 text-white font-mono text-[8.5px] font-bold z-10">
-                              #{idx + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeUploadedFile(f.id)}
-                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center cursor-pointer z-10 shadow-xs"
-                              title="Remove"
-                            >
-                              <X size={10} />
-                            </button>
-
-                            {f.previewUrl ? (
-                              <img src={f.previewUrl} alt={f.name} className="w-full h-16 object-cover rounded-lg" />
-                            ) : (
-                              <div className="w-full h-16 rounded-lg bg-purple-100 dark:bg-purple-950/60 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold">
-                                <FileText size={22} />
-                              </div>
-                            )}
-                            <div className="w-full mt-1 px-0.5">
-                              <p className="text-[9px] font-bold text-slate-700 dark:text-slate-300 truncate" title={f.name}>{f.name}</p>
-                              <p className="text-[8px] text-slate-400">{f.size}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Real-time AI Analysis Progress HUD */}
-                  {isProcessing && (
-                    <div className="w-full max-w-xl p-4 rounded-2xl bg-purple-100/80 dark:bg-purple-950/70 border border-purple-300 dark:border-purple-700 shadow-md space-y-2 text-left animate-fadeIn">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw size={15} className="text-purple-600 dark:text-purple-400 animate-spin" />
-                          <span className="font-black text-xs text-purple-950 dark:text-purple-100">
-                            Gemini AI Vision Active ({preferredModel})
-                          </span>
-                        </div>
-                        <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
-                          ⏱️ {elapsedSeconds}s elapsed
-                        </span>
-                      </div>
-                      <p className="text-xs text-purple-900 dark:text-purple-200 font-medium">
-                        {processingStatusText || `Analyzing ${uploadedFiles.length} Gazette screenshot(s)...`}
+            <div className="space-y-3">
+              {/* Tab 1: Excel Import (Minimal) */}
+              {activeTab === 'excel' && (
+                <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <FileSpreadsheet size={15} className="text-teal-600 dark:text-teal-400" />
+                        <span>Excel Result Spreadsheet Import (.xlsx)</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Download pre-populated template with Class {selectedClass || 'All'} students ({selectedSession}), fill in marks/roll numbers, and upload.
                       </p>
-                      <div className="w-full h-1.5 bg-purple-200 dark:bg-purple-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-500 animate-pulse w-full" />
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[9.5px] text-purple-700 dark:text-purple-300">
-                          ⚡ Reading high-res tables. OCR & tabular parsing takes approx. 10–25s.
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleCancelAnalysis}
-                          className="px-2.5 py-0.5 rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold text-[10.5px] cursor-pointer border border-rose-300 dark:border-rose-800"
-                        >
-                          Cancel
-                        </button>
-                      </div>
                     </div>
-                  )}
 
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    {uploadedFiles.length < 5 && !isProcessing && (
-                      <label className="px-5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs">
-                        <Upload size={14} />
-                        <span>{uploadedFiles.length === 0 ? 'Select Gazette (PDF or up to 5 Screenshots)' : '+ Add Another Screenshot'}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadTemplate('xlsx')}
+                        className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-bold flex items-center gap-1.5 cursor-pointer text-xs transition-all shadow-2xs"
+                      >
+                        <Download size={13} />
+                        <span>Download Template ({classStudents.length} Students)</span>
+                      </button>
+
+                      <label className="px-3.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs text-xs transition-all">
+                        <Upload size={13} />
+                        <span>Upload Excel (.xlsx)</span>
                         <input
                           ref={fileInputRef}
                           type="file"
-                          multiple
-                          accept=".pdf,image/*"
-                          onChange={handleAddFiles}
+                          accept=".xlsx,.xls"
+                          onChange={handleExcelUpload}
                           className="hidden"
                         />
                       </label>
-                    )}
-
-                    {uploadedFiles.length > 0 && !isProcessing && (
-                      <button
-                        type="button"
-                        onClick={() => handleRunAiAnalysis('ai_gazette')}
-                        disabled={isProcessing}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 text-xs"
-                      >
-                        <Sparkles size={14} />
-                        <span>Run Gemini AI Analysis ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6 rounded-3xl bg-amber-50/50 dark:bg-amber-950/20 border border-dashed border-amber-300 dark:border-amber-800/60 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-                    <Award size={32} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                      Gemini AI JKBOSE Admit Card Extractor (PDF & Multi-Screenshot Support)
-                    </h4>
-                    <p className="text-xs text-slate-500 max-w-lg mt-1">
-                      Upload scanned JKBOSE Admit Cards (single PDF or up to 5 screenshot images). Gemini AI extracts Roll No, Registration No (R.R. No), Candidate Name, Father Name, Mother Name, Gender, Stream, Exam Centre, and Subjects Offered for Private/Bi-Annual candidates across all pages.
-                    </p>
-                  </div>
-
-                  {/* Multi-Screenshot Preview Tray */}
-                  {uploadedFiles.length > 0 && (
-                    <div className="w-full max-w-xl p-3 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 space-y-2 text-left">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        <span>Attached Screenshots / Pages ({uploadedFiles.length} of 5 max):</span>
-                        <button
-                          type="button"
-                          onClick={clearAllUploadedFiles}
-                          className="text-rose-600 hover:text-rose-700 text-[10.5px] cursor-pointer"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                        {uploadedFiles.map((f, idx) => (
-                          <div key={f.id} className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-1 flex flex-col items-center">
-                            <span className="absolute top-1 left-1 px-1 rounded bg-slate-900/80 text-white font-mono text-[8.5px] font-bold z-10">
-                              #{idx + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeUploadedFile(f.id)}
-                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center cursor-pointer z-10 shadow-xs"
-                              title="Remove"
-                            >
-                              <X size={10} />
-                            </button>
-
-                            {f.previewUrl ? (
-                              <img src={f.previewUrl} alt={f.name} className="w-full h-16 object-cover rounded-lg" />
-                            ) : (
-                              <div className="w-full h-16 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-700 dark:text-amber-300 font-bold">
-                                <FileText size={22} />
-                              </div>
-                            )}
-                            <div className="w-full mt-1 px-0.5">
-                              <p className="text-[9px] font-bold text-slate-700 dark:text-slate-300 truncate" title={f.name}>{f.name}</p>
-                              <p className="text-[8px] text-slate-400">{f.size}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     </div>
-                  )}
-
-                  {/* Real-time AI Analysis Progress HUD */}
-                  {isProcessing && (
-                    <div className="w-full max-w-xl p-4 rounded-2xl bg-amber-100/80 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 shadow-md space-y-2 text-left animate-fadeIn">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw size={15} className="text-amber-600 dark:text-amber-400 animate-spin" />
-                          <span className="font-black text-xs text-amber-950 dark:text-amber-100">
-                            Gemini AI Vision Active ({preferredModel})
-                          </span>
-                        </div>
-                        <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
-                          ⏱️ {elapsedSeconds}s elapsed
-                        </span>
-                      </div>
-                      <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
-                        {processingStatusText || `Analyzing ${uploadedFiles.length} Admit Card screenshot(s)...`}
-                      </p>
-                      <div className="w-full h-1.5 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 animate-pulse w-full" />
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[9.5px] text-amber-700 dark:text-amber-300">
-                          ⚡ Reading high-res Admit Card scans. Extraction takes approx. 8–20s.
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleCancelAnalysis}
-                          className="px-2.5 py-0.5 rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold text-[10.5px] cursor-pointer border border-rose-300 dark:border-rose-800"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    {uploadedFiles.length < 5 && !isProcessing && (
-                      <label className="px-5 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs">
-                        <Upload size={14} />
-                        <span>{uploadedFiles.length === 0 ? 'Select Admit Cards (PDF or up to 5 Screenshots)' : '+ Add Another Screenshot'}</span>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          multiple
-                          accept=".pdf,image/*"
-                          onChange={handleAddFiles}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-
-                    {uploadedFiles.length > 0 && !isProcessing && (
-                      <button
-                        type="button"
-                        onClick={() => handleRunAiAnalysis('ai_admit')}
-                        disabled={isProcessing}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 text-xs"
-                      >
-                        <Sparkles size={14} />
-                        <span>Run Gemini AI Analysis ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
 
-              {/* Processing Loader */}
-              {isProcessing && (
-                <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center gap-3 text-indigo-900 dark:text-indigo-200 font-bold animate-pulse">
-                  <RefreshCw size={18} className="animate-spin text-indigo-600" />
-                  <span>{processingStatusText || 'Processing document...'}</span>
+              {/* Tab 2: Gazette AI OCR (Minimal) */}
+              {activeTab === 'ai_gazette' && (
+                <div className="p-4 rounded-2xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-purple-600" />
+                        <span>Gemini Multimodal Gazette OCR Extractor</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Upload official JKBOSE Result Gazette (PDF or up to 5 screenshot images). Gemini AI automatically extracts roll numbers, names, marks, and re-appear subjects.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {uploadedFiles.length < 5 && !isProcessing && (
+                        <label className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-purple-50 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 font-bold flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs transition-all">
+                          <Upload size={13} />
+                          <span>{uploadedFiles.length === 0 ? 'Upload Screenshots / PDF' : '+ Add Screenshot'}</span>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept=".pdf,image/*"
+                            onChange={handleAddFiles}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+
+                      {uploadedFiles.length > 0 && !isProcessing && (
+                        <button
+                          type="button"
+                          onClick={() => handleRunAiAnalysis('ai_gazette')}
+                          className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black flex items-center gap-1.5 cursor-pointer shadow-xs text-xs transition-all active:scale-95"
+                        >
+                          <Sparkles size={13} />
+                          <span>Extract Results ({uploadedFiles.length} Image{uploadedFiles.length > 1 ? 's' : ''})</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attached Screenshots Strip */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1.5 px-1">
+                        <span>Attached Pages ({uploadedFiles.length} of 5 max):</span>
+                        <button type="button" onClick={clearAllUploadedFiles} className="text-rose-600 hover:underline cursor-pointer">Clear All</button>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {uploadedFiles.map((f, idx) => (
+                          <div key={f.id} className="relative group shrink-0 w-24 h-18 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 flex flex-col justify-between p-1">
+                            <span className="absolute top-1 left-1 px-1 rounded bg-black/70 text-white text-[8px] font-mono font-bold z-10">#{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeUploadedFile(f.id)}
+                              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center cursor-pointer z-10 shadow-xs"
+                            >
+                              <X size={9} />
+                            </button>
+                            {f.previewUrl ? (
+                              <img src={f.previewUrl} alt={f.name} className="w-full h-11 object-cover rounded" />
+                            ) : (
+                              <div className="w-full h-11 flex items-center justify-center text-purple-600"><FileText size={18} /></div>
+                            )}
+                            <span className="text-[8px] text-slate-500 truncate">{f.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Real-time Processing HUD */}
+                  {isProcessing && (
+                    <div className="p-3 rounded-xl bg-purple-100/80 dark:bg-purple-950/70 border border-purple-300 dark:border-purple-700 text-xs space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw size={13} className="text-purple-600 dark:text-purple-400 animate-spin" />
+                          <span className="font-black text-purple-950 dark:text-purple-100 text-[11px]">
+                            Extracting Gazette Results with {preferredModel}...
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
+                          ⏱️ {elapsedSeconds}s
+                        </span>
+                      </div>
+                      <div className="w-full h-1 bg-purple-200 dark:bg-purple-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 animate-pulse w-full" />
+                      </div>
+                      <div className="flex items-center justify-between text-[9.5px] text-purple-700 dark:text-purple-300">
+                        <span>{processingStatusText || `Reading OCR tables across ${uploadedFiles.length} screenshot(s)...`}</span>
+                        <button type="button" onClick={handleCancelAnalysis} className="text-rose-600 hover:underline font-bold cursor-pointer">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 3: Admit Card AI (Minimal) */}
+              {activeTab === 'ai_admit' && (
+                <div className="p-4 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <Award size={14} className="text-amber-600" />
+                        <span>Gemini AI Admit Card Extractor</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Upload scanned JKBOSE Admit Cards (single PDF or up to 5 screenshot images). Gemini AI extracts Roll No, Registration No, Name, Parents, Stream, and Subjects.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {uploadedFiles.length < 5 && !isProcessing && (
+                        <label className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-50 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-bold flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs transition-all">
+                          <Upload size={13} />
+                          <span>{uploadedFiles.length === 0 ? 'Upload Admit Cards / PDF' : '+ Add Screenshot'}</span>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept=".pdf,image/*"
+                            onChange={handleAddFiles}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+
+                      {uploadedFiles.length > 0 && !isProcessing && (
+                        <button
+                          type="button"
+                          onClick={() => handleRunAiAnalysis('ai_admit')}
+                          className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 text-white font-black flex items-center gap-1.5 cursor-pointer shadow-xs text-xs transition-all active:scale-95"
+                        >
+                          <Sparkles size={13} />
+                          <span>Extract Admit Cards ({uploadedFiles.length} Image{uploadedFiles.length > 1 ? 's' : ''})</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attached Screenshots Strip */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1.5 px-1">
+                        <span>Attached Pages ({uploadedFiles.length} of 5 max):</span>
+                        <button type="button" onClick={clearAllUploadedFiles} className="text-rose-600 hover:underline cursor-pointer">Clear All</button>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {uploadedFiles.map((f, idx) => (
+                          <div key={f.id} className="relative group shrink-0 w-24 h-18 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 flex flex-col justify-between p-1">
+                            <span className="absolute top-1 left-1 px-1 rounded bg-black/70 text-white text-[8px] font-mono font-bold z-10">#{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeUploadedFile(f.id)}
+                              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center cursor-pointer z-10 shadow-xs"
+                            >
+                              <X size={9} />
+                            </button>
+                            {f.previewUrl ? (
+                              <img src={f.previewUrl} alt={f.name} className="w-full h-11 object-cover rounded" />
+                            ) : (
+                              <div className="w-full h-11 flex items-center justify-center text-amber-600"><FileText size={18} /></div>
+                            )}
+                            <span className="text-[8px] text-slate-500 truncate">{f.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Real-time Processing HUD */}
+                  {isProcessing && (
+                    <div className="p-3 rounded-xl bg-amber-100/80 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-xs space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw size={13} className="text-amber-600 dark:text-amber-400 animate-spin" />
+                          <span className="font-black text-amber-950 dark:text-amber-100 text-[11px]">
+                            Extracting Admit Cards with {preferredModel}...
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                          ⏱️ {elapsedSeconds}s
+                        </span>
+                      </div>
+                      <div className="w-full h-1 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-amber-500 to-teal-500 animate-pulse w-full" />
+                      </div>
+                      <div className="flex items-center justify-between text-[9.5px] text-amber-700 dark:text-amber-300">
+                        <span>{processingStatusText || `Reading candidate details across ${uploadedFiles.length} scan(s)...`}</span>
+                        <button type="button" onClick={handleCancelAnalysis} className="text-rose-600 hover:underline font-bold cursor-pointer">Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1426,21 +1365,21 @@ export default function ResultIngestionModal({
 
         </div>
 
-        {/* Footer & Admin Confirmation Gate Trigger */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
-          <div className="text-xs text-slate-500">
+        {/* Minimal Footer & Admin Confirmation Gate Trigger */}
+        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+          <div className="text-[11px] text-slate-500">
             {parsedRows.length > 0 && (
               <span><strong>{selectedRowsToCommit.length}</strong> of {parsedRows.length} records selected to synchronize.</span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold transition-all cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold transition-all cursor-pointer text-xs"
             >
-              Cancel
+              Close
             </button>
 
             {parsedRows.length > 0 && (
@@ -1448,10 +1387,10 @@ export default function ResultIngestionModal({
                 type="button"
                 onClick={() => setShowConfirmGate(true)}
                 disabled={selectedRowsToCommit.length === 0}
-                className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white font-black shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white font-black shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50 text-xs"
               >
-                <ShieldCheck size={16} />
-                <span>Review & Commit to Firebase ({selectedRowsToCommit.length})</span>
+                <ShieldCheck size={14} />
+                <span>Sync to Firebase ({selectedRowsToCommit.length})</span>
               </button>
             )}
           </div>
