@@ -56,6 +56,7 @@ import {
   deleteGeminiModel,
   restoreDefaultGeminiModels,
   checkIsSuperAdmin,
+  callDirectGeminiClient,
   AVAILABLE_GEMINI_MODELS
 } from '../../services/geminiLetterService';
 
@@ -184,6 +185,7 @@ export default function ResultIngestionModal({
   const [uploadedFiles, setUploadedFiles] = useState([]); // [{ id, file, name, size, mimeType, base64, previewUrl }]
   const abortControllerRef = useRef(null);
   const terminalEndRef = useRef(null);
+  const [keyTestResult, setKeyTestResult] = useState(null); // null | { status: 'testing'|'success'|'error', message: string }
 
   // Auto-scroll terminal log to bottom on new events
   useEffect(() => {
@@ -213,6 +215,30 @@ export default function ResultIngestionModal({
     setIsProcessing(false);
     setProcessingStatusText('');
     if (showToast) showToast('AI analysis cancelled.', 'info');
+  };
+
+  // 🧪 Diagnostic: Test Gemini API Key & Model connectivity
+  const handleTestKey = async () => {
+    setKeyTestResult({ status: 'testing', message: 'Testing API key connectivity...' });
+    const testLogs = [];
+    try {
+      const result = await callDirectGeminiClient({
+        prompt: 'Respond with exactly: CONNECTIVITY_OK',
+        maxOutputTokens: 16,
+        model: preferredModel,
+        onLog: (logObj) => {
+          testLogs.push(logObj?.message || String(logObj));
+          setKeyTestResult({ status: 'testing', message: testLogs.join('\n') });
+        }
+      });
+      if (result?.text) {
+        setKeyTestResult({ status: 'success', message: `✅ API key works! Model "${result.model || preferredModel}" responded: "${result.text.trim().slice(0, 80)}"` });
+      } else {
+        setKeyTestResult({ status: 'error', message: `⚠️ API returned empty response.\n\n${testLogs.join('\n')}` });
+      }
+    } catch (err) {
+      setKeyTestResult({ status: 'error', message: `❌ ${err.message || 'Connection failed'}\n\n${testLogs.join('\n')}` });
+    }
   };
 
   // Filter & Search in Review Table
@@ -664,6 +690,16 @@ export default function ResultIngestionModal({
                       <span>{showKeysPreview ? 'Hide Keys' : 'Reveal Keys'}</span>
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={handleTestKey}
+                      disabled={keyTestResult?.status === 'testing'}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      {keyTestResult?.status === 'testing' ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                      <span>{keyTestResult?.status === 'testing' ? 'Testing...' : '🧪 Test Key'}</span>
+                    </button>
+
                     <a
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
@@ -688,6 +724,29 @@ export default function ResultIngestionModal({
                   placeholder={showKeysPreview ? "Paste your Gemini API keys here (one per line or comma-separated)." : "Keys are hidden. Click 'Reveal Keys' above to view or edit."}
                   className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
+
+                {/* 🧪 Inline API Key Test Result */}
+                {keyTestResult && (
+                  <div className={`mt-1.5 p-2 rounded-xl border text-[10px] font-mono whitespace-pre-wrap break-all ${
+                    keyTestResult.status === 'success'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
+                      : keyTestResult.status === 'error'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200'
+                        : 'bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700 text-sky-800 dark:text-sky-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-[10.5px]">
+                        {keyTestResult.status === 'success' ? '✅ Key Test Passed' : keyTestResult.status === 'error' ? '❌ Key Test Failed' : '⏳ Testing...'}
+                      </span>
+                      {keyTestResult.status !== 'testing' && (
+                        <button type="button" onClick={() => setKeyTestResult(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                          <X size={10} />
+                        </button>
+                      )}
+                    </div>
+                    {keyTestResult.message}
+                  </div>
+                )}
               </>
             ) : (
               <div className="p-2.5 rounded-xl bg-amber-100/60 dark:bg-amber-950/60 border border-amber-300/80 dark:border-amber-800 flex items-center justify-between gap-3">
