@@ -80,6 +80,84 @@ import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
 import DocumentHistoryModal from './DocumentHistoryModal';
 
+const cleanStudentIdentity = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+
+const getStudentIdentityValues = (student) => {
+  const raw = student?.raw || student || {};
+  return [
+    student?.id,
+    student?.formNo,
+    student?.regNo,
+    student?.examRollNo,
+    raw.id,
+    raw.formNo,
+    raw['Form No.'],
+    raw['Form Number'],
+    raw.regNo,
+    raw.boardRegNo,
+    raw['Board Reg. No.'],
+    raw['Board Registration Number'],
+    raw.currExamRoll,
+    raw['Exam R.No. (Current)']
+  ].map(cleanStudentIdentity).filter(Boolean);
+};
+
+const ingestionRowMatchesStudent = (row, student) => {
+  if (!row || !student) return false;
+  const studentIds = new Set(getStudentIdentityValues(student));
+  const rowIds = getStudentIdentityValues({
+    ...row,
+    id: row.formNo || row.id,
+    formNo: row.formNo,
+    regNo: row.regNo,
+    examRollNo: row.examRollNo,
+    raw: row.matchedStudent || row
+  });
+  if (rowIds.some(value => studentIds.has(value))) return true;
+
+  const studentNameValue = cleanStudentIdentity(student.name || student.studentName || student.raw?.["Student's Name"]);
+  const rowNameValue = cleanStudentIdentity(row.studentName);
+  const studentFatherValue = cleanStudentIdentity(student.father || student.fatherName || student.raw?.["Father's Name"]);
+  const rowFatherValue = cleanStudentIdentity(row.fatherName);
+  return Boolean(studentNameValue && studentNameValue === rowNameValue &&
+    (!studentFatherValue || !rowFatherValue || studentFatherValue === rowFatherValue));
+};
+
+const mergeIngestedResultIntoStudent = (student, row, overwriteExamRoll = false) => {
+  if (!student || !row) return student;
+  const raw = student.raw || student;
+  const existingResult = extractStudentResultMarks(raw);
+  const patch = {
+    'Result (Current)': row.resultStatus || 'Awaiting Result',
+    'Marks/Reapp (Current)': row.marksReapp || '',
+    'Div/Distinc (Current)': row.divDistinc || '',
+    currResult: row.resultStatus || 'Awaiting Result',
+    currMarksReapp: row.marksReapp || '',
+    currDiv: row.divDistinc || ''
+  };
+
+  if (row.examMode) {
+    patch['Exam Mode (Current)'] = row.examMode;
+    patch.currExamMode = row.examMode;
+  }
+
+  if (row.examRollNo && (overwriteExamRoll || !existingResult.examRoll)) {
+    patch['Exam R.No. (Current)'] = row.examRollNo;
+    patch.currExamRoll = row.examRollNo;
+    patch.examRollNo = row.examRollNo;
+  }
+  if (row.subs) {
+    patch.Subjects = row.subs;
+    patch.subs = row.subs;
+  }
+  if (row.withdrawalDate) {
+    patch['Date of withdrawl'] = row.withdrawalDate;
+    patch.withdrawalDate = row.withdrawalDate;
+  }
+
+  return { ...student, ...patch, raw: { ...raw, ...patch } };
+};
+
 export default function StudentCertificateStudioView({
   allStudents = [],
   onClose,
@@ -93,6 +171,7 @@ export default function StudentCertificateStudioView({
   // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session ───
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
   const [photosVersion, setPhotosVersion] = useState(0);
+  const [recentIngestedResults, setRecentIngestedResults] = useState([]);
 
   // Direct reference to students list passed from parent (0ms latency, zero re-renders loop)
   const liveStudentsList = useMemo(() => {
@@ -107,27 +186,33 @@ export default function StudentCertificateStudioView({
 
     (liveStudentsList || []).forEach(st => {
       if (!st) return;
-      const name = extractStudentName(st);
+      const latestResult = recentIngestedResults.find(row => ingestionRowMatchesStudent(row, st));
+      const effectiveStudent = latestResult
+        ? mergeIngestedResultIntoStudent(st, latestResult, latestResult.overwriteExamRoll)
+        : st;
+      const name = extractStudentName(effectiveStudent);
       if (!name || name === '—' || /^(null|undefined|—)$/i.test(name)) return;
 
-      const father = extractFatherName(st);
-      const mother = extractMotherName(st);
-      const cls = extractClass(st) || '11th';
-      const stream = extractStream(st) || 'Medical';
-      const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
-      const regNo = extractBoardRegNo(st) || '';
-      const formNo = extractFormNo(st) || st.id || '';
-      const session = extractSession(st) || '2025-26';
-      const dob = extractDob(st) || '';
-      const rawGender = extractGender(st);
-      const gender = (rawGender || 'M').toUpperCase().startsWith('F') ? 'F' : 'M';
-      const village = extractVillage(st);
+      const father = extractFatherName(effectiveStudent);
+      const mother = extractMotherName(effectiveStudent);
+      const cls = extractClass(effectiveStudent) || '11th';
+      const stream = extractStream(effectiveStudent) || 'Medical';
+      const rollNo = getStudentRollNumber(effectiveStudent) || extractAdmNo(effectiveStudent) || '';
+      const regNo = extractBoardRegNo(effectiveStudent) || '';
+      const formNo = extractFormNo(effectiveStudent) || effectiveStudent.id || '';
+      const session = extractSession(effectiveStudent) || '2025-26';
+      const dob = extractDob(effectiveStudent) || '';
+      const rawGender = extractGender(effectiveStudent);
+      const gender = String(rawGender || '').toUpperCase().startsWith('F')
+        ? 'F'
+        : (String(rawGender || '').toUpperCase().startsWith('M') ? 'M' : '');
+      const village = extractVillage(effectiveStudent);
       const address = village && village !== '—' ? `${village}, Shangus, Anantnag (J&K)` : 'Shangus, Anantnag — 192201 (J&K)';
-      const mobile = extractMobile(st);
-      const directPhoto = st.photo_id || st.photoId || st.photoUrl || st.photo || st['passport_photo'] || st['Student Photo'] || st['Photo'] || null;
+      const mobile = extractMobile(effectiveStudent);
+      const directPhoto = effectiveStudent.photo_id || effectiveStudent.photoId || effectiveStudent.photoUrl || effectiveStudent.photo || effectiveStudent['passport_photo'] || effectiveStudent['Student Photo'] || effectiveStudent['Photo'] || null;
 
       const sessionLower = (session || '').toLowerCase();
-      const isPast = st._srcCollection === 'masterRegisters' ||
+      const isPast = effectiveStudent._srcCollection === 'masterRegisters' ||
         sessionLower.includes('legacy') ||
         sessionLower.includes('arch') ||
         sessionLower.includes('2024') ||
@@ -162,13 +247,13 @@ export default function StudentCertificateStudioView({
           address,
           mobile: mobile !== '—' ? mobile : '',
           photo: directPhoto,
-          raw: st
+          raw: effectiveStudent.raw || effectiveStudent
         });
       }
     });
 
     return list;
-  }, [liveStudentsList]);
+  }, [liveStudentsList, recentIngestedResults]);
 
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -685,7 +770,7 @@ export default function StudentCertificateStudioView({
     setDobRaw(st.dob || '');
     setSession(st.session || '2025-26');
     setAddress(st.address || 'Shangus, Anantnag');
-    setGender(extractGender(st));
+    setGender(st.gender || '');
     
     const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
     setWithdrawalDate(rawWd);
@@ -812,7 +897,7 @@ export default function StudentCertificateStudioView({
     const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
     const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
     const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
-    const effExamMode = tcExamMode || resInfo.examMode || 'Annual Regular 2025 (Oct.-Nov.)';
+    const effExamMode = tcExamMode || resInfo.examMode || '—';
     const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
     const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
@@ -1120,7 +1205,7 @@ export default function StudentCertificateStudioView({
     setRollNo(st.rollNo || '');
     setRegNo(st.regNo || '');
     setSession(st.session || '2025-26');
-    setGender(st.gender || 'M');
+    setGender(st.gender || '');
     setDobRaw(st.dob || '');
     setAddress(st.address || '');
     const raw = st.raw || st;
@@ -4657,6 +4742,7 @@ export default function StudentCertificateStudioView({
                     onChange={(e) => { setGender(e.target.value); setCustomCanvasHtml(null); }}
                     className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 font-bold text-xs text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none transition-all"
                   >
+                    <option value="">Select gender (required for pronouns)</option>
                     <option value="M">Male (Mr. / He / Son)</option>
                     <option value="F">Female (Ms. / She / Daughter)</option>
                   </select>
@@ -5148,8 +5234,27 @@ export default function StudentCertificateStudioView({
         isOpen={showResultIngestionModal}
         onClose={() => setShowResultIngestionModal(false)}
         allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
-        onIngestSuccess={() => {
-          showToast('🎉 Ingestion complete! Master register synchronized.', 'success');
+        onIngestSuccess={({ records = [], overwriteExamRoll = false } = {}) => {
+          const committedRows = records.map(row => ({ ...row, overwriteExamRoll }));
+          setRecentIngestedResults(committedRows);
+
+          const selectedRow = committedRows.find(row => ingestionRowMatchesStudent(row, selectedStudent));
+          if (selectedRow && selectedStudent) {
+            const updatedStudent = mergeIngestedResultIntoStudent(selectedStudent, selectedRow, overwriteExamRoll);
+            const resultInfo = extractStudentResultMarks(updatedStudent.raw || updatedStudent);
+            setSelectedStudent(updatedStudent);
+            setTcMarksObtained(resultInfo.marksObtained);
+            setTcMaxMarks(resultInfo.maxMarks);
+            setTcDivision(resultInfo.division);
+            setTcExamRoll(resultInfo.examRoll);
+            setTcExamMode(resultInfo.examMode);
+            setTcResultStatus(resultInfo.resultStatus);
+            setTcReappSubjects(resultInfo.reappSubjects);
+            if (selectedRow.withdrawalDate) setWithdrawalDate(selectedRow.withdrawalDate);
+            setCustomCanvasHtml(null);
+          }
+
+          showToast('🎉 Ingestion complete! Certificate data refreshed from the synchronized results.', 'success');
         }}
         showToast={showToast}
       />

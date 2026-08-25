@@ -310,7 +310,8 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     'hamida', 'jameela', 'naseema', 'khalida', 'amina', 'safeena', 'sumera', 'zubaida', 'zahida',
     'nighat', 'fozia', 'fauzia', 'riffat', 'shahnaza', 'shahnaz', 'ishrat', 'shahzada', 'dilshada',
     'masrat', 'musarat', 'suriya', 'samreena', 'kounsar', 'arifa', 'shumaila', 'zahida', 'bilkees',
-    'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema'
+    'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema',
+    'jabeen'
   ]);
 
   const nameWords = String(studentName || '').toLowerCase().split(/[\s,._-]+/).filter(Boolean);

@@ -252,7 +252,7 @@ export function extractStudentResultMarks(st) {
   }
 
   // 6. Exam Mode / Session
-  const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.exam_mode_current || raw.examMode || raw['Exam Mode'] || raw['Session'] || st?.session || '';
+  const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.exam_mode_current || raw.examMode || raw['Exam Mode'] || '';
 
   return {
     hasResult: hasResult && (isPassed || isReap || isFailed),
@@ -420,8 +420,10 @@ export function generateResultImportTemplate(studentsList = [], className = '12t
       "Father's Name": String(s.fatherName || raw["Father's Name"] || raw.fatherName || ''),
       'Class': String(s.selectedClass || raw['Class'] || className || ''),
       'Stream': String(s.selectedStream || raw['Stream'] || ''),
-      'Session': String(s.selectedSession || raw['Session'] || session || ''),
-      'Exam Mode (Current)': String(raw['Exam Mode (Current)'] || raw.currExamMode || 'Annual Regular 2025 (Oct.-Nov.)'),
+      'Session': String(session || s.selectedSession || raw['Session'] || ''),
+      // Exam mode describes the examination; it is intentionally independent
+      // from the archive/cohort session selected in the result hub.
+      'Exam Mode (Current)': String(raw['Exam Mode (Current)'] || raw.currExamMode || ''),
       'Exam R.No. (Current)': String(raw['Exam R.No. (Current)'] || raw.currExamRoll || ''),
       'Result (Current)': String(raw['Result (Current)'] || raw.currResult || 'Passed'),
       'Marks/Reapp (Current)': String(raw['Marks/Reapp (Current)'] || raw.currMarksReapp || ''),
@@ -437,7 +439,7 @@ export function generateResultImportTemplate(studentsList = [], className = '12t
       'Class': className,
       'Stream': 'Science',
       'Session': session,
-      'Exam Mode (Current)': 'Annual Regular 2025 (Oct.-Nov.)',
+      'Exam Mode (Current)': '',
       'Exam R.No. (Current)': '301003053',
       'Result (Current)': 'Passed',
       'Marks/Reapp (Current)': '488 / 500',
@@ -502,7 +504,7 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
   const targetName = lower(record.studentName || record["Student's Name"] || record.name || record['Name'] || record['Name of Candidate'] || '');
   const targetFather = lower(record.fatherName || record["Father's Name"] || record.father || record['Father'] || '');
   const targetClass = lower(record.className || record['Class'] || classScope || '');
-  const targetSession = lower(record.session || record['Session'] || record.examMode || sessionScope || '');
+  const targetSession = lower(record.session || record['Session'] || sessionScope || '');
 
   // Helper to extract first word or initials from name
   const firstWord = (str) => clean(str).toLowerCase().split(/[\s,._-]+/)[0] || '';
@@ -866,10 +868,12 @@ export function parseAndValidateResultFile(fileData, existingStudents = [], clas
       const studentName = cleanCellValue(r["Student's Name"] || r['studentName'] || r['Name'] || r['Name of Candidate'] || r['Student']);
       const fatherName = cleanCellValue(r["Father's Name"] || r['fatherName'] || r['Father']);
       const motherName = cleanCellValue(r["Mother's Name"] || r['motherName'] || r['Mother']);
-      const className = cleanCellValue(r['Class'] || r['class'] || classScope || '12th');
+      const className = cleanCellValue(classScope || r['Class'] || r['class'] || '12th');
       const stream = cleanCellValue(r['Stream'] || r['stream']);
-      const sessionVal = cleanCellValue(r['Session'] || r['session'] || sessionScope || '2026 APR/BIAN');
-      const examMode = cleanCellValue(r['Exam Mode (Current)'] || r['Exam Mode'] || r['examMode'] || 'Annual Regular 2025 (Oct.-Nov.)');
+      // The operator-selected hub scope is authoritative; the spreadsheet
+      // cannot silently redirect new records into another session/class.
+      const sessionVal = cleanCellValue(sessionScope || r['Session'] || r['session'] || '2026 APR/BIAN');
+      const examMode = cleanCellValue(r['Exam Mode (Current)'] || r['Exam Mode'] || r['examMode'] || '');
       const examRollNo = cleanCellValue(r['Exam R.No. (Current)'] || r['Exam R.No.'] || r['Exam Roll No'] || r['examRoll'] || r['Roll No'] || r['Exam Roll']);
       
       const rawResult = cleanCellValue(r['Result (Current)'] || r['result'] || r['Result'] || r['Pass/Reap/Fail'] || r['Passed'] || '');
@@ -1055,11 +1059,12 @@ For EVERY admit card visible in ALL the attached images/pages, extract all stude
 6. "gender": "Male" or "Female" (e.g. "MALE", "FEMALE").
 7. "dob": Date of Birth if printed, else "".
 8. "class": Academic Class e.g. "12th", "11th", "10th" (extracted from heading "HIGHER SECONDARY PART-II, (CLASS 12TH)" or similar).
-9. "session": Exam session e.g. "${selectedSession || '2026 APR/BIAN'}" (or "Annual Private / Bi-Annual, 2026").
-10. "stream": Stream/Faculty (e.g. "Humanities", "Arts", "Science", "Commerce" from "SUBJECTS OFFERED (HUMANITIES)").
-11. "subs": All subjects offered separated by comma (e.g. "General English, Urdu, Education, History, Physical Education" or "Environmental Science").
-12. "examCentre": Examination Centre name and code (e.g. "GOVT HSS ACHABAL ( 301001 )").
-13. "studentType": "Private / Bi-Annual".
+9. "session": Archive/cohort session, fixed to the selected scope "${selectedSession || '2026 APR/BIAN'}".
+10. "examMode": Exact examination title printed on the admit card, independent of session (e.g. "Annual Regular 2025 (Oct.-Nov.)"); use "" if not printed.
+11. "stream": Stream/Faculty (e.g. "Humanities", "Arts", "Science", "Commerce" from "SUBJECTS OFFERED (HUMANITIES)").
+12. "subs": All subjects offered separated by comma (e.g. "General English, Urdu, Education, History, Physical Education" or "Environmental Science").
+13. "examCentre": Examination Centre name and code (e.g. "GOVT HSS ACHABAL ( 301001 )").
+14. "studentType": "Private / Bi-Annual".
 
 CRITICAL INSTRUCTIONS:
 - Extract EVERY student card present across all images without skipping any page.
@@ -1077,6 +1082,7 @@ Example Format:
     "dob": "",
     "class": "12th",
     "session": "${selectedSession || '2026 APR/BIAN'}",
+    "examMode": "",
     "stream": "Humanities",
     "subs": "General English, Urdu, Education, History, Physical Education",
     "examCentre": "GOVT HSS ACHABAL ( 301001 )",
@@ -1127,7 +1133,8 @@ Example Format:
       const stream = cleanCellValue(item.stream) || 'Humanities';
       const subs = cleanCellValue(item.subs);
       const examCentre = cleanCellValue(item.examCentre);
-      const gender = cleanCellValue(item.gender) || 'Male';
+      const gender = cleanCellValue(item.gender);
+      const examMode = cleanCellValue(item.examMode);
       const dob = cleanCellValue(item.dob);
 
       // Scoped database lookup by Reg No + Class + Session & Exam Roll No
@@ -1145,12 +1152,12 @@ Example Format:
         studentName: studentName || (matchResult ? matchResult.student.name : '—'),
         fatherName: fatherName || (matchResult ? matchResult.student.fatherName : '—'),
         motherName: motherName || (matchResult ? matchResult.student.motherName : ''),
-        gender: gender || (matchResult ? matchResult.student.gender : 'Male'),
+        gender: gender || (matchResult ? matchResult.student.gender : ''),
         dob: dob || (matchResult ? matchResult.student.dob : ''),
         className: className,
         stream: stream || (matchResult ? matchResult.student.selectedStream : ''),
         subs: subs || (matchResult ? matchResult.student.subs : ''),
-        examMode: session,
+        examMode,
         examRollNo: examRollNo,
         examCentre: examCentre,
         resultStatus: 'Awaiting Result',
@@ -1232,7 +1239,7 @@ For each student found across all pages/images, extract:
 7. "maxMarks": Total maximum marks (default 500).
 8. "reappSubjects": If result is "Reap", list subject abbreviations or expanded names (e.g. "GN ED UD PD" -> "General English, Education, Urdu, Public Administration", "EO" -> "Economics", "CH" -> "Chemistry").
 9. "division": Division or distinction if passed (e.g. "1st Division", "2nd Division", "3rd Division", "Distinction").
-10. "examMode": Examination session title (e.g. "${selectedSession || '2026 APR/BIAN'}").
+10. "examMode": Exact examination title printed in the gazette, independent of the archive session (e.g. "Annual Regular 2025 (Oct.-Nov.)"); use "" if absent.
 
 CRITICAL FORMAT REQUIREMENT:
 Respond ONLY with a valid JSON array of objects without markdown fences.
@@ -1248,7 +1255,7 @@ Example:
     "maxMarks": 500,
     "reappSubjects": "General English, Education, Urdu, Public Administration",
     "division": "Re-appear",
-    "examMode": "${selectedSession || '2026 APR/BIAN'}"
+    "examMode": ""
   },
   {
     "examRollNo": "301001259",
@@ -1306,7 +1313,7 @@ Example:
       const studentName = cleanCellValue(item.studentName);
       const fatherName = cleanCellValue(item.fatherName);
       const resultStatus = normalizeResultStatus(item.result);
-      const examMode = cleanCellValue(item.examMode) || selectedSession || `Annual Regular ${selectedSession}`;
+      const examMode = cleanCellValue(item.examMode);
 
       let marksReapp = '';
       let divDistinc = '';
@@ -1418,16 +1425,21 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
 
     // === RESULT-ONLY FIELDS (always safe to write for both matched & new students) ===
     const patch = {
-      'Exam Mode (Current)': item.examMode || '',
       'Result (Current)': item.resultStatus || 'Awaiting Result',
       'Marks/Reapp (Current)': item.marksReapp || '',
       'Div/Distinc (Current)': item.divDistinc || '',
-      currExamMode: item.examMode || '',
       currResult: item.resultStatus || 'Awaiting Result',
       currMarksReapp: item.marksReapp || '',
       currDiv: item.divDistinc || '',
       updatedAt: serverTimestamp()
     };
+
+    // Session and exam mode are distinct. Only update the examination label
+    // when the imported source explicitly supplies one.
+    if (item.examMode) {
+      patch['Exam Mode (Current)'] = item.examMode;
+      patch.currExamMode = item.examMode;
+    }
 
     // Exam Roll No: only overwrite for matched students if explicitly toggled on, always write for new students
     if (isNewStudent || overwriteExamRoll) {
@@ -1602,4 +1614,3 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
 
   return { success: true, count: updatedCount };
 }
-

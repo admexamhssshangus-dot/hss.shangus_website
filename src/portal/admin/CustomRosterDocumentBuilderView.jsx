@@ -940,7 +940,8 @@ export function isFemaleCandidateName(nameStr) {
     'hamida', 'jameela', 'naseema', 'khalida', 'amina', 'safeena', 'sumera', 'zubaida', 'zahida',
     'nighat', 'fozia', 'fauzia', 'riffat', 'shahnaza', 'shahnaz', 'ishrat', 'shahzada', 'dilshada',
     'masrat', 'musarat', 'suriya', 'samreena', 'kounsar', 'arifa', 'shumaila', 'zahida', 'bilkees',
-    'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema'
+    'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema',
+    'jabeen'
   ]);
 
   return words.some(w => femaleTokens.has(w));
@@ -973,7 +974,9 @@ export function extractGender(st) {
   if (st.raw && st.raw !== st) {
     return extractGender(st.raw);
   }
-  return 'Male (M)';
+  // Unknown is intentionally not treated as male. Certificate screens can
+  // request an explicit choice while their name heuristic remains available.
+  return '—';
 }
 
 export function extractDob(st) {
