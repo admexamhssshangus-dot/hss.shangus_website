@@ -914,7 +914,12 @@ Example Format:
       prompt,
       inlineDatas: fileList,
       model: preferredModel,
-      signal
+      signal,
+      onLog: (logObj) => {
+        if (typeof progressCallback === 'function') {
+          progressCallback(logObj);
+        }
+      }
     });
     const jsonText = aiResult.text || '';
 
@@ -1089,7 +1094,12 @@ Example:
       prompt,
       inlineDatas: fileList,
       model: preferredModel,
-      signal
+      signal,
+      onLog: (logObj) => {
+        if (typeof progressCallback === 'function') {
+          progressCallback(logObj);
+        }
+      }
     });
     const jsonText = aiResult.text || '';
 

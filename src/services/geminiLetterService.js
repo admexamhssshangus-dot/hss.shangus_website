@@ -308,33 +308,29 @@ export function savePreferredGeminiModel(modelId) {
  * Supports multi-key failover pool across all connected keys in Firestore & LocalStorage,
  * as well as intelligent multi-model failover for deprecated/sunset models.
  */
-async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, maxOutputTokens = 8192, signal = null }) {
+export async function callDirectGeminiClient({
+  prompt,
+  inlineData = null,
+  inlineDatas = null,
+  maxOutputTokens = 8192,
+  model = null,
+  signal = null,
+  onLog = null
+}) {
   let keys = getStoredGeminiKeys();
   if (!keys.length) {
     keys = await fetchCloudGeminiKeys();
   }
-
-  // Fallback to React env variable if configured
   if (!keys.length && process.env.REACT_APP_GEMINI_API_KEY) {
     keys = [process.env.REACT_APP_GEMINI_API_KEY];
   }
-
-  if (!keys.length) {
-    const entered = window.prompt(
-      '🔑 Gemini AI API Key Required\n\nPlease enter your Google Gemini API Key. It will be saved permanently to Cloud Firestore & LocalStorage for all modules (Certificates, Bulk Import, Admit Cards, Gazette):'
-    );
-    if (entered && entered.trim()) {
-      keys = [entered.trim()];
-      saveGeminiKeys(keys);
-      saveCloudGeminiKeys(keys).catch(() => {});
-    } else {
-      throw new Error('Gemini API key is required to perform AI analysis. Please configure your key in settings.');
-    }
+  if (!keys || keys.length === 0) {
+    throw new Error('No Gemini API keys found. Please configure API keys in Settings.');
   }
 
   const requestedModel = model || getPreferredGeminiModel() || 'gemini-3.7-flash';
-
-  // Build prioritized candidate model list with auto-fallback for sunset models
+  
+  // Build fallback candidate models list
   const candidateModels = Array.from(new Set([
     requestedModel,
     'gemini-3.7-flash',
@@ -349,30 +345,50 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
 
   // Add multiple or single images/PDFs (up to 5 items)
   const items = (inlineDatas && Array.isArray(inlineDatas) ? inlineDatas : (inlineData ? [inlineData] : []));
-  items.slice(0, 5).forEach((item) => {
+  let totalBytes = 0;
+  items.slice(0, 5).forEach((item, idx) => {
     if (item && item.data) {
       const mime = item.mimeType === 'image/jpg' ? 'image/jpeg' : (item.mimeType || 'image/jpeg');
       const base64Clean = String(item.data).replace(/^data:[^;]+;base64,/, '');
+      totalBytes += base64Clean.length;
+      // Google Generative Language v1beta REST API expects camelCase `inlineData` and `mimeType`
       parts.push({
-        inline_data: {
-          mime_type: mime,
+        inlineData: {
+          mimeType: mime,
           data: base64Clean
         }
       });
     }
   });
 
+  onLog?.({
+    type: 'payload',
+    message: `📦 Encoded ${items.length} media item(s) (~${Math.round(totalBytes * 0.75 / 1024)} KB payload) into Gemini multimodal format.`
+  });
+
   let lastError = null;
 
   // Try candidate models in sequence
   for (const currentModel of candidateModels) {
+    onLog?.({
+      type: 'model',
+      message: `🤖 Connecting with Gemini AI Model: "${currentModel}"...`
+    });
+
     // Try each key in the pool with automatic failover
     for (let i = 0; i < keys.length; i++) {
       const apiKey = keys[i];
+      const maskedKey = apiKey.length > 10 ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)}` : '••••';
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s per-request timeout
 
+      onLog?.({
+        type: 'request',
+        message: `🔑 Dispatched to Key #${i + 1}/${keys.length} (${maskedKey}) on model [${currentModel}]...`
+      });
+
       try {
+        const startTime = Date.now();
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
         const res = await fetch(url, {
@@ -389,11 +405,17 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
         });
 
         clearTimeout(timeoutId);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
           const errMsg = errBody?.error?.message || `Gemini API returned HTTP ${res.status}`;
           
+          onLog?.({
+            type: 'warn',
+            message: `⚠️ Key #${i + 1} returned HTTP ${res.status} (${duration}s): ${errMsg}`
+          });
+
           // If model is deprecated or unavailable, break key loop and try next model
           if (res.status === 404 || errMsg.toLowerCase().includes('no longer available') || errMsg.toLowerCase().includes('not found')) {
             console.warn(`Model ${currentModel} unavailable/deprecated, failing over to next model:`, errMsg);
@@ -404,11 +426,21 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
           throw new Error(errMsg);
         }
 
+        onLog?.({
+          type: 'success',
+          message: `✅ Received HTTP 200 OK from Gemini API in ${duration}s! Reading candidate tokens...`
+        });
+
         const resData = await res.json();
         const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (!text) {
           throw new Error('Gemini AI returned an empty response.');
         }
+
+        onLog?.({
+          type: 'done',
+          message: `🎉 Successfully parsed ${text.length} characters of structured AI extraction response!`
+        });
 
         // Remember working model for next time
         if (currentModel !== requestedModel) {
@@ -419,6 +451,7 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
       } catch (err) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError' && signal?.aborted) {
+          onLog?.({ type: 'abort', message: '🛑 Analysis aborted by user.' });
           throw new Error('AI Analysis cancelled by user.');
         }
         console.warn(`Key #${i + 1} failed for model ${currentModel}:`, err.message);
@@ -506,7 +539,8 @@ export async function generateStructuredWithGemini({
   inlineData = null,
   inlineDatas = null,
   model = null,
-  signal,
+  signal = null,
+  onLog = null
 }) {
   // If client has stored keys or on localhost, call direct client immediately for ultra-fast processing
   const storedKeys = getStoredGeminiKeys();
@@ -516,7 +550,8 @@ export async function generateStructuredWithGemini({
       inlineData,
       inlineDatas,
       model: model || getPreferredGeminiModel(),
-      signal
+      signal,
+      onLog
     });
   }
 
