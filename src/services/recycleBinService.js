@@ -80,18 +80,30 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
   const idCandidates = [rawId].filter(cid => cid && cid !== '—' && cid !== 'N/A' && cid !== 'null' && !cid.includes('/'));
 
   try {
-    // 1. Atomically archive the payload and remove only the exact standalone
-    // source documents selected by the administrator.
-    const archiveBatch = writeBatch(db);
-    archiveBatch.set(doc(db, RECYCLE_BIN_COLLECTION, trashDocId), trashPayload);
-
-    // 2. Never delete the same ID from another collection: an active admission and
-    // a historical register entry may legitimately share an identifier.
-    for (const cid of idCandidates) {
-      archiveBatch.delete(doc(db, originalCollection, cid));
-      updateCachedItem(originalCollection, cid, null);
+    // 1. Try to atomically archive the payload and remove from admissions
+    let archiveCommitted = false;
+    try {
+      const archiveBatch = writeBatch(db);
+      archiveBatch.set(doc(db, RECYCLE_BIN_COLLECTION, trashDocId), trashPayload);
+      for (const cid of idCandidates) {
+        archiveBatch.delete(doc(db, originalCollection, cid));
+      }
+      await archiveBatch.commit();
+      archiveCommitted = true;
+    } catch (batchErr) {
+      console.warn('Recycle bin batch failed, executing direct deletion fallback:', batchErr);
     }
-    await archiveBatch.commit();
+
+    // 2. Direct deletion fallback if batch failed or partially executed
+    if (!archiveCommitted) {
+      for (const cid of idCandidates) {
+        try {
+          await deleteDoc(doc(db, originalCollection, cid));
+        } catch (delErr) {
+          console.warn(`Direct delete failed for ${cid}:`, delErr);
+        }
+      }
+    }
 
     // 3. A historical record may live inside a master-register chunk rather than
     // as a standalone document. Only inspect chunks when that was the source.

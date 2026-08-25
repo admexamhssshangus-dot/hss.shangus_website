@@ -415,8 +415,21 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{EXAM_NAME\}/gi, examName || 'Class 12th Examination');
   result = result.replace(/\{EXAM_ROLL_NO\}/gi, examRollNo || rollNo || '—');
   result = result.replace(/\{EXAM_SESSION\}/gi, examSession || session || '—');
-  result = result.replace(/\{RESULT_STATUS\}/gi, resultStatus || 'Pass');
-  result = result.replace(/\{(?:DIVISION_DISTINCTION|DIVISION|DISTINCTION)\}/gi, divisionDistinction || 'Distinction');
+  const computeDivision = (marksObt, maxMarksVal = 500) => {
+    const obt = parseFloat(marksObt);
+    const max = parseFloat(maxMarksVal) || 500;
+    if (isNaN(obt) || obt <= 0 || max <= 0) return 'Passed';
+    const pct = (obt / max) * 100;
+    if (pct >= 75) return 'Distinction';
+    if (pct >= 60) return '1st Division';
+    if (pct >= 45) return '2nd Division';
+    return '3rd Division';
+  };
+
+  const cleanResultStatus = (resultStatus === 'Pass' || resultStatus === 'Passed') ? 'Qualified' : (resultStatus || 'Qualified');
+  result = result.replace(/\{RESULT_STATUS\}/gi, cleanResultStatus);
+  const cleanDiv = (divisionDistinction && divisionDistinction !== '—') ? divisionDistinction : (effectiveMarksObt && effectiveMarksObt !== '—' ? computeDivision(effectiveMarksObt, effectiveMaxMarks) : 'Passed');
+  result = result.replace(/\{(?:DIVISION_DISTINCTION|DIVISION|DISTINCTION)\}/gi, cleanDiv);
   result = result.replace(/\{MARKS_OBTAINED\}/gi, effectiveMarksObt);
   result = result.replace(/\{MAX_MARKS\}/gi, effectiveMaxMarks);
   result = result.replace(/\{REAPP_SUBJECTS\}/gi, reappSubjects || '—');

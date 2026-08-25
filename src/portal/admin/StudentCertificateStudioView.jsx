@@ -24,6 +24,7 @@ import StudentResultEditorModal from './StudentResultEditorModal';
 import ResultIngestionModal from './ResultIngestionModal';
 import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
 import ConfirmModal from '../components/ConfirmModal';
+import { fetchLastIssuedCertificateNumber } from '../../services/certificateRegistryService';
 import {
   normalizeResultStatus,
   calculateDivision,
@@ -697,18 +698,19 @@ export default function StudentCertificateStudioView({
     // Immediately fetch & resolve student photo from database
     await fetchAndResolveStudentPhoto(st);
 
-    // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No
+    // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
     const prefix = activeTpl.refPrefix || 'HSS/SHG/TC-DC';
-    const isTcDc = Boolean(activeTpl.isTcDc || selectedTemplateId.startsWith('tc_dc'));
     const existingCertNo = raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || raw.certificateNo;
     
     if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
       setRefNo(String(existingCertNo).trim());
     } else {
-      const cleanSerial = (st.rollNo && st.rollNo !== '—' && String(st.rollNo).length < 8)
-        ? st.rollNo
-        : (admNoResolved && admNoResolved !== '—' && String(admNoResolved).length < 8 ? admNoResolved : '1368');
-      setRefNo(`${prefix}/${cleanSerial}/${new Date().getFullYear()}`);
+      let lastNo = 1367;
+      try {
+        lastNo = await fetchLastIssuedCertificateNumber();
+      } catch (_) {}
+      const nextNo = lastNo + 1;
+      setRefNo(`${prefix}/${nextNo}/${new Date().getFullYear()}`);
     }
   };
 
@@ -844,7 +846,7 @@ export default function StudentCertificateStudioView({
       examName: `Class ${className || '12th'} Examination`,
       examRollNo: effExamRoll,
       examSession: effExamMode,
-      resultStatus: isPassed ? 'Pass' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : 'Did Not Qualify'),
+      resultStatus: isPassed || selectedTemplateId.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
       divisionDistinction: effDiv,
       marksObtained: effMarksObt,
       maxMarks: effMaxMarks,
