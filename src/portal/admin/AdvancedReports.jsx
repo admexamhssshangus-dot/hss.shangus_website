@@ -9,6 +9,7 @@ import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../..
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
+import ConfirmModal from '../components/ConfirmModal';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import DeleteApplicationModal from './DeleteApplicationModal';
 import RecycleBinModal from './RecycleBinModal';
@@ -10450,6 +10451,24 @@ export default function AdvancedReports({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Global Confirmation Modal */}
+      {confirmModalConfig && (
+        <ConfirmModal
+          isOpen={Boolean(confirmModalConfig.isOpen !== false)}
+          onClose={() => setConfirmModalConfig(null)}
+          onConfirm={() => {
+            if (typeof confirmModalConfig.onConfirm === 'function') {
+              confirmModalConfig.onConfirm();
+            }
+          }}
+          title={confirmModalConfig.title}
+          message={confirmModalConfig.message}
+          confirmText={confirmModalConfig.confirmText || 'Confirm'}
+          type={confirmModalConfig.type || 'danger'}
+          loading={bulkTableActionBusy}
+        />
       )}
 
       {/* Toast Notification */}
