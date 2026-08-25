@@ -6,11 +6,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   X, Award, Printer, Search,
-  FileSpreadsheet, AlertCircle, RefreshCw, Database
+  FileSpreadsheet, AlertCircle, RefreshCw, Database, CheckCircle2, Lock
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
+import {
+  fetchLastIssuedCertificateNumber,
+  commitIssuedCertificateBatch,
+  exportCertificateRegistryXlsx
+} from '../../services/certificateRegistryService';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
   dobToWords,
@@ -163,6 +168,21 @@ export default function BulkCertificateGeneratorModal({
   const [withdrawalDateOverride, setWithdrawalDateOverride] = useState('14-01-2026');
   const [examSessionOverride, setExamSessionOverride] = useState('Annual Regular 2025 (Oct.-Nov.)');
   const [pageMargin, setPageMargin] = useState(0.3);
+  const [isCommittingToDb, setIsCommittingToDb] = useState(false);
+
+  // Auto-fetch highest issued Certificate Number from Firestore on modal open
+  useEffect(() => {
+    if (isOpen) {
+      fetchLastIssuedCertificateNumber().then((lastNo) => {
+        if (lastNo && !isNaN(lastNo) && lastNo > 0) {
+          setLastIssuedCertNo(lastNo);
+          setStartCertNo(lastNo + 1);
+        }
+      }).catch((err) => {
+        console.warn('Failed to load last issued certificate number from Firestore:', err);
+      });
+    }
+  }, [isOpen]);
 
   const handleLastCertNoChange = (val) => {
     setLastIssuedCertNo(val);
@@ -392,19 +412,28 @@ export default function BulkCertificateGeneratorModal({
     });
   }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, searchQuery]);
 
-  // Pre-compute cert number map: O(n) single pass instead of O(n²) per-row
+  // Pre-compute cert number map: strictly sequential for selected students, prospective for preview
   const certNumberMap = useMemo(() => {
     const base = parseInt(startCertNo, 10) || 1368;
     const map = new Map();
     let seq = 0;
-    filteredStudents.forEach((st, idx) => {
-      if (selectedStudentIds.has(st.id)) {
-        map.set(st.id, base + seq);
-        seq++;
-      } else {
+    
+    // If user has selectively checked students, number strictly the checked ones gaplessly
+    if (selectedStudentIds.size > 0) {
+      filteredStudents.forEach((st) => {
+        if (selectedStudentIds.has(st.id)) {
+          map.set(st.id, base + seq);
+          seq++;
+        } else {
+          map.set(st.id, '—');
+        }
+      });
+    } else {
+      // Preview mode: show prospective sequential numbers across all filtered students
+      filteredStudents.forEach((st, idx) => {
         map.set(st.id, base + idx);
-      }
-    });
+      });
+    }
     return map;
   }, [filteredStudents, selectedStudentIds, startCertNo]);
 
@@ -447,15 +476,18 @@ export default function BulkCertificateGeneratorModal({
 
   // Compile batch student certificate packages with sequential numbering
   const compileBatchPackages = () => {
-    const selectedList = filteredStudents.filter(s => selectedStudentIds.has(s.id));
-    if (selectedList.length === 0) return [];
+    const targetList = selectedStudentIds.size > 0
+      ? filteredStudents.filter(s => selectedStudentIds.has(s.id))
+      : filteredStudents;
 
-    let currentCertNum = parseInt(startCertNo, 10) || 1276;
+    if (targetList.length === 0) return [];
+
+    const baseCertNum = parseInt(startCertNo, 10) || 1368;
     const qualifiedTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === 'tc_dc_qualified') || BUILTIN_CERTIFICATE_TEMPLATES[0];
     const reappearTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === 'tc_dc_reappear') || qualifiedTpl;
 
-    return selectedList.map((st, idx) => {
-      const certNo = String(currentCertNum + idx);
+    return targetList.map((st, idx) => {
+      const assignedCertNo = String(certNumberMap.get(st.id) || (baseCertNum + idx));
       const isPassed = st.resultStatus === 'Passed';
       const targetTpl = isPassed ? qualifiedTpl : reappearTpl;
 
@@ -481,7 +513,7 @@ export default function BulkCertificateGeneratorModal({
         session: st.session,
         address: `${st.village}, Shangus, Anantnag (J&K)`,
         gender: st.gender,
-        refNo: certNo,
+        refNo: assignedCertNo,
         date: issueDate,
         examName: `Class ${st.className} Examination`,
         examRollNo: st.examRollNo || '—',
@@ -500,10 +532,12 @@ export default function BulkCertificateGeneratorModal({
 
       return {
         student: st,
-        certNo,
+        id: st.id,
+        formNo: st.raw?.formNo || st.raw?.['Form No.'] || st.id,
+        certNo: assignedCertNo,
         bodyHtml: interpolatedHtml,
         metaDetails: {
-          certificateNo: certNo,
+          certificateNo: assignedCertNo,
           admissionDate: st.admDate,
           admissionNo: st.admNo,
           regNo: st.regNo
@@ -513,7 +547,7 @@ export default function BulkCertificateGeneratorModal({
   };
 
   // ─── Action 1: Batch Print 2 Pages Per Student ───
-  const handleBatchPrint = () => {
+  const handleBatchPrint = async () => {
     const packages = compileBatchPackages();
     if (packages.length === 0) {
       showToast('Please select at least 1 student for bulk print.', 'warning');
@@ -540,6 +574,28 @@ export default function BulkCertificateGeneratorModal({
       dateSigGap: 0.50,
       sigReceiptGap: 12
     });
+
+    // Prompt user to commit certificate numbers to Firestore
+    const confirmCommit = window.confirm(
+      `Print stream generated for ${packages.length} student(s) (#${packages[0].certNo} - #${packages[packages.length - 1].certNo}).\n\nDo you want to COMMIT and LOCK these certificate numbers to Firebase database so they are recorded as issued?`
+    );
+
+    if (confirmCommit) {
+      setIsCommittingToDb(true);
+      try {
+        const commitRes = await commitIssuedCertificateBatch(packages, issueDate);
+        if (commitRes.success) {
+          showToast(`✅ Successfully locked ${commitRes.count} certificate numbers (#${packages[0].certNo} - #${commitRes.lastIssuedCertNo}) to Firebase!`, 'success');
+          setLastIssuedCertNo(commitRes.lastIssuedCertNo);
+          setStartCertNo(commitRes.lastIssuedCertNo + 1);
+        }
+      } catch (err) {
+        console.error('Error committing certificate batch to Firebase:', err);
+        showToast('Failed to save certificate numbers to Firebase.', 'error');
+      } finally {
+        setIsCommittingToDb(false);
+      }
+    }
   };
 
   // ─── Action 2: Export Registry Spreadsheet (.xlsx) ───
@@ -550,31 +606,14 @@ export default function BulkCertificateGeneratorModal({
       return;
     }
 
-    const rows = packages.map((pkg, idx) => ({
-      'S.No': idx + 1,
-      'Certificate No': pkg.certNo,
-      'Student Name': pkg.student.studentName,
-      'Father Name': pkg.student.fatherName,
-      'Mother Name': pkg.student.motherName,
-      'Class': pkg.student.className,
-      'Stream': pkg.student.stream,
-      'Session': pkg.student.session,
-      'Board Reg No': pkg.student.regNo,
-      'Adm No': pkg.student.admNo,
-      'Adm Date': pkg.student.admDate,
-      'Exam Roll No': pkg.student.examRollNo,
-      'Result Status': pkg.student.resultStatus,
-      'Division / Remarks': pkg.student.division || pkg.student.reappSubjects || '—',
-      'Marks Obtained': `${pkg.student.marksObtained} / ${pkg.student.maxMarks}`,
-      'Date of Birth': pkg.student.dobRaw,
-      'Withdrawal Date': withdrawalDateOverride,
-      'Issue Date': issueDate
+    const studentsToExport = packages.map(pkg => ({
+      ...pkg.student,
+      certNo: pkg.certNo,
+      issueDate: issueDate,
+      withdrawalDate: withdrawalDateOverride
     }));
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'TC_DC_Issuance_Registry');
-    XLSX.writeFile(wb, `HSS_Shangus_TC_DC_Registry_${selectedClass}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportCertificateRegistryXlsx(studentsToExport, `HSS_Shangus_TC_DC_Registry_${selectedClass}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     showToast(`📊 Exported issuance registry for ${packages.length} certificates!`, 'success');
   };
 
@@ -918,21 +957,32 @@ export default function BulkCertificateGeneratorModal({
                         </td>
                         <td className="p-2 text-center font-mono">
                           {isChecked ? (
-                            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800">
+                            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
                               #{calculatedCertNo}
                             </span>
+                          ) : (st.raw?.ccDcNo || st.raw?.certificateNo) ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800">
+                              <Lock size={9} />
+                              #{st.raw.ccDcNo || st.raw.certificateNo}
+                            </span>
                           ) : (
-                            <span className="text-slate-400 font-bold text-[11px]">
-                              #{calculatedCertNo}
+                            <span className="text-slate-300 dark:text-slate-600 font-bold text-xs">
+                              —
                             </span>
                           )}
                         </td>
                         <td className="p-2">
-                          <div className="font-extrabold text-slate-900 dark:text-white leading-tight">
-                            {st.studentName}
+                          <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white leading-tight">
+                            <span>{st.studentName}</span>
+                            {(st.raw?.ccDcNo || st.raw?.certificateNo) && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800 shrink-0">
+                                <CheckCircle2 size={9} />
+                                Issued #{st.raw.ccDcNo || st.raw.certificateNo}
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                            S/o {st.fatherName} • M: {st.motherName}
+                            {st.gender === 'F' ? 'D/o' : 'S/o'} {st.fatherName} • M: {st.motherName}
                           </div>
                         </td>
                         <td className="p-2">
@@ -985,7 +1035,7 @@ export default function BulkCertificateGeneratorModal({
             <button
               type="button"
               onClick={handleExportRegistryExcel}
-              disabled={totalSelected === 0}
+              disabled={totalFiltered === 0}
               className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
             >
               <FileSpreadsheet size={14} className="text-emerald-600" />
@@ -995,11 +1045,20 @@ export default function BulkCertificateGeneratorModal({
             <button
               type="button"
               onClick={handleBatchPrint}
-              disabled={totalSelected === 0}
+              disabled={totalFiltered === 0 || isCommittingToDb}
               className="flex-1 sm:flex-initial px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 active:scale-98 text-white font-black text-xs cursor-pointer shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
             >
-              <Printer size={15} />
-              <span>Batch Print ({totalSelected} Selected)</span>
+              {isCommittingToDb ? (
+                <>
+                  <RefreshCw size={15} className="animate-spin" />
+                  <span>Locking in Firebase...</span>
+                </>
+              ) : (
+                <>
+                  <Printer size={15} />
+                  <span>Batch Print ({totalSelected > 0 ? `${totalSelected} Selected` : `All ${totalFiltered}`})</span>
+                </>
+              )}
             </button>
           </div>
         </div>
