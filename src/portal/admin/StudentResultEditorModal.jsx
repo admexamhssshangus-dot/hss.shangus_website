@@ -19,15 +19,17 @@ import {
   Sparkles,
   FileCheck
 } from 'lucide-react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { updateCachedItem } from '../../services/dbCache';
 import {
   JKBOSE_SUBJECT_CODES,
   calculateDivision,
   normalizeResultStatus,
+  extractStudentResultMarks,
   extractStudentAdmissionNumber,
-  extractStudentAdmissionDate
+  extractStudentAdmissionDate,
+  extractStudentCertificateNumber
 } from '../../utils/jkboseResultManager';
 
 export default function StudentResultEditorModal({
@@ -42,10 +44,10 @@ export default function StudentResultEditorModal({
   // Form State
   const [examMode, setExamMode] = useState('');
   const [examRollNo, setExamRollNo] = useState('');
-  const [resultStatus, setResultStatus] = useState('Passed'); // 'Passed' | 'Reap' | 'Failed' | 'Discharged'
+  const [resultStatus, setResultStatus] = useState('Awaiting Result');
   const [marksObtained, setMarksObtained] = useState('');
   const [maxMarks, setMaxMarks] = useState('500');
-  const [division, setDivision] = useState('Distinction');
+  const [division, setDivision] = useState('');
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [customReappText, setCustomReappText] = useState('');
   const [withdrawalDate, setWithdrawalDate] = useState('');
@@ -59,10 +61,11 @@ export default function StudentResultEditorModal({
   useEffect(() => {
     if (!student) return;
     const r = raw;
-    setExamMode(r['Exam Mode (Current)'] || r.currExamMode || 'Annual Regular 2025 (Oct.-Nov.)');
-    setExamRollNo(r['Exam R.No. (Current)'] || r.currExamRoll || '');
-    
-    const initialStatus = normalizeResultStatus(r['Result (Current)'] || r.currResult || 'Passed');
+    const resultInfo = extractStudentResultMarks(r);
+    setExamMode(resultInfo.examMode);
+    setExamRollNo(resultInfo.examRoll);
+
+    const initialStatus = resultInfo.resultStatus;
     setResultStatus(initialStatus);
 
     const rawMarks = String(r['Marks/Reapp (Current)'] || r.currMarksReapp || '');
@@ -75,7 +78,7 @@ export default function StudentResultEditorModal({
       setMaxMarks('500');
     }
 
-    setDivision(r['Div/Distinc (Current)'] || r.currDiv || '');
+    setDivision(resultInfo.division);
 
     // Reapp subjects
     if (initialStatus === 'Reap' && rawMarks && !numMatch) {
@@ -88,9 +91,9 @@ export default function StudentResultEditorModal({
     }
 
     setWithdrawalDate(r['Date of withdrawl'] || r.withdrawalDate || new Date().toISOString().slice(0, 10));
-    setCcDcNo(r['No. & Date of CC/DC Issued (This Institution)'] || r.ccDcNo || '');
-    setAdmNo(extractStudentAdmissionNumber(r) || student.rollNo || '');
-    setAdmDate(extractStudentAdmissionDate(r) || '01-07-2024');
+    setCcDcNo(extractStudentCertificateNumber(r));
+    setAdmNo(extractStudentAdmissionNumber(r));
+    setAdmDate(extractStudentAdmissionDate(r));
     setRemarks(r['Remarks'] || '');
   }, [student, raw]);
 
@@ -176,19 +179,50 @@ export default function StudentResultEditorModal({
       };
 
       const collName = raw._srcCollection || (student.sourceType === 'past' ? 'masterRegisters' : 'admissions');
+      const parentDocId = raw._parentDocId || student._parentDocId || '';
 
-      // Save directly to Firestore
-      const studentDocRef = doc(db, collName, String(docId));
-      await setDoc(studentDocRef, patch, { merge: true });
+      if (collName === 'masterRegisters' && parentDocId) {
+        // Archived rosters are packed inside a parent chunk. Update the item in
+        // that chunk instead of creating a redundant flat master-register doc.
+        const parentRef = doc(db, 'masterRegisters', String(parentDocId));
+        const parentSnap = await getDoc(parentRef);
+        if (!parentSnap.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
+        const parentData = parentSnap.data();
+        const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
+        if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student records array.`);
 
-      // Update in-memory local cache immediately
-      updateCachedItem(collName, String(docId), patch);
+        let didMatch = false;
+        const normalized = (value) => String(value || '').trim().toLowerCase();
+        const updatedRecords = parentData[arrayKey].map((record) => {
+          const recordForm = normalized(record.formNo || record['Form No.'] || record['Form Number']);
+          const recordReg = normalized(record.regNo || record.boardRegNo || record['Board Reg. No.'] || record['Board Registration Number']);
+          const recordName = normalized(record.studentName || record.name || record["Student's Name"] || record["Student's Name (as per school records)"]);
+          const matches = (formNo && recordForm === normalized(formNo)) ||
+            (regNo && recordReg === normalized(regNo)) ||
+            (studentName && recordName === normalized(studentName));
+          if (!matches) return record;
+          didMatch = true;
+          const itemPatch = { ...patch };
+          delete itemPatch.updatedAt;
+          return { ...record, ...itemPatch };
+        });
+        if (!didMatch) throw new Error('Student was not found inside the source master-register chunk.');
+        await setDoc(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
+        updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords });
+      } else {
+        const studentDocRef = doc(db, collName, String(docId));
+        await setDoc(studentDocRef, patch, { merge: true });
+        updateCachedItem(collName, String(docId), patch);
+      }
 
       if (collName !== 'admissions' && formNo) {
         try {
           const admDocRef = doc(db, 'admissions', String(formNo));
-          await setDoc(admDocRef, patch, { merge: true });
-          updateCachedItem('admissions', String(formNo), patch);
+          const admSnap = await getDoc(admDocRef);
+          if (admSnap.exists()) {
+            await setDoc(admDocRef, patch, { merge: true });
+            updateCachedItem('admissions', String(formNo), patch);
+          }
         } catch (_) {}
       }
 
@@ -244,7 +278,7 @@ export default function StudentResultEditorModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Exam Mode / Session
+                Exam Mode (separate from cohort session)
               </label>
               <input
                 type="text"
@@ -274,8 +308,9 @@ export default function StudentResultEditorModal({
             <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Result Status
             </label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {[
+                { id: 'Awaiting Result', label: '⏳ Awaiting Result', color: 'border-slate-500 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300' },
                 { id: 'Passed', label: '✅ Passed / Qualified', color: 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' },
                 { id: 'Reap', label: '⚠️ Re-appear', color: 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' },
                 { id: 'Failed', label: '❌ Did Not Qualify', color: 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' },
