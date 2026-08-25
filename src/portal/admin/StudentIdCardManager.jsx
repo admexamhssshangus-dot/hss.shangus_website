@@ -48,12 +48,25 @@ if (typeof window !== 'undefined' && window.performance && window.performance.me
 
 /**
  * ─── UNIVERSAL PHOTO DISPLAY URL FORMATTER ───
- * Handles Google Drive URLs, raw Drive File IDs, base64 data URIs, and HTTP URLs
+ * Strictly formats Native Base64 and Firebase Storage URLs, rejecting Google Drive links
  */
 export function formatPhotoDisplayUrl(val) {
   if (!val || typeof val !== 'string') return '';
   const str = val.trim();
-  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') return '';
+  if (
+    !str ||
+    str === '—' ||
+    str === 'N/A' ||
+    str === 'null' ||
+    str === 'undefined' ||
+    str === '/logo.png' ||
+    str.includes('drive.google.com') ||
+    str.includes('docs.google.com') ||
+    str.includes('googleusercontent.com') ||
+    /^[A-Za-z0-9_-]{25,45}$/.test(str)
+  ) {
+    return '';
+  }
 
   // 1. Native Firestore / Data URL Base64 image
   if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
@@ -64,15 +77,7 @@ export function formatPhotoDisplayUrl(val) {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Convert to direct high-res image stream URL
-  if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
-    const idMatch = str.match(/[-\w]{25,}/);
-    if (idMatch && idMatch[0]) {
-      return `https://lh3.googleusercontent.com/d/${idMatch[0]}=w500`;
-    }
-  }
-
-  // 3. Firebase Storage or standard web image URLs
+  // 2. Firebase Storage or standard web image URLs (excluding Google Drive)
   if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
   }
@@ -3133,21 +3138,6 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
             loading="eager"
             crossOrigin="anonymous"
             onError={(e) => {
-              // Fallback chain: try direct thumbnail URL → logo
-              const src = e.target.src || '';
-              if (src.includes('lh3.googleusercontent.com')) {
-                // Already tried googleusercontent, fall back to logo
-                e.target.onerror = null;
-                e.target.src = '/logo.png';
-              } else if (src.includes('drive.google.com')) {
-                // Try lh3 proxy format
-                const match = src.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                if (match?.[1]) {
-                  e.target.onerror = null;
-                  e.target.src = `https://lh3.googleusercontent.com/d/${match[1]}`;
-                  return;
-                }
-              }
               e.target.onerror = null;
               e.target.src = '/logo.png';
             }}
