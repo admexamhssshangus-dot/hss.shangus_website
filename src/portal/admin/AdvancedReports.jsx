@@ -6488,15 +6488,15 @@ export default function AdvancedReports({
         penNo: sPen,
         prevSchool: a['Previous School'] || a['Name of the Institution last attended'] || '—',
         prevCcDc: a['CC/DC No. & Date (Prev. insitution)'] || '—',
-        prevExamMode: a['Exam Mode (Prev.)'] || '—',
-        prevExamRollNo: a['Exam R.No. (Prev.)'] || a['Roll No. (Class 10th)'] || '—',
-        prevMarksObt: a['Marks Obt. (Prev.)'] || a['Marks Obtained (Class 10th)'] || '—',
-        prevMaxMarks: a['Max. Marks (Prev.)'] || a['Max Marks (Class 10th)'] || '—',
-        prevPercentage: a['%age (Prev.)'] || a['Percentage (Class 10th)'] || '—',
-        prevDivision: a['Div/Distinc (Prev.)'] || '—',
-        currExamMode: a['Exam Mode (Current)'] || '—',
-        currExamRollNo: a['Exam R.No. (Current)'] || '—',
-        currResult: a['Result (Current)'] || '—',
+        prevExamMode: a['Exam Mode (Prev.)'] || a.prevExamMode || '—',
+        prevExamRollNo: a['Exam R.No. (Prev.)'] || a['Roll No. (Class 10th)'] || a.prevExamRollNo || a.examRollPrev || a['Exam R.no. (Prev.)'] || '—',
+        prevMarksObt: a['Marks Obt. (Prev.)'] || a['Marks Obtained (Class 10th)'] || a.prevMarksObt || '—',
+        prevMaxMarks: a['Max. Marks (Prev.)'] || a['Max Marks (Class 10th)'] || a.prevMaxMarks || '—',
+        prevPercentage: a['%age (Prev.)'] || a['Percentage (Class 10th)'] || a.prevPercentage || '—',
+        prevDivision: a['Div/Distinc (Prev.)'] || a.prevDivision || '—',
+        currExamMode: a['Exam Mode (Current)'] || a.currExamMode || '—',
+        currExamRollNo: a['Exam R.No. (Current)'] || a.currExamRollNo || a.examRollNo || a.examRoll || a.boardRoll || a.boardRollNo || a['Exam R.No.'] || a['Exam Roll No'] || '—',
+        currResult: a['Result (Current)'] || a.result || a.currResult || '—',
         currMarksReapp: a['Marks/Reapp (Current)'] || '—',
         withdrawalDate: a['Date of withdrawl'] || '—',
         currCcDc: a['No. & Date of CC/DC Issued (This Institution)'] || '—',
@@ -6524,6 +6524,72 @@ export default function AdvancedReports({
       if (sName && sName !== 'student') seenActiveKeys.add(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
     });
 
+    // Build comprehensive master demographic profile map for cross-session autofill (e.g. Bi-annual / Repeater / Exam records)
+    const masterDemographicProfileMap = new Map();
+    const registerDemographicProfile = (rec) => {
+      if (!rec) return;
+      const reg = extractRegNoClean(rec);
+      const adm = cleanAdmNoVal(rec.admNo || rec['Adm. No.'] || rec['Admission No.']);
+      const sName = String(rec["Student's Name (as per school records)"] || rec["Student's Name"] || rec['Student Name'] || rec.studentName || '').toLowerCase().trim();
+      const fName = String(rec["Father's/Guardian's Name (as per school records)"] || rec["Father's Name"] || rec['Father Name'] || rec.fatherName || '').toLowerCase().trim();
+      const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName}_${fName.slice(0, 8)}` : '';
+
+      const cleanVal = (v) => (v && v !== '—' && v !== '-' && v !== '#N/A' && v !== 'N/A' && String(v).trim() !== '' ? v : null);
+
+      const dob = cleanVal(rec['DoB (figures)'] || rec['DoB (as per school records)'] || rec.dob || rec.DoB);
+      const dobWords = cleanVal(rec['DoB (words)'] || rec.dobWords);
+      const mob = cleanVal(rec['Mobile No. (with working WhatsApp)'] || rec["Student's Contact"] || rec['Mobile No.'] || rec.mobile);
+      const parentContact = cleanVal(rec["Parent's Contact"] || rec["Parent's Mobile No. (must be working)"] || rec["Parent's Mobile No."] || rec["Father's Mobile No."] || rec.parentContact);
+      const aadhar = cleanVal(rec['Aadhar No.'] || rec.aadhar);
+      const fatherAadhar = cleanVal(rec["Father's Aadhar No."] || rec["Father's Aadhaar No."] || rec.fatherAadhar);
+      const village = cleanVal(rec['Village/Town'] || rec['Name of your village'] || rec['Permanent Address'] || rec.village);
+      const bank = cleanVal(rec['Bank Account No.'] || rec['Bank Account Number'] || rec.bankAccount);
+      const bankName = cleanVal(rec['Name of Bank'] || rec['Bank Name'] || rec.bankName);
+      const ifsc = cleanVal(rec['IFSC code'] || rec['IFSC Code'] || rec.ifsc);
+      const pen = cleanVal(rec['PEN No.'] || rec.penNo);
+      const apaar = cleanVal(rec['APAAR ID'] || rec.apaarId);
+      const gender = cleanVal(rec['Gender'] || rec.gender);
+      const category = cleanVal(rec['Cat._JKBOSE'] || rec['Category'] || rec['Social category'] || rec.category);
+      const religion = cleanVal(rec['Religion'] || rec.religion);
+      const residence = cleanVal(rec['Residence (Village, District)'] || rec.residence);
+      const prevSchool = cleanVal(rec['Previous School'] || rec['Name of the Institution last attended'] || rec.prevSchool);
+      const photo = cleanVal(extractPhotoVal(rec));
+
+      const mergeProfile = (existing = {}) => ({
+        dob: existing.dob || dob,
+        dobWords: existing.dobWords || dobWords,
+        mob: existing.mob || mob,
+        parentContact: existing.parentContact || parentContact,
+        aadhar: existing.aadhar || aadhar,
+        fatherAadhar: existing.fatherAadhar || fatherAadhar,
+        village: (existing.village && existing.village !== 'Shangus') ? existing.village : (village || existing.village || 'Shangus'),
+        bank: existing.bank || bank,
+        bankName: existing.bankName || bankName,
+        ifsc: existing.ifsc || ifsc,
+        pen: existing.pen || pen,
+        apaar: existing.apaar || apaar,
+        gender: existing.gender || gender,
+        category: existing.category || category,
+        religion: existing.religion || religion,
+        residence: existing.residence || residence,
+        prevSchool: existing.prevSchool || prevSchool,
+        photo: existing.photo || photo
+      });
+
+      if (reg && isValidRegNo(reg)) {
+        masterDemographicProfileMap.set(reg, mergeProfile(masterDemographicProfileMap.get(reg)));
+      }
+      if (adm && adm !== '—') {
+        masterDemographicProfileMap.set(adm, mergeProfile(masterDemographicProfileMap.get(adm)));
+      }
+      if (nameKey) {
+        masterDemographicProfileMap.set(nameKey, mergeProfile(masterDemographicProfileMap.get(nameKey)));
+      }
+    };
+
+    currentAdmissions.forEach(registerDemographicProfile);
+    masterHistoricalRecords.forEach(registerDemographicProfile);
+
     // Process Historical Master Registers records (for global search, historical archives & earlier sessions)
     masterHistoricalRecords.forEach((m, idx) => {
       const cleanFNo = String(m['Form Number'] || m['Form No.'] || m.formNo || '').replace(/^'/, '').replace(/^(N\/A|—)$/i, '').trim();
@@ -6550,10 +6616,15 @@ export default function AdvancedReports({
       if (checkAdm && checkAdm !== '—' && seenActiveKeys.has(`adm_${targetClsLower}_${targetSessLower}_${checkAdm}`)) return;
       if (seenActiveKeys.has(checkNameKey)) return;
 
-      const sDob = formatDobToDisplay(m["DoB (figures)"] || m["DoB (as per school records)"] || m['DoB (figures)'] || m['dob'] || '—');
-      const sVillage = m['Permanent Address'] || m['Name of your village'] || m['Village/Town'] || m['Address'] || m.village || 'Shangus';
-      const sGender = m['Gender'] || m.gender || '—';
-      const sCategory = m['Cat._JKBOSE'] || m['Category'] || m['Social Category'] || m.category || 'General';
+      const regKey = extractRegNoClean(m);
+      const admKey = cleanAdmNoVal(finalAdmNo);
+      const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
+      const demo = (regKey && masterDemographicProfileMap.get(regKey)) || (nameKey && masterDemographicProfileMap.get(nameKey)) || (admKey && masterDemographicProfileMap.get(admKey)) || {};
+
+      const sDob = formatDobToDisplay(m["DoB (figures)"] || m["DoB (as per school records)"] || m['DoB (figures)'] || m['dob'] || demo.dob || '—');
+      const sVillage = m['Permanent Address'] || m['Name of your village'] || m['Village/Town'] || m['Address'] || m.village || demo.village || 'Shangus';
+      const sGender = m['Gender'] || m.gender || demo.gender || '—';
+      const sCategory = m['Cat._JKBOSE'] || m['Category'] || m['Social Category'] || m.category || demo.category || 'General';
       let sStream = resolveStudentStream(m, null);
       let sSubs = formatStudentSubjects(m);
 
@@ -6569,10 +6640,6 @@ export default function AdvancedReports({
       let matched11thRec = null;
 
       if (targetClass === '12th') {
-        const regKey = extractRegNoClean(m);
-        const admKey = cleanAdmNoVal(finalAdmNo);
-        const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
-
         if (regKey && isValidRegNo(regKey)) {
           matched11thRec = record11thByReg.get(regKey);
         }
@@ -6615,9 +6682,16 @@ export default function AdvancedReports({
         indivSubsHist = parts.map(p => expandJkboseSubjectCodes(p) || p);
       }
 
-      const sMobile = m['Mobile No. (with working WhatsApp)'] || m["Student's Contact"] || m['Account Mobile'] || m.mobile || '—';
-      const sAadhar = m['Aadhar No.'] || m.aadhar || '—';
-      const sPen = m['PEN No.'] || m.penNo || '—';
+      const sMobile = m['Mobile No. (with working WhatsApp)'] || m["Student's Contact"] || m['Account Mobile'] || m.mobile || demo.mob || '—';
+      const sAadhar = m['Aadhar No.'] || m.aadhar || demo.aadhar || '—';
+      const sPen = m['PEN No.'] || m.penNo || demo.pen || '—';
+      const sFatherAadhar = m["Father's Aadhar No."] || m["Father's Aadhaar No."] || m.fatherAadhar || demo.fatherAadhar || '—';
+      const sBankAccount = m['Bank Account No.'] || m['Bank Account Number'] || m.bankAccount || demo.bank || '—';
+      const sBankName = m['Name of Bank'] || m['Bank Name'] || m.bankName || demo.bankName || '—';
+      const sIfsc = m['IFSC code'] || m['IFSC Code'] || m.ifsc || demo.ifsc || '—';
+      const sApaar = m['APAAR ID'] || m.apaarId || demo.apaar || '—';
+      const sPrevSchool = m['Previous School'] || m['Name of the Institution last attended'] || m.prevSchool || demo.prevSchool || '—';
+      const sPhotoId = extractPhotoVal(m) || demo.photo || '';
 
       const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${rawRoll} ${rawReg} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${optedStream12th} ${optedSubs12th} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory} ${hasStreamMismatch ? 'mismatch stream' : ''} ${hasSubsMismatch ? 'mismatch subjects' : ''}`.toLowerCase();
 
@@ -6667,15 +6741,56 @@ export default function AdvancedReports({
         optedSubs12th,
         streamMismatchNotice,
         subsMismatchNotice,
-        photoId: extractPhotoVal(m) || '',
+        photoId: sPhotoId,
         mobile: sMobile,
         aadhar: sAadhar,
+        fatherAadhar: sFatherAadhar,
+        bankAccount: sBankAccount,
+        bankName: sBankName,
+        ifsc: sIfsc,
         penNo: sPen,
-        prevSchool: m['Previous School'] || m['Name of the Institution last attended'] || '—',
-        currResult: m['Result (Current)'] || m.result || '—',
-        currMarksReapp: m['Marks/Reapp (Current)'] || m.marks || '—',
+        apaarId: sApaar,
+        prevSchool: sPrevSchool,
+        onlineSubmDate: m['Online Subm. Date'] || m.onlineSubmDate || '—',
+        admDate: m['Adm. Date'] || m.admDate || '—',
+        boardName: m['Board Name'] || m['Board Name (Class 10th)'] || m.boardName || demo.boardName || '—',
+        dobWords: m['DoB (words)'] || m.dobWords || demo.dobWords || '—',
+        block: m['Block'] || m.block || demo.block || '—',
+        tehsil: m['Tehsil'] || m.tehsil || demo.tehsil || '—',
+        district: m['District'] || m.district || demo.district || '—',
+        pinCode: m['PIN code'] || m['Pin Code'] || m.pinCode || demo.pinCode || '—',
+        state: m['State/UT'] || m['State'] || m.state || demo.state || '—',
+        residence: m['Residence (Village, District)'] || m.residence || demo.residence || '—',
+        religion: m['Religion'] || m.religion || demo.religion || '—',
+        disabilityStatus: m['Disability Status'] || m.disabilityStatus || demo.disabilityStatus || '—',
+        disabilityType: m['Disability Type'] || m.disabilityType || demo.disabilityType || '—',
+        email1: m['email1'] || m['Email'] || m.email1 || demo.email1 || '—',
+        email2: m['email2'] || m.email2 || demo.email2 || '—',
+        parentContact: m["Parent's Contact"] || m["Parent's Mobile No. (must be working)"] || m["Parent's Mobile No."] || m["Father's Mobile No."] || m.parentContact || demo.parentContact || '—',
+        bloodType: m['Blood Type'] || m['Blood Group'] || m.bloodType || demo.bloodType || '—',
+        height: m['Height (cm)'] || m['Height'] || m.height || demo.height || '—',
+        weight: m['Weight (kg)'] || m['Weight'] || m.weight || demo.weight || '—',
+        socialCategory: m['Social category'] || m.socialCategory || demo.socialCategory || '—',
+        socioEconomicCategory: m['Socio-economic category'] || m.socioEconomicCategory || demo.socioEconomicCategory || '—',
+        houseNo: m['House No.'] || m.houseNo || demo.houseNo || '—',
+        vocationalPercentage: m['Vocational %age'] || m.vocationalPercentage || demo.vocationalPercentage || '—',
+        prevComplexHead: m['Previous Complex Head'] || m.prevComplexHead || demo.prevComplexHead || '—',
+        prevCcDc: m['CC/DC No. & Date (Prev. insitution)'] || m.prevCcDc || '—',
+        prevExamMode: m['Exam Mode (Prev.)'] || m.prevExamMode || '—',
+        prevExamRollNo: m['Exam R.No. (Prev.)'] || m['Roll No. (Class 10th)'] || m.prevExamRollNo || m['Exam R.no. (Prev.)'] || m['Prev Exam Roll No'] || '—',
+        prevMarksObt: m['Marks Obt. (Prev.)'] || m['Marks Obtained (Class 10th)'] || m.prevMarksObt || '—',
+        prevMaxMarks: m['Max. Marks (Prev.)'] || m['Max Marks (Class 10th)'] || m.prevMaxMarks || '—',
+        prevPercentage: m['%age (Prev.)'] || m['Percentage (Class 10th)'] || m.prevPercentage || '—',
+        prevDivision: m['Div/Distinc (Prev.)'] || m.prevDivision || '—',
+        currExamMode: m['Exam Mode (Current)'] || m.currExamMode || '—',
+        currExamRollNo: m['Exam R.No. (Current)'] || m.currExamRollNo || m.examRollNo || m.examRoll || m['Exam R.No.'] || m['Exam Roll No'] || '—',
+        currResult: m['Result (Current)'] || m.result || m.currResult || '—',
+        currMarksReapp: m['Marks/Reapp (Current)'] || m.marks || m.currMarksReapp || '—',
         withdrawalDate: m['Date of withdrawl'] || m.withdrawalDate || '—',
-        apaarId: m['APAAR ID'] || '—',
+        currCcDc: m['No. & Date of CC/DC Issued (This Institution)'] || m.currCcDc || '—',
+        remarks: m['Remarks'] || m.remarks || '—',
+        pdfUrl: m['PDF_URL'] || m.pdfUrl || '—',
+        readmission: m['readmission'] || m.readmission || '—',
         subjects1: indivSubsHist[0] || (m['Subjects1'] ? (expandJkboseSubjectCodes(m['Subjects1']) || m['Subjects1']) : '—'),
         subjects2: indivSubsHist[1] || (m['Subjects2'] ? (expandJkboseSubjectCodes(m['Subjects2']) || m['Subjects2']) : '—'),
         subjects3: indivSubsHist[2] || (m['Subjects3'] ? (expandJkboseSubjectCodes(m['Subjects3']) || m['Subjects3']) : '—'),
