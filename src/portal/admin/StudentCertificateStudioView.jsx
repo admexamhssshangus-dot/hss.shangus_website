@@ -697,9 +697,19 @@ export default function StudentCertificateStudioView({
     // Immediately fetch & resolve student photo from database
     await fetchAndResolveStudentPhoto(st);
 
-    // Auto-update Ref No
-    const prefix = activeTpl.refPrefix || 'HSS/SHG/Bonafide';
-    setRefNo(`${prefix}/${st.rollNo || st.regNo || '01'}/${new Date().getFullYear()}`);
+    // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No
+    const prefix = activeTpl.refPrefix || 'HSS/SHG/TC-DC';
+    const isTcDc = Boolean(activeTpl.isTcDc || selectedTemplateId.startsWith('tc_dc'));
+    const existingCertNo = raw['No. & Date of CC/DC Issued (This Institution)'] || raw.ccDcNo || raw.certificateNo;
+    
+    if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
+      setRefNo(String(existingCertNo).trim());
+    } else {
+      const cleanSerial = (st.rollNo && st.rollNo !== '—' && String(st.rollNo).length < 8)
+        ? st.rollNo
+        : (admNoResolved && admNoResolved !== '—' && String(admNoResolved).length < 8 ? admNoResolved : '1368');
+      setRefNo(`${prefix}/${cleanSerial}/${new Date().getFullYear()}`);
+    }
   };
 
   // ─── Select Template Handler ───
@@ -722,7 +732,10 @@ export default function StudentCertificateStudioView({
       }
     }
     if (tpl.refPrefix) {
-      setRefNo(`${tpl.refPrefix}/${rollNo || regNo || '01'}/${new Date().getFullYear()}`);
+      const cleanSerial = (rollNo && rollNo !== '—' && String(rollNo).length < 8)
+        ? rollNo
+        : (admissionNo && admissionNo !== '—' && String(admissionNo).length < 8 ? admissionNo : '1368');
+      setRefNo(`${tpl.refPrefix}/${cleanSerial}/${new Date().getFullYear()}`);
     } else if (tpl.refNo) {
       setRefNo(tpl.refNo);
     }
