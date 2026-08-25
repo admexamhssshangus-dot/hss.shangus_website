@@ -10901,6 +10901,21 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                 <option value="hidden">Hidden (Inactive)</option>
                               </select>
                             </div>
+                            <div>
+                              <label className={panelLabel} style={panelLabelStyle}>Deployment Status</label>
+                              <select
+                                value={fullEditData.if_deployed || 'No'}
+                                onChange={e => fullEditField('if_deployed', e.target.value)}
+                                className={panelInput}
+                                style={panelInputStyle}
+                                onFocus={e => Object.assign(e.target.style, panelInputFocusStyle)}
+                                onBlur={e => Object.assign(e.target.style, panelInputStyle)}
+                              >
+                                <option value="No">No Deployment</option>
+                                <option value="in">Deployed In (working here from another school)</option>
+                                <option value="out">Deployed Out (posted to another school)</option>
+                              </select>
+                            </div>
                             {fullEditData.hidden && (
                               <div className="animate-in fade-in duration-200">
                                 <label className={panelLabel} style={panelLabelStyle}>Reason for Inactive</label>
