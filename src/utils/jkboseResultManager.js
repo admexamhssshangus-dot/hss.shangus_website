@@ -384,11 +384,14 @@ export function extractStudentAdmissionDate(st) {
     }
   }
 
-  // Smart fallback based on session (e.g. Session 2024-25 -> 01-07-2024, Session 2025-26 -> 01-07-2025)
+  // Smart fallback based on session and class (Class 12th admitted 2 years prior; Class 11th admitted 1 year prior)
+  const cls = String(raw.Class || raw.class || raw.className || st?.cls || '12th').toLowerCase();
   const sess = String(raw.session || raw.Session || st?.session || '').trim();
   const sessYearMatch = sess.match(/(20\d{2})/);
   if (sessYearMatch) {
-    return `01-07-${sessYearMatch[1]}`;
+    const examYear = parseInt(sessYearMatch[1], 10);
+    const admYear = cls.includes('12') ? (examYear - 2) : (examYear - 1);
+    return `01-07-${admYear > 2000 ? admYear : 2024}`;
   }
 
   return '01-07-2024';
