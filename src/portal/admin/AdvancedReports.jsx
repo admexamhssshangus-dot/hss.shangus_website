@@ -1848,10 +1848,10 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     });
   };
 
-  const handleSendWhatsApp = async (e) => {
+  const handleSendWhatsApp = (e) => {
     e.stopPropagation();
     setIsOpen(false);
-    const rawMob = String(student?.mobile || student?.["Student's Contact"] || '').replace(/\D/g, '');
+    const rawMob = String(student?.mobile || student?.["Student's Contact"] || student?.["Mobile No. (with working WhatsApp)"] || student?.["Mobile No."] || '').replace(/\D/g, '');
     if (!rawMob || rawMob.length < 10) {
       setDialogConfig({
         type: 'alert',
@@ -1865,26 +1865,41 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     }
     const cleanMob = rawMob.length === 10 ? `91${rawMob}` : rawMob;
 
-    // 1. Trigger clean local PDF generation & download
-    try {
-      await downloadStudentAdmissionPdf(student);
-    } catch (pdfErr) {
-      console.error('WhatsApp PDF download error:', pdfErr);
+    const sName = student?.studentName || student?.["Student's Name"] || 'Student';
+    const sForm = student?.formNo || student?.['Form Number'] || '—';
+    const sClass = student?.class || student?.['Class'] || student?.['Admission sought for class'] || '11th';
+    const sStream = student?.stream || student?.['Stream'] || '';
+    const sRoll = student?.classRollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || student?.rollNo || '';
+    const sAdm = student?.admNo || student?.['Adm. No.'] || '';
+    const sSubs = student?.subs || student?.['Subjects'] || '';
+    const sReason = student?.rejectionReason || student?.['Reason for Rejection'] || '';
+    const statusVal = String(student?.status || student?.Status || 'Submitted').trim().toLowerCase();
+
+    let msgText = '';
+
+    if (statusVal.startsWith('appr') || sRoll) {
+      msgText = `Dear ${sName},\n\n🎉 *ADMISSION APPLICATION APPROVED*\nYour admission for *Class ${sClass}* ${sStream ? `(${sStream})` : ''} at *Govt. Higher Secondary School Shangus* has been *APPROVED*.\n\n📋 *Admission Summary:*\n• Form No: *#${sForm}*\n• Class & Stream: *${sClass}* ${sStream ? `(${sStream})` : ''}\n• Class Roll No: *${sRoll || 'Allotted at Desk'}*\n• Adm No: *${sAdm || '—'}*\n${sSubs ? `• Subjects: ${sSubs}\n` : ''}\nPlease report to the institution for regular classes and orientation.\n\nWarm regards,\n*Principal / Admission Incharge*\nGovt. Higher Secondary School, Shangus`;
+    } else if (statusVal.startsWith('prov')) {
+      msgText = `Dear ${sName},\n\n⚠️ *PROVISIONAL ADMISSION NOTICE*\nYour admission application (*Form #${sForm}*) for *Class ${sClass}* at *Govt. Higher Secondary School Shangus* is currently *PROVISIONALLY ACCEPTED*.\n\n📌 *Action Required:*\nPlease submit your pending documents / original certificates to the admission office within the stipulated period to confirm your seat.\n\nRegards,\n*Admission Committee*\nGovt. Higher Secondary School, Shangus`;
+    } else if (statusVal.startsWith('rej')) {
+      msgText = `Dear ${sName},\n\n⚠️ *ADMISSION APPLICATION STATUS: RETURNED / REJECTED*\nYour application (*Form #${sForm}*) for *Class ${sClass}* at *Govt. Higher Secondary School Shangus* has been returned for correction.\n\n📌 *Reason for Return:*\n"${sReason || 'Uploaded documents / information requires correction.'}"\n\nPlease log in to the admission portal to update the details and resubmit promptly.\n\nRegards,\n*Admission Committee*\nGovt. Higher Secondary School, Shangus`;
+    } else if (statusVal.startsWith('draft') || statusVal === 'dft') {
+      msgText = `Dear ${sName},\n\n📝 *INCOMPLETE ADMISSION APPLICATION*\nYour admission form (*Form #${sForm}*) for *Class ${sClass}* at *Govt. Higher Secondary School Shangus* is currently in *DRAFT* state.\n\n📌 *Action Required:*\nPlease log in to the admission portal, complete all required personal, academic, and subject choices, and submit the application for verification.\n\nRegards,\n*Admission Helpdesk*\nGovt. Higher Secondary School, Shangus`;
+    } else if (statusVal.startsWith('with') || statusVal.includes('wthd')) {
+      msgText = `Dear ${sName},\n\nℹ️ *ADMISSION RECORD NOTICE*\nYour admission record (*Form #${sForm}*) for *Class ${sClass}* at *Govt. Higher Secondary School Shangus* is marked as *WITHDRAWN*.\n\nFor any inquiries or readmission procedures, please contact the institution office.\n\nRegards,\n*Govt. Higher Secondary School, Shangus*`;
+    } else {
+      // Default: Submitted
+      msgText = `Dear ${sName},\n\n✅ *ADMISSION APPLICATION RECEIVED*\nYour admission application (*Form #${sForm}*) for *Class ${sClass}* ${sStream ? `(${sStream})` : ''} at *Govt. Higher Secondary School Shangus* has been *SUBMITTED SUCCESSFULLY*.\n\n📋 *Status:* Under Official Verification\nOur admission committee is currently verifying your records and documents. You will receive an update once the process is complete.\n\nRegards,\n*Admission Committee*\nGovt. Higher Secondary School, Shangus`;
     }
 
-    const msgText = `Hello ${student?.studentName || 'Student'}, regarding your Admission Application (Form #${student?.formNo || ''}) at Govt. HSS Shangus:\n\n📌 Application Status: ${student?.status || 'Submitted'}\n📄 Form PDF: Downloaded to your device.\n\nThank you,\nGovt. HSS Shangus Administration`;
     const text = encodeURIComponent(msgText);
-
-    // 2. Direct launch: Attempt opening installed WhatsApp application directly first
     const appUrl = `whatsapp://send?phone=${cleanMob}&text=${text}`;
     const webUrl = `https://api.whatsapp.com/send?phone=${cleanMob}&text=${text}`;
 
     const start = Date.now();
-    // Try opening deep-link protocol for installed desktop/mobile app
     window.location.href = appUrl;
 
     setTimeout(() => {
-      // If app protocol was not handled within 1200ms, open in WhatsApp Web browser tab
       if (Date.now() - start < 2000) {
         window.open(webUrl, '_blank');
       }
