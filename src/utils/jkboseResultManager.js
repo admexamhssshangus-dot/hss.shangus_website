@@ -1217,7 +1217,9 @@ Example:
  * 1. For existing students: Updates result & roll fields preserving all existing profile details.
  * 2. For new private candidates: Creates new student documents in admissions with unique form numbers.
  */
-export async function batchUpdateStudentResults(recordsToUpdate = []) {
+export async function batchUpdateStudentResults(recordsToUpdate = [], options = {}) {
+  const { overwriteExamRoll = false } = options;
+
   if (!recordsToUpdate || recordsToUpdate.length === 0) {
     return { success: true, count: 0 };
   }
@@ -1240,18 +1242,22 @@ export async function batchUpdateStudentResults(recordsToUpdate = []) {
     // === RESULT-ONLY FIELDS (always safe to write for both matched & new students) ===
     const patch = {
       'Exam Mode (Current)': item.examMode || '',
-      'Exam R.No. (Current)': item.examRollNo || '',
       'Result (Current)': item.resultStatus || 'Awaiting Result',
       'Marks/Reapp (Current)': item.marksReapp || '',
       'Div/Distinc (Current)': item.divDistinc || '',
       currExamMode: item.examMode || '',
-      currExamRoll: item.examRollNo || '',
       currResult: item.resultStatus || 'Awaiting Result',
       currMarksReapp: item.marksReapp || '',
       currDiv: item.divDistinc || '',
-      examRollNo: item.examRollNo || '',
       updatedAt: serverTimestamp()
     };
+
+    // Exam Roll No: only overwrite for matched students if explicitly toggled on, always write for new students
+    if (isNewStudent || overwriteExamRoll) {
+      patch['Exam R.No. (Current)'] = item.examRollNo || '';
+      patch.currExamRoll = item.examRollNo || '';
+      patch.examRollNo = item.examRollNo || '';
+    }
 
     // Subjects/re-appear subjects are always safe to update (result data)
     if (item.subs) {

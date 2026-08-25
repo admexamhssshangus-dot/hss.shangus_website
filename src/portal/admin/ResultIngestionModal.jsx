@@ -186,6 +186,7 @@ export default function ResultIngestionModal({
   const abortControllerRef = useRef(null);
   const terminalEndRef = useRef(null);
   const [keyTestResult, setKeyTestResult] = useState(null); // null | { status: 'testing'|'success'|'error', message: string }
+  const [overwriteExamRoll, setOverwriteExamRoll] = useState(false); // Toggle: overwrite exam roll no for matched students
 
   // Auto-scroll terminal log to bottom on new events
   useEffect(() => {
@@ -525,7 +526,7 @@ export default function ResultIngestionModal({
 
     setIsCommitting(true);
     try {
-      const res = await batchUpdateStudentResults(selectedRowsToCommit);
+      const res = await batchUpdateStudentResults(selectedRowsToCommit, { overwriteExamRoll });
       if (showToast) {
         showToast(
           `🎉 Successfully synchronized ${res.count} student records in Firebase Firestore (${matchedCount} updated, ${newCount} new created)!`,
@@ -1392,6 +1393,24 @@ export default function ResultIngestionModal({
                 </div>
               </div>
 
+              {/* Sync Options */}
+              <div className="flex items-center gap-3 pt-1">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={overwriteExamRoll}
+                    onChange={(e) => setOverwriteExamRoll(e.target.checked)}
+                    className="rounded accent-amber-600 cursor-pointer"
+                  />
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200">
+                    Overwrite Exam Roll No for matched students
+                  </span>
+                </label>
+                <span className="text-[9px] text-slate-400">
+                  {overwriteExamRoll ? '⚠️ Exam roll numbers WILL be overwritten from Excel' : '🔒 Exam roll numbers preserved from DB (recommended)'}
+                </span>
+              </div>
+
               {/* Table Controls & Filter Toolbar */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <div className="flex items-center gap-1.5 flex-1 max-w-md">
@@ -1505,20 +1524,35 @@ export default function ResultIngestionModal({
                           </td>
 
                           <td className="p-2">
-                            <div className="font-bold text-slate-900 dark:text-slate-100">{row.studentName}</div>
-                            <div className="text-[9.5px] text-slate-400">
-                              S/o {row.fatherName || '—'} {row.motherName ? `• M/o ${row.motherName}` : ''}
+                            <div className="font-bold text-slate-900 dark:text-slate-100">
+                              {isMatched ? (row.matchedStudent?.name || row.matchedStudent?.studentName || row.matchedStudent?.raw?.["Student's Name"] || row.studentName) : row.studentName}
                             </div>
+                            <div className="text-[9.5px] text-slate-400">
+                              S/o {isMatched ? (row.matchedStudent?.fatherName || row.matchedStudent?.raw?.["Father's Name"] || row.fatherName || '—') : (row.fatherName || '—')}
+                              {' '}{row.motherName ? `• M/o ${row.motherName}` : ''}
+                            </div>
+                            {isMatched && (
+                              <div className="text-[8.5px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
+                                DB: {row.matchedStudent?.name || row.matchedStudent?.studentName || row.matchedStudent?.raw?.["Student's Name"] || '—'}
+                                {' '}• Reg: {row.matchedStudent?.regNo || row.matchedStudent?.boardRegNo || row.matchedStudent?.raw?.['Board Reg. No.'] || '—'}
+                              </div>
+                            )}
                           </td>
 
                           <td className="p-2">
-                            <input
-                              type="text"
-                              value={row.regNo}
-                              onChange={(e) => handleCellEdit(row.id, 'regNo', e.target.value)}
-                              placeholder="Reg No"
-                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-mono text-[10.5px] outline-none"
-                            />
+                            {isMatched ? (
+                              <span className="font-mono text-[10.5px] text-slate-700 dark:text-slate-300 font-bold">
+                                {row.matchedStudent?.regNo || row.matchedStudent?.boardRegNo || row.matchedStudent?.raw?.['Board Reg. No.'] || row.regNo || '—'}
+                              </span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={row.regNo}
+                                onChange={(e) => handleCellEdit(row.id, 'regNo', e.target.value)}
+                                placeholder="Reg No"
+                                className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-mono text-[10.5px] outline-none"
+                              />
+                            )}
                           </td>
 
                           <td className="p-2">
