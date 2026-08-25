@@ -50,6 +50,9 @@ import {
   getStoredGeminiKeys,
   getPreferredGeminiModel,
   savePreferredGeminiModel,
+  getAvailableGeminiModels,
+  saveCustomGeminiModel,
+  removeCustomGeminiModel,
   AVAILABLE_GEMINI_MODELS
 } from '../../services/geminiLetterService';
 
@@ -84,10 +87,14 @@ export default function ResultIngestionModal({
   const [showKeysConfig, setShowKeysConfig] = useState(false);
   const [geminiKeys, setGeminiKeys] = useState(() => getStoredGeminiKeys());
   const [keysInputText, setKeysInputText] = useState('');
-  const [preferredModel, setPreferredModel] = useState(() => getPreferredGeminiModel() || 'gemini-2.5-flash');
+  const [preferredModel, setPreferredModel] = useState(() => getPreferredGeminiModel() || 'gemini-3.7-flash');
   const [showKeysPreview, setShowKeysPreview] = useState(false);
+  const [modelsList, setModelsList] = useState(() => getAvailableGeminiModels());
+  const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [customModelIdInput, setCustomModelIdInput] = useState('');
+  const [customModelNameInput, setCustomModelNameInput] = useState('');
 
-  // Sync Gemini keys from Cloud Firestore whenever modal opens
+  // Sync Gemini keys & custom models from Cloud Firestore whenever modal opens
   useEffect(() => {
     if (isOpen) {
       fetchCloudGeminiKeys().then(keys => {
@@ -95,6 +102,7 @@ export default function ResultIngestionModal({
           setGeminiKeys(keys);
           setKeysInputText(keys.join('\n'));
         }
+        setModelsList(getAvailableGeminiModels());
       });
     }
   }, [isOpen]);
@@ -107,6 +115,37 @@ export default function ResultIngestionModal({
     savePreferredGeminiModel(preferredModel);
     setShowKeysConfig(false);
     if (showToast) showToast(`✓ Saved ${cleaned.length} Gemini API Key(s) to Cloud Firebase & LocalStorage!`, 'success');
+  };
+
+  const handleAddCustomModel = async (e) => {
+    if (e) e.preventDefault();
+    if (!customModelIdInput.trim()) {
+      if (showToast) showToast('Please enter a valid Gemini Model ID (e.g. gemini-3.1-flash-lite)', 'warning');
+      return;
+    }
+    const cleanId = customModelIdInput.trim();
+    const cleanName = customModelNameInput.trim() || cleanId;
+    const updated = await saveCustomGeminiModel({
+      id: cleanId,
+      name: cleanName,
+      tier: 'Custom Model',
+      freeTier: true
+    });
+    setModelsList(updated);
+    setPreferredModel(cleanId);
+    setCustomModelIdInput('');
+    setCustomModelNameInput('');
+    setShowAddCustomModel(false);
+    if (showToast) showToast(`✓ Added "${cleanName}" (${cleanId}) to Gemini AI Models!`, 'success');
+  };
+
+  const handleRemoveCustomModel = async (modelId) => {
+    const updated = await removeCustomGeminiModel(modelId);
+    setModelsList(updated);
+    if (preferredModel === modelId) {
+      setPreferredModel('gemini-3.7-flash');
+    }
+    if (showToast) showToast(`Removed model ${modelId}`, 'info');
   };
 
   // File & Multi-Screenshot State (Up to 5 images/PDFs)
@@ -533,36 +572,142 @@ export default function ResultIngestionModal({
               className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
 
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500">Preferred AI Model:</span>
-                <select
-                  value={preferredModel}
-                  onChange={(e) => setPreferredModel(e.target.value)}
-                  className="px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 font-bold text-[11px]"
-                >
-                  {AVAILABLE_GEMINI_MODELS.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
+            <div className="space-y-2 pt-1 border-t border-amber-200/80 dark:border-amber-800/60">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Preferred AI Model:</span>
+                  <select
+                    value={preferredModel}
+                    onChange={(e) => {
+                      if (e.target.value === '__add_new__') {
+                        setShowAddCustomModel(true);
+                      } else {
+                        setPreferredModel(e.target.value);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 font-bold text-[11px] text-slate-800 dark:text-slate-100 shadow-2xs"
+                  >
+                    {modelsList.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.freeTier ? '— [Free API Tier]' : ''}
+                      </option>
+                    ))}
+                    <option value="__add_new__">➕ Add Future / Custom Gemini Model...</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCustomModel(!showAddCustomModel)}
+                    className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 hover:bg-amber-300 border border-amber-400 dark:border-amber-700 cursor-pointer transition-colors"
+                  >
+                    {showAddCustomModel ? 'Hide Form' : '➕ Add Model'}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowKeysConfig(false)}
+                    className="px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold text-[11px] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveKeys}
+                    className="px-3.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] cursor-pointer shadow-xs"
+                  >
+                    ✓ Save Keys & Model to Cloud DB
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowKeysConfig(false)}
-                  className="px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold text-[11px] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveKeys}
-                  className="px-3.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] cursor-pointer shadow-xs"
-                >
-                  ✓ Save Keys to Cloud DB
-                </button>
-              </div>
+              {/* Inline Custom Model Adder Subform */}
+              {showAddCustomModel && (
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 shadow-sm space-y-2 animate-scaleUp">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] font-black text-amber-900 dark:text-amber-200 flex items-center gap-1">
+                      <Sparkles size={12} className="text-amber-500" />
+                      Add Any Future / Custom Google Gemini Model
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomModel(false)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">Model ID (Exact API Identifier)</label>
+                      <input
+                        type="text"
+                        value={customModelIdInput}
+                        onChange={(e) => setCustomModelIdInput(e.target.value)}
+                        placeholder="e.g. gemini-3.1-flash-lite or gemini-3-flash-preview"
+                        className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-[10.5px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9.5px] font-bold text-slate-500 mb-0.5">Display Label (Optional)</label>
+                      <input
+                        type="text"
+                        value={customModelNameInput}
+                        onChange={(e) => setCustomModelNameInput(e.target.value)}
+                        placeholder="e.g. Gemini 3.1 Flash-Lite (Fast Automation)"
+                        className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-medium text-[10.5px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[9px] text-slate-400">
+                      💡 New models are saved to Cloud Firestore and instantly available across all AI features.
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustomModel(false)}
+                        className="px-2.5 py-0.5 rounded text-[10px] font-bold text-slate-500 hover:text-slate-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomModel}
+                        className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10.5px] shadow-xs cursor-pointer"
+                      >
+                        ✓ Add & Select Model
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* List of currently installed custom models with delete option */}
+                  {modelsList.some(m => m.isCustom) && (
+                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] font-bold text-slate-400">Custom Models:</span>
+                      {modelsList.filter(m => m.isCustom).map(m => (
+                        <span
+                          key={m.id}
+                          className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 text-[9.5px] font-bold inline-flex items-center gap-1 border border-amber-300 dark:border-amber-700"
+                        >
+                          <span>{m.name || m.id}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomModel(m.id)}
+                            title="Delete custom model"
+                            className="text-rose-600 hover:text-rose-800 cursor-pointer ml-0.5"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

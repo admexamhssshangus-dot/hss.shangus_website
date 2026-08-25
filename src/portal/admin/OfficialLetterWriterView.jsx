@@ -20,6 +20,7 @@ import {
 } from '../../utils/officialLetterExportUtils';
 import {
   AVAILABLE_GEMINI_MODELS,
+  getAvailableGeminiModels,
   getStoredGeminiKeys,
   saveGeminiKeys,
   fetchCloudGeminiKeys,
