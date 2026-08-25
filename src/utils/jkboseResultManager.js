@@ -492,21 +492,148 @@ export function generateResultImportTemplate(studentsList = [], className = '12t
 export function matchStudentInDatabase(record, existingStudents = [], classScope = '', sessionScope = '') {
   if (!existingStudents || existingStudents.length === 0) return null;
 
-  const targetForm = String(record.formNo || record['Form No.'] || record['Form Number'] || '').trim().toLowerCase();
-  const targetReg = String(record.regNo || record['Board Reg. No.'] || record['Board Registration Number'] || record.boardRegNo || record['RR No.'] || record['R.R NO.'] || '').trim().toLowerCase();
-  const targetExamRoll = String(record.examRollNo || record['Exam R.No. (Current)'] || record['Exam Roll No'] || record.currExamRoll || '').trim().toLowerCase();
-  const targetName = String(record.studentName || record["Student's Name"] || record.name || '').trim().toLowerCase();
-  const targetFather = String(record.fatherName || record["Father's Name"] || record.father || '').trim().toLowerCase();
-  const targetClass = String(record.className || record['Class'] || classScope || '').trim().toLowerCase();
-  const targetSession = String(record.session || record['Session'] || record.examMode || sessionScope || '').trim().toLowerCase();
+  const clean = (val) => String(val || '').trim();
+  const lower = (val) => clean(val).toLowerCase();
+
+  const targetForm = lower(record.formNo || record['Form No.'] || record['Form Number'] || record.id || '');
+  const targetReg = lower(record.regNo || record['Board Reg. No.'] || record['Board Registration Number'] || record.boardRegNo || record['RR No.'] || record['R.R NO.'] || record['Registration No'] || '');
+  const targetExamRoll = lower(record.examRollNo || record['Exam R.No. (Current)'] || record['Exam Roll No'] || record['Exam R.No.'] || record['Roll No'] || record.currExamRoll || record.rollNo || '');
+  const targetName = lower(record.studentName || record["Student's Name"] || record.name || record['Name'] || record['Name of Candidate'] || '');
+  const targetFather = lower(record.fatherName || record["Father's Name"] || record.father || record['Father'] || '');
+  const targetClass = lower(record.className || record['Class'] || classScope || '');
+  const targetSession = lower(record.session || record['Session'] || record.examMode || sessionScope || '');
 
   // Helper to extract first word or initials from name
-  const firstWord = (str) => String(str || '').trim().toLowerCase().split(/[\s,._-]+/)[0] || '';
+  const firstWord = (str) => clean(str).toLowerCase().split(/[\s,._-]+/)[0] || '';
+
+  // Helper to extract student identity fields reliably from any admissions or masterRegisters document
+  const extractStudentMeta = (s) => {
+    const sForm = clean(s.formNo || s['Form No.'] || s['Form Number'] || s.raw?.['Form No.'] || s.raw?.['Form Number'] || s.id || '');
+    const sReg = clean(
+      s.regNo ||
+      s.boardRegNo ||
+      s['Board Reg. No.'] ||
+      s['Board Registration Number'] ||
+      s['RR No.'] ||
+      s['R.R NO.'] ||
+      s['Registration No'] ||
+      s.raw?.['Board Reg. No.'] ||
+      s.raw?.['Board Registration Number'] ||
+      s.raw?.boardRegNo ||
+      s.raw?.regNo ||
+      ''
+    );
+    const sRoll = clean(
+      s.examRollNo ||
+      s.currExamRoll ||
+      s.rollNo ||
+      s.roll ||
+      s.examRoll ||
+      s['Exam R.No. (Current)'] ||
+      s['Exam Roll No'] ||
+      s['Exam R.No.'] ||
+      s['Roll No'] ||
+      s.raw?.['Exam R.No. (Current)'] ||
+      s.raw?.['Exam Roll No'] ||
+      s.raw?.examRollNo ||
+      s.raw?.currExamRoll ||
+      s.raw?.rollNo ||
+      ''
+    );
+    const sName = clean(
+      s.name ||
+      s.studentName ||
+      s["Student's Name"] ||
+      s['Name'] ||
+      s['Name of Candidate'] ||
+      s.raw?.["Student's Name"] ||
+      s.raw?.studentName ||
+      s.raw?.name ||
+      ''
+    );
+    const sFather = clean(
+      s.fatherName ||
+      s.father ||
+      s["Father's Name"] ||
+      s['Father'] ||
+      s.raw?.["Father's Name"] ||
+      s.raw?.fatherName ||
+      ''
+    );
+    const sMother = clean(
+      s.motherName ||
+      s.mother ||
+      s["Mother's Name"] ||
+      s['Mother'] ||
+      s.raw?.["Mother's Name"] ||
+      s.raw?.motherName ||
+      ''
+    );
+    const sCls = clean(
+      s.className ||
+      s.selectedClass ||
+      s.class ||
+      s.cls ||
+      s['Class'] ||
+      s['Admission sought for class'] ||
+      s.raw?.['Class'] ||
+      s.raw?.className ||
+      ''
+    );
+    const sSess = clean(
+      s.session ||
+      s.selectedSession ||
+      s['Session'] ||
+      s['Academic Session'] ||
+      s.raw?.['Session'] ||
+      s.raw?.session ||
+      ''
+    );
+    const sStream = clean(
+      s.stream ||
+      s.selectedStream ||
+      s['Stream'] ||
+      s.raw?.['Stream'] ||
+      s.raw?.stream ||
+      ''
+    );
+
+    return {
+      sForm,
+      sReg,
+      sRoll,
+      sName,
+      sFather,
+      sMother,
+      sCls,
+      sSess,
+      sStream,
+      normalizedStudent: {
+        ...s,
+        id: sForm || s.id,
+        formNo: sForm || s.id,
+        name: sName,
+        studentName: sName,
+        fatherName: sFather,
+        motherName: sMother,
+        regNo: sReg,
+        boardRegNo: sReg,
+        rollNo: sRoll,
+        examRollNo: sRoll,
+        selectedClass: sCls,
+        class: sCls,
+        selectedStream: sStream,
+        stream: sStream,
+        selectedSession: sSess,
+        session: sSess
+      }
+    };
+  };
 
   // Helper to evaluate class match
-  const isClassMatch = (sCls) => {
+  const isClassMatch = (clsStr) => {
     if (!targetClass) return true;
-    const cleanSCls = String(sCls || '').toLowerCase();
+    const cleanSCls = lower(clsStr);
     if (!cleanSCls) return true;
     if (targetClass.includes('12') || targetClass.includes('xii')) return cleanSCls.includes('12') || cleanSCls.includes('xii');
     if (targetClass.includes('11') || targetClass.includes('xi')) return cleanSCls.includes('11') || cleanSCls.includes('xi');
@@ -515,16 +642,18 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     return cleanSCls.includes(targetClass) || targetClass.includes(cleanSCls);
   };
 
-  // Helper to evaluate session match (e.g. distinguishes 2026 APR/BIAN from 2025-26 or 2024-25)
-  const isSessionMatch = (sSess) => {
+  // Helper to evaluate session match
+  const isSessionMatch = (sessStr) => {
     if (!targetSession) return true;
-    const cleanSess = String(sSess || '').toLowerCase().trim();
+    const cleanSess = lower(sessStr);
     if (!cleanSess) return true;
-    
-    // Check APR/BIAN vs Regular
+
+    // If target is Bi-Annual (e.g. 2026 APR/BIAN), allow matching from surrounding/preceding academic years
     const targetIsBian = /bian|bi-annual|apr/i.test(targetSession);
-    const sIsBian = /bian|bi-annual|apr/i.test(cleanSess);
-    if (targetIsBian !== sIsBian) return false;
+    if (targetIsBian) {
+      // Bi-Annual candidates are enrolled students from recent sessions
+      return true;
+    }
 
     const targetYears = targetSession.match(/\b20\d\d\b/g) || [];
     const sYears = cleanSess.match(/\b20\d\d\b/g) || [];
@@ -534,117 +663,126 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     return cleanSess.includes(targetSession) || targetSession.includes(cleanSess);
   };
 
-  // 1. Board Registration No + Class + Session Match (Highest Confidence Standard Identity)
-  if (targetReg && targetReg.length > 5) {
-    const regMatches = existingStudents.filter(s => {
-      const r = String(s.regNo || s.boardRegNo || s.raw?.['Board Reg. No.'] || s.raw?.['Board Registration Number'] || s.raw?.regNo || '').trim().toLowerCase();
-      return r && r === targetReg;
-    });
-
-    if (regMatches.length > 0) {
-      // Find exact class & session match
-      const perfectMatch = regMatches.find(s => {
-        const sCls = s.selectedClass || s.cls || s.raw?.['Class'] || '';
-        const sSess = s.selectedSession || s.session || s.raw?.['Session'] || '';
-        return isClassMatch(sCls) && isSessionMatch(sSess);
-      });
-      if (perfectMatch) return { student: perfectMatch, matchType: 'Board Reg No + Class + Session Match', confidence: 100 };
-
-      // Match class if session differs slightly
-      const classMatch = regMatches.find(s => {
-        const sCls = s.selectedClass || s.cls || s.raw?.['Class'] || '';
-        return isClassMatch(sCls);
-      });
-      if (classMatch) return { student: classMatch, matchType: 'Board Reg No + Class Match', confidence: 96 };
-
-      return { student: regMatches[0], matchType: 'Board Reg No Match', confidence: 92 };
+  // 1. Board Registration No Match (Permanent Unique Lifetime Identity)
+  if (targetReg && targetReg.length >= 4) {
+    for (const s of existingStudents) {
+      const meta = extractStudentMeta(s);
+      if (meta.sReg && meta.sReg.toLowerCase() === targetReg) {
+        const classMatches = isClassMatch(meta.sCls);
+        return {
+          student: meta.normalizedStudent,
+          matchType: classMatches ? 'Board Reg No + Class Match' : 'Board Reg No Match',
+          confidence: classMatches ? 100 : 96
+        };
+      }
     }
   }
 
-  // 2. Exact Form No Match (Scoped by Session if available)
-  if (targetForm) {
-    const fMatches = existingStudents.filter(s => {
-      const f = String(s.formNo || s.raw?.['Form No.'] || s.raw?.['Form Number'] || s.raw?.formNo || '').trim().toLowerCase();
-      return f && f === targetForm;
-    });
-    if (fMatches.length > 0) {
-      const perfectF = fMatches.find(s => isSessionMatch(s.session || s.selectedSession || s.raw?.['Session'] || ''));
-      return { student: perfectF || fMatches[0], matchType: 'Form No Match', confidence: 95 };
-    }
-  }
-
-  // 3. Exact Exam Roll No Match WITH Strict Class & Session and Name Scoping
-  // (Prevents cross-session roll number collision when same roll number sequence is reused across years)
+  // 2. Exam Roll No Match (Primary Key for Result Gazette & Roll Ingestion)
   if (targetExamRoll && targetExamRoll.length >= 4) {
-    const scopedMatches = existingStudents.filter(s => {
-      const sExamRoll = String(s.raw?.['Exam R.No. (Current)'] || s.currExamRoll || s.raw?.['Exam Roll No'] || s.examRollNo || '').trim().toLowerCase();
-      if (!sExamRoll || sExamRoll !== targetExamRoll) return false;
-      const sCls = s.selectedClass || s.cls || s.raw?.['Class'] || '';
-      const sSess = s.selectedSession || s.session || s.raw?.['Session'] || s.raw?.['Exam Mode (Current)'] || '';
-      return isClassMatch(sCls) && isSessionMatch(sSess);
-    });
+    // A. First look for Exam Roll within the same class (Class 12th)
+    const rollClassMatches = [];
+    for (const s of existingStudents) {
+      const meta = extractStudentMeta(s);
+      if (meta.sRoll && meta.sRoll.toLowerCase() === targetExamRoll) {
+        if (isClassMatch(meta.sCls)) {
+          rollClassMatches.push(meta);
+        }
+      }
+    }
 
-    if (scopedMatches.length > 0) {
+    if (rollClassMatches.length > 0) {
+      // If name is also available, verify name match
       if (targetName) {
         const targetFirst = firstWord(targetName);
-        const nameVerified = scopedMatches.find(s => {
-          const sName = String(s.name || s.studentName || s.raw?.["Student's Name"] || '').trim().toLowerCase();
-          return firstWord(sName) === targetFirst || sName.includes(targetFirst) || targetFirst.includes(firstWord(sName));
+        const verified = rollClassMatches.find(m => {
+          const sFirst = firstWord(m.sName);
+          return sFirst === targetFirst || lower(m.sName).includes(targetFirst) || targetName.includes(sFirst);
         });
-        if (nameVerified) return { student: nameVerified, matchType: 'Exam Roll + Cohort + Name Match', confidence: 95 };
+        if (verified) {
+          return {
+            student: verified.normalizedStudent,
+            matchType: 'Exam Roll + Class + Name Match',
+            confidence: 99
+          };
+        }
       }
-      return { student: scopedMatches[0], matchType: 'Exam Roll & Cohort Match', confidence: 92 };
+      return {
+        student: rollClassMatches[0].normalizedStudent,
+        matchType: 'Exam Roll & Class Match',
+        confidence: 95
+      };
     }
 
-    // Only allow cross-session exam roll match if candidate name strongly confirms identity
+    // B. If no class match, check if Exam Roll matches anywhere across DB with matching candidate name
     if (targetName) {
       const targetFirst = firstWord(targetName);
-      const crossMatches = existingStudents.filter(s => {
-        const sExamRoll = String(s.raw?.['Exam R.No. (Current)'] || s.currExamRoll || s.raw?.['Exam Roll No'] || s.examRollNo || '').trim().toLowerCase();
-        if (sExamRoll !== targetExamRoll) return false;
-        const sName = String(s.name || s.studentName || s.raw?.["Student's Name"] || '').trim().toLowerCase();
-        return firstWord(sName) === targetFirst || sName.includes(targetFirst);
-      });
-      if (crossMatches.length === 1) {
-        return { student: crossMatches[0], matchType: 'Exam Roll & Verified Name Match', confidence: 88 };
+      for (const s of existingStudents) {
+        const meta = extractStudentMeta(s);
+        if (meta.sRoll && meta.sRoll.toLowerCase() === targetExamRoll) {
+          const sFirst = firstWord(meta.sName);
+          if (sFirst === targetFirst || lower(meta.sName).includes(targetFirst)) {
+            return {
+              student: meta.normalizedStudent,
+              matchType: 'Exam Roll & Verified Name Match',
+              confidence: 92
+            };
+          }
+        }
       }
     }
   }
 
-  // 4. Candidate Name First Word(s) + Father Name + Class + Session Match
+  // 3. Exact Form No Match
+  if (targetForm) {
+    for (const s of existingStudents) {
+      const meta = extractStudentMeta(s);
+      if (meta.sForm && meta.sForm.toLowerCase() === targetForm) {
+        return {
+          student: meta.normalizedStudent,
+          matchType: 'Form No Match',
+          confidence: 95
+        };
+      }
+    }
+  }
+
+  // 4. Candidate Name + Father Name in Same Class
   if (targetName && targetName.length >= 3) {
     const targetFirst = firstWord(targetName);
-    const cohortPool = existingStudents.filter(s => {
-      const sCls = s.selectedClass || s.cls || s.raw?.['Class'] || '';
-      const sSess = s.selectedSession || s.session || s.raw?.['Session'] || '';
-      return isClassMatch(sCls) && isSessionMatch(sSess);
-    });
+    const targetFatherFirst = targetFather ? firstWord(targetFather) : '';
 
-    const poolToSearch = cohortPool.length > 0 ? cohortPool : existingStudents;
+    for (const s of existingStudents) {
+      const meta = extractStudentMeta(s);
+      if (!isClassMatch(meta.sCls)) continue;
 
-    const found = poolToSearch.find(s => {
-      const n = String(s.name || s.studentName || s.raw?.["Student's Name"] || '').trim().toLowerCase();
-      const f = String(s.fatherName || s.raw?.["Father's Name"] || '').trim().toLowerCase();
-      if (!n) return false;
+      const sNameLower = lower(meta.sName);
+      if (!sNameLower) continue;
 
-      const sFirst = firstWord(n);
-      const firstWordMatches = sFirst === targetFirst || n.startsWith(targetFirst) || targetName.startsWith(sFirst);
-      
-      if (targetFather && f) {
-        const fatherFirst = firstWord(targetFather);
-        const fatherMatches = f.includes(fatherFirst) || targetFather.includes(firstWord(f));
-        return firstWordMatches && fatherMatches;
+      const sFirst = firstWord(sNameLower);
+      const nameMatches = sFirst === targetFirst || sNameLower.startsWith(targetFirst) || targetName.startsWith(sFirst) || sNameLower.includes(targetFirst);
+
+      if (nameMatches) {
+        // If father name is provided, match both
+        if (targetFatherFirst && meta.sFather) {
+          const sFatherLower = lower(meta.sFather);
+          const sFatherFirst = firstWord(sFatherLower);
+          const fatherMatches = sFatherFirst === targetFatherFirst || sFatherLower.includes(targetFatherFirst) || targetFather.includes(sFatherFirst);
+          if (fatherMatches) {
+            return {
+              student: meta.normalizedStudent,
+              matchType: `Name & Father Match (${targetFirst.toUpperCase()})`,
+              confidence: 94
+            };
+          }
+        } else if (sNameLower === targetName || sNameLower.includes(targetName) || targetName.includes(sNameLower)) {
+          return {
+            student: meta.normalizedStudent,
+            matchType: `Exact Full Name & Class Match`,
+            confidence: 89
+          };
+        }
       }
-
-      return firstWordMatches && (n.includes(targetName) || targetName.includes(n));
-    });
-
-    if (found) {
-      return {
-        student: found,
-        matchType: `Name (${targetFirst.toUpperCase()}) & Cohort Match`,
-        confidence: 85
-      };
     }
   }
 
