@@ -2795,83 +2795,80 @@ function QuickSubjectStreamEditor({
   const initialClass = normalizeClassVal(student?.class || student?.Class || student?.['Admission sought for class'] || '11th') || '11th';
   const [targetClass, setTargetClass] = useState(initialClass);
 
-  // Resolve initial stream
+  // Resolve initial stream strictly matching online admission form (Science | Humanities | General)
   const initialStream = useMemo(() => {
     const raw = String(student?.stream || student?.Stream || student?.['Stream for Class 11th'] || student?.['Stream opted in Class 11th'] || '').trim();
-    if (raw.toLowerCase().includes('non-med') || raw.toLowerCase().includes('non med') || raw.toLowerCase().includes('nm')) return 'Non-Medical';
-    if (raw.toLowerCase().includes('med')) return 'Medical';
-    if (raw.toLowerCase().includes('comm')) return 'Commerce';
+    if (raw.toLowerCase().includes('sci') || raw.toLowerCase().includes('med') || raw.toLowerCase().includes('nm')) return 'Science';
     if (raw.toLowerCase().includes('hum') || raw.toLowerCase().includes('art')) return 'Humanities';
+    if (raw.toLowerCase().includes('comm')) return 'Humanities';
 
     // Deduce from existing subjects
     const subStr = String(currentValue || student?.subs || formatStudentSubjects(student) || '').toLowerCase();
-    if (subStr.includes('biology') || subStr.includes('botany') || subStr.includes('zoology')) return 'Medical';
-    if (subStr.includes('math') && (subStr.includes('physics') || subStr.includes('chem'))) return 'Non-Medical';
-    if (subStr.includes('account') || subStr.includes('business')) return 'Commerce';
-    if (subStr.includes('history') || subStr.includes('political') || subStr.includes('sociology') || subStr.includes('education') || subStr.includes('urdu')) return 'Humanities';
+    if (subStr.includes('physics') || subStr.includes('chemistry') || subStr.includes('biology') || subStr.includes('botany') || subStr.includes('zoology')) return 'Science';
+    if (subStr.includes('history') || subStr.includes('political') || subStr.includes('sociology') || subStr.includes('education') || subStr.includes('urdu') || subStr.includes('arabic')) return 'Humanities';
     return (initialClass === '11th' || initialClass === '12th') ? 'Humanities' : 'General';
   }, [student, currentValue, initialClass]);
 
   const [selectedStream, setSelectedStream] = useState(initialStream);
 
-  // Parse existing selected subjects into an array of expanded subject names
+  // Parse existing selected subjects into an array of expanded subject names without breaking multi-word strings
   const [selectedSubjects, setSelectedSubjects] = useState(() => {
     const raw = String(currentValue || student?.subs || formatStudentSubjects(student) || '').trim();
     if (!raw || raw === '—') return [];
-    const parts = raw.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim()) || p.trim()).filter(Boolean);
-    return Array.from(new Set(parts));
+
+    let rawTokens = [];
+    if (raw.includes(',') || raw.includes(';') || raw.includes('\n')) {
+      rawTokens = raw.split(/[,;\n\r\t]+/).map(s => s.trim()).filter(Boolean);
+    } else {
+      const words = raw.split(/[\s+/]+/).filter(Boolean);
+      const allShortCodes = words.length > 0 && words.every(w => /^[A-Za-z]{2,4}$/.test(w));
+      if (allShortCodes) {
+        rawTokens = words;
+      } else {
+        rawTokens = [raw];
+      }
+    }
+
+    const list = rawTokens.map(t => {
+      const exp = expandJkboseSubjectCodes(t);
+      return exp || t;
+    }).filter(Boolean);
+
+    return Array.from(new Set(list));
   });
 
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  // Subject catalogues per stream & class
+  // Subject catalogues per stream & class strictly matching online admission form (AdmissionForm.jsx / DynamicFormField.jsx)
   const STREAM_DEFINITIONS = useMemo(() => {
     return {
-      'Medical': {
-        label: '🔬 Science (Medical)',
-        compulsory: ['General English', 'Physics', 'Chemistry', 'Biology'],
+      'Science': {
+        label: '🔬 Science',
+        compulsory: ['General English', 'Physics', 'Chemistry'],
         optionals: [
-          'Environmental Science',
-          'Physical Education',
+          'Biology',
           'Mathematics',
+          'Environmental Science',
           'Information Practices',
           'Computer Science',
+          'Physical Education',
           'Urdu',
-          'Kashmiri',
           'Psychology',
           'Statistics',
           'Biotechnology'
         ],
         presets: [
-          { name: 'Core + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Environmental Science'] },
-          { name: 'Core + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Physical Education'] },
-          { name: 'PCMB (Med + Math)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics'] },
-          { name: 'PCMB + EVS (6 Subs)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'] }
-        ]
-      },
-      'Non-Medical': {
-        label: '📐 Science (Non-Medical)',
-        compulsory: ['General English', 'Physics', 'Chemistry', 'Mathematics'],
-        optionals: [
-          'Environmental Science',
-          'Physical Education',
-          'Biology',
-          'Information Practices',
-          'Computer Science',
-          'Urdu',
-          'Kashmiri',
-          'Psychology',
-          'Statistics'
-        ],
-        presets: [
-          { name: 'Core + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'] },
-          { name: 'Core + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Physical Education'] },
-          { name: 'Core + Computer', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Computer Science'] }
+          { name: 'Medical (Bio + EVS)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Environmental Science'] },
+          { name: 'Medical (Bio + PHE)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Physical Education'] },
+          { name: 'Non-Med (Math + EVS)', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'] },
+          { name: 'Non-Med (Math + PHE)', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Physical Education'] },
+          { name: 'PCMB (Bio + Math + EVS)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'] },
+          { name: 'Core + Comp Sci', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Computer Science'] }
         ]
       },
       'Humanities': {
-        label: '🎨 Arts / Humanities',
+        label: '🎨 Humanities',
         compulsory: ['General English'],
         optionals: [
           'Political Science',
@@ -2891,9 +2888,9 @@ function QuickSubjectStreamEditor({
           'Public Administration',
           'Psychology',
           'Philosophy',
-          'IT and ITES',
+          'IT & ITES',
           'Retail',
-          'Tourism and Hospitality'
+          'Tourism & Hospitality'
         ],
         presets: [
           { name: 'Pol Sci, Hist, Socio, EVS', subjects: ['General English', 'Political Science', 'History', 'Sociology', 'Environmental Science'] },
@@ -2905,24 +2902,6 @@ function QuickSubjectStreamEditor({
           { name: 'Eco, Pol Sci, Hist, EVS', subjects: ['General English', 'Economics', 'Political Science', 'History', 'Environmental Science'] }
         ]
       },
-      'Commerce': {
-        label: '💼 Commerce',
-        compulsory: ['General English', 'Accountancy', 'Business Studies', 'Economics'],
-        optionals: [
-          'Environmental Science',
-          'Mathematics',
-          'Physical Education',
-          'IT and ITES',
-          'Urdu',
-          'Kashmiri',
-          'Computer Science'
-        ],
-        presets: [
-          { name: 'Commerce + EVS', subjects: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Environmental Science'] },
-          { name: 'Commerce + Math', subjects: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Mathematics'] },
-          { name: 'Commerce + PHE', subjects: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Physical Education'] }
-        ]
-      },
       'General': {
         label: '🏫 High School / General',
         compulsory: ['English', 'Mathematics', 'Science', 'Social Science'],
@@ -2931,7 +2910,7 @@ function QuickSubjectStreamEditor({
           'Kashmiri',
           'Hindi',
           'Arabic',
-          'IT and ITES',
+          'IT & ITES',
           'Healthcare',
           'Retail',
           'Tourism',
@@ -2949,7 +2928,10 @@ function QuickSubjectStreamEditor({
   }, []);
 
   const isSenior = targetClass === '11th' || targetClass === '12th';
-  const activeStreamDef = STREAM_DEFINITIONS[selectedStream] || (isSenior ? STREAM_DEFINITIONS['Humanities'] : STREAM_DEFINITIONS['General']);
+  const effectiveStreamKey = isSenior
+    ? (selectedStream === 'Science' || selectedStream === 'Medical' || selectedStream === 'Non-Medical' ? 'Science' : 'Humanities')
+    : 'General';
+  const activeStreamDef = STREAM_DEFINITIONS[effectiveStreamKey] || (isSenior ? STREAM_DEFINITIONS['Humanities'] : STREAM_DEFINITIONS['General']);
 
   // Handle stream change
   const handleStreamChange = (newStream) => {
@@ -3033,14 +3015,12 @@ function QuickSubjectStreamEditor({
             <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-amber-300 dark:border-amber-700 shadow-2xs">
               <span className="text-[10px] font-black text-slate-400">Stream:</span>
               <select
-                value={selectedStream}
+                value={effectiveStreamKey}
                 onChange={(e) => handleStreamChange(e.target.value)}
                 className="bg-transparent font-black text-xs text-amber-800 dark:text-amber-300 focus:outline-none cursor-pointer"
               >
-                <option value="Medical">🔬 Medical</option>
-                <option value="Non-Medical">📐 Non-Medical</option>
-                <option value="Humanities">🎨 Arts / Humanities</option>
-                <option value="Commerce">💼 Commerce</option>
+                <option value="Science">🔬 Science</option>
+                <option value="Humanities">🎨 Humanities</option>
               </select>
             </div>
           )}
