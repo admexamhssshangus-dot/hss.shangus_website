@@ -51,8 +51,9 @@ export default function BulkCertificateGeneratorModal({
   signatories = ['I/c Admissions', 'Checked By', 'Principal'],
   showToast = () => {}
 }) {
-  // ─── Real-Time Firestore Master Registers Pipeline (Zero LocalStorage) ───
+  // ─── Real-Time Firestore Master Registers & Live Admissions Pipeline (Zero LocalStorage) ───
   const [masterHistoricalRecords, setMasterHistoricalRecords] = useState([]);
+  const [liveAdmissionsRecords, setLiveAdmissionsRecords] = useState([]);
   const [isLoadingHistorical, setIsLoadingHistorical] = useState(false);
 
   useEffect(() => {
@@ -60,7 +61,8 @@ export default function BulkCertificateGeneratorModal({
     setIsLoadingHistorical(true);
     let isMounted = true;
 
-    const unsubscribe = onSnapshot(
+    // 1. Listen to historical master registers
+    const unsubMaster = onSnapshot(
       collection(db, 'masterRegisters'),
       (snapshot) => {
         if (!isMounted) return;
@@ -78,28 +80,74 @@ export default function BulkCertificateGeneratorModal({
       }
     );
 
+    // 2. Listen to live admissions (for newly synchronized results & private candidates)
+    const unsubAdmissions = onSnapshot(
+      collection(db, 'admissions'),
+      (snapshot) => {
+        if (!isMounted) return;
+        const docs = [];
+        snapshot.forEach((docSnap) => {
+          docs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        setLiveAdmissionsRecords(docs);
+      },
+      (error) => {
+        console.warn('admissions snapshot error in Bulk TC Hub:', error);
+      }
+    );
+
     return () => {
       isMounted = false;
-      unsubscribe();
+      unsubMaster();
+      unsubAdmissions();
     };
   }, [isOpen]);
 
-  // Combined real-time student pool: Preloaded Admissions + Live Master Registers
+  // Combined real-time student pool: Live Admissions (highest precedence) + Master Registers + Prop
   const combinedStudentPool = useMemo(() => {
     const map = new Map();
-    // 1. Unpacked historical master records (6,105 records across 22 sessions)
+
+    const normalizeKey = (st) => {
+      if (!st) return '';
+      return String(
+        st.id ||
+        st.formNo ||
+        st['Form Number'] ||
+        st['Form No.'] ||
+        st['Board Registration Number'] ||
+        st['Board Reg. No.'] ||
+        st.regNo ||
+        st.boardRegNo ||
+        ''
+      ).toLowerCase().trim();
+    };
+
+    // 1. Unpacked historical master records
     masterHistoricalRecords.forEach(st => {
-      if (st && st.id) map.set(st.id, st);
+      const key = normalizeKey(st);
+      if (key) map.set(key, st);
     });
-    // 2. Active session admissions records (take precedence for active session)
+
+    // 2. Passed prop students
     allStudents.forEach(st => {
-      if (st) {
-        const id = st.id || st.formNo || st['Form Number'] || st['Adm. No.'] || Math.random();
-        map.set(id, st);
+      const key = normalizeKey(st);
+      if (key) {
+        const existing = map.get(key);
+        map.set(key, existing ? { ...existing, ...st, raw: { ...(existing.raw || existing), ...(st.raw || st) } } : st);
       }
     });
+
+    // 3. Live Firestore admissions records (contains latest synchronized result status & marks)
+    liveAdmissionsRecords.forEach(st => {
+      const key = normalizeKey(st);
+      if (key) {
+        const existing = map.get(key);
+        map.set(key, existing ? { ...existing, ...st, raw: { ...(existing.raw || existing), ...(st.raw || st) } } : st);
+      }
+    });
+
     return Array.from(map.values());
-  }, [allStudents, masterHistoricalRecords]);
+  }, [allStudents, masterHistoricalRecords, liveAdmissionsRecords]);
 
   // ─── Filter Controls State ───
   const [selectedClass, setSelectedClass] = useState('12th');
@@ -156,7 +204,8 @@ export default function BulkCertificateGeneratorModal({
         const c = extractClass(st);
         if (!c || !c.toLowerCase().includes(selectedClass.toLowerCase())) return;
       }
-      const s = extractSession(st);
+      const raw = st.raw || st;
+      const s = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || extractSession(st);
       if (s && s !== '—' && s.trim()) {
         sessionMap.set(s.trim(), (sessionMap.get(s.trim()) || 0) + 1);
       }
@@ -203,8 +252,14 @@ export default function BulkCertificateGeneratorModal({
         if (!c || !c.toLowerCase().includes(selectedClass.toLowerCase())) return;
       }
       if (selectedSession && selectedSession !== 'ALL') {
-        const s = extractSession(st);
-        if (!s || !s.toLowerCase().includes(selectedSession.toLowerCase())) return;
+        const raw = st.raw || st;
+        const examMode = String(raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || '').toLowerCase().trim();
+        const baseSession = String(extractSession(st) || '').toLowerCase().trim();
+        const target = selectedSession.toLowerCase().trim();
+        const matchesSession = baseSession === target || examMode === target || 
+          baseSession.includes(target) || target.includes(baseSession) || 
+          examMode.includes(target) || target.includes(examMode);
+        if (!matchesSession) return false;
       }
       const s = extractStream(st);
       if (s && s !== '—' && s.trim()) {
@@ -236,7 +291,8 @@ export default function BulkCertificateGeneratorModal({
       const mother = extractMotherName(st);
       const cls = extractClass(st) || '12th';
       const stream = extractStream(st) || 'Medical';
-      const session = extractSession(st) || '2025-26';
+      const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || '';
+      const session = examMode || extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
       const admNo = extractStudentAdmissionNumber(raw) || extractAdmNo(st) || rollNo || '—';
@@ -248,7 +304,7 @@ export default function BulkCertificateGeneratorModal({
 
       // Exam Result fields
       const resInfo = extractStudentResultMarks(raw);
-      const examRollNo = resInfo.examRoll || '—';
+      const examRollNo = resInfo.examRoll || raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo || '—';
       const isPassed = resInfo.isPassed;
       const isReap = resInfo.isReap;
       const isFailed = resInfo.isFailed;
@@ -272,6 +328,7 @@ export default function BulkCertificateGeneratorModal({
         className: cls,
         stream,
         session,
+        examMode,
         rollNo,
         regNo,
         admNo,
@@ -302,7 +359,18 @@ export default function BulkCertificateGeneratorModal({
         if (!clsMatch) return false;
       }
       if (selectedSession !== 'ALL') {
-        if (st.session !== selectedSession) return false;
+        const target = selectedSession.toLowerCase().trim();
+        const raw = st.raw || st;
+        const examMode = String(raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || st.examMode || '').toLowerCase().trim();
+        const baseSession = String(st.session || '').toLowerCase().trim();
+        const matchesSession =
+          baseSession === target ||
+          examMode === target ||
+          baseSession.includes(target) ||
+          target.includes(baseSession) ||
+          examMode.includes(target) ||
+          target.includes(examMode);
+        if (!matchesSession) return false;
       }
       if (selectedStream !== 'ALL') {
         if (!st.stream.toLowerCase().includes(selectedStream.toLowerCase())) return false;
@@ -351,16 +419,33 @@ export default function BulkCertificateGeneratorModal({
     return map;
   }, [filteredStudents, selectedStudentIds, startCertNo]);
 
-  // Pre-compute result status counts in a single pass instead of 3x O(n) in render
+  // Pre-compute result status counts in a single pass scoped to class & session
   const resultStats = useMemo(() => {
     let passed = 0, reappear = 0, awaiting = 0;
-    filteredStudents.forEach(s => {
+    normalizedStudents.forEach(s => {
+      if (selectedClass !== 'ALL') {
+        if (!s.className.toLowerCase().includes(selectedClass.toLowerCase())) return;
+      }
+      if (selectedSession !== 'ALL') {
+        const target = selectedSession.toLowerCase().trim();
+        const raw = s.raw || s;
+        const examMode = String(raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || s.examMode || '').toLowerCase().trim();
+        const baseSession = String(s.session || '').toLowerCase().trim();
+        const matchesSession =
+          baseSession === target ||
+          examMode === target ||
+          baseSession.includes(target) ||
+          target.includes(baseSession) ||
+          examMode.includes(target) ||
+          target.includes(examMode);
+        if (!matchesSession) return false;
+      }
       if (s.resultStatus === 'Passed') passed++;
       else if (s.resultStatus === 'Re-appear') reappear++;
       else if (s.resultStatus === 'Awaiting Result') awaiting++;
     });
     return { passed, reappear, awaiting };
-  }, [filteredStudents]);
+  }, [normalizedStudents, selectedClass, selectedSession]);
 
   // Bulk Selection Handlers
   const handleToggleSelectAll = () => {
