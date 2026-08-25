@@ -10,6 +10,7 @@ import { updateCachedItem, invalidateCache, mergeDuplicateStudentApplications, g
 
 export default function RollNoAssignment({ applications = [], onRefresh }) {
   const [selectedClass, setSelectedClass] = useState('12th');
+  const [selectedSession, setSelectedSession] = useState('All');
   const [selectedStream, setSelectedStream] = useState('All');
   const [sortField, setSortField] = useState('formNo'); // 'formNo' | 'name' | 'rollNo' | 'stream' | 'createdAt'
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
@@ -98,6 +99,16 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     return getCachedCollectionSync('admissions') || [];
   }, [applications]);
 
+  // Helper to extract clean Session
+  const extractStudentSession = (a) => {
+    const s = a['Session'] || a['Academic Session'] || a.session || a.selectedSession || a['Exam Mode (Current)'] || '';
+    const clean = String(s).trim();
+    if (!clean || clean === '—' || clean === 'N/A' || clean === 'null' || clean === 'undefined' || clean === '-') {
+      return '';
+    }
+    return clean;
+  };
+
   // Dynamically compute all unique streams & counts for selected class directly from live database
   const availableStreams = useMemo(() => {
     const classRecords = effectiveApps.filter((a) => matchesClass(a, selectedClass));
@@ -111,6 +122,22 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
     return Object.entries(streamCounts).map(([stream, count]) => ({ stream, count }));
   }, [effectiveApps, selectedClass, matchesClass]);
 
+  // Dynamically compute available sessions for selected class
+  const availableSessions = useMemo(() => {
+    const sessionSet = new Set(['2026 APR/BIAN', '2025-26', '2025 APR/BIAN']);
+    effectiveApps.forEach((a) => {
+      const s = extractStudentSession(a);
+      if (s) sessionSet.add(s);
+    });
+    return Array.from(sessionSet).sort((a, b) => {
+      const aIsBian = /bian|bi-annual|apr/i.test(a);
+      const bIsBian = /bian|bi-annual|apr/i.test(b);
+      if (aIsBian && !bIsBian) return -1;
+      if (!aIsBian && bIsBian) return 1;
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
+  }, [effectiveApps]);
+
   // Auto-reset stream filter to 'All' if selectedStream is not present in new class
   useEffect(() => {
     if (selectedStream !== 'All' && !availableStreams.some(s => s.stream.toLowerCase() === selectedStream.toLowerCase())) {
@@ -122,27 +149,33 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
   const prepareRoster = useCallback(() => {
     let filtered = effectiveApps.filter((a) => {
       const stream = extractStream(a);
+      const sess = extractStudentSession(a);
       const isClassMatch = matchesClass(a, selectedClass);
       const matchesStream = selectedStream === 'All' || stream.toLowerCase() === selectedStream.toLowerCase();
-      return isClassMatch && matchesStream;
+      const matchesSession = selectedSession === 'All' || (sess && sess.toLowerCase().includes(selectedSession.toLowerCase())) ||
+        (!sess && selectedSession === '2025-26');
+      return isClassMatch && matchesStream && matchesSession;
     });
 
     const formatted = filtered.map((a) => {
       const classRoll = extractClassRollNo(a);
+      const examRoll = String(a['Exam R.No. (Current)'] || a.examRollNo || a.currExamRoll || '').trim();
       return {
         docId: a.id || a['Form Number'] || a['FormNo'] || '',
         formNo: a['Form Number'] || a['FormNo'] || a['formNumber'] || a.id || '',
         name: a["Student's Name (as per school records)"] || a["Student's Name"] || a['Full Name'] || a['Name'] || a['Account Name'] || 'Student',
         class: a['Admission sought for class'] || a['Class'] || selectedClass,
         stream: extractStream(a),
+        session: extractStudentSession(a) || selectedSession,
         rollNo: classRoll,
         initialRollNo: classRoll,
+        examRollNo: examRoll,
         createdAt: a.createdAt || a.timestamp || a.submissionDate || ''
       };
     });
 
     setStudentList(formatted);
-  }, [applications, selectedClass, selectedStream]);
+  }, [effectiveApps, selectedClass, selectedStream, selectedSession, matchesClass]);
 
   useEffect(() => {
     prepareRoster();
@@ -436,8 +469,22 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
           )}
         </div>
 
-        {/* Group 4: Stream & Sort Filters */}
+        {/* Group 4: Session, Stream & Sort Filters */}
         <div className="flex items-center gap-1 shrink-0">
+          <select
+            value={selectedSession}
+            onChange={(e) => setSelectedSession(e.target.value)}
+            className="px-2 py-0.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+            title="Filter by Academic / Examination Session"
+          >
+            <option value="All">All Sessions</option>
+            {availableSessions.map((sess) => (
+              <option key={sess} value={sess}>
+                {sess}
+              </option>
+            ))}
+          </select>
+
           <select
             value={selectedStream}
             onChange={(e) => setSelectedStream(e.target.value)}

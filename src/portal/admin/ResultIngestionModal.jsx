@@ -1,7 +1,9 @@
 // =================================================================
-// HSS SHANGUS — JKBOSE Exam Result Ingestion & AI Gazette Hub Modal
-// Supports Excel/CSV Template Import, Gemini AI Multimodal PDF
-// Gazette Parsing, Interactive Review Grid, and Mandatory Admin Gate.
+// HSS SHANGUS — JKBOSE Exam Result & Roll Number Ingestion Hub
+// Supports Excel/CSV Template Import, Gemini AI Multimodal Gazette
+// Analyzer, Gemini AI Admit Card Extractor, Interactive Review Grid,
+// Multi-Class / Multi-Session Scoping (10th, 11th, 12th & APR/BIAN),
+// and Mandatory Non-Destructive Admin Confirmation Gate.
 // =================================================================
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -23,16 +25,37 @@ import {
   Trash2,
   Edit2,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  UserPlus,
+  BookOpen,
+  Layers,
+  Award
 } from 'lucide-react';
 import {
   generateResultImportTemplate,
   parseAndValidateResultFile,
   analyzeGazetteWithGemini,
+  analyzeAdmitCardWithGemini,
   batchUpdateStudentResults,
   JKBOSE_SUBJECT_CODES,
-  calculateDivision
+  calculateDivision,
+  expandJkboseSubjectCodes
 } from '../../utils/jkboseResultManager';
+
+export const STANDARD_SESSIONS_LIST = [
+  '2026 APR/BIAN',
+  '2025-26',
+  '2025 APR/BIAN',
+  '2024-25 (Oct-Nov)',
+  '2024-25 (Mar-Apr)',
+  '2024-25',
+  '2023-24',
+  '2022-23',
+  '2021-22',
+  '2020-21',
+  '2019-20',
+  '2018-19'
+];
 
 export default function ResultIngestionModal({
   isOpen,
@@ -41,9 +64,10 @@ export default function ResultIngestionModal({
   onIngestSuccess,
   showToast
 }) {
-  const [activeTab, setActiveTab] = useState('excel'); // 'excel' | 'ai_pdf'
+  // Tab State: 'excel' | 'ai_gazette' | 'ai_admit'
+  const [activeTab, setActiveTab] = useState('excel');
   const [selectedClass, setSelectedClass] = useState('12th');
-  const [selectedSession, setSelectedSession] = useState('2025-26');
+  const [selectedSession, setSelectedSession] = useState('2026 APR/BIAN');
 
   // File & Parsing State
   const [isProcessing, setIsProcessing] = useState(false);
@@ -54,7 +78,7 @@ export default function ResultIngestionModal({
 
   // Filter & Search in Review Table
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterResult, setFilterResult] = useState('all'); // 'all' | 'matched' | 'unmatched' | 'Passed' | 'Reap' | 'Failed'
+  const [filterResult, setFilterResult] = useState('all'); // 'all' | 'matched' | 'new' | 'Passed' | 'Reap' | 'Failed'
 
   // Admin Confirmation Gate State
   const [showConfirmGate, setShowConfirmGate] = useState(false);
@@ -110,7 +134,7 @@ export default function ResultIngestionModal({
   };
 
   // Handle Gazette PDF / Image Upload via Gemini AI
-  const handleAiPdfUpload = async (e) => {
+  const handleAiGazetteUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
@@ -144,6 +168,48 @@ export default function ResultIngestionModal({
     } catch (err) {
       console.error('AI Gazette Error:', err);
       if (showToast) showToast(`AI Gazette Analysis Error: ${err.message}`, 'error');
+      setIsProcessing(false);
+      setProcessingStatusText('');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle Admit Card PDF / Image Upload via Gemini AI
+  const handleAiAdmitCardUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setIsProcessing(true);
+    setProcessingStatusText(`Extracting candidate details from JKBOSE Admit Card(s) via Gemini AI...`);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64Data = event.target.result;
+        const result = await analyzeAdmitCardWithGemini(
+          base64Data,
+          file.type || 'application/pdf',
+          allStudents,
+          (status) => setProcessingStatusText(status),
+          selectedClass,
+          selectedSession
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || 'Gemini AI Admit Card extraction failed');
+        }
+
+        setParsedRows(result.rows);
+        setParsedStats(result.stats);
+        if (showToast) showToast(`🎫 Gemini AI extracted ${result.rows.length} Admit Card records!`, 'success');
+        setIsProcessing(false);
+        setProcessingStatusText('');
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('AI Admit Card Error:', err);
+      if (showToast) showToast(`AI Admit Card Extraction Error: ${err.message}`, 'error');
       setIsProcessing(false);
       setProcessingStatusText('');
     } finally {
@@ -185,8 +251,9 @@ export default function ResultIngestionModal({
   // Filtered rows for display
   const displayedRows = useMemo(() => {
     return parsedRows.filter(r => {
-      if (filterResult === 'matched' && (!r.matchedStudent || r.matchConfidence < 70)) return false;
-      if (filterResult === 'unmatched' && r.matchedStudent && r.matchConfidence >= 70) return false;
+      const isMatched = Boolean(r.matchedStudent && r.matchConfidence >= 70);
+      if (filterResult === 'matched' && !isMatched) return false;
+      if (filterResult === 'new' && isMatched) return false;
       if (['Passed', 'Reap', 'Failed'].includes(filterResult) && r.resultStatus !== filterResult) return false;
 
       if (!searchTerm) return true;
@@ -194,9 +261,11 @@ export default function ResultIngestionModal({
       return (
         String(r.studentName || '').toLowerCase().includes(term) ||
         String(r.fatherName || '').toLowerCase().includes(term) ||
+        String(r.motherName || '').toLowerCase().includes(term) ||
         String(r.examRollNo || '').toLowerCase().includes(term) ||
         String(r.regNo || '').toLowerCase().includes(term) ||
-        String(r.formNo || '').toLowerCase().includes(term)
+        String(r.formNo || '').toLowerCase().includes(term) ||
+        String(r.subs || '').toLowerCase().includes(term)
       );
     });
   }, [parsedRows, filterResult, searchTerm]);
@@ -206,7 +275,15 @@ export default function ResultIngestionModal({
     return parsedRows.filter(r => r.selectedForImport);
   }, [parsedRows]);
 
-  // Commit Batch to Firestore
+  const matchedCount = useMemo(() => {
+    return selectedRowsToCommit.filter(r => r.matchedStudent && r.matchConfidence >= 70).length;
+  }, [selectedRowsToCommit]);
+
+  const newCount = useMemo(() => {
+    return selectedRowsToCommit.length - matchedCount;
+  }, [selectedRowsToCommit, matchedCount]);
+
+  // Commit Batch to Firestore (Non-Destructive Upsert)
   const handleCommitToFirebase = async () => {
     if (selectedRowsToCommit.length === 0) {
       if (showToast) showToast('No records selected for import.', 'warning');
@@ -216,7 +293,12 @@ export default function ResultIngestionModal({
     setIsCommitting(true);
     try {
       const res = await batchUpdateStudentResults(selectedRowsToCommit);
-      if (showToast) showToast(`🎉 Successfully updated ${res.count} student records in Firebase Firestore!`, 'success');
+      if (showToast) {
+        showToast(
+          `🎉 Successfully synchronized ${res.count} student records in Firebase Firestore (${matchedCount} updated, ${newCount} new created)!`,
+          'success'
+        );
+      }
       if (onIngestSuccess) onIngestSuccess();
       setShowConfirmGate(false);
       onClose();
@@ -232,7 +314,7 @@ export default function ResultIngestionModal({
 
   return (
     <div className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[95vh] overflow-hidden text-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[96vh] overflow-hidden text-xs">
         
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-indigo-900/50 shrink-0">
@@ -242,10 +324,10 @@ export default function ResultIngestionModal({
             </div>
             <div>
               <h3 className="text-base font-black tracking-wide flex items-center gap-2">
-                JKBOSE Exam Result & Roll Number Ingestion Hub
+                JKBOSE Exam Result, Admit Card & Roll Number Ingestion Hub
               </h3>
               <p className="text-[11px] text-slate-300">
-                Bulk import via Excel/CSV or AI PDF Gazette Analyzer with strict verification & admin confirmation gate.
+                Universal Ingestion for Regular, Private & Bi-Annual Candidates across Classes 10th, 11th, 12th.
               </p>
             </div>
           </div>
@@ -258,56 +340,83 @@ export default function ResultIngestionModal({
           </button>
         </div>
 
-        {/* Modal Navigation Tabs */}
-        <div className="px-6 pt-3 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
+        {/* Modal Navigation Tabs & Cohort Controls */}
+        <div className="px-6 pt-3 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto">
             <button
               type="button"
               onClick={() => { setActiveTab('excel'); }}
-              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'excel'
                   ? 'border-teal-600 text-teal-600 dark:text-teal-400'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
               <FileSpreadsheet size={15} />
-              <span>Pipeline A: Excel Spreadsheet Import (.xlsx)</span>
+              <span>Pipeline A: Excel Spreadsheet Import</span>
             </button>
 
             <button
               type="button"
-              onClick={() => { setActiveTab('ai_pdf'); }}
-              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'ai_pdf'
+              onClick={() => { setActiveTab('ai_gazette'); }}
+              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'ai_gazette'
                   ? 'border-purple-600 text-purple-600 dark:text-purple-400'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
               <Sparkles size={15} />
-              <span>Pipeline B: Gemini AI PDF Gazette Analyzer</span>
+              <span>Pipeline B: Gemini AI Result Gazette Analyzer</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('ai_admit'); }}
+              className={`pb-2.5 px-3 font-black text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'ai_admit'
+                  ? 'border-amber-600 text-amber-600 dark:text-amber-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Award size={15} />
+              <span>Pipeline C: Gemini AI Admit Card Extractor</span>
             </button>
           </div>
 
-          {/* Quick Scope Selectors */}
-          <div className="hidden sm:flex items-center gap-2 pb-2">
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs"
-            >
-              <option value="12th">Class 12th</option>
-              <option value="11th">Class 11th</option>
-              <option value="10th">Class 10th</option>
-              <option value="">All Classes</option>
-            </select>
+          {/* Quick Scope Selectors: Class & Dynamic Session */}
+          <div className="flex items-center gap-2 pb-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-500">Class:</span>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs"
+              >
+                <option value="12th">Class 12th</option>
+                <option value="11th">Class 11th</option>
+                <option value="10th">Class 10th</option>
+                <option value="9th">Class 9th</option>
+                <option value="">All Classes</option>
+              </select>
+            </div>
 
-            <input
-              type="text"
-              value={selectedSession}
-              onChange={(e) => setSelectedSession(e.target.value)}
-              placeholder="Session"
-              className="w-24 px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs"
-            />
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-500">Session:</span>
+              <div className="relative">
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-xs"
+                >
+                  {STANDARD_SESSIONS_LIST.map(sess => (
+                    <option key={sess} value={sess}>{sess}</option>
+                  ))}
+                  {!STANDARD_SESSIONS_LIST.includes(selectedSession) && (
+                    <option value={selectedSession}>{selectedSession} (Custom)</option>
+                  )}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -326,7 +435,7 @@ export default function ResultIngestionModal({
                       Excel Result & Roll Number Ingestion (.xlsx)
                     </h4>
                     <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Download the pre-populated template with all active Class {selectedClass || 'All'} students (formatted as explicit Text cells to prevent scientific notation), fill in the result/roll fields, and upload below.
+                      Download the pre-populated template with all active Class {selectedClass || 'All'} students ({selectedSession}), fill in the result/roll fields (or provide <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">Marks Obt. (Prev.)</code> for re-appear subjects), and upload below.
                     </p>
                   </div>
 
@@ -353,7 +462,7 @@ export default function ResultIngestionModal({
                     </label>
                   </div>
                 </div>
-              ) : (
+              ) : activeTab === 'ai_gazette' ? (
                 <div className="p-6 rounded-3xl bg-purple-50/50 dark:bg-purple-950/20 border border-dashed border-purple-300 dark:border-purple-800/60 flex flex-col items-center justify-center text-center space-y-4">
                   <div className="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
                     <Sparkles size={32} />
@@ -363,7 +472,7 @@ export default function ResultIngestionModal({
                       Gemini AI Multimodal Gazette PDF Analyzer
                     </h4>
                     <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Upload the official JKBOSE Result Gazette (PDF or high-res document image scan). Gemini AI will extract roll numbers, registration numbers, student names, marks, and re-appear subject codes directly.
+                      Upload the official JKBOSE Result Gazette (PDF or document image scan). Gemini AI will extract roll numbers, names, marks, and re-appear subject abbreviations (e.g. <code className="bg-purple-100 dark:bg-purple-900/60 px-1 rounded">Reap GN ED UD PD</code>) and automatically match by Exam Roll No & Registration No.
                     </p>
                   </div>
 
@@ -374,7 +483,33 @@ export default function ResultIngestionModal({
                       ref={fileInputRef}
                       type="file"
                       accept=".pdf,image/*"
-                      onChange={handleAiPdfUpload}
+                      onChange={handleAiGazetteUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="p-6 rounded-3xl bg-amber-50/50 dark:bg-amber-950/20 border border-dashed border-amber-300 dark:border-amber-800/60 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                    <Award size={32} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                      Gemini AI JKBOSE Admit Card Extractor
+                    </h4>
+                    <p className="text-xs text-slate-500 max-w-md mt-1">
+                      Upload scanned JKBOSE Admit Cards (single or multi-page PDF/Images). Gemini AI extracts Roll No, Registration No (R.R. No), Candidate Name, Father Name, Mother Name, Gender, Stream, Exam Centre, and Subjects Offered for Private/Bi-Annual candidates without prior admission forms.
+                    </p>
+                  </div>
+
+                  <label className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95">
+                    <Upload size={15} />
+                    <span>Upload JKBOSE Admit Cards (PDF / Image)</span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,image/*"
+                      onChange={handleAiAdmitCardUpload}
                       className="hidden"
                     />
                   </label>
@@ -401,6 +536,16 @@ export default function ResultIngestionModal({
                   <div className="text-base font-black text-slate-900 dark:text-white">{parsedStats?.total || parsedRows.length}</div>
                 </div>
 
+                <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
+                  <div className="text-[10px] text-teal-600 font-bold uppercase">DB Matched (Patch)</div>
+                  <div className="text-base font-black text-teal-700 dark:text-teal-300">{parsedStats?.matched || 0}</div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800">
+                  <div className="text-[10px] text-sky-600 font-bold uppercase">New Candidates (Create)</div>
+                  <div className="text-base font-black text-sky-700 dark:text-sky-300">{(parsedStats?.total || parsedRows.length) - (parsedStats?.matched || 0)}</div>
+                </div>
+
                 <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
                   <div className="text-[10px] text-emerald-600 font-bold uppercase">Passed</div>
                   <div className="text-base font-black text-emerald-700 dark:text-emerald-300">{parsedStats?.passed || 0}</div>
@@ -411,18 +556,8 @@ export default function ResultIngestionModal({
                   <div className="text-base font-black text-amber-700 dark:text-amber-300">{parsedStats?.reap || 0}</div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800">
-                  <div className="text-[10px] text-rose-600 font-bold uppercase">Failed</div>
-                  <div className="text-base font-black text-rose-700 dark:text-rose-300">{parsedStats?.failed || 0}</div>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
-                  <div className="text-[10px] text-teal-600 font-bold uppercase">DB Matched</div>
-                  <div className="text-base font-black text-teal-700 dark:text-teal-300">{parsedStats?.matched || 0}</div>
-                </div>
-
                 <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
-                  <div className="text-[10px] text-indigo-600 font-bold uppercase">Selected</div>
+                  <div className="text-[10px] text-indigo-600 font-bold uppercase">Selected To Commit</div>
                   <div className="text-base font-black text-indigo-700 dark:text-indigo-300">{selectedRowsToCommit.length}</div>
                 </div>
               </div>
@@ -436,7 +571,7 @@ export default function ResultIngestionModal({
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search parsed records by student, roll no, reg no..."
+                      placeholder="Search parsed records by student, roll no, reg no, subjects..."
                       className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
@@ -446,8 +581,8 @@ export default function ResultIngestionModal({
                 <div className="flex items-center gap-1 overflow-x-auto">
                   {[
                     { id: 'all', label: 'All' },
-                    { id: 'matched', label: '🟢 Matched' },
-                    { id: 'unmatched', label: '🟡 Unmatched' },
+                    { id: 'matched', label: '🟢 Matched (Patch)' },
+                    { id: 'new', label: '🔵 New (Create)' },
                     { id: 'Passed', label: 'Passed' },
                     { id: 'Reap', label: 'Re-appear' }
                   ].map(f => (
@@ -492,25 +627,25 @@ export default function ResultIngestionModal({
               </div>
 
               {/* Data Table */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[46vh] overflow-y-auto">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[48vh] overflow-y-auto">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-100 dark:bg-slate-800/80 sticky top-0 z-10 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                     <tr>
                       <th className="p-2 w-8 text-center">Sel</th>
-                      <th className="p-2 w-28">Match Status</th>
-                      <th className="p-2">Student & Father's Name</th>
-                      <th className="p-2 w-28">Class & Stream</th>
-                      <th className="p-2 w-32">Session & Mode</th>
+                      <th className="p-2 w-28">Identity / Status</th>
+                      <th className="p-2">Student & Parents</th>
+                      <th className="p-2 w-24">Reg. No.</th>
+                      <th className="p-2 w-24">Class & Stream</th>
                       <th className="p-2 w-28">Exam Roll No</th>
+                      <th className="p-2 w-32">Subjects / Re-appear</th>
                       <th className="p-2 w-24">Result</th>
-                      <th className="p-2 w-32">Marks / Re-appear</th>
-                      <th className="p-2 w-24">Division</th>
+                      <th className="p-2 w-24">Marks / Division</th>
                       <th className="p-2 w-8 text-center">Act</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-[11px]">
                     {displayedRows.map((row) => {
-                      const isMatched = row.matchedStudent && row.matchConfidence >= 70;
+                      const isMatched = Boolean(row.matchedStudent && row.matchConfidence >= 70);
                       return (
                         <tr key={row.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${!row.selectedForImport ? 'opacity-40' : ''}`}>
                           <td className="p-2 text-center">
@@ -529,25 +664,36 @@ export default function ResultIngestionModal({
                                 <span>Form #{row.matchedStudent.formNo || row.matchedStudent.id}</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold text-[9.5px]">
-                                <HelpCircle size={11} />
-                                <span>Unmatched</span>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold text-[9.5px]">
+                                <UserPlus size={11} />
+                                <span>New Candidate</span>
                               </span>
                             )}
+                            <div className="text-[9px] text-slate-400 truncate max-w-[110px]" title={row.matchType}>
+                              {row.matchType}
+                            </div>
                           </td>
 
                           <td className="p-2">
                             <div className="font-bold text-slate-900 dark:text-slate-100">{row.studentName}</div>
-                            <div className="text-[9.5px] text-slate-400">S/o {row.fatherName || '—'}</div>
+                            <div className="text-[9.5px] text-slate-400">
+                              S/o {row.fatherName || '—'} {row.motherName ? `• M/o ${row.motherName}` : ''}
+                            </div>
                           </td>
 
                           <td className="p-2">
-                            <div className="font-bold text-slate-800 dark:text-slate-200">{row.className || '—'}</div>
+                            <input
+                              type="text"
+                              value={row.regNo}
+                              onChange={(e) => handleCellEdit(row.id, 'regNo', e.target.value)}
+                              placeholder="Reg No"
+                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-mono text-[10.5px] outline-none"
+                            />
+                          </td>
+
+                          <td className="p-2">
+                            <div className="font-bold text-slate-800 dark:text-slate-200">{row.className || selectedClass || '—'}</div>
                             <div className="text-[9.5px] text-slate-500">{row.stream || '—'}</div>
-                          </td>
-
-                          <td className="p-2">
-                            <div className="font-mono text-[10px] text-slate-700 dark:text-slate-300">{row.examMode || 'Annual Regular'}</div>
                           </td>
 
                           <td className="p-2">
@@ -555,8 +701,22 @@ export default function ResultIngestionModal({
                               type="text"
                               value={row.examRollNo}
                               onChange={(e) => handleCellEdit(row.id, 'examRollNo', e.target.value)}
-                              placeholder="e.g. 301003053"
-                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-bold font-mono text-[11px] outline-none"
+                              placeholder="e.g. 301001258"
+                              className="w-24 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-bold font-mono text-[11px] text-indigo-700 dark:text-indigo-300 outline-none"
+                            />
+                          </td>
+
+                          <td className="p-2">
+                            <input
+                              type="text"
+                              value={row.subs || row.marksReapp || ''}
+                              onChange={(e) => {
+                                handleCellEdit(row.id, 'subs', e.target.value);
+                                handleCellEdit(row.id, 'marksReapp', e.target.value);
+                              }}
+                              placeholder="Subjects Offered / Reappear"
+                              className="w-32 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 text-[10px] outline-none"
+                              title={row.subs || row.marksReapp}
                             />
                           </td>
 
@@ -569,9 +729,12 @@ export default function ResultIngestionModal({
                                   ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
                                   : row.resultStatus === 'Reap'
                                   ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                                  : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                                  : row.resultStatus === 'Failed'
+                                  ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                               }`}
                             >
+                              <option value="Awaiting Result">Awaiting Result</option>
                               <option value="Passed">Passed</option>
                               <option value="Reap">Re-appear</option>
                               <option value="Failed">Failed</option>
@@ -579,23 +742,16 @@ export default function ResultIngestionModal({
                           </td>
 
                           <td className="p-2">
-                            <input
-                              type="text"
-                              value={row.marksReapp}
-                              onChange={(e) => handleCellEdit(row.id, 'marksReapp', e.target.value)}
-                              placeholder={row.resultStatus === 'Passed' ? '488 / 500' : 'PH CH BI'}
-                              className="w-28 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-bold text-[11px] outline-none"
-                            />
-                          </td>
-
-                          <td className="p-2">
-                            <input
-                              type="text"
-                              value={row.divDistinc}
-                              onChange={(e) => handleCellEdit(row.id, 'divDistinc', e.target.value)}
-                              placeholder="Distinction"
-                              className="w-20 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-semibold text-[10px] outline-none"
-                            />
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={row.marksReapp}
+                                onChange={(e) => handleCellEdit(row.id, 'marksReapp', e.target.value)}
+                                placeholder="Marks / Div"
+                                className="w-20 px-1.5 py-0.5 rounded bg-transparent border border-slate-200 dark:border-slate-700 hover:border-slate-300 focus:border-teal-500 font-bold text-[10px] outline-none"
+                              />
+                              <span className="text-[9px] text-slate-400 font-semibold">{row.divDistinc}</span>
+                            </div>
                           </td>
 
                           <td className="p-2 text-center">
@@ -603,6 +759,7 @@ export default function ResultIngestionModal({
                               type="button"
                               onClick={() => handleRemoveRow(row.id)}
                               className="w-6 h-6 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center cursor-pointer transition-colors"
+                              title="Remove Row"
                             >
                               <Trash2 size={12} />
                             </button>
@@ -623,7 +780,7 @@ export default function ResultIngestionModal({
         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
           <div className="text-xs text-slate-500">
             {parsedRows.length > 0 && (
-              <span><strong>{selectedRowsToCommit.length}</strong> of {parsedRows.length} records ready to commit.</span>
+              <span><strong>{selectedRowsToCommit.length}</strong> of {parsedRows.length} records selected to synchronize.</span>
             )}
           </div>
 
@@ -666,24 +823,26 @@ export default function ResultIngestionModal({
                 Admin Confirmation Gate
               </h4>
               <p className="text-xs text-slate-500 mt-1">
-                You are about to batch-update <strong>{selectedRowsToCommit.length} student records</strong> in Firebase Firestore and synchronize the local master register cache.
+                You are about to batch-synchronize <strong>{selectedRowsToCommit.length} student records</strong> into Firebase Firestore with non-destructive patch protection.
               </p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 text-left space-y-1 text-xs">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 text-left space-y-1.5 text-xs">
               <div className="flex justify-between font-bold">
-                <span className="text-slate-500">Target Collection:</span>
-                <span className="text-slate-900 dark:text-white font-mono">admissions / master</span>
+                <span className="text-slate-500">Target Cohort:</span>
+                <span className="text-slate-900 dark:text-white font-mono">Class {selectedClass || 'All'} • {selectedSession}</span>
               </div>
               <div className="flex justify-between font-bold">
                 <span className="text-slate-500">Total Selected:</span>
                 <span className="text-teal-600 font-black">{selectedRowsToCommit.length} Students</span>
               </div>
               <div className="flex justify-between font-bold">
-                <span className="text-slate-500">Passed / Re-appear Breakdown:</span>
-                <span className="text-slate-700 dark:text-slate-300">
-                  {selectedRowsToCommit.filter(r => r.resultStatus === 'Passed').length} Pass / {selectedRowsToCommit.filter(r => r.resultStatus === 'Reap').length} Reap
-                </span>
+                <span className="text-slate-500">Existing Records Patched:</span>
+                <span className="text-emerald-600 font-bold">{matchedCount} Students</span>
+              </div>
+              <div className="flex justify-between font-bold">
+                <span className="text-slate-500">New Candidates Created:</span>
+                <span className="text-sky-600 font-bold">{newCount} Students</span>
               </div>
             </div>
 
@@ -724,3 +883,4 @@ export default function ResultIngestionModal({
     </div>
   );
 }
+

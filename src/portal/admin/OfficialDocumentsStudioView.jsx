@@ -171,7 +171,11 @@ export default function OfficialDocumentsStudioView({
   // ─── 2. DYNAMIC SESSIONS (Live Admissions + Master Registers) ───
   const dynamicSessionOptions = useMemo(() => {
     const standardSessions = [
+      '2026 APR/BIAN',
       '2025-26',
+      '2025 APR/BIAN',
+      '2024-25 (Oct-Nov)',
+      '2024-25 (Mar-Apr)',
       '2024-25',
       '2023-24',
       '2022-23',
@@ -184,7 +188,7 @@ export default function OfficialDocumentsStudioView({
       '2015-16'
     ];
 
-    // 1. Group Live Admissions by Session, sorting current/latest year (2025-26) to top
+    // 1. Group Live Admissions by Session, sorting current/latest year (2026 / 2025-26) to top
     const activeSessionMap = new Map();
     (allStudents || []).forEach(st => {
       const s = extractSession(st) || defaultActiveSession;
@@ -196,7 +200,7 @@ export default function OfficialDocumentsStudioView({
         const yearA = parseInt(a[0].match(/\d{4}/)?.[0] || '0', 10);
         const yearB = parseInt(b[0].match(/\d{4}/)?.[0] || '0', 10);
         if (yearB !== yearA) return yearB - yearA;
-        return b[1] - a[1];
+        return b[0].localeCompare(a[0], undefined, { numeric: true, sensitivity: 'base' });
       })
       .map(([sess, count]) => ({
         value: `active_${sess}`,
