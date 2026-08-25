@@ -1,5 +1,7 @@
 {
   "globalAdmissionsClosed": false,
+  "practicalsSubmissionOpen": true,
+  "attendanceSubmissionOpen": true,
   "defaultNewNoticeDays": 7,
   "admissionsClosed": {
     "9th": false,
@@ -167,9 +169,6 @@
   "fieldLayout": {
     "groups": [
       {
-        "builtIn": true,
-        "id": "personal",
-        "name": "Personal Details",
         "customFields": [
           "Name",
           "Father's Name",
@@ -180,12 +179,14 @@
           "Permanent Address",
           "Present Address",
           "Aadhar No."
-        ]
+        ],
+        "id": "personal",
+        "name": "Personal Details",
+        "builtIn": true
       },
       {
         "builtIn": true,
         "name": "Service & Appointment Details",
-        "id": "service",
         "customFields": [
           "CPIS No.",
           "Designation",
@@ -196,20 +197,20 @@
           "Govt. Mail ID",
           "Service Cadre",
           "Date of Regularization"
-        ]
+        ],
+        "id": "service"
       },
       {
+        "name": "Qualifications & Health",
+        "id": "qualifications",
         "customFields": [
           "Qualifications",
           "Health/Security Grounds"
         ],
-        "builtIn": true,
-        "id": "qualifications",
-        "name": "Qualifications & Health"
+        "builtIn": true
       },
       {
         "builtIn": true,
-        "name": "Tax & Financial Details",
         "customFields": [
           "PAN",
           "TDS",
@@ -220,17 +221,18 @@
           "80D Deductions",
           "80C Deductions"
         ],
-        "id": "tax"
+        "id": "tax",
+        "name": "Tax & Financial Details"
       },
       {
         "builtIn": false,
+        "id": "sli_subscription_details",
         "customFields": [
           "SLI Application No.",
           "SLI Policy Number",
           "SLI Sum Assured (Amount in INR)",
           "Monthly SLI Premium (Amount in INR)"
         ],
-        "id": "sli_subscription_details",
         "name": "SLI Subscription Details"
       }
     ]
