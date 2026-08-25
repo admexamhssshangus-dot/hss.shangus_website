@@ -372,15 +372,31 @@ export async function callDirectGeminiClient({
   for (const currentModel of candidateModels) {
     onLog?.({
       type: 'model',
-      message: `🤖 Connecting with Gemini AI Model: "${currentModel}"...`
+      message: `🤖 Target Model: "${currentModel}"...`
     });
 
     // Try each key in the pool with automatic failover
     for (let i = 0; i < keys.length; i++) {
       const apiKey = keys[i];
       const maskedKey = apiKey.length > 10 ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)}` : '••••';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s per-request timeout
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        try { timeoutController.abort(); } catch (_) {}
+      }, 15000); // Strict 15s per-key timeout for fast failover
+
+      // Combine user cancellation signal with 15s per-key timeout signal
+      let fetchSignal = timeoutController.signal;
+      if (signal) {
+        if (typeof AbortSignal.any === 'function') {
+          fetchSignal = AbortSignal.any([signal, timeoutController.signal]);
+        } else {
+          const combo = new AbortController();
+          const onAbort = () => { try { combo.abort(); } catch (_) {} };
+          signal.addEventListener('abort', onAbort, { once: true });
+          timeoutController.signal.addEventListener('abort', onAbort, { once: true });
+          fetchSignal = combo.signal;
+        }
+      }
 
       onLog?.({
         type: 'request',
@@ -401,7 +417,7 @@ export async function callDirectGeminiClient({
               temperature: 0.1
             }
           }),
-          signal: signal || controller.signal
+          signal: fetchSignal
         });
 
         clearTimeout(timeoutId);
@@ -450,9 +466,17 @@ export async function callDirectGeminiClient({
         return { text, model: currentModel };
       } catch (err) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError' && signal?.aborted) {
-          onLog?.({ type: 'abort', message: '🛑 Analysis aborted by user.' });
+        if (signal?.aborted) {
+          onLog?.({ type: 'abort', message: '🛑 Analysis cancelled by user.' });
           throw new Error('AI Analysis cancelled by user.');
+        }
+        if (timeoutController.signal.aborted) {
+          onLog?.({
+            type: 'warn',
+            message: `⏱️ Key #${i + 1} timed out after 15s. Auto-failing over to next key...`
+          });
+          lastError = new Error(`Key #${i + 1} timed out after 15s`);
+          continue;
         }
         console.warn(`Key #${i + 1} failed for model ${currentModel}:`, err.message);
         lastError = err;
