@@ -2996,19 +2996,22 @@ function QuickSubjectStreamEditor({
   const subjectCount = selectedSubjects.length;
 
   return (
-    <div className="space-y-3.5 text-xs text-slate-800 dark:text-slate-200">
-      {/* Header Student & Cohort Metadata */}
-      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">Editing Subjects For:</span>
-          <span className="text-sm font-black text-slate-900 dark:text-white">{student.studentName || 'Student'}</span>
-          <span className="text-xs text-slate-500 font-bold ml-2">(Form #{student.formNo || student['Form Number'] || '—'})</span>
+    <div className="space-y-3 text-xs text-slate-800 dark:text-slate-200">
+      {/* 1. Minimal Header: Student Info + Class & Stream Selectors */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-sm text-slate-900 dark:text-white">
+            {student.studentName || 'Student'}
+          </span>
+          <span className="font-mono text-[11px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+            #{student.formNo || student['Form Number'] || '—'}
+          </span>
         </div>
 
-        {/* Class & Stream Selectors */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-            <span className="text-[10px] font-black text-slate-400">Class:</span>
+          {/* Class selector */}
+          <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+            <span className="text-[10px] text-slate-400 font-medium">Class:</span>
             <select
               value={targetClass}
               onChange={(e) => {
@@ -3022,7 +3025,7 @@ function QuickSubjectStreamEditor({
                   setSelectedSubjects(['General English', 'Political Science', 'History', 'Education', 'Environmental Science']);
                 }
               }}
-              className="bg-transparent font-black text-xs text-purple-700 dark:text-purple-300 focus:outline-none cursor-pointer"
+              className="bg-transparent font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
             >
               <option value="12th">Class 12th</option>
               <option value="11th">Class 11th</option>
@@ -3032,13 +3035,14 @@ function QuickSubjectStreamEditor({
             </select>
           </div>
 
+          {/* Stream selector */}
           {isSenior && (
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-amber-300 dark:border-amber-700 shadow-2xs">
-              <span className="text-[10px] font-black text-slate-400">Stream:</span>
+            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+              <span className="text-[10px] text-slate-400 font-medium">Stream:</span>
               <select
                 value={effectiveStreamKey}
                 onChange={(e) => handleStreamChange(e.target.value)}
-                className="bg-transparent font-black text-xs text-amber-800 dark:text-amber-300 focus:outline-none cursor-pointer"
+                className="bg-transparent font-bold text-amber-700 dark:text-amber-400 focus:outline-none cursor-pointer"
               >
                 <option value="Science">🔬 Science</option>
                 <option value="Humanities">🎨 Humanities</option>
@@ -3048,13 +3052,11 @@ function QuickSubjectStreamEditor({
         </div>
       </div>
 
-      {/* Preset Quick-Fill Bar */}
+      {/* 2. Quick 1-Click Presets: Horizontal Compact Pill Bar */}
       {activeStreamDef.presets && activeStreamDef.presets.length > 0 && (
         <div className="space-y-1">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-            ⚡ Quick 1-Click Standard Combinations:
-          </span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0">Presets:</span>
             {activeStreamDef.presets.map((preset, pIdx) => {
               const isMatch = preset.subjects.length === selectedSubjects.length &&
                 preset.subjects.every(s => selectedSubjects.includes(s));
@@ -3063,10 +3065,10 @@ function QuickSubjectStreamEditor({
                   key={pIdx}
                   type="button"
                   onClick={() => handleApplyPreset(preset.subjects)}
-                  className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer shadow-2xs ${
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                     isMatch
-                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/30'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:text-amber-700'
                   }`}
                 >
                   {preset.name}
@@ -3077,46 +3079,53 @@ function QuickSubjectStreamEditor({
         </div>
       )}
 
-      {/* Compulsory Core Subjects (GROUP A) */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[10.5px] font-black text-teal-800 dark:text-teal-300">
-          <span>🔒 GROUP A — Compulsory ({activeStreamDef.compulsory.length}):</span>
-          <span className="text-[9.5px] text-slate-400 font-normal">Mandatory for {targetClass} ({selectedStream})</span>
+      {/* 3. GROUP A (Compulsory Subjects) */}
+      <div className="space-y-1">
+        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+          <span>Group A — Compulsory ({activeStreamDef.compulsory.length})</span>
+          <span className="text-[10px] text-slate-400">Fixed</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {activeStreamDef.compulsory.map(sub => (
             <span
               key={sub}
-              className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-teal-900 dark:text-teal-200 font-black text-xs shadow-2xs flex items-center gap-1.5"
+              className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300 font-semibold text-xs flex items-center gap-1.5"
             >
-              <Check size={12} className="text-teal-600 dark:text-teal-400 stroke-[3]" />
+              <Check size={12} className="text-teal-600 dark:text-teal-400 stroke-[2.5]" />
               <span>{sub}</span>
             </span>
           ))}
         </div>
       </div>
 
-      {/* Stream Electives / Optionals (GROUP B & GROUP C) */}
+      {/* 4. Stream Electives (GROUP B & GROUP C) */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
-          <span>📖 Stream Elective Options (Click to Select / Deselect):</span>
-          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-black">
-            {subjectCount} Subject{subjectCount !== 1 ? 's' : ''} Selected
+        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+          <span>Electives & Options</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            subjectCount === 5
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : subjectCount === 6
+              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+              : 'bg-amber-50 text-amber-800 border border-amber-200'
+          }`}>
+            {subjectCount} Selected
           </span>
         </div>
 
-        {/* Rule banner note */}
+        {/* Minimal Selection Rule */}
         {activeStreamDef.ruleNote && (
-          <div className="px-2.5 py-1 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-[10px] font-bold text-amber-900 dark:text-amber-300">
-            ℹ️ {activeStreamDef.ruleNote}
-          </div>
+          <p className="text-[10.5px] text-slate-500 dark:text-slate-400 italic">
+            * {activeStreamDef.ruleNote}
+          </p>
         )}
 
+        {/* Grouped Option Grid */}
         {activeStreamDef.groups && activeStreamDef.groups.length > 0 ? (
-          <div className="space-y-2.5 max-h-56 overflow-y-auto p-2 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+          <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
             {activeStreamDef.groups.map((grp, gIdx) => (
               <div key={gIdx} className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 px-1 block">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   {grp.name}
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
@@ -3127,15 +3136,15 @@ function QuickSubjectStreamEditor({
                         key={sub}
                         type="button"
                         onClick={() => handleToggleSubject(sub)}
-                        className={`p-2 rounded-xl text-left text-xs font-bold border transition-all cursor-pointer flex items-center justify-between gap-1 shadow-2xs ${
+                        className={`px-2.5 py-1.5 rounded-xl text-left text-xs border transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
                           isSelected
-                            ? 'bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 text-amber-950 dark:text-amber-200 font-black shadow-xs ring-1 ring-amber-400/40'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-200 font-bold ring-1 ring-amber-400/30'
+                            : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium'
                         }`}
                       >
                         <span className="truncate">{sub}</span>
-                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                          isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                          isSelected ? 'bg-amber-600 text-white font-bold' : 'text-slate-400'
                         }`}>
                           {isSelected ? '✓' : '+'}
                         </span>
@@ -3147,7 +3156,7 @@ function QuickSubjectStreamEditor({
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto p-1.5 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto">
             {activeStreamDef.optionals.map(sub => {
               const isSelected = selectedSubjects.includes(sub);
               return (
@@ -3155,15 +3164,15 @@ function QuickSubjectStreamEditor({
                   key={sub}
                   type="button"
                   onClick={() => handleToggleSubject(sub)}
-                  className={`p-2 rounded-xl text-left text-xs font-bold border transition-all cursor-pointer flex items-center justify-between gap-1 shadow-2xs ${
+                  className={`px-2.5 py-1.5 rounded-xl text-left text-xs border transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
                     isSelected
-                      ? 'bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 text-amber-950 dark:text-amber-200 font-black shadow-xs ring-1 ring-amber-400/40'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-200 font-bold'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 font-medium'
                   }`}
                 >
                   <span className="truncate">{sub}</span>
-                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                    isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] shrink-0 ${
+                    isSelected ? 'bg-amber-600 text-white font-bold' : 'text-slate-400'
                   }`}>
                     {isSelected ? '✓' : '+'}
                   </span>
@@ -3174,81 +3183,68 @@ function QuickSubjectStreamEditor({
         )}
       </div>
 
-      {/* Custom Non-Catalog Subject Adder */}
-      <div className="pt-1 flex items-center justify-between">
+      {/* 5. Custom Subject Adder (Discreet Text Link) */}
+      <div className="pt-0.5">
         {showCustomInput ? (
-          <form onSubmit={handleAddCustomSubject} className="flex-1 flex items-center gap-1.5 animate-fadeIn">
+          <form onSubmit={handleAddCustomSubject} className="flex items-center gap-1.5 animate-fadeIn">
             <input
               type="text"
               autoFocus
               value={customSubjectInput}
               onChange={(e) => setCustomSubjectInput(e.target.value)}
-              placeholder="Type custom subject name (e.g. Geology)"
-              className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs"
+              placeholder="Custom subject name (e.g. Geology)"
+              className="flex-1 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium"
             />
             <button
               type="submit"
               disabled={!customSubjectInput.trim()}
-              className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50"
+              className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
             >
               Add
             </button>
             <button
               type="button"
               onClick={() => setShowCustomInput(false)}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs cursor-pointer"
+              className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs cursor-pointer"
             >
-              Cancel
+              ✕
             </button>
           </form>
         ) : (
           <button
             type="button"
             onClick={() => setShowCustomInput(true)}
-            className="text-[11px] text-amber-700 dark:text-amber-400 font-black hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-[10.5px] text-amber-700 dark:text-amber-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
           >
-            <span>➕ Add non-catalog / special subject</span>
+            <span>+ Add other subject</span>
           </button>
         )}
       </div>
 
-      {/* Selected Result Summary & Live Preview */}
-      <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 space-y-1">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase font-black tracking-wider text-amber-900 dark:text-amber-300">
-            Selected Stream & Full Subjects ({subjectCount}):
-          </span>
-          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-            subjectCount === 5
-              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300'
-              : subjectCount === 6
-              ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300'
-              : 'bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200'
-          }`}>
-            {subjectCount === 5 ? '✓ Standard 5 Subjects' : subjectCount === 6 ? '✓ 5 Core + 1 Additional' : `${subjectCount} Subjects Selected`}
-          </span>
-        </div>
-        <div className="font-mono text-xs font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800/60 break-words leading-relaxed">
-          {selectedSubjects.join(', ') || <span className="text-slate-400 font-normal italic">No subjects selected yet</span>}
-        </div>
+      {/* 6. Selected Preview Bar */}
+      <div className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs flex flex-wrap items-center gap-1.5">
+        <span className="font-semibold text-slate-500 dark:text-slate-400 text-[11px]">Selected:</span>
+        <span className="font-bold text-slate-800 dark:text-slate-100 break-words">
+          {selectedSubjects.join(', ') || <span className="text-slate-400 font-normal italic">None</span>}
+        </span>
       </div>
 
-      {/* Reason Toggle */}
-      <div className="space-y-1.5 pt-1">
+      {/* 7. Audit Log Reason (Optional Toggle) */}
+      <div>
         <button
           type="button"
           onClick={() => setShowReasonInput(!showReasonInput)}
-          className="text-[10.5px] font-black text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+          className="text-[10.5px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1 cursor-pointer"
         >
-          <span>{showReasonInput ? '▼ Hide Audit Log Reason' : '▶ Add Audit Log Reason (Optional)'}</span>
+          <span>{showReasonInput ? '▾ Hide Reason' : '▸ Add Change Reason (Optional)'}</span>
         </button>
 
         {showReasonInput && (
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-1.5 animate-fadeIn">
+          <div className="mt-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-1.5 animate-fadeIn">
             <select
               value={reasonCategory}
               onChange={(e) => setReasonCategory(e.target.value)}
-              className="w-full px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs"
+              className="w-full px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
             >
               <option value="Subject Change Request">✏️ Subject Change Request</option>
               <option value="Stream Switch / Re-allotment">🔄 Stream Switch / Re-allotment</option>
@@ -3260,20 +3256,20 @@ function QuickSubjectStreamEditor({
               type="text"
               value={customReason}
               onChange={(e) => setCustomReason(e.target.value)}
-              placeholder="Specific notes (e.g. Switched to Arts with Principal permission)..."
-              className="w-full px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs"
+              placeholder="Optional notes..."
+              className="w-full px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
             />
           </div>
         )}
       </div>
 
-      {/* Modal Actions */}
-      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+      {/* 8. Footer Action Bar */}
+      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
         <button
           type="button"
           disabled={isSaving}
           onClick={onCancel}
-          className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-800 dark:text-slate-200 font-black text-xs cursor-pointer disabled:opacity-50"
+          className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs cursor-pointer disabled:opacity-50"
         >
           Cancel
         </button>
@@ -3284,17 +3280,17 @@ function QuickSubjectStreamEditor({
             const finalSubsStr = selectedSubjects.join(', ');
             onSave(finalSubsStr, selectedStream, targetClass);
           }}
-          className="px-5 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
+          className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
         >
           {isSaving ? (
             <>
               <Loader2 size={13} className="animate-spin" />
-              <span>Saving Live...</span>
+              <span>Saving...</span>
             </>
           ) : (
             <>
-              <CheckCircle size={14} />
-              <span>Save & Sync Subjects</span>
+              <CheckCircle size={13} />
+              <span>Save & Sync</span>
             </>
           )}
         </button>
@@ -9852,12 +9848,12 @@ export default function AdvancedReports({
           quickEditCell.column.key.toLowerCase().startsWith('sub');
 
         return (
-          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs animate-fadeIn">
-            <div className={`w-full ${isSubjectEdit ? 'max-w-2xl' : 'max-w-sm'} p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto`}>
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-black">
-                  <BookOpen size={17} />
-                  <span className="text-xs sm:text-sm">
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+            <div className={`w-full ${isSubjectEdit ? 'max-w-xl' : 'max-w-sm'} p-4 sm:p-4.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-3 max-h-[92vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-xs sm:text-sm">
+                  <BookOpen size={16} />
+                  <span>
                     {isSubjectEdit ? 'Configure Subjects & Stream' : `Quick Edit: ${quickEditCell.column.label}`}
                   </span>
                 </div>
@@ -9867,7 +9863,7 @@ export default function AdvancedReports({
                   onClick={() => setQuickEditCell(null)}
                   className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer disabled:opacity-40"
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               </div>
 
