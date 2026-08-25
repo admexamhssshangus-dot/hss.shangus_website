@@ -905,24 +905,63 @@ export function extractSubjectsWithStream(st, useAbbr = true) {
   return stmAbbr ? `${subjs} (${stmAbbr})` : subjs;
 }
 
+/**
+ * Check if candidate name contains female identity markers
+ */
+export function isFemaleCandidateName(nameStr) {
+  if (!nameStr) return false;
+  const lower = String(nameStr).toLowerCase().trim();
+  const words = lower.split(/[\s,._-]+/).filter(Boolean);
+
+  const femaleTokens = new Set([
+    'jan', 'khatoon', 'bano', 'akhter', 'akhtar', 'kousar', 'kausar', 'parveen', 'zehra', 'zahra',
+    'fatima', 'muskan', 'suhaiba', 'sabreena', 'sabrina', 'ruqaiya', 'ruqaya', 'ruqia', 'ajvaa', 'ajwa',
+    'iqra', 'sadiya', 'sadia', 'tahira', 'shahida', 'aafreen', 'afreen', 'arjumand', 'aiman', 'shaista',
+    'shafia', 'mehvis', 'mehvish', 'dania', 'rasia', 'yasmeen', 'yasmin', 'shabnum', 'shabnam', 'sumiya',
+    'sumaya', 'sumaira', 'suraya', 'suraiya', 'aneesa', 'anisa', 'fiza', 'asma', 'ayesha', 'aisha',
+    'mariyam', 'maryam', 'nusrat', 'nuzhat', 'shazia', 'bisma', 'insha', 'simran', 'snober', 'seerat',
+    'misbah', 'tabasum', 'tabassum', 'urfi', 'uzma', 'soliha', 'saleeha', 'saliha', 'nargis', 'rozy',
+    'safia', 'safiya', 'bazila', 'khushboo', 'khushbu', 'mehak', 'mahima', 'tanzeela', 'afroza', 'fareeda',
+    'farida', 'kulsum', 'kulsoom', 'shamima', 'saleema', 'salima', 'shakeela', 'shakila', 'muntaha',
+    'maheen', 'mahnoor', 'areeba', 'aliza', 'hoor', 'huria', 'shabana', 'samina', 'rehana', 'rukhsana',
+    'rubina', 'razia', 'munaza', 'muneera', 'fahmeeda', 'fehmeeda', 'haleema', 'rashida', 'waheeda',
+    'hamida', 'jameela', 'naseema', 'khalida', 'amina', 'safeena', 'sumera', 'zubaida', 'zahida',
+    'nighat', 'fozia', 'fauzia', 'riffat', 'shahnaza', 'shahnaz', 'ishrat', 'shahzada', 'dilshada',
+    'masrat', 'musarat', 'suriya', 'samreena', 'kounsar', 'arifa', 'shumaila', 'zahida', 'bilkees',
+    'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema'
+  ]);
+
+  return words.some(w => femaleTokens.has(w));
+}
+
 export function extractGender(st) {
   if (!st) return '—';
+  const raw = st?.raw || st || {};
   const keys = [
     "Gender", "gender", "Sex", "sex", "GENDER", "SEX",
-    "Student's Gender", "Student Gender", "Applicant Gender", "studentGender"
+    "Student's Gender", "Student Gender", "Applicant Gender", "studentGender",
+    "gen", "Gen", "candidateGender", "applicant_gender", "title", "genderTitle"
   ];
   for (const k of keys) {
-    if (st[k] && String(st[k]).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(st[k]).trim())) {
-      const g = String(st[k]).trim();
-      if (g.toLowerCase().startsWith('f') || g.toLowerCase() === 'female' || g.toLowerCase() === 'girl') return 'Female (F)';
-      if (g.toLowerCase().startsWith('m') || g.toLowerCase() === 'male' || g.toLowerCase() === 'boy') return 'Male (M)';
-      return g;
+    const val = raw[k] || st[k];
+    if (val && String(val).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(val).trim())) {
+      const g = String(val).trim().toLowerCase();
+      if (g.startsWith('f') || g === 'female' || g === 'girl' || g === 'ms.' || g === 'miss') return 'Female (F)';
+      if (g.startsWith('m') || g === 'male' || g === 'boy' || g === 'mr.' || g === 'master') return 'Male (M)';
+      return String(val).trim();
     }
   }
-  if (st.raw) {
+
+  // If gender field is not explicitly present in record, detect from candidate name
+  const studentName = raw.name || raw.studentName || raw["Student's Name"] || raw['Name'] || st.name || st.studentName || '';
+  if (studentName && isFemaleCandidateName(studentName)) {
+    return 'Female (F)';
+  }
+
+  if (st.raw && st.raw !== st) {
     return extractGender(st.raw);
   }
-  return '—';
+  return 'Male (M)';
 }
 
 export function extractDob(st) {
