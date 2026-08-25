@@ -684,7 +684,7 @@ export default function StudentCertificateStudioView({
     setDobRaw(st.dob || '');
     setSession(st.session || '2025-26');
     setAddress(st.address || 'Shangus, Anantnag');
-    setGender(st.gender || 'M');
+    setGender(extractGender(st));
     
     const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
     setWithdrawalDate(rawWd);

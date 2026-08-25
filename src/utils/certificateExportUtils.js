@@ -295,7 +295,35 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     certificateNo = '—'
   } = { ...studentData, ...options };
 
-  const isFemale = String(gender).toUpperCase().startsWith('F') || String(gender).toUpperCase() === 'FEMALE';
+  const FEMALE_NAME_TOKENS = new Set([
+    'jan', 'khatoon', 'bano', 'akhter', 'akhtar', 'kousar', 'kausar', 'parveen', 'zehra', 'zahra',
+    'fatima', 'muskan', 'suhaiba', 'sabreena', 'sabrina', 'ruqaiya', 'ruqaya', 'ruqia', 'ajvaa', 'ajwa',
+    'iqra', 'sadiya', 'sadia', 'tahira', 'shahida', 'aafreen', 'afreen', 'arjumand', 'aiman', 'shaista',
+    'shafia', 'mehvis', 'mehvish', 'dania', 'rasia', 'yasmeen', 'yasmin', 'shabnum', 'shabnam', 'sumiya',
+    'sumaya', 'sumaira', 'suraya', 'suraiya', 'aneesa', 'anisa', 'fiza', 'asma', 'ayesha', 'aisha',
+    'mariyam', 'maryam', 'nusrat', 'nuzhat', 'shazia', 'bisma', 'insha', 'simran', 'snober', 'seerat',
+    'misbah', 'tabasum', 'tabassum', 'urfi', 'uzma', 'soliha', 'saleeha', 'saliha', 'nargis', 'rozy',
+    'safia', 'safiya', 'bazila', 'khushboo', 'khushbu', 'mehak', 'mahima', 'tanzeela', 'afroza', 'fareeda',
+    'farida', 'kulsum', 'kulsoom', 'shamima', 'saleema', 'salima', 'shakeela', 'shakila', 'muntaha',
+    'maheen', 'mahnoor', 'areeba', 'aliza', 'hoor', 'huria', 'shabana', 'samina', 'rehana', 'rukhsana',
+    'rubina', 'razia', 'munaza', 'muneera', 'fahmeeda', 'fehmeeda', 'haleema', 'rashida', 'waheeda',
+    'hamida', 'jameela', 'naseema', 'khalida', 'amina', 'safeena', 'sumera', 'zubaida', 'zahida',
+    'nighat', 'fozia', 'fauzia', 'riffat', 'shahnaza', 'shahnaz', 'ishrat', 'shahzada', 'dilshada',
+    'masrat', 'musarat', 'suriya', 'samreena', 'kounsar', 'arifa', 'shumaila', 'zahida', 'bilkees',
+    'bilqees', 'lubna', 'asma', 'shafiqa', 'shagufta', 'hina', 'saba', 'sania', 'sheema', 'tasleema'
+  ]);
+
+  const nameWords = String(studentName || '').toLowerCase().split(/[\s,._-]+/).filter(Boolean);
+  const nameIsFemale = nameWords.some(w => FEMALE_NAME_TOKENS.has(w));
+
+  const isFemale = (
+    String(gender).toUpperCase().startsWith('F') ||
+    String(gender).toUpperCase() === 'FEMALE' ||
+    String(gender).toLowerCase() === 'girl' ||
+    String(gender).toLowerCase() === 'ms.' ||
+    String(gender).toLowerCase() === 'miss' ||
+    nameIsFemale
+  );
   
   // Salutation / Title logic
   const genderTitle = includeSalutations ? (studentTitle !== null ? studentTitle : (isFemale ? 'Ms.' : 'Mr.')) : '';
