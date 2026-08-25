@@ -69,12 +69,30 @@ export function expandJkboseSubjectCodes(codeStr) {
   const cleanStr = String(codeStr).replace(/^Reap\s+/i, '').trim();
   if (!cleanStr || /^(passed|pass|promoted|—|-|n\/a)$/i.test(cleanStr)) return cleanStr;
 
-  // Split tokens by space, comma, plus, slash
-  const tokens = cleanStr.split(/[\s,+/]+/).filter(Boolean);
-  const expanded = tokens.map(t => {
-    const upper = t.toUpperCase().trim();
+  // If already contains full subject names or commas, split by comma/semicolon/newline
+  let rawTokens = [];
+  if (cleanStr.includes(',') || cleanStr.includes(';') || cleanStr.includes('\n')) {
+    rawTokens = cleanStr.split(/[,;\n\r\t]+/).map(s => s.trim()).filter(Boolean);
+  } else {
+    // If no commas, check if it's space-separated 2-4 letter codes (e.g. "GN ED UD PD" or "GE EC HT PS PD")
+    const words = cleanStr.split(/[\s+/]+/).filter(Boolean);
+    const allShortCodes = words.length > 0 && words.every(w => /^[A-Za-z]{2,4}$/.test(w));
+    if (allShortCodes) {
+      rawTokens = words;
+    } else {
+      rawTokens = [cleanStr];
+    }
+  }
+
+  const expanded = rawTokens.map(t => {
+    const trimmed = t.trim();
+    const upper = trimmed.toUpperCase();
     const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
-    return found ? found.name : t;
+    if (found) return found.name;
+    if (upper === 'PHE' || upper === 'PE' || upper === 'PD') {
+      return 'Physical Education';
+    }
+    return trimmed;
   });
 
   return expanded.join(', ');
