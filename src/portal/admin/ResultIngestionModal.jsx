@@ -54,6 +54,7 @@ import {
   saveCustomGeminiModel,
   deleteGeminiModel,
   restoreDefaultGeminiModels,
+  checkIsSuperAdmin,
   AVAILABLE_GEMINI_MODELS
 } from '../../services/geminiLetterService';
 
@@ -79,6 +80,8 @@ export default function ResultIngestionModal({
   onIngestSuccess,
   showToast
 }) {
+  const isSuperAdmin = checkIsSuperAdmin();
+
   // Tab State: 'excel' | 'ai_gazette' | 'ai_admit'
   const [activeTab, setActiveTab] = useState('excel');
   const [selectedClass, setSelectedClass] = useState('12th');
@@ -547,10 +550,14 @@ export default function ResultIngestionModal({
               type="button"
               onClick={() => setShowKeysConfig(!showKeysConfig)}
               className="px-2.5 py-1 rounded-lg font-black text-xs border flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer transition-all shadow-2xs whitespace-nowrap"
-              title="Manage Gemini AI API Keys (Stored in Cloud Firestore & Shared Across All Modules)"
+              title={isSuperAdmin ? "Manage Gemini AI API Keys & Models (SuperAdmin Control)" : `Gemini AI Vision Active (${preferredModel})`}
             >
-              <Key size={12} className="text-amber-600" />
-              <span>{geminiKeys.length > 0 ? `${geminiKeys.length} Key${geminiKeys.length > 1 ? 's' : ''} Connected` : 'Configure Key'}</span>
+              {isSuperAdmin ? <Key size={12} className="text-amber-600" /> : <Sparkles size={12} className="text-amber-600" />}
+              <span>
+                {isSuperAdmin
+                  ? (geminiKeys.length > 0 ? `${geminiKeys.length} Keys Pool` : 'Configure Key')
+                  : `AI Engine Active`}
+              </span>
             </button>
           </div>
         </div>
@@ -558,43 +565,74 @@ export default function ResultIngestionModal({
         {/* Gemini API Key Pool Configuration Drawer */}
         {showKeysConfig && (
           <div className="mx-6 mt-3 p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 space-y-2.5 animate-fadeIn text-xs">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-1.5">
-                <Key size={14} className="text-amber-600" />
-                <span className="font-black text-amber-950 dark:text-amber-100 text-xs">
-                  Gemini API Key Pool ({geminiKeys.length} Active Key{geminiKeys.length !== 1 ? 's' : ''} in Cloud DB):
-                </span>
+            {isSuperAdmin ? (
+              <>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Key size={14} className="text-amber-600" />
+                    <span className="font-black text-amber-950 dark:text-amber-100 text-xs">
+                      Gemini API Key Pool ({geminiKeys.length} Active Key{geminiKeys.length !== 1 ? 's' : ''} in Cloud DB):
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                      SuperAdmin Access
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowKeysPreview(!showKeysPreview)}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-slate-700 dark:text-slate-300 hover:bg-amber-100/50 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showKeysPreview ? <EyeOff size={11} /> : <Eye size={11} />}
+                      <span>{showKeysPreview ? 'Hide Keys' : 'Reveal Keys'}</span>
+                    </button>
+
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-amber-800 dark:text-amber-300 font-black hover:underline flex items-center gap-0.5 bg-amber-200/50 dark:bg-amber-900/50 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700"
+                    >
+                      <span>Get Free Key</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+
+                <textarea
+                  rows={2}
+                  value={showKeysPreview ? keysInputText : (keysInputText ? keysInputText.split(/[\n,]+/).filter(Boolean).map(k => (k.length > 12 ? (k.slice(0, 8) + '••••••••••••••••••••••••' + k.slice(-4)) : '••••••••••••••••••••••••')).join('\n') : '')}
+                  onChange={(e) => {
+                    if (showKeysPreview) {
+                      setKeysInputText(e.target.value);
+                    }
+                  }}
+                  readOnly={!showKeysPreview}
+                  placeholder={showKeysPreview ? "Paste your Gemini API keys here (one per line or comma-separated)." : "Keys are hidden. Click 'Reveal Keys' above to view or edit."}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-amber-100/60 dark:bg-amber-950/60 border border-amber-300/80 dark:border-amber-800 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold shrink-0">
+                    <ShieldCheck size={16} />
+                  </div>
+                  <div>
+                    <div className="font-black text-[11px] text-amber-950 dark:text-amber-100 flex items-center gap-1.5">
+                      <span>Google Gemini AI Multi-Key Pool</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                        {geminiKeys.length} Cloud Keys Active
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+                      🔒 Secret API credentials and key rotation are managed exclusively by the SuperAdmin. AI extraction is fully operational.
+                    </p>
+                  </div>
+                </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowKeysPreview(!showKeysPreview)}
-                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-slate-700 dark:text-slate-300 hover:bg-amber-100/50 flex items-center gap-1 cursor-pointer"
-                >
-                  {showKeysPreview ? <EyeOff size={11} /> : <Eye size={11} />}
-                  <span>{showKeysPreview ? 'Hide Keys' : 'Reveal Keys'}</span>
-                </button>
-
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-amber-800 dark:text-amber-300 font-black hover:underline flex items-center gap-0.5 bg-amber-200/50 dark:bg-amber-900/50 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700"
-                >
-                  <span>Get Free Key</span>
-                  <ExternalLink size={10} />
-                </a>
-              </div>
-            </div>
-
-            <textarea
-              rows={2}
-              value={keysInputText}
-              onChange={(e) => setKeysInputText(e.target.value)}
-              placeholder="Paste your Gemini API keys here (one per line or comma-separated). They will be saved to Cloud Firestore and accessible to all AI features."
-              className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
+            )}
 
             <div className="space-y-2 pt-1 border-t border-amber-200/80 dark:border-amber-800/60">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -659,7 +697,7 @@ export default function ResultIngestionModal({
                     onClick={handleSaveKeys}
                     className="px-3.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] cursor-pointer shadow-xs"
                   >
-                    ✓ Save Keys & Model to Cloud DB
+                    {isSuperAdmin ? '✓ Save Keys & Model to Cloud DB' : '✓ Save Preferred Model'}
                   </button>
                 </div>
               </div>

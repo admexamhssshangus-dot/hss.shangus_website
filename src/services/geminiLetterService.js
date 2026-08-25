@@ -2,6 +2,11 @@ import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { auth, db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getFirebaseAppCheck } from './firebaseAppCheck';
+import { isSuperAdminUser } from './sessionManager';
+
+export function checkIsSuperAdmin(user = null) {
+  return isSuperAdminUser(user);
+}
 
 const STORAGE_KEY_GEMINI_KEYS = 'hss_gemini_api_keys';
 const STORAGE_KEY_GEMINI_MODEL = 'hss_gemini_preferred_model';
