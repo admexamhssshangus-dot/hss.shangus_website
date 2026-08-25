@@ -2778,6 +2778,487 @@ function OnDemandStudentPhotoCell({ student, val }) {
   );
 }
 
+// ─── Interactive Class & Stream Subject Selector for Admin Quick Edit ───
+function QuickSubjectStreamEditor({
+  student,
+  currentValue,
+  onSave,
+  onCancel,
+  isSaving,
+  reasonCategory,
+  setReasonCategory,
+  customReason,
+  setCustomReason,
+  showReasonInput,
+  setShowReasonInput
+}) {
+  const initialClass = normalizeClassVal(student?.class || student?.Class || student?.['Admission sought for class'] || '11th') || '11th';
+  const [targetClass, setTargetClass] = useState(initialClass);
+
+  // Resolve initial stream
+  const initialStream = useMemo(() => {
+    const raw = String(student?.stream || student?.Stream || student?.['Stream for Class 11th'] || student?.['Stream opted in Class 11th'] || '').trim();
+    if (raw.toLowerCase().includes('non-med') || raw.toLowerCase().includes('non med') || raw.toLowerCase().includes('nm')) return 'Non-Medical';
+    if (raw.toLowerCase().includes('med')) return 'Medical';
+    if (raw.toLowerCase().includes('comm')) return 'Commerce';
+    if (raw.toLowerCase().includes('hum') || raw.toLowerCase().includes('art')) return 'Humanities';
+
+    // Deduce from existing subjects
+    const subStr = String(currentValue || student?.subs || formatStudentSubjects(student) || '').toLowerCase();
+    if (subStr.includes('biology') || subStr.includes('botany') || subStr.includes('zoology')) return 'Medical';
+    if (subStr.includes('math') && (subStr.includes('physics') || subStr.includes('chem'))) return 'Non-Medical';
+    if (subStr.includes('account') || subStr.includes('business')) return 'Commerce';
+    if (subStr.includes('history') || subStr.includes('political') || subStr.includes('sociology') || subStr.includes('education') || subStr.includes('urdu')) return 'Humanities';
+    return (initialClass === '11th' || initialClass === '12th') ? 'Humanities' : 'General';
+  }, [student, currentValue, initialClass]);
+
+  const [selectedStream, setSelectedStream] = useState(initialStream);
+
+  // Parse existing selected subjects into an array of expanded subject names
+  const [selectedSubjects, setSelectedSubjects] = useState(() => {
+    const raw = String(currentValue || student?.subs || formatStudentSubjects(student) || '').trim();
+    if (!raw || raw === '—') return [];
+    const parts = raw.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim()) || p.trim()).filter(Boolean);
+    return Array.from(new Set(parts));
+  });
+
+  const [customSubjectInput, setCustomSubjectInput] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  // Subject catalogues per stream & class
+  const STREAM_DEFINITIONS = useMemo(() => {
+    return {
+      'Medical': {
+        label: '🔬 Science (Medical)',
+        compulsory: ['General English', 'Physics', 'Chemistry', 'Biology'],
+        optionals: [
+          'Environmental Science',
+          'Physical Education',
+          'Mathematics',
+          'Information Practices',
+          'Computer Science',
+          'Urdu',
+          'Kashmiri',
+          'Psychology',
+          'Statistics',
+          'Biotechnology'
+        ],
+        presets: [
+          { name: 'Core + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Environmental Science'] },
+          { name: 'Core + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Physical Education'] },
+          { name: 'PCMB (Med + Math)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics'] },
+          { name: 'PCMB + EVS (6 Subs)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'] }
+        ]
+      },
+      'Non-Medical': {
+        label: '📐 Science (Non-Medical)',
+        compulsory: ['General English', 'Physics', 'Chemistry', 'Mathematics'],
+        optionals: [
+          'Environmental Science',
+          'Physical Education',
+          'Biology',
+          'Information Practices',
+          'Computer Science',
+          'Urdu',
+          'Kashmiri',
+          'Psychology',
+          'Statistics'
+        ],
+        presets: [
+          { name: 'Core + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'] },
+          { name: 'Core + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Physical Education'] },
+          { name: 'Core + Computer', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Computer Science'] }
+        ]
+      },
+      'Humanities': {
+        label: '🎨 Arts / Humanities',
+        compulsory: ['General English'],
+        optionals: [
+          'Political Science',
+          'History',
+          'Sociology',
+          'Economics',
+          'Education',
+          'Geography',
+          'Urdu',
+          'Kashmiri',
+          'Arabic',
+          'Islamic Studies',
+          'Environmental Science',
+          'Physical Education',
+          'Mathematics',
+          'Computer Science',
+          'Public Administration',
+          'Psychology',
+          'Philosophy',
+          'IT and ITES',
+          'Retail',
+          'Tourism and Hospitality'
+        ],
+        presets: [
+          { name: 'Pol Sci, Hist, Socio, EVS', subjects: ['General English', 'Political Science', 'History', 'Sociology', 'Environmental Science'] },
+          { name: 'Pol Sci, Hist, Urdu, EVS', subjects: ['General English', 'Political Science', 'History', 'Urdu', 'Environmental Science'] },
+          { name: 'Pol Sci, Hist, Eco, Edu', subjects: ['General English', 'Political Science', 'History', 'Economics', 'Education'] },
+          { name: 'Pol Sci, Hist, Urdu, Edu', subjects: ['General English', 'Political Science', 'History', 'Urdu', 'Education'] },
+          { name: 'Pol Sci, Socio, Urdu, EVS', subjects: ['General English', 'Political Science', 'Sociology', 'Urdu', 'Environmental Science'] },
+          { name: 'Pol Sci, Hist, Arab, EVS', subjects: ['General English', 'Political Science', 'History', 'Arabic', 'Environmental Science'] },
+          { name: 'Eco, Pol Sci, Hist, EVS', subjects: ['General English', 'Economics', 'Political Science', 'History', 'Environmental Science'] }
+        ]
+      },
+      'Commerce': {
+        label: '💼 Commerce',
+        compulsory: ['General English', 'Accountancy', 'Business Studies', 'Economics'],
+        optionals: [
+          'Environmental Science',
+          'Mathematics',
+          'Physical Education',
+          'IT and ITES',
+          'Urdu',
+          'Kashmiri',
+          'Computer Science'
+        ],
+        presets: [
+          { name: 'Commerce + EVS', subjects: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Environmental Science'] },
+          { name: 'Commerce + Math', subjects: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Mathematics'] },
+          { name: 'Commerce + PHE', subjects: ['General English', 'Accountancy', 'Business Studies', 'Economics', 'Physical Education'] }
+        ]
+      },
+      'General': {
+        label: '🏫 High School / General',
+        compulsory: ['English', 'Mathematics', 'Science', 'Social Science'],
+        optionals: [
+          'Urdu',
+          'Kashmiri',
+          'Hindi',
+          'Arabic',
+          'IT and ITES',
+          'Healthcare',
+          'Retail',
+          'Tourism',
+          'Computer Applications',
+          'Environmental Education'
+        ],
+        presets: [
+          { name: 'General + Urdu', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Urdu'] },
+          { name: 'General + Kashmiri', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Kashmiri'] },
+          { name: 'General + Hindi', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Hindi'] },
+          { name: 'General + Arabic', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Arabic'] }
+        ]
+      }
+    };
+  }, []);
+
+  const isSenior = targetClass === '11th' || targetClass === '12th';
+  const activeStreamDef = STREAM_DEFINITIONS[selectedStream] || (isSenior ? STREAM_DEFINITIONS['Humanities'] : STREAM_DEFINITIONS['General']);
+
+  // Handle stream change
+  const handleStreamChange = (newStream) => {
+    setSelectedStream(newStream);
+    const def = STREAM_DEFINITIONS[newStream] || STREAM_DEFINITIONS['General'];
+    const newComp = def.compulsory || [];
+    const preservedOptionals = selectedSubjects.filter(s => def.optionals.includes(s) && !newComp.includes(s));
+    setSelectedSubjects([...newComp, ...preservedOptionals]);
+  };
+
+  // Toggle subject selection
+  const handleToggleSubject = (subj) => {
+    if (activeStreamDef.compulsory.includes(subj)) return; // Compulsory cannot be deselected
+    setSelectedSubjects(prev => {
+      if (prev.includes(subj)) {
+        return prev.filter(s => s !== subj);
+      } else {
+        return [...prev, subj];
+      }
+    });
+  };
+
+  // Apply preset
+  const handleApplyPreset = (presetSubjects) => {
+    setSelectedSubjects([...presetSubjects]);
+  };
+
+  // Add custom subject
+  const handleAddCustomSubject = (e) => {
+    e?.preventDefault();
+    const clean = customSubjectInput.trim();
+    if (!clean) return;
+    const expanded = expandJkboseSubjectCodes(clean) || clean;
+    if (!selectedSubjects.includes(expanded)) {
+      setSelectedSubjects(prev => [...prev, expanded]);
+    }
+    setCustomSubjectInput('');
+    setShowCustomInput(false);
+  };
+
+  const subjectCount = selectedSubjects.length;
+
+  return (
+    <div className="space-y-3.5 text-xs text-slate-800 dark:text-slate-200">
+      {/* Header Student & Cohort Metadata */}
+      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">Editing Subjects For:</span>
+          <span className="text-sm font-black text-slate-900 dark:text-white">{student.studentName || 'Student'}</span>
+          <span className="text-xs text-slate-500 font-bold ml-2">(Form #{student.formNo || student['Form Number'] || '—'})</span>
+        </div>
+
+        {/* Class & Stream Selectors */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+            <span className="text-[10px] font-black text-slate-400">Class:</span>
+            <select
+              value={targetClass}
+              onChange={(e) => {
+                const newCls = e.target.value;
+                setTargetClass(newCls);
+                if (newCls !== '11th' && newCls !== '12th') {
+                  setSelectedStream('General');
+                  setSelectedSubjects(['English', 'Mathematics', 'Science', 'Social Science', 'Urdu']);
+                } else if (selectedStream === 'General') {
+                  setSelectedStream('Humanities');
+                  setSelectedSubjects(['General English', 'Political Science', 'History', 'Sociology', 'Environmental Science']);
+                }
+              }}
+              className="bg-transparent font-black text-xs text-purple-700 dark:text-purple-300 focus:outline-none cursor-pointer"
+            >
+              <option value="12th">Class 12th</option>
+              <option value="11th">Class 11th</option>
+              <option value="10th">Class 10th</option>
+              <option value="9th">Class 9th</option>
+              <option value="8th">Class 8th</option>
+            </select>
+          </div>
+
+          {isSenior && (
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-amber-300 dark:border-amber-700 shadow-2xs">
+              <span className="text-[10px] font-black text-slate-400">Stream:</span>
+              <select
+                value={selectedStream}
+                onChange={(e) => handleStreamChange(e.target.value)}
+                className="bg-transparent font-black text-xs text-amber-800 dark:text-amber-300 focus:outline-none cursor-pointer"
+              >
+                <option value="Medical">🔬 Medical</option>
+                <option value="Non-Medical">📐 Non-Medical</option>
+                <option value="Humanities">🎨 Arts / Humanities</option>
+                <option value="Commerce">💼 Commerce</option>
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Preset Quick-Fill Bar */}
+      {activeStreamDef.presets && activeStreamDef.presets.length > 0 && (
+        <div className="space-y-1">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+            ⚡ Quick 1-Click Standard Combinations:
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {activeStreamDef.presets.map((preset, pIdx) => {
+              const isMatch = preset.subjects.length === selectedSubjects.length &&
+                preset.subjects.every(s => selectedSubjects.includes(s));
+              return (
+                <button
+                  key={pIdx}
+                  type="button"
+                  onClick={() => handleApplyPreset(preset.subjects)}
+                  className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer shadow-2xs ${
+                    isMatch
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/30'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                  }`}
+                >
+                  {preset.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Compulsory Core Subjects (Locked) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10.5px] font-black text-teal-800 dark:text-teal-300">
+          <span>🔒 Compulsory Core Subjects ({activeStreamDef.compulsory.length}):</span>
+          <span className="text-[9.5px] text-slate-400 font-normal">Mandatory for {targetClass} ({selectedStream})</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {activeStreamDef.compulsory.map(sub => (
+            <span
+              key={sub}
+              className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700 text-teal-900 dark:text-teal-200 font-black text-xs shadow-2xs flex items-center gap-1.5"
+            >
+              <Check size={12} className="text-teal-600 dark:text-teal-400 stroke-[3]" />
+              <span>{sub}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Stream Electives / Optionals */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
+          <span>📖 Stream Electives & Optionals (Click to Select / Deselect):</span>
+          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-black">
+            {subjectCount} Subject{subjectCount !== 1 ? 's' : ''} Selected
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto p-1.5 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+          {activeStreamDef.optionals.map(sub => {
+            const isSelected = selectedSubjects.includes(sub);
+            return (
+              <button
+                key={sub}
+                type="button"
+                onClick={() => handleToggleSubject(sub)}
+                className={`p-2 rounded-xl text-left text-xs font-bold border transition-all cursor-pointer flex items-center justify-between gap-1 shadow-2xs ${
+                  isSelected
+                    ? 'bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 text-amber-950 dark:text-amber-200 font-black shadow-xs ring-1 ring-amber-400/40'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                }`}
+              >
+                <span className="truncate">{sub}</span>
+                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                  isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                }`}>
+                  {isSelected ? '✓' : '+'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Custom Non-Catalog Subject Adder */}
+      <div className="pt-1 flex items-center justify-between">
+        {showCustomInput ? (
+          <form onSubmit={handleAddCustomSubject} className="flex-1 flex items-center gap-1.5 animate-fadeIn">
+            <input
+              type="text"
+              autoFocus
+              value={customSubjectInput}
+              onChange={(e) => setCustomSubjectInput(e.target.value)}
+              placeholder="Type custom subject name (e.g. Geology)"
+              className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs"
+            />
+            <button
+              type="submit"
+              disabled={!customSubjectInput.trim()}
+              className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-black text-xs cursor-pointer shadow-xs disabled:opacity-50"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCustomInput(false)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs cursor-pointer"
+            >
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowCustomInput(true)}
+            className="text-[11px] text-amber-700 dark:text-amber-400 font-black hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>➕ Add non-catalog / special subject</span>
+          </button>
+        )}
+      </div>
+
+      {/* Selected Result Summary & Live Preview */}
+      <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase font-black tracking-wider text-amber-900 dark:text-amber-300">
+            Selected Stream & Full Subjects ({subjectCount}):
+          </span>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+            subjectCount === 5
+              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300'
+              : subjectCount === 6
+              ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300'
+              : 'bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200'
+          }`}>
+            {subjectCount === 5 ? '✓ Standard 5 Subjects' : subjectCount === 6 ? '✓ 5 Core + 1 Additional' : `${subjectCount} Subjects Selected`}
+          </span>
+        </div>
+        <div className="font-mono text-xs font-black text-slate-900 dark:text-white bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800/60 break-words leading-relaxed">
+          {selectedSubjects.join(', ') || <span className="text-slate-400 font-normal italic">No subjects selected yet</span>}
+        </div>
+      </div>
+
+      {/* Reason Toggle */}
+      <div className="space-y-1.5 pt-1">
+        <button
+          type="button"
+          onClick={() => setShowReasonInput(!showReasonInput)}
+          className="text-[10.5px] font-black text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+        >
+          <span>{showReasonInput ? '▼ Hide Audit Log Reason' : '▶ Add Audit Log Reason (Optional)'}</span>
+        </button>
+
+        {showReasonInput && (
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-1.5 animate-fadeIn">
+            <select
+              value={reasonCategory}
+              onChange={(e) => setReasonCategory(e.target.value)}
+              className="w-full px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs"
+            >
+              <option value="Subject Change Request">✏️ Subject Change Request</option>
+              <option value="Stream Switch / Re-allotment">🔄 Stream Switch / Re-allotment</option>
+              <option value="Official Correction">📋 Official Correction</option>
+              <option value="Discrepancy Rectification">⚠️ Discrepancy Rectification</option>
+              <option value="Other Administrative Edit">✍️ Other Administrative Edit</option>
+            </select>
+            <input
+              type="text"
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              placeholder="Specific notes (e.g. Switched to Arts with Principal permission)..."
+              className="w-full px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Modal Actions */}
+      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          disabled={isSaving}
+          onClick={onCancel}
+          className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-800 dark:text-slate-200 font-black text-xs cursor-pointer disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={isSaving || selectedSubjects.length === 0}
+          onClick={() => {
+            const finalSubsStr = selectedSubjects.join(', ');
+            onSave(finalSubsStr, selectedStream, targetClass);
+          }}
+          className="px-5 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 size={13} className="animate-spin" />
+              <span>Saving Live...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle size={14} />
+              <span>Save & Sync Subjects</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SubjectStreamCell({ val, student }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [popoverCoords, setPopoverCoords] = useState(null);
@@ -4254,7 +4735,7 @@ export default function AdvancedReports({
   const [quickEditCustomReason, setQuickEditCustomReason] = useState('');
   const [showQuickEditReason, setShowQuickEditReason] = useState(false);
 
-  const executeSaveQuickCellEdit = async (student, colKey, newValue, reasonCategory = 'Routine Correction', customReason = '') => {
+  const executeSaveQuickCellEdit = async (student, colKey, newValue, reasonCategory = 'Routine Correction', customReason = '', extraFields = {}) => {
     try {
       setIsSavingQuickEdit(true);
       setQuickEditProgress(15);
@@ -4357,6 +4838,7 @@ export default function AdvancedReports({
       const payload = {
         [targetFieldName]: newValue,
         ...subjectPayload,
+        ...(extraFields && typeof extraFields === 'object' ? extraFields : {}),
         ...(isExamRollEdit ? {
           'Exam R.No. (Current)': newValue,
           currExamRollNo: newValue,
@@ -4379,14 +4861,14 @@ export default function AdvancedReports({
 
       setCurrentAdmissions(prev => prev.map(st => {
         if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
+          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(extraFields || {}), ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
         }
         return st;
       }));
 
       setMasterHistoricalRecords(prev => prev.map(st => {
         if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
+          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(extraFields || {}), ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
         }
         return st;
       }));
@@ -9315,44 +9797,48 @@ export default function AdvancedReports({
       )}
 
       {/* Quick Cell Edit Modal */}
-      {quickEditCell && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
-          <div className="w-full max-w-sm p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-black">
-                <Edit3 size={16} />
-                <span className="text-xs sm:text-sm">Quick Edit: {quickEditCell.column.label}</span>
-              </div>
-              <button
-                type="button"
-                disabled={isSavingQuickEdit}
-                onClick={() => setQuickEditCell(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer disabled:opacity-40"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      {quickEditCell && (() => {
+        const isSubjectEdit = 
+          quickEditCell.column.key === 'subs' ||
+          quickEditCell.column.key === 'stream' ||
+          quickEditCell.column.key === 'subjects' ||
+          quickEditCell.column.key === 'Subjects' ||
+          quickEditCell.column.key === 'Subs' ||
+          quickEditCell.column.key.toLowerCase().startsWith('subject') ||
+          quickEditCell.column.key.toLowerCase().startsWith('sub');
 
-            <div className="space-y-2.5">
-              <div className="text-[11px] text-slate-500 font-extrabold flex items-center justify-between">
-                <span>Student: <strong className="text-slate-900 dark:text-white font-black">{quickEditCell.student.studentName || 'Student'}</strong></span>
-                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  Form #{quickEditCell.student.formNo || quickEditCell.student['Form Number'] || '—'}
-                </span>
+        return (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs animate-fadeIn">
+            <div className={`w-full ${isSubjectEdit ? 'max-w-2xl' : 'max-w-sm'} p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-black">
+                  <BookOpen size={17} />
+                  <span className="text-xs sm:text-sm">
+                    {isSubjectEdit ? 'Configure Subjects & Stream' : `Quick Edit: ${quickEditCell.column.label}`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSavingQuickEdit}
+                  onClick={() => setQuickEditCell(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer disabled:opacity-40"
+                >
+                  <X size={16} />
+                </button>
               </div>
 
               {/* Progress & Stage Animation View when Saving */}
               {isSavingQuickEdit ? (
-                <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 space-y-2.5 animate-fadeIn">
+                <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/80 space-y-3 animate-fadeIn text-center">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-left">
                       {quickEditProgress >= 100 ? (
-                        <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 animate-bounce" />
+                        <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400 animate-bounce" />
                       ) : (
-                        <Loader2 size={16} className="text-amber-600 dark:text-amber-400 animate-spin" />
+                        <Loader2 size={18} className="text-amber-600 dark:text-amber-400 animate-spin" />
                       )}
-                      <span className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[190px]">
-                        {quickEditStage || 'Syncing changes...'}
+                      <span className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[260px]">
+                        {quickEditStage || 'Syncing live records...'}
                       </span>
                     </div>
                     <span className="font-mono font-black text-xs text-amber-700 dark:text-amber-300">
@@ -9361,7 +9847,7 @@ export default function AdvancedReports({
                   </div>
 
                   {/* Progress Bar Track */}
-                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-300 ease-out ${
                         quickEditProgress >= 100
@@ -9373,12 +9859,50 @@ export default function AdvancedReports({
                   </div>
 
                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                    <span>Firestore live write & cache update</span>
+                    <span>Synchronizing all Class Subject aliases</span>
                     <span>Admin Audit Logged</span>
                   </div>
                 </div>
+              ) : isSubjectEdit ? (
+                <QuickSubjectStreamEditor
+                  student={quickEditCell.student}
+                  currentValue={quickEditCell.currentValue}
+                  isSaving={isSavingQuickEdit}
+                  reasonCategory={quickEditReasonCategory}
+                  setReasonCategory={setQuickEditReasonCategory}
+                  customReason={quickEditCustomReason}
+                  setCustomReason={setQuickEditCustomReason}
+                  showReasonInput={showQuickEditReason}
+                  setShowReasonInput={setShowQuickEditReason}
+                  onCancel={() => setQuickEditCell(null)}
+                  onSave={(finalSubsStr, selectedStream, targetClass) => {
+                    executeSaveQuickCellEdit(
+                      quickEditCell.student,
+                      'subs',
+                      finalSubsStr,
+                      quickEditReasonCategory,
+                      quickEditCustomReason,
+                      {
+                        stream: selectedStream,
+                        Stream: selectedStream,
+                        'Stream for Class 11th': selectedStream,
+                        'Stream opted in Class 11th': selectedStream,
+                        class: targetClass,
+                        Class: targetClass,
+                        'Admission sought for class': targetClass
+                      }
+                    );
+                  }}
+                />
               ) : (
-                <>
+                <div className="space-y-2.5">
+                  <div className="text-[11px] text-slate-500 font-extrabold flex items-center justify-between">
+                    <span>Student: <strong className="text-slate-900 dark:text-white font-black">{quickEditCell.student.studentName || 'Student'}</strong></span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      Form #{quickEditCell.student.formNo || quickEditCell.student['Form Number'] || '—'}
+                    </span>
+                  </div>
+
                   {quickEditCell.column.key === 'gender' ? (
                     <select
                       autoFocus
@@ -9468,45 +9992,45 @@ export default function AdvancedReports({
                       </div>
                     )}
                   </div>
-                </>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      disabled={isSavingQuickEdit}
+                      onClick={() => setQuickEditCell(null)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSavingQuickEdit}
+                      onClick={() => {
+                        const el = document.getElementById('quickEditInput');
+                        const val = el ? el.value : '';
+                        handleSaveQuickCellEdit(quickEditCell.student, quickEditCell.column.key, val);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isSavingQuickEdit ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>Syncing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={13} />
+                          <span>Save & Sync</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                disabled={isSavingQuickEdit}
-                onClick={() => setQuickEditCell(null)}
-                className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSavingQuickEdit}
-                onClick={() => {
-                  const el = document.getElementById('quickEditInput');
-                  const val = el ? el.value : '';
-                  handleSaveQuickCellEdit(quickEditCell.student, quickEditCell.column.key, val);
-                }}
-                className="px-4 py-2 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {isSavingQuickEdit ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Syncing...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle size={13} />
-                    <span>Save & Sync</span>
-                  </>
-                )}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Direct Express Admin Student Record Ingestion Modal */}
       <DirectIngestionModal
