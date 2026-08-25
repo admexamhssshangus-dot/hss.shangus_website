@@ -530,10 +530,10 @@ export function extractSession(st) {
   if (!st) return '';
   const raw = st.raw || st;
   const keys = [
-    "Exam Mode (Current)", "currExamMode", "exam_mode_current", "examMode", "Exam Mode",
     "Session", "session", "Academic Session", "academicSession", "academic_session",
     "Session / Batch", "sessionBatch", "Batch", "batch",
-    "Passing Year", "passingYear", "Year", "year", "sessionTag", "academic_year"
+    "Passing Year", "passingYear", "Year", "year", "sessionTag", "academic_year",
+    "Exam Mode (Current)", "currExamMode", "exam_mode_current", "examMode", "Exam Mode"
   ];
   for (const k of keys) {
     const valObj = raw[k] || st[k];

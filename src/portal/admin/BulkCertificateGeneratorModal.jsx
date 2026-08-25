@@ -185,6 +185,8 @@ export default function BulkCertificateGeneratorModal({
     if (selectedSession && selectedSession !== 'ALL') {
       if (/bian|bi-annual|apr/i.test(selectedSession)) {
         setExamSessionOverride('Annual Private / Bi-Annual 2026');
+      } else if (/^annual/i.test(selectedSession)) {
+        setExamSessionOverride(selectedSession);
       } else if (selectedSession === '2025-26') {
         setExamSessionOverride('Annual Regular 2025-26');
       } else {
@@ -196,7 +198,7 @@ export default function BulkCertificateGeneratorModal({
   // ─── Multi-Selection State ───
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
 
-  // Extract distinct Sessions scoped to current Class selection (e.g. Class 12th has 94 students)
+  // Extract distinct Sessions scoped to current Class selection
   const availableSessions = useMemo(() => {
     const sessionMap = new Map();
     combinedStudentPool.forEach(st => {
@@ -204,8 +206,7 @@ export default function BulkCertificateGeneratorModal({
         const c = extractClass(st);
         if (!c || !c.toLowerCase().includes(selectedClass.toLowerCase())) return;
       }
-      const raw = st.raw || st;
-      const s = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || extractSession(st);
+      const s = extractSession(st);
       if (s && s !== '—' && s.trim()) {
         sessionMap.set(s.trim(), (sessionMap.get(s.trim()) || 0) + 1);
       }
@@ -252,13 +253,9 @@ export default function BulkCertificateGeneratorModal({
         if (!c || !c.toLowerCase().includes(selectedClass.toLowerCase())) return;
       }
       if (selectedSession && selectedSession !== 'ALL') {
-        const raw = st.raw || st;
-        const examMode = String(raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || '').toLowerCase().trim();
-        const baseSession = String(extractSession(st) || '').toLowerCase().trim();
+        const s = String(extractSession(st) || '').toLowerCase().trim();
         const target = selectedSession.toLowerCase().trim();
-        const matchesSession = baseSession === target || examMode === target || 
-          baseSession.includes(target) || target.includes(baseSession) || 
-          examMode.includes(target) || target.includes(examMode);
+        const matchesSession = s === target || s.includes(target) || target.includes(s);
         if (!matchesSession) return false;
       }
       const s = extractStream(st);
@@ -292,7 +289,7 @@ export default function BulkCertificateGeneratorModal({
       const cls = extractClass(st) || '12th';
       const stream = extractStream(st) || 'Medical';
       const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || '';
-      const session = examMode || extractSession(st) || '2025-26';
+      const session = extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
       const admNo = extractStudentAdmissionNumber(raw) || extractAdmNo(st) || rollNo || '—';
@@ -359,17 +356,9 @@ export default function BulkCertificateGeneratorModal({
         if (!clsMatch) return false;
       }
       if (selectedSession !== 'ALL') {
+        const s = String(st.session || '').toLowerCase().trim();
         const target = selectedSession.toLowerCase().trim();
-        const raw = st.raw || st;
-        const examMode = String(raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || st.examMode || '').toLowerCase().trim();
-        const baseSession = String(st.session || '').toLowerCase().trim();
-        const matchesSession =
-          baseSession === target ||
-          examMode === target ||
-          baseSession.includes(target) ||
-          target.includes(baseSession) ||
-          examMode.includes(target) ||
-          target.includes(examMode);
+        const matchesSession = s === target || s.includes(target) || target.includes(s);
         if (!matchesSession) return false;
       }
       if (selectedStream !== 'ALL') {
@@ -422,27 +411,19 @@ export default function BulkCertificateGeneratorModal({
   // Pre-compute result status counts in a single pass scoped to class & session
   const resultStats = useMemo(() => {
     let passed = 0, reappear = 0, awaiting = 0;
-    normalizedStudents.forEach(s => {
+    normalizedStudents.forEach(st => {
       if (selectedClass !== 'ALL') {
-        if (!s.className.toLowerCase().includes(selectedClass.toLowerCase())) return;
+        if (!st.className.toLowerCase().includes(selectedClass.toLowerCase())) return;
       }
       if (selectedSession !== 'ALL') {
+        const s = String(st.session || '').toLowerCase().trim();
         const target = selectedSession.toLowerCase().trim();
-        const raw = s.raw || s;
-        const examMode = String(raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || s.examMode || '').toLowerCase().trim();
-        const baseSession = String(s.session || '').toLowerCase().trim();
-        const matchesSession =
-          baseSession === target ||
-          examMode === target ||
-          baseSession.includes(target) ||
-          target.includes(baseSession) ||
-          examMode.includes(target) ||
-          target.includes(examMode);
+        const matchesSession = s === target || s.includes(target) || target.includes(s);
         if (!matchesSession) return false;
       }
-      if (s.resultStatus === 'Passed') passed++;
-      else if (s.resultStatus === 'Re-appear') reappear++;
-      else if (s.resultStatus === 'Awaiting Result') awaiting++;
+      if (st.resultStatus === 'Passed') passed++;
+      else if (st.resultStatus === 'Re-appear') reappear++;
+      else if (st.resultStatus === 'Awaiting Result') awaiting++;
     });
     return { passed, reappear, awaiting };
   }, [normalizedStudents, selectedClass, selectedSession]);
