@@ -152,17 +152,21 @@ export default function ResultIngestionModal({
 
     const addSt = (st) => {
       if (!st) return;
-      const key = String(
-        st.id ||
-        st.formNo ||
-        st['Form No.'] ||
-        st['Form Number'] ||
+      const identity = String(
         st['Board Registration Number'] ||
         st['Board Reg. No.'] ||
         st.regNo ||
         st.boardRegNo ||
+        st.formNo ||
+        st['Form No.'] ||
+        st['Form Number'] ||
+        st.id ||
         `${st.name || st.studentName || ''}_${st.fatherName || ''}`
       ).toLowerCase().trim();
+      const recordSession = String(
+        st.selectedSession || st.Session || st.session || st.raw?.['Session'] || ''
+      ).toLowerCase().trim();
+      const key = `${recordSession}|${identity}`;
 
       if (key && !seen.has(key)) {
         seen.add(key);
@@ -316,8 +320,6 @@ export default function ResultIngestionModal({
     return unifiedStudentsList.filter(s => {
       const cls = String(s.selectedClass || s.Class || s.raw?.['Class'] || s.cls || '').trim().toLowerCase();
       const sess = String(s.selectedSession || s.Session || s.raw?.['Session'] || s.session || '').trim().toLowerCase();
-      const examMode = String(s.examMode || s.raw?.['Exam Mode (Current)'] || s.raw?.currExamMode || '').trim().toLowerCase();
-      
       // Class Match
       const selCls = String(selectedClass || '').trim().toLowerCase();
       let matchCls = !selectedClass || selectedClass === 'All';
@@ -342,8 +344,9 @@ export default function ResultIngestionModal({
         if (sess === selSess) {
           matchSess = true;
         } else if (selSess.includes('bian') || selSess.includes('apr')) {
-          matchSess = (sess.includes('2026') && (sess.includes('bian') || sess.includes('apr') || sess.includes('bi-annual'))) ||
-                      (examMode.includes('2026') && (examMode.includes('bian') || examMode.includes('apr')));
+          const selectedYear = (selSess.match(/\b20\d{2}\b/) || [])[0] || '';
+          matchSess = (!selectedYear || sess.includes(selectedYear)) &&
+            (sess.includes('bian') || sess.includes('apr') || sess.includes('bi-annual'));
         } else {
           matchSess = sess.includes(selSess) || selSess.includes(sess);
         }
@@ -630,7 +633,15 @@ export default function ResultIngestionModal({
           'success'
         );
       }
-      if (onIngestSuccess) onIngestSuccess();
+      if (onIngestSuccess) {
+        onIngestSuccess({
+          records: selectedRowsToCommit,
+          result: res,
+          selectedClass,
+          selectedSession,
+          overwriteExamRoll
+        });
+      }
       setShowConfirmGate(false);
       onClose();
     } catch (err) {
@@ -1863,4 +1874,3 @@ export default function ResultIngestionModal({
     </div>
   );
 }
-
