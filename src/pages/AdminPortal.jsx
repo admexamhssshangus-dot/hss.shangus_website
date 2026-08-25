@@ -3559,15 +3559,6 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         ch.postMessage({ type: 'UPDATE_DATA' });
         ch.close();
       } catch (e) { /* ignore */ }
-      // Write to file if running locally
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (isLocalhost) {
-        fetch('/api/save-config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ faculty: toPublicFacultyList(updatedFaculty) })
-        }).catch(err => console.warn('Background file sync failed:', err));
-      }
     }, 0);
 
     setSaveSuccess('✅ Tax details saved and persisted instantly.');
@@ -4349,35 +4340,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       updateStage('local_storage', 'success', 'Local preview state synchronized.', 70);
       updateStage('files', 'loading', 'Writing files to disk...', 75);
 
-      // 4. File system sync stage
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-      if (isLocalhost) {
-        try {
-          const res = await fetch('/api/save-config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              settings,
-              noticesText,
-              faculty: toPublicFacultyList(faculty),
-              slidesText
-            })
-          });
-
-          if (res.ok) {
-            fileSyncStatus += ', and locally written to slides/';
-            fileWriteResults.push('Saved to workspace configurations via Express Proxy API');
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            console.warn('Local proxy save failed:', errData);
-            fileWriteResults.push('Proxy save rejected');
-          }
-        } catch (err) {
-          console.warn('Local proxy server is not running or encountered an error:', err);
-          fileWriteResults.push('Proxy server offline');
-        }
-      }
+      // 4. File system sync stage (Primary live target is Cloud Firestore; Web File System used if folder linked)
 
       if (folderHandle) {
         try {
