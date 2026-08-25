@@ -2813,7 +2813,10 @@ function QuickSubjectStreamEditor({
 
   // Parse existing selected subjects into an array of expanded subject names without breaking multi-word strings
   const [selectedSubjects, setSelectedSubjects] = useState(() => {
-    const raw = String(currentValue || student?.subs || formatStudentSubjects(student) || '').trim();
+    let raw = String(currentValue || '').trim();
+    if (!raw || raw === '—') {
+      raw = String(student?.subs || student?.Subjects || student?.['Subjects to be taken in Class 11th'] || student?.['Subjects to be taken in Class 12th'] || formatStudentSubjects(student) || '').trim();
+    }
     if (!raw || raw === '—') return [];
 
     let rawTokens = [];
@@ -2840,20 +2843,21 @@ function QuickSubjectStreamEditor({
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  // Subject catalogues per stream & class strictly matching online admission form (AdmissionForm.jsx / ControlsAndSubjects.jsx / DEFAULT_SUBJECTS_CONFIG)
+  // Subject catalogues per stream & class strictly matching official Subject Combinations & Streams (Academics.jsx)
   const STREAM_DEFINITIONS = useMemo(() => {
     return {
       'Science': {
         label: '🔬 Science',
+        ruleNote: 'Compulsory (3). Choose 2 more: either both from Group B, or 1 from Group B and 1 from Group C (both from Group C not allowed).',
         compulsory: ['General English', 'Physics', 'Chemistry'],
         groups: [
           {
-            name: 'Core Science Electives (Group B)',
-            subjects: ['Biology', 'Mathematics', 'Environmental Science']
+            name: 'GROUP B (OPTIONS)',
+            subjects: ['Biology', 'Mathematics']
           },
           {
-            name: 'Vocational, Skill & Additional Electives (Group C)',
-            subjects: ['Physical Education', 'IT & ITES', 'Healthcare', 'Retail', 'Tourism & Hospitality', 'Computer Science', 'Information Practices', 'Urdu', 'Arabic']
+            name: 'GROUP C (OPTIONS)',
+            subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES']
           }
         ],
         optionals: [
@@ -2861,82 +2865,69 @@ function QuickSubjectStreamEditor({
           'Mathematics',
           'Environmental Science',
           'Physical Education',
-          'IT & ITES',
           'Healthcare',
-          'Retail',
-          'Tourism & Hospitality',
-          'Computer Science',
-          'Information Practices',
-          'Urdu',
-          'Arabic'
+          'IT and ITES'
         ],
         presets: [
           { name: 'Medical + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Environmental Science'] },
           { name: 'Medical + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Physical Education'] },
-          { name: 'Medical + IT', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'IT & ITES'] },
+          { name: 'Medical + Healthcare', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Healthcare'] },
+          { name: 'Medical + IT', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'IT and ITES'] },
           { name: 'Non-Med + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'] },
           { name: 'Non-Med + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Physical Education'] },
-          { name: 'Non-Med + IT', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'IT & ITES'] },
-          { name: 'PCMB (Med + Math)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics'] },
-          { name: 'PCMB + EVS (6 Subs)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'] }
+          { name: 'Non-Med + Healthcare', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Healthcare'] },
+          { name: 'Non-Med + IT', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'IT and ITES'] },
+          { name: 'PCMB (Med + Math)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics'] }
         ]
       },
       'Humanities': {
         label: '🎨 Humanities',
+        ruleNote: 'Compulsory (1). Choose 3 from Group B and 1 from Group C.',
         compulsory: ['General English'],
         groups: [
           {
-            name: 'Major Social Sciences & Languages (Group B)',
-            subjects: ['Political Science', 'History', 'Sociology', 'Economics', 'Education', 'Geography', 'Urdu', 'Kashmiri', 'Islamic Studies', 'Arabic']
+            name: 'GROUP B (OPTIONS)',
+            subjects: ['Urdu', 'Education', 'Economics', 'History', 'Political Science', 'Mathematics']
           },
           {
-            name: 'Applied, Skill & Additional Electives (Group C)',
-            subjects: ['Environmental Science', 'Physical Education', 'Public Administration', 'IT & ITES', 'Healthcare', 'Retail', 'Tourism & Hospitality', 'Mathematics', 'Computer Science']
+            name: 'GROUP C (OPTIONS)',
+            subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES']
           }
         ],
         optionals: [
-          'Political Science',
-          'History',
-          'Sociology',
-          'Economics',
-          'Education',
-          'Geography',
           'Urdu',
-          'Kashmiri',
-          'Islamic Studies',
-          'Arabic',
+          'Education',
+          'Economics',
+          'History',
+          'Political Science',
+          'Mathematics',
           'Environmental Science',
           'Physical Education',
-          'Public Administration',
-          'IT & ITES',
           'Healthcare',
-          'Retail',
-          'Tourism & Hospitality',
-          'Mathematics',
-          'Computer Science'
+          'IT and ITES'
         ],
         presets: [
-          { name: 'Pol Sci, Hist, Socio, EVS', subjects: ['General English', 'Political Science', 'History', 'Sociology', 'Environmental Science'] },
+          { name: 'Pol Sci, Hist, Eco, EVS', subjects: ['General English', 'Political Science', 'History', 'Economics', 'Environmental Science'] },
           { name: 'Pol Sci, Hist, Urdu, EVS', subjects: ['General English', 'Political Science', 'History', 'Urdu', 'Environmental Science'] },
-          { name: 'Pol Sci, Hist, Eco, Edu', subjects: ['General English', 'Political Science', 'History', 'Economics', 'Education'] },
-          { name: 'Pol Sci, Hist, Urdu, Edu', subjects: ['General English', 'Political Science', 'History', 'Urdu', 'Education'] },
-          { name: 'Pol Sci, Socio, Urdu, EVS', subjects: ['General English', 'Political Science', 'Sociology', 'Urdu', 'Environmental Science'] },
-          { name: 'Pol Sci, Hist, Arab, EVS', subjects: ['General English', 'Political Science', 'History', 'Arabic', 'Environmental Science'] },
-          { name: 'Eco, Pol Sci, Hist, EVS', subjects: ['General English', 'Economics', 'Political Science', 'History', 'Environmental Science'] },
-          { name: 'Pol Sci, Hist, Edu, PHE', subjects: ['General English', 'Political Science', 'History', 'Education', 'Physical Education'] }
+          { name: 'Pol Sci, Hist, Edu, EVS', subjects: ['General English', 'Political Science', 'History', 'Education', 'Environmental Science'] },
+          { name: 'Pol Sci, Hist, Edu, PHE', subjects: ['General English', 'Political Science', 'History', 'Education', 'Physical Education'] },
+          { name: 'Pol Sci, Hist, Urdu, PHE', subjects: ['General English', 'Political Science', 'History', 'Urdu', 'Physical Education'] },
+          { name: 'Eco, Pol Sci, Hist, IT', subjects: ['General English', 'Economics', 'Political Science', 'History', 'IT and ITES'] },
+          { name: 'Urdu, Edu, Hist, EVS', subjects: ['General English', 'Urdu', 'Education', 'History', 'Environmental Science'] }
         ]
       },
       'General': {
-        label: '🏫 High School / General',
+        label: '🏫 9th & 10th',
+        ruleNote: 'Students have to take a maximum of 5 subjects (some may take 6 depending on choices).',
         compulsory: ['English', 'Mathematics', 'Science', 'Social Studies'],
         groups: [
           {
-            name: 'Language Electives (Group B)',
+            name: 'GROUP B (OPTIONS)',
             subjects: ['Urdu', 'Arabic', 'Hindi', 'Kashmiri']
           },
           {
-            name: 'Vocational & Skill Courses (Group C)',
-            subjects: ['IT & ITES', 'Healthcare', 'Retail', 'Tourism & Hospitality', 'Computer Applications', 'Environmental Education']
+            name: 'GROUP C (OPTIONS)',
+            subjects: ['Healthcare', 'IT and ITES']
           }
         ],
         optionals: [
@@ -2944,12 +2935,8 @@ function QuickSubjectStreamEditor({
           'Arabic',
           'Hindi',
           'Kashmiri',
-          'IT & ITES',
           'Healthcare',
-          'Retail',
-          'Tourism & Hospitality',
-          'Computer Applications',
-          'Environmental Education'
+          'IT and ITES'
         ],
         presets: [
           { name: 'General + Urdu', subjects: ['English', 'Mathematics', 'Science', 'Social Studies', 'Urdu'] },
@@ -3029,10 +3016,10 @@ function QuickSubjectStreamEditor({
                 setTargetClass(newCls);
                 if (newCls !== '11th' && newCls !== '12th') {
                   setSelectedStream('General');
-                  setSelectedSubjects(['English', 'Mathematics', 'Science', 'Social Science', 'Urdu']);
+                  setSelectedSubjects(['English', 'Mathematics', 'Science', 'Social Studies', 'Urdu']);
                 } else if (selectedStream === 'General') {
                   setSelectedStream('Humanities');
-                  setSelectedSubjects(['General English', 'Political Science', 'History', 'Sociology', 'Environmental Science']);
+                  setSelectedSubjects(['General English', 'Political Science', 'History', 'Education', 'Environmental Science']);
                 }
               }}
               className="bg-transparent font-black text-xs text-purple-700 dark:text-purple-300 focus:outline-none cursor-pointer"
@@ -3090,10 +3077,10 @@ function QuickSubjectStreamEditor({
         </div>
       )}
 
-      {/* Compulsory Core Subjects (Locked) */}
+      {/* Compulsory Core Subjects (GROUP A) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[10.5px] font-black text-teal-800 dark:text-teal-300">
-          <span>🔒 Compulsory Core Subjects ({activeStreamDef.compulsory.length}):</span>
+          <span>🔒 GROUP A — Compulsory ({activeStreamDef.compulsory.length}):</span>
           <span className="text-[9.5px] text-slate-400 font-normal">Mandatory for {targetClass} ({selectedStream})</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -3109,20 +3096,27 @@ function QuickSubjectStreamEditor({
         </div>
       </div>
 
-      {/* Stream Electives / Optionals Grouped */}
+      {/* Stream Electives / Optionals (GROUP B & GROUP C) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
-          <span>📖 Stream Electives & Optionals (Click to Select / Deselect):</span>
+          <span>📖 Stream Elective Options (Click to Select / Deselect):</span>
           <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-black">
             {subjectCount} Subject{subjectCount !== 1 ? 's' : ''} Selected
           </span>
         </div>
 
+        {/* Rule banner note */}
+        {activeStreamDef.ruleNote && (
+          <div className="px-2.5 py-1 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-[10px] font-bold text-amber-900 dark:text-amber-300">
+            ℹ️ {activeStreamDef.ruleNote}
+          </div>
+        )}
+
         {activeStreamDef.groups && activeStreamDef.groups.length > 0 ? (
           <div className="space-y-2.5 max-h-56 overflow-y-auto p-2 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
             {activeStreamDef.groups.map((grp, gIdx) => (
               <div key={gIdx} className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1 block">
+                <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 px-1 block">
                   {grp.name}
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
