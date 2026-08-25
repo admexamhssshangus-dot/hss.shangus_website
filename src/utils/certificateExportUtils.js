@@ -297,7 +297,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
 
   const FEMALE_NAME_TOKENS = new Set([
     'jan', 'khatoon', 'bano', 'akhter', 'akhtar', 'kousar', 'kausar', 'parveen', 'zehra', 'zahra',
-    'fatima', 'muskan', 'suhaiba', 'sabreena', 'sabrina', 'ruqaiya', 'ruqaya', 'ruqia', 'ajvaa', 'ajwa',
+    'fatima', 'muskan', 'suhaiba', 'sabreena', 'sabrina', 'ruqaiya', 'ruqaya', 'ruqia',
     'iqra', 'sadiya', 'sadia', 'tahira', 'shahida', 'aafreen', 'afreen', 'arjumand', 'aiman', 'shaista',
     'shafia', 'mehvis', 'mehvish', 'dania', 'rasia', 'yasmeen', 'yasmin', 'shabnum', 'shabnam', 'sumiya',
     'sumaya', 'sumaira', 'suraya', 'suraiya', 'aneesa', 'anisa', 'fiza', 'asma', 'ayesha', 'aisha',
@@ -316,14 +316,16 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   const nameWords = String(studentName || '').toLowerCase().split(/[\s,._-]+/).filter(Boolean);
   const nameIsFemale = nameWords.some(w => FEMALE_NAME_TOKENS.has(w));
 
-  const isFemale = (
-    String(gender).toUpperCase().startsWith('F') ||
-    String(gender).toUpperCase() === 'FEMALE' ||
-    String(gender).toLowerCase() === 'girl' ||
-    String(gender).toLowerCase() === 'ms.' ||
-    String(gender).toLowerCase() === 'miss' ||
-    nameIsFemale
-  );
+  const cleanGen = String(gender || '').trim().toLowerCase();
+  let isFemale = false;
+  if (cleanGen.startsWith('f') || cleanGen === 'female' || cleanGen === 'girl' || cleanGen === 'ms.' || cleanGen === 'miss') {
+    isFemale = true;
+  } else if (cleanGen.startsWith('m') || cleanGen === 'male' || cleanGen === 'boy' || cleanGen === 'mr.' || cleanGen === 'master') {
+    isFemale = false;
+  } else {
+    // Only if gender is completely missing from database, use name token detection
+    isFemale = nameIsFemale;
+  }
   
   // Salutation / Title logic
   const genderTitle = includeSalutations ? (studentTitle !== null ? studentTitle : (isFemale ? 'Ms.' : 'Mr.')) : '';
@@ -429,6 +431,22 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   const cleanResultStatus = (resultStatus === 'Pass' || resultStatus === 'Passed') ? 'Qualified' : (resultStatus || 'Qualified');
   result = result.replace(/\{RESULT_STATUS\}/gi, cleanResultStatus);
   const cleanDiv = (divisionDistinction && divisionDistinction !== '—') ? divisionDistinction : (effectiveMarksObt && effectiveMarksObt !== '—' ? computeDivision(effectiveMarksObt, effectiveMaxMarks) : 'Passed');
+  
+  const hasNumericMarks = Boolean(effectiveMarksObt && effectiveMarksObt !== '—' && !/^(—|-|null|undefined|0)$/i.test(effectiveMarksObt));
+  const hasSpecificDivision = Boolean(cleanDiv && !/^(—|-|pass|passed|qualified|null|undefined)$/i.test(cleanDiv));
+
+  if (!hasNumericMarks) {
+    if (!hasSpecificDivision) {
+      result = result.replace(/with\s*<strong>\s*\{DIVISION_DISTINCTION\}\s*<\/strong>\s*in the said examination,\s*securing\s*<strong>\s*\{MARKS_OBTAINED\}\s*\/\s*\{MAX_MARKS\}\s*<\/strong>\s*marks/gi, 'in the said examination');
+      result = result.replace(/with\s*\{DIVISION_DISTINCTION\}\s*in the said examination,\s*securing\s*\{MARKS_OBTAINED\}\s*\/\s*\{MAX_MARKS\}\s*marks/gi, 'in the said examination');
+      result = result.replace(/with\s*<strong>\s*(?:Passed|Qualified|—)\s*<\/strong>\s*in the said examination,\s*securing\s*<strong>\s*(?:—|-)\s*\/\s*\d+\s*<\/strong>\s*marks/gi, 'in the said examination');
+    } else {
+      result = result.replace(/,\s*securing\s*<strong>\s*\{MARKS_OBTAINED\}\s*\/\s*\{MAX_MARKS\}\s*<\/strong>\s*marks/gi, '');
+      result = result.replace(/,\s*securing\s*\{MARKS_OBTAINED\}\s*\/\s*\{MAX_MARKS\}\s*marks/gi, '');
+      result = result.replace(/,\s*securing\s*<strong>\s*(?:—|-)\s*\/\s*\d+\s*<\/strong>\s*marks/gi, '');
+    }
+  }
+
   result = result.replace(/\{(?:DIVISION_DISTINCTION|DIVISION|DISTINCTION)\}/gi, cleanDiv);
   result = result.replace(/\{MARKS_OBTAINED\}/gi, effectiveMarksObt);
   result = result.replace(/\{MAX_MARKS\}/gi, effectiveMaxMarks);
