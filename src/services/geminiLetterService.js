@@ -5,12 +5,92 @@ import { getFirebaseAppCheck } from './firebaseAppCheck';
 
 const STORAGE_KEY_GEMINI_KEYS = 'hss_gemini_api_keys';
 const STORAGE_KEY_GEMINI_MODEL = 'hss_gemini_preferred_model';
+const STORAGE_KEY_CUSTOM_MODELS = 'hss_custom_gemini_models';
 const ENDPOINT = '/.netlify/functions/ai-generate';
 
-export const AVAILABLE_GEMINI_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recommended)', tier: 'Fast' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tier: 'Advanced' },
+export const DEFAULT_GEMINI_MODELS = [
+  { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Recommended — Latest & Best Flash)', tier: 'Latest/Best Flash', freeTier: true },
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Previous Generation)', tier: 'Fast & Reliable', freeTier: true },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (General Flash)', tier: 'General Purpose', freeTier: true },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite (High-Volume / Fast / Cheap)', tier: 'High-Volume Fast', freeTier: true },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash-Lite (Fast Automation & Extraction)', tier: 'Automation', freeTier: true },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Smartest Fast Reasoning)', tier: 'Smart Fast', freeTier: true },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Legacy Multimodal Workhorse)', tier: 'Stable', freeTier: true },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (Legacy Cheap / Fast)', tier: 'Ultra-Fast', freeTier: true },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Deep Complex Reasoning)', tier: 'Advanced Pro', freeTier: false },
 ];
+
+export function getCustomGeminiModels() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_MODELS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(m => m && m.id) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+export function getAvailableGeminiModels() {
+  const custom = getCustomGeminiModels();
+  const allMap = new Map();
+  DEFAULT_GEMINI_MODELS.forEach(m => allMap.set(m.id, m));
+  custom.forEach(m => allMap.set(m.id, { ...m, isCustom: true }));
+  return Array.from(allMap.values());
+}
+
+// Keep AVAILABLE_GEMINI_MODELS export in sync
+export const AVAILABLE_GEMINI_MODELS = getAvailableGeminiModels();
+
+export async function saveCustomGeminiModel(newModel) {
+  if (!newModel || !newModel.id) return getAvailableGeminiModels();
+  const cleanId = String(newModel.id).trim();
+  const cleanName = String(newModel.name || cleanId).trim();
+  const cleanTier = String(newModel.tier || 'Custom').trim();
+  const isFree = newModel.freeTier !== undefined ? Boolean(newModel.freeTier) : true;
+
+  const currentCustom = getCustomGeminiModels().filter(m => m.id !== cleanId);
+  const updatedCustom = [...currentCustom, { id: cleanId, name: cleanName, tier: cleanTier, freeTier: isFree, isCustom: true }];
+  
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_MODELS, JSON.stringify(updatedCustom));
+  } catch (_) {}
+
+  // Sync to Cloud Firestore
+  try {
+    await setDoc(doc(db, 'systemSettings', 'geminiConfig'), {
+      customModels: updatedCustom,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Could not sync custom model to Firestore:', err);
+  }
+
+  savePreferredGeminiModel(cleanId);
+  return getAvailableGeminiModels();
+}
+
+export async function removeCustomGeminiModel(modelId) {
+  if (!modelId) return getAvailableGeminiModels();
+  const updatedCustom = getCustomGeminiModels().filter(m => m.id !== modelId);
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_MODELS, JSON.stringify(updatedCustom));
+  } catch (_) {}
+
+  try {
+    await setDoc(doc(db, 'systemSettings', 'geminiConfig'), {
+      customModels: updatedCustom,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Could not sync removed model to Firestore:', err);
+  }
+
+  if (getPreferredGeminiModel() === modelId) {
+    savePreferredGeminiModel('gemini-2.5-flash');
+  }
+  return getAvailableGeminiModels();
+}
 
 export function getStoredGeminiKeys() {
   try {
@@ -74,6 +154,17 @@ export async function fetchCloudGeminiKeys() {
       const keys = data.apiKeys || data.keys || (data.apiKey ? [data.apiKey] : []) || [];
       if (Array.isArray(keys)) keys.forEach(k => k && discovered.add(String(k).trim()));
       else if (typeof keys === 'string' && keys.trim()) discovered.add(keys.trim());
+
+      // Sync custom models if present in cloud
+      if (Array.isArray(data.customModels) && data.customModels.length > 0) {
+        try {
+          const localCustom = getCustomGeminiModels();
+          const merged = new Map();
+          localCustom.forEach(m => merged.set(m.id, m));
+          data.customModels.forEach(m => m && m.id && merged.set(m.id, m));
+          localStorage.setItem(STORAGE_KEY_CUSTOM_MODELS, JSON.stringify(Array.from(merged.values())));
+        } catch (_) {}
+      }
     }
   } catch (_) {}
 
@@ -110,9 +201,12 @@ export async function saveCloudGeminiKeys(keys) {
   const cleanList = Array.from(new Set(list.map(k => (typeof k === 'string' ? k.trim() : '')).filter(Boolean)));
   saveGeminiKeys(cleanList);
 
+  const customModels = getCustomGeminiModels();
+
   const payload = {
     apiKeys: cleanList,
     apiKey: cleanList[0] || '',
+    customModels: customModels,
     updatedAt: new Date().toISOString()
   };
 
@@ -129,13 +223,14 @@ export async function saveCloudGeminiKeys(keys) {
 export function getPreferredGeminiModel() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_GEMINI_MODEL);
-    if (AVAILABLE_GEMINI_MODELS.some((model) => model.id === saved)) return saved;
+    const available = getAvailableGeminiModels();
+    if (saved && (available.some((model) => model.id === saved) || saved.startsWith('gemini-'))) return saved;
   } catch (_) {}
-  return 'gemini-2.5-flash';
+  return 'gemini-3.7-flash';
 }
 
 export function savePreferredGeminiModel(modelId) {
-  if (!AVAILABLE_GEMINI_MODELS.some((model) => model.id === modelId)) return;
+  if (!modelId) return;
   try {
     localStorage.setItem(STORAGE_KEY_GEMINI_MODEL, modelId);
   } catch (_) {}
