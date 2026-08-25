@@ -3526,7 +3526,9 @@ const COLUMN_DEFS = [
         <StatusActionDropdown
           student={student}
           onViewEdit={(s) => {
-            if (student && typeof student._setSelectedApp === 'function') {
+            if (student && typeof student._setEditingStudent === 'function') {
+              student._setEditingStudent(s);
+            } else if (student && typeof student._setSelectedApp === 'function') {
               student._setSelectedApp(s);
             }
           }}
@@ -3987,45 +3989,61 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
   const isFieldLocked = (fieldKey) => !isNewStudent && !!restrictedCols[fieldKey];
 
   const [activeTab, setActiveTab] = useState('basic');
-  const [formData, setFormData] = useState(() => ({
-    'Form Number': student?.formNo || student?.['Form Number'] || student?.['Form No.'] || '',
-    'Class': student?.class || student?.['Class'] || '11th',
-    'Session': student?.session || student?.['Session'] || '2025-26',
-    'Class Roll No': student?.classRollNo || student?.['Class Roll No'] || '',
-    'Adm. No.': student?.admNo || student?.['Adm. No.'] || '',
-    'Board Registration Number': student?.boardRegNo || student?.['Board Registration Number'] || student?.['Board Reg. No.'] || '',
-    'Status': student?.status || student?.['Status'] || 'Submitted',
-    'Stream': student?.stream || student?.['Stream'] || 'General',
+  const [formData, setFormData] = useState(() => {
+    const rawSubs = student?.subs || student?.['Subjects'] || student?.['Subjects to be taken in Class 11th'] || student?.['Subjects to be taken in Class 12th'] || student?.['Subjects to be taken in Class 10th'] || student?.['Subjects to be taken in Class 9th'] || '';
+    const initialSubsList = rawSubs ? rawSubs.split(/[,;\n\r\t]+/).map(s => expandJkboseSubjectCodes(s.trim())).filter(Boolean) : [
+      student?.subjects1 || student?.['Subjects1'] || '',
+      student?.subjects2 || student?.['Subjects2'] || '',
+      student?.subjects3 || student?.['Subjects3'] || '',
+      student?.subjects4 || student?.['Subjects4'] || '',
+      student?.subjects5 || student?.['Subjects5'] || '',
+      student?.subjects6 || student?.['Subject6'] || student?.['Subjects6'] || ''
+    ].filter(Boolean);
 
-    "Student's Name": student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || '',
-    "Father's Name": student?.fatherName || student?.["Father's/Guardian's Name (as per school records)"] || student?.["Father's Name"] || '',
-    "Mother's Name": student?.motherName || student?.["Mother's Name (as per school records)"] || student?.["Mother's Name"] || '',
-    'DoB': student?.dob || student?.["DoB (as per school records)"] || student?.['DoB (figures)'] || '',
-    'Gender': student?.gender || student?.['Gender'] || 'Male',
-    'Cat._JKBOSE': student?.category || student?.['Cat._JKBOSE'] || student?.['Category'] || 'General',
-    'Religion': student?.religion || student?.['Religion'] || 'Muslim',
-    'Village/Town': student?.village || student?.['Name of your village'] || student?.['Village/Town'] || 'Shangus',
-    'Mobile No.': student?.mobile || student?.['Mobile No. (with working WhatsApp)'] || student?.["Student's Contact"] || '',
-    "Parent's Contact": student?.parentContact || student?.["Parent's Contact"] || '',
-    'Aadhar No.': student?.aadhar || student?.['Aadhar No.'] || '',
-    "Father's Aadhar No.": student?.fatherAadhar || student?.["Father's Aadhar No."] || student?.["Father's Aadhaar No."] || '',
+    const fullSubsStr = initialSubsList.join(', ');
 
-    'Subjects1': student?.subjects1 || student?.['Subjects1'] || '',
-    'Subjects2': student?.subjects2 || student?.['Subjects2'] || '',
-    'Subjects3': student?.subjects3 || student?.['Subjects3'] || '',
-    'Subjects4': student?.subjects4 || student?.['Subjects4'] || '',
-    'Subjects5': student?.subjects5 || student?.['Subjects5'] || '',
-    'Subject6': student?.subjects6 || student?.['Subject6'] || '',
+    return {
+      'Form Number': student?.formNo || student?.['Form Number'] || student?.['Form No.'] || '',
+      'Class': student?.class || student?.['Class'] || '11th',
+      'Session': student?.session || student?.['Session'] || '2025-26',
+      'Class Roll No': student?.classRollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || student?.rollNo || '',
+      'Adm. No.': student?.admNo || student?.['Adm. No.'] || '',
+      'Board Registration Number': student?.boardRegNo || student?.['Board Registration Number'] || student?.['Board Reg. No.'] || '',
+      'Status': student?.status || student?.['Status'] || 'Submitted',
+      'Stream': student?.stream || student?.['Stream'] || 'General',
 
-    'Bank Name': student?.bankName || student?.['Name of Bank'] || '',
-    'Bank Account Number': student?.bankAccount || student?.['Bank Account No.'] || student?.['Bank Account Number'] || '',
-    'IFSC Code': student?.ifsc || student?.['IFSC code'] || student?.['IFSC Code'] || '',
-    'PEN No.': student?.penNo || student?.['PEN No.'] || '',
-    'APAAR ID': student?.apaarId || student?.['APAAR ID'] || '',
-    'Previous School': student?.prevSchool || student?.['Previous School'] || '',
-    'Remarks': student?.remarks || student?.['Remarks'] || '',
-    'photo_id': student?.photo_id || student?.photoId || student?.['Student Photo'] || '',
-  }));
+      "Student's Name": student?.studentName || student?.["Student's Name (as per school records)"] || student?.["Student's Name"] || '',
+      "Father's Name": student?.fatherName || student?.["Father's/Guardian's Name (as per school records)"] || student?.["Father's Name"] || '',
+      "Mother's Name": student?.motherName || student?.["Mother's Name (as per school records)"] || student?.["Mother's Name"] || '',
+      'DoB': student?.dob || student?.["DoB (as per school records)"] || student?.['DoB (figures)'] || '',
+      'Gender': student?.gender || student?.['Gender'] || 'Male',
+      'Cat._JKBOSE': student?.category || student?.['Cat._JKBOSE'] || student?.['Category'] || 'General',
+      'Religion': student?.religion || student?.['Religion'] || 'Muslim',
+      'Village/Town': student?.village || student?.['Name of your village'] || student?.['Village/Town'] || 'Shangus',
+      'Mobile No.': student?.mobile || student?.['Mobile No. (with working WhatsApp)'] || student?.["Student's Contact"] || '',
+      "Parent's Contact": student?.parentContact || student?.["Parent's Contact"] || '',
+      'Aadhar No.': student?.aadhar || student?.['Aadhar No.'] || '',
+      "Father's Aadhar No.": student?.fatherAadhar || student?.["Father's Aadhar No."] || student?.["Father's Aadhaar No."] || '',
+
+      'Subjects': fullSubsStr,
+      'selectedSubjects': initialSubsList,
+      'Subjects1': initialSubsList[0] || '',
+      'Subjects2': initialSubsList[1] || '',
+      'Subjects3': initialSubsList[2] || '',
+      'Subjects4': initialSubsList[3] || '',
+      'Subjects5': initialSubsList[4] || '',
+      'Subject6': initialSubsList[5] || '',
+
+      'Bank Name': student?.bankName || student?.['Name of Bank'] || '',
+      'Bank Account Number': student?.bankAccount || student?.['Bank Account No.'] || student?.['Bank Account Number'] || '',
+      'IFSC Code': student?.ifsc || student?.['IFSC code'] || student?.['IFSC Code'] || '',
+      'PEN No.': student?.penNo || student?.['PEN No.'] || '',
+      'APAAR ID': student?.apaarId || student?.['APAAR ID'] || '',
+      'Previous School': student?.prevSchool || student?.['Previous School'] || '',
+      'Remarks': student?.remarks || student?.['Remarks'] || '',
+      'photo_id': student?.photo_id || student?.photoId || student?.['Student Photo'] || '',
+    };
+  });
 
   const handleChange = (key, val) => {
     setFormData(prev => ({ ...prev, [key]: val }));
@@ -4038,23 +4056,23 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="w-full max-w-3xl my-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-2xl my-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
-        {/* Header */}
-        <div className="px-5 py-4 bg-gradient-to-r from-amber-900 via-amber-800 to-amber-950 text-white flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-xs">
-              <UserCheck size={22} className="text-amber-300" />
+        {/* Minimal Header */}
+        <div className="px-5 py-3.5 bg-gradient-to-r from-amber-900 via-amber-800 to-amber-950 text-white flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-white/10 rounded-xl border border-white/10">
+              <UserCheck size={18} className="text-amber-300" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
-                <span>Edit Student Record</span>
+              <h2 className="text-sm sm:text-base font-black tracking-tight flex items-center gap-2">
+                <span>{formData["Student's Name"] || 'Edit Student Record'}</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-amber-400/20 border border-amber-400/30 text-amber-200">
                   Form #{formData['Form Number'] || '—'}
                 </span>
               </h2>
-              <p className="text-xs text-amber-200/80 font-medium">
-                Edits will save to Firestore & sync across all portal dashboards.
+              <p className="text-[11px] text-amber-200/80 font-medium">
+                Live Cloud Sync • Updates official student register & dashboards
               </p>
             </div>
           </div>
@@ -4063,7 +4081,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
             onClick={onClose}
             className="p-1.5 rounded-xl hover:bg-white/10 text-amber-200 hover:text-white transition-colors cursor-pointer"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
@@ -4072,8 +4090,8 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
           {[
             { id: 'basic', label: 'Personal & Family', icon: User },
             { id: 'academic', label: 'Academic & Roll', icon: BookOpen },
-            { id: 'subjects', label: 'Subjects', icon: Layers },
-            { id: 'banking', label: 'Bank & IDs', icon: Landmark }
+            { id: 'subjects', label: 'Stream & Subjects', icon: Layers },
+            { id: 'banking', label: 'Bank & Govt IDs', icon: Landmark }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -4082,12 +4100,12 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${isActive
-                  ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${isActive
+                  ? 'bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-700'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-900'
                   }`}
               >
-                <Icon size={14} />
+                <Icon size={13} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -4095,33 +4113,33 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs font-extrabold">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs font-extrabold">
           {activeTab === 'basic' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {/* Photo Upload & Change Control */}
               <div className="sm:col-span-2 p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  {formatPhotoDisplayUrl(formData['Student Photo'] || formData['photoId']) ? (
+                  {formatPhotoDisplayUrl(formData['Student Photo'] || formData['photoId'] || formData['photo_id']) ? (
                     <img
-                      src={formatPhotoDisplayUrl(formData['Student Photo'] || formData['photoId'])}
+                      src={formatPhotoDisplayUrl(formData['Student Photo'] || formData['photoId'] || formData['photo_id'])}
                       alt="Student"
-                      className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-600/40 shadow-sm"
+                      className="w-12 h-12 rounded-xl object-cover border-2 border-amber-600/40 shadow-xs"
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs">
+                    <div className="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-[10px]">
                       No Photo
                     </div>
                   )}
                   <div>
                     <h4 className="font-black text-slate-900 dark:text-amber-200 text-xs">Student Passport Photo</h4>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                      Upload or replace photo for this specific student record.
+                      Select any image to auto-compress and attach to record.
                     </p>
                   </div>
                 </div>
-                <label className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs cursor-pointer shadow-sm flex items-center gap-1.5 transition-all flex-shrink-0">
-                  <Camera size={14} />
-                  <span>Upload / Replace Photo</span>
+                <label className="px-3 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs cursor-pointer shadow-xs flex items-center gap-1.5 transition-all flex-shrink-0">
+                  <Camera size={13} />
+                  <span>Upload Photo</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -4157,6 +4175,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                   />
                 </label>
               </div>
+
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Student's Name (Full)</label>
                 <input
@@ -4191,6 +4210,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                   type="text"
                   value={formData['DoB']}
                   onChange={(e) => handleChange('DoB', e.target.value)}
+                  placeholder="DD-MM-YYYY"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 />
               </div>
@@ -4240,7 +4260,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                 />
               </div>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Mobile (P)</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Parent Contact</label>
                 <input
                   type="text"
                   value={formData["Parent's Contact"]}
@@ -4270,7 +4290,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
           )}
 
           {activeTab === 'academic' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Form Number</label>
                 <input
@@ -4364,66 +4384,37 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
           )}
 
           {activeTab === 'subjects' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Subject 1 (Core English)</label>
-                <input
-                  type="text"
-                  value={formData['Subjects1']}
-                  onChange={(e) => handleChange('Subjects1', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Subject 2</label>
-                <input
-                  type="text"
-                  value={formData['Subjects2']}
-                  onChange={(e) => handleChange('Subjects2', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Subject 3</label>
-                <input
-                  type="text"
-                  value={formData['Subjects3']}
-                  onChange={(e) => handleChange('Subjects3', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Subject 4</label>
-                <input
-                  type="text"
-                  value={formData['Subjects4']}
-                  onChange={(e) => handleChange('Subjects4', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Subject 5</label>
-                <input
-                  type="text"
-                  value={formData['Subjects5']}
-                  onChange={(e) => handleChange('Subjects5', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Subject 6 (Vocational / Elective)</label>
-                <input
-                  type="text"
-                  value={formData['Subject6']}
-                  onChange={(e) => handleChange('Subject6', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
-              </div>
+            <div className="space-y-2">
+              <QuickSubjectStreamEditor
+                student={{
+                  ...student,
+                  class: formData['Class'],
+                  stream: formData['Stream'],
+                  subs: formData['Subjects'] || [formData['Subjects1'], formData['Subjects2'], formData['Subjects3'], formData['Subjects4'], formData['Subjects5'], formData['Subject6']].filter(Boolean).join(', ')
+                }}
+                currentValue={formData['Subjects'] || [formData['Subjects1'], formData['Subjects2'], formData['Subjects3'], formData['Subjects4'], formData['Subjects5'], formData['Subject6']].filter(Boolean).join(', ')}
+                onSave={(finalSubsStr, selectedStream, targetClass) => {
+                  handleChange('Subjects', finalSubsStr);
+                  handleChange('selectedSubjects', finalSubsStr.split(',').map(s => s.trim()).filter(Boolean));
+                  handleChange('Stream', selectedStream);
+                  handleChange('stream', selectedStream);
+                  handleChange('Class', targetClass);
+                  handleChange('class', targetClass);
+                  const parts = finalSubsStr.split(',').map(s => s.trim()).filter(Boolean);
+                  handleChange('Subjects1', parts[0] || '');
+                  handleChange('Subjects2', parts[1] || '');
+                  handleChange('Subjects3', parts[2] || '');
+                  handleChange('Subjects4', parts[3] || '');
+                  handleChange('Subjects5', parts[4] || '');
+                  handleChange('Subject6', parts[5] || '');
+                }}
+                onCancel={() => setActiveTab('basic')}
+              />
             </div>
           )}
 
           {activeTab === 'banking' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Bank Name</label>
                 <input
@@ -4448,7 +4439,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
                   type="text"
                   value={formData['IFSC Code']}
                   onChange={(e) => handleChange('IFSC Code', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono uppercase"
                 />
               </div>
               <div>
@@ -4491,27 +4482,27 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2.5 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-lg hover:shadow-amber-900/30 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-md hover:shadow-amber-900/30 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
               {isSaving ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={14} className="animate-spin" />
                   <span>Saving Changes...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle size={16} />
+                  <CheckCircle size={14} />
                   <span>Save & Apply System-Wide</span>
                 </>
               )}
@@ -4680,8 +4671,169 @@ export default function AdvancedReports({
       const fNo = updatedFields['Form Number'] || updatedFields['Form No.'] || updatedFields.formNo;
       const cleanFNo = fNo ? String(fNo).replace(/^'/, '').trim() : '';
 
+      const sName = updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || updatedFields.studentName || '';
+      const fName = updatedFields["Father's/Guardian's Name (as per school records)"] || updatedFields["Father's Name"] || updatedFields.fatherName || '';
+      const mName = updatedFields["Mother's Name (as per school records)"] || updatedFields["Mother's Name"] || updatedFields.motherName || '';
+      const sClass = updatedFields['Class'] || updatedFields.class || '';
+      const sSession = updatedFields['Session'] || updatedFields.session || '';
+      const sStream = updatedFields['Stream'] || updatedFields.stream || '';
+      const sRoll = updatedFields['Class Roll No'] || updatedFields.classRollNo || '';
+      const sAdm = updatedFields['Adm. No.'] || updatedFields.admNo || '';
+      const sReg = updatedFields['Board Registration Number'] || updatedFields.boardRegNo || '';
+      const sDob = updatedFields['DoB'] || updatedFields.dob || '';
+      const sGender = updatedFields['Gender'] || updatedFields.gender || '';
+      const sCat = updatedFields['Cat._JKBOSE'] || updatedFields['Category'] || updatedFields.category || '';
+      const sMobile = updatedFields['Mobile No.'] || updatedFields.mobile || '';
+      const sParentContact = updatedFields["Parent's Contact"] || updatedFields.parentContact || '';
+      const sAadhar = updatedFields['Aadhar No.'] || updatedFields.aadhar || '';
+      const sFatherAadhar = updatedFields["Father's Aadhar No."] || updatedFields.fatherAadhar || '';
+      const sVillage = updatedFields['Village/Town'] || updatedFields.village || '';
+      const sBankName = updatedFields['Bank Name'] || updatedFields.bankName || '';
+      const sBankAccount = updatedFields['Bank Account Number'] || updatedFields.bankAccount || '';
+      const sIfsc = updatedFields['IFSC Code'] || updatedFields.ifsc || '';
+      const sPen = updatedFields['PEN No.'] || updatedFields.penNo || '';
+      const sApaar = updatedFields['APAAR ID'] || updatedFields.apaarId || '';
+      const sPrevSchool = updatedFields['Previous School'] || updatedFields.prevSchool || '';
+      const sRemarks = updatedFields['Remarks'] || updatedFields.remarks || '';
+      const sStatus = updatedFields['Status'] || updatedFields.status || 'Submitted';
+      const sSubs = updatedFields['Subjects'] || updatedFields['selectedSubjects'] || updatedFields.subs || '';
+
       const payload = {
         ...updatedFields,
+        ...(sName ? {
+          studentName: sName,
+          "Student's Name": sName,
+          "Student's Name (as per school records)": sName
+        } : {}),
+        ...(fName ? {
+          fatherName: fName,
+          "Father's Name": fName,
+          "Father's/Guardian's Name (as per school records)": fName
+        } : {}),
+        ...(mName ? {
+          motherName: mName,
+          "Mother's Name": mName,
+          "Mother's Name (as per school records)": mName
+        } : {}),
+        ...(sClass ? {
+          class: sClass,
+          Class: sClass,
+          "Admission sought for class": sClass
+        } : {}),
+        ...(sSession ? {
+          session: sSession,
+          Session: sSession
+        } : {}),
+        ...(sStream ? {
+          stream: sStream,
+          Stream: sStream,
+          "Stream for Class 11th": sStream,
+          "Stream opted in Class 11th": sStream,
+          "Stream & Subjects for Class 12th": sStream
+        } : {}),
+        ...(sRoll ? {
+          classRollNo: sRoll,
+          "Class Roll No": sRoll,
+          "Class Roll No.": sRoll,
+          "Class R.No.": sRoll,
+          "RL. NO.": sRoll,
+          "RL. NO": sRoll
+        } : {}),
+        ...(sAdm ? {
+          admNo: sAdm,
+          "Adm. No.": sAdm,
+          "Admission No.": sAdm,
+          "Admission Number": sAdm
+        } : {}),
+        ...(sReg ? {
+          boardRegNo: sReg,
+          "Board Registration Number": sReg,
+          "Board Reg. No.": sReg,
+          "Board Registration No.": sReg
+        } : {}),
+        ...(sDob ? {
+          dob: sDob,
+          DoB: sDob,
+          "DoB (as per school records)": sDob
+        } : {}),
+        ...(sGender ? {
+          gender: sGender,
+          Gender: sGender
+        } : {}),
+        ...(sCat ? {
+          category: sCat,
+          Category: sCat,
+          "Cat._JKBOSE": sCat,
+          "Social category": sCat
+        } : {}),
+        ...(sMobile ? {
+          mobile: sMobile,
+          "Mobile No.": sMobile,
+          "Mobile No. (with working WhatsApp)": sMobile,
+          "Student's Contact": sMobile
+        } : {}),
+        ...(sParentContact ? {
+          parentContact: sParentContact,
+          "Parent's Contact": sParentContact
+        } : {}),
+        ...(sAadhar ? {
+          aadhar: sAadhar,
+          "Aadhar No.": sAadhar,
+          "Aadhaar Number": sAadhar
+        } : {}),
+        ...(sFatherAadhar ? {
+          fatherAadhar: sFatherAadhar,
+          "Father's Aadhar No.": sFatherAadhar,
+          "Father's Aadhaar No.": sFatherAadhar
+        } : {}),
+        ...(sVillage ? {
+          village: sVillage,
+          "Village/Town": sVillage,
+          "Name of your village": sVillage
+        } : {}),
+        ...(sBankName ? {
+          bankName: sBankName,
+          "Bank Name": sBankName,
+          "Name of Bank": sBankName
+        } : {}),
+        ...(sBankAccount ? {
+          bankAccount: sBankAccount,
+          "Bank Account Number": sBankAccount,
+          "Bank Account No.": sBankAccount
+        } : {}),
+        ...(sIfsc ? {
+          ifsc: sIfsc,
+          "IFSC Code": sIfsc,
+          "IFSC code": sIfsc
+        } : {}),
+        ...(sPen ? {
+          penNo: sPen,
+          "PEN No.": sPen
+        } : {}),
+        ...(sApaar ? {
+          apaarId: sApaar,
+          "APAAR ID": sApaar
+        } : {}),
+        ...(sPrevSchool ? {
+          prevSchool: sPrevSchool,
+          "Previous School": sPrevSchool
+        } : {}),
+        ...(sRemarks ? {
+          remarks: sRemarks,
+          Remarks: sRemarks
+        } : {}),
+        ...(sStatus ? {
+          status: sStatus,
+          Status: sStatus
+        } : {}),
+        ...(sSubs ? {
+          subs: typeof sSubs === 'string' ? sSubs : sSubs.join(', '),
+          Subs: typeof sSubs === 'string' ? sSubs : sSubs.join(', '),
+          Subjects: typeof sSubs === 'string' ? sSubs : sSubs.join(', '),
+          selectedSubjects: Array.isArray(sSubs) ? sSubs : sSubs.split(/[,;\n\r\t]+/).map(s => s.trim()).filter(Boolean),
+          "Subjects to be taken in Class 11th": typeof sSubs === 'string' ? sSubs : sSubs.join(', '),
+          "Subjects to be taken in Class 12th": typeof sSubs === 'string' ? sSubs : sSubs.join(', '),
+        } : {}),
         updatedAt: new Date().toISOString(),
         lastEditedBy: `Admin (${user?.email || 'System'})`
       };
@@ -4693,10 +4845,10 @@ export default function AdvancedReports({
         const userDocId = (updatedFields.email1 || updatedFields.email || `form_${cleanFNo}`).toLowerCase().replace(/[^a-z0-9_@-]/g, '_');
         try {
           await setDoc(doc(db, 'users', userDocId), {
-            studentName: updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || updatedFields.studentName,
-            classRollNo: updatedFields['Class Roll No'] || updatedFields.classRollNo,
-            admNo: updatedFields['Adm. No.'] || updatedFields.admNo,
-            boardRegNo: updatedFields['Board Registration Number'] || updatedFields.boardRegNo,
+            studentName: sName,
+            classRollNo: sRoll,
+            admNo: sAdm,
+            boardRegNo: sReg,
             updatedAt: new Date().toISOString()
           }, { merge: true });
         } catch (e) { }
@@ -4711,7 +4863,7 @@ export default function AdvancedReports({
       }));
 
       // Log activity
-      const studentName = updatedFields["Student's Name (as per school records)"] || updatedFields["Student's Name"] || 'Student';
+      const studentName = sName || 'Student';
       try {
         logAdminActivity(
           user?.email || 'Admin',
@@ -8367,6 +8519,7 @@ export default function AdvancedReports({
                     _visibleCols: visibleCols,
                     _setPreviewPhotoModal: setPreviewPhotoModal,
                     _setSelectedApp: setSelectedApp,
+                    _setEditingStudent: setEditingStudent,
                     _onRefresh: () => loadReportsData(false),
                     _onDeleteRecord: handleRecordDeleted,
                     _onTriggerDelete: (st) => setDeletingStudentTarget(st),
@@ -9980,6 +10133,31 @@ export default function AdvancedReports({
                       <option value="Provisional">Provisional</option>
                       <option value="Draft">Draft</option>
                       <option value="Rejected">Rejected</option>
+                    </select>
+                  ) : (quickEditCell.column.key === 'class' || quickEditCell.column.key === 'Class') ? (
+                    <select
+                      autoFocus
+                      defaultValue={quickEditCell.currentValue || '11th'}
+                      id="quickEditInput"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    >
+                      <option value="12th">12th</option>
+                      <option value="11th">11th</option>
+                      <option value="10th">10th</option>
+                      <option value="9th">9th</option>
+                      <option value="8th">8th</option>
+                    </select>
+                  ) : (quickEditCell.column.key === 'session' || quickEditCell.column.key === 'Session') ? (
+                    <select
+                      autoFocus
+                      defaultValue={quickEditCell.currentValue || '2025-26'}
+                      id="quickEditInput"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
+                    >
+                      <option value="2025-26">2025-26</option>
+                      <option value="2024-25">2024-25</option>
+                      <option value="2026-27">2026-27</option>
+                      <option value="2023-24">2023-24</option>
                     </select>
                   ) : (
                     <input
