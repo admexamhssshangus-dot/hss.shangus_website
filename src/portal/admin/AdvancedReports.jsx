@@ -2840,7 +2840,7 @@ function QuickSubjectStreamEditor({
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  // Subject catalogues per stream & class strictly matching online admission form (AdmissionForm.jsx / DynamicFormField.jsx / DEFAULT_SUBJECTS_CONFIG)
+  // Subject catalogues per stream & class strictly matching online admission form (AdmissionForm.jsx / ControlsAndSubjects.jsx / DEFAULT_SUBJECTS_CONFIG)
   const STREAM_DEFINITIONS = useMemo(() => {
     return {
       'Science': {
@@ -2848,12 +2848,12 @@ function QuickSubjectStreamEditor({
         compulsory: ['General English', 'Physics', 'Chemistry'],
         groups: [
           {
-            name: 'Core Science Electives (Group 1)',
+            name: 'Core Science Electives (Group B)',
             subjects: ['Biology', 'Mathematics', 'Environmental Science']
           },
           {
-            name: 'Applied, Language & Skill Electives (Group 2)',
-            subjects: ['Physical Education', 'Information Practices', 'Computer Science', 'Urdu', 'Psychology', 'Statistics', 'Biotechnology']
+            name: 'Vocational, Skill & Additional Electives (Group C)',
+            subjects: ['Physical Education', 'IT & ITES', 'Healthcare', 'Retail', 'Tourism & Hospitality', 'Computer Science', 'Information Practices', 'Urdu', 'Arabic']
           }
         ],
         optionals: [
@@ -2861,20 +2861,24 @@ function QuickSubjectStreamEditor({
           'Mathematics',
           'Environmental Science',
           'Physical Education',
-          'Information Practices',
+          'IT & ITES',
+          'Healthcare',
+          'Retail',
+          'Tourism & Hospitality',
           'Computer Science',
+          'Information Practices',
           'Urdu',
-          'Psychology',
-          'Statistics',
-          'Biotechnology'
+          'Arabic'
         ],
         presets: [
-          { name: 'Medical (Bio + EVS)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Environmental Science'] },
-          { name: 'Medical (Bio + PHE)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Physical Education'] },
-          { name: 'Non-Med (Math + EVS)', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'] },
-          { name: 'Non-Med (Math + PHE)', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Physical Education'] },
-          { name: 'PCMB (Bio + Math + EVS)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'] },
-          { name: 'Core + Comp Sci', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Computer Science'] }
+          { name: 'Medical + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Environmental Science'] },
+          { name: 'Medical + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Physical Education'] },
+          { name: 'Medical + IT', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'IT & ITES'] },
+          { name: 'Non-Med + EVS', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Environmental Science'] },
+          { name: 'Non-Med + PHE', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'Physical Education'] },
+          { name: 'Non-Med + IT', subjects: ['General English', 'Physics', 'Chemistry', 'Mathematics', 'IT & ITES'] },
+          { name: 'PCMB (Med + Math)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics'] },
+          { name: 'PCMB + EVS (6 Subs)', subjects: ['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'] }
         ]
       },
       'Humanities': {
@@ -2882,12 +2886,12 @@ function QuickSubjectStreamEditor({
         compulsory: ['General English'],
         groups: [
           {
-            name: 'Major Social Sciences & Languages (Group 1)',
+            name: 'Major Social Sciences & Languages (Group B)',
             subjects: ['Political Science', 'History', 'Sociology', 'Economics', 'Education', 'Geography', 'Urdu', 'Kashmiri', 'Islamic Studies', 'Arabic']
           },
           {
-            name: 'Applied, Skill & Additional Electives (Group 2)',
-            subjects: ['Environmental Science', 'Physical Education', 'Mathematics', 'Computer Science', 'Public Administration', 'Psychology', 'Philosophy', 'IT & ITES', 'Retail', 'Tourism & Hospitality']
+            name: 'Applied, Skill & Additional Electives (Group C)',
+            subjects: ['Environmental Science', 'Physical Education', 'Public Administration', 'IT & ITES', 'Healthcare', 'Retail', 'Tourism & Hospitality', 'Mathematics', 'Computer Science']
           }
         ],
         optionals: [
@@ -2899,18 +2903,17 @@ function QuickSubjectStreamEditor({
           'Geography',
           'Urdu',
           'Kashmiri',
-          'Arabic',
           'Islamic Studies',
+          'Arabic',
           'Environmental Science',
           'Physical Education',
-          'Mathematics',
-          'Computer Science',
           'Public Administration',
-          'Psychology',
-          'Philosophy',
           'IT & ITES',
+          'Healthcare',
           'Retail',
-          'Tourism & Hospitality'
+          'Tourism & Hospitality',
+          'Mathematics',
+          'Computer Science'
         ],
         presets: [
           { name: 'Pol Sci, Hist, Socio, EVS', subjects: ['General English', 'Political Science', 'History', 'Sociology', 'Environmental Science'] },
@@ -2919,39 +2922,40 @@ function QuickSubjectStreamEditor({
           { name: 'Pol Sci, Hist, Urdu, Edu', subjects: ['General English', 'Political Science', 'History', 'Urdu', 'Education'] },
           { name: 'Pol Sci, Socio, Urdu, EVS', subjects: ['General English', 'Political Science', 'Sociology', 'Urdu', 'Environmental Science'] },
           { name: 'Pol Sci, Hist, Arab, EVS', subjects: ['General English', 'Political Science', 'History', 'Arabic', 'Environmental Science'] },
-          { name: 'Eco, Pol Sci, Hist, EVS', subjects: ['General English', 'Economics', 'Political Science', 'History', 'Environmental Science'] }
+          { name: 'Eco, Pol Sci, Hist, EVS', subjects: ['General English', 'Economics', 'Political Science', 'History', 'Environmental Science'] },
+          { name: 'Pol Sci, Hist, Edu, PHE', subjects: ['General English', 'Political Science', 'History', 'Education', 'Physical Education'] }
         ]
       },
       'General': {
         label: '🏫 High School / General',
-        compulsory: ['English', 'Mathematics', 'Science', 'Social Science'],
+        compulsory: ['English', 'Mathematics', 'Science', 'Social Studies'],
         groups: [
           {
-            name: 'Language Electives',
-            subjects: ['Urdu', 'Kashmiri', 'Hindi', 'Arabic']
+            name: 'Language Electives (Group B)',
+            subjects: ['Urdu', 'Arabic', 'Hindi', 'Kashmiri']
           },
           {
-            name: 'Vocational & Skill Courses',
-            subjects: ['IT & ITES', 'Healthcare', 'Retail', 'Tourism', 'Computer Applications', 'Environmental Education']
+            name: 'Vocational & Skill Courses (Group C)',
+            subjects: ['IT & ITES', 'Healthcare', 'Retail', 'Tourism & Hospitality', 'Computer Applications', 'Environmental Education']
           }
         ],
         optionals: [
           'Urdu',
-          'Kashmiri',
-          'Hindi',
           'Arabic',
+          'Hindi',
+          'Kashmiri',
           'IT & ITES',
           'Healthcare',
           'Retail',
-          'Tourism',
+          'Tourism & Hospitality',
           'Computer Applications',
           'Environmental Education'
         ],
         presets: [
-          { name: 'General + Urdu', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Urdu'] },
-          { name: 'General + Kashmiri', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Kashmiri'] },
-          { name: 'General + Hindi', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Hindi'] },
-          { name: 'General + Arabic', subjects: ['English', 'Mathematics', 'Science', 'Social Science', 'Arabic'] }
+          { name: 'General + Urdu', subjects: ['English', 'Mathematics', 'Science', 'Social Studies', 'Urdu'] },
+          { name: 'General + Arabic', subjects: ['English', 'Mathematics', 'Science', 'Social Studies', 'Arabic'] },
+          { name: 'General + Kashmiri', subjects: ['English', 'Mathematics', 'Science', 'Social Studies', 'Kashmiri'] },
+          { name: 'General + Hindi', subjects: ['English', 'Mathematics', 'Science', 'Social Studies', 'Hindi'] }
         ]
       }
     };
