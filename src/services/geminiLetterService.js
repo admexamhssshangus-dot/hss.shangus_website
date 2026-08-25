@@ -308,7 +308,7 @@ export function savePreferredGeminiModel(modelId) {
  * Supports multi-key failover pool across all connected keys in Firestore & LocalStorage,
  * as well as intelligent multi-model failover for deprecated/sunset models.
  */
-async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, maxOutputTokens = 8192 }) {
+async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, maxOutputTokens = 8192, signal = null }) {
   let keys = getStoredGeminiKeys();
   if (!keys.length) {
     keys = await fetchCloudGeminiKeys();
@@ -369,6 +369,9 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
     // Try each key in the pool with automatic failover
     for (let i = 0; i < keys.length; i++) {
       const apiKey = keys[i];
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s per-request timeout
+
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
@@ -381,8 +384,11 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
               maxOutputTokens,
               temperature: 0.1
             }
-          })
+          }),
+          signal: signal || controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
@@ -411,6 +417,10 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
 
         return { text, model: currentModel };
       } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError' && signal?.aborted) {
+          throw new Error('AI Analysis cancelled by user.');
+        }
         console.warn(`Key #${i + 1} failed for model ${currentModel}:`, err.message);
         lastError = err;
       }
@@ -459,7 +469,8 @@ async function requestAi(payload, signal) {
       prompt: payload.prompt,
       inlineData: payload.inlineData,
       inlineDatas: payload.inlineDatas,
-      model: payload.model
+      model: payload.model,
+      signal
     });
   }
 
@@ -497,6 +508,18 @@ export async function generateStructuredWithGemini({
   model = null,
   signal,
 }) {
+  // If client has stored keys or on localhost, call direct client immediately for ultra-fast processing
+  const storedKeys = getStoredGeminiKeys();
+  if (storedKeys.length > 0 || window.location.hostname === 'localhost') {
+    return callDirectGeminiClient({
+      prompt,
+      inlineData,
+      inlineDatas,
+      model: model || getPreferredGeminiModel(),
+      signal
+    });
+  }
+
   return requestAi({
     task: 'structured',
     prompt,

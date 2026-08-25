@@ -176,9 +176,34 @@ export default function ResultIngestionModal({
   // File & Multi-Screenshot State (Up to 5 images/PDFs)
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatusText, setProcessingStatusText] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [parsedRows, setParsedRows] = useState([]);
   const [parsedStats, setParsedStats] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // [{ id, file, name, size, mimeType, base64, previewUrl }]
+  const abortControllerRef = useRef(null);
+
+  // Live Timer for AI Processing
+  useEffect(() => {
+    let timer = null;
+    if (isProcessing) {
+      setElapsedSeconds(0);
+      timer = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [isProcessing]);
+
+  const handleCancelAnalysis = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setIsProcessing(false);
+    setProcessingStatusText('');
+    if (showToast) showToast('AI analysis cancelled.', 'info');
+  };
 
   // Filter & Search in Review Table
   const [searchTerm, setSearchTerm] = useState('');
@@ -289,8 +314,11 @@ export default function ResultIngestionModal({
       return;
     }
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsProcessing(true);
-    setProcessingStatusText(`Sending ${uploadedFiles.length} file/screenshot image(s) to Gemini AI (Class: ${selectedClass || 'All'}, Session: ${selectedSession})...`);
+    setProcessingStatusText(`Connecting to Gemini AI (${preferredModel}) for ${uploadedFiles.length} file(s)...`);
 
     try {
       const payloadFiles = uploadedFiles.map(f => ({
@@ -307,7 +335,8 @@ export default function ResultIngestionModal({
           (status) => setProcessingStatusText(status),
           selectedClass,
           selectedSession,
-          preferredModel
+          preferredModel,
+          controller.signal
         );
       } else {
         result = await analyzeAdmitCardWithGemini(
@@ -317,7 +346,8 @@ export default function ResultIngestionModal({
           (status) => setProcessingStatusText(status),
           selectedClass,
           selectedSession,
-          preferredModel
+          preferredModel,
+          controller.signal
         );
       }
 
@@ -336,8 +366,12 @@ export default function ResultIngestionModal({
         );
       }
     } catch (err) {
-      console.error('Gemini AI Analysis Error:', err);
-      if (showToast) showToast(`AI Analysis Error: ${err.message}`, 'error');
+      if (err.name === 'AbortError' || err.message?.includes('cancelled')) {
+        console.log('AI Analysis cancelled by user.');
+      } else {
+        console.error('Gemini AI Analysis Error:', err);
+        if (showToast) showToast(`AI Analysis Error: ${err.message}`, 'error');
+      }
     } finally {
       setIsProcessing(false);
       setProcessingStatusText('');
@@ -942,8 +976,43 @@ export default function ResultIngestionModal({
                     </div>
                   )}
 
+                  {/* Real-time AI Analysis Progress HUD */}
+                  {isProcessing && (
+                    <div className="w-full max-w-xl p-4 rounded-2xl bg-purple-100/80 dark:bg-purple-950/70 border border-purple-300 dark:border-purple-700 shadow-md space-y-2 text-left animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw size={15} className="text-purple-600 dark:text-purple-400 animate-spin" />
+                          <span className="font-black text-xs text-purple-950 dark:text-purple-100">
+                            Gemini AI Vision Active ({preferredModel})
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
+                          ⏱️ {elapsedSeconds}s elapsed
+                        </span>
+                      </div>
+                      <p className="text-xs text-purple-900 dark:text-purple-200 font-medium">
+                        {processingStatusText || `Analyzing ${uploadedFiles.length} Gazette screenshot(s)...`}
+                      </p>
+                      <div className="w-full h-1.5 bg-purple-200 dark:bg-purple-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-500 animate-pulse w-full" />
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[9.5px] text-purple-700 dark:text-purple-300">
+                          ⚡ Reading high-res tables. OCR & tabular parsing takes approx. 10–25s.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCancelAnalysis}
+                          className="px-2.5 py-0.5 rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold text-[10.5px] cursor-pointer border border-rose-300 dark:border-rose-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-center gap-3">
-                    {uploadedFiles.length < 5 && (
+                    {uploadedFiles.length < 5 && !isProcessing && (
                       <label className="px-5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs">
                         <Upload size={14} />
                         <span>{uploadedFiles.length === 0 ? 'Select Gazette (PDF or up to 5 Screenshots)' : '+ Add Another Screenshot'}</span>
@@ -958,14 +1027,14 @@ export default function ResultIngestionModal({
                       </label>
                     )}
 
-                    {uploadedFiles.length > 0 && (
+                    {uploadedFiles.length > 0 && !isProcessing && (
                       <button
                         type="button"
                         onClick={() => handleRunAiAnalysis('ai_gazette')}
                         disabled={isProcessing}
                         className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 text-xs"
                       >
-                        {isProcessing ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                        <Sparkles size={14} />
                         <span>Run Gemini AI Analysis ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
                       </button>
                     )}
@@ -1031,8 +1100,43 @@ export default function ResultIngestionModal({
                     </div>
                   )}
 
+                  {/* Real-time AI Analysis Progress HUD */}
+                  {isProcessing && (
+                    <div className="w-full max-w-xl p-4 rounded-2xl bg-amber-100/80 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 shadow-md space-y-2 text-left animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw size={15} className="text-amber-600 dark:text-amber-400 animate-spin" />
+                          <span className="font-black text-xs text-amber-950 dark:text-amber-100">
+                            Gemini AI Vision Active ({preferredModel})
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                          ⏱️ {elapsedSeconds}s elapsed
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                        {processingStatusText || `Analyzing ${uploadedFiles.length} Admit Card screenshot(s)...`}
+                      </p>
+                      <div className="w-full h-1.5 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 animate-pulse w-full" />
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[9.5px] text-amber-700 dark:text-amber-300">
+                          ⚡ Reading high-res Admit Card scans. Extraction takes approx. 8–20s.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCancelAnalysis}
+                          className="px-2.5 py-0.5 rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold text-[10.5px] cursor-pointer border border-rose-300 dark:border-rose-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-center gap-3">
-                    {uploadedFiles.length < 5 && (
+                    {uploadedFiles.length < 5 && !isProcessing && (
                       <label className="px-5 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs">
                         <Upload size={14} />
                         <span>{uploadedFiles.length === 0 ? 'Select Admit Cards (PDF or up to 5 Screenshots)' : '+ Add Another Screenshot'}</span>
@@ -1047,15 +1151,15 @@ export default function ResultIngestionModal({
                       </label>
                     )}
 
-                    {uploadedFiles.length > 0 && (
+                    {uploadedFiles.length > 0 && !isProcessing && (
                       <button
                         type="button"
                         onClick={() => handleRunAiAnalysis('ai_admit')}
                         disabled={isProcessing}
                         className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 text-xs"
                       >
-                        {isProcessing ? <RefreshCw size={14} className="animate-spin" /> : <Award size={14} />}
-                        <span>Run Gemini AI Extraction ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
+                        <Sparkles size={14} />
+                        <span>Run Gemini AI Analysis ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
                       </button>
                     )}
                   </div>

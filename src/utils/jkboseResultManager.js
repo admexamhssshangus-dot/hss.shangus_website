@@ -853,7 +853,8 @@ export async function analyzeAdmitCardWithGemini(
   progressCallback = null,
   selectedClass = '12th',
   selectedSession = '2026 APR/BIAN',
-  modelName = null
+  modelName = null,
+  signal = null
 ) {
   try {
     const fileList = normalizeAiFileInputs(fileInput, mimeType);
@@ -913,6 +914,7 @@ Example Format:
       prompt,
       inlineDatas: fileList,
       model: preferredModel,
+      signal
     });
     const jsonText = aiResult.text || '';
 
@@ -1018,7 +1020,8 @@ export async function analyzeGazetteWithGemini(
   progressCallback = null,
   selectedClass = '12th',
   selectedSession = '2026 APR/BIAN',
-  modelName = null
+  modelName = null,
+  signal = null
 ) {
   try {
     const fileList = normalizeAiFileInputs(fileInput, mimeType);
@@ -1086,6 +1089,7 @@ Example:
       prompt,
       inlineDatas: fileList,
       model: preferredModel,
+      signal
     });
     const jsonText = aiResult.text || '';
 
