@@ -539,6 +539,18 @@ export function extractSession(st) {
     const valObj = raw[k] || st[k];
     if (valObj && String(valObj).trim() && !/^(—|N\/A|null|undefined)$/i.test(String(valObj).trim())) {
       let val = String(valObj).trim();
+
+      // Normalize verbose JKBOSE Exam Mode strings into authentic academic session format
+      if (/^Annual\s+Regular\s+2025/i.test(val)) {
+        return '2025-26';
+      }
+      if (/^Annual\s+Regular\s+2024/i.test(val)) {
+        return '2024-25';
+      }
+      if (/^Annual\s+Regular\s+2026/i.test(val)) {
+        return '2026-27';
+      }
+
       if (/^20\d{2}\s*[-/]\s*20\d{2}$/.test(val)) {
         const parts = val.split(/[-/]/).map(p => p.trim());
         val = `${parts[0]}-${parts[1].slice(-2)}`;
