@@ -311,20 +311,44 @@ export default function ResultIngestionModal({
 
   const fileInputRef = useRef(null);
 
-  // Filter students by selected class and session for template generation (supports Bi-Annual matching)
+  // Filter students strictly by selected class and session for template generation and upload matching
   const classStudents = useMemo(() => {
     return unifiedStudentsList.filter(s => {
-      const cls = String(s.selectedClass || s.Class || s.raw?.['Class'] || s.cls || '').trim();
-      const sess = String(s.selectedSession || s.Session || s.raw?.['Session'] || s.session || '').trim();
-      const examMode = String(s.examMode || s.raw?.['Exam Mode (Current)'] || s.raw?.currExamMode || '').trim();
-      const matchCls = !selectedClass || cls.toLowerCase().includes(selectedClass.toLowerCase());
+      const cls = String(s.selectedClass || s.Class || s.raw?.['Class'] || s.cls || '').trim().toLowerCase();
+      const sess = String(s.selectedSession || s.Session || s.raw?.['Session'] || s.session || '').trim().toLowerCase();
+      const examMode = String(s.examMode || s.raw?.['Exam Mode (Current)'] || s.raw?.currExamMode || '').trim().toLowerCase();
       
-      const isBian = /bian|bi-annual|apr/i.test(selectedSession);
-      const matchSess = !selectedSession || isBian ||
-        sess.toLowerCase().includes(selectedSession.toLowerCase()) || 
-        selectedSession.toLowerCase().includes(sess.toLowerCase()) ||
-        examMode.toLowerCase().includes(selectedSession.toLowerCase()) ||
-        selectedSession.toLowerCase().includes(examMode.toLowerCase());
+      // Class Match
+      const selCls = String(selectedClass || '').trim().toLowerCase();
+      let matchCls = !selectedClass || selectedClass === 'All';
+      if (!matchCls) {
+        if (selCls.includes('12') || selCls.includes('xii')) {
+          matchCls = cls.includes('12') || cls.includes('xii');
+        } else if (selCls.includes('11') || selCls.includes('xi')) {
+          matchCls = cls.includes('11') || cls.includes('xi');
+        } else if (selCls.includes('10') || selCls.includes('x')) {
+          matchCls = cls.includes('10') || cls.includes('x');
+        } else if (selCls.includes('9') || selCls.includes('ix')) {
+          matchCls = cls.includes('9') || cls.includes('ix');
+        } else {
+          matchCls = cls.includes(selCls) || selCls.includes(cls);
+        }
+      }
+      
+      // Session Match (Strict Scoping)
+      const selSess = String(selectedSession || '').trim().toLowerCase();
+      let matchSess = !selectedSession || selectedSession === 'All';
+      if (!matchSess) {
+        if (sess === selSess) {
+          matchSess = true;
+        } else if (selSess.includes('bian') || selSess.includes('apr')) {
+          matchSess = (sess.includes('2026') && (sess.includes('bian') || sess.includes('apr') || sess.includes('bi-annual'))) ||
+                      (examMode.includes('2026') && (examMode.includes('bian') || examMode.includes('apr')));
+        } else {
+          matchSess = sess.includes(selSess) || selSess.includes(sess);
+        }
+      }
+
       return matchCls && matchSess;
     });
   }, [unifiedStudentsList, selectedClass, selectedSession]);
