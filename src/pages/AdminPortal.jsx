@@ -7221,16 +7221,16 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
             {/* TAB 3: FACULTY DIRECTORY */}
             {activeTab === 'faculty' && allowedTabs.includes('faculty') && (
-              <div className="space-y-3 animate-in fade-in duration-200">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-1.5">
-                  <div className="max-w-[360px] lg:max-w-[500px] shrink-0">
-                    <h3 className="text-sm font-bold text-slate-200">Faculty & Staff Directory Editor</h3>
-                    <p className="text-[11px] text-slate-400 leading-tight mt-0.5">Configure cards, department settings, and contacts inside the dynamic directory.</p>
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-1.5">
+                  <div className="max-w-2xl shrink-0">
+                    <h3 className="text-base font-bold text-slate-100">Faculty & Staff Directory</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed mt-1">Manage staff profiles, directory visibility, deployment status and roster exports. Contact and service details remain restricted to authorised administrators.</p>
                   </div>
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 w-full sm:w-auto ml-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 w-full xl:w-auto xl:ml-auto">
                     <button
                       onClick={handleDownloadCSVTemplate}
-                      className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-amber-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
+                      className="min-h-[40px] px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-amber-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Download the standard CSV template with headers and a sample row"
                     >
                       <FileSpreadsheet size={13} />
@@ -7238,7 +7238,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                     </button>
                     <button
                       onClick={() => document.getElementById('csv-import-input').click()}
-                      className="px-2 py-1 rounded bg-blue-500 hover:bg-blue-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-blue-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
+                      className="min-h-[40px] px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-blue-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Upload a CSV roster of employees"
                     >
                       <Upload size={13} />
@@ -7253,7 +7253,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                     />
                     <button
                       onClick={handleCSVExport}
-                      className="px-2 py-1 rounded bg-teal-500 hover:bg-teal-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-teal-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
+                      className="min-h-[40px] px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-teal-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Choose employees and columns, then download a custom CSV roster"
                     >
                       <Download size={13} />
@@ -7266,7 +7266,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         setBulkPrintDept('All');
                         setShowBulkPrintModal(true);
                       }}
-                      className="px-2 py-1 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
+                      className="min-h-[40px] px-3 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-purple-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Export multiple profile sheets as PDF at once"
                     >
                       <Printer size={13} />
@@ -7277,7 +7277,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         setFieldLayoutDraft(JSON.parse(JSON.stringify(fieldLayout)));
                         setShowFieldLayoutModal(true);
                       }}
-                      className="px-2 py-1 rounded bg-indigo-500 hover:bg-indigo-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1 border border-indigo-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow w-full sm:w-auto uppercase tracking-wide"
+                      className="col-span-2 md:col-span-1 min-h-[40px] px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-slate-950 text-[10px] font-extrabold flex items-center justify-center gap-1.5 border border-indigo-400 transition-colors shadow w-full uppercase tracking-wide"
                       title="Manage how custom fields are grouped in forms and exports"
                     >
                       <Layers size={13} />
@@ -7286,28 +7286,51 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2" aria-label="Faculty directory summary">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Total staff</div>
+                    <div className="mt-0.5 text-lg font-extrabold text-slate-100">{faculty.length}</div>
+                  </div>
+                  <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-3 py-2.5">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Publicly visible</div>
+                    <div className="mt-0.5 text-lg font-extrabold text-emerald-300">{faculty.filter(member => !member.hidden).length}</div>
+                  </div>
+                  <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 px-3 py-2.5">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-amber-500">Hidden / inactive</div>
+                    <div className="mt-0.5 text-lg font-extrabold text-amber-300">{faculty.filter(member => member.hidden).length}</div>
+                  </div>
+                  <div className="rounded-lg border border-blue-900/60 bg-blue-950/20 px-3 py-2.5">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-blue-500">On deployment</div>
+                    <div className="mt-0.5 text-lg font-extrabold text-blue-300">{faculty.filter(member => member.if_deployed && member.if_deployed !== 'No').length}</div>
+                  </div>
+                </div>
+
                 {/* Add new faculty form */}
-                <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800 space-y-2.5">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="w-[160px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Full Name</label>
+                <div className="bg-slate-900/30 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-200">Add a staff member</h4>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Only name, designation, subject, department and the approved photo are published in the public directory.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 items-end gap-3">
+                    <div className="xl:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Full Name</label>
                       <input
                         type="text"
                         placeholder="Mr. Sheikh Gulfam"
                         value={newTeacher.name}
                         onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="w-[85px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Designation</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Designation</label>
                       <select
                         value={STANDARD_DESIGNATIONS.includes(newTeacher.designation) ? newTeacher.designation : 'Other'}
                         onChange={(e) => {
                           const val = e.target.value;
                           setNewTeacher({ ...newTeacher, designation: val === 'Other' ? '' : val });
                         }}
-                        className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] px-2 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       >
                         <option value="">Select</option>
                         {STANDARD_DESIGNATIONS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -7319,19 +7342,19 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           placeholder="Custom"
                           value={newTeacher.designation}
                           onChange={(e) => setNewTeacher({ ...newTeacher, designation: e.target.value })}
-                          className="w-full mt-1 px-1.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                          className="w-full mt-1.5 min-h-[40px] px-2 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                         />
                       )}
                     </div>
-                    <div className="w-[130px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Subject</label>
+                    <div className="xl:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Subject</label>
                       <select
                         value={STANDARD_SUBJECTS.includes(newTeacher.subject) ? newTeacher.subject : (newTeacher.subject ? 'Other' : '')}
                         onChange={(e) => {
                           const val = e.target.value;
                           setNewTeacher({ ...newTeacher, subject: val === 'Other' ? ' ' : val });
                         }}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       >
                         <option value="">Select Subject</option>
                         {STANDARD_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -7343,12 +7366,12 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           placeholder="Custom Subject"
                           value={newTeacher.subject.trim()}
                           onChange={(e) => setNewTeacher({ ...newTeacher, subject: e.target.value })}
-                          className="w-full mt-1 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                          className="w-full mt-1.5 min-h-[40px] px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                         />
                       )}
                     </div>
-                    <div className="w-[160px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Department</label>
+                    <div className="xl:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Department</label>
                       <select
                         value={STANDARD_DEPTS.includes(newTeacher.department) ? newTeacher.department : 'Other'}
                         onChange={(e) => {
@@ -7359,7 +7382,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             setNewTeacher({ ...newTeacher, department: val });
                           }
                         }}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="Administration">Administration</option>
                         <option value="Science">Science</option>
@@ -7375,35 +7398,36 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           placeholder="Enter department name..."
                           value={newTeacher.department}
                           onChange={(e) => setNewTeacher({ ...newTeacher, department: e.target.value })}
-                          className="w-full mt-1 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                          className="w-full mt-1.5 min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                         />
                       )}
                     </div>
-                    <div className="w-[180px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Email Address</label>
+                    <div className="xl:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Email Address</label>
                       <input
                         type="email"
                         placeholder="example@gmail.com"
                         value={newTeacher.email}
                         onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="w-[98px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Mobile No</label>
+                    <div className="xl:col-span-1">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Mobile No</label>
                       <input
                         type="text"
                         placeholder="+91-7006XXXXXX"
                         value={newTeacher.mobile}
                         onChange={(e) => setNewTeacher({ ...newTeacher, mobile: e.target.value })}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="w-[76px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Photo Upload</label>
-                      <div className="flex h-[23px] items-center">
-                        <label className={`w-full h-full rounded text-slate-950 text-[8px] font-extrabold cursor-pointer transition-all flex items-center justify-center border whitespace-nowrap hover:scale-[1.02] active:scale-[0.98] ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
-                          {newTeacherPhotoFile ? 'Loaded' : 'Choose'}
+                    <div className="xl:col-span-2 sm:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Profile Photo</label>
+                      <div className="flex min-h-[40px] items-center">
+                        <label className={`w-full min-h-[40px] rounded-lg text-slate-950 text-[10px] font-extrabold cursor-pointer transition-colors flex items-center justify-center gap-1.5 border whitespace-nowrap ${newTeacherPhotoFile ? 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400' : 'bg-orange-500 hover:bg-orange-400 border-orange-400'}`}>
+                          <Upload size={13} />
+                          {newTeacherPhotoFile ? 'Photo loaded' : 'Choose photo'}
                           <input
                             type="file"
                             accept="image/*"
@@ -7413,13 +7437,13 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         </label>
                       </div>
                       {newTeacherPhotoFile && (
-                        <div className="text-[7.5px] text-emerald-400 mt-0.5 font-semibold truncate max-w-[80px]" title={newTeacherPhotoFile.name}>
-                          {newTeacherPhotoFile.name.substring(0, 8)}...
+                        <div className="text-[9px] text-emerald-400 mt-1 font-semibold truncate" title={newTeacherPhotoFile.name}>
+                          {newTeacherPhotoFile.name}
                         </div>
                       )}
                     </div>
-                    <div className="w-[150px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Visibility Status</label>
+                    <div className="xl:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Directory Visibility</label>
                       <select
                         value={newTeacher.hidden ? 'hidden' : 'visible'}
                         onChange={(e) => {
@@ -7430,28 +7454,29 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             inactiveReason: isHidden ? (newTeacher.inactiveReason || 'Transferred') : ''
                           });
                         }}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="visible">Visible (Active on Frontend)</option>
                         <option value="hidden">Hidden (Inactive)</option>
                       </select>
                     </div>
-                    <div className="w-[150px] shrink-0">
-                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Deployment Status</label>
+                    <div className="xl:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Deployment Status</label>
                       <select
                         value={newTeacher.if_deployed || 'No'}
                         onChange={(e) => setNewTeacher({ ...newTeacher, if_deployed: e.target.value })}
-                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                        className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                       >
                         <option value="No">No Deployment</option>
                         <option value="in">Deployed In → (from another school, works here)</option>
                         <option value="out">Deployed Out ← (our employee, sent to another school)</option>
                       </select>
                     </div>
-                    <div className="shrink-0 mb-[1px]">
+                    <div className="xl:col-span-2 sm:col-span-2">
                       <button
+                        type="button"
                         onClick={handleAddTeacher}
-                        className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-[10px] flex items-center justify-center gap-1 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow h-[23px] uppercase tracking-wide"
+                        className="w-full min-h-[42px] px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 border border-orange-400 transition-colors shadow uppercase tracking-wide"
                         title="Add Teacher"
                       >
                         <UserPlus size={12} />
@@ -7459,8 +7484,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                       </button>
                     </div>
                     {newTeacher.hidden && (
-                      <div className="w-[150px] shrink-0 animate-in fade-in duration-200">
-                        <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Reason for Inactive</label>
+                      <div className="xl:col-span-2 animate-in fade-in duration-200">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Reason for Inactive</label>
                         <select
                           value={['Transferred', 'Retired', 'Deployed Out'].includes(newTeacher.inactiveReason) ? newTeacher.inactiveReason : (newTeacher.inactiveReason ? 'Other' : 'Transferred')}
                           onChange={(e) => {
@@ -7472,7 +7497,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                               setNewTeacher({ ...newTeacher, inactiveReason: val });
                             }
                           }}
-                          className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                          className="w-full min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                         >
                           <option value="Transferred">Transferred</option>
                           <option value="Retired">Retired</option>
@@ -7485,7 +7510,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             value={newTeacher.inactiveReason}
                             onChange={(e) => setNewTeacher({ ...newTeacher, inactiveReason: e.target.value })}
                             placeholder="Enter custom reason..."
-                            className="w-full mt-1 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
+                            className="w-full mt-1.5 min-h-[40px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-semibold"
                           />
                         )}
                       </div>
@@ -7495,22 +7520,22 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
                 {/* Faculty list toolbar */}
                 {selectedFaculty.length > 0 && (
-                  <div className="mb-3 p-2.5 rounded-lg border border-slate-850 flex items-center justify-between animate-in slide-in-from-top duration-200"
+                  <div className="mb-3 p-3 rounded-lg border border-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top duration-200"
                     style={{ backgroundColor: 'rgba(30, 41, 59, 0.4)', borderColor: '#334155' }}>
                     <span className="text-xs font-bold text-slate-300">
                       {selectedFaculty.length} employee(s) selected
                     </span>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
                       <button
                         onClick={handleBulkPrint}
-                        className="px-3.5 py-1.5 rounded bg-purple-500 hover:bg-purple-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 border border-purple-400 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                        className="min-h-[40px] px-3.5 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 border border-purple-400 transition-colors shadow"
                       >
                         <Printer size={13} />
                         Print Selected
                       </button>
                       <button
                         onClick={handleBulkDelete}
-                        className="px-3.5 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center gap-1.5 border border-red-500 transition-all hover:scale-[1.02] active:scale-[0.98] shadow"
+                        className="min-h-[40px] px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 border border-red-500 transition-colors shadow"
                       >
                         <Trash2 size={13} />
                         Delete Selected
@@ -7519,8 +7544,93 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                   </div>
                 )}
 
+                {/* Mobile and tablet faculty cards */}
+                <div className="lg:hidden space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                    <label className="flex min-h-[36px] items-center gap-2 text-xs font-bold text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={faculty.length > 0 && selectedFaculty.length === faculty.length}
+                        onChange={(e) => setSelectedFaculty(e.target.checked ? faculty.map((_, idx) => idx) : [])}
+                        className="h-4 w-4 rounded border-slate-700 text-orange-600 bg-slate-950 focus:ring-orange-500"
+                      />
+                      Select all staff
+                    </label>
+                    <span className="text-[10px] font-semibold text-slate-500">{faculty.length} records</span>
+                  </div>
+
+                  {faculty.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-700 p-8 text-center text-xs text-slate-500">
+                      No faculty members configured. Add the first staff member above.
+                    </div>
+                  ) : faculty.map((t, index) => {
+                    const rowIssue = facultyIssueMap[index];
+                    const deploymentLabel = t.if_deployed === 'in' ? 'Deployed in' : t.if_deployed === 'out' ? 'Deployed out' : t.if_deployed === 'Yes' ? 'On deployment' : 'No deployment';
+                    return (
+                      <article
+                        key={`mobile-${t.name}-${index}`}
+                        className={`rounded-xl border p-3.5 shadow-sm ${rowIssue?.severity === 'error'
+                          ? 'border-red-800 bg-red-950/15'
+                          : rowIssue
+                            ? 'border-amber-800 bg-amber-950/15'
+                            : 'border-slate-800 bg-slate-900/30'
+                          }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${t.name || `staff member ${index + 1}`}`}
+                            checked={selectedFaculty.includes(index)}
+                            onChange={(e) => setSelectedFaculty(e.target.checked
+                              ? [...selectedFaculty, index]
+                              : selectedFaculty.filter(idx => idx !== index))}
+                            className="mt-3 h-4 w-4 shrink-0 rounded border-slate-700 text-orange-600 bg-slate-950 focus:ring-orange-500"
+                          />
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 flex items-center justify-center">
+                            {t.photo ? (
+                              <img src={t.photo} alt="" loading="lazy" className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-sm font-extrabold text-slate-400">{(t.name || '?').trim().charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h4 className="text-sm font-bold text-slate-100">{t.name || 'Unnamed staff member'}</h4>
+                              {t.hidden && <span className="rounded-full border border-red-800 bg-red-950 px-2 py-0.5 text-[8px] font-extrabold uppercase text-red-300">Hidden</span>}
+                              {rowIssue && <span className="rounded-full border border-amber-800 bg-amber-950 px-2 py-0.5 text-[8px] font-extrabold uppercase text-amber-300">Needs review</span>}
+                            </div>
+                            <p className="mt-0.5 text-xs text-slate-300">{t.designation || 'Designation not set'}{t.subject && !['Administration', 'MTS'].includes(t.department) ? ` · ${t.subject}` : ''}</p>
+                            <span className="mt-1.5 inline-flex rounded-full border border-slate-700 bg-slate-950/60 px-2 py-0.5 text-[9px] font-bold text-slate-400">{t.department || 'No department'}</span>
+                          </div>
+                        </div>
+
+                        <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-800/70 bg-slate-950/30 p-2.5 text-[10px]">
+                          <div className="min-w-0">
+                            <dt className="font-bold uppercase tracking-wide text-slate-500">Private contact</dt>
+                            <dd className="mt-0.5 truncate text-slate-300" title={t.email || ''}>{t.email || 'No email'}</dd>
+                            <dd className="font-mono text-slate-400">{t.mobile || 'No mobile'}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-bold uppercase tracking-wide text-slate-500">Deployment</dt>
+                            <dd className="mt-0.5 font-semibold text-slate-300">{deploymentLabel}</dd>
+                            {t.hidden && <dd className="text-slate-500">Inactive: {t.inactiveReason || 'Reason not provided'}</dd>}
+                          </div>
+                        </dl>
+
+                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                          <button type="button" onClick={() => printEmployeeProfile(t)} className="min-h-[42px] rounded-lg border border-emerald-900 bg-emerald-950/30 px-2 text-[10px] font-bold text-emerald-300 flex items-center justify-center gap-1.5"><FileText size={14} /> Profile</button>
+                          <button type="button" onClick={() => openFullEdit(index)} className="min-h-[42px] rounded-lg border border-orange-900 bg-orange-950/30 px-2 text-[10px] font-bold text-orange-300 flex items-center justify-center gap-1.5"><Edit2 size={14} /> Edit</button>
+                          <button type="button" onClick={() => handleMoveFacultyUp(index)} disabled={index === 0} className="min-h-[42px] rounded-lg border border-slate-700 bg-slate-900 px-2 text-[10px] font-bold text-teal-300 flex items-center justify-center gap-1.5 disabled:opacity-35"><ArrowUp size={14} /> Move up</button>
+                          <button type="button" onClick={() => handleMoveFacultyDown(index)} disabled={index === faculty.length - 1} className="min-h-[42px] rounded-lg border border-slate-700 bg-slate-900 px-2 text-[10px] font-bold text-teal-300 flex items-center justify-center gap-1.5 disabled:opacity-35"><ArrowDown size={14} /> Move down</button>
+                          <button type="button" onClick={() => handleDeleteTeacher(index)} className="col-span-2 sm:col-span-1 min-h-[42px] rounded-lg border border-red-900 bg-red-950/30 px-2 text-[10px] font-bold text-red-300 flex items-center justify-center gap-1.5"><Trash2 size={14} /> Delete</button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
                 {/* Faculty list */}
-                <div className="overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-lg min-w-0">
+                <div className="hidden lg:block overflow-x-auto custom-scrollbar pb-1.5 border border-slate-800 rounded-xl min-w-0">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '1100px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
@@ -7544,7 +7654,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         <th className="p-1" style={{ minWidth: '110px' }}>Department</th>
                         <th className="p-1" style={{ minWidth: '180px' }}>Contact</th>
                         <th className="p-1 text-center" style={{ minWidth: '110px' }}>On Deployment</th>
-                        <th className="p-1" style={{ minWidth: '130px' }}>Photo URL</th>
+                        <th className="p-1 text-center" style={{ minWidth: '90px' }}>Photo</th>
                         <th className="p-1 w-36 text-center" style={{ minWidth: '150px' }}>Action</th>
                       </tr>
                     </thead>
@@ -7795,45 +7905,65 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         {t.if_deployed === 'in' ? '→ Deployed In' : t.if_deployed === 'out' ? '← Deployed Out' : t.if_deployed === 'Yes' ? 'Deployed' : 'No'}
                                       </span>
                                     </td>
-                                    <td className="p-1 font-mono text-slate-500 text-[10px] max-w-[120px] truncate">{t.photo || 'None'}</td>
-                                    <td className="p-1 text-center flex items-center justify-center gap-1">
+                                    <td className="p-1.5 text-center">
+                                      <div className="mx-auto h-9 w-9 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 flex items-center justify-center" title={t.photo ? 'Profile photo configured' : 'No profile photo'}>
+                                        {t.photo ? (
+                                          <img src={t.photo} alt="" loading="lazy" className="h-full w-full object-cover" />
+                                        ) : (
+                                          <Image size={15} className="text-slate-600" aria-hidden="true" />
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-1 text-center">
+                                      <div className="flex items-center justify-center gap-0.5">
                                       <button
+                                        type="button"
                                         onClick={() => printEmployeeProfile(t)}
-                                        className="p-1 rounded text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors"
+                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors flex items-center justify-center"
                                         title="Print Profile / PDF"
+                                        aria-label={`Print profile for ${t.name}`}
                                       >
                                         <FileText size={13} />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => openFullEdit(index)}
-                                        className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
+                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors flex items-center justify-center"
                                         title="Edit all fields"
+                                        aria-label={`Edit ${t.name}`}
                                       >
                                         <Edit2 size={13} />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => handleMoveFacultyUp(index)}
                                         disabled={index === 0}
-                                        className="p-1 rounded text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
                                         title="Move Up"
+                                        aria-label={`Move ${t.name} up`}
                                       >
                                         <ArrowUp size={13} />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => handleMoveFacultyDown(index)}
                                         disabled={index === faculty.length - 1}
-                                        className="p-1 rounded text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-teal-400 hover:bg-slate-850 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center"
                                         title="Move Down"
+                                        aria-label={`Move ${t.name} down`}
                                       >
                                         <ArrowDown size={13} />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => handleDeleteTeacher(index)}
-                                        className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                                        className="min-h-[36px] min-w-[36px] p-2 rounded-lg text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors flex items-center justify-center"
                                         title="Delete"
+                                        aria-label={`Delete ${t.name}`}
                                       >
                                         <Trash2 size={13} />
                                       </button>
+                                      </div>
                                     </td>
                                   </>
                                 )}
