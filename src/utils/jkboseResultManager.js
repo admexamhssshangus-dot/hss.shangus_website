@@ -852,7 +852,8 @@ export async function analyzeAdmitCardWithGemini(
   existingStudents = [],
   progressCallback = null,
   selectedClass = '12th',
-  selectedSession = '2026 APR/BIAN'
+  selectedSession = '2026 APR/BIAN',
+  modelName = null
 ) {
   try {
     const fileList = normalizeAiFileInputs(fileInput, mimeType);
@@ -860,8 +861,8 @@ export async function analyzeAdmitCardWithGemini(
       throw new Error('No valid Admit Card file or screenshot images were provided for analysis.');
     }
 
-    if (progressCallback) progressCallback(`Connecting to Gemini AI for Admit Card extraction (${fileList.length} page/screenshot file${fileList.length > 1 ? 's' : ''})...`);
-    const preferredModel = getPreferredGeminiModel();
+    const preferredModel = modelName || getPreferredGeminiModel();
+    if (progressCallback) progressCallback(`Connecting to Gemini AI (${preferredModel}) for Admit Card extraction (${fileList.length} page/screenshot file${fileList.length > 1 ? 's' : ''})...`);
 
     if (progressCallback) progressCallback(`Extracting candidate details from ${fileList.length} image(s)/document(s) with ${preferredModel}...`);
 
@@ -1016,7 +1017,8 @@ export async function analyzeGazetteWithGemini(
   existingStudents = [],
   progressCallback = null,
   selectedClass = '12th',
-  selectedSession = '2026 APR/BIAN'
+  selectedSession = '2026 APR/BIAN',
+  modelName = null
 ) {
   try {
     const fileList = normalizeAiFileInputs(fileInput, mimeType);
@@ -1024,8 +1026,8 @@ export async function analyzeGazetteWithGemini(
       throw new Error('No valid Gazette document or screenshot images were provided for analysis.');
     }
 
-    if (progressCallback) progressCallback(`Connecting to Gemini AI for Result Gazette parsing (${fileList.length} page/screenshot file${fileList.length > 1 ? 's' : ''})...`);
-    const preferredModel = getPreferredGeminiModel();
+    const preferredModel = modelName || getPreferredGeminiModel();
+    if (progressCallback) progressCallback(`Connecting to Gemini AI (${preferredModel}) for Result Gazette parsing (${fileList.length} page/screenshot file${fileList.length > 1 ? 's' : ''})...`);
 
     if (progressCallback) progressCallback(`Processing ${fileList.length} Gazette page(s)/screenshot(s) with ${preferredModel}...`);
 

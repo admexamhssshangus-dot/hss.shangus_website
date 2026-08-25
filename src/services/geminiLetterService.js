@@ -6,6 +6,7 @@ import { getFirebaseAppCheck } from './firebaseAppCheck';
 const STORAGE_KEY_GEMINI_KEYS = 'hss_gemini_api_keys';
 const STORAGE_KEY_GEMINI_MODEL = 'hss_gemini_preferred_model';
 const STORAGE_KEY_CUSTOM_MODELS = 'hss_custom_gemini_models';
+const STORAGE_KEY_DELETED_MODELS = 'hss_deleted_gemini_models';
 const ENDPOINT = '/.netlify/functions/ai-generate';
 
 export const DEFAULT_GEMINI_MODELS = [
@@ -15,9 +16,6 @@ export const DEFAULT_GEMINI_MODELS = [
   { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite (High-Volume / Fast / Cheap)', tier: 'High-Volume Fast', freeTier: true },
   { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash-Lite (Fast Automation & Extraction)', tier: 'Automation', freeTier: true },
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Smartest Fast Reasoning)', tier: 'Smart Fast', freeTier: true },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Legacy Multimodal Workhorse)', tier: 'Stable', freeTier: true },
-  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (Legacy Cheap / Fast)', tier: 'Ultra-Fast', freeTier: true },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Deep Complex Reasoning)', tier: 'Advanced Pro', freeTier: false },
 ];
 
 export function getCustomGeminiModels() {
@@ -31,12 +29,32 @@ export function getCustomGeminiModels() {
   }
 }
 
+export function getDeletedGeminiModels() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DELETED_MODELS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
 export function getAvailableGeminiModels() {
   const custom = getCustomGeminiModels();
+  const deleted = new Set(getDeletedGeminiModels());
   const allMap = new Map();
-  DEFAULT_GEMINI_MODELS.forEach(m => allMap.set(m.id, m));
-  custom.forEach(m => allMap.set(m.id, { ...m, isCustom: true }));
-  return Array.from(allMap.values());
+
+  DEFAULT_GEMINI_MODELS.forEach(m => {
+    if (!deleted.has(m.id)) allMap.set(m.id, m);
+  });
+
+  custom.forEach(m => {
+    if (!deleted.has(m.id)) allMap.set(m.id, { ...m, isCustom: true });
+  });
+
+  const list = Array.from(allMap.values());
+  return list.length > 0 ? list : DEFAULT_GEMINI_MODELS;
 }
 
 // Keep AVAILABLE_GEMINI_MODELS export in sync
@@ -49,6 +67,12 @@ export async function saveCustomGeminiModel(newModel) {
   const cleanTier = String(newModel.tier || 'Custom').trim();
   const isFree = newModel.freeTier !== undefined ? Boolean(newModel.freeTier) : true;
 
+  // If was previously deleted, un-delete it
+  const deleted = getDeletedGeminiModels().filter(id => id !== cleanId);
+  try {
+    localStorage.setItem(STORAGE_KEY_DELETED_MODELS, JSON.stringify(deleted));
+  } catch (_) {}
+
   const currentCustom = getCustomGeminiModels().filter(m => m.id !== cleanId);
   const updatedCustom = [...currentCustom, { id: cleanId, name: cleanName, tier: cleanTier, freeTier: isFree, isCustom: true }];
   
@@ -60,6 +84,7 @@ export async function saveCustomGeminiModel(newModel) {
   try {
     await setDoc(doc(db, 'systemSettings', 'geminiConfig'), {
       customModels: updatedCustom,
+      deletedModels: deleted,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (err) {
@@ -70,27 +95,59 @@ export async function saveCustomGeminiModel(newModel) {
   return getAvailableGeminiModels();
 }
 
-export async function removeCustomGeminiModel(modelId) {
+export async function deleteGeminiModel(modelId) {
   if (!modelId) return getAvailableGeminiModels();
-  const updatedCustom = getCustomGeminiModels().filter(m => m.id !== modelId);
+  const cleanId = String(modelId).trim();
+
+  // 1. Remove from custom models if present
+  const updatedCustom = getCustomGeminiModels().filter(m => m.id !== cleanId);
   try {
     localStorage.setItem(STORAGE_KEY_CUSTOM_MODELS, JSON.stringify(updatedCustom));
+  } catch (_) {}
+
+  // 2. Add to deleted models list so it won't show in dropdowns
+  const deletedSet = new Set(getDeletedGeminiModels());
+  deletedSet.add(cleanId);
+  const updatedDeleted = Array.from(deletedSet);
+  try {
+    localStorage.setItem(STORAGE_KEY_DELETED_MODELS, JSON.stringify(updatedDeleted));
   } catch (_) {}
 
   try {
     await setDoc(doc(db, 'systemSettings', 'geminiConfig'), {
       customModels: updatedCustom,
+      deletedModels: updatedDeleted,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (err) {
-    console.warn('Could not sync removed model to Firestore:', err);
+    console.warn('Could not sync deleted model to Firestore:', err);
   }
 
-  if (getPreferredGeminiModel() === modelId) {
-    savePreferredGeminiModel('gemini-2.5-flash');
+  if (getPreferredGeminiModel() === cleanId) {
+    const available = getAvailableGeminiModels();
+    const fallback = available[0]?.id || 'gemini-3.7-flash';
+    savePreferredGeminiModel(fallback);
   }
   return getAvailableGeminiModels();
 }
+
+export async function restoreDefaultGeminiModels() {
+  try {
+    localStorage.removeItem(STORAGE_KEY_DELETED_MODELS);
+  } catch (_) {}
+
+  try {
+    await setDoc(doc(db, 'systemSettings', 'geminiConfig'), {
+      deletedModels: [],
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {}
+
+  savePreferredGeminiModel('gemini-3.7-flash');
+  return getAvailableGeminiModels();
+}
+
+export const removeCustomGeminiModel = deleteGeminiModel;
 
 export function getStoredGeminiKeys() {
   try {
@@ -223,8 +280,13 @@ export async function saveCloudGeminiKeys(keys) {
 export function getPreferredGeminiModel() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_GEMINI_MODEL);
+    // If the saved model is an old deprecated 2.5 or 1.5 model, upgrade it immediately to gemini-3.7-flash
+    if (saved && (saved.includes('2.5') || saved.includes('1.5') || saved.includes('1.0') || saved === 'gemini-pro')) {
+      savePreferredGeminiModel('gemini-3.7-flash');
+      return 'gemini-3.7-flash';
+    }
     const available = getAvailableGeminiModels();
-    if (saved && (available.some((model) => model.id === saved) || saved.startsWith('gemini-'))) return saved;
+    if (saved && available.some((m) => m.id === saved)) return saved;
   } catch (_) {}
   return 'gemini-3.7-flash';
 }
@@ -238,7 +300,8 @@ export function savePreferredGeminiModel(modelId) {
 
 /**
  * Direct Client-Side Gemini Call Fallback (Used when serverless function is unreachable or 404 on localhost)
- * Supports multi-key failover pool across all connected keys in Firestore & LocalStorage.
+ * Supports multi-key failover pool across all connected keys in Firestore & LocalStorage,
+ * as well as intelligent multi-model failover for deprecated/sunset models.
  */
 async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, maxOutputTokens = 8192 }) {
   let keys = getStoredGeminiKeys();
@@ -264,7 +327,18 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
     }
   }
 
-  const modelName = model || getPreferredGeminiModel() || 'gemini-2.5-flash';
+  const requestedModel = model || getPreferredGeminiModel() || 'gemini-3.7-flash';
+
+  // Build prioritized candidate model list with auto-fallback for sunset models
+  const candidateModels = Array.from(new Set([
+    requestedModel,
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview'
+  ])).filter(m => m && !m.includes('2.5') && !m.includes('1.5') && !m.includes('1.0') && m !== 'gemini-pro');
 
   const parts = [{ text: prompt }];
 
@@ -285,44 +359,60 @@ async function callDirectGeminiClient({ prompt, inlineData, inlineDatas, model, 
 
   let lastError = null;
 
-  // Try each key in the pool with automatic failover
-  for (let i = 0; i < keys.length; i++) {
-    const apiKey = keys[i];
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  // Try candidate models in sequence
+  for (const currentModel of candidateModels) {
+    // Try each key in the pool with automatic failover
+    for (let i = 0; i < keys.length; i++) {
+      const apiKey = keys[i];
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            maxOutputTokens,
-            temperature: 0.1
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              maxOutputTokens,
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          const errMsg = errBody?.error?.message || `Gemini API returned HTTP ${res.status}`;
+          
+          // If model is deprecated or unavailable, break key loop and try next model
+          if (res.status === 404 || errMsg.toLowerCase().includes('no longer available') || errMsg.toLowerCase().includes('not found')) {
+            console.warn(`Model ${currentModel} unavailable/deprecated, failing over to next model:`, errMsg);
+            lastError = new Error(errMsg);
+            break;
           }
-        })
-      });
 
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        const errMsg = errBody?.error?.message || `Gemini API returned HTTP ${res.status}`;
-        throw new Error(errMsg);
+          throw new Error(errMsg);
+        }
+
+        const resData = await res.json();
+        const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) {
+          throw new Error('Gemini AI returned an empty response.');
+        }
+
+        // Remember working model for next time
+        if (currentModel !== requestedModel) {
+          savePreferredGeminiModel(currentModel);
+        }
+
+        return { text, model: currentModel };
+      } catch (err) {
+        console.warn(`Key #${i + 1} failed for model ${currentModel}:`, err.message);
+        lastError = err;
       }
-
-      const resData = await res.json();
-      const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (!text) {
-        throw new Error('Gemini AI returned an empty response.');
-      }
-
-      return { text, model: modelName };
-    } catch (err) {
-      console.warn(`Key #${i + 1} failed in direct Gemini client:`, err.message);
-      lastError = err;
     }
   }
 
-  throw lastError || new Error('All configured Gemini API keys failed.');
+  throw lastError || new Error('All configured Gemini API keys and models failed.');
 }
 
 async function requestAi(payload, signal) {

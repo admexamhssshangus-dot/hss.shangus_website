@@ -52,7 +52,8 @@ import {
   savePreferredGeminiModel,
   getAvailableGeminiModels,
   saveCustomGeminiModel,
-  removeCustomGeminiModel,
+  deleteGeminiModel,
+  restoreDefaultGeminiModels,
   AVAILABLE_GEMINI_MODELS
 } from '../../services/geminiLetterService';
 
@@ -91,6 +92,7 @@ export default function ResultIngestionModal({
   const [showKeysPreview, setShowKeysPreview] = useState(false);
   const [modelsList, setModelsList] = useState(() => getAvailableGeminiModels());
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [showManageModels, setShowManageModels] = useState(false);
   const [customModelIdInput, setCustomModelIdInput] = useState('');
   const [customModelNameInput, setCustomModelNameInput] = useState('');
 
@@ -102,7 +104,14 @@ export default function ResultIngestionModal({
           setGeminiKeys(keys);
           setKeysInputText(keys.join('\n'));
         }
-        setModelsList(getAvailableGeminiModels());
+        const avail = getAvailableGeminiModels();
+        setModelsList(avail);
+        const pref = getPreferredGeminiModel();
+        if (avail.some(m => m.id === pref)) {
+          setPreferredModel(pref);
+        } else if (avail.length > 0) {
+          setPreferredModel(avail[0].id);
+        }
       });
     }
   }, [isOpen]);
@@ -114,13 +123,13 @@ export default function ResultIngestionModal({
     await saveCloudGeminiKeys(cleaned);
     savePreferredGeminiModel(preferredModel);
     setShowKeysConfig(false);
-    if (showToast) showToast(`✓ Saved ${cleaned.length} Gemini API Key(s) to Cloud Firebase & LocalStorage!`, 'success');
+    if (showToast) showToast(`✓ Saved ${cleaned.length} Gemini API Key(s) & Model (${preferredModel}) to Cloud DB!`, 'success');
   };
 
   const handleAddCustomModel = async (e) => {
     if (e) e.preventDefault();
     if (!customModelIdInput.trim()) {
-      if (showToast) showToast('Please enter a valid Gemini Model ID (e.g. gemini-3.1-flash-lite)', 'warning');
+      if (showToast) showToast('Please enter a valid Gemini Model ID (e.g. gemini-3.7-flash)', 'warning');
       return;
     }
     const cleanId = customModelIdInput.trim();
@@ -139,13 +148,26 @@ export default function ResultIngestionModal({
     if (showToast) showToast(`✓ Added "${cleanName}" (${cleanId}) to Gemini AI Models!`, 'success');
   };
 
-  const handleRemoveCustomModel = async (modelId) => {
-    const updated = await removeCustomGeminiModel(modelId);
+  const handleDeleteModel = async (modelId) => {
+    if (modelsList.length <= 1) {
+      if (showToast) showToast('At least one Gemini model must remain configured.', 'warning');
+      return;
+    }
+    const updated = await deleteGeminiModel(modelId);
     setModelsList(updated);
     if (preferredModel === modelId) {
-      setPreferredModel('gemini-3.7-flash');
+      const nextModel = updated[0]?.id || 'gemini-3.7-flash';
+      setPreferredModel(nextModel);
+      savePreferredGeminiModel(nextModel);
     }
-    if (showToast) showToast(`Removed model ${modelId}`, 'info');
+    if (showToast) showToast(`✓ Deleted model ${modelId}`, 'info');
+  };
+
+  const handleRestoreDefaults = async () => {
+    const updated = await restoreDefaultGeminiModels();
+    setModelsList(updated);
+    setPreferredModel('gemini-3.7-flash');
+    if (showToast) showToast('✓ Restored standard Gemini models (Gemini 3.7 Flash default)!', 'success');
   };
 
   // File & Multi-Screenshot State (Up to 5 images/PDFs)
@@ -281,7 +303,8 @@ export default function ResultIngestionModal({
           allStudents,
           (status) => setProcessingStatusText(status),
           selectedClass,
-          selectedSession
+          selectedSession,
+          preferredModel
         );
       } else {
         result = await analyzeAdmitCardWithGemini(
@@ -290,7 +313,8 @@ export default function ResultIngestionModal({
           allStudents,
           (status) => setProcessingStatusText(status),
           selectedClass,
-          selectedSession
+          selectedSession,
+          preferredModel
         );
       }
 
@@ -574,7 +598,7 @@ export default function ResultIngestionModal({
 
             <div className="space-y-2 pt-1 border-t border-amber-200/80 dark:border-amber-800/60">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Preferred AI Model:</span>
                   <select
                     value={preferredModel}
@@ -595,12 +619,30 @@ export default function ResultIngestionModal({
                     <option value="__add_new__">➕ Add Future / Custom Gemini Model...</option>
                   </select>
 
+                  {/* Direct Delete Selected Model Button */}
                   <button
                     type="button"
-                    onClick={() => setShowAddCustomModel(!showAddCustomModel)}
+                    onClick={() => handleDeleteModel(preferredModel)}
+                    title={`Delete / Remove "${preferredModel}" from models list`}
+                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-700 cursor-pointer transition-colors"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddCustomModel(!showAddCustomModel); setShowManageModels(false); }}
                     className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 hover:bg-amber-300 border border-amber-400 dark:border-amber-700 cursor-pointer transition-colors"
                   >
                     {showAddCustomModel ? 'Hide Form' : '➕ Add Model'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowManageModels(!showManageModels); setShowAddCustomModel(false); }}
+                    className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 border border-slate-300 dark:border-slate-700 cursor-pointer transition-colors"
+                  >
+                    {showManageModels ? 'Close Models' : '⚙️ Manage Models'}
                   </button>
                 </div>
 
@@ -646,7 +688,7 @@ export default function ResultIngestionModal({
                         type="text"
                         value={customModelIdInput}
                         onChange={(e) => setCustomModelIdInput(e.target.value)}
-                        placeholder="e.g. gemini-3.1-flash-lite or gemini-3-flash-preview"
+                        placeholder="e.g. gemini-3.7-flash or gemini-3.6-flash"
                         className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-[10.5px]"
                       />
                     </div>
@@ -656,7 +698,7 @@ export default function ResultIngestionModal({
                         type="text"
                         value={customModelNameInput}
                         onChange={(e) => setCustomModelNameInput(e.target.value)}
-                        placeholder="e.g. Gemini 3.1 Flash-Lite (Fast Automation)"
+                        placeholder="e.g. Gemini 3.7 Flash (Latest)"
                         className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-medium text-[10.5px]"
                       />
                     </div>
@@ -683,29 +725,77 @@ export default function ResultIngestionModal({
                       </button>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* List of currently installed custom models with delete option */}
-                  {modelsList.some(m => m.isCustom) && (
-                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[9px] font-bold text-slate-400">Custom Models:</span>
-                      {modelsList.filter(m => m.isCustom).map(m => (
-                        <span
-                          key={m.id}
-                          className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 text-[9.5px] font-bold inline-flex items-center gap-1 border border-amber-300 dark:border-amber-700"
-                        >
-                          <span>{m.name || m.id}</span>
+              {/* Complete Models Management Panel with Individual Delete & Reset Defaults */}
+              {showManageModels && (
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 shadow-sm space-y-2 animate-scaleUp">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 flex items-center gap-1">
+                      <span>Available Gemini Models ({modelsList.length})</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleRestoreDefaults}
+                        className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <RefreshCw size={10} />
+                        <span>Restore Defaults</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowManageModels(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                    {modelsList.map(m => (
+                      <div
+                        key={m.id}
+                        className={`p-2 rounded-lg border flex items-center justify-between text-[10.5px] ${
+                          preferredModel === m.id
+                            ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-400 text-amber-950 dark:text-amber-100 font-bold'
+                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex flex-col min-w-0 pr-1">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="truncate">{m.name || m.id}</span>
+                            {preferredModel === m.id && (
+                              <span className="text-[8.5px] bg-amber-200 dark:bg-amber-900 px-1 rounded text-amber-800 dark:text-amber-200">Active</span>
+                            )}
+                          </div>
+                          <span className="font-mono text-[9px] text-slate-400 truncate">{m.id}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {preferredModel !== m.id && (
+                            <button
+                              type="button"
+                              onClick={() => { setPreferredModel(m.id); savePreferredGeminiModel(m.id); }}
+                              className="px-1.5 py-0.5 rounded text-[9.5px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 cursor-pointer font-bold"
+                            >
+                              Use
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => handleRemoveCustomModel(m.id)}
-                            title="Delete custom model"
-                            className="text-rose-600 hover:text-rose-800 cursor-pointer ml-0.5"
+                            onClick={() => handleDeleteModel(m.id)}
+                            title={`Delete ${m.id}`}
+                            className="p-1 rounded text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-950/80 cursor-pointer"
                           >
-                            <Trash2 size={10} />
+                            <Trash2 size={12} />
                           </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
