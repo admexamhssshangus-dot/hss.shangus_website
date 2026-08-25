@@ -227,6 +227,38 @@ function recordHeartbeat() {
 // Export
 // ---------------------------------------------------------------------------
 
+/**
+ * Check if currently authenticated user or session is a SuperAdmin.
+ */
+export function isSuperAdminUser(user = null) {
+  try {
+    const targetUser = user || getUser();
+    if (targetUser) {
+      const role = String(targetUser.role || targetUser.Role || '').toLowerCase().replace(/\s+/g, '');
+      if (role === 'superadmin' || targetUser.isSuperAdmin === true) return true;
+      const email = String(targetUser.email || '').toLowerCase().trim();
+      if (email === 'adm.exam.hss.shangus@gmail.com') return true;
+    }
+
+    const adminUser = JSON.parse(sessionStorage.getItem('hss_admin_user') || localStorage.getItem('hss_admin_user') || '{}');
+    if (adminUser) {
+      const role = String(adminUser.role || adminUser.Role || '').toLowerCase().replace(/\s+/g, '');
+      if (role === 'superadmin' || adminUser.isSuperAdmin === true) return true;
+      const email = String(adminUser.email || '').toLowerCase().trim();
+      if (email === 'adm.exam.hss.shangus@gmail.com') return true;
+    }
+
+    const portalUser = JSON.parse(sessionStorage.getItem('hss_session_user') || localStorage.getItem('hss_session_user') || '{}');
+    if (portalUser) {
+      const role = String(portalUser.role || portalUser.Role || '').toLowerCase().replace(/\s+/g, '');
+      if (role === 'superadmin' || portalUser.isSuperAdmin === true) return true;
+      const email = String(portalUser.email || '').toLowerCase().trim();
+      if (email === 'adm.exam.hss.shangus@gmail.com') return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 export const sessionManager = {
   // Device ID
   getDeviceId,
@@ -237,6 +269,7 @@ export const sessionManager = {
   getToken,
   getUser,
   isLoggedIn,
+  isSuperAdminUser,
   updateUser,
   clearSession,
 
