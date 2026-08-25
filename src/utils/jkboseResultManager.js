@@ -28,6 +28,7 @@ const findNormalizedRecordValue = (raw, aliases = []) => {
 };
 
 const firstUsableRecordValue = (...values) => values.find(isUsableRecordValue) ?? '';
+const studentMatchMetaCache = new WeakMap();
 
 /**
  * Standard JKBOSE Subject Code Definitions
@@ -536,7 +537,6 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
   const targetName = lower(record.studentName || record["Student's Name"] || record.name || record['Name'] || record['Name of Candidate'] || '');
   const targetFather = lower(record.fatherName || record["Father's Name"] || record.father || record['Father'] || '');
   const targetClass = lower(record.className || record['Class'] || classScope || '');
-  const targetSession = lower(record.session || record['Session'] || sessionScope || '');
 
   // Helper to extract first word or initials from name
   const firstWord = (str) => clean(str).toLowerCase().split(/[\s,._-]+/)[0] || '';
@@ -665,6 +665,15 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     };
   };
 
+  // Spreadsheet imports match many rows against the same directory. Cache the
+  // normalized directory once instead of rebuilding/spreading every student
+  // several times per uploaded row on the browser's main thread.
+  let studentMetas = studentMatchMetaCache.get(existingStudents);
+  if (!studentMetas) {
+    studentMetas = existingStudents.map(extractStudentMeta);
+    studentMatchMetaCache.set(existingStudents, studentMetas);
+  }
+
   // Helper to evaluate class match
   const isClassMatch = (clsStr) => {
     if (!targetClass) return true;
@@ -677,31 +686,9 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     return cleanSCls.includes(targetClass) || targetClass.includes(cleanSCls);
   };
 
-  // Helper to evaluate session match
-  const isSessionMatch = (sessStr) => {
-    if (!targetSession) return true;
-    const cleanSess = lower(sessStr);
-    if (!cleanSess) return true;
-
-    // If target is Bi-Annual (e.g. 2026 APR/BIAN), allow matching from surrounding/preceding academic years
-    const targetIsBian = /bian|bi-annual|apr/i.test(targetSession);
-    if (targetIsBian) {
-      // Bi-Annual candidates are enrolled students from recent sessions
-      return true;
-    }
-
-    const targetYears = targetSession.match(/\b20\d\d\b/g) || [];
-    const sYears = cleanSess.match(/\b20\d\d\b/g) || [];
-    if (targetYears.length > 0 && sYears.length > 0) {
-      return targetYears.some(y => sYears.includes(y));
-    }
-    return cleanSess.includes(targetSession) || targetSession.includes(cleanSess);
-  };
-
   // 1. Board Registration No Match (Permanent Unique Lifetime Identity)
   if (targetReg && targetReg.length >= 4) {
-    for (const s of existingStudents) {
-      const meta = extractStudentMeta(s);
+    for (const meta of studentMetas) {
       if (meta.sReg && meta.sReg.toLowerCase() === targetReg) {
         const classMatches = isClassMatch(meta.sCls);
         return {
@@ -717,8 +704,7 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
   if (targetExamRoll && targetExamRoll.length >= 4) {
     // A. First look for Exam Roll within the same class (Class 12th)
     const rollClassMatches = [];
-    for (const s of existingStudents) {
-      const meta = extractStudentMeta(s);
+    for (const meta of studentMetas) {
       if (meta.sRoll && meta.sRoll.toLowerCase() === targetExamRoll) {
         if (isClassMatch(meta.sCls)) {
           rollClassMatches.push(meta);
@@ -752,8 +738,7 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     // B. If no class match, check if Exam Roll matches anywhere across DB with matching candidate name
     if (targetName) {
       const targetFirst = firstWord(targetName);
-      for (const s of existingStudents) {
-        const meta = extractStudentMeta(s);
+      for (const meta of studentMetas) {
         if (meta.sRoll && meta.sRoll.toLowerCase() === targetExamRoll) {
           const sFirst = firstWord(meta.sName);
           if (sFirst === targetFirst || lower(meta.sName).includes(targetFirst)) {
@@ -770,8 +755,7 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
 
   // 3. Exact Form No Match
   if (targetForm) {
-    for (const s of existingStudents) {
-      const meta = extractStudentMeta(s);
+    for (const meta of studentMetas) {
       if (meta.sForm && meta.sForm.toLowerCase() === targetForm) {
         return {
           student: meta.normalizedStudent,
@@ -787,8 +771,7 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     const targetFirst = firstWord(targetName);
     const targetFatherFirst = targetFather ? firstWord(targetFather) : '';
 
-    for (const s of existingStudents) {
-      const meta = extractStudentMeta(s);
+    for (const meta of studentMetas) {
       if (!isClassMatch(meta.sCls)) continue;
 
       const sNameLower = lower(meta.sName);
@@ -826,8 +809,7 @@ export function matchStudentInDatabase(record, existingStudents = [], classScope
     const cleanTargetName = targetName.replace(/^(mr\.|ms\.|miss|master)\s+/i, '').trim();
     const targetNorm = cleanTargetName.replace(/\b(mohd|mohammad|mohammed|muhammad)\b/g, 'm').replace(/[^a-z0-9]/g, '');
 
-    for (const s of existingStudents) {
-      const meta = extractStudentMeta(s);
+    for (const meta of studentMetas) {
       if (!isClassMatch(meta.sCls)) continue;
 
       const cleanDbName = lower(meta.sName).replace(/^(mr\.|ms\.|miss|master)\s+/i, '').trim();
@@ -886,6 +868,9 @@ export function parseAndValidateResultFile(fileData, existingStudents = [], clas
 
     if (!rawRows || rawRows.length === 0) {
       throw new Error('The uploaded file is empty or could not be read.');
+    }
+    if (rawRows.length > 5000) {
+      throw new Error(`The spreadsheet contains ${rawRows.length} rows. Split it into files of 5,000 rows or fewer.`);
     }
 
     const processed = [];
