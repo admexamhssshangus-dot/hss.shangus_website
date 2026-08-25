@@ -22,6 +22,33 @@ const COLLECTION_DOC_HISTORY = 'generatedDocumentHistory';
 const LOCAL_HISTORY_CACHE_KEY = 'hss_generated_docs_history_cache';
 
 /**
+ * Recursively removes non-serializable values (functions, undefined, UI callback props starting with '_')
+ * so Firestore setDoc / updateDoc operations never fail.
+ */
+function sanitizeFirestoreData(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'function' || typeof val === 'symbol') return undefined;
+  if (typeof val !== 'object') return val;
+  if (val instanceof Date) return val.toISOString();
+  if (Array.isArray(val)) {
+    return val
+      .map(sanitizeFirestoreData)
+      .filter(item => item !== undefined);
+  }
+  const clean = {};
+  for (const [k, v] of Object.entries(val)) {
+    if (k.startsWith('_') || typeof v === 'function' || typeof v === 'symbol') {
+      continue;
+    }
+    const sanitized = sanitizeFirestoreData(v);
+    if (sanitized !== undefined) {
+      clean[k] = sanitized;
+    }
+  }
+  return clean;
+}
+
+/**
  * Save a generated document (Bonafide, Certificate, or Official Letter) to Cloud History.
  * Every record is immutable and captures the full rendered HTML snapshot, timestamp,
  * recipient/student metadata, and the triggering action (Printed, Downloaded, or Saved to Cloud).
@@ -93,7 +120,7 @@ export async function saveGeneratedDocToHistory({
   // Reuse existing ID if updating a recent document, or create fresh unique ID
   const id = existingRecentDoc?.id || `dochist_${docType}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  const recordPayload = {
+  const rawPayload = {
     id,
     docType, // 'bonafide' | 'letter' | 'discharge'
     title: normalizedTitle,
@@ -110,6 +137,8 @@ export async function saveGeneratedDocToHistory({
     serverCreatedAt: serverTimestamp(),
     immutable: true
   };
+
+  const recordPayload = sanitizeFirestoreData(rawPayload);
 
   // 2. Optimistically update local cache
   try {
