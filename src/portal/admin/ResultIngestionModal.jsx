@@ -32,7 +32,8 @@ import {
   Layers,
   Award,
   Key,
-  ExternalLink
+  ExternalLink,
+  Terminal
 } from 'lucide-react';
 import {
   generateResultImportTemplate,
@@ -177,10 +178,19 @@ export default function ResultIngestionModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatusText, setProcessingStatusText] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [terminalLogs, setTerminalLogs] = useState([]);
   const [parsedRows, setParsedRows] = useState([]);
   const [parsedStats, setParsedStats] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // [{ id, file, name, size, mimeType, base64, previewUrl }]
   const abortControllerRef = useRef(null);
+  const terminalEndRef = useRef(null);
+
+  // Auto-scroll terminal log to bottom on new events
+  useEffect(() => {
+    if (terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [terminalLogs]);
 
   // Live Timer for AI Processing
   useEffect(() => {
@@ -317,8 +327,41 @@ export default function ResultIngestionModal({
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    const initialTime = new Date().toLocaleTimeString();
+    setTerminalLogs([
+      {
+        id: '1',
+        time: initialTime,
+        type: 'init',
+        text: `🚀 Initialized ${mode === 'ai_gazette' ? 'Gazette Multimodal Vision OCR' : 'Admit Card AI Extractor'}`
+      },
+      {
+        id: '2',
+        time: initialTime,
+        type: 'info',
+        text: `🎯 Cohort: Class ${selectedClass || 'All'} (${selectedSession}) • Model: [${preferredModel}]`
+      },
+      {
+        id: '3',
+        time: initialTime,
+        type: 'payload',
+        text: `📦 Prepared ${uploadedFiles.length} media screenshot(s)/document(s) for Gemini inference.`
+      }
+    ]);
+
     setIsProcessing(true);
     setProcessingStatusText(`Connecting to Gemini AI (${preferredModel}) for ${uploadedFiles.length} file(s)...`);
+
+    const onProgressUpdate = (logObj) => {
+      const time = new Date().toLocaleTimeString();
+      if (typeof logObj === 'string') {
+        setProcessingStatusText(logObj);
+        setTerminalLogs(prev => [...prev, { id: `${Date.now()}_${Math.random()}`, time, type: 'info', text: logObj }]);
+      } else if (logObj && typeof logObj === 'object') {
+        if (logObj.message) setProcessingStatusText(logObj.message);
+        setTerminalLogs(prev => [...prev, { id: `${Date.now()}_${Math.random()}`, time, type: logObj.type || 'info', text: logObj.message }]);
+      }
+    };
 
     try {
       const payloadFiles = uploadedFiles.map(f => ({
@@ -332,7 +375,7 @@ export default function ResultIngestionModal({
           payloadFiles,
           'image/jpeg',
           allStudents,
-          (status) => setProcessingStatusText(status),
+          onProgressUpdate,
           selectedClass,
           selectedSession,
           preferredModel,
@@ -343,7 +386,7 @@ export default function ResultIngestionModal({
           payloadFiles,
           'image/jpeg',
           allStudents,
-          (status) => setProcessingStatusText(status),
+          onProgressUpdate,
           selectedClass,
           selectedSession,
           preferredModel,
@@ -366,11 +409,14 @@ export default function ResultIngestionModal({
         );
       }
     } catch (err) {
+      const time = new Date().toLocaleTimeString();
       if (err.name === 'AbortError' || err.message?.includes('cancelled')) {
         console.log('AI Analysis cancelled by user.');
+        setTerminalLogs(prev => [...prev, { id: `${Date.now()}_${Math.random()}`, time, type: 'abort', text: '🛑 Analysis aborted by user.' }]);
       } else {
-        console.error('Gemini AI Analysis Error:', err);
-        if (showToast) showToast(`AI Analysis Error: ${err.message}`, 'error');
+        console.error('Gemini Multimodal Analysis Error:', err);
+        setTerminalLogs(prev => [...prev, { id: `${Date.now()}_${Math.random()}`, time, type: 'warn', text: `❌ Error: ${err.message}` }]);
+        if (showToast) showToast(`Gemini AI analysis failed: ${err.message}`, 'error');
       }
     } finally {
       setIsProcessing(false);
@@ -959,7 +1005,7 @@ export default function ResultIngestionModal({
                   </div>
 
                   {/* Attached Screenshots Strip */}
-                  {uploadedFiles.length > 0 && (
+                  {uploadedFiles.length > 0 && !isProcessing && (
                     <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1.5 px-1">
                         <span>Attached Pages ({uploadedFiles.length} of 5 max):</span>
@@ -988,26 +1034,94 @@ export default function ResultIngestionModal({
                     </div>
                   )}
 
-                  {/* Real-time Processing HUD */}
+                  {/* Real-time 50/50 Split LLM Processing & Stream Inspector */}
                   {isProcessing && (
-                    <div className="p-3 rounded-xl bg-purple-100/80 dark:bg-purple-950/70 border border-purple-300 dark:border-purple-700 text-xs space-y-1.5 animate-fadeIn">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw size={13} className="text-purple-600 dark:text-purple-400 animate-spin" />
-                          <span className="font-black text-purple-950 dark:text-purple-100 text-[11px]">
-                            Extracting Gazette Results with {preferredModel}...
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 animate-fadeIn">
+                      {/* Left 50%: Visual Status & Quick Abort Control */}
+                      <div className="p-3.5 rounded-2xl bg-purple-100/80 dark:bg-purple-950/70 border border-purple-300 dark:border-purple-700 flex flex-col justify-between space-y-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="relative flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                              </span>
+                              <span className="font-black text-purple-950 dark:text-purple-100 text-xs">
+                                Gemini AI Vision Active
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded-lg bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
+                              ⏱️ {elapsedSeconds}s
+                            </span>
+                          </div>
+
+                          <div className="p-2 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-purple-200 dark:border-purple-800 text-[11px] space-y-1">
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-500">Model:</span>
+                              <span className="font-mono text-purple-700 dark:text-purple-300">{preferredModel}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-500">Target Cohort:</span>
+                              <span className="text-slate-800 dark:text-slate-200">Class {selectedClass || '12th'} • {selectedSession}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-500">Multimodal Input:</span>
+                              <span className="text-slate-800 dark:text-slate-200">{uploadedFiles.length} Gazette Page(s)</span>
+                            </div>
+                          </div>
+
+                          <div className="w-full h-1.5 bg-purple-200 dark:bg-purple-900 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 animate-pulse w-full" />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-purple-800 dark:text-purple-300 font-medium">
+                            Live streaming extraction from Google API
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCancelAnalysis}
+                            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10.5px] cursor-pointer shadow-xs transition-all active:scale-95"
+                          >
+                            Cancel Analysis
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right 50%: Live LLM Terminal & Stream Inspector */}
+                      <div className="rounded-2xl bg-slate-950 border border-slate-800 shadow-xl overflow-hidden flex flex-col h-56 font-mono text-[10.5px]">
+                        <div className="px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-slate-400 text-[10px]">
+                          <div className="flex items-center gap-1.5">
+                            <Terminal size={12} className="text-emerald-400" />
+                            <span className="font-bold text-slate-200">Live LLM Stream & Execution Log</span>
+                          </div>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            STREAMING
                           </span>
                         </div>
-                        <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
-                          ⏱️ {elapsedSeconds}s
-                        </span>
-                      </div>
-                      <div className="w-full h-1 bg-purple-200 dark:bg-purple-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 animate-pulse w-full" />
-                      </div>
-                      <div className="flex items-center justify-between text-[9.5px] text-purple-700 dark:text-purple-300">
-                        <span>{processingStatusText || `Reading OCR tables across ${uploadedFiles.length} screenshot(s)...`}</span>
-                        <button type="button" onClick={handleCancelAnalysis} className="text-rose-600 hover:underline font-bold cursor-pointer">Cancel</button>
+
+                        <div className="p-3 overflow-y-auto flex-1 space-y-1 text-slate-300 scrollbar-thin">
+                          {terminalLogs.map((log) => (
+                            <div key={log.id} className="flex items-start gap-1.5 leading-relaxed">
+                              <span className="text-slate-500 select-none shrink-0 text-[9.5px]">[{log.time}]</span>
+                              <span className={`break-all ${
+                                log.type === 'success' || log.type === 'done'
+                                  ? 'text-emerald-400 font-bold'
+                                  : log.type === 'request' || log.type === 'key'
+                                  ? 'text-amber-300'
+                                  : log.type === 'payload'
+                                  ? 'text-cyan-300'
+                                  : log.type === 'warn' || log.type === 'abort'
+                                  ? 'text-rose-400 font-bold'
+                                  : 'text-slate-200'
+                              }`}>
+                                {log.text}
+                              </span>
+                            </div>
+                          ))}
+                          <div ref={terminalEndRef} />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1058,7 +1172,7 @@ export default function ResultIngestionModal({
                   </div>
 
                   {/* Attached Screenshots Strip */}
-                  {uploadedFiles.length > 0 && (
+                  {uploadedFiles.length > 0 && !isProcessing && (
                     <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1.5 px-1">
                         <span>Attached Pages ({uploadedFiles.length} of 5 max):</span>
@@ -1087,26 +1201,94 @@ export default function ResultIngestionModal({
                     </div>
                   )}
 
-                  {/* Real-time Processing HUD */}
+                  {/* Real-time 50/50 Split LLM Processing & Stream Inspector */}
                   {isProcessing && (
-                    <div className="p-3 rounded-xl bg-amber-100/80 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 text-xs space-y-1.5 animate-fadeIn">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw size={13} className="text-amber-600 dark:text-amber-400 animate-spin" />
-                          <span className="font-black text-amber-950 dark:text-amber-100 text-[11px]">
-                            Extracting Admit Cards with {preferredModel}...
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 animate-fadeIn">
+                      {/* Left 50%: Visual Status & Quick Abort Control */}
+                      <div className="p-3.5 rounded-2xl bg-amber-100/80 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 flex flex-col justify-between space-y-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="relative flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                              </span>
+                              <span className="font-black text-amber-950 dark:text-amber-100 text-xs">
+                                Gemini AI Vision Active
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded-lg bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                              ⏱️ {elapsedSeconds}s
+                            </span>
+                          </div>
+
+                          <div className="p-2 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-amber-200 dark:border-amber-800 text-[11px] space-y-1">
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-500">Model:</span>
+                              <span className="font-mono text-amber-700 dark:text-amber-300">{preferredModel}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-500">Target Cohort:</span>
+                              <span className="text-slate-800 dark:text-slate-200">Class {selectedClass || '12th'} • {selectedSession}</span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                              <span className="text-slate-500">Multimodal Input:</span>
+                              <span className="text-slate-800 dark:text-slate-200">{uploadedFiles.length} Admit Card Page(s)</span>
+                            </div>
+                          </div>
+
+                          <div className="w-full h-1.5 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-teal-400 animate-pulse w-full" />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-amber-800 dark:text-amber-300 font-medium">
+                            Live streaming extraction from Google API
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCancelAnalysis}
+                            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10.5px] cursor-pointer shadow-xs transition-all active:scale-95"
+                          >
+                            Cancel Analysis
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right 50%: Live LLM Terminal & Stream Inspector */}
+                      <div className="rounded-2xl bg-slate-950 border border-slate-800 shadow-xl overflow-hidden flex flex-col h-56 font-mono text-[10.5px]">
+                        <div className="px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-slate-400 text-[10px]">
+                          <div className="flex items-center gap-1.5">
+                            <Terminal size={12} className="text-emerald-400" />
+                            <span className="font-bold text-slate-200">Live LLM Stream & Execution Log</span>
+                          </div>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            STREAMING
                           </span>
                         </div>
-                        <span className="font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
-                          ⏱️ {elapsedSeconds}s
-                        </span>
-                      </div>
-                      <div className="w-full h-1 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-amber-500 to-teal-500 animate-pulse w-full" />
-                      </div>
-                      <div className="flex items-center justify-between text-[9.5px] text-amber-700 dark:text-amber-300">
-                        <span>{processingStatusText || `Reading candidate details across ${uploadedFiles.length} scan(s)...`}</span>
-                        <button type="button" onClick={handleCancelAnalysis} className="text-rose-600 hover:underline font-bold cursor-pointer">Cancel</button>
+
+                        <div className="p-3 overflow-y-auto flex-1 space-y-1 text-slate-300 scrollbar-thin">
+                          {terminalLogs.map((log) => (
+                            <div key={log.id} className="flex items-start gap-1.5 leading-relaxed">
+                              <span className="text-slate-500 select-none shrink-0 text-[9.5px]">[{log.time}]</span>
+                              <span className={`break-all ${
+                                log.type === 'success' || log.type === 'done'
+                                  ? 'text-emerald-400 font-bold'
+                                  : log.type === 'request' || log.type === 'key'
+                                  ? 'text-amber-300'
+                                  : log.type === 'payload'
+                                  ? 'text-cyan-300'
+                                  : log.type === 'warn' || log.type === 'abort'
+                                  ? 'text-rose-400 font-bold'
+                                  : 'text-slate-200'
+                              }`}>
+                                {log.text}
+                              </span>
+                            </div>
+                          ))}
+                          <div ref={terminalEndRef} />
+                        </div>
                       </div>
                     </div>
                   )}
