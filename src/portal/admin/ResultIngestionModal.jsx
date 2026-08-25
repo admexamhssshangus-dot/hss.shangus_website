@@ -59,6 +59,9 @@ import {
   callDirectGeminiClient,
   AVAILABLE_GEMINI_MODELS
 } from '../../services/geminiLetterService';
+import { db } from '../../services/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 
 export const STANDARD_SESSIONS_LIST = [
   '2026 APR/BIAN',
@@ -101,9 +104,13 @@ export default function ResultIngestionModal({
   const [customModelIdInput, setCustomModelIdInput] = useState('');
   const [customModelNameInput, setCustomModelNameInput] = useState('');
 
-  // Sync Gemini keys & custom models from Cloud Firestore whenever modal opens
+  // Sync Gemini keys, admissions, and masterRegisters from Cloud Firestore whenever modal opens
+  const [masterRegisterStudents, setMasterRegisterStudents] = useState([]);
+  const [liveAdmissionsStudents, setLiveAdmissionsStudents] = useState([]);
+
   useEffect(() => {
     if (isOpen) {
+      // 1. Fetch Gemini Keys
       fetchCloudGeminiKeys().then(keys => {
         if (Array.isArray(keys) && keys.length > 0) {
           setGeminiKeys(keys);
@@ -118,8 +125,58 @@ export default function ResultIngestionModal({
           setPreferredModel(avail[0].id);
         }
       });
+
+      // 2. Fetch full masterRegisters from Firestore to match against all historical rosters
+      getDocs(collection(db, 'masterRegisters')).then(snap => {
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const flat = unpackMasterRegisterStudents(docs);
+        setMasterRegisterStudents(flat);
+      }).catch(err => {
+        console.warn('Could not load masterRegisters for result matching:', err);
+      });
+
+      // 3. Fetch full admissions collection from Firestore to ensure all sessions are present
+      getDocs(collection(db, 'admissions')).then(snap => {
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setLiveAdmissionsStudents(docs);
+      }).catch(err => {
+        console.warn('Could not load admissions for result matching:', err);
+      });
     }
   }, [isOpen]);
+
+  // Combined, de-duplicated unified students directory (Live Admissions + Master Registers Archive)
+  const unifiedStudentsList = useMemo(() => {
+    const combined = [];
+    const seen = new Set();
+
+    const addSt = (st) => {
+      if (!st) return;
+      const key = String(
+        st.id ||
+        st.formNo ||
+        st['Form No.'] ||
+        st['Form Number'] ||
+        st['Board Registration Number'] ||
+        st['Board Reg. No.'] ||
+        st.regNo ||
+        st.boardRegNo ||
+        `${st.name || st.studentName || ''}_${st.fatherName || ''}`
+      ).toLowerCase().trim();
+
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        combined.push(st);
+      }
+    };
+
+    // Add Live Admissions first (highest priority)
+    (liveAdmissionsStudents.length > 0 ? liveAdmissionsStudents : (allStudents || [])).forEach(addSt);
+    // Add Master Registers
+    masterRegisterStudents.forEach(addSt);
+
+    return combined.length > 0 ? combined : (allStudents || []);
+  }, [liveAdmissionsStudents, allStudents, masterRegisterStudents]);
 
   const handleSaveKeys = async () => {
     const rawList = keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
@@ -254,15 +311,15 @@ export default function ResultIngestionModal({
 
   // Filter students by selected class and session for template generation
   const classStudents = useMemo(() => {
-    return allStudents.filter(s => {
-      const cls = String(s.selectedClass || s.raw?.['Class'] || s.cls || '').trim();
-      const sess = String(s.selectedSession || s.raw?.['Session'] || s.session || '').trim();
+    return unifiedStudentsList.filter(s => {
+      const cls = String(s.selectedClass || s.Class || s.raw?.['Class'] || s.cls || '').trim();
+      const sess = String(s.selectedSession || s.Session || s.raw?.['Session'] || s.session || '').trim();
       const matchCls = !selectedClass || cls.toLowerCase().includes(selectedClass.toLowerCase());
       const matchSess = !selectedSession || sess.toLowerCase().includes(selectedSession.toLowerCase()) || 
         selectedSession.toLowerCase().includes(sess.toLowerCase());
       return matchCls && matchSess;
     });
-  }, [allStudents, selectedClass, selectedSession]);
+  }, [unifiedStudentsList, selectedClass, selectedSession]);
 
   // Handle Download Pre-filled Template
   const handleDownloadTemplate = () => {
@@ -275,11 +332,11 @@ export default function ResultIngestionModal({
     const file = e.target.files?.[0];
     if (!file) return;
     setIsProcessing(true);
-    setProcessingStatusText(`Reading and parsing Excel records for Class ${selectedClass || 'All'} (${selectedSession})...`);
+    setProcessingStatusText(`Reading and matching Excel records against master registers for Class ${selectedClass || 'All'} (${selectedSession})...`);
 
     try {
       const buffer = await file.arrayBuffer();
-      const result = parseAndValidateResultFile(buffer, allStudents, selectedClass, selectedSession);
+      const result = parseAndValidateResultFile(buffer, unifiedStudentsList, selectedClass, selectedSession);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to parse file');
@@ -401,7 +458,7 @@ export default function ResultIngestionModal({
         result = await analyzeGazetteWithGemini(
           payloadFiles,
           'image/jpeg',
-          allStudents,
+          unifiedStudentsList,
           onProgressUpdate,
           selectedClass,
           selectedSession,
@@ -412,7 +469,7 @@ export default function ResultIngestionModal({
         result = await analyzeAdmitCardWithGemini(
           payloadFiles,
           'image/jpeg',
-          allStudents,
+          unifiedStudentsList,
           onProgressUpdate,
           selectedClass,
           selectedSession,
