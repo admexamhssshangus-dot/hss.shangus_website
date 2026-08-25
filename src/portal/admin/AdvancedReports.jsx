@@ -2840,19 +2840,29 @@ function QuickSubjectStreamEditor({
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  // Subject catalogues per stream & class strictly matching online admission form (AdmissionForm.jsx / DynamicFormField.jsx)
+  // Subject catalogues per stream & class strictly matching online admission form (AdmissionForm.jsx / DynamicFormField.jsx / DEFAULT_SUBJECTS_CONFIG)
   const STREAM_DEFINITIONS = useMemo(() => {
     return {
       'Science': {
         label: '🔬 Science',
         compulsory: ['General English', 'Physics', 'Chemistry'],
+        groups: [
+          {
+            name: 'Core Science Electives (Group 1)',
+            subjects: ['Biology', 'Mathematics', 'Environmental Science']
+          },
+          {
+            name: 'Applied, Language & Skill Electives (Group 2)',
+            subjects: ['Physical Education', 'Information Practices', 'Computer Science', 'Urdu', 'Psychology', 'Statistics', 'Biotechnology']
+          }
+        ],
         optionals: [
           'Biology',
           'Mathematics',
           'Environmental Science',
+          'Physical Education',
           'Information Practices',
           'Computer Science',
-          'Physical Education',
           'Urdu',
           'Psychology',
           'Statistics',
@@ -2870,6 +2880,16 @@ function QuickSubjectStreamEditor({
       'Humanities': {
         label: '🎨 Humanities',
         compulsory: ['General English'],
+        groups: [
+          {
+            name: 'Major Social Sciences & Languages (Group 1)',
+            subjects: ['Political Science', 'History', 'Sociology', 'Economics', 'Education', 'Geography', 'Urdu', 'Kashmiri', 'Islamic Studies', 'Arabic']
+          },
+          {
+            name: 'Applied, Skill & Additional Electives (Group 2)',
+            subjects: ['Environmental Science', 'Physical Education', 'Mathematics', 'Computer Science', 'Public Administration', 'Psychology', 'Philosophy', 'IT & ITES', 'Retail', 'Tourism & Hospitality']
+          }
+        ],
         optionals: [
           'Political Science',
           'History',
@@ -2905,6 +2925,16 @@ function QuickSubjectStreamEditor({
       'General': {
         label: '🏫 High School / General',
         compulsory: ['English', 'Mathematics', 'Science', 'Social Science'],
+        groups: [
+          {
+            name: 'Language Electives',
+            subjects: ['Urdu', 'Kashmiri', 'Hindi', 'Arabic']
+          },
+          {
+            name: 'Vocational & Skill Courses',
+            subjects: ['IT & ITES', 'Healthcare', 'Retail', 'Tourism', 'Computer Applications', 'Environmental Education']
+          }
+        ],
         optionals: [
           'Urdu',
           'Kashmiri',
@@ -3075,8 +3105,8 @@ function QuickSubjectStreamEditor({
         </div>
       </div>
 
-      {/* Stream Electives / Optionals */}
-      <div className="space-y-1.5">
+      {/* Stream Electives / Optionals Grouped */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
           <span>📖 Stream Electives & Optionals (Click to Select / Deselect):</span>
           <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-black">
@@ -3084,30 +3114,66 @@ function QuickSubjectStreamEditor({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto p-1.5 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
-          {activeStreamDef.optionals.map(sub => {
-            const isSelected = selectedSubjects.includes(sub);
-            return (
-              <button
-                key={sub}
-                type="button"
-                onClick={() => handleToggleSubject(sub)}
-                className={`p-2 rounded-xl text-left text-xs font-bold border transition-all cursor-pointer flex items-center justify-between gap-1 shadow-2xs ${
-                  isSelected
-                    ? 'bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 text-amber-950 dark:text-amber-200 font-black shadow-xs ring-1 ring-amber-400/40'
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-750'
-                }`}
-              >
-                <span className="truncate">{sub}</span>
-                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                  isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
-                }`}>
-                  {isSelected ? '✓' : '+'}
+        {activeStreamDef.groups && activeStreamDef.groups.length > 0 ? (
+          <div className="space-y-2.5 max-h-56 overflow-y-auto p-2 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+            {activeStreamDef.groups.map((grp, gIdx) => (
+              <div key={gIdx} className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1 block">
+                  {grp.name}
                 </span>
-              </button>
-            );
-          })}
-        </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {grp.subjects.map(sub => {
+                    const isSelected = selectedSubjects.includes(sub);
+                    return (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => handleToggleSubject(sub)}
+                        className={`p-2 rounded-xl text-left text-xs font-bold border transition-all cursor-pointer flex items-center justify-between gap-1 shadow-2xs ${
+                          isSelected
+                            ? 'bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 text-amber-950 dark:text-amber-200 font-black shadow-xs ring-1 ring-amber-400/40'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                        }`}
+                      >
+                        <span className="truncate">{sub}</span>
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                          isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                        }`}>
+                          {isSelected ? '✓' : '+'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto p-1.5 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+            {activeStreamDef.optionals.map(sub => {
+              const isSelected = selectedSubjects.includes(sub);
+              return (
+                <button
+                  key={sub}
+                  type="button"
+                  onClick={() => handleToggleSubject(sub)}
+                  className={`p-2 rounded-xl text-left text-xs font-bold border transition-all cursor-pointer flex items-center justify-between gap-1 shadow-2xs ${
+                    isSelected
+                      ? 'bg-amber-100/90 dark:bg-amber-950/80 border-amber-500 text-amber-950 dark:text-amber-200 font-black shadow-xs ring-1 ring-amber-400/40'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                  }`}
+                >
+                  <span className="truncate">{sub}</span>
+                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                    isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                  }`}>
+                    {isSelected ? '✓' : '+'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Custom Non-Catalog Subject Adder */}
