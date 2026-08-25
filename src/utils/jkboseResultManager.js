@@ -793,12 +793,43 @@ export function parseAndValidateResultFile(fileData, existingStudents = [], clas
 }
 
 /**
- * Analyze JKBOSE Admit Cards (PDF / Images) via Gemini Multimodal AI Vision
+ * Helper to normalize single file or array of files/screenshots (up to 5) into clean inlineDatas.
+ */
+function normalizeAiFileInputs(fileInput, mimeType = 'image/jpeg') {
+  if (Array.isArray(fileInput)) {
+    return fileInput.slice(0, 5).map((f) => {
+      if (typeof f === 'string') {
+        const detectedMime = f.startsWith('data:application/pdf') ? 'application/pdf' : (f.startsWith('data:image/png') ? 'image/png' : 'image/jpeg');
+        return { data: f, mimeType: detectedMime };
+      }
+      return {
+        data: f.data || f.base64 || f.content || '',
+        mimeType: f.mimeType || f.type || mimeType || 'image/jpeg'
+      };
+    }).filter(item => item.data);
+  }
+
+  if (typeof fileInput === 'object' && fileInput !== null && (fileInput.data || fileInput.base64)) {
+    return [{
+      data: fileInput.data || fileInput.base64,
+      mimeType: fileInput.mimeType || fileInput.type || mimeType || 'image/jpeg'
+    }];
+  }
+
+  if (typeof fileInput === 'string' && fileInput) {
+    return [{ data: fileInput, mimeType: mimeType || 'application/pdf' }];
+  }
+
+  return [];
+}
+
+/**
+ * Analyze JKBOSE Admit Cards (Single PDF or up to 5 Screenshot Images) via Gemini Multimodal AI Vision.
  * Extracts student roll numbers, reg numbers, names, parents, class, stream, subjects offered, exam center.
  * Perfect for Private and Bi-Annual students who don't have admission form data.
  */
 export async function analyzeAdmitCardWithGemini(
-  fileBase64,
+  fileInput,
   mimeType,
   existingStudents = [],
   progressCallback = null,
@@ -806,16 +837,21 @@ export async function analyzeAdmitCardWithGemini(
   selectedSession = '2026 APR/BIAN'
 ) {
   try {
-    if (progressCallback) progressCallback('Connecting to Gemini AI for Admit Card extraction...');
+    const fileList = normalizeAiFileInputs(fileInput, mimeType);
+    if (!fileList.length) {
+      throw new Error('No valid Admit Card file or screenshot images were provided for analysis.');
+    }
+
+    if (progressCallback) progressCallback(`Connecting to Gemini AI for Admit Card extraction (${fileList.length} page/screenshot file${fileList.length > 1 ? 's' : ''})...`);
     const preferredModel = getPreferredGeminiModel();
 
-    if (progressCallback) progressCallback(`Extracting candidate details from Admit Cards with ${preferredModel}...`);
+    if (progressCallback) progressCallback(`Extracting candidate details from ${fileList.length} image(s)/document(s) with ${preferredModel}...`);
 
     const prompt = `You are a high-precision JKBOSE (Jammu & Kashmir Board of School Education) Admit Card / Roll Number Slip Data Extractor.
 Target Scope: Class ${selectedClass || '12th'} | Session: ${selectedSession || '2026 APR/BIAN'}.
 
-Analyze the attached JKBOSE Admit Card(s) (there may be 1 or multiple candidate admit cards on each page).
-For EVERY admit card visible in the document/image, extract all student particulars accurately:
+Analyze the attached JKBOSE Admit Card document/screenshots (${fileList.length} image/page(s)). There may be 1 or multiple candidate admit cards across the pages/screenshots.
+For EVERY admit card visible in ALL the attached images/pages, extract all student particulars accurately:
 
 1. "examRollNo": Roll Number (e.g. "301001258", "301001259").
 2. "regNo": Registration / R.R. Number (e.g. "03NKM1008619", "06NKF103794").
@@ -832,7 +868,7 @@ For EVERY admit card visible in the document/image, extract all student particul
 13. "studentType": "Private / Bi-Annual".
 
 CRITICAL INSTRUCTIONS:
-- Extract EVERY student card present without skipping.
+- Extract EVERY student card present across all images without skipping any page.
 - Return ONLY a valid raw JSON array of objects without markdown formatting fences.
 
 Example Format:
@@ -856,10 +892,7 @@ Example Format:
 
     const aiResult = await generateStructuredWithGemini({
       prompt,
-      inlineData: {
-        mimeType,
-        data: fileBase64.split(',')[1] || fileBase64,
-      },
+      inlineDatas: fileList,
       model: preferredModel,
     });
     const jsonText = aiResult.text || '';
@@ -960,7 +993,7 @@ Example Format:
  * with target Class, Academic Session, Board Registration Number, and First-Word Token alignment.
  */
 export async function analyzeGazetteWithGemini(
-  fileBase64,
+  fileInput,
   mimeType,
   existingStudents = [],
   progressCallback = null,
@@ -968,21 +1001,26 @@ export async function analyzeGazetteWithGemini(
   selectedSession = '2026 APR/BIAN'
 ) {
   try {
-    if (progressCallback) progressCallback('Connecting to Gemini AI for Result Gazette parsing...');
+    const fileList = normalizeAiFileInputs(fileInput, mimeType);
+    if (!fileList.length) {
+      throw new Error('No valid Gazette document or screenshot images were provided for analysis.');
+    }
+
+    if (progressCallback) progressCallback(`Connecting to Gemini AI for Result Gazette parsing (${fileList.length} page/screenshot file${fileList.length > 1 ? 's' : ''})...`);
     const preferredModel = getPreferredGeminiModel();
 
-    if (progressCallback) progressCallback(`Processing Gazette document with ${preferredModel}...`);
+    if (progressCallback) progressCallback(`Processing ${fileList.length} Gazette page(s)/screenshot(s) with ${preferredModel}...`);
 
     const prompt = `You are a high-precision JKBOSE (Jammu & Kashmir Board of School Education) Result Gazette and Examination Result Parser.
 Target Scope: Class ${selectedClass || '12th'} | Session: ${selectedSession || '2026 APR/BIAN'}.
 
-Analyze this attached examination result gazette / document image and extract all student result rows for this cohort.
+Analyze the attached examination result gazette document/screenshots (${fileList.length} image/page(s)) and extract all student result rows across ALL pages for this cohort.
 Note that JKBOSE result gazettes typically list:
 - "Exam Roll No" (e.g. "301001258", "301001259", "301001260")
 - "Candidate Name" (e.g. "BILAL AHMAD DAR", "AABIDA SABIR", "AQUIB SAJAD")
 - "Result / Marks / Re-appear Subjects" (e.g. "Reap GN ED UD PD", "2nd Div 290", "1st Div 310", "Reap EO", "Reap CH")
 
-For each student found in the gazette, extract:
+For each student found across all pages/images, extract:
 1. "examRollNo": Examination roll number as clean text string (e.g. "301001258").
 2. "studentName": Candidate name as printed in the gazette (e.g. "BILAL AHMAD DAR").
 3. "regNo": JKBOSE Registration number if visible, else "".
@@ -1026,10 +1064,7 @@ Example:
 
     const aiResult = await generateStructuredWithGemini({
       prompt,
-      inlineData: {
-        mimeType,
-        data: fileBase64.split(',')[1] || fileBase64,
-      },
+      inlineDatas: fileList,
       model: preferredModel,
     });
     const jsonText = aiResult.text || '';

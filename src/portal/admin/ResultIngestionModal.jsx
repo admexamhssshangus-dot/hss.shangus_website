@@ -69,12 +69,12 @@ export default function ResultIngestionModal({
   const [selectedClass, setSelectedClass] = useState('12th');
   const [selectedSession, setSelectedSession] = useState('2026 APR/BIAN');
 
-  // File & Parsing State
+  // File & Multi-Screenshot State (Up to 5 images/PDFs)
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatusText, setProcessingStatusText] = useState('');
   const [parsedRows, setParsedRows] = useState([]);
   const [parsedStats, setParsedStats] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]); // [{ id, file, name, size, mimeType, base64, previewUrl }]
 
   // Filter & Search in Review Table
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,7 +108,6 @@ export default function ResultIngestionModal({
   const handleExcelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSelectedFile(file);
     setIsProcessing(true);
     setProcessingStatusText(`Reading and parsing Excel records for Class ${selectedClass || 'All'} (${selectedSession})...`);
 
@@ -133,87 +132,109 @@ export default function ResultIngestionModal({
     }
   };
 
-  // Handle Gazette PDF / Image Upload via Gemini AI
-  const handleAiGazetteUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSelectedFile(file);
-    setIsProcessing(true);
-    setProcessingStatusText(`Preparing document for Gemini AI analysis (Class: ${selectedClass || 'All'}, Session: ${selectedSession})...`);
+  // Handle Multi-Screenshot / PDF File Selection (Up to 5 images)
+  const handleAddFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    try {
+    const remainingSlots = 5 - uploadedFiles.length;
+    if (remainingSlots <= 0) {
+      if (showToast) showToast('Maximum 5 screenshot images/pages allowed per batch.', 'warning');
+      return;
+    }
+
+    const filesToProcess = files.slice(0, remainingSlots);
+
+    filesToProcess.forEach(file => {
       const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target.result;
-        const result = await analyzeGazetteWithGemini(
-          base64Data,
-          file.type || 'application/pdf',
-          allStudents,
-          (status) => setProcessingStatusText(status),
-          selectedClass,
-          selectedSession
-        );
-
-        if (!result.success) {
-          throw new Error(result.error || 'Gemini AI parsing failed');
-        }
-
-        setParsedRows(result.rows);
-        setParsedStats(result.stats);
-        if (showToast) showToast(`✨ Gemini AI extracted ${result.rows.length} examination records!`, 'success');
-        setIsProcessing(false);
-        setProcessingStatusText('');
+      reader.onload = (event) => {
+        const base64 = event.target.result;
+        const isImg = file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/i.test(file.name);
+        const newItem = {
+          id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+          file,
+          name: file.name,
+          size: (file.size / 1024).toFixed(1) + ' KB',
+          mimeType: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+          base64,
+          previewUrl: isImg ? base64 : null
+        };
+        setUploadedFiles(prev => {
+          if (prev.length >= 5) return prev;
+          return [...prev, newItem];
+        });
       };
       reader.readAsDataURL(file);
-    } catch (err) {
-      console.error('AI Gazette Error:', err);
-      if (showToast) showToast(`AI Gazette Analysis Error: ${err.message}`, 'error');
-      setIsProcessing(false);
-      setProcessingStatusText('');
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Handle Admit Card PDF / Image Upload via Gemini AI
-  const handleAiAdmitCardUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSelectedFile(file);
+  const removeUploadedFile = (id) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const clearAllUploadedFiles = () => {
+    setUploadedFiles([]);
+  };
+
+  // Run Gemini AI Multimodal Analysis on all selected files (up to 5)
+  const handleRunAiAnalysis = async (mode) => {
+    if (uploadedFiles.length === 0) {
+      if (showToast) showToast('Please select at least 1 document or screenshot image.', 'warning');
+      return;
+    }
+
     setIsProcessing(true);
-    setProcessingStatusText(`Extracting candidate details from JKBOSE Admit Card(s) via Gemini AI...`);
+    setProcessingStatusText(`Sending ${uploadedFiles.length} file/screenshot image(s) to Gemini AI (Class: ${selectedClass || 'All'}, Session: ${selectedSession})...`);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target.result;
-        const result = await analyzeAdmitCardWithGemini(
-          base64Data,
-          file.type || 'application/pdf',
+      const payloadFiles = uploadedFiles.map(f => ({
+        data: f.base64,
+        mimeType: f.mimeType
+      }));
+
+      let result;
+      if (mode === 'ai_gazette') {
+        result = await analyzeGazetteWithGemini(
+          payloadFiles,
+          'image/jpeg',
           allStudents,
           (status) => setProcessingStatusText(status),
           selectedClass,
           selectedSession
         );
+      } else {
+        result = await analyzeAdmitCardWithGemini(
+          payloadFiles,
+          'image/jpeg',
+          allStudents,
+          (status) => setProcessingStatusText(status),
+          selectedClass,
+          selectedSession
+        );
+      }
 
-        if (!result.success) {
-          throw new Error(result.error || 'Gemini AI Admit Card extraction failed');
-        }
+      if (!result.success) {
+        throw new Error(result.error || 'Gemini AI analysis failed');
+      }
 
-        setParsedRows(result.rows);
-        setParsedStats(result.stats);
-        if (showToast) showToast(`🎫 Gemini AI extracted ${result.rows.length} Admit Card records!`, 'success');
-        setIsProcessing(false);
-        setProcessingStatusText('');
-      };
-      reader.readAsDataURL(file);
+      setParsedRows(result.rows);
+      setParsedStats(result.stats);
+      if (showToast) {
+        showToast(
+          mode === 'ai_gazette'
+            ? `✨ Gemini AI successfully extracted ${result.rows.length} result records from ${uploadedFiles.length} screenshot(s)!`
+            : `🎫 Gemini AI extracted ${result.rows.length} Admit Card candidate records from ${uploadedFiles.length} screenshot(s)!`,
+          'success'
+        );
+      }
     } catch (err) {
-      console.error('AI Admit Card Error:', err);
-      if (showToast) showToast(`AI Admit Card Extraction Error: ${err.message}`, 'error');
+      console.error('Gemini AI Analysis Error:', err);
+      if (showToast) showToast(`AI Analysis Error: ${err.message}`, 'error');
+    } finally {
       setIsProcessing(false);
       setProcessingStatusText('');
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -469,24 +490,87 @@ export default function ResultIngestionModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                      Gemini AI Multimodal Gazette PDF Analyzer
+                      Gemini AI Multimodal Gazette Analyzer (PDF & Multi-Screenshot Support)
                     </h4>
-                    <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Upload the official JKBOSE Result Gazette (PDF or document image scan). Gemini AI will extract roll numbers, names, marks, and re-appear subject abbreviations (e.g. <code className="bg-purple-100 dark:bg-purple-900/60 px-1 rounded">Reap GN ED UD PD</code>) and automatically match by Exam Roll No & Registration No.
+                    <p className="text-xs text-slate-500 max-w-lg mt-1">
+                      Upload the official JKBOSE Result Gazette (PDF or up to 5 screenshot images). Gemini AI will extract roll numbers, names, marks, and re-appear subject abbreviations (e.g. <code className="bg-purple-100 dark:bg-purple-900/60 px-1 rounded">Reap GN ED UD PD</code>) across all pages.
                     </p>
                   </div>
 
-                  <label className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95">
-                    <Upload size={15} />
-                    <span>Upload Result Gazette (PDF / Image)</span>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={handleAiGazetteUpload}
-                      className="hidden"
-                    />
-                  </label>
+                  {/* Multi-Screenshot Preview Tray */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="w-full max-w-xl p-3 rounded-2xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800/60 space-y-2 text-left">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        <span>Attached Screenshots / Pages ({uploadedFiles.length} of 5 max):</span>
+                        <button
+                          type="button"
+                          onClick={clearAllUploadedFiles}
+                          className="text-rose-600 hover:text-rose-700 text-[10.5px] cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {uploadedFiles.map((f, idx) => (
+                          <div key={f.id} className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-1 flex flex-col items-center">
+                            <span className="absolute top-1 left-1 px-1 rounded bg-slate-900/80 text-white font-mono text-[8.5px] font-bold z-10">
+                              #{idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeUploadedFile(f.id)}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center cursor-pointer z-10 shadow-xs"
+                              title="Remove"
+                            >
+                              <X size={10} />
+                            </button>
+
+                            {f.previewUrl ? (
+                              <img src={f.previewUrl} alt={f.name} className="w-full h-16 object-cover rounded-lg" />
+                            ) : (
+                              <div className="w-full h-16 rounded-lg bg-purple-100 dark:bg-purple-950/60 flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold">
+                                <FileText size={22} />
+                              </div>
+                            )}
+                            <div className="w-full mt-1 px-0.5">
+                              <p className="text-[9px] font-bold text-slate-700 dark:text-slate-300 truncate" title={f.name}>{f.name}</p>
+                              <p className="text-[8px] text-slate-400">{f.size}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    {uploadedFiles.length < 5 && (
+                      <label className="px-5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs">
+                        <Upload size={14} />
+                        <span>{uploadedFiles.length === 0 ? 'Select Gazette (PDF or up to 5 Screenshots)' : '+ Add Another Screenshot'}</span>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          accept=".pdf,image/*"
+                          onChange={handleAddFiles}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+
+                    {uploadedFiles.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRunAiAnalysis('ai_gazette')}
+                        disabled={isProcessing}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 text-xs"
+                      >
+                        {isProcessing ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                        <span>Run Gemini AI Analysis ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="p-6 rounded-3xl bg-amber-50/50 dark:bg-amber-950/20 border border-dashed border-amber-300 dark:border-amber-800/60 flex flex-col items-center justify-center text-center space-y-4">
@@ -495,24 +579,87 @@ export default function ResultIngestionModal({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">
-                      Gemini AI JKBOSE Admit Card Extractor
+                      Gemini AI JKBOSE Admit Card Extractor (PDF & Multi-Screenshot Support)
                     </h4>
-                    <p className="text-xs text-slate-500 max-w-md mt-1">
-                      Upload scanned JKBOSE Admit Cards (single or multi-page PDF/Images). Gemini AI extracts Roll No, Registration No (R.R. No), Candidate Name, Father Name, Mother Name, Gender, Stream, Exam Centre, and Subjects Offered for Private/Bi-Annual candidates without prior admission forms.
+                    <p className="text-xs text-slate-500 max-w-lg mt-1">
+                      Upload scanned JKBOSE Admit Cards (single PDF or up to 5 screenshot images). Gemini AI extracts Roll No, Registration No (R.R. No), Candidate Name, Father Name, Mother Name, Gender, Stream, Exam Centre, and Subjects Offered for Private/Bi-Annual candidates across all pages.
                     </p>
                   </div>
 
-                  <label className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95">
-                    <Upload size={15} />
-                    <span>Upload JKBOSE Admit Cards (PDF / Image)</span>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={handleAiAdmitCardUpload}
-                      className="hidden"
-                    />
-                  </label>
+                  {/* Multi-Screenshot Preview Tray */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="w-full max-w-xl p-3 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 space-y-2 text-left">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        <span>Attached Screenshots / Pages ({uploadedFiles.length} of 5 max):</span>
+                        <button
+                          type="button"
+                          onClick={clearAllUploadedFiles}
+                          className="text-rose-600 hover:text-rose-700 text-[10.5px] cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {uploadedFiles.map((f, idx) => (
+                          <div key={f.id} className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-1 flex flex-col items-center">
+                            <span className="absolute top-1 left-1 px-1 rounded bg-slate-900/80 text-white font-mono text-[8.5px] font-bold z-10">
+                              #{idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeUploadedFile(f.id)}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center cursor-pointer z-10 shadow-xs"
+                              title="Remove"
+                            >
+                              <X size={10} />
+                            </button>
+
+                            {f.previewUrl ? (
+                              <img src={f.previewUrl} alt={f.name} className="w-full h-16 object-cover rounded-lg" />
+                            ) : (
+                              <div className="w-full h-16 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-700 dark:text-amber-300 font-bold">
+                                <FileText size={22} />
+                              </div>
+                            )}
+                            <div className="w-full mt-1 px-0.5">
+                              <p className="text-[9px] font-bold text-slate-700 dark:text-slate-300 truncate" title={f.name}>{f.name}</p>
+                              <p className="text-[8px] text-slate-400">{f.size}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    {uploadedFiles.length < 5 && (
+                      <label className="px-5 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-bold flex items-center gap-2 cursor-pointer shadow-xs transition-all active:scale-95 text-xs">
+                        <Upload size={14} />
+                        <span>{uploadedFiles.length === 0 ? 'Select Admit Cards (PDF or up to 5 Screenshots)' : '+ Add Another Screenshot'}</span>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          accept=".pdf,image/*"
+                          onChange={handleAddFiles}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+
+                    {uploadedFiles.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRunAiAnalysis('ai_admit')}
+                        disabled={isProcessing}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-teal-600 hover:from-amber-500 hover:to-teal-500 text-white font-black flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 disabled:opacity-50 text-xs"
+                      >
+                        {isProcessing ? <RefreshCw size={14} className="animate-spin" /> : <Award size={14} />}
+                        <span>Run Gemini AI Extraction ({uploadedFiles.length} Screenshot{uploadedFiles.length > 1 ? 's' : ''})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
