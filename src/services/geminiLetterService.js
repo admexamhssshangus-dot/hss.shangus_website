@@ -398,13 +398,6 @@ export async function callDirectGeminiClient({
         }
       }
 
-      if (!apiKey.startsWith('AIzaSy')) {
-        onLog?.({
-          type: 'warn',
-          message: `⚠️ Key #${i + 1} (${maskedKey}) does not start with "AIzaSy". Valid Google Gemini API keys from Google AI Studio begin with "AIzaSy...".`
-        });
-      }
-
       onLog?.({
         type: 'request',
         message: `🔑 Dispatched to Key #${i + 1}/${keys.length} (${maskedKey}) on model [${currentModel}]...`
@@ -416,7 +409,10 @@ export async function callDirectGeminiClient({
 
         const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
@@ -433,10 +429,11 @@ export async function callDirectGeminiClient({
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
           const errMsg = errBody?.error?.message || `Gemini API returned HTTP ${res.status}`;
+          const isAuthTypeErr = errMsg.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED') || errMsg.includes('UNAUTHENTICATED');
           
           onLog?.({
             type: 'warn',
-            message: `⚠️ Key #${i + 1} returned HTTP ${res.status} (${duration}s): ${errMsg}`
+            message: `⚠️ Key #${i + 1} (${maskedKey}) HTTP ${res.status} (${duration}s): ${isAuthTypeErr ? 'Auth/Project Permission Error. Ensure "Generative Language API" is enabled in Cloud Console.' : errMsg}`
           });
 
           // If model is deprecated or unavailable, break key loop and try next model
