@@ -5809,17 +5809,16 @@ export default function AdvancedReports({
         buildLocalSearchIndex(flatAdmissions, masterHistoricalRecords);
       }
 
-      // Lazy master registers load: Only load historical master registers on demand
-      // (when searching or explicit force refresh) to keep initial load lightweight and instant.
-      if (forceRefresh) {
-        getCachedCollection('masterRegisters', true).then((masterList) => {
-          if (Array.isArray(masterList) && masterList.length > 0) {
-            const flat = flattenAndFormatMasterRegisters(masterList);
-            setMasterHistoricalRecords(flat);
-            buildLocalSearchIndex(flatAdmissions || currentAdmissions, flat);
-          }
-        }).catch(() => {});
-      }
+      // Hydrate master registers in background so all historical sessions and records are available in filters & global search
+      getCachedCollection('masterRegisters', forceRefresh).then((masterList) => {
+        if (Array.isArray(masterList) && masterList.length > 0) {
+          const flat = flattenAndFormatMasterRegisters(masterList);
+          setMasterHistoricalRecords(flat);
+          buildLocalSearchIndex(flatAdmissions || currentAdmissions, flat);
+        }
+      }).catch((err) => {
+        console.warn('Master registers background fetch note:', err);
+      });
     } catch (err) {
       console.warn('Reports load data note:', err);
     } finally {
@@ -5854,6 +5853,20 @@ export default function AdvancedReports({
   useEffect(() => {
     loadReportsData();
     getStudentRegIndex().catch(() => {});
+
+    const handleMasterUpdate = () => {
+      getCachedCollection('masterRegisters', true).then(ml => {
+        if (Array.isArray(ml) && ml.length > 0) {
+          setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+        }
+      }).catch(() => {});
+    };
+    window.addEventListener('hss-master-register-updated', handleMasterUpdate);
+    window.addEventListener('hss-results-updated', handleMasterUpdate);
+    return () => {
+      window.removeEventListener('hss-master-register-updated', handleMasterUpdate);
+      window.removeEventListener('hss-results-updated', handleMasterUpdate);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

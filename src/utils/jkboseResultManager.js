@@ -6,7 +6,7 @@
 
 import * as XLSX from 'xlsx';
 import { db } from '../services/firebase';
-import { doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { updateCachedItem } from '../services/dbCache';
 import { generateStructuredWithGemini, getPreferredGeminiModel } from '../services/geminiLetterService';
 
@@ -1404,6 +1404,9 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
   // Track max existing form number for safe auto-generation of new candidate records
   let fallbackFormCounter = Date.now();
 
+  // 1. Collect standalone updates and master-register chunk updates
+  const chunkUpdates = new Map(); // parentDocId -> array of { item, patch }
+
   for (const item of recordsToUpdate) {
     let formNo = String(item.formNo || (item.matchedStudent?.formNo || item.matchedStudent?.id) || '').trim();
     const isNewStudent = !formNo || !item.matchedStudent;
@@ -1440,8 +1443,6 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
     }
 
     // === IDENTITY FIELDS — Only write for NEW students to avoid overwriting correct existing data ===
-    // For DB-matched students, name/regNo/father/mother/gender/DOB are already correct in Firestore.
-    // AI OCR extractions may contain errors, so we NEVER overwrite identity fields for existing students.
     if (isNewStudent) {
       if (item.studentName && item.studentName !== '—') {
         patch["Student's Name"] = item.studentName;
@@ -1511,15 +1512,93 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
 
     const targetCollection = item.matchedStudent?._sourceCollection || item.matchedStudent?._source || 'admissions';
     const targetDocId = item.matchedStudent?.id || item.matchedStudent?._docId || formNo;
-    const studentRef = doc(db, targetCollection, targetDocId);
-    batch.set(studentRef, patch, { merge: true });
 
-    // Sync localStorage / in-memory cache instantly
+    // Check if this student belongs to a masterRegisters chunk document
+    const parentDocId = item.matchedStudent?._parentDocId || (String(targetDocId).startsWith('#chunk_') ? targetDocId.split('_').slice(0, 2).join('_') : null);
+
+    if (parentDocId && targetCollection === 'masterRegisters') {
+      if (!chunkUpdates.has(parentDocId)) {
+        chunkUpdates.set(parentDocId, []);
+      }
+      chunkUpdates.get(parentDocId).push({ item, patch, targetDocId });
+    } else {
+      const studentRef = doc(db, targetCollection, targetDocId);
+      batch.set(studentRef, patch, { merge: true });
+    }
+
+    // Sync in-memory master register cache instantly
+    if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
+      window._hssMasterRegistersCache = window._hssMasterRegistersCache.map(st => {
+        const matchId = (st.id && (st.id === targetDocId || st.id === formNo)) ||
+                        (st.regNo && item.regNo && st.regNo === item.regNo) ||
+                        (st.formNo && formNo && st.formNo === formNo) ||
+                        (st.examRollNo && item.examRollNo && st.examRollNo === item.examRollNo);
+        if (matchId) {
+          return {
+            ...st,
+            ...patch,
+            raw: { ...(st.raw || {}), ...patch }
+          };
+        }
+        return st;
+      });
+    }
+
     updateCachedItem(targetCollection, targetDocId, patch);
     updatedCount++;
   }
 
+  // 2. Commit standalone document batch
   await batch.commit();
+
+  // 3. Commit Master Register Chunk updates
+  for (const [parentDocId, itemsToPatch] of chunkUpdates.entries()) {
+    try {
+      const chunkDocRef = doc(db, 'masterRegisters', parentDocId);
+      const chunkSnap = await getDoc(chunkDocRef);
+      if (chunkSnap.exists()) {
+        const chunkData = chunkSnap.data();
+        if (Array.isArray(chunkData.items)) {
+          const updatedItems = chunkData.items.map((rawItem, idx) => {
+            const rawId = `${parentDocId}_${idx}`;
+            const matchedPatchItem = itemsToPatch.find(p => {
+              const pId = p.targetDocId;
+              const pReg = p.item.regNo;
+              const pRoll = p.item.examRollNo;
+              const pName = p.item.studentName;
+              return (pId && pId === rawId) ||
+                     (pReg && (rawItem['Board Reg. No.'] === pReg || rawItem.regNo === pReg || rawItem.boardRegNo === pReg)) ||
+                     (pRoll && (rawItem['Exam R.No. (Current)'] === pRoll || rawItem.currExamRoll === pRoll || rawItem.rollNo === pRoll)) ||
+                     (pName && (rawItem["Student's Name"] === pName || rawItem.name === pName));
+            });
+
+            if (matchedPatchItem) {
+              return { ...rawItem, ...matchedPatchItem.patch };
+            }
+            return rawItem;
+          });
+
+          await updateDoc(chunkDocRef, { items: updatedItems, updatedAt: serverTimestamp() }).catch(() => {
+            return setDoc(chunkDocRef, { items: updatedItems }, { merge: true });
+          });
+        }
+      }
+    } catch (chunkErr) {
+      console.warn(`Could not update chunk ${parentDocId}:`, chunkErr);
+    }
+  }
+
+  // 4. Invalidate caches and dispatch global event
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem('hss_cache_masterRegisters');
+      sessionStorage.removeItem('hss_cache_admissions');
+      localStorage.removeItem('hss_cache_masterRegisters');
+      localStorage.removeItem('hss_cache_admissions');
+      window.dispatchEvent(new CustomEvent('hss-master-register-updated'));
+      window.dispatchEvent(new CustomEvent('hss-results-updated'));
+    } catch (_) {}
+  }
 
   return { success: true, count: updatedCount };
 }
