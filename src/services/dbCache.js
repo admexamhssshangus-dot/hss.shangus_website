@@ -838,8 +838,17 @@ export async function preloadStudentPhotosCache() {
       flatStudents.forEach(st => {
         if (!st || typeof st !== 'object') return;
         const p = st.photo_id || st.photoId || st.photoUrl || st.photo || st['passport_photo'] || st['Student Photo'] || st['Student Photograph'] || st['Photo'] || st.studentPhoto || '';
-        if (p && typeof p === 'string' && p.trim().length > 20 && p !== '/logo.png') {
-          const photoVal = p.trim();
+        if (
+          p &&
+          typeof p === 'string' &&
+          p.trim().length > 20 &&
+          p !== '/logo.png' &&
+          !p.includes('drive.google.com') &&
+          !p.includes('docs.google.com') &&
+          !p.includes('googleusercontent.com') &&
+          !/^[A-Za-z0-9_-]{25,45}$/.test(p.trim())
+        ) {
+          const photoVal = formatPhotoDisplayUrl(p) || p.trim();
           const regCandidates = [
             st.boardRegNo,
             st.regNo,
@@ -912,7 +921,7 @@ export function resolveStudentPhoto(student, fallback = null) {
 
   const photoMap = typeof window !== 'undefined' ? (window._hss_central_photo_map || {}) : {};
 
-  // 1. Direct photo on student object
+  // 1. Direct photo on student object (Pure Firebase Base64/Storage only)
   const directPhoto =
     student.photo_id ||
     student.photoId ||
@@ -924,8 +933,17 @@ export function resolveStudentPhoto(student, fallback = null) {
     student['Photo'] ||
     student['Student Photo URL'] ||
     '';
-  if (directPhoto && typeof directPhoto === 'string' && directPhoto.trim().length > 15 && directPhoto !== '/logo.png') {
-    const pTrim = directPhoto.trim();
+  if (
+    directPhoto &&
+    typeof directPhoto === 'string' &&
+    directPhoto.trim().length > 20 &&
+    directPhoto !== '/logo.png' &&
+    !directPhoto.includes('drive.google.com') &&
+    !directPhoto.includes('docs.google.com') &&
+    !directPhoto.includes('googleusercontent.com') &&
+    !/^[A-Za-z0-9_-]{25,45}$/.test(directPhoto.trim())
+  ) {
+    const pTrim = formatPhotoDisplayUrl(directPhoto) || directPhoto.trim();
     const rawReg = student.boardRegNo || student.regNo || student['Board Registration Number'] || student['Board Registration No.'] || student['REG. NO.'] || '';
     const cleanR = normalizeRegNoKey(rawReg);
     if (cleanR && typeof window !== 'undefined') {

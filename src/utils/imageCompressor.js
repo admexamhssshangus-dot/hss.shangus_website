@@ -118,33 +118,38 @@ export const parsePhotoFilename = (filename) => {
 };
 
 /**
- * Formats and normalizes a photo string (base64, Firebase Storage, HTTP)
- * Pure Firebase Architecture: Google Drive links are deprecated and filtered out.
+ * Formats and normalizes a photo string (Base64, Firebase Storage, direct Web URL)
+ * Pure Firebase Architecture: Google Drive links are strictly rejected to ensure photos load from Firebase only.
  */
 export const formatPhotoDisplayUrl = (val) => {
   if (!val || typeof val !== 'string') return '';
   const str = val.trim();
-  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') return '';
+  if (
+    !str ||
+    str === '—' ||
+    str === 'N/A' ||
+    str === 'null' ||
+    str === 'undefined' ||
+    str === '/logo.png' ||
+    str.includes('drive.google.com') ||
+    str.includes('docs.google.com') ||
+    str.includes('googleusercontent.com') ||
+    /^[A-Za-z0-9_-]{25,45}$/.test(str)
+  ) {
+    return '';
+  }
 
-  // 1. Native Data URL
+  // 1. Native Data URL (Base64)
   if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
     return str;
   }
 
-  // 2. Google Drive Links -> Convert to direct high-res image stream URL
-  if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
-    const idMatch = str.match(/[-\w]{25,}/);
-    if (idMatch && idMatch[0]) {
-      return `https://lh3.googleusercontent.com/d/${idMatch[0]}=w500`;
-    }
-  }
-
-  // 3. Standard Web URLs / Firebase Storage URLs
+  // 2. Standard Web URLs / Firebase Storage URLs (excluding Google Drive)
   if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
   }
 
-  // 4. Raw Base64 string without data: prefix (handles newlines, PNG/WebP/JPEG headers)
+  // 3. Raw Base64 string without data: prefix (handles newlines, PNG/WebP/JPEG headers)
   const cleanBase64 = str.replace(/\s+/g, '');
   if (cleanBase64.length > 40) {
     if (cleanBase64.startsWith('iVBORw0KGgo')) {
@@ -171,11 +176,22 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     return formatPhotoDisplayUrl(st) || fallback;
   }
 
-  // Helper to check if a value is a genuine photo (not placeholder)
+  // Helper to check if a value is a genuine photo (not placeholder or Drive link)
   const isValidPhotoStr = (v) => {
     if (!v || typeof v !== 'string') return false;
     const t = v.trim();
-    return t.length > 20 && t !== '—' && t !== 'N/A' && t !== 'null' && t !== 'undefined' && t !== '/logo.png';
+    return (
+      t.length > 20 &&
+      t !== '—' &&
+      t !== 'N/A' &&
+      t !== 'null' &&
+      t !== 'undefined' &&
+      t !== '/logo.png' &&
+      !t.includes('drive.google.com') &&
+      !t.includes('docs.google.com') &&
+      !t.includes('googleusercontent.com') &&
+      !/^[A-Za-z0-9_-]{25,45}$/.test(t)
+    );
   };
 
   const cleanReg = (val) => {

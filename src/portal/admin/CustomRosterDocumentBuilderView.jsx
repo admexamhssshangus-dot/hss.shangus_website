@@ -1227,34 +1227,47 @@ export function extractIfsc(st) {
 function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
   const [photoSrc, setPhotoSrc] = useState(() => {
     const direct = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
-    return direct && direct !== '/logo.png' && direct !== '—' ? formatPhotoDisplayUrl(direct) || direct : '';
+    return direct && direct !== '/logo.png' && direct !== '—' ? (formatPhotoDisplayUrl(direct) || '') : '';
   });
   const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     let active = true;
     setImgError(false);
-    // Virtualized/reused table rows must never retain the previous student's
-    // image while the next registration-number lookup is pending.
-    setPhotoSrc('');
 
-    const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
-    if (fast && fast !== '/logo.png' && fast !== '—') {
-      const formatted = formatPhotoDisplayUrl(fast) || fast;
-      setPhotoSrc(formatted);
-      return;
-    }
-
-    if (student) {
-      fetchStudentPhotoOnDemand(student).then((res) => {
-        if (active && res && res !== '/logo.png' && res !== '—') {
-          const formatted = formatPhotoDisplayUrl(res) || res;
+    const resolveCurrent = () => {
+      const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
+      if (fast && fast !== '/logo.png' && fast !== '—') {
+        const formatted = formatPhotoDisplayUrl(fast);
+        if (formatted) {
           setPhotoSrc(formatted);
+          return true;
         }
-      }).catch(() => {});
+      }
+      return false;
+    };
+
+    if (!resolveCurrent()) {
+      setPhotoSrc('');
+      if (student) {
+        fetchStudentPhotoOnDemand(student).then((res) => {
+          if (active && res && res !== '/logo.png' && res !== '—') {
+            const formatted = formatPhotoDisplayUrl(res);
+            if (formatted) setPhotoSrc(formatted);
+          }
+        }).catch(() => {});
+      }
     }
 
-    return () => { active = false; };
+    const handlePhotosLoaded = () => {
+      if (active) resolveCurrent();
+    };
+    window.addEventListener('hss-photos-loaded', handlePhotosLoaded);
+
+    return () => {
+      active = false;
+      window.removeEventListener('hss-photos-loaded', handlePhotosLoaded);
+    };
   }, [student, initialPhoto]);
 
   const hasPhoto = photoSrc && !imgError && photoSrc !== '—' && photoSrc !== '/logo.png';

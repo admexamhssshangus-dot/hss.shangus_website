@@ -2269,12 +2269,36 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
 const formatPhotoDisplayUrl = (val, student = null) => {
   let str = (typeof val === 'string' ? val : '').trim();
 
-  // If val is empty or placeholder, resolve from getStudentPhotoUrl
-  if ((!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') && student) {
+  // If val is empty, placeholder, or deprecated Google Drive link, resolve from getStudentPhotoUrl
+  const isInvalid = !str ||
+    str === '—' ||
+    str === 'N/A' ||
+    str === 'null' ||
+    str === 'undefined' ||
+    str === '/logo.png' ||
+    str.includes('drive.google.com') ||
+    str.includes('docs.google.com') ||
+    str.includes('googleusercontent.com') ||
+    /^[A-Za-z0-9_-]{25,45}$/.test(str);
+
+  if (isInvalid && student) {
     str = getStudentPhotoUrl(student) || '';
   }
 
-  if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined' || str === '/logo.png') return '';
+  if (
+    !str ||
+    str === '—' ||
+    str === 'N/A' ||
+    str === 'null' ||
+    str === 'undefined' ||
+    str === '/logo.png' ||
+    str.includes('drive.google.com') ||
+    str.includes('docs.google.com') ||
+    str.includes('googleusercontent.com') ||
+    /^[A-Za-z0-9_-]{25,45}$/.test(str)
+  ) {
+    return '';
+  }
 
   // 1. Native Firestore / Data URL Base64 image
   if (str.startsWith('data:image/') || str.startsWith('data:application/octet-stream;base64')) {
@@ -2285,15 +2309,7 @@ const formatPhotoDisplayUrl = (val, student = null) => {
     return `data:image/jpeg;base64,${str}`;
   }
 
-  // 2. Google Drive Links -> Convert to direct high-res image stream URL
-  if (str.includes('drive.google.com') || str.includes('docs.google.com') || str.includes('googleusercontent.com')) {
-    const idMatch = str.match(/[-\w]{25,}/);
-    if (idMatch && idMatch[0]) {
-      return `https://lh3.googleusercontent.com/d/${idMatch[0]}=w500`;
-    }
-  }
-
-  // 3. Firebase Storage or standard web image URLs
+  // 2. Firebase Storage or direct non-Google Web image URLs
   if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
     return str;
   }
