@@ -71,6 +71,125 @@ export function normalizeSessionVal(sess) {
   return str;
 }
 
+// ─── Global Helper to extract formatted subject string from any student record ───
+export function formatStudentSubjects(rec) {
+  if (!rec) return '—';
+
+  // 1. Array or String Subject fields across classes & forms
+  const rawCandidates = [
+    rec['Subjects to be taken in Class 12th'],
+    rec['Subjects to be taken in Class 11th'],
+    rec['Subjects to be taken in Class 10th'],
+    rec['Subjects to be taken in Class 9th'],
+    rec['Subjects to be taken in Class 8th'],
+    rec['Subjects Studied in Class 11th'],
+    rec['Subjects Studied in Class 9th'],
+    rec['Subjects Studied in Class 8th'],
+    rec['Subjects Studied in Class 10th'],
+    rec['selectedSubjects'],
+    rec['Subjects'],
+    rec['subjects'],
+    rec['Subs'],
+    rec['subs'],
+    rec['Subjects Offered'],
+    rec['Marks Obt. (Prev.)'],
+    rec['Stream & Subjects for Class 12th']
+  ];
+
+  for (const item of rawCandidates) {
+    if (!item) continue;
+    if (Array.isArray(item) && item.length > 0) {
+      const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
+      if (cleaned.length > 0) return cleaned.join(', ');
+    } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
+      return item.trim();
+    }
+  }
+
+  // 2. Individual subjects1..6 fields (Subjects1, Subjects2, Subjects3, etc.)
+  const subjList = [];
+  const subjKeys = [
+    'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
+    'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
+  ];
+
+  subjKeys.forEach(k => {
+    const val = rec[k];
+    if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
+      subjList.push(val.trim());
+    }
+  });
+
+  if (subjList.length > 0) {
+    return subjList.join(', ');
+  }
+
+  return '—';
+}
+
+// ─── Global Helper to extract 6 individual full subject names from any student record ───
+export function extractIndividualSubjectsList(rec) {
+  if (!rec) return [];
+
+  // 1. Explicit individual fields
+  const explicitSubs = [
+    rec['Subjects1'] || rec['subjects1'] || rec['Subject 1'] || rec['Subject1'] || rec['Sub1'] || rec['sub1'],
+    rec['Subjects2'] || rec['subjects2'] || rec['Subject 2'] || rec['Subject2'] || rec['Sub2'] || rec['sub2'],
+    rec['Subjects3'] || rec['subjects3'] || rec['Subject 3'] || rec['Subject3'] || rec['Sub3'] || rec['sub3'],
+    rec['Subjects4'] || rec['subjects4'] || rec['Subject 4'] || rec['Subject4'] || rec['Sub4'] || rec['sub4'],
+    rec['Subjects5'] || rec['subjects5'] || rec['Subject 5'] || rec['Subject5'] || rec['Sub5'] || rec['sub5'],
+    rec['Subject6'] || rec['Subjects6'] || rec['subjects6'] || rec['Subject 6'] || rec['Subject6'] || rec['Sub6'] || rec['sub6']
+  ].filter(s => s && String(s).trim() !== '—' && String(s).trim() !== '-');
+
+  if (explicitSubs.length > 0) {
+    return explicitSubs.map(s => {
+      const str = String(s).trim();
+      return expandJkboseSubjectCodes(str) || str;
+    });
+  }
+
+  // 2. Check all composite subject fields
+  const rawCandidates = [
+    rec['Subjects to be taken in Class 12th'],
+    rec['Subjects to be taken in Class 11th'],
+    rec['Subjects to be taken in Class 10th'],
+    rec['Subjects to be taken in Class 9th'],
+    rec['Subjects to be taken in Class 8th'],
+    rec['Subjects Studied in Class 11th'],
+    rec['Subjects Studied in Class 10th'],
+    rec['Subjects Studied in Class 9th'],
+    rec['Subjects Studied in Class 8th'],
+    rec['selectedSubjects'],
+    rec['Subjects'],
+    rec['subjects'],
+    rec['Subs'],
+    rec['subs'],
+    rec['Subjects Offered'],
+    rec['Marks Obt. (Prev.)'],
+    rec['Stream & Subjects for Class 12th']
+  ];
+
+  for (const item of rawCandidates) {
+    if (!item) continue;
+    if (Array.isArray(item) && item.length > 0) {
+      const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
+      if (cleaned.length > 0) {
+        return cleaned.map(s => expandJkboseSubjectCodes(s) || s);
+      }
+    } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
+      const parts = String(item)
+        .split(/[,;\n\r\t]+/)
+        .map(p => p.trim())
+        .filter(p => p && p !== '—' && p !== '-' && !p.toLowerCase().includes('same as'));
+      if (parts.length > 0) {
+        return parts.map(p => expandJkboseSubjectCodes(p) || p);
+      }
+    }
+  }
+
+  return [];
+}
+
 // ─── CANONICAL JKBOSE SUBJECT CODES & COMPARISON ENGINE ───
 export function getCanonicalSubjectCodes(raw) {
   if (!raw) return new Set();
@@ -295,6 +414,57 @@ export async function updateStudentDocument(student, updates) {
       updates['Registration No. (allotted by JKBOSE)'] = newReg;
       updates['REG. NO.'] = newReg;
       updates['Registration No.'] = newReg;
+    }
+  }
+
+  // Synchronize all Subject aliases if any subject field is updated
+  const rawUpdatedSubs =
+    updates.subs ||
+    updates.Subjects ||
+    updates.subjects ||
+    updates.Subs ||
+    updates['Subjects to be taken in Class 11th'] ||
+    updates['Subjects to be taken in Class 12th'] ||
+    updates['Subjects to be taken in Class 10th'] ||
+    updates['selectedSubjects'];
+
+  if (rawUpdatedSubs !== undefined && rawUpdatedSubs !== null) {
+    let subStr = '';
+    if (Array.isArray(rawUpdatedSubs)) {
+      subStr = rawUpdatedSubs.filter(Boolean).map(s => expandJkboseSubjectCodes(s) || s).join(', ');
+    } else {
+      subStr = String(rawUpdatedSubs).trim();
+      const parts = subStr.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim())).filter(Boolean);
+      subStr = parts.join(', ');
+    }
+
+    if (subStr && subStr !== '—') {
+      const parts = subStr.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim())).filter(Boolean);
+      updates['Subjects to be taken in Class 11th'] = subStr;
+      updates['Subjects to be taken in Class 12th'] = subStr;
+      updates['Subjects to be taken in Class 10th'] = subStr;
+      updates['Subjects to be taken in Class 9th'] = subStr;
+      updates['Subjects to be taken in Class 8th'] = subStr;
+      updates['Subjects Studied in Class 11th'] = subStr;
+      updates['Subjects Studied in Class 10th'] = subStr;
+      updates['selectedSubjects'] = parts;
+      updates['Subjects'] = subStr;
+      updates['subjects'] = subStr;
+      updates['Subs'] = subStr;
+      updates['subs'] = subStr;
+      updates['Subjects1'] = parts[0] || '';
+      updates['Subjects2'] = parts[1] || '';
+      updates['Subjects3'] = parts[2] || '';
+      updates['Subjects4'] = parts[3] || '';
+      updates['Subjects5'] = parts[4] || '';
+      updates['Subject6'] = parts[5] || '';
+      updates['Subjects6'] = parts[5] || '';
+      updates['subject1'] = parts[0] || '';
+      updates['subject2'] = parts[1] || '';
+      updates['subject3'] = parts[2] || '';
+      updates['subject4'] = parts[3] || '';
+      updates['subject5'] = parts[4] || '';
+      updates['subject6'] = parts[5] || '';
     }
   }
 
@@ -4133,9 +4303,60 @@ export default function AdvancedReports({
 
       const targetFieldName = keyMap[colKey] || colKey;
       const isExamRollEdit = colKey.toLowerCase().includes('exam') || colKey.toLowerCase().includes('boardroll') || targetFieldName === 'Exam R.No. (Current)' || colKey === 'currExamRollNo';
+      const isSubjectEdit = colKey === 'subs' || colKey === 'subjects' || colKey === 'Subjects' || colKey === 'Subs' || colKey.toLowerCase().startsWith('subjects') || colKey.toLowerCase().startsWith('subject');
+
+      let subjectPayload = {};
+      if (isSubjectEdit) {
+        let fullSubStr = '';
+        if (colKey === 'subs' || colKey === 'subjects' || colKey === 'Subjects' || colKey === 'Subs') {
+          const parts = String(newValue).split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim())).filter(Boolean);
+          fullSubStr = parts.join(', ');
+        } else {
+          // Editing an individual subject column (e.g. subjects1..6)
+          const currentSubsList = extractIndividualSubjectsList(student);
+          const matchIdx = colKey.match(/\d+/);
+          const targetSubIdx = matchIdx ? parseInt(matchIdx[0], 10) - 1 : 0;
+          const expandedSingle = expandJkboseSubjectCodes(newValue.trim()) || newValue.trim();
+          if (targetSubIdx >= 0 && targetSubIdx < 6) {
+            currentSubsList[targetSubIdx] = expandedSingle;
+          }
+          fullSubStr = currentSubsList.filter(Boolean).join(', ');
+        }
+
+        const parts = fullSubStr.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim())).filter(Boolean);
+        const resolvedSubStr = parts.join(', ');
+        subjectPayload = {
+          'Subjects to be taken in Class 11th': resolvedSubStr,
+          'Subjects to be taken in Class 12th': resolvedSubStr,
+          'Subjects to be taken in Class 10th': resolvedSubStr,
+          'Subjects to be taken in Class 9th': resolvedSubStr,
+          'Subjects to be taken in Class 8th': resolvedSubStr,
+          'Subjects Studied in Class 11th': resolvedSubStr,
+          'Subjects Studied in Class 10th': resolvedSubStr,
+          'selectedSubjects': parts,
+          'Subjects': resolvedSubStr,
+          'subjects': resolvedSubStr,
+          'Subs': resolvedSubStr,
+          'subs': resolvedSubStr,
+          'Subjects1': parts[0] || '',
+          'Subjects2': parts[1] || '',
+          'Subjects3': parts[2] || '',
+          'Subjects4': parts[3] || '',
+          'Subjects5': parts[4] || '',
+          'Subject6': parts[5] || '',
+          'Subjects6': parts[5] || '',
+          'subject1': parts[0] || '',
+          'subject2': parts[1] || '',
+          'subject3': parts[2] || '',
+          'subject4': parts[3] || '',
+          'subject5': parts[4] || '',
+          'subject6': parts[5] || ''
+        };
+      }
 
       const payload = {
         [targetFieldName]: newValue,
+        ...subjectPayload,
         ...(isExamRollEdit ? {
           'Exam R.No. (Current)': newValue,
           currExamRollNo: newValue,
@@ -4158,7 +4379,14 @@ export default function AdvancedReports({
 
       setCurrentAdmissions(prev => prev.map(st => {
         if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue };
+          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
+        }
+        return st;
+      }));
+
+      setMasterHistoricalRecords(prev => prev.map(st => {
+        if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
+          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
         }
         return st;
       }));
@@ -4968,121 +5196,6 @@ export default function AdvancedReports({
   // Combined Dataset
   const allStudents = useMemo(() => {
     const combined = [];
-
-    const formatStudentSubjects = (rec) => {
-      if (!rec) return '—';
-
-      // 1. Array or String Subject fields across classes & forms
-      const rawCandidates = [
-        rec['Subjects to be taken in Class 12th'],
-        rec['Subjects to be taken in Class 11th'],
-        rec['Subjects to be taken in Class 10th'],
-        rec['Subjects to be taken in Class 9th'],
-        rec['Subjects to be taken in Class 8th'],
-        rec['Subjects Studied in Class 11th'],
-        rec['Subjects Studied in Class 9th'],
-        rec['Subjects Studied in Class 8th'],
-        rec['Subjects Studied in Class 10th'],
-        rec['selectedSubjects'],
-        rec['Subjects'],
-        rec['subjects'],
-        rec['Subs'],
-        rec['subs'],
-        rec['Stream & Subjects for Class 12th']
-      ];
-
-      for (const item of rawCandidates) {
-        if (!item) continue;
-        if (Array.isArray(item) && item.length > 0) {
-          const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
-          if (cleaned.length > 0) return cleaned.join(', ');
-        } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
-          return item.trim();
-        }
-      }
-
-      // 2. Individual subjects1..6 fields (Subjects1, Subjects2, Subjects3, etc.)
-      const subjList = [];
-      const subjKeys = [
-        'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
-        'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
-      ];
-
-      subjKeys.forEach(k => {
-        const val = rec[k];
-        if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
-          subjList.push(val.trim());
-        }
-      });
-
-      if (subjList.length > 0) {
-        return subjList.join(', ');
-      }
-
-      return '—';
-    };
-
-    const extractIndividualSubjectsList = (rec) => {
-      if (!rec) return [];
-
-      // 1. Explicit individual fields
-      const explicitSubs = [
-        rec['Subjects1'] || rec['subjects1'] || rec['Subject 1'] || rec['Subject1'] || rec['Sub1'] || rec['sub1'],
-        rec['Subjects2'] || rec['subjects2'] || rec['Subject 2'] || rec['Subject2'] || rec['Sub2'] || rec['sub2'],
-        rec['Subjects3'] || rec['subjects3'] || rec['Subject 3'] || rec['Subject3'] || rec['Sub3'] || rec['sub3'],
-        rec['Subjects4'] || rec['subjects4'] || rec['Subject 4'] || rec['Subject4'] || rec['Sub4'] || rec['sub4'],
-        rec['Subjects5'] || rec['subjects5'] || rec['Subject 5'] || rec['Subject5'] || rec['Sub5'] || rec['sub5'],
-        rec['Subject6'] || rec['Subjects6'] || rec['subjects6'] || rec['Subject 6'] || rec['Subject6'] || rec['Sub6'] || rec['sub6']
-      ].filter(s => s && String(s).trim() !== '—' && String(s).trim() !== '-');
-
-      if (explicitSubs.length > 0) {
-        return explicitSubs.map(s => {
-          const str = String(s).trim();
-          return expandJkboseSubjectCodes(str) || str;
-        });
-      }
-
-      // 2. Check all composite subject fields
-      const rawCandidates = [
-        rec['Subjects to be taken in Class 12th'],
-        rec['Subjects to be taken in Class 11th'],
-        rec['Subjects to be taken in Class 10th'],
-        rec['Subjects to be taken in Class 9th'],
-        rec['Subjects to be taken in Class 8th'],
-        rec['Subjects Studied in Class 11th'],
-        rec['Subjects Studied in Class 10th'],
-        rec['Subjects Studied in Class 9th'],
-        rec['Subjects Studied in Class 8th'],
-        rec['selectedSubjects'],
-        rec['Subjects'],
-        rec['subjects'],
-        rec['Subs'],
-        rec['subs'],
-        rec['Subjects Offered'],
-        rec['Marks Obt. (Prev.)'],
-        rec['Stream & Subjects for Class 12th']
-      ];
-
-      for (const item of rawCandidates) {
-        if (!item) continue;
-        if (Array.isArray(item) && item.length > 0) {
-          const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
-          if (cleaned.length > 0) {
-            return cleaned.map(s => expandJkboseSubjectCodes(s) || s);
-          }
-        } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
-          const parts = String(item)
-            .split(/[,;\n\r\t]+/)
-            .map(p => p.trim())
-            .filter(p => p && p !== '—' && p !== '-' && !p.toLowerCase().includes('same as'));
-          if (parts.length > 0) {
-            return parts.map(p => expandJkboseSubjectCodes(p) || p);
-          }
-        }
-      }
-
-      return [];
-    };
 
     const cleanRegNoVal = (val) => {
       if (isPlaceholderRegNo(val)) return '';
