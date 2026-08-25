@@ -245,10 +245,22 @@ export default function ResultIngestionModal({
   const [parsedStats, setParsedStats] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // [{ id, file, name, size, mimeType, base64, previewUrl }]
   const abortControllerRef = useRef(null);
+  const excelWatchdogRef = useRef(null);
   const terminalEndRef = useRef(null);
   const [keyTestResult, setKeyTestResult] = useState(null); // null | { status: 'testing'|'success'|'error', message: string }
   const [overwriteExamRoll, setOverwriteExamRoll] = useState(false); // Toggle: overwrite exam roll no for matched students
   const [parsingProgress, setParsingProgress] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen) {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (excelWatchdogRef.current) clearTimeout(excelWatchdogRef.current);
+      excelWatchdogRef.current = null;
+      setIsProcessing(false);
+      setParsingProgress(0);
+      setProcessingStatusText('');
+    }
+  }, [isOpen]);
 
   // Auto-scroll terminal log to bottom on new events
   useEffect(() => {
@@ -278,6 +290,8 @@ export default function ResultIngestionModal({
     setIsProcessing(false);
     setProcessingStatusText('');
     setParsingProgress(0);
+    if (excelWatchdogRef.current) clearTimeout(excelWatchdogRef.current);
+    excelWatchdogRef.current = null;
     if (showToast) showToast('AI analysis cancelled.', 'info');
   };
 
@@ -366,11 +380,22 @@ export default function ResultIngestionModal({
   const handleExcelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      if (showToast) showToast('Excel file is too large. Please upload a result sheet under 15 MB.', 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     setIsProcessing(true);
     setParsingProgress(20);
     setProcessingStatusText(`Reading Excel spreadsheet "${file.name}" (${(file.size / 1024).toFixed(1)} KB)...`);
 
     try {
+      excelWatchdogRef.current = setTimeout(() => {
+        setIsProcessing(false);
+        setParsingProgress(0);
+        setProcessingStatusText('');
+        if (showToast) showToast('Excel matching timed out. Close the hub and retry with the downloaded cohort template.', 'error');
+      }, 30000);
       const buffer = await file.arrayBuffer();
       setParsingProgress(55);
       setProcessingStatusText(`Matching students against Class ${selectedClass || 'All'} (${selectedSession}) database records...`);
@@ -391,6 +416,8 @@ export default function ResultIngestionModal({
       console.error('Excel Import Error:', err);
       if (showToast) showToast(`Failed to parse file: ${err.message}`, 'error');
     } finally {
+      if (excelWatchdogRef.current) clearTimeout(excelWatchdogRef.current);
+      excelWatchdogRef.current = null;
       setIsProcessing(false);
       setParsingProgress(0);
       setProcessingStatusText('');

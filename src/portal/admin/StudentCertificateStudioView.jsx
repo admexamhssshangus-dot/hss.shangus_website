@@ -159,6 +159,40 @@ const mergeIngestedResultIntoStudent = (student, row, overwriteExamRoll = false)
   return { ...student, ...patch, raw: { ...raw, ...patch } };
 };
 
+const enrichCertificateIdentityFields = (primaryRaw, linkedAdmission) => {
+  if (!linkedAdmission) return primaryRaw;
+  const enriched = { ...(primaryRaw || {}) };
+
+  const admissionNo = extractStudentAdmissionNumber(enriched) || extractStudentAdmissionNumber(linkedAdmission);
+  const admissionDate = extractStudentAdmissionDate(enriched) || extractStudentAdmissionDate(linkedAdmission);
+  const dob = extractDob(enriched) !== '—' ? extractDob(enriched) : extractDob(linkedAdmission);
+  const genderValue = extractGender(enriched) !== '—' ? extractGender(enriched) : extractGender(linkedAdmission);
+  const certificateNo = extractStudentCertificateNumber(enriched) || extractStudentCertificateNumber(linkedAdmission);
+
+  if (admissionNo && !extractStudentAdmissionNumber(enriched)) {
+    enriched['Admission Number'] = admissionNo;
+    enriched.admissionNo = admissionNo;
+  }
+  if (admissionDate && !extractStudentAdmissionDate(enriched)) {
+    enriched['Date of Admission'] = admissionDate;
+    enriched.admissionDate = admissionDate;
+  }
+  if (dob && dob !== '—' && extractDob(enriched) === '—') {
+    enriched['Date of Birth'] = dob;
+    enriched.dob = dob;
+  }
+  if (genderValue && genderValue !== '—' && extractGender(enriched) === '—') {
+    enriched.Gender = genderValue;
+    enriched.gender = genderValue;
+  }
+  if (certificateNo && !extractStudentCertificateNumber(enriched)) {
+    enriched.ccDcNo = certificateNo;
+    enriched.certificateNo = certificateNo;
+  }
+
+  return enriched;
+};
+
 export default function StudentCertificateStudioView({
   allStudents = [],
   onClose,
@@ -736,6 +770,38 @@ export default function StudentCertificateStudioView({
     // Reset canvas override so the new student data is cleanly interpolated from template tokens
     setCustomCanvasHtml(null);
 
+    // Historical/master-register rows often hold result data while the linked
+    // admission document holds identity details. Join them by the permanent
+    // board registration number before filling the certificate.
+    const primaryRaw = st.raw || st;
+    const targetReg = cleanStudentIdentity(extractBoardRegNo(primaryRaw) || st.regNo);
+    if (targetReg) {
+      try {
+        const cachedAdmissions = getCachedCollectionSync('admissions');
+        const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
+          ? cachedAdmissions
+          : await getCachedCollection('admissions');
+        const matches = (admissions || []).filter(record =>
+          cleanStudentIdentity(extractBoardRegNo(record)) === targetReg
+        );
+        if (matches.length > 0) {
+          const richness = (record) => [
+            extractStudentAdmissionNumber(record),
+            extractStudentAdmissionDate(record),
+            extractDob(record) !== '—' ? extractDob(record) : '',
+            extractGender(record) !== '—' ? extractGender(record) : '',
+            extractStudentCertificateNumber(record)
+          ].filter(Boolean).length;
+          const linkedAdmission = [...matches].sort((a, b) => richness(b) - richness(a))[0];
+          const enrichedRaw = enrichCertificateIdentityFields(primaryRaw, linkedAdmission);
+          st = { ...st, raw: enrichedRaw };
+          setSelectedStudent(st);
+        }
+      } catch (error) {
+        console.warn('Certificate registration enrichment note:', error);
+      }
+    }
+
     const raw = st.raw || st;
     const resInfo = extractStudentResultMarks(raw);
     const isPassed = resInfo.isPassed;
@@ -768,10 +834,14 @@ export default function StudentCertificateStudioView({
     setStream(st.stream || 'Medical');
     setRollNo(st.rollNo || '—');
     setRegNo(st.regNo || '—');
-    setDobRaw(st.dob || '');
+    const resolvedDob = extractDob(raw);
+    setDobRaw(resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || ''));
     setSession(st.session || '2025-26');
     setAddress(st.address || 'Shangus, Anantnag');
-    setGender(st.gender || '');
+    const resolvedGender = extractGender(raw);
+    setGender(String(resolvedGender || '').toUpperCase().startsWith('F')
+      ? 'F'
+      : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : (st.gender || '')));
     
     const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
     setWithdrawalDate(rawWd);
