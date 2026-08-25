@@ -398,6 +398,13 @@ export async function callDirectGeminiClient({
         }
       }
 
+      if (!apiKey.startsWith('AIzaSy')) {
+        onLog?.({
+          type: 'warn',
+          message: `⚠️ Key #${i + 1} (${maskedKey}) does not start with "AIzaSy". Valid Google Gemini API keys from Google AI Studio begin with "AIzaSy...".`
+        });
+      }
+
       onLog?.({
         type: 'request',
         message: `🔑 Dispatched to Key #${i + 1}/${keys.length} (${maskedKey}) on model [${currentModel}]...`
@@ -478,6 +485,10 @@ export async function callDirectGeminiClient({
           lastError = new Error(`Key #${i + 1} timed out after 15s`);
           continue;
         }
+        onLog?.({
+          type: 'warn',
+          message: `⚠️ Key #${i + 1} (${maskedKey}) failed: ${err.message || 'Network/Auth Error'}. Failing over...`
+        });
         console.warn(`Key #${i + 1} failed for model ${currentModel}:`, err.message);
         lastError = err;
       }
