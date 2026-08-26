@@ -993,6 +993,17 @@ export default function OfficialLetterWriterView({
     }
   };
 
+  // Duplicate Any Template (Builtin or Custom) to Create a New Template Quickly
+  const handleDuplicateTemplate = (tpl, e) => {
+    if (e) e.stopPropagation();
+    handleSelectTemplate(tpl);
+    setNewTplName(`${tpl.name} (Copy)`);
+    setNewTplCategory(tpl.category || 'Official Orders & Notices');
+    setNewTplDesc(tpl.desc ? `Copy of ${tpl.desc}` : `Copy of ${tpl.name} template`);
+    setTemplateSaveMode('new');
+    setShowSaveTemplateModal(true);
+  };
+
   // Save Custom Template Handler (Firebase Cloud + LocalStorage)
   const handleSaveCustomTemplate = async (e) => {
     e?.preventDefault();
@@ -1863,6 +1874,14 @@ export default function OfficialLetterWriterView({
                             )}
                           </span>
                           <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => handleDuplicateTemplate(tpl, e)}
+                              className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 opacity-70 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                              title="Duplicate template to create new preset"
+                            >
+                              <Copy size={9} />
+                            </button>
                             {!isDefault && (
                               <button
                                 type="button"
@@ -1968,7 +1987,7 @@ export default function OfficialLetterWriterView({
           onMouseDown={handleSplitterMouseDown}
           title="Drag horizontally to adjust workspace split width (Double-click to reset)"
           onDoubleClick={() => {
-          setLeftSplitPct(28);
+            setLeftSplitPct(28);
             try { localStorage.setItem('hss_letter_split_pct', '28'); } catch {}
           }}
           className="hidden lg:flex flex-col items-center justify-center w-3.5 self-stretch cursor-col-resize hover:bg-rose-400/20 active:bg-rose-600/30 group transition-colors z-20 shrink-0 mx-0.5"
@@ -1983,12 +2002,11 @@ export default function OfficialLetterWriterView({
         >
 
           {/* ════════ WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER ════════ */}
-          <div className={`flex flex-col lg:flex-row items-start justify-center lg:justify-end gap-2.5 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
+          <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
             
             {/* ════════ VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side) ════════ */}
             <div className="w-full lg:w-auto lg:sticky lg:top-2 z-30 shrink-0">
               <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md flex flex-wrap lg:grid lg:grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
-                
                 {/* ── Row 1: Primary Actions (Print, Word, Save) ── */}
                 <button
                   type="button"
