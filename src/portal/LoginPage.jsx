@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useLocation, Link, useNavigate } from 'react-router-dom';
 import { 
   ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck, 
@@ -58,6 +58,14 @@ export default function LoginPage() {
   // Window 2: Successful verification confirmation state (when link was clicked in this tab)
   const [window2VerifiedState, setWindow2VerifiedState] = useState(null);
 
+  // Permanent flag for this tab: if opened via verification link, NEVER redirect to dashboard
+  const isEmailVerificationTabRef = useRef(
+    isSignInWithEmailLink(auth, window.location.href) || 
+    window.location.search.includes('email_link_verify') || 
+    window.location.search.includes('oobCode') ||
+    window.location.search.includes('apiKey')
+  );
+
   // Status & loading
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState(() => {
@@ -72,9 +80,7 @@ export default function LoginPage() {
 
   // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway)
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const isEmailLink = isSignInWithEmailLink(auth, window.location.href) || searchParams.get('email_link_verify') === '1' || searchParams.get('apiKey') || searchParams.get('oobCode');
-    if (isEmailLink || window2VerifiedState) {
+    if (isEmailVerificationTabRef.current || window2VerifiedState) {
       return;
     }
 
@@ -282,6 +288,9 @@ export default function LoginPage() {
         const cleanEmail = emailForSignIn.trim().toLowerCase();
         signInWithEmailLink(auth, cleanEmail, window.location.href)
           .then(async (userCred) => {
+            const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
+            const roleName = staffProfile?.role || 'Admin';
+
             // 1. Approve handshake in Firestore (Unlocks Window 1 on desktop or phone immediately!)
             if (handshakeId) {
               await approveAdminLoginHandshake(handshakeId, cleanEmail, userCred.user);
@@ -312,21 +321,20 @@ export default function LoginPage() {
             window.localStorage.removeItem('emailForSignIn');
             window.localStorage.removeItem('hss_pending_admin_login');
             setEmailLinkSentState(null);
-            window.history.replaceState(null, '', window.location.pathname);
-            
-            const verifiedSession = await createVerifiedSession(userCred.user);
-            
-            // Show Window 2 Verification Confirmation View
+
+            // 3. Set Window 2 Verified Confirmation State with rich details
+            const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const nowDate = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
             setWindow2VerifiedState({
               email: cleanEmail,
-              session: verifiedSession,
-              handshakeId
+              role: roleName,
+              time: `${nowTime} (${nowDate})`,
+              handshakeId,
             });
 
-            setAlert({ 
-              type: 'success', 
-              text: '🛡️ 2-Step Verification Authorized! Your primary window is unlocking now.' 
-            });
+            // 4. Sign out from temporary link session so this tab stays strictly as a verification confirmation
+            await signOut(auth).catch(() => {});
           })
           .catch((err) => {
             console.error('Email link sign in error:', err);
@@ -800,23 +808,42 @@ export default function LoginPage() {
 
             {/* 2-Step Verification Confirmation View (Window 2) vs Waiting View (Window 1) vs Main Login Form */}
             {window2VerifiedState ? (
-              /* == == == == == == == == WINDOW 2: MINIMAL VERIFICATION APPROVED VIEW == == == == == == == == */
-              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                  <CheckCircle2 size={26} className="text-emerald-600" />
+              /* == == == == == == == == WINDOW 2: VERIFIED LOGIN DETAILS VIEW == == == == == == == == */
+              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
+                <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 size={30} className="text-emerald-600" />
                 </div>
 
                 <div className="space-y-1">
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">
-                    Verification Approved
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                    2-Step Security Verified
+                  </span>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                    Login Authorized!
                   </h2>
                   <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
-                    Login authorized for <strong className="text-slate-800 dark:text-slate-200">{window2VerifiedState.email}</strong>.
+                    Your email identity has been authenticated successfully.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 text-[11.5px] text-slate-600 dark:text-slate-400 font-medium">
-                  The Admin Dashboard has automatically loaded on your primary workstation window. You may safely close this tab.
+                {/* Verification Details Table */}
+                <div className="rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 p-3.5 text-left text-xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Account</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{window2VerifiedState.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Role</span>
+                    <span className="font-bold text-purple-600 dark:text-purple-400">{window2VerifiedState.role || 'Admin'}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Verified At</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">{window2VerifiedState.time || 'Just now'}</span>
+                  </div>
+                  <div className="flex items-start gap-2 pt-0.5 text-[11.5px] font-medium text-emerald-700 dark:text-emerald-300">
+                    <Sparkles size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <span>Your main workstation login window has automatically detected this verification and loaded your Admin Dashboard.</span>
+                  </div>
                 </div>
 
                 <div className="pt-1">
@@ -827,9 +854,9 @@ export default function LoginPage() {
                         window.close();
                       } catch (_) {}
                     }}
-                    className="px-5 py-2 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 cursor-pointer transition-all shadow-xs"
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 cursor-pointer transition-all shadow-sm"
                   >
-                    Close Tab
+                    Close This Window
                   </button>
                 </div>
               </div>
