@@ -69,8 +69,21 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
   }
 
   const effectiveDate = issueDate || new Date().toISOString().slice(0, 10);
-  const batch = writeBatch(db);
+  const batches = [writeBatch(db)];
+  let currentBatch = batches[0];
+  let currentBatchSize = 0;
+  const cacheUpdates = [];
+  const queueSet = (reference, data, options) => {
+    if (currentBatchSize >= 450) {
+      currentBatch = writeBatch(db);
+      batches.push(currentBatch);
+      currentBatchSize = 0;
+    }
+    currentBatch.set(reference, data, options);
+    currentBatchSize += 1;
+  };
   let maxCertInBatch = 0;
+  const masterGroups = new Map();
 
   issuedStudents.forEach(item => {
     const certNum = parseInt(item.certNo, 10);
@@ -78,27 +91,60 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       maxCertInBatch = certNum;
     }
 
-    const formNo = String(item.formNo || item.id || item.raw?.formNo || item.raw?.['Form No.'] || '').trim();
-    if (formNo) {
-      const studentRef = doc(db, 'admissions', formNo);
-      const patch = {
-        ccDcNo: String(item.certNo),
-        certificateNo: String(item.certNo),
-        'No. & Date of CC/DC Issued (This Institution)': `${item.certNo} (${effectiveDate})`,
-        dischargeIssuedAt: serverTimestamp(),
-        dischargeIssueDate: effectiveDate,
-        dischargeCertStatus: 'Issued'
-      };
+    const raw = item.student?.raw || item.raw || item.student || item || {};
+    const formNo = String(item.formNo || item.id || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
+    const regNo = String(item.student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || '').trim();
+    const patch = {
+      ccDcNo: String(item.certNo),
+      certificateNo: String(item.certNo),
+      'No. & Date of CC/DC Issued (This Institution)': `${item.certNo} (${effectiveDate})`,
+      dischargeIssuedAt: serverTimestamp(),
+      dischargeIssueDate: effectiveDate,
+      dischargeCertStatus: 'Issued'
+    };
+    const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
+    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || 'admissions';
 
-      batch.set(studentRef, patch, { merge: true });
-      updateCachedItem('admissions', formNo, patch);
+    if (sourceCollection === 'masterRegisters' && parentDocId) {
+      if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
+      masterGroups.get(parentDocId).push({ formNo, regNo, patch });
+    } else if (formNo || regNo) {
+      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo);
+      queueSet(studentRef, patch, { merge: true });
+      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo, patch]);
     }
   });
+
+  // Archived students are packed inside master-register chunk documents. Patch
+  // the matching array item instead of creating a misleading admissions record.
+  for (const [parentDocId, assignments] of masterGroups.entries()) {
+    const parentRef = doc(db, 'masterRegisters', String(parentDocId));
+    const parentSnap = await getDoc(parentRef);
+    if (!parentSnap.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
+    const parentData = parentSnap.data();
+    const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
+    if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
+    const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    const updatedRecords = parentData[arrayKey].map(record => {
+      const recordForm = normalize(record.formNo || record['Form No.'] || record['Form Number']);
+      const recordReg = normalize(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+      const assignment = assignments.find(item =>
+        (item.regNo && normalize(item.regNo) === recordReg) ||
+        (item.formNo && normalize(item.formNo) === recordForm)
+      );
+      if (!assignment) return record;
+      const itemPatch = { ...assignment.patch };
+      delete itemPatch.dischargeIssuedAt;
+      return { ...record, ...itemPatch, dischargeIssuedAt: effectiveDate };
+    });
+    queueSet(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
+    cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
+  }
 
   // Update registry doc
   if (maxCertInBatch > 0) {
     const regRef = doc(db, REGISTRY_DOC_PATH, REGISTRY_DOC_ID);
-    batch.set(regRef, {
+    queueSet(regRef, {
       lastIssuedCertNo: maxCertInBatch,
       lastIssuedDate: effectiveDate,
       lastBatchCount: issuedStudents.length,
@@ -106,7 +152,12 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     }, { merge: true });
   }
 
-  await batch.commit();
+  for (const pendingBatch of batches) {
+    await pendingBatch.commit();
+  }
+  cacheUpdates.forEach(([collectionName, documentId, patch]) => {
+    updateCachedItem(collectionName, documentId, patch);
+  });
 
   // Non-blocking audit record in documentHistory
   try {
@@ -128,6 +179,75 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     count: issuedStudents.length,
     lastIssuedCertNo: maxCertInBatch
   };
+}
+
+/** Permanently update certificate identity fields in the student's actual
+ * admissions document or packed master-register source row. */
+export async function persistCertificateStudentFields(student, values = {}) {
+  const raw = student?.raw || student || {};
+  const usable = value => value !== undefined && value !== null && String(value).trim() !== '';
+  const patch = {};
+  const setAliases = (value, aliases) => {
+    if (!usable(value)) return;
+    aliases.forEach(alias => { patch[alias] = String(value).trim(); });
+  };
+
+  setAliases(values.studentName, ["Student's Name", 'studentName', 'name']);
+  setAliases(values.fatherName, ["Father's Name", 'fatherName', 'father']);
+  setAliases(values.motherName, ["Mother's Name", 'motherName', 'mother']);
+  setAliases(values.regNo, ['Board Registration Number', 'Board Reg. No.', 'regNo', 'boardRegNo']);
+  setAliases(values.admNo, ['Admission Number', 'Admission No.', 'Adm. No.', 'admissionNo', 'admNo']);
+  setAliases(values.admDate, ['Date of Admission', 'Admission Date', 'admissionDate', 'admDate']);
+  setAliases(values.dob, ['Date of Birth', 'DOB', 'dob']);
+  setAliases(values.gender, ['Gender', 'gender']);
+  setAliases(values.village, ['Village/Town', 'Village', 'village']);
+  setAliases(values.examRollNo, ['Exam R.No. (Current)', 'currExamRoll', 'examRollNo']);
+  setAliases(values.examMode, ['Exam Mode (Current)', 'currExamMode', 'examMode']);
+  setAliases(values.resultStatus, ['Result (Current)', 'currResult']);
+  if (usable(values.marksObtained)) {
+    const marksText = `${String(values.marksObtained).trim()} / ${String(values.maxMarks || '500').trim()}`;
+    setAliases(marksText, ['Marks/Reapp (Current)', 'currMarksReapp']);
+  } else if (usable(values.reappSubjects)) {
+    setAliases(values.reappSubjects, ['Marks/Reapp (Current)', 'currMarksReapp', 'reappSubjects']);
+  }
+  setAliases(values.division, ['Div/Distinc (Current)', 'currDiv', 'division']);
+  patch.updatedAt = serverTimestamp();
+
+  const formNo = String(student?.formNo || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
+  const regNo = String(values.regNo || student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || '').trim();
+  const sourceCollection = raw._srcCollection || raw._source || student?.sourceCollection || 'admissions';
+  const parentDocId = raw._parentDocId || student?._parentDocId || '';
+
+  if (sourceCollection === 'masterRegisters' && parentDocId) {
+    const parentRef = doc(db, 'masterRegisters', String(parentDocId));
+    const parentSnap = await getDoc(parentRef);
+    if (!parentSnap.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
+    const parentData = parentSnap.data();
+    const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
+    if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
+    const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    let matched = false;
+    const updatedRecords = parentData[arrayKey].map(record => {
+      const recordForm = normalize(record.formNo || record['Form No.'] || record['Form Number']);
+      const recordReg = normalize(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+      if (!((regNo && normalize(regNo) === recordReg) || (formNo && normalize(formNo) === recordForm))) return record;
+      matched = true;
+      const itemPatch = { ...patch };
+      delete itemPatch.updatedAt;
+      return { ...record, ...itemPatch };
+    });
+    if (!matched) throw new Error('Student was not found in the source master-register chunk.');
+    await setDoc(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
+    updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords });
+  } else {
+    const docId = formNo || student?.id || regNo;
+    if (!docId) throw new Error('Missing Form No. or Registration No. for permanent update.');
+    const collectionName = sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions';
+    await setDoc(doc(db, collectionName, String(docId)), patch, { merge: true });
+    updateCachedItem(collectionName, String(docId), patch);
+  }
+
+  return { ...student, ...patch, raw: { ...raw, ...patch } };
 }
 
 /**
