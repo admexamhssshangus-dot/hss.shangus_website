@@ -2,6 +2,7 @@ import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar } from 'lucide-react';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
+import { validateSubjectSelection } from '../student/AdmissionForm';
 
 const PREVIOUS_SCHOOLS = [
   'Army Proud Scholars School Khundroo',
@@ -1012,7 +1013,7 @@ export default function DynamicFormField({
 
       {/* Checkbox Dynamic (Subjects) — 5-column modern grid with pre-selected & locked compulsory subjects */}
       {type === 'checkbox_dynamic' && (
-        <div className="space-y-2 mt-1.5">
+        <div className="space-y-2.5 mt-1.5">
           {(() => {
             const realConfig = (subjectsConfig && subjectsConfig.data) ? subjectsConfig.data : subjectsConfig;
 
@@ -1021,6 +1022,8 @@ export default function DynamicFormField({
             const cls10 = name.includes('10th');
             const cls9  = name.includes('9th');
             const cls8  = name.includes('8th');
+
+            const targetCls = cls11 ? '11th' : cls12 ? '12th' : cls10 ? '10th' : cls9 ? '9th' : '8th';
 
             const strm = selectedStream ||
               (formData && (formData['Stream for Class 11th'] || formData['Stream opted in Class 11th'] || formData['Stream'])) ||
@@ -1091,7 +1094,6 @@ export default function DynamicFormField({
 
               // Dynamic subject configuration from subjectsConfig if available
               if (realConfig) {
-                const targetCls = cls11 ? '11th' : cls12 ? '12th' : cls10 ? '10th' : cls9 ? '9th' : '8th';
                 const classConfig = realConfig[targetCls];
                 if (classConfig) {
                   const cfg = classConfig[strm] || classConfig['General'] || Object.values(classConfig)[0];
@@ -1110,13 +1112,45 @@ export default function DynamicFormField({
             }
 
             const currentArray = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => s.trim()).filter(Boolean);
+            const allSelectedSubjects = isReappearField ? currentArray : [...new Set([...compulsorySubjects, ...currentArray])];
+
+            // Validate full subject combination
+            const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
 
             // Group all subjects for display (compulsory first, followed by optionals)
             const allDisplaySubjects = [...new Set([...compulsorySubjects, ...optionalSubjects])];
 
+            const isScience = strm.toLowerCase() === 'science' || strm.toLowerCase() === 'medical' || strm.toLowerCase() === 'non-medical';
+            const isHumanities = strm.toLowerCase() === 'humanities' || strm.toLowerCase() === 'arts';
+
             return (
-              <div className="space-y-2">
-                {/* Responsive Grid */}
+              <div className="space-y-2.5">
+                {/* Combination Guidance Header */}
+                {!isReappearField && (
+                  <div className="p-2 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+                    <div className="font-extrabold text-teal-800 dark:text-teal-300 mb-0.5 flex items-center gap-1">
+                      <Info size={12} className="text-teal-600 flex-shrink-0" />
+                      <span>Combination Rules ({strm} Stream — {targetCls}):</span>
+                    </div>
+                    {isScience && (
+                      <p>
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (3):</strong> General English, Physics, Chemistry. Choose <strong className="text-teal-700 dark:text-teal-300">2 more</strong>: either both from Group B (Biology, Mathematics), or 1 from Group B and 1 from Group C. (Both from Group C not allowed). <strong className="text-slate-900 dark:text-slate-100">Total: 5 subjects.</strong>
+                      </p>
+                    )}
+                    {isHumanities && (
+                      <p>
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (1):</strong> General English. Choose <strong className="text-teal-700 dark:text-teal-300">3 from Group B</strong> and <strong className="text-teal-700 dark:text-teal-300">1 from Group C</strong>. <strong className="text-slate-900 dark:text-slate-100">Total: 5 subjects.</strong>
+                      </p>
+                    )}
+                    {!isScience && !isHumanities && (cls9 || cls10 || cls8) && (
+                      <p>
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (4):</strong> English, Mathematics, Science, Social Science. Select 1 (or max 2 with vocational) options. <strong className="text-slate-900 dark:text-slate-100">Maximum: 5 to 6 subjects.</strong>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Responsive Checkbox Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
                   {allDisplaySubjects.map((sub) => {
                     const isCompulsory = compulsorySubjects.includes(sub);
@@ -1129,7 +1163,7 @@ export default function DynamicFormField({
                           isCompulsory
                             ? 'bg-teal-50/90 dark:bg-teal-950/60 border-teal-500/50 text-teal-950 dark:text-teal-100 font-extrabold shadow-xs cursor-not-allowed opacity-95'
                             : isChecked
-                            ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-500 text-teal-950 dark:text-teal-200 font-bold shadow-xs cursor-pointer'
+                            ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-500 text-teal-950 dark:text-teal-200 font-bold shadow-xs cursor-pointer ring-1 ring-teal-400'
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-teal-400 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer'
                         }`}
                       >
@@ -1159,14 +1193,34 @@ export default function DynamicFormField({
                   })}
                 </div>
 
+                {/* Real-time Subject Count & Error Banner */}
+                {!isReappearField && !subjectValidation.valid && (
+                  <div className="p-2.5 rounded-xl border border-red-400 dark:border-red-800 bg-red-50 dark:bg-red-950/70 text-red-700 dark:text-red-200 text-xs font-bold flex items-start gap-2 shadow-xs animate-shake">
+                    <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 leading-snug">{subjectValidation.error}</div>
+                  </div>
+                )}
+
+                {!isReappearField && subjectValidation.valid && (
+                  <div className="p-2 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between shadow-xs">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+                      <span>Valid subject combination selected!</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-extrabold text-[10px]">
+                      {allSelectedSubjects.length}/{subjectValidation.max || 5} Subjects
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 px-1">
                   <span>
                     {isReappearField
                       ? 'Select only the specific subject(s) you need to reappear in.'
-                      : 'Compulsory subjects are locked. Select additional language / vocational subjects as required.'}
+                      : 'Compulsory subjects are locked. Select additional options adhering to stream rules.'}
                   </span>
                   <span className="font-bold text-teal-700 dark:text-teal-300">
-                    Selected: {isReappearField ? currentArray.length : [...new Set([...compulsorySubjects, ...currentArray])].length} subject(s)
+                    Selected: {allSelectedSubjects.length} subject(s)
                   </span>
                 </div>
               </div>

@@ -37,6 +37,150 @@ export function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', 
   return allSubjects.join(', ');
 }
 
+export function validateSubjectSelection(targetClass = '11th', stream = 'Science', rawSubjects = '', isReappear = false) {
+  if (isReappear) return { valid: true, error: null, count: 0, min: 1, max: 10 };
+
+  const compulsory = getCompulsorySubjects(targetClass, stream);
+  const chosenArray = typeof rawSubjects === 'string'
+    ? rawSubjects.split(', ').map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawSubjects) ? rawSubjects : []);
+
+  const allSubjects = [...new Set([...compulsory, ...chosenArray])];
+  const total = allSubjects.length;
+  const cls = String(targetClass || '').toLowerCase();
+  const strm = String(stream || 'Science').trim();
+
+  if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
+    if (total > 6) {
+      return {
+        valid: false,
+        error: `Maximum 6 subjects allowed for Class 9th/10th (Currently ${total} selected). Please uncheck ${total - 6} subject(s).`,
+        count: total,
+        min: 5,
+        max: 6
+      };
+    }
+    if (total < 5) {
+      return {
+        valid: false,
+        error: `Class 9th/10th requires at least 5 subjects (4 Compulsory + 1 Optional). Currently ${total}/5 selected.`,
+        count: total,
+        min: 5,
+        max: 6
+      };
+    }
+    return { valid: true, error: null, count: total, min: 5, max: 6 };
+  }
+
+  const isScience = strm.toLowerCase() === 'science' || strm.toLowerCase() === 'medical' || strm.toLowerCase() === 'non-medical';
+  const isHumanities = strm.toLowerCase() === 'humanities' || strm.toLowerCase() === 'arts';
+
+  if (isScience) {
+    if (total > 5) {
+      return {
+        valid: false,
+        error: `Maximum 5 subjects allowed for Science Stream (3 Compulsory + 2 Options). Currently ${total} selected. Please uncheck ${total - 5} subject(s).`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    const groupB = ['biology', 'mathematics', 'maths'];
+    const optionals = allSubjects.filter(s => {
+      const lower = s.toLowerCase();
+      return !['general english', 'english', 'physics', 'chemistry'].includes(lower);
+    });
+
+    const chosenGroupB = optionals.filter(s => groupB.some(b => s.toLowerCase().includes(b)));
+    const chosenGroupC = optionals.filter(s => !groupB.some(b => s.toLowerCase().includes(b)));
+
+    if (chosenGroupC.length >= 2 && chosenGroupB.length === 0) {
+      return {
+        valid: false,
+        error: `Science Stream Rule: Both options cannot be from Group C (${chosenGroupC.join(', ')}). You must select at least 1 subject from Group B (Biology or Mathematics).`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    if (total < 5) {
+      return {
+        valid: false,
+        error: `Science Stream requires exactly 5 subjects (3 Compulsory + 2 Options). Currently ${total}/5 selected.`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    return { valid: true, error: null, count: total, min: 5, max: 5 };
+  }
+
+  if (isHumanities) {
+    if (total > 5) {
+      return {
+        valid: false,
+        error: `Maximum 5 subjects allowed for Humanities Stream (1 Compulsory + 3 Group B + 1 Group C). Currently ${total} selected. Please uncheck ${total - 5} subject(s).`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    const groupC = ['environmental science', 'physical education', 'healthcare', 'it and ites', 'it & ites', 'computer science', 'public administration', 'psychology'];
+    const optionals = allSubjects.filter(s => {
+      const lower = s.toLowerCase();
+      return !['general english', 'english'].includes(lower);
+    });
+
+    const chosenGroupC = optionals.filter(s => groupC.some(c => s.toLowerCase().includes(c)));
+    if (chosenGroupC.length > 1) {
+      return {
+        valid: false,
+        error: `Humanities Stream Rule: Only 1 subject allowed from Group C (${chosenGroupC.join(', ')}). Choose 3 from Group B and 1 from Group C.`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    if (total < 5) {
+      return {
+        valid: false,
+        error: `Humanities Stream requires exactly 5 subjects (1 Compulsory + 3 Group B + 1 Group C). Currently ${total}/5 selected.`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    return { valid: true, error: null, count: total, min: 5, max: 5 };
+  }
+
+  if (total > 5) {
+    return {
+      valid: false,
+      error: `Maximum 5 subjects allowed for ${strm} Stream. Currently ${total} selected. Please uncheck ${total - 5} subject(s).`,
+      count: total,
+      min: 5,
+      max: 5
+    };
+  }
+  if (total < 5) {
+    return {
+      valid: false,
+      error: `Please select 5 subjects for ${strm} Stream (Currently ${total}/5 selected).`,
+      count: total,
+      min: 5,
+      max: 5
+    };
+  }
+
+  return { valid: true, error: null, count: total, min: 5, max: 5 };
+}
+
 export default function AdmissionForm() {
   const navigate = useNavigate();
   // Loading & Data States
@@ -1317,6 +1461,27 @@ export default function AdmissionForm() {
         addError(`Total Max. Marks in ${clsLabel}`, 'Enter valid maximum marks (1–2000)');
       } else if (!isNaN(obtained) && (obtained < 0 || (!isNaN(maxMarks) && maxMarks > 0 && obtained > maxMarks))) {
         addError(`Total Marks Obtained in ${clsLabel}`, `Marks Obtained (${obtained}) cannot exceed Max Marks (${maxMarks})`);
+      }
+    });
+
+    // ── Subject Combinations Validation ──
+    const subjectFieldNames = [
+      'Subjects to be taken in Class 11th',
+      'Subjects to be taken in Class 12th',
+      'Subjects to be taken in Class 10th',
+      'Subjects to be taken in Class 9th'
+    ];
+
+    subjectFieldNames.forEach(sField => {
+      const fieldCls = sField.includes('11th') ? '11th' : sField.includes('12th') ? '12th' : sField.includes('10th') ? '10th' : '9th';
+      const sStream = formData['Stream for Class 11th'] || formData['Stream opted in Class 11th'] || formData['Stream'] || 'Science';
+      const rawVal = formData[sField];
+      const soughtCls = formData['Admission sought for class'] || cls || '';
+      if (rawVal !== undefined && (soughtCls.includes(fieldCls) || cls?.includes(fieldCls))) {
+        const valRes = validateSubjectSelection(fieldCls, sStream, rawVal, false);
+        if (!valRes.valid) {
+          addError(sField, valRes.error);
+        }
       }
     });
 
