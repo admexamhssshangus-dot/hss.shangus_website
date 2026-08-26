@@ -372,8 +372,11 @@ export default function ResultIngestionModal({
 
   // Handle Download Pre-filled Template
   const handleDownloadTemplate = () => {
-    generateResultImportTemplate(classStudents, selectedClass, selectedSession);
-    if (showToast) showToast(`📥 Downloaded Excel template with ${classStudents.length} students for Class ${selectedClass || 'All'} (${selectedSession})!`, 'success');
+    // A template needs only one representative row to demonstrate the schema.
+    // Admins can paste/add the complete result list before uploading.
+    const sampleStudents = classStudents.slice(0, 1);
+    generateResultImportTemplate(sampleStudents, selectedClass, selectedSession);
+    if (showToast) showToast(`📥 Downloaded the Class ${selectedClass || 'All'} Excel template with one sample record (${selectedSession}).`, 'success');
   };
 
   // Handle File Upload (Excel) with live progress feedback
@@ -1126,7 +1129,7 @@ export default function ResultIngestionModal({
                         <span>Excel Result Spreadsheet Import (.xlsx)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Download pre-populated template with Class {selectedClass || 'All'} students ({selectedSession}), fill in marks/roll numbers, and upload.
+                        Download a one-record sample for Class {selectedClass || 'All'} ({selectedSession}), add result rows, then upload the completed sheet.
                       </p>
                     </div>
 
@@ -1137,7 +1140,7 @@ export default function ResultIngestionModal({
                         className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700 font-bold flex items-center gap-1.5 cursor-pointer text-xs transition-all shadow-2xs"
                       >
                         <Download size={13} />
-                        <span>Download Template ({classStudents.length} Students)</span>
+                        <span>Download Template (1 Sample Row)</span>
                       </button>
 
                       <label className="px-3.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs text-xs transition-all">
