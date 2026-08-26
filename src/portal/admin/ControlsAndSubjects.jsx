@@ -319,6 +319,7 @@ export default function ControlsAndSubjects() {
   const [staffRoleFilter, setStaffRoleFilter] = useState('all'); // 'all' | 'admin' | 'teacher'
   const [sendingResetFor, setSendingResetFor] = useState(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [modalError, setModalError] = useState(null);
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
   const [adminForm, setAdminForm] = useState({ 
@@ -720,8 +721,9 @@ export default function ControlsAndSubjects() {
   // Save Modal Form (Add or Edit with full Firestore & Auth sync)
   const handleSaveAdminForm = async (e) => {
     e.preventDefault();
+    setModalError(null);
     if (!adminForm.name.trim() || !adminForm.email.trim()) {
-      alert('Please enter both Full Name and Email Address.');
+      setModalError('Please enter both Full Name and Email Address.');
       return;
     }
     const cleanEmail = adminForm.email.trim().toLowerCase();
@@ -763,7 +765,7 @@ export default function ControlsAndSubjects() {
       } else {
         // Add new staff account
         if (adminUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
-          alert('A staff account with this email address already exists in the system!');
+          setModalError('A staff account with this email address already exists in the system!');
           setSaving(false);
           return;
         }
@@ -799,7 +801,7 @@ export default function ControlsAndSubjects() {
       }
     } catch (err) {
       console.error('Error saving staff account:', err);
-      alert('Failed to save staff account: ' + (err.message || err));
+      setModalError('Failed to save staff account: ' + (err.message || err));
     } finally {
       setSaving(false);
     }
@@ -809,7 +811,7 @@ export default function ControlsAndSubjects() {
   const handleDeleteAdmin = async (email) => {
     const cleanEmail = email.toLowerCase();
     if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com' || cleanEmail === 'socialshiftz@gmail.com') {
-      alert('Security Protection: Primary Super Admin accounts cannot be revoked.');
+      setAlert({ type: 'error', text: 'Security Protection: Primary Super Admin accounts cannot be revoked.' });
       return;
     }
     setSaving(true);
@@ -821,7 +823,7 @@ export default function ControlsAndSubjects() {
       setAlert({ type: 'success', text: `Access revoked and profile removed for ${email}.` });
     } catch (err) {
       console.error('Error revoking staff account:', err);
-      alert('Failed to revoke access: ' + (err.message || err));
+      setAlert({ type: 'error', text: 'Failed to revoke access: ' + (err.message || err) });
     } finally {
       setSaving(false);
     }
@@ -1626,6 +1628,17 @@ export default function ControlsAndSubjects() {
             {/* Scrollable Form Body */}
             <form onSubmit={handleSaveAdminForm} className="flex-1 overflow-y-auto flex flex-col justify-between">
               <div className="p-6 space-y-4 text-xs font-semibold">
+                {modalError && (
+                  <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-200 text-xs font-bold flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={15} className="text-rose-600 flex-shrink-0" />
+                      <span>{modalError}</span>
+                    </div>
+                    <button type="button" onClick={() => setModalError(null)} className="p-0.5 text-rose-500 hover:text-rose-800 cursor-pointer">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 {/* Full Name & Email */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>

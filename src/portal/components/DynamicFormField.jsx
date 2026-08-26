@@ -9,7 +9,7 @@ const PREVIOUS_SCHOOLS = [
   'Badasgam Public School Anantnag',
   'Elite Public School Tailwani',
   'Evergreen Public Instt Kawarigam',
-  'Govt  High School Cheerpora',
+  'Govt High School Cheerpora',
   'Govt Boys High School Nowgam',
   'Govt Boys Hr Sec Akingam',
   'Govt Boys Hr Sec Anantnag',
@@ -49,6 +49,141 @@ const PREVIOUS_SCHOOLS = [
   'Sidrah Institute of Education K P Road Anantnag',
   'Stpeters International Academy Anantnag',
 ];
+
+// Dictionary of domain abbreviations and synonyms for Google-like smart search
+const SCHOOL_SYNONYM_MAP = {
+  hss: ['higher secondary school', 'hr sec school', 'hr sec', 'higher secondary', 'hss'],
+  ghss: ['govt higher secondary school', 'govt hr sec school', 'girls higher secondary school', 'ghss'],
+  gbhss: ['govt boys higher secondary school', 'govt boys hr sec school', 'gbhss'],
+  gghss: ['govt girls higher secondary school', 'govt girls hr sec school', 'gghss'],
+  hs: ['high school', 'high sch', 'hs'],
+  ghs: ['govt high school', 'girls high school', 'govt girls high school', 'ghs'],
+  bhs: ['boys high school', 'govt boys high school', 'bhs'],
+  gbhs: ['govt boys high school', 'gbhs'],
+  gghs: ['govt girls high school', 'gghs'],
+  sec: ['secondary', 'sec'],
+  higher: ['higher', 'hr'],
+  secondary: ['secondary', 'sec'],
+  hr: ['higher', 'hr'],
+  school: ['school', 'sch', 'sc'],
+  sch: ['school', 'sch', 'sc'],
+  sc: ['school', 'sch', 'sc'],
+  govt: ['government', 'govt', 'gvt'],
+  gvt: ['government', 'govt'],
+  inst: ['institute', 'institution', 'instt', 'inst'],
+  instt: ['institute', 'institution', 'instt', 'inst'],
+  jnv: ['jawahar navodaya vidyalaya', 'pm shri school jawahar navodaya vidyalaya', 'jnv'],
+  nios: ['national institute of open schooling', 'nios'],
+  mps: ['modern public school', 'mps'],
+  smi: ['sheikhulalam memorial institute', 'smi'],
+  hmi: ['hanfia memorial institute', 'hmi'],
+  eps: ['elite public school', 'eps'],
+  bps: ['badasgam public school', 'bps'],
+  sps: ['shaheen public school', 'sps'],
+  kie: ['kie hr sec school', 'kie'],
+  kp: ['k p road', 'k.p. road', 'kp'],
+};
+
+function normalizeSchoolSearchText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getSchoolAcronyms(schoolName) {
+  const norm = normalizeSchoolSearchText(schoolName);
+  const words = norm.split(' ').filter(Boolean);
+  if (!words.length) return [];
+
+  const initials = words.map(w => w[0]).join('');
+  const nonGovtWords = words.filter(w => w !== 'govt' && w !== 'government');
+  const nonGovtInitials = nonGovtWords.map(w => w[0]).join('');
+
+  const acronyms = [initials, nonGovtInitials];
+
+  if (norm.includes('higher secondary') || norm.includes('hr sec')) {
+    acronyms.push('hss', 'ghss', 'gbhss', 'gghss');
+  }
+  if (norm.includes('high school')) {
+    acronyms.push('hs', 'ghs', 'bhs', 'gbhs', 'gghs');
+  }
+  if (norm.includes('jawahar navodaya')) acronyms.push('jnv');
+  if (norm.includes('open schooling')) acronyms.push('nios');
+  if (norm.includes('modern public')) acronyms.push('mps');
+  if (norm.includes('sheikhulalam')) acronyms.push('smi');
+  if (norm.includes('hanfia memorial')) acronyms.push('hmi');
+  if (norm.includes('elite public')) acronyms.push('eps');
+  if (norm.includes('shaheen public')) acronyms.push('sps');
+
+  return [...new Set(acronyms.filter(Boolean))];
+}
+
+export function scoreSchoolMatch(schoolName, rawQuery) {
+  if (!rawQuery || !rawQuery.trim()) return 1;
+
+  const cleanQuery = normalizeSchoolSearchText(rawQuery);
+  const cleanSchool = normalizeSchoolSearchText(schoolName);
+
+  // Exact match
+  if (cleanSchool === cleanQuery) return 1000;
+
+  // Direct substring match
+  if (cleanSchool.includes(cleanQuery)) {
+    if (cleanSchool.startsWith(cleanQuery)) return 800;
+    return 500;
+  }
+
+  // Canonicalized school text (expand "hr sec" -> "higher secondary hss hr sec", "instt" -> "institute", etc.)
+  const expandedSchool = cleanSchool
+    .replace(/\bhr\s+sec\b/g, 'higher secondary hss hr sec')
+    .replace(/\bhigher\s+secondary\b/g, 'hr sec hss higher secondary')
+    .replace(/\bhigh\s+school\b/g, 'hs high school')
+    .replace(/\bgovt\b/g, 'government govt')
+    .replace(/\binstt\b/g, 'institute');
+
+  const queryTokens = cleanQuery.split(' ').filter(Boolean);
+  const acronyms = getSchoolAcronyms(schoolName);
+
+  let totalScore = 0;
+  let allTokensMatched = true;
+
+  for (const token of queryTokens) {
+    let tokenMatched = false;
+
+    // 1. Direct word substring match
+    if (cleanSchool.includes(token) || expandedSchool.includes(token)) {
+      tokenMatched = true;
+      totalScore += 100;
+    }
+
+    // 2. Acronym match (e.g. token "hss", "ghss", "jnv", "nios", "mps")
+    if (!tokenMatched) {
+      if (acronyms.some(ac => ac.includes(token) || token.includes(ac))) {
+        tokenMatched = true;
+        totalScore += 90;
+      }
+    }
+
+    // 3. Synonym dictionary expansion
+    if (!tokenMatched && SCHOOL_SYNONYM_MAP[token]) {
+      const syns = SCHOOL_SYNONYM_MAP[token];
+      if (syns.some(syn => cleanSchool.includes(syn) || expandedSchool.includes(syn))) {
+        tokenMatched = true;
+        totalScore += 80;
+      }
+    }
+
+    if (!tokenMatched) {
+      allTokensMatched = false;
+      break;
+    }
+  }
+
+  if (!allTokensMatched) return 0;
+  return totalScore;
+}
 
 const CURRENT_YEAR = new Date().getFullYear();
 const SUGGESTED_PASSING_YEARS = Array.from({ length: 25 }, (_, i) => String(CURRENT_YEAR - i));
@@ -450,15 +585,27 @@ function SearchableSchoolCombobox({
   }, []);
 
   const filteredSchools = useMemo(() => {
-    const term = (searchTerm || '').trim().toLowerCase();
+    const term = (searchTerm || '').trim();
     if (!term) return schools;
-    return schools.filter(s => s.toLowerCase().includes(term));
+
+    const scored = schools
+      .map((school) => ({
+        school,
+        score: scoreSchoolMatch(school, term)
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.school);
+
+    return scored;
   }, [searchTerm, schools]);
 
   const isExactMatch = useMemo(() => {
     const term = (searchTerm || '').trim().toLowerCase();
     if (!term) return false;
-    return schools.some(s => s.toLowerCase() === term);
+    return schools.some(
+      s => s.toLowerCase() === term || normalizeSchoolSearchText(s) === normalizeSchoolSearchText(term)
+    );
   }, [searchTerm, schools]);
 
   const handleSelect = (schoolName) => {
