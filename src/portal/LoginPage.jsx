@@ -17,8 +17,14 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { resolveStaffRoleAndPerms, sendAdminSignInVerificationLink } from '../services/staffAuthService';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { 
+  resolveStaffRoleAndPerms, 
+  createAdminLoginHandshake,
+  approveAdminLoginHandshake,
+  consumeAdminLoginHandshake,
+  sendAdminSignInVerificationLink 
+} from '../services/staffAuthService';
 
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
@@ -46,20 +52,23 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
 
-  // 2-Step Verification Link State for Admin / SuperAdmin
+  // 2-Step Verification Link State for Admin / SuperAdmin (Window 1 waiting state)
   const [emailLinkSentState, setEmailLinkSentState] = useState(() => {
     try {
       const pending = localStorage.getItem('hss_pending_admin_login');
       if (pending) {
         const parsed = JSON.parse(pending);
         if (parsed.email && Date.now() - parsed.ts < 15 * 60 * 1000) {
-          return { email: parsed.email, sentAt: parsed.ts };
+          return { email: parsed.email, handshakeId: parsed.handshakeId, sentAt: parsed.ts };
         }
       }
     } catch (_) {}
     return null;
   });
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Window 2: Successful verification confirmation state (when link was clicked in this tab)
+  const [window2VerifiedState, setWindow2VerifiedState] = useState(null);
 
   // Status & loading
   const [isLoading, setIsLoading] = useState(false);
@@ -82,55 +91,17 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Check on mount if current URL is an Email Sign-In verification link
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      setIsLoading(true);
-      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
-      if (!emailForSignIn) {
-        const searchParams = new URLSearchParams(window.location.search);
-        emailForSignIn = searchParams.get('admin_email');
-      }
-      if (!emailForSignIn) {
-        emailForSignIn = window.prompt('Please confirm your Admin email address to complete 2-Step Login:');
-      }
-
-      if (emailForSignIn) {
-        const cleanEmail = emailForSignIn.trim().toLowerCase();
-        signInWithEmailLink(auth, cleanEmail, window.location.href)
-          .then(async (userCred) => {
-            window.localStorage.removeItem('emailForSignIn');
-            window.localStorage.removeItem('hss_pending_admin_login');
-            setEmailLinkSentState(null);
-            window.history.replaceState(null, '', window.location.pathname);
-            
-            const verifiedSession = await createVerifiedSession(userCred.user);
-            setAlert({ type: 'success', text: '🛡️ 2-Step Verification Authorized! Entering Admin Portal...' });
-            setTimeout(() => {
-              onLoginSuccess(verifiedSession, true);
-            }, 400);
-          })
-          .catch((err) => {
-            console.error('Email link sign in error:', err);
-            setAlert({
-              type: 'error',
-              text: 'The 2-step verification link is invalid, expired, or has already been used. Please sign in again.'
-            });
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
-      } else {
-        setIsLoading(false);
-      }
+  // Helper to construct verified user session
+  const createVerifiedSession = async (firebaseUser, overrideEmail = null) => {
+    let tokenResult = null;
+    let claims = {};
+    if (firebaseUser?.getIdTokenResult) {
+      try {
+        tokenResult = await getIdTokenResult(firebaseUser, true);
+        claims = tokenResult?.claims || {};
+      } catch (_) {}
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const createVerifiedSession = async (firebaseUser) => {
-    const tokenResult = await getIdTokenResult(firebaseUser, true);
-    const claims = tokenResult.claims || {};
-    const emailLower = String(firebaseUser.email || '').toLowerCase().trim();
+    const emailLower = String(firebaseUser?.email || overrideEmail || '').toLowerCase().trim();
     
     // Resolve role from Firestore permissions & users collection & bootstrap
     const staffProfile = await resolveStaffRoleAndPerms(emailLower);
@@ -166,17 +137,207 @@ export default function LoginPage() {
     return {
       user: {
         email: emailLower,
-        name: staffProfile?.name || firebaseUser.displayName || emailLower.split('@')[0],
+        name: staffProfile?.name || firebaseUser?.displayName || emailLower.split('@')[0],
         role,
         perms,
         subject: staffProfile?.subject || '',
         mobile: staffProfile?.mobile || '',
-        photoURL: firebaseUser.photoURL || null,
-        uid: firebaseUser.uid,
+        photoURL: firebaseUser?.photoURL || null,
+        uid: firebaseUser?.uid || 'admin_handshake_auth',
       },
-      token: tokenResult.token,
+      token: tokenResult?.token || 'verified_handshake_token',
     };
   };
+
+  // =========================================================================
+  // WINDOW 1 LISTENER: Real-Time Handshake Sync (BroadcastChannel + LocalStorage + Firestore Snapshot)
+  // Automatically unlocks & transitions the original login tab when verified anywhere!
+  // =========================================================================
+  useEffect(() => {
+    if (!emailLinkSentState?.email) return;
+    const cleanEmail = String(emailLinkSentState.email).trim().toLowerCase();
+    const handshakeId = emailLinkSentState.handshakeId;
+
+    let isHandled = false;
+    const handleAuthApproved = async (sourceInfo = {}) => {
+      if (isHandled) return;
+      isHandled = true;
+      
+      setAlert({ 
+        type: 'success', 
+        text: '🛡️ 2-Step Verification Completed! Unlocking Admin Portal...' 
+      });
+
+      try {
+        // Check if Firebase Auth session was established on same device
+        let currentUser = auth.currentUser;
+        if (!currentUser) {
+          for (let i = 0; i < 4; i++) {
+            await new Promise(r => setTimeout(r, 200));
+            if (auth.currentUser) {
+              currentUser = auth.currentUser;
+              break;
+            }
+          }
+        }
+
+        const verifiedSession = await createVerifiedSession(currentUser, cleanEmail);
+        
+        if (handshakeId) {
+          await consumeAdminLoginHandshake(handshakeId).catch(() => {});
+        }
+        localStorage.removeItem('emailForSignIn');
+        localStorage.removeItem('hss_pending_admin_login');
+        setEmailLinkSentState(null);
+
+        setTimeout(() => {
+          onLoginSuccess(verifiedSession, true);
+        }, 500);
+      } catch (err) {
+        console.error('Real-time handshake unlock error:', err);
+        setAlert({ 
+          type: 'error', 
+          text: 'Verified handshake received, but session resolution failed. Please refresh or sign in.' 
+        });
+      }
+    };
+
+    // 1. BroadcastChannel Listener (Fast sub-10ms same-device inter-tab sync)
+    let channel = null;
+    try {
+      channel = new BroadcastChannel('hss_admin_auth_sync');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'ADMIN_AUTH_APPROVED') {
+          const msgEmail = String(event.data.email || '').trim().toLowerCase();
+          if (msgEmail === cleanEmail) {
+            handleAuthApproved({ uid: event.data.uid, source: 'BroadcastChannel' });
+          }
+        }
+      };
+    } catch (_) {}
+
+    // 2. Storage Event Listener (Fallback across tabs/windows)
+    const handleStorage = (e) => {
+      if (e.key === 'hss_auth_verified_sync' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          if (String(data.email || '').trim().toLowerCase() === cleanEmail) {
+            handleAuthApproved({ uid: data.uid, source: 'localStorage' });
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // 3. Real-Time Firestore Handshake Listener (For Mobile Phone & Cross-Device email link clicks!)
+    let unsubDoc = null;
+    if (handshakeId) {
+      try {
+        unsubDoc = onSnapshot(doc(db, 'adminAuthHandshakes', handshakeId), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.status === 'approved' && String(data.email || '').trim().toLowerCase() === cleanEmail) {
+              handleAuthApproved({ uid: data.uid, source: 'FirestoreHandshake' });
+            }
+          }
+        }, (err) => {
+          console.warn('Handshake snapshot note:', err);
+        });
+      } catch (fsErr) {
+        console.warn('Firestore onSnapshot handshake error:', fsErr);
+      }
+    }
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorage);
+      if (unsubDoc) unsubDoc();
+    };
+  }, [emailLinkSentState, onLoginSuccess]);
+
+  // =========================================================================
+  // WINDOW 2 VERIFIER: Check on mount if current URL is an Email Sign-In verification link
+  // =========================================================================
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      setIsLoading(true);
+      const searchParams = new URLSearchParams(window.location.search);
+      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
+      if (!emailForSignIn) {
+        emailForSignIn = searchParams.get('admin_email');
+      }
+      if (!emailForSignIn) {
+        emailForSignIn = window.prompt('Please confirm your Admin email address to complete 2-Step Login:');
+      }
+
+      const handshakeId = searchParams.get('handshake');
+
+      if (emailForSignIn) {
+        const cleanEmail = emailForSignIn.trim().toLowerCase();
+        signInWithEmailLink(auth, cleanEmail, window.location.href)
+          .then(async (userCred) => {
+            // 1. Approve handshake in Firestore (Unlocks Window 1 on desktop or phone immediately!)
+            if (handshakeId) {
+              await approveAdminLoginHandshake(handshakeId, cleanEmail, userCred.user);
+            }
+
+            // 2. Broadcast approval to all same-browser tabs
+            try {
+              const bc = new BroadcastChannel('hss_admin_auth_sync');
+              bc.postMessage({
+                type: 'ADMIN_AUTH_APPROVED',
+                email: cleanEmail,
+                uid: userCred.user.uid,
+                handshakeId,
+                ts: Date.now()
+              });
+              bc.close();
+            } catch (_) {}
+
+            try {
+              localStorage.setItem('hss_auth_verified_sync', JSON.stringify({
+                email: cleanEmail,
+                uid: userCred.user.uid,
+                handshakeId,
+                ts: Date.now()
+              }));
+            } catch (_) {}
+
+            window.localStorage.removeItem('emailForSignIn');
+            window.localStorage.removeItem('hss_pending_admin_login');
+            setEmailLinkSentState(null);
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            const verifiedSession = await createVerifiedSession(userCred.user);
+            
+            // Show Window 2 Verification Confirmation View
+            setWindow2VerifiedState({
+              email: cleanEmail,
+              session: verifiedSession,
+              handshakeId
+            });
+
+            setAlert({ 
+              type: 'success', 
+              text: '🛡️ 2-Step Verification Authorized! Your primary window is unlocking now.' 
+            });
+          })
+          .catch((err) => {
+            console.error('Email link sign in error:', err);
+            setAlert({
+              type: 'error',
+              text: 'The 2-step verification link is invalid, expired, or has already been used. Please sign in again.'
+            });
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      } else {
+        setIsLoading(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -224,7 +385,9 @@ export default function LoginPage() {
     if (!emailLinkSentState?.email || resendCooldown > 0) return;
     setIsLoading(true);
     try {
-      await sendAdminSignInVerificationLink(emailLinkSentState.email);
+      const handshakeId = await createAdminLoginHandshake(emailLinkSentState.email);
+      await sendAdminSignInVerificationLink(emailLinkSentState.email, handshakeId);
+      setEmailLinkSentState(prev => ({ ...(prev || {}), handshakeId, sentAt: Date.now() }));
       setResendCooldown(60);
       setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${emailLinkSentState.email}!` });
     } catch (err) {
@@ -237,8 +400,12 @@ export default function LoginPage() {
 
   const handleCancel2Step = async () => {
     try {
+      if (emailLinkSentState?.handshakeId) {
+        await consumeAdminLoginHandshake(emailLinkSentState.handshakeId).catch(() => {});
+      }
       localStorage.removeItem('emailForSignIn');
       localStorage.removeItem('hss_pending_admin_login');
+      sessionStorage.removeItem('hss_auth_handshake_id');
       await signOut(auth).catch(() => {});
     } catch (_) {}
     setEmailLinkSentState(null);
@@ -268,13 +435,15 @@ export default function LoginPage() {
 
       // 3. ENFORCE 2-STEP EMAIL VERIFICATION FOR ADMIN & SUPERADMIN
       if (isAdmin) {
-        await sendAdminSignInVerificationLink(cleanEmail);
+        // Create one-time secure handshake for real-time inter-window sync
+        const handshakeId = await createAdminLoginHandshake(cleanEmail);
+        await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
         
         // Sign out temporary password session so unverified session cannot access portal
         await signOut(auth).catch(() => {});
 
-        // Transition to 2-Step Verification Waiting View
-        setEmailLinkSentState({ email: cleanEmail, sentAt: Date.now() });
+        // Transition to 2-Step Verification Waiting View (Window 1)
+        setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now() });
         setResendCooldown(60);
         setAlert({
           type: 'success',
@@ -623,12 +792,72 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* 2-Step Verification Waiting View vs Main Login Form */}
-            {emailLinkSentState ? (
-              /* == == == == == == == == 2-STEP EMAIL VERIFICATION WAITING VIEW == == == == == == == == */
+            {/* 2-Step Verification Confirmation View (Window 2) vs Waiting View (Window 1) vs Main Login Form */}
+            {window2VerifiedState ? (
+              /* == == == == == == == == WINDOW 2: VERIFICATION APPROVED CONFIRMATION VIEW == == == == == == == == */
               <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
-                <div className="w-16 h-16 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 size={34} className="text-emerald-600 animate-bounce" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                    2-Step Authentication Verified
+                  </span>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    Login Authorized!
+                  </h2>
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
+                    Your admin account (<strong className="text-emerald-600 dark:text-emerald-400">{window2VerifiedState.email}</strong>) has been authenticated successfully.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-left text-xs text-emerald-900 dark:text-emerald-200 font-bold space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-black text-emerald-950 dark:text-emerald-100">
+                    <Sparkles size={14} className="text-emerald-600 shrink-0" />
+                    <span>Workstation Auto-Unlocked:</span>
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 leading-normal">
+                    Your primary login window has securely received the authorization signal and is loading your Admin Dashboard now.
+                  </p>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        window.close();
+                      } catch (_) {}
+                    }}
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  >
+                    <span>Close This Window</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window2VerifiedState.session) {
+                        onLoginSuccess(window2VerifiedState.session, true);
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-purple-700 hover:bg-purple-600 text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all"
+                  >
+                    <Lock size={13} />
+                    <span>Open Admin Dashboard in This Tab Instead</span>
+                  </button>
+                </div>
+              </div>
+            ) : emailLinkSentState ? (
+              /* == == == == == == == == WINDOW 1: 2-STEP EMAIL VERIFICATION WAITING VIEW == == == == == == == == */
+              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
+                <div className="w-16 h-16 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-inner relative">
                   <ShieldAlert size={32} className="animate-pulse" />
+                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+                  </span>
                 </div>
 
                 <div className="space-y-1.5">
@@ -646,15 +875,18 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-left text-[11.5px] text-amber-900 dark:text-amber-200 font-bold space-y-1">
+                <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-left text-[11.5px] text-amber-900 dark:text-amber-200 font-bold space-y-1.5">
                   <div className="flex items-center gap-1.5 font-black text-amber-950 dark:text-amber-100">
-                    <CheckCircle2 size={13} className="text-amber-600" />
+                    <CheckCircle2 size={13} className="text-amber-600 shrink-0" />
                     <span>How to complete login:</span>
                   </div>
-                  <ol className="list-decimal list-inside space-y-0.5 pl-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                    <li>Open the email sent from <strong>Govt HSS Shangus</strong>.</li>
+                  <ol className="list-decimal list-inside space-y-1 pl-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                    <li>Open the verification email sent from <strong>Govt HSS Shangus</strong> (on your computer or mobile phone).</li>
                     <li>Click the <strong>Sign In / Verify</strong> link inside the email.</li>
-                    <li>This window will automatically authenticate and enter the Admin Portal.</li>
+                    <li className="text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1 mt-0.5">
+                      <Sparkles size={12} className="text-emerald-600 shrink-0" />
+                      <span>This window will automatically detect your approval and load the Admin Dashboard!</span>
+                    </li>
                   </ol>
                 </div>
 

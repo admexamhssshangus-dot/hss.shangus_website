@@ -306,20 +306,84 @@ export async function sendStaffPasswordReset(email) {
 }
 
 /**
- * Sends a 2-step verification email sign-in link to an Admin's email inbox.
+ * Creates a unique one-time login handshake for cross-window / cross-device 2-step verification.
  */
-export async function sendAdminSignInVerificationLink(email) {
+export async function createAdminLoginHandshake(email) {
   const cleanEmail = email.trim().toLowerCase();
+  const handshakeId = 'hsk_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 12);
+  const handshakeData = {
+    id: handshakeId,
+    email: cleanEmail,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+  };
+
+  try {
+    await setDoc(doc(db, 'adminAuthHandshakes', handshakeId), handshakeData);
+  } catch (err) {
+    console.warn('Error creating admin auth handshake document:', err);
+  }
+
+  try {
+    sessionStorage.setItem('hss_auth_handshake_id', handshakeId);
+  } catch (_) {}
+
+  return handshakeId;
+}
+
+/**
+ * Approves a login handshake when the email link is clicked and verified.
+ */
+export async function approveAdminLoginHandshake(handshakeId, email, firebaseUser) {
+  if (!handshakeId) return;
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    await setDoc(doc(db, 'adminAuthHandshakes', handshakeId), {
+      status: 'approved',
+      email: cleanEmail,
+      verifiedAt: new Date().toISOString(),
+      uid: firebaseUser?.uid || null,
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Error approving admin auth handshake:', err);
+  }
+}
+
+/**
+ * Consumes / deletes a login handshake after successful login.
+ */
+export async function consumeAdminLoginHandshake(handshakeId) {
+  if (!handshakeId) return;
+  try {
+    await deleteDoc(doc(db, 'adminAuthHandshakes', handshakeId));
+  } catch (_) {}
+  try {
+    sessionStorage.removeItem('hss_auth_handshake_id');
+  } catch (_) {}
+}
+
+/**
+ * Sends a 2-step verification email sign-in link to an Admin's email inbox with optional handshakeId.
+ */
+export async function sendAdminSignInVerificationLink(email, handshakeId = '') {
+  const cleanEmail = email.trim().toLowerCase();
+  let effectiveHandshake = handshakeId;
+  if (!effectiveHandshake) {
+    try {
+      effectiveHandshake = sessionStorage.getItem('hss_auth_handshake_id') || '';
+    } catch (_) {}
+  }
   const actionCodeSettings = {
-    url: `${window.location.origin}/portal/login?email_link_verify=1&admin_email=${encodeURIComponent(cleanEmail)}`,
+    url: `${window.location.origin}/portal/login?email_link_verify=1&admin_email=${encodeURIComponent(cleanEmail)}${effectiveHandshake ? `&handshake=${encodeURIComponent(effectiveHandshake)}` : ''}`,
     handleCodeInApp: true,
   };
   await sendSignInLinkToEmail(auth, cleanEmail, actionCodeSettings);
   try {
     localStorage.setItem('emailForSignIn', cleanEmail);
-    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, ts: Date.now() }));
+    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId: effectiveHandshake, ts: Date.now() }));
   } catch (_) {}
-  return { success: true };
+  return { success: true, handshakeId: effectiveHandshake };
 }
 
 /**
