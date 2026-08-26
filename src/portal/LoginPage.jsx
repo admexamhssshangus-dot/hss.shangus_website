@@ -31,8 +31,14 @@ export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // If user is already authenticated, automatically redirect to their dashboard
+  // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway)
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const isEmailLink = isSignInWithEmailLink(auth, window.location.href) || searchParams.get('email_link_verify') === '1' || searchParams.get('apiKey') || searchParams.get('oobCode');
+    if (isEmailLink || window2VerifiedState) {
+      return;
+    }
+
     if (isAuthenticated && user?.role) {
       const roleKey = String(user.role).toLowerCase().trim();
       const dest =
@@ -41,7 +47,7 @@ export default function LoginPage() {
         : '/portal/admin';
       navigate(dest, { replace: true });
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, window2VerifiedState]);
 
   // Tab role selection: 'student' | 'teacher' | 'admin' | 'superadmin'
   const [selectedRole, setSelectedRole] = useState('student');
@@ -753,8 +759,8 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Alert Banner */}
-            {alert && (
+            {/* Alert Banner (Suppressed during clean waiting / confirmed states unless error) */}
+            {alert && !emailLinkSentState && !window2VerifiedState && (
               <div className={`p-3.5 rounded-2xl text-xs font-bold flex flex-col gap-2.5 mb-4 animate-fadeIn relative z-10 ${
                 alert.type === 'error' 
                   ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400' 
@@ -794,35 +800,26 @@ export default function LoginPage() {
 
             {/* 2-Step Verification Confirmation View (Window 2) vs Waiting View (Window 1) vs Main Login Form */}
             {window2VerifiedState ? (
-              /* == == == == == == == == WINDOW 2: VERIFICATION APPROVED CONFIRMATION VIEW == == == == == == == == */
-              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
-                <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
-                  <CheckCircle2 size={34} className="text-emerald-600 animate-bounce" />
+              /* == == == == == == == == WINDOW 2: MINIMAL VERIFICATION APPROVED VIEW == == == == == == == == */
+              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                  <CheckCircle2 size={26} className="text-emerald-600" />
                 </div>
 
-                <div className="space-y-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                    2-Step Authentication Verified
-                  </span>
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                    Login Authorized!
+                <div className="space-y-1">
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">
+                    Verification Approved
                   </h2>
-                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
-                    Your admin account (<strong className="text-emerald-600 dark:text-emerald-400">{window2VerifiedState.email}</strong>) has been authenticated successfully.
+                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                    Login authorized for <strong className="text-slate-800 dark:text-slate-200">{window2VerifiedState.email}</strong>.
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-left text-xs text-emerald-900 dark:text-emerald-200 font-bold space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-black text-emerald-950 dark:text-emerald-100">
-                    <Sparkles size={14} className="text-emerald-600 shrink-0" />
-                    <span>Workstation Auto-Unlocked:</span>
-                  </div>
-                  <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 leading-normal">
-                    Your primary login window has securely received the authorization signal and is loading your Admin Dashboard now.
-                  </p>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 text-[11.5px] text-slate-600 dark:text-slate-400 font-medium">
+                  The Admin Dashboard has automatically loaded on your primary workstation window. You may safely close this tab.
                 </div>
 
-                <div className="space-y-2 pt-2">
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={() => {
@@ -830,97 +827,53 @@ export default function LoginPage() {
                         window.close();
                       } catch (_) {}
                     }}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                    className="px-5 py-2 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 cursor-pointer transition-all shadow-xs"
                   >
-                    <span>Close This Window</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window2VerifiedState.session) {
-                        onLoginSuccess(window2VerifiedState.session, true);
-                      }
-                    }}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-purple-700 hover:bg-purple-600 text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all"
-                  >
-                    <Lock size={13} />
-                    <span>Open Admin Dashboard in This Tab Instead</span>
+                    Close Tab
                   </button>
                 </div>
               </div>
             ) : emailLinkSentState ? (
-              /* == == == == == == == == WINDOW 1: 2-STEP EMAIL VERIFICATION WAITING VIEW == == == == == == == == */
+              /* == == == == == == == == WINDOW 1: MINIMAL 2-STEP WAITING VIEW == == == == == == == == */
               <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
-                <div className="w-16 h-16 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-inner relative">
-                  <ShieldAlert size={32} className="animate-pulse" />
-                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto relative">
+                  <Mail size={22} className="text-amber-600" />
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                   </span>
                 </div>
 
-                <div className="space-y-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
-                    2-Step Security Verification Required
-                  </span>
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                    Check Your Email Inbox
+                <div className="space-y-1">
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">
+                    Verify your email
                   </h2>
-                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
-                    To prevent unauthorized access, Admin accounts require one-time email authorization. We have sent a secure sign-in link to:
+                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    Click the sign-in link sent to <strong className="text-slate-900 dark:text-slate-100 font-bold">{emailLinkSentState.email}</strong>.
                   </p>
-                  <div className="inline-block px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-mono font-bold text-xs border border-slate-300 dark:border-slate-700">
-                    {emailLinkSentState.email}
-                  </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-left text-[11.5px] text-amber-900 dark:text-amber-200 font-bold space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-black text-amber-950 dark:text-amber-100">
-                    <CheckCircle2 size={13} className="text-amber-600 shrink-0" />
-                    <span>How to complete login:</span>
-                  </div>
-                  <ol className="list-decimal list-inside space-y-1 pl-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                    <li>Open the verification email sent from <strong>Govt HSS Shangus</strong> (on your computer or mobile phone).</li>
-                    <li>Click the <strong>Sign In / Verify</strong> link inside the email.</li>
-                    <li className="text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1 mt-0.5">
-                      <Sparkles size={12} className="text-emerald-600 shrink-0" />
-                      <span>This window will automatically detect your approval and load the Admin Dashboard!</span>
-                    </li>
-                  </ol>
+                <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-[11.5px] font-bold text-slate-600 dark:text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Waiting for verification in real-time...</span>
                 </div>
 
-                {/* Resend and Open Gmail Actions */}
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleResendAdminLink}
-                      disabled={resendCooldown > 0 || isLoading}
-                      className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                    >
-                      <Send size={13} />
-                      <span>{resendCooldown > 0 ? `Resend Link (${resendCooldown}s)` : 'Resend Verification Link'}</span>
-                    </button>
-
-                    <a
-                      href="https://mail.google.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer transition-all"
-                    >
-                      <span>Open Gmail</span>
-                      <ExternalLink size={12} />
-                    </a>
-                  </div>
-
+                <div className="flex items-center justify-center gap-3 pt-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleResendAdminLink}
+                    disabled={resendCooldown > 0 || isLoading}
+                    className="font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  >
+                    {resendCooldown > 0 ? `Resend link in ${resendCooldown}s` : 'Resend link'}
+                  </button>
+                  <span className="text-slate-300 dark:text-slate-700">•</span>
                   <button
                     type="button"
                     onClick={handleCancel2Step}
-                    className="w-full py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    className="font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer transition-colors"
                   >
-                    <ArrowLeft size={13} />
-                    <span>Back to Standard Login / Use Different Account</span>
+                    Back to login
                   </button>
                 </div>
               </div>
