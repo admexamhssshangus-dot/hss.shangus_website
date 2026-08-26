@@ -3,26 +3,28 @@ import { useOutletContext } from 'react-router-dom';
 import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen, GitMerge } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
-import RollNoAssignment from './RollNoAssignment';
 import AdvancedReports from './AdvancedReports';
-import AutomationsPage from './AutomationsPage';
-import FundDistribution from './FundDistribution';
-import ControlsAndSubjects from './ControlsAndSubjects';
-import AdminPracticals from './AdminPracticals';
-import AdminAttendance from './AdminAttendance';
-import AdminGkTestManager from './AdminGkTestManager';
-import StudentIdCardManager from './StudentIdCardManager';
 import ModernLoader from '../../components/ModernLoader';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown from './AdminToolsDropdown';
-import CustomRosterDocumentBuilderView from './CustomRosterDocumentBuilderView';
-import OfficialLetterWriterView from './OfficialLetterWriterView';
-import StudentCertificateStudioView from './StudentCertificateStudioView';
-import ApplicationMergerStudio from './ApplicationMergerStudio';
-import AdmissionRegisterSuite from './AdmissionRegisterSuite';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
+import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages, mergeDuplicateStudentApplications } from '../../services/dbCache';
 
+// Lazy load heavy admin modules to keep tab transitions ultra-fast with zero UI hangs
+const CustomRosterDocumentBuilderView = React.lazy(() => import('./CustomRosterDocumentBuilderView'));
+const OfficialLetterWriterView = React.lazy(() => import('./OfficialLetterWriterView'));
+const StudentCertificateStudioView = React.lazy(() => import('./StudentCertificateStudioView'));
+const StudentIdCardManager = React.lazy(() => import('./StudentIdCardManager'));
+const AdmissionRegisterSuite = React.lazy(() => import('./AdmissionRegisterSuite'));
+const ApplicationMergerStudio = React.lazy(() => import('./ApplicationMergerStudio'));
+const ControlsAndSubjects = React.lazy(() => import('./ControlsAndSubjects'));
+const AdminPracticals = React.lazy(() => import('./AdminPracticals'));
+const AdminAttendance = React.lazy(() => import('./AdminAttendance'));
+const AdminGkTestManager = React.lazy(() => import('./AdminGkTestManager'));
+const RollNoAssignment = React.lazy(() => import('./RollNoAssignment'));
+const AutomationsPage = React.lazy(() => import('./AutomationsPage'));
+const FundDistribution = React.lazy(() => import('./FundDistribution'));
 const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
 
 
@@ -362,77 +364,28 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Center Slot: Quick Studio Sibling Switcher (When on Roster, Letterhead, or Certificates) */}
-                {(activeTab === 'docStudio' || activeTab === 'customRoster' || activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
-                  <div className="w-full md:w-auto order-3 md:order-2 inline-flex items-center gap-1.5 mx-auto justify-between sm:justify-center">
-                    <div className="inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 text-[10.5px] sm:text-[11px] font-black shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('customRoster')}
-                        className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                          activeTab === 'customRoster' || activeTab === 'docStudio'
-                            ? 'bg-amber-600 text-white shadow-xs font-black'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
-                        }`}
-                      >
-                        <FileSpreadsheet size={12} className="shrink-0" />
-                        <span className="hidden sm:inline">Student Roster & Registers</span>
-                        <span className="sm:hidden text-[10px]">Roster</span>
-                      </button>
+                {/* Right Slot: Setup Button (for certStudio/officialLetter) + Admin Tools Dropdown Button */}
+                <div className="flex shrink-0 items-center gap-1.5 order-2 md:order-3 ml-auto">
+                  {/* Setup / Configuration Button */}
+                  {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsStudioSetupOpen(prev => !prev);
+                        window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup'));
+                      }}
+                      className={`h-8 px-2.5 sm:px-3 rounded-lg border font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 shrink-0 ${
+                        isStudioSetupOpen
+                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title="Configure Official Letterhead, Signatories, Ref No & Margins"
+                    >
+                      <Sliders size={12} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
+                      <span>Setup</span>
+                    </button>
+                  )}
 
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('officialLetter')}
-                        className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                          activeTab === 'officialLetter'
-                            ? 'bg-rose-700 text-white shadow-xs font-black'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
-                        }`}
-                      >
-                        <FileText size={12} className="shrink-0" />
-                        <span className="hidden sm:inline">Official Letterhead Writer</span>
-                        <span className="sm:hidden text-[10px]">Letterhead</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('certStudio')}
-                        className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                          activeTab === 'certStudio' || activeTab === 'certificate'
-                            ? 'bg-gradient-to-r from-teal-700 to-indigo-700 text-white shadow-xs font-black'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
-                        }`}
-                      >
-                        <Award size={12} className="shrink-0" />
-                        <span className="hidden sm:inline">Student Bonafides & Certificates</span>
-                        <span className="sm:hidden text-[10px]">Certificates</span>
-                      </button>
-                    </div>
-
-                    {/* Setup / Configuration Button (Positioned here per user request) */}
-                    {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsStudioSetupOpen(prev => !prev);
-                          window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup'));
-                        }}
-                        className={`h-7 sm:h-7.5 px-2.5 rounded-lg border font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 shrink-0 ${
-                          isStudioSetupOpen
-                            ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
-                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                        title="Configure Official Letterhead, Signatories, Ref No & Margins"
-                      >
-                        <Sliders size={12} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
-                        <span>Setup</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Right Slot: Admin Tools Dropdown Button & Refresh Sync Button (Strictly Anchored Right) */}
-                <div className="flex shrink-0 items-center gap-1 order-2 md:order-3 ml-auto">
                   {/* Administrative Tools Switcher Dropdown (Positioned on Right Side) */}
                   <div className="relative inline-block text-left" ref={dropdownRef}>
                     <button
@@ -505,7 +458,7 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               ) : (
-                <>
+                <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
                   {/* TAB 1: Master Register & Database — always mounted, hidden via CSS to prevent re-fetch on tab switch */}
                   <div className={activeTab === 'reports' ? '' : 'hidden'}>
                     <AdvancedReports
@@ -554,17 +507,13 @@ export default function AdminDashboard() {
                     <CustomRosterDocumentBuilderView
                       allStudents={applications}
                       onClose={() => setActiveTab('reports')}
-                      activeSubTab="roster"
-                      onSwitchSubTab={(sub) => setActiveTab(sub === 'letter' ? 'officialLetter' : (sub === 'certStudio' || sub === 'certificate') ? 'certStudio' : 'customRoster')}
                     />
                   )}
 
-                  {/* TAB: Official Letterhead Writer (Ultra-fast standalone loading, zero student data overhead) */}
+                  {/* TAB: Official Letterhead Writer */}
                   {activeTab === 'officialLetter' && (
                     <OfficialLetterWriterView
                       onClose={() => setActiveTab('reports')}
-                      activeSubTab="letter"
-                      onSwitchSubTab={(sub) => setActiveTab(sub === 'roster' ? 'customRoster' : (sub === 'certStudio' || sub === 'certificate') ? 'certStudio' : 'officialLetter')}
                       showSettingsDrawerProp={isStudioSetupOpen}
                       onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
                     />
@@ -576,8 +525,6 @@ export default function AdminDashboard() {
                       allStudents={applications}
                       identityStudents={[...(applications || []), ...(getCachedCollectionSync('masterRegisters') || [])]}
                       onClose={() => setActiveTab('reports')}
-                      activeSubTab="certStudio"
-                      onSwitchSubTab={(sub) => setActiveTab(sub === 'roster' ? 'customRoster' : sub === 'letter' ? 'officialLetter' : 'certStudio')}
                       showSettingsDrawerProp={isStudioSetupOpen}
                       onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
                     />
@@ -613,11 +560,9 @@ export default function AdminDashboard() {
 
                   {/* Unified replacement for the former independent Administrative Portal login. */}
                   {activeTab === 'cms' && (
-                    <React.Suspense fallback={<ModernLoader moduleKey="cms" text="Loading Website CMS & Administration" />}>
-                      <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
-                    </React.Suspense>
+                    <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
                   )}
-                </>
+                </React.Suspense>
               )}
             </>
           )}
