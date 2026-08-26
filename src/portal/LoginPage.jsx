@@ -31,24 +31,6 @@ export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway)
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const isEmailLink = isSignInWithEmailLink(auth, window.location.href) || searchParams.get('email_link_verify') === '1' || searchParams.get('apiKey') || searchParams.get('oobCode');
-    if (isEmailLink || window2VerifiedState) {
-      return;
-    }
-
-    if (isAuthenticated && user?.role) {
-      const roleKey = String(user.role).toLowerCase().trim();
-      const dest =
-        roleKey === 'student' ? '/portal/student'
-        : (roleKey === 'teacher' || roleKey === 'faculty') ? '/portal/teacher'
-        : '/portal/admin';
-      navigate(dest, { replace: true });
-    }
-  }, [isAuthenticated, user, navigate, window2VerifiedState]);
-
   // Tab role selection: 'student' | 'teacher' | 'admin' | 'superadmin'
   const [selectedRole, setSelectedRole] = useState('student');
 
@@ -87,6 +69,24 @@ export default function LoginPage() {
   });
 
   const isSuperAdmin = selectedRole === 'superadmin';
+
+  // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway)
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const isEmailLink = isSignInWithEmailLink(auth, window.location.href) || searchParams.get('email_link_verify') === '1' || searchParams.get('apiKey') || searchParams.get('oobCode');
+    if (isEmailLink || window2VerifiedState) {
+      return;
+    }
+
+    if (isAuthenticated && user?.role) {
+      const roleKey = String(user.role).toLowerCase().trim();
+      const dest =
+        roleKey === 'student' ? '/portal/student'
+        : (roleKey === 'teacher' || roleKey === 'faculty') ? '/portal/teacher'
+        : '/portal/admin';
+      navigate(dest, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate, window2VerifiedState]);
 
   // Cooldown countdown timer for resend verification link
   useEffect(() => {
