@@ -3,7 +3,7 @@ import {
   Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, 
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
   Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
-  PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap
+  PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -319,6 +319,7 @@ export default function ControlsAndSubjects() {
   const [staffRoleFilter, setStaffRoleFilter] = useState('all'); // 'all' | 'admin' | 'teacher'
   const [sendingResetFor, setSendingResetFor] = useState(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showPasswordText, setShowPasswordText] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
   const [adminForm, setAdminForm] = useState({ 
     name: '', 
@@ -1595,190 +1596,271 @@ export default function ControlsAndSubjects() {
 
       {/* ADD / EDIT STAFF & EMAIL ACCOUNT MODAL */}
       {showAdminModal && (
-        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-5 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                <UserPlus size={18} className="text-indigo-600" />
-                {editingAdminEmail ? 'Edit Staff Profile & Email Address' : 'Register New Staff / Admin Account'}
-              </h3>
+        <div className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden animate-scaleUp">
+            {/* Fixed Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-t-3xl flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs">
+                  <UserPlus size={19} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
+                    {editingAdminEmail ? 'Edit Staff Account Profile' : 'Register New Staff Member'}
+                  </h3>
+                  <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                    {editingAdminEmail ? `Updating configuration for ${editingAdminEmail}` : 'Configure credentials & module access'}
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAdminModal(false)}
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveAdminForm} className="space-y-4">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={adminForm.name}
-                    onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
-                    placeholder="e.g. Nawaz Ahmad Shah or Altaf Hussain"
-                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300">
-                      Email Address (Login ID)
-                    </label>
-                    {editingAdminEmail && (
-                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-extrabold">
-                        Editable — Changes Login ID in Firebase
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    value={adminForm.email}
-                    onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
-                    placeholder="e.g. staff.member@gmail.com"
-                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  {editingAdminEmail && editingAdminEmail.toLowerCase() !== adminForm.email.toLowerCase() && (
-                    <p className="text-[10.5px] text-amber-600 dark:text-amber-400 font-bold mt-1">
-                      ⚠️ Note: Changing email from <strong className="font-mono">{editingAdminEmail}</strong> to <strong className="font-mono">{adminForm.email}</strong> will migrate permissions and database profile to the new address.
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSaveAdminForm} className="flex-1 overflow-y-auto flex flex-col justify-between">
+              <div className="p-6 space-y-4 text-xs font-semibold">
+                {/* Full Name & Email */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Role Type</label>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Full Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={adminForm.name}
+                      onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                      placeholder="e.g. Nawaz Ahmad Shah"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        Email (Login ID) <span className="text-rose-500">*</span>
+                      </label>
+                      {editingAdminEmail && (
+                        <span className="text-[9.5px] font-extrabold text-indigo-600 dark:text-indigo-400">
+                          Editable (Firebase Auth)
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={adminForm.email}
+                      onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                      placeholder="staff.member@gmail.com"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {editingAdminEmail && editingAdminEmail.toLowerCase() !== adminForm.email.toLowerCase() && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-[11px] font-bold flex items-start gap-2">
+                    <AlertCircle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                    <span>Changing login email from <code className="font-mono text-amber-900 dark:text-amber-200">{editingAdminEmail}</code> to <code className="font-mono text-amber-900 dark:text-amber-200">{adminForm.email}</code> will migrate this staff profile and permissions.</span>
+                  </div>
+                )}
+
+                {/* Role Type & Mobile */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Role Type
+                    </label>
                     <select
                       value={adminForm.role}
                       onChange={(e) => setAdminForm({ ...adminForm, role: e.target.value })}
-                      className="w-full p-2.5 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
                     >
                       <option value="Admin">Standard Admin</option>
-                      <option value="SuperAdmin">Super Admin (Full System Control)</option>
+                      <option value="SuperAdmin">Super Admin (Full System Access)</option>
                       <option value="Teacher">Teaching Faculty / Subject Teacher</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Mobile / WhatsApp No.</label>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Mobile / WhatsApp No.
+                    </label>
                     <input
                       type="text"
                       value={adminForm.mobile}
                       onChange={(e) => setAdminForm({ ...adminForm, mobile: e.target.value })}
                       placeholder="e.g. 9876543210"
-                      className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                      maxLength={15}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                     />
                   </div>
                 </div>
 
-                {/* Specific field for Teacher: Teaching Subject */}
+                {/* Teaching Subject (if Teacher) */}
                 {adminForm.role === 'Teacher' && (
-                  <div>
-                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
-                      Assigned Teaching Subject
+                  <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-1">
+                    <label className="block text-[11px] font-extrabold text-emerald-900 dark:text-emerald-300">
+                      Assigned Teaching Subject <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={adminForm.subject}
                       onChange={(e) => setAdminForm({ ...adminForm, subject: e.target.value })}
-                      placeholder="e.g. Physics, Chemistry, Mathematics, General English, Biology, Urdu"
-                      className="w-full p-2.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/40 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-emerald-500"
+                      placeholder="e.g. Physics, Chemistry, Biology, Mathematics, Urdu, General English"
+                      className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     />
-                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                      Determines which subject attendance & practical awards this teacher can manage.
+                    <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 pt-0.5">
+                      Restricts this faculty member to their specific subject practical awards and attendance.
                     </p>
                   </div>
                 )}
 
-                {/* Optional Initial Password & Setup Email */}
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 block">
-                    Account Credentials & Invitation
-                  </span>
-                  
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                      {editingAdminEmail ? 'Set / Override Password (Optional)' : 'Initial Password (Optional)'}
-                    </label>
-                    <input
-                      type="password"
-                      value={adminForm.password}
-                      onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
-                      placeholder="Leave blank to use email verification / setup link"
-                      className="w-full p-2 rounded-xl text-xs font-mono font-bold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                    />
+                {/* Account Credentials Card */}
+                <div className="p-3.5 rounded-2xl bg-slate-50/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-extrabold text-xs">
+                    <Lock size={13} className="text-indigo-600 dark:text-indigo-400" />
+                    <span>Account Credentials & Login Setup</span>
                   </div>
 
-                  <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <div>
+                    <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      {editingAdminEmail ? 'Set / Override Password (Optional)' : 'Initial Password (Optional)'}
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showPasswordText ? "text" : "password"}
+                        value={adminForm.password}
+                        onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                        placeholder="Leave blank to let user set up via email link"
+                        className="w-full pl-3 pr-10 py-1.5 rounded-xl text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      />
+                      {adminForm.password && (
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordText(!showPasswordText)}
+                          className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                          tabIndex={-1}
+                          title={showPasswordText ? "Hide password" : "Show password"}
+                        >
+                          {showPasswordText ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer pt-0.5 select-none">
                     <input
                       type="checkbox"
                       checked={adminForm.sendSetupEmail}
                       onChange={(e) => setAdminForm({ ...adminForm, sendSetupEmail: e.target.checked })}
-                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Send password setup / activation link to user's email address
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Send password setup & activation link to email address
                     </span>
                   </label>
                 </div>
 
-                {/* Module Permissions Checkboxes (For Admins & SuperAdmins) */}
+                {/* Granted Feature Modules (For Admins & SuperAdmins) */}
                 {adminForm.role !== 'Teacher' && (
-                  <div>
-                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2">Granted Feature Modules</label>
-                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                      {ALL_ADMIN_MODULES.map((mod) => {
-                        const checked = adminForm.perms.includes(mod.code) || adminForm.role === 'SuperAdmin';
-                        return (
-                          <label
-                            key={mod.code}
-                            className="flex items-start gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <span>Granted Feature Modules</span>
+                        <span className="px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-extrabold">
+                          {adminForm.role === 'SuperAdmin' ? ALL_ADMIN_MODULES.length : adminForm.perms.length}/{ALL_ADMIN_MODULES.length}
+                        </span>
+                      </label>
+                      {adminForm.role !== 'SuperAdmin' && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAdminForm({ ...adminForm, perms: ALL_ADMIN_MODULES.map(m => m.code) })}
+                            className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                           >
-                            <input
-                              type="checkbox"
-                              disabled={adminForm.role === 'SuperAdmin'}
-                              checked={checked}
-                              onChange={(e) => {
-                                const updated = e.target.checked
-                                  ? [...adminForm.perms, mod.code]
-                                  : adminForm.perms.filter((p) => p !== mod.code);
-                                setAdminForm({ ...adminForm, perms: updated });
-                              }}
-                              className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
-                            />
-                            <div>
-                              <span className="text-xs font-black text-slate-900 dark:text-white block">{mod.label}</span>
-                              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">{mod.desc}</span>
-                            </div>
-                          </label>
-                        );
-                      })}
+                            Select All
+                          </button>
+                          <span className="text-slate-300 dark:text-slate-700">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminForm({ ...adminForm, perms: [] })}
+                            className="text-[10px] font-extrabold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                      )}
                     </div>
+
+                    {adminForm.role === 'SuperAdmin' ? (
+                      <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-bold flex items-center gap-2">
+                        <ShieldCheck size={16} className="text-indigo-600 flex-shrink-0" />
+                        <span>Super Admins automatically have unrestricted access to all {ALL_ADMIN_MODULES.length} system modules.</span>
+                      </div>
+                    ) : (
+                      <div className="p-2 space-y-1.5 max-h-52 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 scrollbar-thin">
+                        {ALL_ADMIN_MODULES.map((mod) => {
+                          const checked = adminForm.perms.includes(mod.code);
+                          return (
+                            <label
+                              key={mod.code}
+                              className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all select-none cursor-pointer ${
+                                checked
+                                  ? 'bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700/80 shadow-xs ring-1 ring-indigo-400/20'
+                                  : 'bg-white/60 dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 hover:bg-white dark:hover:bg-slate-900 opacity-80'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const updated = e.target.checked
+                                    ? [...adminForm.perms, mod.code]
+                                    : adminForm.perms.filter((p) => p !== mod.code);
+                                  setAdminForm({ ...adminForm, perms: updated });
+                                }}
+                                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <span className={`text-xs block leading-tight ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
+                                  {mod.label}
+                                </span>
+                                <span className="text-[10.5px] font-normal text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                                  {mod.desc}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+              {/* Fixed Modal Footer */}
+              <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md rounded-b-3xl flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowAdminModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-700 text-white hover:bg-indigo-600 shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50 flex items-center gap-1.5 transition-all"
                 >
                   {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                  <span>{editingAdminEmail ? 'Update Staff Account' : 'Save & Configure in Database'}</span>
+                  <span>{editingAdminEmail ? 'Update Staff Account' : 'Save & Configure Account'}</span>
                 </button>
               </div>
             </form>
