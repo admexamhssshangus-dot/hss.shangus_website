@@ -1287,51 +1287,11 @@ export function extractIfsc(st) {
 
 // ─── High-Performance Self-Resolving Student Photo Cell ───
 function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
-  const [photoSrc, setPhotoSrc] = useState(() => {
-    const direct = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
-    return direct && direct !== '/logo.png' && direct !== '—' ? (formatPhotoDisplayUrl(direct) || '') : '';
-  });
-  const [imgError, setImgError] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setImgError(false);
-
-    const resolveCurrent = () => {
-      const fast = resolveStudentPhoto(student) || getStudentPhotoUrl(student) || initialPhoto;
-      if (fast && fast !== '/logo.png' && fast !== '—') {
-        const formatted = formatPhotoDisplayUrl(fast);
-        if (formatted) {
-          setPhotoSrc(formatted);
-          return true;
-        }
-      }
-      return false;
-    };
-
-    if (!resolveCurrent()) {
-      setPhotoSrc('');
-      if (student) {
-        fetchStudentPhotoOnDemand(student).then((res) => {
-          if (active && res && res !== '/logo.png' && res !== '—') {
-            const formatted = formatPhotoDisplayUrl(res);
-            if (formatted) setPhotoSrc(formatted);
-          }
-        }).catch(() => {});
-      }
-    }
-
-    const handlePhotosLoaded = () => {
-      if (active) resolveCurrent();
-    };
-    window.addEventListener('hss-photos-loaded', handlePhotosLoaded);
-
-    return () => {
-      active = false;
-      window.removeEventListener('hss-photos-loaded', handlePhotosLoaded);
-    };
+  const photoSrc = useMemo(() => {
+    const direct = initialPhoto || resolveStudentPhoto(student) || getStudentPhotoUrl(student);
+    return direct && direct !== '/logo.png' && direct !== '—' ? (formatPhotoDisplayUrl(direct) || direct) : '';
   }, [student, initialPhoto]);
-
+  const [imgError, setImgError] = useState(false);
   const hasPhoto = photoSrc && !imgError && photoSrc !== '—' && photoSrc !== '/logo.png';
 
   return (
@@ -1340,6 +1300,7 @@ function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
         <img
           src={photoSrc}
           alt={studentName || 'Student Photo'}
+          loading="lazy"
           className="w-7 h-9 sm:w-8 sm:h-10 object-cover rounded border border-slate-300 shadow-2xs mx-auto bg-slate-100 block"
           onError={() => setImgError(true)}
         />
@@ -1374,8 +1335,9 @@ export default function CustomRosterDocumentBuilderView({
 
   // ─── Direct High-Performance Student Pool (0ms Latency, Zero Thread Freezing) ───
   const unifiedStudentPool = useMemo(() => {
+    if (!isReady) return [];
     return Array.isArray(allStudents) ? allStudents : [];
-  }, [allStudents]);
+  }, [allStudents, isReady]);
 
   // ─── Real Distinct Subjects Extracted Dynamically from Database Students ───
   const dynamicStudentSubjects = useMemo(() => {
@@ -1539,25 +1501,12 @@ export default function CustomRosterDocumentBuilderView({
   const [saveDefaultToast, setSaveDefaultToast] = useState(false);
   const [isSavingCustomToCloud, setIsSavingCustomToCloud] = useState(false);
   const [cloudFeeSaveToast, setCloudFeeSaveToast] = useState(false);
-  const [photoVersion, setPhotoVersion] = useState(0);
-
-  // Re-render when background student photos are indexed or loaded
+  // Preload student photos cache silently in background without re-render cascades
   useEffect(() => {
-    const handlePhotosLoaded = () => {
-      setPhotoVersion(v => v + 1);
-    };
-    window.addEventListener('hss-photos-loaded', handlePhotosLoaded);
-    return () => {
-      window.removeEventListener('hss-photos-loaded', handlePhotosLoaded);
-    };
-  }, []);
-
-  // Preload and index student photos whenever pool changes
-  useEffect(() => {
-    preloadStudentPhotosCache().then(() => {
-      setPhotoVersion(v => v + 1);
-    }).catch(() => {});
-  }, [unifiedStudentPool]);
+    if (isReady) {
+      preloadStudentPhotosCache().catch(() => {});
+    }
+  }, [isReady]);
 
   // Preload and sync custom fee rules and column defaults from Firebase Cloud
   useEffect(() => {
@@ -1995,41 +1944,10 @@ export default function CustomRosterDocumentBuilderView({
       row._rawStudent = st;
       row['sno'] = idx + 1;
       
-      let photoSrc = getStudentPhotoUrl(st);
-      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
-        const directResolved = resolveStudentPhoto(st);
-        if (directResolved && directResolved !== '—' && directResolved !== '/logo.png') {
-          photoSrc = formatPhotoDisplayUrl(directResolved) || directResolved;
-        }
-      }
-      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
-        const reg = extractBoardRegNo(st);
-        if (reg && reg !== '—') {
-          const cleanR = cleanRegNoVal(reg);
-          const cachedUrl = getPhotoUrlFromCache(cleanR) || getPhotoUrlFromCache(reg) || getPhotoUrlFromCache(`photo_${cleanR}`) || getPhotoUrlFromCache(`reg_${cleanR}`);
-          if (cachedUrl) photoSrc = formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
-        }
-      }
-      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
-        const idVal = st.id || st['Form Number'] || st.formNo;
-        if (idVal) {
-          const cachedUrl = getPhotoUrlFromCache(String(idVal));
-          if (cachedUrl) photoSrc = formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
-        }
-      }
-      if (!photoSrc || photoSrc === '—' || photoSrc === '/logo.png') {
-        const reg = extractBoardRegNo(st);
-        if (reg && reg !== '—') {
-          const indexed = lookupStudentByRegSync(reg);
-          if (indexed) {
-            const indexedPhoto = getStudentPhotoUrl(indexed) || resolveStudentPhoto(indexed);
-            if (indexedPhoto && indexedPhoto !== '—' && indexedPhoto !== '/logo.png') {
-              photoSrc = indexedPhoto;
-            }
-          }
-        }
-      }
-      row['studentPhoto'] = photoSrc || '';
+      const photoSrc = (activeColumns.some(c => c.key === 'studentPhoto' || c.key === 'photo'))
+        ? (resolveStudentPhoto(st) || getStudentPhotoUrl(st) || '')
+        : '';
+      row['studentPhoto'] = photoSrc;
       row['classRollNo'] = getStudentRollNumber(st) || '—';
       row['boardRegNo'] = extractBoardRegNo(st);
       row['admNo'] = extractAdmNo(st);
@@ -2124,7 +2042,7 @@ export default function CustomRosterDocumentBuilderView({
       ...r,
       sno: i + 1
     }));
-  }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster, photoVersion]);
+  }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, resolveStudentMaster]);
 
   // Metadata Badges for Header
   const cleanGlobalSession = String(globalSession || '').replace(/^(active_|master_)/, '');

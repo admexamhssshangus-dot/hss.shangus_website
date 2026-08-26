@@ -249,6 +249,7 @@ export default function StudentCertificateStudioView({
 
   // Combined searchable student directory with fast canonical single-pass mapping
   const unifiedStudentDirectory = useMemo(() => {
+    if (!isReady) return [];
     const list = [];
     const seenKeys = new Set();
 
@@ -321,7 +322,7 @@ export default function StudentCertificateStudioView({
     });
 
     return list;
-  }, [liveStudentsList, recentIngestedResults]);
+  }, [liveStudentsList, recentIngestedResults, isReady]);
 
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
