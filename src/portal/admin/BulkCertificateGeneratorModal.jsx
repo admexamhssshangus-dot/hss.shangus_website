@@ -360,7 +360,9 @@ export default function BulkCertificateGeneratorModal({
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
       const certificateRaw = extractStudentCertificateNumber(raw) || firstLinked(extractStudentCertificateNumber);
-      const certificateNo = extractCertificateSerial(certificateRaw) || certificateRaw || '';
+      // Certificate serials are numeric. Never render result text such as
+      // "Reap" as a locked certificate number when legacy columns are polluted.
+      const certificateNo = extractCertificateSerial(certificateRaw);
       const admNo = extractStudentAdmissionNumber(raw) || firstLinked(extractStudentAdmissionNumber) || '—';
       const admDate = extractStudentAdmissionDate(raw) || firstLinked(extractStudentAdmissionDate) || '—';
       const dobRaw = (extractDob(st) !== '—' ? extractDob(st) : firstLinked(extractDob)) || '—';
@@ -775,25 +777,28 @@ export default function BulkCertificateGeneratorModal({
   const totalFiltered = filteredStudents.length;
   const totalSelected = selectedStudentIds.size;
   const isAllSelected = totalSelected > 0 && totalSelected === totalFiltered;
+  const selectedRows = filteredStudents.filter(student => selectedStudentIds.has(student.id));
+  const newSelectedCount = selectedRows.filter(student => !student.certificateNo).length;
+  const sequentialEndNo = (parseInt(startCertNo, 10) || 1368) + Math.max(newSelectedCount - 1, 0);
 
   return (
     <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-5xl h-[92vh] max-h-[850px] shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-[1280px] h-[92vh] max-h-[850px] shadow-2xl flex flex-col overflow-hidden">
         
         {/* ════════ MODAL HEADER ════════ */}
-        <div className="p-3.5 sm:p-4 bg-gradient-to-r from-teal-900 via-slate-900 to-slate-900 text-white flex items-center justify-between border-b border-teal-800/40">
-          <div className="flex items-center gap-3">
+        <div className="p-3 sm:p-3.5 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-900 text-white flex items-center justify-between gap-3 border-b border-teal-800/40">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-teal-600/30 border border-teal-500/40 flex items-center justify-center text-teal-300 shadow-inner shrink-0">
               <Award size={22} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black tracking-tight">Bulk TC / Discharge Certificate Hub</h2>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-lg font-black tracking-tight text-white">Bulk TC / Discharge Certificate Hub</h2>
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   Dual-Page Batch Engine
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 text-slate-300 border border-slate-700/80 flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 border border-slate-600 flex items-center gap-1" style={{ color: '#cbd5e1' }}>
                   {isLoadingHistorical ? (
                     <>
                       <RefreshCw size={9} className="animate-spin text-teal-400" />
@@ -807,7 +812,7 @@ export default function BulkCertificateGeneratorModal({
                   )}
                 </span>
               </div>
-              <p className="text-xs text-slate-300 font-medium">
+              <p className="text-[11px] font-medium mt-0.5 truncate" style={{ color: '#cbd5e1' }}>
                 Multi-Class & Session Filtering • Auto Sequential Numbering • 2-Page Sequential Batch Prints
               </p>
             </div>
@@ -912,7 +917,7 @@ export default function BulkCertificateGeneratorModal({
           </div>
 
           {/* Row 2: Sequential Numbering & Batch Overrides */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1.5 border-t border-slate-200 dark:border-slate-800/60 text-xs items-end">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-[.78fr_.78fr_.82fr_1fr_1.35fr_.9fr] gap-2 pt-1.5 border-t border-slate-200 dark:border-slate-800/60 text-xs items-end">
             
             {/* Last Issued Cert No Input */}
             <div>
@@ -1004,7 +1009,7 @@ export default function BulkCertificateGeneratorModal({
           </div>
 
           {/* Sequential Range Info Banner */}
-          {totalSelected > 0 && (
+          {newSelectedCount > 0 && (
             <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-rose-100/70 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-[11px] font-bold animate-fadeIn">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
@@ -1014,11 +1019,11 @@ export default function BulkCertificateGeneratorModal({
                 </span>
                 <span>to</span>
                 <span className="font-mono font-black text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-700">
-                  #{(parseInt(startCertNo, 10) || 1368) + totalSelected - 1}
+                  #{sequentialEndNo}
                 </span>
               </span>
               <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                (Total <strong>{totalSelected}</strong> Sequential Certificates)
+                (Assigning <strong>{newSelectedCount}</strong> new certificate{newSelectedCount === 1 ? '' : 's'}{totalSelected > newSelectedCount ? `; ${totalSelected - newSelectedCount} already locked` : ''})
               </span>
             </div>
           )}
@@ -1026,8 +1031,8 @@ export default function BulkCertificateGeneratorModal({
         </div>
 
         {/* ════════ SELECTION STATS & SELECTION BAR ════════ */}
-        <div className="px-3.5 py-2 bg-slate-100 dark:bg-slate-850 flex items-center justify-between text-xs border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2">
+        <div className="px-3.5 py-2 bg-slate-100 dark:bg-slate-850 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handleToggleSelectAll}
@@ -1047,7 +1052,7 @@ export default function BulkCertificateGeneratorModal({
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] font-bold">
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
             <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
               {resultStats.passed} Passed
             </span>
@@ -1069,9 +1074,9 @@ export default function BulkCertificateGeneratorModal({
               <p className="text-xs text-slate-400 mt-0.5">Try changing class, session, or clearing search query.</p>
             </div>
           ) : (
-            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto shadow-2xs">
+              <table className="w-full min-w-[1050px] text-left text-xs border-collapse">
+                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="p-2 w-10 text-center">S.No.</th>
                     <th className="p-2 w-8 text-center">
