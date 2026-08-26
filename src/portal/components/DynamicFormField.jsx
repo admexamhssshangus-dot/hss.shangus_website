@@ -49,6 +49,35 @@ const PREVIOUS_SCHOOLS = [
   'Stpeters International Academy Anantnag',
 ];
 
+const CURRENT_YEAR = new Date().getFullYear();
+const SUGGESTED_PASSING_YEARS = Array.from({ length: 25 }, (_, i) => String(CURRENT_YEAR - i));
+const QUICK_SELECT_YEARS = [
+  String(CURRENT_YEAR),
+  String(CURRENT_YEAR - 1),
+  String(CURRENT_YEAR - 2),
+  String(CURRENT_YEAR - 3),
+  String(CURRENT_YEAR - 4),
+  String(CURRENT_YEAR - 5)
+];
+
+const COMPLEX_HEAD_SUGGESTIONS = [
+  'Govt. Higher Secondary School Shangus',
+  'Govt. Boys Higher Secondary School Anantnag',
+  'Govt. Girls Higher Secondary School Anantnag',
+  'Govt. Higher Secondary School Achabal',
+  'Govt. Higher Secondary School Utrasoo',
+  'Govt. Higher Secondary School Chittergul',
+  'Govt. Higher Secondary School Nowgam',
+  'Govt. Higher Secondary School Ranipora',
+  'Govt. Higher Secondary School Krad',
+  'Govt. Higher Secondary School Brakpora',
+  'Govt. Higher Secondary School Dialgam',
+  'Govt. Higher Secondary School Mattan'
+];
+
+const BOARD_SUGGESTIONS = ['JKBOSE', 'CBSE', 'ICSE', 'DIET', 'NIOS', 'Other'];
+const MAX_MARKS_PRESETS = ['500', '600'];
+
 const MONTHS = [
   { val: '01', name: '1_Jan' },
   { val: '02', name: '2_Feb' },
@@ -789,9 +818,16 @@ export default function DynamicFormField({
             const isIfsc = lowerName.includes('ifsc');
             const isEmail = lowerName.includes('email');
             const isNameField = lowerName.includes('name') && !isSchoolInput && !lowerName.includes('bank');
+            const isYearField = lowerName.includes('year of passing') || lowerName.includes('year of appearing') || lowerName.includes('passing year') || lowerName === 'prevyear' || lowerName.includes('passing_year');
+            const isMaxMarksField = lowerName.includes('max. marks') || lowerName.includes('max marks') || (lowerName.includes('total max') && !lowerName.includes('percentage'));
+            const isMarksObtainedField = lowerName.includes('marks obtained') || lowerName.includes('total marks obtained');
+            const isComplexHead = lowerName.includes('complex head') || (lowerName.includes('complex') && !lowerName.includes('building'));
+            const isBoardField = (lowerName.includes('board') || lowerName.includes('exam board')) && !lowerName.includes('registration') && !lowerName.includes('reg');
 
             let defaultMax = 80;
-            if (type === 'text_numeric') {
+            if (isYearField) {
+              defaultMax = 4;
+            } else if (type === 'text_numeric') {
               if (lowerName.includes('mobile')) defaultMax = 10;
               else if (lowerName.includes('aadhar')) defaultMax = 12;
               else if (lowerName.includes('pin')) defaultMax = 6;
@@ -805,12 +841,15 @@ export default function DynamicFormField({
               defaultMax = 80;
             }
 
-            const effectiveMaxLength = length ? parseInt(length, 10) : defaultMax;
+            const effectiveMaxLength = isYearField ? 4 : (length ? parseInt(length, 10) : defaultMax);
 
             // Numeric bounds
             let computedMin = min;
             let computedMax = max;
-            if (type === 'number' || type === 'number_range') {
+            if (isYearField) {
+              computedMin = 1990;
+              computedMax = CURRENT_YEAR + 1;
+            } else if (type === 'number' || type === 'number_range') {
               if (lowerName.includes('height')) {
                 computedMin = computedMin !== undefined ? computedMin : 50;
                 computedMax = computedMax !== undefined ? computedMax : 250;
@@ -827,12 +866,15 @@ export default function DynamicFormField({
 
             const handleInputChange = (e) => {
               let raw = e.target.value;
-              if (type === 'text_numeric') {
+              if (isYearField) {
+                raw = raw.replace(/\D/g, '').slice(0, 4);
+              } else if (type === 'text_numeric') {
                 raw = raw.replace(/\D/g, '').slice(0, effectiveMaxLength);
               } else if (isIfsc) {
                 raw = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11);
               } else if (type === 'number' || type === 'number_range') {
                 if (raw !== '') {
+                  raw = raw.replace(/-/g, '');
                   const num = Number(raw);
                   if (computedMax !== undefined && num > computedMax) raw = String(computedMax);
                 }
@@ -842,8 +884,20 @@ export default function DynamicFormField({
               onChange(name, raw);
             };
 
+            const datalistId = isSchoolInput
+              ? `${inputId}-schools`
+              : isYearField
+              ? `${inputId}-years`
+              : isMaxMarksField
+              ? `${inputId}-maxmarks`
+              : isComplexHead
+              ? `${inputId}-complex`
+              : isBoardField
+              ? `${inputId}-board`
+              : undefined;
+
             return (
-              <>
+              <div className="space-y-1">
                 <input
                   id={inputId}
                   type={type === 'text' ? (isEmail ? 'email' : 'text') : type === 'text_numeric' ? 'tel' : 'number'}
@@ -854,14 +908,81 @@ export default function DynamicFormField({
                   min={computedMin}
                   max={computedMax}
                   maxLength={effectiveMaxLength}
-                  list={isSchoolInput ? `${inputId}-schools` : undefined}
-                  inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
+                  list={datalistId}
+                  inputMode={isYearField ? 'numeric' : type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? errorId : undefined}
-                  placeholder={placeholder}
+                  placeholder={placeholder || (isYearField ? 'e.g. 2025' : isMaxMarksField ? 'e.g. 500' : '')}
                   className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                   style={inputStyle}
                 />
+
+                {/* Quick Selection Chips for Max Marks (500 / 600 / Custom) */}
+                {isMaxMarksField && (
+                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                    <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500">Quick Select:</span>
+                    {MAX_MARKS_PRESETS.map((preset) => {
+                      const isSelected = String(value || '').trim() === preset;
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => onChange(name, preset)}
+                          disabled={disabled}
+                          className={`px-2 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-teal-600 text-white shadow-xs scale-102 ring-1 ring-teal-400'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-600 border border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          {preset} Max
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const elem = document.getElementById(inputId);
+                        if (elem) elem.focus();
+                      }}
+                      disabled={disabled}
+                      className={`px-2 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer ${
+                        value && !MAX_MARKS_PRESETS.includes(String(value || '').trim())
+                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                )}
+
+                {/* Quick Selection Chips for Year of Passing / Appearing */}
+                {isYearField && (
+                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                    <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500">Recent Years:</span>
+                    {QUICK_SELECT_YEARS.map((yr) => {
+                      const isSelected = String(value || '').trim() === yr;
+                      return (
+                        <button
+                          key={yr}
+                          type="button"
+                          onClick={() => onChange(name, yr)}
+                          disabled={disabled}
+                          className={`px-1.5 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-teal-600 text-white shadow-xs scale-102 ring-1 ring-teal-400'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-600 border border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          {yr}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Datalists for Autocomplete Suggestions */}
                 {isSchoolInput && (
                   <datalist id={`${inputId}-schools`}>
                     {PREVIOUS_SCHOOLS.map((school, i) => (
@@ -869,7 +990,35 @@ export default function DynamicFormField({
                     ))}
                   </datalist>
                 )}
-              </>
+                {isYearField && (
+                  <datalist id={`${inputId}-years`}>
+                    {SUGGESTED_PASSING_YEARS.map((yr) => (
+                      <option key={yr} value={yr} />
+                    ))}
+                  </datalist>
+                )}
+                {isMaxMarksField && (
+                  <datalist id={`${inputId}-maxmarks`}>
+                    {['500', '600', '700', '800', '1000', '1200'].map((m) => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
+                )}
+                {isComplexHead && (
+                  <datalist id={`${inputId}-complex`}>
+                    {COMPLEX_HEAD_SUGGESTIONS.map((ch, i) => (
+                      <option key={i} value={ch} />
+                    ))}
+                  </datalist>
+                )}
+                {isBoardField && (
+                  <datalist id={`${inputId}-board`}>
+                    {BOARD_SUGGESTIONS.map((b, i) => (
+                      <option key={i} value={b} />
+                    ))}
+                  </datalist>
+                )}
+              </div>
             );
           })()}
         </>
