@@ -284,15 +284,6 @@ export default function StudentDashboard() {
             </button>
 
             <button
-              onClick={loadDashboardData}
-              disabled={loading}
-              className="p-2 rounded-xl border cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-              style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
-              title="Refresh Data"
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button
               onClick={handleLogoutRequest}
               className="px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs"
               style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
