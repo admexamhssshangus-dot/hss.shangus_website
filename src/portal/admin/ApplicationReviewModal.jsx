@@ -7,12 +7,59 @@ import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompress
 import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
 import { savePhotoUrlToCache, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
 
+const DEFAULT_PRESET_REASONS = [
+  'Documents incomplete / verification pending',
+  'Invalid or blurred photograph/marksheet uploaded',
+  'Marks/Percentage mismatch with marksheet records',
+  'Incorrect stream or subject combination selected',
+  'Age eligibility criteria not met for selected class',
+  'Duplicate application / Candidate already admitted',
+  'Incorrect personal, parent or village details',
+  'Bank account number or IFSC code mismatch',
+  'Board Registration Number invalid or missing'
+];
+
 export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [rejecting, setRejecting] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('Documents incomplete / verification pending');
   const [unlocking, setUnlocking] = useState(false);
   const [unlockHours, setUnlockHours] = useState('24');
   const [actionLoading, setActionLoading] = useState(false);
+  const [customReasons, setCustomReasons] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_custom_rejection_reasons');
+      return saved ? JSON.parse(saved) : DEFAULT_PRESET_REASONS;
+    } catch (_) {
+      return DEFAULT_PRESET_REASONS;
+    }
+  });
+  const [newReasonInput, setNewReasonInput] = useState('');
+  const [showAddReasonForm, setShowAddReasonForm] = useState(false);
+
+  const saveReasonsList = (updatedList) => {
+    setCustomReasons(updatedList);
+    try {
+      localStorage.setItem('hss_custom_rejection_reasons', JSON.stringify(updatedList));
+    } catch (_) {}
+  };
+
+  const handleAddNewReason = () => {
+    const trimmed = newReasonInput.trim();
+    if (!trimmed) return;
+    if (!customReasons.includes(trimmed)) {
+      const updated = [...customReasons, trimmed];
+      saveReasonsList(updated);
+    }
+    setRejectionReason(trimmed);
+    setNewReasonInput('');
+    setShowAddReasonForm(false);
+  };
+
+  const handleDeleteCustomReason = (reasonToDelete, e) => {
+    e.stopPropagation();
+    const updated = customReasons.filter(r => r !== reasonToDelete);
+    saveReasonsList(updated.length ? updated : DEFAULT_PRESET_REASONS);
+  };
 
   const initialPhoto = app ? getStudentPhotoUrl(app) : '';
   const [currentPhoto, setCurrentPhoto] = useState(initialPhoto);
@@ -334,10 +381,79 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
 
           {/* Rejection Form Overlay */}
           {rejecting && (
-            <form onSubmit={handleRejectSubmit} className="p-5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-3 animate-fadeIn">
-              <div className="font-extrabold text-red-600 dark:text-red-400 text-xs flex items-center gap-1.5">
-                <XCircle size={15} /> Enter Reason for Rejection:
+            <form onSubmit={handleRejectSubmit} className="p-5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-3.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="font-extrabold text-red-600 dark:text-red-400 text-xs flex items-center gap-1.5">
+                  <XCircle size={15} /> Enter Reason for Rejection:
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddReasonForm(!showAddReasonForm)}
+                  className="text-[10px] font-extrabold text-teal-600 hover:text-teal-700 dark:text-teal-400 cursor-pointer flex items-center gap-0.5"
+                >
+                  {showAddReasonForm ? 'Cancel' : '+ Add New Preset'}
+                </button>
               </div>
+
+              {/* Add New Preset Reason Input Form */}
+              {showAddReasonForm && (
+                <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/40 animate-fadeIn">
+                  <input
+                    type="text"
+                    value={newReasonInput}
+                    onChange={(e) => setNewReasonInput(e.target.value)}
+                    placeholder="Enter new rejection reason preset..."
+                    className="flex-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-red-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddNewReason();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddNewReason}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-red-600 text-white hover:bg-red-500 cursor-pointer whitespace-nowrap"
+                  >
+                    Save Preset
+                  </button>
+                </div>
+              )}
+
+              {/* Quick Select Chips */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Quick Select Reason:
+                </span>
+                <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto pr-1">
+                  {customReasons.map((r, idx) => {
+                    const isSelected = rejectionReason === r;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setRejectionReason(r)}
+                        className={`group inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all border ${
+                          isSelected
+                            ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-red-400 hover:text-red-600'
+                        }`}
+                      >
+                        <span>{r}</span>
+                        <button
+                          type="button"
+                          title="Remove preset"
+                          onClick={(e) => handleDeleteCustomReason(r, e)}
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 ml-0.5"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <textarea
                 rows={3}
                 required
@@ -348,6 +464,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
                 className="w-full p-3 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
                 style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
               />
+
               <div className="flex justify-end gap-2">
                 <button
                   type="button"

@@ -1603,6 +1603,18 @@ const getExactAdmissionDocId = (student) => String(
   student?._docId || student?.docId || student?.id || ''
 ).trim();
 
+const DEFAULT_PRESET_REASONS = [
+  'Documents incomplete / verification pending',
+  'Invalid or blurred photograph/marksheet uploaded',
+  'Marks/Percentage mismatch with marksheet records',
+  'Incorrect stream or subject combination selected',
+  'Age eligibility criteria not met for selected class',
+  'Duplicate application / Candidate already admitted',
+  'Incorrect personal, parent or village details',
+  'Bank account number or IFSC code mismatch',
+  'Board Registration Number invalid or missing'
+];
+
 async function updateExactAdmissionDocument(student, updates) {
   const exactId = getExactAdmissionDocId(student);
   if (!exactId || exactId.includes('/')) {
@@ -1620,6 +1632,42 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
   const [actionLoading, setActionLoading] = useState(false);
   const [dialogConfig, setDialogConfig] = useState(null);
   const [promptInput, setPromptInput] = useState('');
+  const [customReasons, setCustomReasons] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_custom_rejection_reasons');
+      return saved ? JSON.parse(saved) : DEFAULT_PRESET_REASONS;
+    } catch (_) {
+      return DEFAULT_PRESET_REASONS;
+    }
+  });
+  const [newReasonInput, setNewReasonInput] = useState('');
+  const [showAddReasonForm, setShowAddReasonForm] = useState(false);
+
+  const saveReasonsList = (updatedList) => {
+    setCustomReasons(updatedList);
+    try {
+      localStorage.setItem('hss_custom_rejection_reasons', JSON.stringify(updatedList));
+    } catch (_) {}
+  };
+
+  const handleAddNewReason = () => {
+    const trimmed = newReasonInput.trim();
+    if (!trimmed) return;
+    if (!customReasons.includes(trimmed)) {
+      const updated = [...customReasons, trimmed];
+      saveReasonsList(updated);
+    }
+    setPromptInput(trimmed);
+    setNewReasonInput('');
+    setShowAddReasonForm(false);
+  };
+
+  const handleDeleteCustomReason = (reasonToDelete, e) => {
+    e.stopPropagation();
+    const updated = customReasons.filter(r => r !== reasonToDelete);
+    saveReasonsList(updated.length ? updated : DEFAULT_PRESET_REASONS);
+  };
+
   const dropdownRef = useRef(null);
   const btnRef = useRef(null);
 
@@ -1955,9 +2003,10 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     setPromptInput('Documents incomplete / verification pending');
     setDialogConfig({
       type: 'prompt',
+      isReject: true,
       title: 'Reject Application',
       message: `Enter rejection reason for ${student?.studentName}:`,
-      placeholder: 'Reason for rejection...',
+      placeholder: 'Select a predefined reason below or type a custom reason...',
       icon: AlertOctagon,
       iconColor: 'text-rose-600 dark:text-rose-400',
       btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
@@ -1967,16 +2016,21 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
         if (!reason) return;
         try {
           setActionLoading(true);
+          const editableUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
           await updateStudentDocument(student, {
             'Status': 'Rejected',
             'status': 'Rejected',
-            'rejectionReason': reason
+            'rejectionReason': reason,
+            'Rejection Reason': reason,
+            'rejectedAt': new Date().toISOString(),
+            'editableUntil': editableUntil,
+            'isEditable': true
           });
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
             title: 'Application Rejected',
-            message: `Application for ${student?.studentName} marked as Rejected.`,
+            message: `Application for ${student?.studentName} marked as Rejected.\n\nReason: "${reason}"\n\nStudent has been granted access to edit and correct their application.`,
             icon: AlertOctagon,
             iconColor: 'text-rose-600 dark:text-rose-400',
             btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
@@ -2205,23 +2259,107 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               {dialogConfig.message}
             </div>
 
-            {/* Prompt Text Input */}
+            {/* Prompt Text Area / Input */}
             {dialogConfig.type === 'prompt' && (
-              <div className="pt-1">
-                <input
-                  type="text"
-                  autoFocus
-                  disabled={isSubmitting}
-                  value={promptInput}
-                  onChange={(e) => setPromptInput(e.target.value)}
-                  placeholder={dialogConfig.placeholder || 'Enter value...'}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      if (dialogConfig.onConfirm) dialogConfig.onConfirm(promptInput);
-                    }
-                  }}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs sm:text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs"
-                />
+              <div className="space-y-3 pt-1">
+                {dialogConfig.isReject ? (
+                  <>
+                    <textarea
+                      rows={3}
+                      autoFocus
+                      disabled={isSubmitting}
+                      value={promptInput}
+                      onChange={(e) => setPromptInput(e.target.value)}
+                      placeholder={dialogConfig.placeholder || 'Type or select a reason for rejection...'}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs sm:text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-rose-500 focus:outline-none shadow-2xs resize-none"
+                    />
+
+                    {/* Predefined Reasons Section */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                          Predefined Rejection Reasons (Click to select)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddReasonForm(!showAddReasonForm)}
+                          className="text-[10px] font-extrabold text-teal-600 hover:text-teal-700 dark:text-teal-400 cursor-pointer flex items-center gap-0.5"
+                        >
+                          {showAddReasonForm ? 'Cancel' : '+ Add New Preset'}
+                        </button>
+                      </div>
+
+                      {/* Add New Preset Reason Input Form */}
+                      {showAddReasonForm && (
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 animate-fadeIn">
+                          <input
+                            type="text"
+                            value={newReasonInput}
+                            onChange={(e) => setNewReasonInput(e.target.value)}
+                            placeholder="Enter new rejection reason preset..."
+                            className="flex-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddNewReason();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddNewReason}
+                            className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-teal-600 text-white hover:bg-teal-500 cursor-pointer whitespace-nowrap"
+                          >
+                            Save Preset
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Reasons Preset Chips Grid */}
+                      <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto pr-1">
+                        {customReasons.map((r, idx) => {
+                          const isSelected = promptInput === r;
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => setPromptInput(r)}
+                              className={`group inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all border ${
+                                isSelected
+                                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-400 hover:text-rose-600'
+                              }`}
+                            >
+                              <span>{r}</span>
+                              <button
+                                type="button"
+                                title="Remove preset"
+                                onClick={(e) => handleDeleteCustomReason(r, e)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 ml-0.5"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    autoFocus
+                    disabled={isSubmitting}
+                    value={promptInput}
+                    onChange={(e) => setPromptInput(e.target.value)}
+                    placeholder={dialogConfig.placeholder || 'Enter value...'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (dialogConfig.onConfirm) dialogConfig.onConfirm(promptInput);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-xs sm:text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs"
+                  />
+                )}
               </div>
             )}
 

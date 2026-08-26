@@ -9,7 +9,7 @@ import { sessionManager } from './sessionManager';
 import { auth, db } from './firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
 import { DEFAULT_FORM_STRUCTURE, DEFAULT_SUBJECTS_CONFIG } from '../utils/defaultFormSchema';
-import { getCachedCollection, getCachedCollectionSync } from './dbCache';
+import { getCachedCollection, getCachedCollectionSync, updateCachedItem } from './dbCache';
 import { loadAdmissionWorkspace, submitAdmission } from './admissionWorkflowApi';
 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
@@ -539,6 +539,7 @@ async function legacySaveApplication(payload) {
 
   const computedSession = getCurrentAcademicSession();
   const sessionUser = sessionManager.getUser();
+  const wasRejected = data.Status === 'Rejected' || data.status === 'Rejected' || Boolean(data.rejectionReason);
   const payloadData = {
     ...data,
     ownerUid: auth.currentUser?.uid || sessionUser?.uid || sessionUser?.id || data.ownerUid || '',
@@ -551,10 +552,18 @@ async function legacySaveApplication(payload) {
     Session: session || data.Session || data.session || computedSession,
     session: session || data.Session || data.session || computedSession,
     isProvisional: isProvisional,
-    Status: data.Status || data.status || 'Submitted',
-    status: data.Status || data.status || 'Submitted',
+    Status: (data.Status === 'Draft' || data.status === 'Draft') ? 'Draft' : 'Submitted',
+    status: (data.Status === 'Draft' || data.status === 'Draft') ? 'Draft' : 'Submitted',
     submittedAt: data.submittedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...(wasRejected ? {
+      isResubmitted: true,
+      resubmittedAt: new Date().toISOString(),
+      previousRejectionReason: data.rejectionReason || data['Rejection Reason'] || '',
+      rejectionReason: '',
+      'Rejection Reason': '',
+      isEditable: false
+    } : {}),
     ...(isUpgradeMode ? { upgradedAt: new Date().toISOString(), isProvisional: false } : {}),
   };
   // Remove internal flags from saved data
@@ -563,6 +572,7 @@ async function legacySaveApplication(payload) {
 
   try {
     await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
+    updateCachedItem('admissions', sanitizedDocId, payloadData);
   } catch (e) {
     console.warn('Firestore saveApplication admissions write error:', e);
   }

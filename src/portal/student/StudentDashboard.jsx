@@ -195,7 +195,7 @@ export default function StudentDashboard() {
   const editableUntilMillis = typeof editableUntil === 'object'
     ? Number(editableUntil?._seconds || editableUntil?.seconds || 0) * 1000
     : Date.parse(editableUntil || '') || 0;
-  const isWithin3DaysRejection = status === 'Rejected' && editableUntilMillis > Date.now();
+  const isWithin3DaysRejection = status === 'Rejected' && (editableUntilMillis > Date.now() || !editableUntil || appData?.isEditable === true);
   const isRejectionExpired = status === 'Rejected' && !isWithin3DaysRejection;
 
   // Payment Status & Online Payment Toggle
@@ -529,7 +529,14 @@ export default function StudentDashboard() {
                     </button>
                   ) : isFormEditable ? (
                     <button
-                      onClick={() => navigate('/portal/student/application')}
+                      onClick={() => {
+                        try {
+                          if (appData) {
+                            sessionStorage.setItem('hss_admission_draft', JSON.stringify(appData));
+                          }
+                        } catch (e) {}
+                        navigate('/portal/student/application');
+                      }}
                       disabled={isRejectionExpired}
                       className={`px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer ${
                         isRejectionExpired ? 'bg-slate-400 text-slate-200 cursor-not-allowed opacity-60' : 'bg-teal-600 hover:bg-teal-500 text-white'
