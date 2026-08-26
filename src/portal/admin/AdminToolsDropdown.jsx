@@ -3,13 +3,15 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen
+  GitMerge, BookOpen, Award
 } from 'lucide-react';
 
 export const ADMIN_TOOL_MODULES = [
   { id: 'reports', label: 'Student Records & Reports', desc: 'Master register, student records and reports', category: 'Records & Registers', icon: BarChart2 },
   { id: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', desc: 'Official ledger, JKBOSE sentup roll, bulk assign IDs & dates', category: 'Records & Registers', icon: BookOpen },
-  { id: 'docStudio', label: 'Official Documents & Registers Studio', desc: 'Custom student lists, fee sheets & official letterhead writer', category: 'Records & Registers', icon: FileSpreadsheet },
+  { id: 'customRoster', label: 'Student Roster & Registers', desc: 'Custom student lists, fee sheets, class registers & tabular sheets', category: 'Records & Registers', icon: FileSpreadsheet },
+  { id: 'officialLetter', label: 'Official Letterhead Writer', desc: 'Compose, format & print official school letters with institutional header', category: 'Records & Registers', icon: FileText },
+  { id: 'certStudio', label: 'Student Bonafides & Certificates', desc: 'Generate batch bonafide, character, DOB & achievement certificates', category: 'Records & Registers', icon: Award },
   { id: 'idCards', label: 'Student ID Cards', desc: 'Generate and print student identity cards', category: 'Records & Registers', icon: Contact },
   { id: 'gkTest', label: 'Competitive Exams', desc: 'Exam preparation and registrations', category: 'Records & Registers', icon: ShieldCheck },
 
@@ -32,7 +34,8 @@ export const isUserPermittedForModule = (user, moduleId) => {
   if (
     role === 'superadmin' ||
     email === 'adm.exam.hss.shangus@gmail.com' ||
-    email === 'socialshiftz@gmail.com'
+    email === 'socialshiftz@gmail.com' ||
+    email === 'e.educational.24@gmail.com'
   ) {
     return true;
   }
@@ -40,8 +43,8 @@ export const isUserPermittedForModule = (user, moduleId) => {
   const perms = Array.isArray(user.perms) ? user.perms : [];
   if (perms.includes('*')) return true;
   if (perms.length === 0) return moduleId === 'reports';
-  if (moduleId === 'docStudio') {
-    return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter');
+  if (moduleId === 'docStudio' || moduleId === 'customRoster' || moduleId === 'officialLetter' || moduleId === 'certStudio') {
+    return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter') || perms.includes('certStudio') || perms.includes('certificate');
   }
   return perms.includes(moduleId);
 };
