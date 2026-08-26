@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   X, Award, Printer, Search,
-  FileSpreadsheet, AlertCircle, RefreshCw, Database, CheckCircle2, Lock
+  FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Edit3, Save
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -14,7 +14,9 @@ import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   fetchLastIssuedCertificateNumber,
   commitIssuedCertificateBatch,
-  exportCertificateRegistryXlsx
+  exportCertificateRegistryXlsx,
+  extractCertificateSerial,
+  persistCertificateStudentFields
 } from '../../services/certificateRegistryService';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
@@ -23,11 +25,10 @@ import {
   printBatchStudentCertificates
 } from '../../utils/certificateExportUtils';
 import {
-  normalizeResultStatus,
-  calculateDivision,
   extractStudentResultMarks,
   extractStudentAdmissionNumber,
-  extractStudentAdmissionDate
+  extractStudentAdmissionDate,
+  extractStudentCertificateNumber
 } from '../../utils/jkboseResultManager';
 import {
   extractStudentName,
@@ -44,7 +45,24 @@ import {
   extractVillage,
   extractMobile
 } from './CustomRosterDocumentBuilderView';
-import * as XLSX from 'xlsx';
+const sessionStartYear = (value) => {
+  const match = String(value || '').match(/(?:19|20)\d{2}/);
+  return match ? Number(match[0]) : null;
+};
+
+const sortIdentityRecordsByNearestSession = (records, targetSession) => {
+  const targetYear = sessionStartYear(targetSession);
+  return [...(records || [])].sort((a, b) => {
+    const aYear = sessionStartYear(extractSession(a));
+    const bYear = sessionStartYear(extractSession(b));
+    const aDistance = targetYear !== null && aYear !== null ? Math.abs(targetYear - aYear) : Number.MAX_SAFE_INTEGER;
+    const bDistance = targetYear !== null && bYear !== null ? Math.abs(targetYear - bYear) : Number.MAX_SAFE_INTEGER;
+    if (aDistance !== bDistance) return aDistance - bDistance;
+    return (bYear || 0) - (aYear || 0);
+  });
+};
+
+const MAX_CERT_ASSIGNMENT_BATCH = 400;
 
 export default function BulkCertificateGeneratorModal({
   isOpen,
@@ -182,6 +200,10 @@ export default function BulkCertificateGeneratorModal({
   const [examSessionOverride, setExamSessionOverride] = useState('Annual Regular 2025 (Oct.-Nov.)');
   const [pageMargin, setPageMargin] = useState(0.3);
   const [isCommittingToDb, setIsCommittingToDb] = useState(false);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const [isSavingFields, setIsSavingFields] = useState(false);
 
   // Auto-fetch highest issued Certificate Number from Firestore on modal open
   useEffect(() => {
@@ -326,7 +348,7 @@ export default function BulkCertificateGeneratorModal({
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
       const regKey = String(regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-      const linkedRecords = identityRecordsByReg.get(regKey) || [];
+      const linkedRecords = sortIdentityRecordsByNearestSession(identityRecordsByReg.get(regKey) || [], session);
       const firstLinked = (extractor) => {
         for (const record of linkedRecords) {
           const value = extractor(record);
@@ -337,6 +359,8 @@ export default function BulkCertificateGeneratorModal({
       const authoritativeIdentity = linkedRecords.find(record =>
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
+      const certificateRaw = extractStudentCertificateNumber(raw) || firstLinked(extractStudentCertificateNumber);
+      const certificateNo = extractCertificateSerial(certificateRaw) || certificateRaw || '';
       const admNo = extractStudentAdmissionNumber(raw) || firstLinked(extractStudentAdmissionNumber) || '—';
       const admDate = extractStudentAdmissionDate(raw) || firstLinked(extractStudentAdmissionDate) || '—';
       const dobRaw = (extractDob(st) !== '—' ? extractDob(st) : firstLinked(extractDob)) || '—';
@@ -344,7 +368,7 @@ export default function BulkCertificateGeneratorModal({
       const gender = String(resolvedGender || '').toUpperCase().startsWith('F')
         ? 'F'
         : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : '');
-      const village = extractVillage(st) || 'Shangus';
+      const village = (extractVillage(st) !== '—' ? extractVillage(st) : firstLinked(extractVillage)) || '—';
       const mobile = extractMobile(st) || '';
 
       // Exam Result fields
@@ -364,6 +388,22 @@ export default function BulkCertificateGeneratorModal({
       else if (isReap) resultStatus = 'Re-appear';
       else if (isFailed) resultStatus = 'Failed';
 
+      const pendingFields = [];
+      if (!regNo || regNo === '—') pendingFields.push('Registration No.');
+      if (!admNo || admNo === '—') pendingFields.push('Admission No.');
+      if (!admDate || admDate === '—') pendingFields.push('Admission Date');
+      if (!dobRaw || dobRaw === '—') pendingFields.push('Date of Birth');
+      if (!gender) pendingFields.push('Gender');
+      if (!father || father === '—') pendingFields.push("Father's Name");
+      if (!mother || mother === '—') pendingFields.push("Mother's Name");
+      if (!village || village === '—') pendingFields.push('Village / Address');
+      if (!examRollNo || examRollNo === '—') pendingFields.push('Exam Roll No.');
+      if (!examMode) pendingFields.push('Exam Mode');
+      if (!hasResult) pendingFields.push('Exam Result');
+      if (isPassed && !marksObtained) pendingFields.push('Marks Obtained');
+      if (isPassed && !division) pendingFields.push('Division');
+      if (isReap && !reappSubjects) pendingFields.push('Re-appear Subjects');
+
       return {
         id,
         raw,
@@ -382,6 +422,8 @@ export default function BulkCertificateGeneratorModal({
         gender,
         village,
         mobile,
+        certificateNo,
+        pendingFields,
         examRollNo,
         resultStatus,
         division,
@@ -436,9 +478,11 @@ export default function BulkCertificateGeneratorModal({
         if (!match) return false;
       }
 
+      if (showPendingOnly && st.pendingFields.length === 0) return false;
+
       return true;
     });
-  }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, searchQuery]);
+  }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, searchQuery, showPendingOnly]);
 
   // Pre-compute cert number map: strictly sequential for selected students, prospective for preview
   const certNumberMap = useMemo(() => {
@@ -449,7 +493,9 @@ export default function BulkCertificateGeneratorModal({
     // If user has selectively checked students, number strictly the checked ones gaplessly
     if (selectedStudentIds.size > 0) {
       filteredStudents.forEach((st) => {
-        if (selectedStudentIds.has(st.id)) {
+        if (st.certificateNo) {
+          map.set(st.id, st.certificateNo);
+        } else if (selectedStudentIds.has(st.id)) {
           map.set(st.id, base + seq);
           seq++;
         } else {
@@ -458,8 +504,12 @@ export default function BulkCertificateGeneratorModal({
       });
     } else {
       // Preview mode: show prospective sequential numbers across all filtered students
-      filteredStudents.forEach((st, idx) => {
-        map.set(st.id, base + idx);
+      filteredStudents.forEach((st) => {
+        if (st.certificateNo) map.set(st.id, st.certificateNo);
+        else {
+          map.set(st.id, base + seq);
+          seq++;
+        }
       });
     }
     return map;
@@ -515,7 +565,7 @@ export default function BulkCertificateGeneratorModal({
     const reappearTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === 'tc_dc_reappear') || qualifiedTpl;
 
     return targetList.map((st, idx) => {
-      const assignedCertNo = String(certNumberMap.get(st.id) || (baseCertNum + idx));
+      const assignedCertNo = String(st.certificateNo || certNumberMap.get(st.id) || (baseCertNum + idx));
       const isPassed = st.resultStatus === 'Passed';
       const targetTpl = isPassed ? qualifiedTpl : reappearTpl;
 
@@ -563,6 +613,7 @@ export default function BulkCertificateGeneratorModal({
         id: st.id,
         formNo: st.raw?.formNo || st.raw?.['Form No.'] || st.id,
         certNo: assignedCertNo,
+        isNewAssignment: !st.certificateNo,
         bodyHtml: interpolatedHtml,
         metaDetails: {
           certificateNo: assignedCertNo,
@@ -574,11 +625,66 @@ export default function BulkCertificateGeneratorModal({
     });
   };
 
-  // ─── Action 1: Batch Print 2 Pages Per Student ───
+  const getPackageReadinessError = (packages) => {
+    const pending = packages.filter(pkg => pkg.student.pendingFields.length > 0);
+    if (pending.length > 0) {
+      return `${pending.length} selected student(s) have required certificate fields pending. Use the Pending Fields editor before assignment or printing.`;
+    }
+    return '';
+  };
+
+  // Assign once in Firestore. Every subsequent print reuses the locked serial.
+  const handleAssignCertificateNumbers = async () => {
+    const packages = compileBatchPackages();
+    if (packages.length === 0) {
+      showToast('Please select at least 1 student.', 'warning');
+      return;
+    }
+    const readinessError = getPackageReadinessError(packages);
+    if (readinessError) {
+      showToast(readinessError, 'warning');
+      return;
+    }
+    const newAssignments = packages.filter(pkg => pkg.isNewAssignment);
+    if (newAssignments.length === 0) {
+      showToast('All selected students already have locked certificate numbers. You may print them again at any time.', 'info');
+      return;
+    }
+    if (newAssignments.length > MAX_CERT_ASSIGNMENT_BATCH) {
+      showToast(`Select at most ${MAX_CERT_ASSIGNMENT_BATCH} unissued students per assignment batch so the registry and student records remain one safe Firestore operation.`, 'warning');
+      return;
+    }
+
+    setIsCommittingToDb(true);
+    try {
+      const commitRes = await commitIssuedCertificateBatch(newAssignments, issueDate);
+      if (commitRes.success) {
+        showToast(`Locked ${commitRes.count} certificate number(s) permanently. Reprints will reuse the same numbers.`, 'success');
+        setLastIssuedCertNo(commitRes.lastIssuedCertNo);
+        setStartCertNo(commitRes.lastIssuedCertNo + 1);
+      }
+    } catch (err) {
+      console.error('Error assigning certificate numbers:', err);
+      showToast(`Failed to assign certificate numbers: ${err.message}`, 'error');
+    } finally {
+      setIsCommittingToDb(false);
+    }
+  };
+
+  // ─── Print already-assigned certificates as often as required ───
   const handleBatchPrint = async () => {
     const packages = compileBatchPackages();
     if (packages.length === 0) {
       showToast('Please select at least 1 student for bulk print.', 'warning');
+      return;
+    }
+    const readinessError = getPackageReadinessError(packages);
+    if (readinessError) {
+      showToast(readinessError, 'warning');
+      return;
+    }
+    if (packages.some(pkg => pkg.isNewAssignment)) {
+      showToast('Assign & Lock certificate numbers first. Printing never creates or changes a certificate number.', 'warning');
       return;
     }
 
@@ -602,28 +708,6 @@ export default function BulkCertificateGeneratorModal({
       dateSigGap: 0.50,
       sigReceiptGap: 12
     });
-
-    // Prompt user to commit certificate numbers to Firestore
-    const confirmCommit = window.confirm(
-      `Print stream generated for ${packages.length} student(s) (#${packages[0].certNo} - #${packages[packages.length - 1].certNo}).\n\nDo you want to COMMIT and LOCK these certificate numbers to Firebase database so they are recorded as issued?`
-    );
-
-    if (confirmCommit) {
-      setIsCommittingToDb(true);
-      try {
-        const commitRes = await commitIssuedCertificateBatch(packages, issueDate);
-        if (commitRes.success) {
-          showToast(`✅ Successfully locked ${commitRes.count} certificate numbers (#${packages[0].certNo} - #${commitRes.lastIssuedCertNo}) to Firebase!`, 'success');
-          setLastIssuedCertNo(commitRes.lastIssuedCertNo);
-          setStartCertNo(commitRes.lastIssuedCertNo + 1);
-        }
-      } catch (err) {
-        console.error('Error committing certificate batch to Firebase:', err);
-        showToast('Failed to save certificate numbers to Firebase.', 'error');
-      } finally {
-        setIsCommittingToDb(false);
-      }
-    }
   };
 
   // ─── Action 2: Export Registry Spreadsheet (.xlsx) ───
@@ -631,6 +715,10 @@ export default function BulkCertificateGeneratorModal({
     const packages = compileBatchPackages();
     if (packages.length === 0) {
       showToast('Please select at least 1 student to export registry.', 'warning');
+      return;
+    }
+    if (packages.some(pkg => pkg.isNewAssignment)) {
+      showToast('Assign & Lock certificate numbers before exporting the official registry.', 'warning');
       return;
     }
 
@@ -645,6 +733,43 @@ export default function BulkCertificateGeneratorModal({
     showToast(`📊 Exported issuance registry for ${packages.length} certificates!`, 'success');
   };
 
+  const openPendingFieldsEditor = (student) => {
+    setEditingStudent(student);
+    setEditValues({
+      studentName: student.studentName === '—' ? '' : student.studentName,
+      fatherName: student.fatherName === '—' ? '' : student.fatherName,
+      motherName: student.motherName === '—' ? '' : student.motherName,
+      regNo: student.regNo === '—' ? '' : student.regNo,
+      admNo: student.admNo === '—' ? '' : student.admNo,
+      admDate: student.admDate === '—' ? '' : student.admDate,
+      dob: student.dobRaw === '—' ? '' : student.dobRaw,
+      gender: student.gender || '',
+      village: student.village === '—' ? '' : student.village,
+      examRollNo: student.examRollNo === '—' ? '' : student.examRollNo,
+      examMode: student.examMode || '',
+      resultStatus: student.hasResult ? student.resultStatus : '',
+      marksObtained: student.marksObtained || '',
+      maxMarks: student.maxMarks || '500',
+      division: student.division || '',
+      reappSubjects: student.reappSubjects || ''
+    });
+  };
+
+  const handleSavePendingFields = async () => {
+    if (!editingStudent) return;
+    setIsSavingFields(true);
+    try {
+      await persistCertificateStudentFields(editingStudent, editValues);
+      showToast(`Saved certificate fields permanently for ${editingStudent.studentName}.`, 'success');
+      setEditingStudent(null);
+    } catch (error) {
+      console.error('Failed to save certificate fields:', error);
+      showToast(`Failed to save fields: ${error.message}`, 'error');
+    } finally {
+      setIsSavingFields(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const totalFiltered = filteredStudents.length;
@@ -652,6 +777,7 @@ export default function BulkCertificateGeneratorModal({
   const isAllSelected = totalSelected > 0 && totalSelected === totalFiltered;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-5xl h-[92vh] max-h-[850px] shadow-2xl flex flex-col overflow-hidden">
         
@@ -912,6 +1038,13 @@ export default function BulkCertificateGeneratorModal({
             <span className="font-extrabold text-slate-800 dark:text-slate-200">
               Selected: <span className="text-teal-600 dark:text-teal-400 font-black">{totalSelected}</span> of {totalFiltered}
             </span>
+            <button
+              type="button"
+              onClick={() => setShowPendingOnly(value => !value)}
+              className={`px-2.5 py-1 rounded-lg border font-bold text-[10px] cursor-pointer ${showPendingOnly ? 'bg-amber-500 text-white border-amber-600' : 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'}`}
+            >
+              {showPendingOnly ? 'Showing Pending Only' : 'Show Pending Fields'}
+            </button>
           </div>
 
           <div className="flex items-center gap-1.5 text-[10px] font-bold">
@@ -955,6 +1088,7 @@ export default function BulkCertificateGeneratorModal({
                     <th className="p-2 w-28">Reg No / Adm No</th>
                     <th className="p-2 w-32">Exam Roll & Session</th>
                     <th className="p-2">Exam Result Status</th>
+                    <th className="p-2 w-28 text-center">Pending / Edit</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
@@ -984,14 +1118,14 @@ export default function BulkCertificateGeneratorModal({
                           />
                         </td>
                         <td className="p-2 text-center font-mono">
-                          {isChecked ? (
-                            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
-                              #{calculatedCertNo}
-                            </span>
-                          ) : (st.raw?.ccDcNo || st.raw?.certificateNo) ? (
+                          {st.certificateNo ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800">
                               <Lock size={9} />
-                              #{st.raw.ccDcNo || st.raw.certificateNo}
+                              #{st.certificateNo}
+                            </span>
+                          ) : isChecked ? (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
+                              #{calculatedCertNo}
                             </span>
                           ) : (
                             <span className="text-slate-300 dark:text-slate-600 font-bold text-xs">
@@ -1002,10 +1136,10 @@ export default function BulkCertificateGeneratorModal({
                         <td className="p-2">
                           <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white leading-tight">
                             <span>{st.studentName}</span>
-                            {(st.raw?.ccDcNo || st.raw?.certificateNo) && (
+                            {st.certificateNo && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800 shrink-0">
                                 <CheckCircle2 size={9} />
-                                Issued #{st.raw.ccDcNo || st.raw.certificateNo}
+                                Issued #{st.certificateNo}
                               </span>
                             )}
                           </div>
@@ -1044,6 +1178,17 @@ export default function BulkCertificateGeneratorModal({
                             </span>
                           )}
                         </td>
+                        <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => openPendingFieldsEditor(st)}
+                            title={st.pendingFields.length > 0 ? `Pending: ${st.pendingFields.join(', ')}` : 'Review or update certificate fields'}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-bold text-[9.5px] cursor-pointer ${st.pendingFields.length > 0 ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700' : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'}`}
+                          >
+                            <Edit3 size={10} />
+                            {st.pendingFields.length > 0 ? `${st.pendingFields.length} Pending` : 'Complete'}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -1056,10 +1201,20 @@ export default function BulkCertificateGeneratorModal({
         {/* ════════ BOTTOM ACTION BAR ════════ */}
         <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
           <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-            💡 Each student certificate generates <strong>2 separate A4 portrait pages</strong> (Page 1: Student Copy, Page 2: Office Copy with red watermark & receipt slip).
+            💡 Assign numbers once, then reprint indefinitely with the same locked number. Each certificate generates <strong>2 A4 pages</strong>.
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleAssignCertificateNumbers}
+              disabled={totalFiltered === 0 || isCommittingToDb}
+              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {isCommittingToDb ? <RefreshCw size={14} className="animate-spin" /> : <Lock size={13} />}
+              <span>{isCommittingToDb ? 'Assigning...' : `Assign & Lock (${totalSelected || totalFiltered})`}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleExportRegistryExcel}
@@ -1093,5 +1248,75 @@ export default function BulkCertificateGeneratorModal({
 
       </div>
     </div>
+    {editingStudent && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+        <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between">
+            <div>
+              <h3 className="font-black text-slate-900 dark:text-white">Complete Certificate Fields</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">{editingStudent.studentName} • Reg: {editingStudent.regNo || '—'} • Changes are saved permanently to Firestore.</p>
+            </div>
+            <button type="button" onClick={() => setEditingStudent(null)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><X size={17} /></button>
+          </div>
+          <div className="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              ['studentName', "Student's Name"],
+              ['fatherName', "Father's Name"],
+              ['motherName', "Mother's Name"],
+              ['regNo', 'Registration No.'],
+              ['admNo', 'Admission No.'],
+              ['admDate', 'Admission Date'],
+              ['dob', 'Date of Birth'],
+              ['village', 'Village / Address'],
+              ['examRollNo', 'Exam Roll No.'],
+              ['examMode', 'Exam Mode'],
+              ['marksObtained', 'Marks Obtained'],
+              ['maxMarks', 'Maximum Marks'],
+              ['division', 'Division / Distinction'],
+              ['reappSubjects', 'Re-appear Subjects']
+            ].map(([key, label]) => (
+              <label key={key} className="text-[10px] font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <span className="flex items-center justify-between mb-1">
+                  {label}
+                  {editingStudent.pendingFields.some(field => field.toLowerCase().includes(label.replace('.', '').toLowerCase().split(' / ')[0])) && <span className="text-amber-600">Pending</span>}
+                </span>
+                <input
+                  type="text"
+                  value={editValues[key] || ''}
+                  onChange={(e) => setEditValues(values => ({ ...values, [key]: e.target.value }))}
+                  className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white"
+                />
+              </label>
+            ))}
+            <label className="text-[10px] font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <span className="block mb-1">Gender</span>
+              <select value={editValues.gender || ''} onChange={(e) => setEditValues(values => ({ ...values, gender: e.target.value }))} className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white">
+                <option value="">Select gender</option>
+                <option value="Female (F)">Female</option>
+                <option value="Male (M)">Male</option>
+              </select>
+            </label>
+            <label className="text-[10px] font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <span className="block mb-1">Exam Result</span>
+              <select value={editValues.resultStatus || ''} onChange={(e) => setEditValues(values => ({ ...values, resultStatus: e.target.value }))} className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs font-semibold normal-case text-slate-900 dark:text-white">
+                <option value="">Select result</option>
+                <option value="Passed">Passed</option>
+                <option value="Reap">Re-appear</option>
+                <option value="Failed">Failed</option>
+                <option value="Awaiting Result">Awaiting Result / In-Course</option>
+              </select>
+            </label>
+          </div>
+          <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2 bg-slate-50 dark:bg-slate-950">
+            <button type="button" onClick={() => setEditingStudent(null)} disabled={isSavingFields} className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 font-bold text-xs">Cancel</button>
+            <button type="button" onClick={handleSavePendingFields} disabled={isSavingFields} className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs flex items-center gap-1.5 disabled:opacity-50">
+              {isSavingFields ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+              Save Permanently
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
