@@ -12,6 +12,27 @@ import { saveAdmissionDraft } from '../../services/admissionWorkflowApi';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
 import { isValidAadhaar, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
 
+export const SUBJECT_CANONICAL_SYNONYMS = {
+  'social studies': 'Social Science',
+  'social science': 'Social Science',
+  'gen english': 'General English',
+  'general english': 'General English',
+  'it & ites': 'IT and ITES',
+  'it and ites': 'IT and ITES',
+  'it & ites (vocational)': 'IT and ITES',
+  'health care': 'Healthcare',
+  'healthcare': 'Healthcare',
+  'maths': 'Mathematics',
+  'mathematics': 'Mathematics',
+};
+
+export function normalizeSubjectTitle(subj) {
+  if (!subj) return '';
+  const trimmed = String(subj).trim();
+  const lower = trimmed.toLowerCase();
+  return SUBJECT_CANONICAL_SYNONYMS[lower] || trimmed;
+}
+
 export function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
   const cls = String(targetClass || '');
   const strm = String(stream || '');
@@ -28,24 +49,32 @@ export function getCompulsorySubjects(targetClass = '11th', stream = 'Science') 
 }
 
 export function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream = 'Science') {
-  const compulsory = getCompulsorySubjects(targetClass, stream);
-  const chosenArray = typeof rawSubjectsString === 'string'
-    ? rawSubjectsString.split(', ').map(s => s.trim()).filter(Boolean)
-    : (Array.isArray(rawSubjectsString) ? rawSubjectsString : []);
+  const compulsory = getCompulsorySubjects(targetClass, stream).map(normalizeSubjectTitle);
+  const chosenArray = (typeof rawSubjectsString === 'string'
+    ? rawSubjectsString.split(/[,+]/).map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawSubjectsString) ? rawSubjectsString : [])
+  ).map(normalizeSubjectTitle);
   
-  const allSubjects = [...new Set([...compulsory, ...chosenArray])];
+  const allSubjects = [];
+  [...compulsory, ...chosenArray].forEach(s => {
+    if (s && !allSubjects.includes(s)) allSubjects.push(s);
+  });
   return allSubjects.join(', ');
 }
 
 export function validateSubjectSelection(targetClass = '11th', stream = 'Science', rawSubjects = '', isReappear = false) {
   if (isReappear) return { valid: true, error: null, count: 0, min: 1, max: 10 };
 
-  const compulsory = getCompulsorySubjects(targetClass, stream);
-  const chosenArray = typeof rawSubjects === 'string'
-    ? rawSubjects.split(', ').map(s => s.trim()).filter(Boolean)
-    : (Array.isArray(rawSubjects) ? rawSubjects : []);
+  const compulsory = getCompulsorySubjects(targetClass, stream).map(normalizeSubjectTitle);
+  const chosenArray = (typeof rawSubjects === 'string'
+    ? rawSubjects.split(/[,+]/).map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawSubjects) ? rawSubjects : [])
+  ).map(normalizeSubjectTitle);
 
-  const allSubjects = [...new Set([...compulsory, ...chosenArray])];
+  const allSubjects = [];
+  [...compulsory, ...chosenArray].forEach(s => {
+    if (s && !allSubjects.includes(s)) allSubjects.push(s);
+  });
   const total = allSubjects.length;
   const cls = String(targetClass || '').toLowerCase();
   const strm = String(stream || 'Science').trim();

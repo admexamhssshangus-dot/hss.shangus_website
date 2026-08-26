@@ -2,7 +2,7 @@ import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar } from 'lucide-react';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
-import { validateSubjectSelection } from '../student/AdmissionForm';
+import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
 
 const PREVIOUS_SCHOOLS = [
   'Army Proud Scholars School Khundroo',
@@ -547,19 +547,22 @@ export default function DynamicFormField({
   const handleCheckboxArrayChange = (subject, checked, compulsoryList = []) => {
     let currentArray = [];
     if (value && typeof value === 'string') {
-      currentArray = value.split(', ').map(s => s.trim()).filter(Boolean);
+      currentArray = value.split(', ').map(s => normalizeSubjectTitle(s.trim())).filter(Boolean);
     } else if (Array.isArray(value)) {
-      currentArray = [...value];
+      currentArray = value.map(s => normalizeSubjectTitle(String(s).trim())).filter(Boolean);
     }
 
-    if (compulsoryList && compulsoryList.length > 0) {
-      currentArray = [...new Set([...compulsoryList, ...currentArray])];
+    const normSubject = normalizeSubjectTitle(subject);
+    const normCompulsory = (compulsoryList || []).map(normalizeSubjectTitle);
+
+    if (normCompulsory && normCompulsory.length > 0) {
+      currentArray = [...new Set([...normCompulsory, ...currentArray])];
     }
 
     if (checked) {
-      currentArray = [...new Set([...currentArray, subject])];
+      currentArray = [...new Set([...currentArray, normSubject])];
     } else {
-      currentArray = currentArray.filter(s => s !== subject);
+      currentArray = currentArray.filter(s => s !== normSubject && s !== subject);
     }
     onChange(name, currentArray.join(', '));
   };
@@ -1111,7 +1114,11 @@ export default function DynamicFormField({
               }
             }
 
-            const currentArray = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => s.trim()).filter(Boolean);
+            // Normalize compulsory and optional subjects using canonical synonyms (e.g. Social Studies -> Social Science)
+            compulsorySubjects = [...new Set(compulsorySubjects.map(normalizeSubjectTitle))];
+            optionalSubjects = [...new Set(optionalSubjects.map(normalizeSubjectTitle).filter(s => !compulsorySubjects.includes(s)))];
+
+            const currentArray = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => normalizeSubjectTitle(s.trim())).filter(Boolean);
             const allSelectedSubjects = isReappearField ? currentArray : [...new Set([...compulsorySubjects, ...currentArray])];
 
             // Validate full subject combination
