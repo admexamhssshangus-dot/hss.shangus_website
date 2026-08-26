@@ -644,92 +644,93 @@ function getCurrentAcademicSession() {
 async function getStudentApplication() {
   const computedSession = getCurrentAcademicSession();
   try {
-    const isLocalDev = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname));
     const sessionUser = sessionManager.getUser();
     const uid = auth.currentUser?.uid || sessionUser?.uid || sessionUser?.id || '';
     const email = (auth.currentUser?.email || sessionUser?.email || '').toLowerCase().trim();
+    const rawMobile = String(sessionUser?.mobile || sessionUser?.phone || auth.currentUser?.phoneNumber || '').replace(/[^0-9]/g, '');
+    const mobile = rawMobile.length >= 10 ? rawMobile.slice(-10) : '';
 
-    if (isLocalDev) {
-      if (!uid && !email) {
-        return { success: true, applications: [], historicalRecords: [], activeSession: computedSession, data: { applications: [], historicalRecords: [], activeSession: computedSession } };
+    if (!uid && !email && !mobile) {
+      return { success: true, applications: [], historicalRecords: [], activeSession: computedSession, data: { applications: [], historicalRecords: [], activeSession: computedSession } };
+    }
+
+    try {
+      const appDocs = [];
+      const seenDocIds = new Set();
+      const collectDocs = (snap) => {
+        if (!snap || snap.empty) return;
+        snap.docs.forEach(d => {
+          if (!seenDocIds.has(d.id)) {
+            seenDocIds.add(d.id);
+            appDocs.push(d);
+          }
+        });
+      };
+
+      if (uid) {
+        try {
+          const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
+          collectDocs(snap);
+        } catch (_) {}
       }
-      try {
-        const appDocs = [];
-        const seenDocIds = new Set();
-        const collectDocs = (snap) => {
-          if (!snap || snap.empty) return;
-          snap.docs.forEach(d => {
-            if (!seenDocIds.has(d.id)) {
-              seenDocIds.add(d.id);
-              appDocs.push(d);
+      if (email) {
+        try {
+          const emailSnap1 = await getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email)));
+          collectDocs(emailSnap1);
+        } catch (_) {}
+        try {
+          const emailSnap2 = await getDocs(query(collection(db, 'admissions'), where('Email Address', '==', email)));
+          collectDocs(emailSnap2);
+        } catch (_) {}
+        try {
+          const emailSnap3 = await getDocs(query(collection(db, 'admissions'), where('email', '==', email)));
+          collectDocs(emailSnap3);
+        } catch (_) {}
+      }
+
+      // Comprehensive fallback: scan all admissions if index or field exact match missed
+      if (appDocs.length === 0) {
+        try {
+          const allSnap = await getDocs(collection(db, 'admissions'));
+          allSnap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const dEmail = String(data['Email Address'] || data.email || data.emailNormalized || '').toLowerCase().trim();
+            const dUid = String(data.ownerUid || '').trim();
+            const dMobile = String(data['Mobile No. (with working WhatsApp)'] || data.mobile || data['Mobile No.'] || '').replace(/[^0-9]/g, '');
+            const dCleanMobile = dMobile.length >= 10 ? dMobile.slice(-10) : '';
+
+            const uidMatches = uid && dUid && dUid === uid;
+            const emailMatches = email && dEmail && (dEmail === email || email.includes(dEmail) || dEmail.includes(email));
+            const mobileMatches = mobile && dCleanMobile && mobile === dCleanMobile;
+
+            if (uidMatches || emailMatches || mobileMatches) {
+              if (!seenDocIds.has(docSnap.id)) {
+                seenDocIds.add(docSnap.id);
+                appDocs.push(docSnap);
+              }
             }
           });
-        };
+        } catch (_) {}
+      }
 
-        if (uid) {
-          try {
-            const snap = await getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', uid)));
-            collectDocs(snap);
-          } catch (_) {}
-        }
-        if (email) {
-          try {
-            const emailSnap1 = await getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email)));
-            collectDocs(emailSnap1);
-          } catch (_) {}
-          try {
-            const emailSnap2 = await getDocs(query(collection(db, 'admissions'), where('Email Address', '==', email)));
-            collectDocs(emailSnap2);
-          } catch (_) {}
-          try {
-            const emailSnap3 = await getDocs(query(collection(db, 'admissions'), where('email', '==', email)));
-            collectDocs(emailSnap3);
-          } catch (_) {}
-        }
+      const applications = appDocs
+        .map(item => ({ docId: item.id, ...item.data() }))
+        .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
 
-        // Comprehensive fallback: scan all admissions if index or field exact match missed
-        if (appDocs.length === 0) {
-          try {
-            const allSnap = await getDocs(collection(db, 'admissions'));
-            allSnap.docs.forEach(docSnap => {
-              const data = docSnap.data();
-              const dEmail = String(data['Email Address'] || data.email || data.emailNormalized || '').toLowerCase().trim();
-              const dUid = String(data.ownerUid || '').trim();
-              if ((uid && dUid && dUid === uid) || (email && dEmail && (dEmail === email || email.includes(dEmail) || dEmail.includes(email)))) {
-                if (!seenDocIds.has(docSnap.id)) {
-                  seenDocIds.add(docSnap.id);
-                  appDocs.push(docSnap);
-                }
-              }
-            });
-          } catch (_) {}
-        }
-
-        const applications = appDocs
-          .map(item => ({ docId: item.id, ...item.data() }))
-          .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
-
+      if (applications.length > 0) {
         return {
           success: true,
           applications,
           historicalRecords: [],
           activeSession: computedSession,
           data: { applications, historicalRecords: [], activeSession: computedSession },
-          localReadOnly: true,
-        };
-      } catch (err) {
-        console.warn('Local Firestore admissions lookup note:', err);
-        return {
-          success: true,
-          applications: [],
-          historicalRecords: [],
-          activeSession: computedSession,
-          data: { applications: [], historicalRecords: [], activeSession: computedSession },
-          localReadOnly: true,
         };
       }
+    } catch (err) {
+      console.warn('Firestore admissions lookup note:', err);
     }
-    const workspace = await loadAdmissionWorkspace();
+
+    const workspace = await loadAdmissionWorkspace().catch(() => ({}));
     const applications = Array.isArray(workspace.applications) ? workspace.applications : [];
     const activeSession = workspace.activeSession || computedSession;
     return {

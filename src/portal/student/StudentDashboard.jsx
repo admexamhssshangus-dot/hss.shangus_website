@@ -68,10 +68,14 @@ export default function StudentDashboard() {
 
       try {
         const applicationResult = await appsScriptApi.getStudentApplication();
-        activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
-        setSessionInfo(activeSession);
         const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
         const currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
+        if (currentApp && (currentApp.Session || currentApp.session || currentApp['Academic Session'])) {
+          activeSession = currentApp.Session || currentApp.session || currentApp['Academic Session'];
+        } else {
+          activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
+        }
+        setSessionInfo(activeSession);
         setAppData(currentApp);
       } catch (appErr) {
         console.warn('Student applications load note:', appErr);
