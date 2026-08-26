@@ -11,7 +11,7 @@ import {
   User, CheckCircle2, History, RotateCcw, AlertCircle, Info, AlertTriangle,
   Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Table as TableIcon, Undo, Redo, RemoveFormatting, Palette, Minus,
-  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors
+  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors, Copy
 } from 'lucide-react';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
@@ -1065,6 +1065,16 @@ export default function StudentCertificateStudioView({
       console.warn('Set default error:', err);
       showToast(`Default template set locally (${err.message})`, 'info');
     }
+  };
+
+  // ─── Duplicate Template to Create New Preset ───
+  const handleDuplicateTemplate = (tpl, e) => {
+    if (e) e.stopPropagation();
+    handleSelectTemplate(tpl);
+    setNewTplName(`${tpl.name} (Copy)`);
+    setNewTplCategory(tpl.category || 'Bonafide & Age Certificates');
+    setTemplateSaveMode('new');
+    setShowSaveTemplateModal(true);
   };
 
   // ─── Save Custom / Update Existing Template (Cloud + LocalStorage) ───
@@ -3020,7 +3030,7 @@ export default function StudentCertificateStudioView({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
+<div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
                       <div>
                         <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Certificate / TC-DC No.</label>
                         <input
@@ -3183,7 +3193,7 @@ export default function StudentCertificateStudioView({
                       </div>
                       {isDefault && (
                         <span className="px-1 py-0.2 rounded text-[7px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shrink-0">
-                          ⭐  Default
+                          ⭐ Default
                         </span>
                       )}
                     </div>
@@ -3193,6 +3203,14 @@ export default function StudentCertificateStudioView({
                         {tpl.category}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => handleDuplicateTemplate(tpl, e)}
+                          className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 transition-opacity cursor-pointer"
+                          title="Duplicate template to create new preset"
+                        >
+                          <Copy size={9} />
+                        </button>
                         {!isDefault && (
                           <button
                             type="button"
@@ -3236,13 +3254,13 @@ export default function StudentCertificateStudioView({
           <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
         </div>
 
-        {/* ================ RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK ================ */}
+        {/* == == == == == == == ==  RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK == == == == == == == ==  */}
         <div
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 pl-0 lg:pl-1 min-w-0"
         >
           {/* Main preview container hosting the Vertical Floating Dock + A4 Canvas */}
-          <div className={`flex flex-col lg:flex-row items-start justify-center lg:justify-end gap-2.5 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
+          <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
 
             {/* ── VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side) ── */}
             <div className="w-full lg:w-auto lg:sticky lg:top-2 z-30 shrink-0">
