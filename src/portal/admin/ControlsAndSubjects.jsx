@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, 
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
   Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
-  PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff
+  PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff, Search,
+  RotateCcw, ArrowUpDown, Pencil
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -16,6 +17,12 @@ import {
   sendStaffPasswordReset, 
   deleteStaffAccount 
 } from '../../services/staffAuthService';
+import { 
+  DEFAULT_FEEDER_SCHOOLS, 
+  getCachedFeederSchools, 
+  loadFeederSchools, 
+  saveFeederSchools 
+} from '../../utils/feederSchoolsManager';
 
 export const ALL_ADMIN_MODULES = [
   { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
@@ -157,9 +164,9 @@ export default function ControlsAndSubjects() {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const urlSubTab = searchParams.get('subtab');
-      if (urlSubTab && ['controls', 'subjects', 'permissions', 'lab'].includes(urlSubTab)) return urlSubTab;
+      if (urlSubTab && ['controls', 'subjects', 'schools', 'permissions', 'lab'].includes(urlSubTab)) return urlSubTab;
       const saved = sessionStorage.getItem('hss_admin_controls_subtab');
-      if (saved && ['controls', 'subjects', 'permissions', 'lab'].includes(saved)) return saved;
+      if (saved && ['controls', 'subjects', 'schools', 'permissions', 'lab'].includes(saved)) return saved;
     } catch (_) {}
     return 'controls';
   };
@@ -334,6 +341,14 @@ export default function ControlsAndSubjects() {
   });
   const [userToDelete, setUserToDelete] = useState(null);
 
+  // Feeder Schools Master Directory State
+  const [feederSchools, setFeederSchools] = useState(() => getCachedFeederSchools());
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [schoolSearchTerm, setSchoolSearchTerm] = useState('');
+  const [editingSchoolIndex, setEditingSchoolIndex] = useState(null);
+  const [editingSchoolValue, setEditingSchoolValue] = useState('');
+  const [savingSchools, setSavingSchools] = useState(false);
+
   // LAB Test Data Generator & Session Rollover State
   const [testGenSize, setTestGenSize] = useState('10');
   const [showArchivalModal, setShowArchivalModal] = useState(false);
@@ -346,6 +361,12 @@ export default function ControlsAndSubjects() {
   useEffect(() => {
     async function loadConfigs() {
       try {
+        loadFeederSchools().then((schools) => {
+          if (Array.isArray(schools) && schools.length > 0) {
+            setFeederSchools(schools);
+          }
+        });
+
         const [appRes, siteSettings] = await Promise.all([
           appsScriptApi.getPublicSettings().catch(() => null),
           loadSiteSettings().catch(() => null)
@@ -829,6 +850,89 @@ export default function ControlsAndSubjects() {
     }
   };
 
+  // Feeder Schools Directory Management Handlers
+  const handleAddSchool = (e) => {
+    e?.preventDefault();
+    const clean = newSchoolName.trim();
+    if (!clean) return;
+
+    if (feederSchools.some((s) => s.toLowerCase() === clean.toLowerCase())) {
+      setAlert({ type: 'error', text: `School "${clean}" already exists in the directory.` });
+      return;
+    }
+
+    const updated = [...feederSchools, clean];
+    setFeederSchools(updated);
+    setNewSchoolName('');
+    saveFeederSchools(updated);
+    setAlert({ type: 'success', text: `Added "${clean}" to feeder schools directory!` });
+  };
+
+  const handleStartEditSchool = (index, currentName) => {
+    setEditingSchoolIndex(index);
+    setEditingSchoolValue(currentName);
+  };
+
+  const handleSaveEditSchool = (index) => {
+    const clean = editingSchoolValue.trim();
+    if (!clean) return;
+
+    const exists = feederSchools.some((s, idx) => idx !== index && s.toLowerCase() === clean.toLowerCase());
+    if (exists) {
+      setAlert({ type: 'error', text: `School "${clean}" already exists in the list.` });
+      return;
+    }
+
+    const updated = [...feederSchools];
+    updated[index] = clean;
+    setFeederSchools(updated);
+    setEditingSchoolIndex(null);
+    setEditingSchoolValue('');
+    saveFeederSchools(updated);
+    setAlert({ type: 'success', text: `Updated school name to "${clean}"!` });
+  };
+
+  const handleDeleteSchool = (index, name) => {
+    if (!window.confirm(`Remove "${name}" from the feeder schools list?`)) return;
+    const updated = feederSchools.filter((_, idx) => idx !== index);
+    setFeederSchools(updated);
+    saveFeederSchools(updated);
+    setAlert({ type: 'success', text: `Removed "${name}" from feeder schools.` });
+  };
+
+  const handleSortSchools = () => {
+    const sorted = [...feederSchools].sort((a, b) => a.localeCompare(b));
+    setFeederSchools(sorted);
+    saveFeederSchools(sorted);
+    setAlert({ type: 'success', text: `Sorted ${sorted.length} schools alphabetically (A-Z)!` });
+  };
+
+  const handleResetDefaultSchools = () => {
+    if (!window.confirm('Reset the feeder schools list to the standard 44 valley schools? Any custom additions will be restored to defaults.')) return;
+    setFeederSchools(DEFAULT_FEEDER_SCHOOLS);
+    saveFeederSchools(DEFAULT_FEEDER_SCHOOLS);
+    setAlert({ type: 'success', text: 'Feeder schools list reset to standard defaults (44 schools)!' });
+  };
+
+  const handleSyncSchoolsToCloud = async () => {
+    setSavingSchools(true);
+    try {
+      await saveFeederSchools(feederSchools);
+      setAlert({ type: 'success', text: `Successfully synced ${feederSchools.length} feeder schools with the central database!` });
+    } catch (err) {
+      setAlert({ type: 'error', text: 'Failed to sync feeder schools to database.' });
+    } finally {
+      setSavingSchools(false);
+    }
+  };
+
+  const displayedSchools = useMemo(() => {
+    const term = schoolSearchTerm.trim().toLowerCase();
+    const mapped = feederSchools.map((school, originalIndex) => ({ school, originalIndex }));
+    if (!term) return mapped;
+    return mapped.filter(({ school }) => school.toLowerCase().includes(term));
+  }, [feederSchools, schoolSearchTerm]);
+
   // Generate Test Data
   const handleGenerateTestData = async () => {
     if (!window.confirm(`Generate ${testGenSize} test student admission records?`)) return;
@@ -887,8 +991,9 @@ export default function ControlsAndSubjects() {
         {[
           { id: 'controls', label: '1. Admission & Controls', icon: Sliders },
           { id: 'subjects', label: '2. Subject Config (v2)', icon: BookOpen },
-          { id: 'permissions', label: '3. Admin Permissions', icon: ShieldCheck },
-          { id: 'lab', label: '4. Session Lifecycle (Rollover)', icon: Database },
+          { id: 'schools', label: '3. Feeder Schools Directory', icon: GraduationCap },
+          { id: 'permissions', label: '4. Admin Permissions', icon: ShieldCheck },
+          { id: 'lab', label: '5. Session Lifecycle (Rollover)', icon: Database },
         ].map((sub) => {
           const Icon = sub.icon;
           const isActive = activeSubTab === sub.id;
@@ -1359,7 +1464,199 @@ export default function ControlsAndSubjects() {
         </div>
       )}
 
-      {/* SUB TAB 3: SUPER ADMIN TAB PERMISSIONS & STAFF ACCOUNT MANAGER */}
+      {/* SUB TAB 3: FEEDER SCHOOLS & INSTITUTES DIRECTORY */}
+      {activeSubTab === 'schools' && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Top Info Banner Card */}
+          <div className="p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/30 dark:from-slate-900 dark:via-slate-900/90 dark:to-indigo-950/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 shadow-xs">
+                <GraduationCap size={22} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                    Feeder Schools & Institutes Directory
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    {feederSchools.length} Master Institutions
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 max-w-2xl">
+                  Manage the previous school choices shown in student admission forms with smart search, live abbreviation matching, and instant global synchronization.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Actions Header Buttons */}
+            <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+              <button
+                type="button"
+                onClick={handleSortSchools}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Sort A to Z"
+              >
+                <ArrowUpDown size={13} className="text-indigo-600 dark:text-indigo-400" />
+                <span>Sort A-Z</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetDefaultSchools}
+                className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/40 hover:bg-rose-100/80 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Reset to 44 standard default schools"
+              >
+                <RotateCcw size={13} className="text-rose-600 dark:text-rose-400" />
+                <span>Reset Defaults</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSyncSchoolsToCloud}
+                disabled={savingSchools}
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {savingSchools ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                <span>Sync to Cloud</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Add New School & Search Filter Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+            {/* Add School Input Form (7 cols) */}
+            <form onSubmit={handleAddSchool} className="md:col-span-7 flex items-center gap-2 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+              <input
+                type="text"
+                value={newSchoolName}
+                onChange={(e) => setNewSchoolName(e.target.value)}
+                placeholder="Enter new school name (e.g. Govt High School Shangus)..."
+                className="flex-1 px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              />
+              <button
+                type="submit"
+                disabled={!newSchoolName.trim()}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 transition-all flex-shrink-0"
+              >
+                <Plus size={14} />
+                <span>Add School</span>
+              </button>
+            </form>
+
+            {/* Filter Search Input (5 cols) */}
+            <div className="md:col-span-5 relative flex items-center p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+              <Search size={14} className="text-slate-400 absolute left-5 pointer-events-none" />
+              <input
+                type="text"
+                value={schoolSearchTerm}
+                onChange={(e) => setSchoolSearchTerm(e.target.value)}
+                placeholder="Filter listed schools..."
+                className="w-full pl-8 pr-8 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              />
+              {schoolSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSchoolSearchTerm('')}
+                  className="absolute right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* School Directory Cards Grid */}
+          <div className="p-3 sm:p-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-3">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 px-1">
+              <span>Showing {displayedSchools.length} of {feederSchools.length} schools</span>
+              {schoolSearchTerm && <span>Filtered by &quot;{schoolSearchTerm}&quot;</span>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin">
+              {displayedSchools.map(({ school, originalIndex }) => {
+                const isEditing = editingSchoolIndex === originalIndex;
+                return (
+                  <div
+                    key={originalIndex}
+                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-2xs ${
+                      isEditing
+                        ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 ring-2 ring-indigo-500/20'
+                        : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5 w-full">
+                        <input
+                          type="text"
+                          value={editingSchoolValue}
+                          onChange={(e) => setEditingSchoolValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveEditSchool(originalIndex);
+                            if (e.key === 'Escape') setEditingSchoolIndex(null);
+                          }}
+                          autoFocus
+                          className="flex-1 px-2.5 py-1 text-xs font-bold border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEditSchool(originalIndex)}
+                          className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-colors shadow-2xs"
+                          title="Save changes"
+                        >
+                          <Check size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingSchoolIndex(null)}
+                          className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 cursor-pointer transition-colors"
+                          title="Cancel"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">
+                            {originalIndex + 1}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate" title={school}>
+                            {school}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditSchool(originalIndex, school)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 cursor-pointer transition-colors"
+                            title="Edit School Name"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSchool(originalIndex, school)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer transition-colors"
+                            title="Delete School"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+
+              {displayedSchools.length === 0 && (
+                <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                  No schools match your search filter &quot;{schoolSearchTerm}&quot;.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB TAB 4: SUPER ADMIN TAB PERMISSIONS & STAFF ACCOUNT MANAGER */}
       {activeSubTab === 'permissions' && (() => {
         const filteredStaff = adminUsers.filter(u => {
           const r = String(u.role || '').toLowerCase();

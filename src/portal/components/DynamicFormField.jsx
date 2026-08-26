@@ -3,52 +3,9 @@ import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronD
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
 import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
+import { DEFAULT_FEEDER_SCHOOLS, getCachedFeederSchools, loadFeederSchools } from '../../utils/feederSchoolsManager';
 
-const PREVIOUS_SCHOOLS = [
-  'Army Proud Scholars School Khundroo',
-  'Badasgam Public School Anantnag',
-  'Elite Public School Tailwani',
-  'Evergreen Public Instt Kawarigam',
-  'Govt High School Cheerpora',
-  'Govt Boys High School Nowgam',
-  'Govt Boys Hr Sec Akingam',
-  'Govt Boys Hr Sec Anantnag',
-  'Govt Boys Hr Sec School Achabal',
-  'Govt Boys Hr Sec School Anantnag',
-  'Govt Boys Hr Sec School B K Pora Chadura',
-  'Govt Boys Hr Sec School Natipora',
-  'Govt Boys Hr Sec School Salia',
-  'Govt Girls High School Brah',
-  'Govt Girls High School Shangus',
-  'Govt High School Andoo',
-  'Govt High School Brariangan',
-  'Govt High School Chowgam',
-  'Govt High School Issoo',
-  'Govt High School Krad',
-  'Govt High School Nowgam Kuthar',
-  'Govt High School Ranipora',
-  'Govt High School Teelwani',
-  'Govt Higher Secondary School Dethu',
-  'Govt Hr Sec School Chittergul',
-  'Govt Hr Sec School Khanabal Anantnag',
-  'Govt Hr Sec School Shangus',
-  'Govt Hr Sec School Utrasoo',
-  'Hanfia High School Mir Mohlla Achabal',
-  'Hanfia Memorial Institute Nowgam',
-  'Hista Higher Secondary School Anantnag',
-  'Iqra Public School',
-  'KIE Hr Sec School Lasjan Srinagar',
-  'Modern Public School Nowgam Shangus',
-  'National Institute of Open Schooling',
-  'Oxford Presentation School K P Road Anantnag',
-  'PM Shri School Jawahar Navodaya Vidyalaya',
-  'Radiant Public School Anantnag',
-  'Saint Xians International School Anantnag',
-  'Shaheen Public School Ranipora',
-  'Sheikhulalam Memorial Institute Shangus',
-  'Sidrah Institute of Education K P Road Anantnag',
-  'Stpeters International Academy Anantnag',
-];
+const PREVIOUS_SCHOOLS = DEFAULT_FEEDER_SCHOOLS;
 
 // Dictionary of domain abbreviations and synonyms for Google-like smart search
 const SCHOOL_SYNONYM_MAP = {
@@ -562,16 +519,32 @@ function SearchableSchoolCombobox({
   error = null,
   errorId = null,
   inputStyle = {},
-  schools = PREVIOUS_SCHOOLS
+  schools = null
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value || '');
+  const [liveSchools, setLiveSchools] = useState(() => getCachedFeederSchools());
   const containerRef = useRef(null);
 
   // Sync internal search input with external value
   useEffect(() => {
     setSearchTerm(value || '');
   }, [value]);
+
+  // Load latest schools dynamically from Firestore
+  useEffect(() => {
+    let isMounted = true;
+    loadFeederSchools().then((data) => {
+      if (isMounted && Array.isArray(data) && data.length > 0) {
+        setLiveSchools(data);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  const activeSchools = useMemo(() => {
+    return Array.isArray(schools) && schools.length > 0 ? schools : liveSchools;
+  }, [schools, liveSchools]);
 
   // Click outside listener to close dropdown
   useEffect(() => {
@@ -586,9 +559,9 @@ function SearchableSchoolCombobox({
 
   const filteredSchools = useMemo(() => {
     const term = (searchTerm || '').trim();
-    if (!term) return schools;
+    if (!term) return activeSchools;
 
-    const scored = schools
+    const scored = activeSchools
       .map((school) => ({
         school,
         score: scoreSchoolMatch(school, term)
@@ -598,15 +571,15 @@ function SearchableSchoolCombobox({
       .map((item) => item.school);
 
     return scored;
-  }, [searchTerm, schools]);
+  }, [searchTerm, activeSchools]);
 
   const isExactMatch = useMemo(() => {
     const term = (searchTerm || '').trim().toLowerCase();
     if (!term) return false;
-    return schools.some(
+    return activeSchools.some(
       s => s.toLowerCase() === term || normalizeSchoolSearchText(s) === normalizeSchoolSearchText(term)
     );
-  }, [searchTerm, schools]);
+  }, [searchTerm, activeSchools]);
 
   const handleSelect = (schoolName) => {
     onChange(schoolName);
