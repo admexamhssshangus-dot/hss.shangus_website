@@ -24,7 +24,7 @@ import StudentResultEditorModal from './StudentResultEditorModal';
 import ResultIngestionModal from './ResultIngestionModal';
 import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { fetchLastIssuedCertificateNumber } from '../../services/certificateRegistryService';
+import { fetchLastIssuedCertificateNumber, extractCertificateSerial } from '../../services/certificateRegistryService';
 import {
   normalizeResultStatus,
   calculateDivision,
@@ -159,15 +159,39 @@ const mergeIngestedResultIntoStudent = (student, row, overwriteExamRoll = false)
   return { ...student, ...patch, raw: { ...raw, ...patch } };
 };
 
-const enrichCertificateIdentityFields = (primaryRaw, linkedAdmission) => {
-  if (!linkedAdmission) return primaryRaw;
+const certificateIdentityRichness = (record) => [
+  extractStudentAdmissionNumber(record),
+  extractStudentAdmissionDate(record),
+  extractDob(record) !== '—' ? extractDob(record) : '',
+  extractGender(record) !== '—' ? extractGender(record) : '',
+  extractStudentCertificateNumber(record)
+].filter(Boolean).length;
+
+const enrichCertificateIdentityFields = (primaryRaw, linkedRecords = []) => {
+  const candidates = (Array.isArray(linkedRecords) ? linkedRecords : [linkedRecords])
+    .filter(Boolean)
+    .sort((a, b) => certificateIdentityRichness(b) - certificateIdentityRichness(a));
+  if (candidates.length === 0) return primaryRaw;
   const enriched = { ...(primaryRaw || {}) };
 
-  const admissionNo = extractStudentAdmissionNumber(enriched) || extractStudentAdmissionNumber(linkedAdmission);
-  const admissionDate = extractStudentAdmissionDate(enriched) || extractStudentAdmissionDate(linkedAdmission);
-  const dob = extractDob(enriched) !== '—' ? extractDob(enriched) : extractDob(linkedAdmission);
-  const genderValue = extractGender(enriched) !== '—' ? extractGender(enriched) : extractGender(linkedAdmission);
-  const certificateNo = extractStudentCertificateNumber(enriched) || extractStudentCertificateNumber(linkedAdmission);
+  const firstLinked = (extractor, empty = '') => {
+    for (const record of candidates) {
+      const value = extractor(record);
+      if (value && value !== '—') return value;
+    }
+    return empty;
+  };
+  const admissionNo = extractStudentAdmissionNumber(enriched) || firstLinked(extractStudentAdmissionNumber);
+  const admissionDate = extractStudentAdmissionDate(enriched) || firstLinked(extractStudentAdmissionDate);
+  const dob = extractDob(enriched) !== '—' ? extractDob(enriched) : firstLinked(extractDob);
+  // A result-only row can carry a stale/default gender. Prefer the richer
+  // admission/master identity row when one is available for the same reg no.
+  const authoritativeIdentity = candidates.find(record =>
+    extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
+  );
+  const linkedGender = authoritativeIdentity ? extractGender(authoritativeIdentity) : firstLinked(extractGender);
+  const genderValue = linkedGender && linkedGender !== '—' ? linkedGender : extractGender(enriched);
+  const certificateNo = extractStudentCertificateNumber(enriched) || firstLinked(extractStudentCertificateNumber);
 
   if (admissionNo && !extractStudentAdmissionNumber(enriched)) {
     enriched['Admission Number'] = admissionNo;
@@ -181,7 +205,7 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedAdmission) => {
     enriched['Date of Birth'] = dob;
     enriched.dob = dob;
   }
-  if (genderValue && genderValue !== '—' && extractGender(enriched) === '—') {
+  if (genderValue && genderValue !== '—') {
     enriched.Gender = genderValue;
     enriched.gender = genderValue;
   }
@@ -195,6 +219,7 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedAdmission) => {
 
 export default function StudentCertificateStudioView({
   allStudents = [],
+  identityStudents = [],
   onClose,
   activeSubTab = 'certStudio',
   onSwitchSubTab,
@@ -777,23 +802,25 @@ export default function StudentCertificateStudioView({
     const targetReg = cleanStudentIdentity(extractBoardRegNo(primaryRaw) || st.regNo);
     if (targetReg) {
       try {
-        const cachedAdmissions = getCachedCollectionSync('admissions');
-        const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
-          ? cachedAdmissions
-          : await getCachedCollection('admissions');
-        const matches = (admissions || []).filter(record =>
+        let matches = (identityStudents || []).filter(record =>
           cleanStudentIdentity(extractBoardRegNo(record)) === targetReg
         );
+        const hasAuthoritativeIdentity = matches.some(record =>
+          extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
+        );
+        // Avoid a redundant full admissions read when the complete master-register
+        // pool already contains the linked admission identity.
+        if (!hasAuthoritativeIdentity) {
+          const cachedAdmissions = getCachedCollectionSync('admissions');
+          const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
+            ? cachedAdmissions
+            : await getCachedCollection('admissions');
+          matches = [...matches, ...(admissions || []).filter(record =>
+            cleanStudentIdentity(extractBoardRegNo(record)) === targetReg
+          )];
+        }
         if (matches.length > 0) {
-          const richness = (record) => [
-            extractStudentAdmissionNumber(record),
-            extractStudentAdmissionDate(record),
-            extractDob(record) !== '—' ? extractDob(record) : '',
-            extractGender(record) !== '—' ? extractGender(record) : '',
-            extractStudentCertificateNumber(record)
-          ].filter(Boolean).length;
-          const linkedAdmission = [...matches].sort((a, b) => richness(b) - richness(a))[0];
-          const enrichedRaw = enrichCertificateIdentityFields(primaryRaw, linkedAdmission);
+          const enrichedRaw = enrichCertificateIdentityFields(primaryRaw, matches);
           st = { ...st, raw: enrichedRaw };
           setSelectedStudent(st);
         }
@@ -855,18 +882,18 @@ export default function StudentCertificateStudioView({
     await fetchAndResolveStudentPhoto(st);
 
     // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
-    const prefix = activeTpl.refPrefix || 'HSS/SHG/TC-DC';
     const existingCertNo = extractStudentCertificateNumber(raw);
+    const isTcDcTemplate = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
     
     if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
-      setRefNo(String(existingCertNo).trim());
+      setRefNo(isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim());
     } else {
       let lastNo = 1367;
       try {
         lastNo = await fetchLastIssuedCertificateNumber();
       } catch (_) {}
       const nextNo = lastNo + 1;
-      setRefNo(`${prefix}/${nextNo}/${new Date().getFullYear()}`);
+      setRefNo(isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
     }
   };
 

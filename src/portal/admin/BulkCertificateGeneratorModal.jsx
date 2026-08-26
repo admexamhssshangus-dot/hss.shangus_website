@@ -154,6 +154,19 @@ export default function BulkCertificateGeneratorModal({
     return Array.from(map.values());
   }, [allStudents, masterHistoricalRecords, liveAdmissionsRecords]);
 
+  // Cross-session identity lookup. Result/session values remain attached to the
+  // selected row; only stable identity fields are resolved from the same Board Reg No.
+  const identityRecordsByReg = useMemo(() => {
+    const index = new Map();
+    [...masterHistoricalRecords, ...allStudents, ...liveAdmissionsRecords].forEach((record) => {
+      const reg = String(extractBoardRegNo(record) || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+      if (!reg || reg === '—') return;
+      if (!index.has(reg)) index.set(reg, []);
+      index.get(reg).push(record);
+    });
+    return index;
+  }, [allStudents, masterHistoricalRecords, liveAdmissionsRecords]);
+
   // ─── Filter Controls State ───
   const [selectedClass, setSelectedClass] = useState('12th');
   const [selectedSession, setSelectedSession] = useState('ALL');
@@ -312,10 +325,25 @@ export default function BulkCertificateGeneratorModal({
       const session = extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
-      const admNo = extractStudentAdmissionNumber(raw) || extractAdmNo(st) || rollNo || '—';
-      const admDate = extractStudentAdmissionDate(raw) || '01-07-2024';
-      const dobRaw = extractDob(st) || '2007-08-15';
-      const gender = (extractGender(st) || 'M').toUpperCase().startsWith('F') ? 'F' : 'M';
+      const regKey = String(regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+      const linkedRecords = identityRecordsByReg.get(regKey) || [];
+      const firstLinked = (extractor) => {
+        for (const record of linkedRecords) {
+          const value = extractor(record);
+          if (value && value !== '—') return value;
+        }
+        return '';
+      };
+      const authoritativeIdentity = linkedRecords.find(record =>
+        extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
+      );
+      const admNo = extractStudentAdmissionNumber(raw) || firstLinked(extractStudentAdmissionNumber) || '—';
+      const admDate = extractStudentAdmissionDate(raw) || firstLinked(extractStudentAdmissionDate) || '—';
+      const dobRaw = (extractDob(st) !== '—' ? extractDob(st) : firstLinked(extractDob)) || '—';
+      const resolvedGender = authoritativeIdentity ? extractGender(authoritativeIdentity) : (extractGender(st) !== '—' ? extractGender(st) : firstLinked(extractGender));
+      const gender = String(resolvedGender || '').toUpperCase().startsWith('F')
+        ? 'F'
+        : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : '');
       const village = extractVillage(st) || 'Shangus';
       const mobile = extractMobile(st) || '';
 
@@ -366,7 +394,7 @@ export default function BulkCertificateGeneratorModal({
         isFailed
       };
     });
-  }, [combinedStudentPool]);
+  }, [combinedStudentPool, identityRecordsByReg]);
 
   // Filtered students based on active dropdowns
   const filteredStudents = useMemo(() => {
