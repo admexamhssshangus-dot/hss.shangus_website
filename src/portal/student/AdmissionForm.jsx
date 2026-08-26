@@ -223,7 +223,7 @@ export default function AdmissionForm() {
     if (typeof value === 'object') return Number(value._seconds || value.seconds || 0) * 1000;
     return Date.parse(value) || 0;
   };
-  const rejectedEditable = currentStatus === 'Rejected' && timestampMillis(formData.editableUntil) > Date.now();
+  const rejectedEditable = currentStatus === 'Rejected' && (timestampMillis(formData.editableUntil) > Date.now() || !formData.editableUntil || formData.isEditable === true);
   const isFormLocked = (isSubmittedOrApproved || currentStatus === 'Under Review' ||
     (currentStatus === 'Rejected' && !rejectedEditable)) && !upgradeMode;
   const availabilityClass = formData['Admission sought for class'] || '';
