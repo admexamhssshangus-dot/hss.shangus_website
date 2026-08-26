@@ -1,5 +1,5 @@
 import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
-import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronDown, Plus } from 'lucide-react';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
 import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
@@ -407,6 +407,166 @@ function ModernDateInput({ id, value, onChange, disabled, required, error, input
                 : `Age: ${ageText}${targetClass ? ` (Eligible for ${targetClass})` : ''}`
               }
             </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * SearchableSchoolCombobox — Searchable dropdown with autocomplete and "Add New School" support.
+ */
+function SearchableSchoolCombobox({
+  id,
+  value = '',
+  onChange,
+  disabled = false,
+  required = false,
+  placeholder = 'Search previous school or type new...',
+  error = null,
+  errorId = null,
+  inputStyle = {},
+  schools = PREVIOUS_SCHOOLS
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(value || '');
+  const containerRef = useRef(null);
+
+  // Sync internal search input with external value
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  // Click outside listener to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredSchools = useMemo(() => {
+    const term = (searchTerm || '').trim().toLowerCase();
+    if (!term) return schools;
+    return schools.filter(s => s.toLowerCase().includes(term));
+  }, [searchTerm, schools]);
+
+  const isExactMatch = useMemo(() => {
+    const term = (searchTerm || '').trim().toLowerCase();
+    if (!term) return false;
+    return schools.some(s => s.toLowerCase() === term);
+  }, [searchTerm, schools]);
+
+  const handleSelect = (schoolName) => {
+    onChange(schoolName);
+    setSearchTerm(schoolName);
+    setIsOpen(false);
+  };
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    onChange(val);
+    setIsOpen(true);
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div className="relative flex items-center">
+        <input
+          id={id}
+          type="text"
+          value={searchTerm}
+          onChange={handleInputChange}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          required={required}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
+          placeholder={placeholder}
+          className="w-full pl-3 pr-16 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+          style={inputStyle}
+          autoComplete="off"
+        />
+        <div className="absolute right-2 flex items-center gap-1">
+          {searchTerm && !disabled && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                setSearchTerm('');
+              }}
+              className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              title="Clear"
+            >
+              <X size={13} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => !disabled && setIsOpen(!isOpen)}
+            className="p-0.5 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+            title="Toggle school list"
+            tabIndex={-1}
+          >
+            <ChevronDown size={14} className={`transition-transform duration-150 ${isOpen ? 'rotate-180 text-teal-600' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Floating Search Dropdown */}
+      {isOpen && !disabled && (
+        <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1 text-xs divide-y divide-slate-100 dark:divide-slate-800 animate-fadeIn">
+          {/* Header count indicator */}
+          <div className="px-3 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between">
+            <span>{filteredSchools.length} school(s) found</span>
+            {searchTerm && <span className="truncate max-w-[150px]">Filter: &quot;{searchTerm}&quot;</span>}
+          </div>
+
+          {/* School list */}
+          <div className="py-1">
+            {filteredSchools.map((school) => {
+              const isSelected = school.toLowerCase() === (value || '').toLowerCase();
+              return (
+                <button
+                  key={school}
+                  type="button"
+                  onClick={() => handleSelect(school)}
+                  className={`w-full text-left px-3 py-1.5 flex items-center justify-between text-xs font-semibold transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 font-bold'
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="truncate pr-2">{school}</span>
+                  {isSelected && <CheckCircle2 size={13} className="text-teal-600 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Add Custom / New School Option if not an exact match */}
+          {searchTerm && !isExactMatch && (
+            <div className="p-1.5 bg-teal-50/70 dark:bg-teal-950/40">
+              <button
+                type="button"
+                onClick={() => handleSelect(searchTerm.trim())}
+                className="w-full text-left px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              >
+                <Plus size={13} className="flex-shrink-0" />
+                <span className="truncate">Use &quot;{searchTerm.trim()}&quot; as new school</span>
+              </button>
+            </div>
+          )}
+
+          {filteredSchools.length === 0 && !searchTerm && (
+            <div className="px-3 py-3 text-center text-slate-400 text-xs">
+              No schools available.
+            </div>
           )}
         </div>
       )}
@@ -989,6 +1149,21 @@ export default function DynamicFormField({
                       </div>
                     )}
                   </div>
+                ) : isSchoolInput ? (
+                  <div className="space-y-1">
+                    <SearchableSchoolCombobox
+                      id={inputId}
+                      value={value}
+                      onChange={(val) => onChange(name, val)}
+                      disabled={disabled}
+                      required={required}
+                      placeholder={placeholder || 'Search previous school or enter new...'}
+                      error={error}
+                      errorId={errorId}
+                      inputStyle={inputStyle}
+                      schools={PREVIOUS_SCHOOLS}
+                    />
+                  </div>
                 ) : (
                   <div className="space-y-1">
                     <input
@@ -1019,13 +1194,6 @@ export default function DynamicFormField({
                     )}
 
                     {/* Datalists for Autocomplete Suggestions */}
-                    {isSchoolInput && (
-                      <datalist id={`${inputId}-schools`}>
-                        {PREVIOUS_SCHOOLS.map((school, i) => (
-                          <option key={i} value={school} />
-                        ))}
-                      </datalist>
-                    )}
                     {isComplexHead && (
                       <datalist id={`${inputId}-complex`}>
                         {COMPLEX_HEAD_SUGGESTIONS.map((ch, i) => (
