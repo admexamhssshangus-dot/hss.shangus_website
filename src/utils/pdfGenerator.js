@@ -254,16 +254,16 @@ export function buildStudentFormHtml(studentData, options = {}) {
   if (!studentData) return '';
 
   const formNo = studentData['Form Number'] || studentData['FormNo'] || studentData['formNo'] || studentData['form_no'] || 'N/A';
-  const name = String(studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['studentName'] || studentData['name'] || 'N/A').toUpperCase();
-  const fatherName = String(studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || studentData['fatherName'] || studentData['parentName'] || 'N/A').toUpperCase();
+  const name = String(studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['studentName'] || studentData['name'] || studentData['Full Name'] || studentData['fullName'] || 'N/A').toUpperCase();
+  const fatherName = String(studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || studentData["Father's/Guardian's Name"] || studentData['fatherName'] || studentData['parentName'] || 'N/A').toUpperCase();
   const fatherOccupation = studentData["Father's/Guardian's Occupation"] || studentData["Father's Occupation"] || studentData["Father Occupation"] || studentData['fatherOccupation'] || 'N/A';
   const motherName = String(studentData["Mother's Name (as per school records)"] || studentData["Mother's Name"] || studentData['motherName'] || 'N/A').toUpperCase();
-  const rawDob = studentData["DoB (as per school records)"] || studentData["DoB"] || studentData['dob'] || 'N/A';
+  const rawDob = studentData["DoB (as per school records)"] || studentData["DoB"] || studentData['dob'] || studentData['Date of Birth'] || 'N/A';
   const dob = formatDobDDMMYYYY(rawDob);
   const gender = studentData["Gender"] || studentData['gender'] || 'N/A';
-  const mobile = studentData["Mobile No. (with working WhatsApp)"] || studentData["Mobile No."] || studentData['mobile'] || 'N/A';
-  const parentMobile = studentData["Parent's Mobile No. (must be working)"] || studentData["Father's/Guardian's Contact No."] || studentData["Parent Contact"] || studentData['parentMobile'] || studentData['parentContact'] || 'N/A';
-  const email = studentData["Email Address"] || studentData["email"] || 'N/A';
+  const mobile = studentData["Mobile No. (with working WhatsApp)"] || studentData["Mobile No."] || studentData["Student Mobile No"] || studentData['mobile'] || studentData['phone'] || 'N/A';
+  const parentMobile = studentData["Parent's Mobile No. (must be working)"] || studentData["Father's/Guardian's Contact No."] || studentData["Parent Contact"] || studentData["Parent Mobile"] || studentData['parentMobile'] || studentData['parentContact'] || 'N/A';
+  const email = studentData["Email Address"] || studentData["email"] || studentData["Email"] || studentData['emailNormalized'] || 'N/A';
 
   // Fee & Payment Transaction Details (Gateway ready for Razorpay / Cashfree)
   const paymentStatus = studentData['Payment Status'] || studentData['paymentStatus'] || studentData['feeStatus'] || studentData['cf_payment_status'] || studentData['razorpay_status'] || (studentData['isPaid'] ? 'PAID & VERIFIED' : 'Fee Pending / Not Collected');
@@ -274,21 +274,25 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const receiptNo = studentData['Receipt No'] || studentData['receiptNo'] || studentData['receipt'] || studentData['orderId'] || studentData['razorpay_order_id'] || studentData['cf_order_id'] || '—';
 
   // Address
-  const houseNo = studentData["House No."] || studentData["H.No."] || studentData['houseNo'] || '—';
-  const village = studentData["Name of your village"] || studentData["Village"] || studentData['village'] || 'N/A';
+  const houseNo = studentData["House No."] || studentData["H.No."] || studentData["House Number"] || studentData['houseNo'] || '—';
+  const village = studentData["Name of your village"] || studentData["Village"] || studentData["Village/Town/City"] || studentData["Village/Town"] || studentData['village'] || 'N/A';
   const block = studentData["Block"] || studentData['block'] || 'Achabal';
   const tehsil = studentData["Tehsil"] || studentData['tehsil'] || 'Anantnag';
   const district = studentData["District"] || studentData['district'] || 'Anantnag';
   const stateUt = studentData["State/UT"] || studentData["State"] || studentData['state'] || 'J&K';
-  const pin = studentData["PIN code"] || studentData['pin'] || '192201';
+  const pin = studentData["PIN code"] || studentData["PIN Code"] || studentData["Pincode"] || studentData['pin'] || '192201';
+
+  const cleanHouseNo = String(houseNo).trim();
+  const isHouseNoEmpty = !cleanHouseNo || cleanHouseNo === '—' || cleanHouseNo === 'N/A' || cleanHouseNo === '-' || cleanHouseNo.toLowerCase() === 'null';
+  const addressDisplay = isHouseNoEmpty ? village : `${cleanHouseNo}, ${village}`;
 
   // Social & Physical
   const bloodGroup = studentData["Blood Group"] || studentData['bloodGroup'] || '—';
   const motherTongue = studentData["Your Mother Tongue"] || studentData["Mother Tongue"] || studentData['motherTongue'] || 'Kashmiri';
-  const height = studentData["Height (cm)"] || studentData['height'] || '—';
-  const weight = studentData["Weight (kg)"] || studentData['weight'] || '—';
+  const height = studentData["Height (cm)"] || studentData["Height"] || studentData['height'] || '—';
+  const weight = studentData["Weight (kg)"] || studentData["Weight"] || studentData['weight'] || '—';
   const religion = studentData["Religion"] || studentData['religion'] || 'Islam';
-  const category = studentData["Social category"] || studentData['category'] || 'OM';
+  const category = studentData["Social category"] || studentData["Social Category"] || studentData["Category"] || studentData['category'] || 'OM';
   const socioCat = studentData["Socio-economic category"] || studentData["Socio-economic Category"] || studentData['socioEconomicCategory'] || 'BPL';
 
   // Disability & Scholarship
@@ -299,39 +303,153 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const scholarAmount = studentData["Amount received (INR)"] || studentData["Scholarship Amount Received"] || studentData['scholarAmount'] || '—';
 
   // Bank & Identifiers
-  const bankAcc = studentData["Bank Account No."] || studentData['bankAccount'] || 'N/A';
-  const bankName = studentData["Name of Bank"] || studentData['bankName'] || 'J&K Bank';
-  const ifsc = studentData["IFSC code"] || studentData['ifsc'] || 'JAKA0SANGUS';
-  const penNo = studentData["PEN number (given by UDISE portal)"] || studentData["PEN No."] || studentData['penNo'] || 'N/A';
-  const apaarId = studentData["APAAR ID"] || studentData['apaarId'] || 'N/A';
+  const bankAcc = studentData["Bank Account No."] || studentData["Bank Account Number"] || studentData['bankAccount'] || 'N/A';
+  const bankName = studentData["Name of Bank"] || studentData["Bank Name"] || studentData['bankName'] || 'J&K Bank';
+  const ifsc = studentData["IFSC code"] || studentData["IFSC Code"] || studentData['ifsc'] || 'JAKA0SANGUS';
+  const penNo = studentData["PEN number (given by UDISE portal)"] || studentData["PEN Number"] || studentData["PEN No."] || studentData['penNo'] || 'N/A';
+  const apaarId = studentData["APAAR ID"] || studentData["APAAR Number"] || studentData['apaarId'] || 'N/A';
 
   // Current & Previous Class Info
   const classSought = studentData["Admission sought for class"] || studentData["Class"] || studentData['class'] || 'N/A';
-  const is12th = String(classSought).includes('12');
+  const cleanClass = String(classSought).replace(/Class/i, '').trim();
+  const is12th = cleanClass.includes('12');
   const stream12th = studentData["Stream opted in Class 11th"] || studentData["Stream Studied in Class 11th"] || studentData["Stream & Subjects for Class 12th"] || studentData["Stream for Class 12th"];
   const stream11th = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"];
   const stream = (is12th ? (stream12th || stream11th) : stream11th) || studentData["Stream"] || studentData['stream'] || 'General';
-  const rawSubjects = studentData["Subjects to be taken in Class 11th"] || studentData["Subjects Studied in Class 11th"] || studentData["Subjects to be taken in Class 10th"] || studentData["Subjects Studied in Class 10th"] || studentData["Subs"] || studentData["Subjects"] || studentData['subjects'] || '';
+
+  // Comprehensive Subject Extraction across all class levels (8th, 9th, 10th, 11th, 12th)
+  const rawSubjects = 
+    studentData["Subjects to be taken in Class 9th"] ||
+    studentData["Subjects to be taken in Class 10th"] ||
+    studentData["Subjects to be taken in Class 11th"] ||
+    studentData["Subjects to be taken in Class 12th"] ||
+    studentData["Subjects to be taken in Class 8th"] ||
+    studentData["Subjects Studied in Class 9th"] ||
+    studentData["Subjects Studied in Class 10th"] ||
+    studentData["Subjects Studied in Class 11th"] ||
+    studentData["Subjects Studied in Class 12th"] ||
+    studentData["Subjects Studied in Class 8th"] ||
+    studentData["Subjects to be taken"] ||
+    studentData["Subjects Studied"] ||
+    studentData["Subjects Offered"] ||
+    studentData["subjects_offered"] ||
+    studentData["Subjects Selected"] ||
+    studentData["Subject Choice"] ||
+    studentData["Stream & Subjects for Class 11th"] ||
+    studentData["Stream & Subjects for Class 12th"] ||
+    studentData["Subs"] ||
+    studentData["subs"] ||
+    studentData["Subjects"] ||
+    studentData["subjects"] ||
+    '';
+
   const subjects = formatAllSubjects(rawSubjects, classSought, stream) || 'N/A';
   const photoUrl = getStudentPhotoUrl(studentData, '/logo.png');
   const rollNo = studentData["Class Roll No"] || studentData["rollNo"] || studentData["Class R.No."] || '—';
   const admNo = studentData["Admission Number"] || studentData["admNo"] || studentData["Adm No."] || '—';
   const section = studentData["Section"] || studentData['section'] || '—';
   const session = studentData["Session"] || studentData['session'] || getCurrentAcademicSession();
-  const aadhaar = studentData["Aadhar No."] || studentData['aadhar'] || studentData['aadhaar'] || 'N/A';
-  const fatherAadhaar = studentData["Father's Aadhar No."] || studentData["Father's Aadhaar No."] || studentData['fatherAadhar'] || 'N/A';
+  const aadhaar = studentData["Aadhar No."] || studentData["Aadhaar Number"] || studentData["Aadhaar No."] || studentData['aadhar'] || studentData['aadhaar'] || 'N/A';
+  const fatherAadhaar = studentData["Father's Aadhar No."] || studentData["Father's Aadhaar No."] || studentData["Father Aadhar"] || studentData['fatherAadhar'] || 'N/A';
 
-  // Previous Academic History (Single Clean Row) — dynamically resolved against the class actually
-  // preceding the class sought, instead of always preferring 10th-class data.
-  const prevExamClass = String(classSought).includes('12') ? '11th' : '10th';
-  const prevSchool = studentData[`Name of Previous School (Class ${prevExamClass})`] || studentData["Previous School"] || studentData["Previous School Name"] || studentData['prevSchool'] || 'GOVT HR SEC SCHOOL SHANGUS';
-  const prevBoard = studentData[`Board (Class ${prevExamClass})`] || studentData["Board Name"] || studentData['prevBoard'] || 'JKBOSE';
-  const prevRollNo = studentData[`Exam Roll Number of Class ${prevExamClass}`] || studentData["Prev. Exam Roll No."] || studentData['prevRollNo'] || 'N/A';
-  const dietBoardReg = studentData[`Board Registration No. (Class ${prevExamClass})`] || studentData["DIET Registration No."] || studentData["DIET/Board Reg. No."] || studentData["Board Reg. No."] || studentData['boardRegNo'] || 'N/A';
-  const prevComplex = studentData["Name of Previous Complex Head"] || studentData["Prev. Complex Head"] || studentData['prevComplex'] || 'N/A';
-  const prevYear = studentData[`Year of Passing Class ${prevExamClass}`] || studentData["Previous Year of Passing"] || studentData['prevYear'] || 'N/A';
-  const prevMarks = studentData[`Total Marks Obtained in Class ${prevExamClass}`] || studentData["Total Marks Obtained in Class 10th"] || studentData["Total Marks Obtained in Class 11th"] || studentData["Marks Obtained"] || 'N/A';
-  const prevMax = studentData[`Total Max. Marks in Class ${prevExamClass}`] || studentData["Total Max. Marks in Class 10th"] || studentData["Total Max. Marks in Class 11th"] || studentData["Max Marks"] || '500';
+  // Dynamic previous academic class resolution (e.g. 9th -> 8th, 10th -> 9th, 11th -> 10th, 12th -> 11th)
+  let prevExamClass = '10th';
+  if (cleanClass.includes('12')) prevExamClass = '11th';
+  else if (cleanClass.includes('11')) prevExamClass = '10th';
+  else if (cleanClass.includes('10')) prevExamClass = '9th';
+  else if (cleanClass.includes('9')) prevExamClass = '8th';
+  else if (cleanClass.includes('8')) prevExamClass = '7th';
+
+  const prevSchool = 
+    studentData[`Name of Previous School (Class ${prevExamClass})`] ||
+    studentData[`Name of Previous School (Class ${cleanClass})`] ||
+    studentData["Name of Previous School"] ||
+    studentData["Name of the Previous School"] ||
+    studentData["Previous School"] ||
+    studentData["Previous School Name"] ||
+    studentData['prevSchool'] ||
+    studentData['schoolName'] ||
+    'GOVT HR SEC SCHOOL SHANGUS';
+
+  const prevBoard = 
+    studentData[`Board (Class ${prevExamClass})`] ||
+    studentData[`Board (Class ${cleanClass})`] ||
+    studentData["Board Name"] ||
+    studentData["Board"] ||
+    studentData['prevBoard'] ||
+    'JKBOSE';
+
+  const prevRollNo = 
+    studentData[`Exam Roll Number of Class ${prevExamClass}`] ||
+    studentData[`Exam Roll Number of Class ${cleanClass}`] ||
+    studentData[`Exam Roll No. (Class ${prevExamClass})`] ||
+    studentData[`Exam Roll No. of Class ${prevExamClass}`] ||
+    studentData[`${prevExamClass} Roll No`] ||
+    studentData[`10th Roll No`] ||
+    studentData[`11th Roll No`] ||
+    studentData[`8th Roll No`] ||
+    studentData["Prev. Exam Roll No."] ||
+    studentData["Exam Roll No."] ||
+    studentData["Exam Roll Number"] ||
+    studentData['prevRollNo'] ||
+    'N/A';
+
+  const dietBoardReg = 
+    studentData[`Board Registration No. (Class ${prevExamClass})`] ||
+    studentData[`Board Registration No. (Class ${cleanClass})`] ||
+    studentData[`Board Registration Number (Class ${prevExamClass})`] ||
+    studentData["Board Registration Number"] ||
+    studentData["Board Registration No."] ||
+    studentData["Registration No. (allotted by JKBOSE)"] ||
+    studentData["DIET Registration No."] ||
+    studentData["DIET/Board Reg. No."] ||
+    studentData["Board Reg. No."] ||
+    studentData['boardRegNo'] ||
+    studentData['regNo'] ||
+    'N/A';
+
+  const prevComplex = 
+    studentData[`Name of Previous Complex Head (Class ${prevExamClass})`] ||
+    studentData["Name of Previous Complex Head"] ||
+    studentData["Prev. Complex Head"] ||
+    studentData['prevComplex'] ||
+    'N/A';
+
+  const prevYear = 
+    studentData[`Year of Passing Class ${prevExamClass}`] ||
+    studentData[`Year of Passing Class ${cleanClass}`] ||
+    studentData[`Year of Passing (Class ${prevExamClass})`] ||
+    studentData["Year of Passing"] ||
+    studentData["Previous Year of Passing"] ||
+    studentData['prevYear'] ||
+    'N/A';
+
+  const prevMarks = 
+    studentData[`Total Marks Obtained in Class ${prevExamClass}`] ||
+    studentData[`Total Marks Obtained in Class ${cleanClass}`] ||
+    studentData[`Marks Obtained in Class ${prevExamClass}`] ||
+    studentData[`Total Marks Obtained in Class 8th`] ||
+    studentData[`Total Marks Obtained in Class 9th`] ||
+    studentData[`Total Marks Obtained in Class 10th`] ||
+    studentData[`Total Marks Obtained in Class 11th`] ||
+    studentData["Total Marks Obtained"] ||
+    studentData["Marks Obtained"] ||
+    studentData['marksObtained'] ||
+    'N/A';
+
+  const prevMax = 
+    studentData[`Total Max. Marks in Class ${prevExamClass}`] ||
+    studentData[`Total Max. Marks in Class ${cleanClass}`] ||
+    studentData[`Max Marks in Class ${prevExamClass}`] ||
+    studentData[`Total Max. Marks in Class 8th`] ||
+    studentData[`Total Max. Marks in Class 9th`] ||
+    studentData[`Total Max. Marks in Class 10th`] ||
+    studentData[`Total Max. Marks in Class 11th`] ||
+    studentData["Total Max. Marks"] ||
+    studentData["Max Marks"] ||
+    studentData['totalMaxMarks'] ||
+    '500';
+
   const prevPct = studentData["Previous Percentage"] || studentData[`Percentage (Class ${prevExamClass})`] || (prevMarks !== 'N/A' && !isNaN(prevMarks) && !isNaN(prevMax) && parseFloat(prevMax) > 0 ? ((parseFloat(prevMarks) / parseFloat(prevMax)) * 100).toFixed(2) + '%' : 'N/A');
   const prevDiv = studentData["Previous Division"] || getDivisionFromPercentage(prevPct);
 
@@ -482,7 +600,7 @@ export function buildStudentFormHtml(studentData, options = {}) {
         <table class="grid-table border-table address-fin-table">
           <tr>
             <td class="lbl blue-lbl flex-lbl">House No. /<br/>Address:</td>
-            <td class="val address-val">${houseNo}, ${village}</td>
+            <td class="val address-val">${addressDisplay}</td>
             <td class="lbl blue-lbl flex-lbl">Block &<br/>Tehsil:</td>
             <td class="val address-val">${block}, ${tehsil}</td>
             <td class="lbl blue-lbl flex-lbl">District &<br/>State:</td>

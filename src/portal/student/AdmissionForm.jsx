@@ -1947,10 +1947,10 @@ export default function AdmissionForm() {
                   🎓 Examination & Marks
                 </div>
                 <div className="space-y-1 text-slate-600 dark:text-slate-300">
-                  <div><strong>Prev. School:</strong> {formData["Name of Previous School (Class 10th)"] || formData["Name of Previous School (Class 11th)"] || 'N/A'}</div>
-                  <div><strong>Board Reg No:</strong> {formData["Board Registration No. (Class 10th)"] || formData["Board Registration No. (Class 11th)"] || 'N/A'}</div>
-                  <div><strong>Exam Roll No:</strong> {formData["Exam Roll Number of Class 10th"] || formData["Exam Roll Number of Class 11th"] || 'N/A'}</div>
-                  <div><strong>Marks Obtained:</strong> {formData["Total Marks Obtained in Class 10th"] || formData["Total Marks Obtained in Class 11th"] || 'N/A'} / {formData["Total Max. Marks in Class 10th"] || formData["Total Max. Marks in Class 11th"] || 500}</div>
+                  <div><strong>Prev. School:</strong> {formData[`Name of Previous School (Class ${selectedClass?.includes('12') ? '11th' : selectedClass?.includes('11') ? '10th' : selectedClass?.includes('10') ? '9th' : '8th'})`] || formData["Name of Previous School (Class 10th)"] || formData["Name of Previous School (Class 11th)"] || formData["Name of Previous School (Class 8th)"] || formData["Previous School"] || 'N/A'}</div>
+                  <div><strong>Board / Reg No:</strong> {formData[`Board Registration No. (Class ${selectedClass?.includes('12') ? '11th' : selectedClass?.includes('11') ? '10th' : selectedClass?.includes('10') ? '9th' : '8th'})`] || formData["Board Registration No. (Class 10th)"] || formData["Board Registration No. (Class 11th)"] || formData["Board Registration No. (Class 8th)"] || 'N/A'}</div>
+                  <div><strong>Exam Roll No:</strong> {formData[`Exam Roll Number of Class ${selectedClass?.includes('12') ? '11th' : selectedClass?.includes('11') ? '10th' : selectedClass?.includes('10') ? '9th' : '8th'})`] || formData["Exam Roll Number of Class 10th"] || formData["Exam Roll Number of Class 11th"] || formData["Exam Roll Number of Class 8th"] || 'N/A'}</div>
+                  <div><strong>Marks Obtained:</strong> {formData[`Total Marks Obtained in Class ${selectedClass?.includes('12') ? '11th' : selectedClass?.includes('11') ? '10th' : selectedClass?.includes('10') ? '9th' : '8th'})`] || formData["Total Marks Obtained in Class 10th"] || formData["Total Marks Obtained in Class 11th"] || formData["Total Marks Obtained in Class 8th"] || 'N/A'} / {formData[`Total Max. Marks in Class ${selectedClass?.includes('12') ? '11th' : selectedClass?.includes('11') ? '10th' : selectedClass?.includes('10') ? '9th' : '8th'})`] || formData["Total Max. Marks in Class 10th"] || formData["Total Max. Marks in Class 11th"] || formData["Total Max. Marks in Class 8th"] || 500}</div>
                 </div>
               </div>
 
