@@ -77,7 +77,7 @@ const COMPLEX_HEAD_SUGGESTIONS = [
 ];
 
 const BOARD_SUGGESTIONS = ['JKBOSE', 'CBSE', 'ICSE', 'DIET', 'NIOS', 'Other'];
-const MAX_MARKS_PRESETS = ['500', '600'];
+const MAX_MARKS_PRESETS = ['500', '600', '700', '800', '1000', '1200'];
 
 const MONTHS = [
   { val: '01', name: '1_Jan' },
@@ -888,6 +888,28 @@ export default function DynamicFormField({
               }
             }
 
+            // Derive corresponding Max Marks if this is a Marks Obtained field
+            let correspondingMaxMarks = 500;
+            if (isMarksObtainedField && formData) {
+              const clsMatch = name.match(/Class\s+(8th|9th|10th|11th|12th)/i);
+              if (clsMatch) {
+                const clsKey = clsMatch[0]; // e.g. "Class 9th"
+                const foundMax = formData[`Total Max. Marks in ${clsKey}`] || formData[`Total Max Marks in ${clsKey}`] || formData[`Max Marks in ${clsKey}`];
+                if (foundMax && !isNaN(parseFloat(foundMax)) && parseFloat(foundMax) > 0) {
+                  correspondingMaxMarks = parseFloat(foundMax);
+                }
+              } else {
+                const fallbackMax = formData['Total Max. Marks'] || formData['Total Max Marks'] || formData['Max Marks'] || formData['maxMarks'];
+                if (fallbackMax && !isNaN(parseFloat(fallbackMax)) && parseFloat(fallbackMax) > 0) {
+                  correspondingMaxMarks = parseFloat(fallbackMax);
+                }
+              }
+            }
+
+            if (isMarksObtainedField) {
+              computedMax = correspondingMaxMarks;
+            }
+
             const handleInputChange = (e) => {
               let raw = e.target.value;
               if (type === 'text_numeric') {
@@ -898,7 +920,9 @@ export default function DynamicFormField({
                 if (raw !== '') {
                   raw = raw.replace(/-/g, '');
                   const num = Number(raw);
-                  if (computedMax !== undefined && !isNaN(num) && num > computedMax) {
+                  if (isMarksObtainedField && !isNaN(num) && num > correspondingMaxMarks) {
+                    raw = String(correspondingMaxMarks);
+                  } else if (computedMax !== undefined && !isNaN(num) && num > computedMax) {
                     raw = String(computedMax);
                   }
                 }
@@ -910,8 +934,6 @@ export default function DynamicFormField({
 
             const datalistId = isSchoolInput
               ? `${inputId}-schools`
-              : isMaxMarksField
-              ? `${inputId}-maxmarks`
               : isComplexHead
               ? `${inputId}-complex`
               : isBoardField
@@ -919,96 +941,108 @@ export default function DynamicFormField({
               : undefined;
 
             return (
-              <div className="space-y-1">
-                <input
-                  id={inputId}
-                  type={type === 'text' ? (isEmail ? 'email' : 'text') : type === 'text_numeric' ? 'tel' : 'number'}
-                  value={value}
-                  onChange={handleInputChange}
-                  disabled={disabled}
-                  required={required}
-                  min={computedMin}
-                  max={computedMax}
-                  maxLength={effectiveMaxLength}
-                  list={datalistId}
-                  inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? errorId : undefined}
-                  placeholder={placeholder || (isMaxMarksField ? 'e.g. 500' : isMarksObtainedField ? 'e.g. 420' : '')}
-                  className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-                  style={inputStyle}
-                />
-
-                {/* Quick Selection Chips for Max Marks (500 / 600 / Custom) */}
-                {isMaxMarksField && (
-                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                    <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500">Quick Select:</span>
-                    {MAX_MARKS_PRESETS.map((preset) => {
-                      const isSelected = String(value || '').trim() === preset;
-                      return (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => onChange(name, preset)}
-                          disabled={disabled}
-                          className={`px-2 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-teal-600 text-white shadow-xs scale-102 ring-1 ring-teal-400'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-600 border border-slate-200 dark:border-slate-700'
-                          }`}
-                        >
-                          {preset} Max
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const elem = document.getElementById(inputId);
-                        if (elem) elem.focus();
+              <>
+                {isMaxMarksField ? (
+                  <div className="space-y-1.5">
+                    <select
+                      id={inputId}
+                      value={MAX_MARKS_PRESETS.includes(String(value || '').trim()) ? String(value).trim() : (value ? 'custom' : '500')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val !== 'custom') {
+                          onChange(name, val);
+                        } else if (MAX_MARKS_PRESETS.includes(String(value || '').trim())) {
+                          onChange(name, '');
+                        }
                       }}
                       disabled={disabled}
-                      className={`px-2 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer ${
-                        value && !MAX_MARKS_PRESETS.includes(String(value || '').trim())
-                          ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-700'
-                      }`}
+                      required={required}
+                      aria-invalid={Boolean(error)}
+                      aria-describedby={error ? errorId : undefined}
+                      className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+                      style={inputStyle}
                     >
-                      Custom
-                    </button>
+                      <option value="500">500 (Standard Max Marks)</option>
+                      <option value="600">600 Max Marks</option>
+                      <option value="700">700 Max Marks</option>
+                      <option value="800">800 Max Marks</option>
+                      <option value="1000">1000 Max Marks</option>
+                      <option value="1200">1200 Max Marks</option>
+                      <option value="custom">Custom Maximum Marks...</option>
+                    </select>
+
+                    {(!MAX_MARKS_PRESETS.includes(String(value || '').trim())) && (
+                      <div className="flex items-center gap-1.5 animate-fadeIn">
+                        <input
+                          type="number"
+                          value={value}
+                          onChange={handleInputChange}
+                          disabled={disabled}
+                          required={required}
+                          min="1"
+                          max="2000"
+                          placeholder="Enter Custom Max Marks (e.g. 650)"
+                          className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                          style={inputStyle}
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <input
+                      id={inputId}
+                      type={type === 'text' ? (isEmail ? 'email' : 'text') : type === 'text_numeric' ? 'tel' : 'number'}
+                      value={value}
+                      onChange={handleInputChange}
+                      disabled={disabled}
+                      required={required}
+                      min={computedMin}
+                      max={computedMax}
+                      maxLength={effectiveMaxLength}
+                      list={datalistId}
+                      inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
+                      aria-invalid={Boolean(error)}
+                      aria-describedby={error ? errorId : undefined}
+                      placeholder={placeholder || (isMarksObtainedField ? 'e.g. 420' : '')}
+                      className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                      style={inputStyle}
+                    />
+
+                    {/* Real-time Warning if Marks Obtained exceeds Max Marks */}
+                    {isMarksObtainedField && value !== '' && !isNaN(parseFloat(value)) && parseFloat(value) > correspondingMaxMarks && (
+                      <div className="text-[10px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 pt-0.5">
+                        <AlertCircle size={12} className="flex-shrink-0" />
+                        <span>Marks obtained cannot exceed Total Max Marks ({correspondingMaxMarks}).</span>
+                      </div>
+                    )}
+
+                    {/* Datalists for Autocomplete Suggestions */}
+                    {isSchoolInput && (
+                      <datalist id={`${inputId}-schools`}>
+                        {PREVIOUS_SCHOOLS.map((school, i) => (
+                          <option key={i} value={school} />
+                        ))}
+                      </datalist>
+                    )}
+                    {isComplexHead && (
+                      <datalist id={`${inputId}-complex`}>
+                        {COMPLEX_HEAD_SUGGESTIONS.map((ch, i) => (
+                          <option key={i} value={ch} />
+                        ))}
+                      </datalist>
+                    )}
+                    {isBoardField && (
+                      <datalist id={`${inputId}-board`}>
+                        {BOARD_SUGGESTIONS.map((b, i) => (
+                          <option key={i} value={b} />
+                        ))}
+                      </datalist>
+                    )}
                   </div>
                 )}
-
-                {/* Datalists for Autocomplete Suggestions */}
-                {isSchoolInput && (
-                  <datalist id={`${inputId}-schools`}>
-                    {PREVIOUS_SCHOOLS.map((school, i) => (
-                      <option key={i} value={school} />
-                    ))}
-                  </datalist>
-                )}
-                {isMaxMarksField && (
-                  <datalist id={`${inputId}-maxmarks`}>
-                    {['500', '600', '700', '800', '1000', '1200'].map((m) => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
-                )}
-                {isComplexHead && (
-                  <datalist id={`${inputId}-complex`}>
-                    {COMPLEX_HEAD_SUGGESTIONS.map((ch, i) => (
-                      <option key={i} value={ch} />
-                    ))}
-                  </datalist>
-                )}
-                {isBoardField && (
-                  <datalist id={`${inputId}-board`}>
-                    {BOARD_SUGGESTIONS.map((b, i) => (
-                      <option key={i} value={b} />
-                    ))}
-                  </datalist>
-                )}
-              </div>
+              </>
             );
           })()}
         </>
