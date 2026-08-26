@@ -11,6 +11,24 @@ import { getStudentPhotoUrl } from './imageCompressor';
 import { recordApplicationPrint } from '../services/printTrackerService';
 import { saveGeneratedDocToHistory } from '../services/docHistoryService';
 
+const SUBJECT_CANONICAL_SYNONYMS = {
+  'social studies': 'Social Science',
+  'social science': 'Social Science',
+  'gen english': 'General English',
+  'general english': 'General English',
+  'it & ites': 'IT and ITES',
+  'it and ites': 'IT and ITES',
+  'health care': 'Healthcare',
+  'healthcare': 'Healthcare',
+};
+
+function normalizeSubjectTitle(subj) {
+  if (!subj) return '';
+  const trimmed = String(subj).trim();
+  const lower = trimmed.toLowerCase();
+  return SUBJECT_CANONICAL_SYNONYMS[lower] || trimmed;
+}
+
 function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
   const cls = String(targetClass || '');
   const strm = String(stream || '');
@@ -27,12 +45,25 @@ function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
 }
 
 function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream = 'Science') {
-  const compulsory = getCompulsorySubjects(targetClass, stream);
-  const chosenArray = typeof rawSubjectsString === 'string'
-    ? rawSubjectsString.split(', ').map(s => s.trim()).filter(Boolean)
-    : (Array.isArray(rawSubjectsString) ? rawSubjectsString : []);
-  
-  const allSubjects = [...new Set([...compulsory, ...chosenArray])];
+  const chosenArray = (typeof rawSubjectsString === 'string'
+    ? rawSubjectsString.split(/[,+]/).map(s => s.trim()).filter(Boolean)
+    : (Array.isArray(rawSubjectsString) ? rawSubjectsString : [])
+  ).map(normalizeSubjectTitle);
+
+  // If student record already contains complete subjects list (>= 4 subjects), deduplicate and return
+  if (chosenArray.length >= 4) {
+    const unique = [];
+    chosenArray.forEach(s => {
+      if (s && !unique.includes(s)) unique.push(s);
+    });
+    return unique.join(', ');
+  }
+
+  const compulsory = getCompulsorySubjects(targetClass, stream).map(normalizeSubjectTitle);
+  const allSubjects = [];
+  [...compulsory, ...chosenArray].forEach(s => {
+    if (s && !allSubjects.includes(s)) allSubjects.push(s);
+  });
   return allSubjects.join(', ');
 }
 
