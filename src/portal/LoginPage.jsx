@@ -166,6 +166,10 @@ export default function LoginPage() {
   // Automatically unlocks & transitions the original login tab when verified anywhere!
   // =========================================================================
   useEffect(() => {
+    // CRITICAL: If this tab was opened via an email verification link (Window 2),
+    // it must NEVER act as a Window 1 listener. Skip entirely.
+    if (isEmailVerificationTabRef.current) return;
+
     if (!emailLinkSentState?.email) return;
     const cleanEmail = String(emailLinkSentState.email).trim().toLowerCase();
     const handshakeId = emailLinkSentState.handshakeId;
