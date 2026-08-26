@@ -314,7 +314,7 @@ export default function Navbar() {
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}
           <div className="bg-slate-900 border-b border-slate-700">
-            <div className="max-w-7xl mx-auto text-slate-300 text-[10px] lg:text-[11px] py-1 px-6 md:px-10 lg:px-12 hidden md:flex justify-between items-center flex-wrap gap-y-1">
+            <div className="max-w-7xl mx-auto text-slate-300 text-[10px] lg:text-[11px] py-1 px-4 sm:px-6 md:px-8 hidden md:flex justify-between items-center flex-wrap gap-y-1">
               <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
                 <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> Principal:&nbsp;<a href="tel:+917006912918" className="hover:text-teal-400 transition-colors font-medium">+91-7006912918</a></span>
                 <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> VP:&nbsp;<a href="tel:+919682641216" className="hover:text-teal-400 transition-colors font-medium">+91-9682641216</a></span>
@@ -338,7 +338,7 @@ export default function Navbar() {
           </div>
 
           {/* ROW 2: Logo and School Name (Centered in standard container width for professional alignment) */}
-          <div className="w-full max-w-7xl mx-auto px-6 md:px-10 lg:px-12 py-1.5 md:py-2 flex items-center justify-between gap-4">
+          <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-1.5 md:py-2 flex items-center justify-between gap-4">
             <Link to="/" className="ui-touch-target flex items-center min-w-0 shrink">
               <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-11 md:w-11 mr-3.5 object-contain" />
               <div className="min-w-0">
