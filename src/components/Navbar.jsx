@@ -289,7 +289,6 @@ export default function Navbar() {
           quality -= 0.1;
           dataUrl = canvas.toDataURL('image/jpeg', quality);
         }
-
         const finalSizeBytes = Math.round(dataUrl.length * (3 / 4));
         if (finalSizeBytes > 10 * 1024) {
           alert('Selected photo is too large even after compression. Please choose a smaller image (max 10KB).');
@@ -314,38 +313,40 @@ export default function Navbar() {
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}
-          <div className="bg-slate-900 text-slate-300 text-[10px] lg:text-[11px] py-1 px-4 hidden md:flex justify-between items-center border-b border-slate-700 flex-wrap gap-y-1">
-            <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
-              <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> Principal:&nbsp;<a href="tel:+917006912918" className="hover:text-teal-400 transition-colors font-medium">+91-7006912918</a></span>
-              <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> VP:&nbsp;<a href="tel:+919682641216" className="hover:text-teal-400 transition-colors font-medium">+91-9682641216</a></span>
-              <span className="flex items-center">
-                <Phone size={12} className="mr-1 text-teal-500" /> Adms & Exams:&nbsp;
-                <a href="tel:+917006034501" className="hover:text-teal-400 transition-colors font-medium">+91-7006034501</a>
-                <a href="https://wa.me/917006034501" target="_blank" rel="noopener noreferrer" className="ml-1.5 text-emerald-500 hover:text-emerald-400 transition-transform hover:scale-110 inline-flex items-center" title="Chat on WhatsApp">
-                  <WhatsAppIcon size={12} className="fill-current" />
-                </a>
-                &nbsp;/&nbsp;
-                <a href="tel:+917006537425" className="hover:text-teal-400 transition-colors font-medium">+91-7006537425</a>
-                <a href="https://wa.me/917006537425" target="_blank" rel="noopener noreferrer" className="ml-1.5 text-emerald-500 hover:text-emerald-400 transition-transform hover:scale-110 inline-flex items-center" title="Chat on WhatsApp">
-                  <WhatsAppIcon size={12} className="fill-current" />
-                </a>
-              </span>
-            </div>
-            <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
-              <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">ghssshangus74@gmail.com (Principal)</a></span>
+          <div className="bg-slate-900 border-b border-slate-700">
+            <div className="max-w-7xl mx-auto text-slate-300 text-[10px] lg:text-[11px] py-1 px-6 md:px-10 lg:px-12 hidden md:flex justify-between items-center flex-wrap gap-y-1">
+              <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
+                <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> Principal:&nbsp;<a href="tel:+917006912918" className="hover:text-teal-400 transition-colors font-medium">+91-7006912918</a></span>
+                <span className="flex items-center"><Phone size={12} className="mr-1 text-teal-500" /> VP:&nbsp;<a href="tel:+919682641216" className="hover:text-teal-400 transition-colors font-medium">+91-9682641216</a></span>
+                <span className="flex items-center">
+                  <Phone size={12} className="mr-1 text-teal-500" /> Adms & Exams:&nbsp;
+                  <a href="tel:+917006034501" className="hover:text-teal-400 transition-colors font-medium">+91-7006034501</a>
+                  <a href="https://wa.me/917006034501" target="_blank" rel="noopener noreferrer" className="ml-1.5 text-emerald-500 hover:text-emerald-400 transition-transform hover:scale-110 inline-flex items-center" title="Chat on WhatsApp">
+                    <WhatsAppIcon size={12} className="fill-current" />
+                  </a>
+                  &nbsp;/&nbsp;
+                  <a href="tel:+917006537425" className="hover:text-teal-400 transition-colors font-medium">+91-7006537425</a>
+                  <a href="https://wa.me/917006537425" target="_blank" rel="noopener noreferrer" className="ml-1.5 text-emerald-500 hover:text-emerald-400 transition-transform hover:scale-110 inline-flex items-center" title="Chat on WhatsApp">
+                    <WhatsAppIcon size={12} className="fill-current" />
+                  </a>
+                </span>
+              </div>
+              <div className="flex items-center space-x-3 lg:space-x-4 flex-wrap">
+                <span className="flex items-center"><Mail size={12} className="mr-1 text-teal-500" /> <a href="mailto:ghssshangus74@gmail.com" onClick={(e) => handleEmailClick(e, 'ghssshangus74@gmail.com')} className="hover:text-teal-400 transition-colors font-medium">ghssshangus74@gmail.com (Principal)</a></span>
+              </div>
             </div>
           </div>
 
-          {/* ROW 2: Logo and School Name (Edge-to-Edge Right Extreme Alignment) */}
-          <div className="w-full px-4 md:px-6 py-1 md:py-1.5 flex items-center justify-between gap-4">
+          {/* ROW 2: Logo and School Name (Centered in standard container width for professional alignment) */}
+          <div className="w-full max-w-7xl mx-auto px-6 md:px-10 lg:px-12 py-1.5 md:py-2 flex items-center justify-between gap-4">
             <Link to="/" className="ui-touch-target flex items-center min-w-0 shrink">
-              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-10 md:w-10 mr-3 object-contain" />
+              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-11 md:w-11 mr-3.5 object-contain" />
               <div className="min-w-0">
-                <div className="truncate text-[14.4px] md:text-lg font-bold text-teal-800 tracking-tight leading-tight font-title" aria-label="Govt. Higher Secondary School Shangus">
+                <div className="truncate text-[15px] md:text-xl font-bold text-teal-800 tracking-tight leading-tight font-title" aria-label="Govt. Higher Secondary School Shangus">
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
                   <span className="inline md:hidden">Govt. Hr. Sec. School Shangus</span>
                 </div>
-                <p className="text-[10.6px] md:text-xs text-slate-500 not-italic mt-0 font-slogan">nurturing minds, shaping futures</p>
+                <p className="text-[10.6px] md:text-xs text-slate-500 not-italic mt-0.5 font-slogan">nurturing minds, shaping futures</p>
               </div>
             </Link>
 
