@@ -1,10 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, PanelsTopLeft } from 'lucide-react';
+import { 
+  Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, 
+  Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
+  Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
+  PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap
+} from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
+import { 
+  createStaffAccount, 
+  updateStaffAccount, 
+  sendStaffPasswordReset, 
+  deleteStaffAccount 
+} from '../../services/staffAuthService';
 
 export const ALL_ADMIN_MODULES = [
   { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
@@ -303,9 +314,20 @@ export default function ControlsAndSubjects() {
 
   // Super Admin Tab & Module Permissions State
   const [adminUsers, setAdminUsers] = useState(DEFAULT_ADMIN_USERS);
+  const [staffRoleFilter, setStaffRoleFilter] = useState('all'); // 'all' | 'admin' | 'teacher'
+  const [sendingResetFor, setSendingResetFor] = useState(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
-  const [adminForm, setAdminForm] = useState({ name: '', email: '', role: 'Admin', perms: ['reports', 'admRegisterSuite', 'attendanceMgmt', 'rollNo', 'idCards'] });
+  const [adminForm, setAdminForm] = useState({ 
+    name: '', 
+    email: '', 
+    role: 'Admin', 
+    perms: ['reports', 'admRegisterSuite', 'attendanceMgmt', 'rollNo', 'idCards'],
+    subject: '',
+    mobile: '',
+    password: '',
+    sendSetupEmail: true
+  });
   const [userToDelete, setUserToDelete] = useState(null);
 
   // LAB Test Data Generator & Session Rollover State
@@ -395,15 +417,47 @@ export default function ControlsAndSubjects() {
         console.warn('Firestore subjectsConfig load note:', err);
       }
 
-      // Load Firestore Admin Permissions
+      // Load Firestore Admin Permissions & Staff
       try {
         const permDocRef = doc(db, 'adminSettings', 'permissions');
         const permSnap = await getDoc(permDocRef);
+        let loadedList = [];
         if (permSnap.exists() && Array.isArray(permSnap.data().users)) {
-          setAdminUsers(permSnap.data().users);
+          loadedList = permSnap.data().users;
         } else {
           const cached = localStorage.getItem('hss_admin_users_permissions_v1');
-          if (cached) setAdminUsers(JSON.parse(cached));
+          if (cached) loadedList = JSON.parse(cached);
+          else loadedList = DEFAULT_ADMIN_USERS;
+        }
+
+        // Also fetch any faculty/teachers from users collection
+        try {
+          const usersSnap = await getDocs(collection(db, 'users'));
+          if (!usersSnap.empty) {
+            const extraStaff = [];
+            usersSnap.docs.forEach((d) => {
+              const data = d.data();
+              const roleStr = String(data.role || '').toLowerCase();
+              if (roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff') {
+                const cleanE = String(data.email || '').trim().toLowerCase();
+                if (cleanE && !loadedList.some((a) => a.email.toLowerCase() === cleanE) && !extraStaff.some((s) => s.email.toLowerCase() === cleanE)) {
+                  extraStaff.push({
+                    name: data.name || data.displayName || cleanE.split('@')[0],
+                    email: cleanE,
+                    role: 'Teacher',
+                    perms: data.perms || ['attendanceMgmt', 'practicals'],
+                    subject: data.subject || '',
+                    mobile: data.mobile || data.phone || '',
+                  });
+                }
+              }
+            });
+            setAdminUsers([...loadedList, ...extraStaff]);
+          } else {
+            setAdminUsers(loadedList);
+          }
+        } catch (_) {
+          setAdminUsers(loadedList);
         }
       } catch (err) {
         console.warn('Firestore permissions load fallback:', err);
@@ -570,31 +624,39 @@ export default function ControlsAndSubjects() {
     setSaving(true);
     setAlert(null);
     try {
-      // 1. Save to Cloud Firestore
+      // 1. Filter out pure admins for adminSettings/permissions
+      const adminOnlyList = listToSave.filter(u => {
+        const r = String(u.role || '').toLowerCase();
+        return r.includes('admin');
+      });
+
+      // 2. Save to Cloud Firestore adminSettings/permissions
       await setDoc(doc(db, 'adminSettings', 'permissions'), {
-        users: listToSave,
+        users: adminOnlyList,
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // 2. Sync to individual user documents in 'users' collection
+      // 3. Sync to individual user documents in 'users' collection
       for (const u of listToSave) {
         const cleanEmail = u.email.trim().toLowerCase();
         await setDoc(doc(db, 'users', cleanEmail), {
           name: u.name,
           email: cleanEmail,
           role: u.role || 'Admin',
-          perms: u.perms || [],
+          perms: u.role === 'SuperAdmin' ? ['*'] : (u.perms || []),
+          subject: u.subject || '',
+          mobile: u.mobile || '',
           updatedAt: new Date().toISOString()
         }, { merge: true }).catch(() => {});
       }
 
-      // 3. Cache locally
-      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
+      // 4. Cache locally
+      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(adminOnlyList));
 
-      // 4. Legacy fallback
-      appsScriptApi.call('saveAdminPermissions', { users: listToSave }).catch(() => {});
+      // 5. Legacy fallback
+      appsScriptApi.call('saveAdminPermissions', { users: adminOnlyList }).catch(() => {});
 
-      setAlert({ type: 'success', text: '✨ Super Admin permissions & admin accounts updated successfully in School Database!' });
+      setAlert({ type: 'success', text: '✨ Staff permissions & accounts updated successfully in School Database!' });
     } catch (err) {
       console.error('Failed to save permissions to Firestore:', err);
       localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
@@ -604,60 +666,162 @@ export default function ControlsAndSubjects() {
     }
   };
 
-  // Modal Action: Open Add Admin Modal
+  // Modal Action: Open Add Admin/Staff Modal
   const handleOpenAddAdmin = () => {
     setEditingAdminEmail(null);
-    setAdminForm({ name: '', email: '', role: 'Admin', perms: ['reports', 'attendanceMgmt', 'rollNo', 'idCards'] });
+    setAdminForm({ 
+      name: '', 
+      email: '', 
+      role: 'Admin', 
+      perms: ['reports', 'admRegisterSuite', 'attendanceMgmt', 'rollNo', 'idCards'],
+      subject: '',
+      mobile: '',
+      password: '',
+      sendSetupEmail: true
+    });
     setShowAdminModal(true);
   };
 
-  // Modal Action: Open Edit Admin Modal
+  // Modal Action: Open Edit Staff Modal
   const handleOpenEditAdmin = (user) => {
     setEditingAdminEmail(user.email);
-    setAdminForm({ name: user.name, email: user.email, role: user.role || 'Admin', perms: Array.isArray(user.perms) ? [...user.perms] : [] });
+    setAdminForm({ 
+      name: user.name || '', 
+      email: user.email || '', 
+      role: user.role || 'Admin', 
+      perms: Array.isArray(user.perms) ? [...user.perms] : ['reports', 'admRegisterSuite'],
+      subject: user.subject || '',
+      mobile: user.mobile || '',
+      password: '',
+      sendSetupEmail: false
+    });
     setShowAdminModal(true);
   };
 
-  // Save Modal Form (Add or Edit)
-  const handleSaveAdminForm = (e) => {
+  // 1-Click Send Password Setup / Reset Link
+  const handleSendPasswordReset = async (userEmail) => {
+    const cleanEmail = String(userEmail || '').trim().toLowerCase();
+    if (!cleanEmail) return;
+    setSendingResetFor(cleanEmail);
+    try {
+      await sendStaffPasswordReset(cleanEmail);
+      setAlert({ type: 'success', text: `📩 Password setup / reset link sent to ${cleanEmail} successfully!` });
+    } catch (err) {
+      console.error('Password reset error:', err);
+      setAlert({ type: 'error', text: 'Failed to send password reset: ' + (err.message || err) });
+    } finally {
+      setSendingResetFor(null);
+    }
+  };
+
+  // Save Modal Form (Add or Edit with full Firestore & Auth sync)
+  const handleSaveAdminForm = async (e) => {
     e.preventDefault();
     if (!adminForm.name.trim() || !adminForm.email.trim()) {
       alert('Please enter both Full Name and Email Address.');
       return;
     }
     const cleanEmail = adminForm.email.trim().toLowerCase();
-    let updated;
-    if (editingAdminEmail) {
-      updated = adminUsers.map((u) =>
-        u.email.toLowerCase() === editingAdminEmail.toLowerCase()
-          ? { ...u, name: adminForm.name.trim(), email: cleanEmail, role: adminForm.role, perms: adminForm.perms }
-          : u
-      );
-    } else {
-      if (adminUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
-        alert('An admin account with this email address already exists!');
-        return;
+    setSaving(true);
+
+    try {
+      if (editingAdminEmail) {
+        // Update existing staff profile and email address
+        await updateStaffAccount({
+          oldEmail: editingAdminEmail,
+          newEmail: cleanEmail,
+          name: adminForm.name,
+          role: adminForm.role,
+          perms: adminForm.perms,
+          subject: adminForm.subject,
+          mobile: adminForm.mobile,
+          sendResetEmail: adminForm.sendSetupEmail,
+        });
+
+        const updated = adminUsers.map((u) =>
+          u.email.toLowerCase() === editingAdminEmail.toLowerCase()
+            ? { 
+                ...u, 
+                name: adminForm.name.trim(), 
+                email: cleanEmail, 
+                role: adminForm.role, 
+                perms: adminForm.perms,
+                subject: adminForm.subject,
+                mobile: adminForm.mobile
+              }
+            : u
+        );
+        setAdminUsers(updated);
+        setShowAdminModal(false);
+        setAlert({
+          type: 'success',
+          text: `✨ Staff profile & email (${cleanEmail}) successfully updated in School Database!`,
+        });
+      } else {
+        // Add new staff account
+        if (adminUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+          alert('A staff account with this email address already exists in the system!');
+          setSaving(false);
+          return;
+        }
+
+        const res = await createStaffAccount({
+          name: adminForm.name,
+          email: cleanEmail,
+          role: adminForm.role,
+          perms: adminForm.perms,
+          subject: adminForm.subject,
+          mobile: adminForm.mobile,
+          password: adminForm.password,
+          sendSetupEmail: adminForm.sendSetupEmail,
+        });
+
+        const updated = [
+          ...adminUsers,
+          { 
+            name: adminForm.name.trim(), 
+            email: cleanEmail, 
+            role: adminForm.role, 
+            perms: adminForm.perms,
+            subject: adminForm.subject,
+            mobile: adminForm.mobile
+          }
+        ];
+        setAdminUsers(updated);
+        setShowAdminModal(false);
+        setAlert({
+          type: 'success',
+          text: `✨ ${res.message || `Account for ${adminForm.name} configured in Firebase database!`}`,
+        });
       }
-      updated = [
-        ...adminUsers,
-        { name: adminForm.name.trim(), email: cleanEmail, role: adminForm.role, perms: adminForm.perms }
-      ];
+    } catch (err) {
+      console.error('Error saving staff account:', err);
+      alert('Failed to save staff account: ' + (err.message || err));
+    } finally {
+      setSaving(false);
     }
-    setAdminUsers(updated);
-    setShowAdminModal(false);
-    handleApplyPermissions(updated);
   };
 
-  // Revoke / Delete Admin User
-  const handleDeleteAdmin = (email) => {
-    if (email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com') {
-      alert('Security Protection: The primary Super Admin account cannot be revoked.');
+  // Revoke / Delete Admin or Teacher Account
+  const handleDeleteAdmin = async (email) => {
+    const cleanEmail = email.toLowerCase();
+    if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com' || cleanEmail === 'socialshiftz@gmail.com') {
+      alert('Security Protection: Primary Super Admin accounts cannot be revoked.');
       return;
     }
-    const updated = adminUsers.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
-    setAdminUsers(updated);
-    setUserToDelete(null);
-    handleApplyPermissions(updated);
+    setSaving(true);
+    try {
+      await deleteStaffAccount(cleanEmail);
+      const updated = adminUsers.filter((u) => u.email.toLowerCase() !== cleanEmail);
+      setAdminUsers(updated);
+      setUserToDelete(null);
+      setAlert({ type: 'success', text: `Access revoked and profile removed for ${email}.` });
+    } catch (err) {
+      console.error('Error revoking staff account:', err);
+      alert('Failed to revoke access: ' + (err.message || err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Generate Test Data
@@ -1190,164 +1354,251 @@ export default function ControlsAndSubjects() {
         </div>
       )}
 
-      {/* SUB TAB 3: SUPER ADMIN TAB PERMISSIONS & ADMIN ACCOUNT MANAGER */}
-      {activeSubTab === 'permissions' && (
-        <div className="space-y-3">
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
-            {/* Header Toolbar */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                  <ShieldCheck size={16} />
-                </div>
-                <div>
-                  <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
-                    Admin Accounts & Dynamic Permissions
-                  </h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
-                    Configure granular module access for each administrator
-                  </p>
-                </div>
-              </div>
+      {/* SUB TAB 3: SUPER ADMIN TAB PERMISSIONS & STAFF ACCOUNT MANAGER */}
+      {activeSubTab === 'permissions' && (() => {
+        const filteredStaff = adminUsers.filter(u => {
+          const r = String(u.role || '').toLowerCase();
+          if (staffRoleFilter === 'admin') return r.includes('admin');
+          if (staffRoleFilter === 'teacher') return r === 'teacher' || r === 'faculty' || r === 'staff';
+          return true;
+        });
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleOpenAddAdmin}
-                  className="px-3 py-1.5 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                >
-                  <UserPlus size={13} />
-                  <span>Add Admin</span>
-                </button>
+        const adminCount = adminUsers.filter(u => String(u.role || '').toLowerCase().includes('admin')).length;
+        const teacherCount = adminUsers.filter(u => {
+          const r = String(u.role || '').toLowerCase();
+          return r === 'teacher' || r === 'faculty' || r === 'staff';
+        }).length;
 
-                <button
-                  type="button"
-                  onClick={() => handleApplyPermissions()}
-                  disabled={saving}
-                  className="px-3.5 py-1.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
-                >
-                  {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                  <span>Save Permissions</span>
-                </button>
-              </div>
-            </div>
-
-            {/* High-Density Admin Users List */}
-            <div className="space-y-2.5">
-              {adminUsers.map((user, idx) => {
-                const isSuper = user.role === 'SuperAdmin' || user.email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com';
-                const userPerms = Array.isArray(user.perms) ? user.perms : [];
-                const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
-                const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
-
-                return (
-                  <div 
-                    key={idx} 
-                    className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 space-y-2 hover:border-amber-500/40 transition-all"
-                  >
-                    {/* Compact Single-Line User Header */}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black ${
-                          isSuper 
-                            ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
-                            : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
-                        }`}>
-                          {isSuper ? <ShieldCheck size={14} /> : <Lock size={13} />}
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <strong className="text-xs font-black text-slate-900 dark:text-white">{user.name}</strong>
-                          <span className={`px-2 py-0.2 rounded-full font-black text-[9px] uppercase tracking-wider ${
-                            isSuper ? 'bg-purple-600 text-white' : 'bg-amber-600 text-white'
-                          }`}>
-                            {isSuper ? 'SuperAdmin' : 'Admin'}
-                          </span>
-                          <span className="text-slate-400 font-mono text-[10px]">({user.email})</span>
-                        </div>
-                      </div>
-
-                      {/* Controls & Module Count Badge */}
-                      <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
-                          activeCount === ALL_ADMIN_MODULES.length
-                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                            : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                        }`}>
-                          {activeCount} / {ALL_ADMIN_MODULES.length} Active
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
-                          className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
-                        >
-                          {allSelected ? 'Clear All' : 'Select All'}
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditAdmin(user)}
-                          title="Edit Admin"
-                          className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer"
-                        >
-                          <Edit3 size={12} />
-                        </button>
-                        
-                        {!isSuper && (
-                          <button
-                            type="button"
-                            onClick={() => setUserToDelete(user)}
-                            title="Revoke Admin"
-                            className="p-1 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200 cursor-pointer"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Compact 4-Column Micro-Chips Ribbon */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
-                      {ALL_ADMIN_MODULES.map((mod) => {
-                        const active = userPerms.includes(mod.code) || isSuper;
-                        return (
-                          <button
-                            key={mod.code}
-                            type="button"
-                            onClick={() => togglePermission(user.email, mod.code)}
-                            title={mod.desc}
-                            className={`py-1 px-2 rounded-lg text-left text-[10.5px] transition-all cursor-pointer border flex items-center justify-between ${
-                              active
-                                ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
-                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400 font-bold'
-                            }`}
-                          >
-                            <span className="truncate pr-1">{mod.label}</span>
-                            {active ? (
-                              <Check size={11} className="flex-shrink-0 text-white" />
-                            ) : (
-                              <Plus size={11} className="opacity-30 flex-shrink-0" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+        return (
+          <div className="space-y-3">
+            <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
+              {/* Header Toolbar */}
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <ShieldCheck size={16} />
                   </div>
-                );
-              })}
+                  <div>
+                    <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
+                      Staff Accounts & Granular Permissions
+                    </h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
+                      Manage Admins, SuperAdmins, and Teaching Faculty with Cloud Firestore & Firebase Auth
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Role Filter Pills */}
+                  <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10.5px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setStaffRoleFilter('all')}
+                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all ${
+                        staffRoleFilter === 'all'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      All ({adminUsers.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffRoleFilter('admin')}
+                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all ${
+                        staffRoleFilter === 'admin'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Admins ({adminCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffRoleFilter('teacher')}
+                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all ${
+                        staffRoleFilter === 'teacher'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Teachers ({teacherCount})
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddAdmin}
+                    className="px-3 py-1.5 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                  >
+                    <UserPlus size={13} />
+                    <span>Add New Staff / Admin</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPermissions()}
+                    disabled={saving}
+                    className="px-3.5 py-1.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
+                  >
+                    {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                    <span>Save All Changes</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Staff Users List */}
+              <div className="space-y-2.5">
+                {filteredStaff.map((user, idx) => {
+                  const roleStr = String(user.role || '').toLowerCase();
+                  const isSuper = roleStr === 'superadmin' || user.email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com' || user.email.toLowerCase() === 'e.educational.24@gmail.com';
+                  const isTeacher = roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff';
+                  const userPerms = Array.isArray(user.perms) ? user.perms : [];
+                  const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
+                  const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
+                  const isSendingReset = sendingResetFor === user.email.toLowerCase();
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 space-y-2 hover:border-amber-500/40 transition-all"
+                    >
+                      {/* Compact Single-Line User Header */}
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black ${
+                            isSuper 
+                              ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
+                              : isTeacher
+                              ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
+                              : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
+                          }`}>
+                            {isSuper ? <ShieldCheck size={14} /> : isTeacher ? <UserCheck size={14} /> : <Lock size={13} />}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <strong className="text-xs font-black text-slate-900 dark:text-white">{user.name}</strong>
+                            <span className={`px-2 py-0.2 rounded-full font-black text-[9px] uppercase tracking-wider ${
+                              isSuper ? 'bg-purple-600 text-white' : isTeacher ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                            }`}>
+                              {isSuper ? 'SuperAdmin' : isTeacher ? 'Teacher / Faculty' : 'Admin'}
+                            </span>
+                            {user.subject && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                Subject: {user.subject}
+                              </span>
+                            )}
+                            <span className="text-slate-400 font-mono text-[10px]">({user.email})</span>
+                          </div>
+                        </div>
+
+                        {/* Controls & Action Buttons */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {!isTeacher && (
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                              activeCount === ALL_ADMIN_MODULES.length
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                            }`}>
+                              {activeCount} / {ALL_ADMIN_MODULES.length} Modules
+                            </span>
+                          )}
+
+                          {!isTeacher && !isSuper && (
+                            <button
+                              type="button"
+                              onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
+                              className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+                            >
+                              {allSelected ? 'Clear All' : 'Select All'}
+                            </button>
+                          )}
+
+                          {/* Send Password Setup / Reset Email Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleSendPasswordReset(user.email)}
+                            disabled={isSendingReset}
+                            title="Send Password Setup / Reset Email Link"
+                            className="px-2 py-1 rounded-lg text-[10px] font-black bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {isSendingReset ? <RefreshCw size={10} className="animate-spin" /> : <Key size={10} />}
+                            <span>Send Password Reset</span>
+                          </button>
+                          
+                          {/* Edit Staff & Email Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditAdmin(user)}
+                            title="Edit Account Details & Email Address"
+                            className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          
+                          {!isSuper && (
+                            <button
+                              type="button"
+                              onClick={() => setUserToDelete(user)}
+                              title="Revoke / Delete Account"
+                              className="p-1 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200 cursor-pointer"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Admin Module Permission Micro-Chips (Shown for Admins & SuperAdmins) */}
+                      {!isTeacher && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1 pt-1">
+                          {ALL_ADMIN_MODULES.map((mod) => {
+                            const active = userPerms.includes(mod.code) || isSuper;
+                            return (
+                              <button
+                                key={mod.code}
+                                type="button"
+                                onClick={() => togglePermission(user.email, mod.code)}
+                                title={mod.desc}
+                                className={`py-1 px-2 rounded-lg text-left text-[10.5px] transition-all cursor-pointer border flex items-center justify-between ${
+                                  active
+                                    ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
+                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400 font-bold'
+                                }`}
+                              >
+                                <span className="truncate pr-1">{mod.label}</span>
+                                {active ? (
+                                  <Check size={11} className="flex-shrink-0 text-white" />
+                                ) : (
+                                  <Plus size={11} className="opacity-30 flex-shrink-0" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {filteredStaff.length === 0 && (
+                  <div className="p-8 text-center text-slate-500 font-bold text-xs bg-slate-50 dark:bg-slate-950 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+                    No staff accounts match the selected role filter.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* ADD / EDIT ADMIN ACCOUNT MODAL */}
+      {/* ADD / EDIT STAFF & EMAIL ACCOUNT MODAL */}
       {showAdminModal && (
         <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-5 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
                 <UserPlus size={18} className="text-indigo-600" />
-                {editingAdminEmail ? 'Edit Admin Account' : 'Register New Admin Account'}
+                {editingAdminEmail ? 'Edit Staff Profile & Email Address' : 'Register New Staff / Admin Account'}
               </h3>
               <button
                 type="button"
@@ -1367,68 +1618,148 @@ export default function ControlsAndSubjects() {
                     required
                     value={adminForm.name}
                     onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
-                    placeholder="e.g. Nawaz Ahmad Shah"
-                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    placeholder="e.g. Nawaz Ahmad Shah or Altaf Hussain"
+                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300">
+                      Email Address (Login ID)
+                    </label>
+                    {editingAdminEmail && (
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-extrabold">
+                        Editable — Changes Login ID in Firebase
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="email"
                     required
-                    disabled={!!editingAdminEmail}
                     value={adminForm.email}
                     onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
-                    placeholder="e.g. shahnawaz@gmail.com"
-                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white disabled:opacity-60"
+                    placeholder="e.g. staff.member@gmail.com"
+                    className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                  {editingAdminEmail && editingAdminEmail.toLowerCase() !== adminForm.email.toLowerCase() && (
+                    <p className="text-[10.5px] text-amber-600 dark:text-amber-400 font-bold mt-1">
+                      ⚠️ Note: Changing email from <strong className="font-mono">{editingAdminEmail}</strong> to <strong className="font-mono">{adminForm.email}</strong> will migrate permissions and database profile to the new address.
+                    </p>
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Role Type</label>
-                  <select
-                    value={adminForm.role}
-                    onChange={(e) => setAdminForm({ ...adminForm, role: e.target.value })}
-                    className="w-full p-2.5 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
-                  >
-                    <option value="Admin">Standard Admin</option>
-                    <option value="SuperAdmin">Super Admin (Full Control)</option>
-                  </select>
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Role Type</label>
+                    <select
+                      value={adminForm.role}
+                      onChange={(e) => setAdminForm({ ...adminForm, role: e.target.value })}
+                      className="w-full p-2.5 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="Admin">Standard Admin</option>
+                      <option value="SuperAdmin">Super Admin (Full System Control)</option>
+                      <option value="Teacher">Teaching Faculty / Subject Teacher</option>
+                    </select>
+                  </div>
 
-                {/* Module Permissions Checkboxes */}
-                <div>
-                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2">Granted Feature Modules</label>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {ALL_ADMIN_MODULES.map((mod) => {
-                      const checked = adminForm.perms.includes(mod.code) || adminForm.role === 'SuperAdmin';
-                      return (
-                        <label
-                          key={mod.code}
-                          className="flex items-start gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            disabled={adminForm.role === 'SuperAdmin'}
-                            checked={checked}
-                            onChange={(e) => {
-                              const updated = e.target.checked
-                                ? [...adminForm.perms, mod.code]
-                                : adminForm.perms.filter((p) => p !== mod.code);
-                              setAdminForm({ ...adminForm, perms: updated });
-                            }}
-                            className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
-                          />
-                          <div>
-                            <span className="text-xs font-black text-slate-900 dark:text-white block">{mod.label}</span>
-                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">{mod.desc}</span>
-                          </div>
-                        </label>
-                      );
-                    })}
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">Mobile / WhatsApp No.</label>
+                    <input
+                      type="text"
+                      value={adminForm.mobile}
+                      onChange={(e) => setAdminForm({ ...adminForm, mobile: e.target.value })}
+                      placeholder="e.g. 9876543210"
+                      className="w-full p-2.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
                   </div>
                 </div>
+
+                {/* Specific field for Teacher: Teaching Subject */}
+                {adminForm.role === 'Teacher' && (
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">
+                      Assigned Teaching Subject
+                    </label>
+                    <input
+                      type="text"
+                      value={adminForm.subject}
+                      onChange={(e) => setAdminForm({ ...adminForm, subject: e.target.value })}
+                      placeholder="e.g. Physics, Chemistry, Mathematics, General English, Biology, Urdu"
+                      className="w-full p-2.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/40 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      Determines which subject attendance & practical awards this teacher can manage.
+                    </p>
+                  </div>
+                )}
+
+                {/* Optional Initial Password & Setup Email */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 block">
+                    Account Credentials & Invitation
+                  </span>
+                  
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      {editingAdminEmail ? 'Set / Override Password (Optional)' : 'Initial Password (Optional)'}
+                    </label>
+                    <input
+                      type="password"
+                      value={adminForm.password}
+                      onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                      placeholder="Leave blank to use email verification / setup link"
+                      className="w-full p-2 rounded-xl text-xs font-mono font-bold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={adminForm.sendSetupEmail}
+                      onChange={(e) => setAdminForm({ ...adminForm, sendSetupEmail: e.target.checked })}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Send password setup / activation link to user's email address
+                    </span>
+                  </label>
+                </div>
+
+                {/* Module Permissions Checkboxes (For Admins & SuperAdmins) */}
+                {adminForm.role !== 'Teacher' && (
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2">Granted Feature Modules</label>
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                      {ALL_ADMIN_MODULES.map((mod) => {
+                        const checked = adminForm.perms.includes(mod.code) || adminForm.role === 'SuperAdmin';
+                        return (
+                          <label
+                            key={mod.code}
+                            className="flex items-start gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={adminForm.role === 'SuperAdmin'}
+                              checked={checked}
+                              onChange={(e) => {
+                                const updated = e.target.checked
+                                  ? [...adminForm.perms, mod.code]
+                                  : adminForm.perms.filter((p) => p !== mod.code);
+                                setAdminForm({ ...adminForm, perms: updated });
+                              }}
+                              className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
+                            />
+                            <div>
+                              <span className="text-xs font-black text-slate-900 dark:text-white block">{mod.label}</span>
+                              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">{mod.desc}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -1441,9 +1772,11 @@ export default function ControlsAndSubjects() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-700 text-white hover:bg-indigo-600 shadow-md cursor-pointer"
+                  disabled={saving}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-700 text-white hover:bg-indigo-600 shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Save Admin Account
+                  {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                  <span>{editingAdminEmail ? 'Update Staff Account' : 'Save & Configure in Database'}</span>
                 </button>
               </div>
             </form>

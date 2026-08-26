@@ -4,18 +4,23 @@ import { sessionManager } from '../../services/sessionManager';
 
 import { auth } from '../../services/firebase';
 import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
+import { resolveStaffRoleAndPerms } from '../../services/staffAuthService';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
-// Always returns { role, name } — never throws
+// Always returns { role, name, perms, token } — never throws
 // ---------------------------------------------------------------------------
 async function resolveUserProfile(firebaseUser) {
   const tokenResult = await getIdTokenResult(firebaseUser, true);
   const claims = tokenResult.claims || {};
   const emailLower = String(firebaseUser.email || '').toLowerCase().trim();
-  const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com';
+  
+  // Resolve role from Firestore permissions & users collection & bootstrap
+  const staffProfile = await resolveStaffRoleAndPerms(emailLower);
+  const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com' || emailLower === 'socialshiftz@gmail.com';
 
   const rawRole = String(
+    staffProfile?.role ||
     claims.role || 
     (claims.admin ? 'Admin' : '') || 
     (isBootstrapAdmin ? 'SuperAdmin' : '') || 
@@ -25,14 +30,18 @@ async function resolveUserProfile(firebaseUser) {
   const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
   const normalizedRole = role.toLowerCase();
 
-  if ((normalizedRole.includes('admin') || ['teacher', 'faculty'].includes(normalizedRole)) && !firebaseUser.emailVerified && !isBootstrapAdmin) {
-    throw new Error('Staff email must be verified.');
-  }
+  const perms = Array.isArray(staffProfile?.perms)
+    ? staffProfile.perms
+    : Array.isArray(claims.permissions)
+      ? claims.permissions
+      : (isBootstrapAdmin || role === 'SuperAdmin' ? ['*'] : []);
 
   return {
     role,
-    name: firebaseUser.displayName || emailLower.split('@')[0],
-    perms: Array.isArray(claims.permissions) ? claims.permissions : (isBootstrapAdmin ? ['*'] : []),
+    name: staffProfile?.name || firebaseUser.displayName || emailLower.split('@')[0],
+    perms,
+    subject: staffProfile?.subject || '',
+    mobile: staffProfile?.mobile || '',
     token: tokenResult.token,
   };
 }
