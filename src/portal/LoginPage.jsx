@@ -3,7 +3,8 @@ import { useOutletContext, useLocation, Link, useNavigate } from 'react-router-d
 import { 
   ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck, 
   AlertCircle, CheckCircle, ArrowRight, RefreshCw, Crown, Sparkles, 
-  KeyRound, Mail, School, Award, CheckCircle2, ChevronRight, Compass
+  KeyRound, Mail, School, Award, CheckCircle2, ChevronRight, Compass,
+  Send, ExternalLink, ArrowLeft, ShieldAlert
 } from 'lucide-react';
 import SEO from '../components/SEO';
 import { auth, db, googleProvider } from '../services/firebase';
@@ -12,9 +13,12 @@ import {
   signInWithPopup, 
   signInWithEmailAndPassword, 
   signOut, 
-  fetchSignInMethodsForEmail 
+  fetchSignInMethodsForEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { resolveStaffRoleAndPerms, sendAdminSignInVerificationLink } from '../services/staffAuthService';
 
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
@@ -42,6 +46,21 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
 
+  // 2-Step Verification Link State for Admin / SuperAdmin
+  const [emailLinkSentState, setEmailLinkSentState] = useState(() => {
+    try {
+      const pending = localStorage.getItem('hss_pending_admin_login');
+      if (pending) {
+        const parsed = JSON.parse(pending);
+        if (parsed.email && Date.now() - parsed.ts < 15 * 60 * 1000) {
+          return { email: parsed.email, sentAt: parsed.ts };
+        }
+      }
+    } catch (_) {}
+    return null;
+  });
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   // Status & loading
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState(() => {
@@ -54,13 +73,71 @@ export default function LoginPage() {
 
   const isSuperAdmin = selectedRole === 'superadmin';
 
+  // Cooldown countdown timer for resend verification link
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Check on mount if current URL is an Email Sign-In verification link
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      setIsLoading(true);
+      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
+      if (!emailForSignIn) {
+        const searchParams = new URLSearchParams(window.location.search);
+        emailForSignIn = searchParams.get('admin_email');
+      }
+      if (!emailForSignIn) {
+        emailForSignIn = window.prompt('Please confirm your Admin email address to complete 2-Step Login:');
+      }
+
+      if (emailForSignIn) {
+        const cleanEmail = emailForSignIn.trim().toLowerCase();
+        signInWithEmailLink(auth, cleanEmail, window.location.href)
+          .then(async (userCred) => {
+            window.localStorage.removeItem('emailForSignIn');
+            window.localStorage.removeItem('hss_pending_admin_login');
+            setEmailLinkSentState(null);
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            const verifiedSession = await createVerifiedSession(userCred.user);
+            setAlert({ type: 'success', text: '🛡️ 2-Step Verification Authorized! Entering Admin Portal...' });
+            setTimeout(() => {
+              onLoginSuccess(verifiedSession, true);
+            }, 400);
+          })
+          .catch((err) => {
+            console.error('Email link sign in error:', err);
+            setAlert({
+              type: 'error',
+              text: 'The 2-step verification link is invalid, expired, or has already been used. Please sign in again.'
+            });
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      } else {
+        setIsLoading(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const createVerifiedSession = async (firebaseUser) => {
     const tokenResult = await getIdTokenResult(firebaseUser, true);
     const claims = tokenResult.claims || {};
     const emailLower = String(firebaseUser.email || '').toLowerCase().trim();
-    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com';
+    
+    // Resolve role from Firestore permissions & users collection & bootstrap
+    const staffProfile = await resolveStaffRoleAndPerms(emailLower);
+    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com' || emailLower === 'socialshiftz@gmail.com';
 
     const rawRole = String(
+      staffProfile?.role ||
       claims.role || 
       (claims.admin ? 'Admin' : '') || 
       (isBootstrapAdmin ? 'SuperAdmin' : '') || 
@@ -70,10 +147,11 @@ export default function LoginPage() {
     const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
     const normalizedRole = role.toLowerCase();
 
-    if ((normalizedRole.includes('admin') || normalizedRole === 'teacher' || normalizedRole === 'faculty') && !firebaseUser.emailVerified && !isBootstrapAdmin) {
-      await signOut(auth).catch(() => {});
-      throw new Error('Staff accounts must verify their email address before signing in.');
-    }
+    const perms = Array.isArray(staffProfile?.perms)
+      ? staffProfile.perms
+      : Array.isArray(claims.permissions)
+        ? claims.permissions
+        : (isBootstrapAdmin || role === 'SuperAdmin' ? ['*'] : []);
 
     const selected = selectedRole === 'superadmin' ? 'superadmin' : selectedRole;
     const claimedArea = normalizedRole.includes('admin') ? 'admin'
@@ -88,9 +166,11 @@ export default function LoginPage() {
     return {
       user: {
         email: emailLower,
-        name: firebaseUser.displayName || emailLower.split('@')[0],
+        name: staffProfile?.name || firebaseUser.displayName || emailLower.split('@')[0],
         role,
-        perms: Array.isArray(claims.permissions) ? claims.permissions : (isBootstrapAdmin ? ['*'] : []),
+        perms,
+        subject: staffProfile?.subject || '',
+        mobile: staffProfile?.mobile || '',
         photoURL: firebaseUser.photoURL || null,
         uid: firebaseUser.uid,
       },
@@ -109,7 +189,6 @@ export default function LoginPage() {
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
       // Save demographic profile using UID as document ID
-      // so student account is fully initialized with Student role in Firestore
       try {
         const userPayload = {
           uid: fbUser.uid,
@@ -141,7 +220,30 @@ export default function LoginPage() {
     }
   };
 
+  const handleResendAdminLink = async () => {
+    if (!emailLinkSentState?.email || resendCooldown > 0) return;
+    setIsLoading(true);
+    try {
+      await sendAdminSignInVerificationLink(emailLinkSentState.email);
+      setResendCooldown(60);
+      setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${emailLinkSentState.email}!` });
+    } catch (err) {
+      console.error('Resend verification link error:', err);
+      setAlert({ type: 'error', text: 'Failed to resend link. Please try again in a moment.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const handleCancel2Step = async () => {
+    try {
+      localStorage.removeItem('emailForSignIn');
+      localStorage.removeItem('hss_pending_admin_login');
+      await signOut(auth).catch(() => {});
+    } catch (_) {}
+    setEmailLinkSentState(null);
+    setAlert(null);
+  };
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -156,9 +258,33 @@ export default function LoginPage() {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
+      // 1. Authenticate credentials against Firebase Auth
       const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      const verifiedSession = await createVerifiedSession(userCred.user);
+      
+      // 2. Check if user is an Admin or SuperAdmin
+      const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
+      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com' || cleanEmail === 'socialshiftz@gmail.com';
+      const isAdmin = isSuper || staffProfile?.role === 'Admin' || selectedRole === 'admin';
 
+      // 3. ENFORCE 2-STEP EMAIL VERIFICATION FOR ADMIN & SUPERADMIN
+      if (isAdmin) {
+        await sendAdminSignInVerificationLink(cleanEmail);
+        
+        // Sign out temporary password session so unverified session cannot access portal
+        await signOut(auth).catch(() => {});
+
+        // Transition to 2-Step Verification Waiting View
+        setEmailLinkSentState({ email: cleanEmail, sentAt: Date.now() });
+        setResendCooldown(60);
+        setAlert({
+          type: 'success',
+          text: `🛡️ Security Verification Link dispatched to ${cleanEmail}. Please check your inbox to complete sign-in!`
+        });
+        return;
+      }
+
+      // If Student or Teacher, proceed directly to dashboard
+      const verifiedSession = await createVerifiedSession(userCred.user);
       setAlert({ type: 'success', text: 'Login successful! Redirecting...' });
       setTimeout(() => {
         onLoginSuccess(verifiedSession, keepLoggedIn);
@@ -497,120 +623,193 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Main Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
-              
-              {/* Email Input */}
-              <div className="space-y-1.5 text-left">
-                <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
-                  Email Address <span className="text-rose-500 font-bold">*</span>
-                </label>
-                <div className="relative group">
-                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
-                  <input
-                    id="login-email"
-                    type="email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
-                  />
+            {/* 2-Step Verification Waiting View vs Main Login Form */}
+            {emailLinkSentState ? (
+              /* == == == == == == == == 2-STEP EMAIL VERIFICATION WAITING VIEW == == == == == == == == */
+              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
+                <div className="w-16 h-16 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+                  <ShieldAlert size={32} className="animate-pulse" />
                 </div>
-              </div>
 
-              {/* Password Input */}
-              <div className="space-y-1.5 text-left">
-                <label htmlFor="login-password" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
-                  Password <span className="text-rose-500 font-bold">*</span>
-                </label>
-                <div className="relative group">
-                  <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
-                  <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
-                  />
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                    2-Step Security Verification Required
+                  </span>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    Check Your Email Inbox
+                  </h2>
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
+                    To prevent unauthorized access, Admin accounts require one-time email authorization. We have sent a secure sign-in link to:
+                  </p>
+                  <div className="inline-block px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-mono font-bold text-xs border border-slate-300 dark:border-slate-700">
+                    {emailLinkSentState.email}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-left text-[11.5px] text-amber-900 dark:text-amber-200 font-bold space-y-1">
+                  <div className="flex items-center gap-1.5 font-black text-amber-950 dark:text-amber-100">
+                    <CheckCircle2 size={13} className="text-amber-600" />
+                    <span>How to complete login:</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-0.5 pl-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                    <li>Open the email sent from <strong>Govt HSS Shangus</strong>.</li>
+                    <li>Click the <strong>Sign In / Verify</strong> link inside the email.</li>
+                    <li>This window will automatically authenticate and enter the Admin Portal.</li>
+                  </ol>
+                </div>
+
+                {/* Resend and Open Gmail Actions */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleResendAdminLink}
+                      disabled={resendCooldown > 0 || isLoading}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      <Send size={13} />
+                      <span>{resendCooldown > 0 ? `Resend Link (${resendCooldown}s)` : 'Resend Verification Link'}</span>
+                    </button>
+
+                    <a
+                      href="https://mail.google.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer transition-all"
+                    >
+                      <span>Open Gmail</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+
                   <button
                     type="button"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                    onClick={handleCancel2Step}
+                    className="w-full py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-1 cursor-pointer transition-colors"
                   >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    <ArrowLeft size={13} />
+                    <span>Back to Standard Login / Use Different Account</span>
                   </button>
                 </div>
               </div>
+            ) : (
+              <>
+                {/* == == == == == == == == MAIN LOGIN FORM == == == == == == == == */}
+                <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+                
+                {/* Email Input */}
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                    Email Address <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <div className="relative group">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
+                    <input
+                      id="login-email"
+                      type="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
+                    />
+                  </div>
+                </div>
 
-              {/* Options Row: Keep Logged In + Forgot Password */}
-              <div className="flex items-center justify-between text-xs font-bold pt-0.5">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
-                  <input
-                    type="checkbox"
-                    checked={keepLoggedIn}
-                    onChange={(e) => setKeepLoggedIn(e.target.checked)}
-                    className="rounded-md border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
-                  />
-                  <span>Keep me logged in</span>
-                </label>
+                {/* Password Input */}
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="login-password" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                    Password <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <div className="relative group">
+                    <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
+                    <input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
 
-                <Link to="/portal/forgot-password" className="text-teal-600 dark:text-teal-400 hover:underline font-bold">
-                  Forgot Password?
-                </Link>
+                {/* Options Row: Keep Logged In + Forgot Password */}
+                <div className="flex items-center justify-between text-xs font-bold pt-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
+                    <input
+                      type="checkbox"
+                      checked={keepLoggedIn}
+                      onChange={(e) => setKeepLoggedIn(e.target.checked)}
+                      className="rounded-md border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
+                    />
+                    <span>Keep me logged in</span>
+                  </label>
+
+                  <Link to="/portal/forgot-password" className="text-teal-600 dark:text-teal-400 hover:underline font-bold">
+                    Forgot Password?
+                  </Link>
+                </div>
+
+                {/* Main Submit CTA Button */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-2 ${
+                    isSuperAdmin
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
+                      : selectedRole === 'teacher'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/25'
+                      : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-600/25'
+                  }`}
+                >
+                  {isLoading ? (
+                    <RefreshCw size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <span>{isSuperAdmin ? 'Sign In as SUPERADMIN' : `Sign In as ${selectedRole.toUpperCase()}`}</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Social Google OAuth Button */}
+              <div className="relative z-10 pt-3">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isLoading}
+                  className="w-full py-2.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                >
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  <span>Continue with Google</span>
+                </button>
               </div>
 
-              {/* Main Submit CTA Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-2 ${
-                  isSuperAdmin
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
-                    : selectedRole === 'teacher'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/25'
-                    : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-600/25'
-                }`}
-              >
-                {isLoading ? (
-                  <RefreshCw size={16} className="animate-spin" />
-                ) : (
-                  <>
-                    <span>{isSuperAdmin ? 'Sign In as SUPERADMIN' : `Sign In as ${selectedRole.toUpperCase()}`}</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Social Google OAuth Button */}
-            <div className="relative z-10 pt-3">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isLoading}
-                className="w-full py-2.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
-              >
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                <span>Continue with Google</span>
-              </button>
-            </div>
-
-            {/* Registration Footer Link */}
-            <div className="text-center text-xs relative z-10 pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
-              <span className="text-slate-500 font-medium">Don't have an account? </span>
-              <Link to="/portal/register" className="text-teal-600 dark:text-teal-400 font-bold hover:underline inline-flex items-center gap-1">
-                Create New Account <ChevronRight size={13} />
-              </Link>
-            </div>
+              {/* Registration Footer Link */}
+              <div className="text-center text-xs relative z-10 pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
+                <span className="text-slate-500 font-medium">Don't have an account? </span>
+                <Link to="/portal/register" className="text-teal-600 dark:text-teal-400 font-bold hover:underline inline-flex items-center gap-1">
+                  Create New Account <ChevronRight size={13} />
+                </Link>
+              </div>
+            </>
+          )}
 
           </div>
         </div>
