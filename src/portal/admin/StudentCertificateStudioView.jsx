@@ -80,6 +80,7 @@ import {
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
 import DocumentHistoryModal from './DocumentHistoryModal';
+import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 
 const cleanStudentIdentity = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, '');
 
@@ -228,12 +229,19 @@ export default function StudentCertificateStudioView({
   showSettingsDrawerProp,
   onToggleSettingsDrawer
 }) {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 40);
+    return () => clearTimeout(timer);
+  }, []);
+
   // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session ───
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
   const [photosVersion, setPhotosVersion] = useState(0);
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
-
-  // Direct reference to students list passed from parent (0ms latency, zero re-renders loop)
   const liveStudentsList = useMemo(() => {
     return Array.isArray(allStudents) ? allStudents : [];
   }, [allStudents]);
@@ -2545,6 +2553,15 @@ export default function StudentCertificateStudioView({
     }
   };
 
+  if (!isReady) {
+    return (
+      <TabLoadingOverlay
+        moduleKey="certStudio"
+        message="Initializing Student Certificates Studio and indexing records..."
+      />
+    );
+  }
+
   return (
     <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
 
@@ -2582,7 +2599,7 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* ================ COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER ================ */}
+      {/* == == == == == == == ==  COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER == == == == == == == ==  */}
       {showSettingsDrawer && (
         <div 
           className="rounded-xl p-3 shadow-2xs space-y-2 animate-fadeIn text-xs border"

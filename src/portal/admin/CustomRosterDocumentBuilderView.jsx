@@ -27,6 +27,7 @@ import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/stude
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { toTitleCase } from '../../utils/textFormatting';
+import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 
 // Standard Database Columns Grouped by Category (Primary core fields vs Advanced extended fields)
 const DB_COLUMN_GROUPS = [
@@ -1361,8 +1362,14 @@ export default function CustomRosterDocumentBuilderView({
   globalSession,
   onSelectGlobalSession
 }) {
+  const [isReady, setIsReady] = useState(false);
+
   useEffect(() => {
     getStudentRegIndex().catch(() => {});
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 40);
+    return () => clearTimeout(timer);
   }, []);
 
   // ─── Direct High-Performance Student Pool (0ms Latency, Zero Thread Freezing) ───
@@ -2227,6 +2234,15 @@ export default function CustomRosterDocumentBuilderView({
   };
 
   const currentRowHeightPx = ROW_HEIGHT_PRESETS[selectedRowHeightIdx].px;
+
+  if (!isReady) {
+    return (
+      <TabLoadingOverlay
+        moduleKey="customRoster"
+        message="Preparing student cohort roster & records matrix..."
+      />
+    );
+  }
 
   return (
     <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
