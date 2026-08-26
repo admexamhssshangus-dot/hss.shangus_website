@@ -74,11 +74,11 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "Board (Class 11th)", "Field Type": "list", "Is Required?": "FALSE", "Classes": "12th", "Options / Range / Length": "JKBOSE, CBSE, ICSE, Other" },
 
   // Class 8th / 9th Records
-  { "Field Name": "Year of Passing Class 8th", "Field Type": "text", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "10" },
+  { "Field Name": "Year of Passing Class 8th", "Field Type": "text", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "4", "Placeholder": "e.g. 2024" },
   { "Field Name": "Name of Previous School (Class 8th)", "Field Type": "text", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "120" },
-  { "Field Name": "Board (Class 8th)", "Field Type": "text", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "60" },
+  { "Field Name": "Board (Class 8th)", "Field Type": "list", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "JKBOSE, CBSE, ICSE, DIET, Other" },
   { "Field Name": "Total Marks Obtained in Class 8th", "Field Type": "number", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "4" },
-  { "Field Name": "Total Max. Marks in Class 8th", "Field Type": "number", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "4" },
+  { "Field Name": "Total Max. Marks in Class 8th", "Field Type": "number", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "4", "Placeholder": "500" },
   { "Field Name": "Name of Previous Complex Head", "Field Type": "text", "Is Required?": "FALSE", "Classes": "9th, 10th", "Options / Range / Length": "80" },
 
   // Bank & Scholarship Details
