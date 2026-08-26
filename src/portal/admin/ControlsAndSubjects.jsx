@@ -20,7 +20,9 @@ import {
 export const ALL_ADMIN_MODULES = [
   { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
   { code: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', desc: 'Official ledger, JKBOSE sentup roll, bulk assign IDs & dates' },
-  { code: 'docStudio', label: 'Official Documents & Registers Studio', desc: 'Custom student lists, fee sheets & official letterhead writer' },
+  { code: 'customRoster', label: 'Student Roster & Registers Studio', desc: 'Custom student lists, fee sheets & tabular class registers' },
+  { code: 'officialLetter', label: 'Official Letterhead Writer', desc: 'Compose, format & print official school letters with institutional header' },
+  { code: 'certStudio', label: 'Student Bonafides & Certificates Studio', desc: 'Generate batch bonafide, character, DOB & achievement certificates' },
   { code: 'idCards', label: 'Student ID Cards Studio', desc: 'Generate batch ID Card PDFs & print cards' },
   { code: 'gkTest', label: 'GK Test & OMR System', desc: 'Manage GK registrations, admit cards, centers & OMR' },
   { code: 'controls', label: 'System & Emergency Controls', desc: 'Enable/disable 9th-12th classes, sessions, print settings' },

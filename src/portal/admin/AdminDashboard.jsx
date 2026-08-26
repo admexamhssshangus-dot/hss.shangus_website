@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen } from 'lucide-react';
+import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen, GitMerge } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import RollNoAssignment from './RollNoAssignment';
@@ -15,7 +15,9 @@ import StudentIdCardManager from './StudentIdCardManager';
 import ModernLoader from '../../components/ModernLoader';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown from './AdminToolsDropdown';
-import OfficialDocumentsStudioView from './OfficialDocumentsStudioView';
+import CustomRosterDocumentBuilderView from './CustomRosterDocumentBuilderView';
+import OfficialLetterWriterView from './OfficialLetterWriterView';
+import StudentCertificateStudioView from './StudentCertificateStudioView';
 import ApplicationMergerStudio from './ApplicationMergerStudio';
 import AdmissionRegisterSuite from './AdmissionRegisterSuite';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -31,21 +33,31 @@ function getInitialTab() {
     const urlTab = searchParams.get('tab');
     if (urlTab) {
       if (urlTab === 'bulk') return 'reports';
+      if (urlTab === 'docStudio') {
+        const sub = searchParams.get('subtab');
+        if (sub === 'letter') return 'officialLetter';
+        if (sub === 'certStudio' || sub === 'certificate') return 'certStudio';
+        return 'customRoster';
+      }
       return urlTab;
     }
 
     const subtab = searchParams.get('subtab');
-    if (subtab) return 'docStudio';
+    if (subtab === 'letter') return 'officialLetter';
+    if (subtab === 'certStudio' || subtab === 'certificate') return 'certStudio';
+    if (subtab === 'roster') return 'customRoster';
 
     const hash = window.location.hash.replace(/^#/, '');
     if (hash) {
       if (hash === 'bulk') return 'reports';
+      if (hash === 'docStudio') return 'customRoster';
       return hash;
     }
 
     const savedTab = sessionStorage.getItem('hss_admin_active_tab');
     if (savedTab) {
       if (savedTab === 'bulk') return 'reports';
+      if (savedTab === 'docStudio') return 'customRoster';
       return savedTab;
     }
   } catch (_) {}
@@ -87,28 +99,6 @@ export default function AdminDashboard() {
       }
     } catch (_) {}
   }, [activeTab]);
-
-  // Sub-Tab state for Official Documents Studio (roster | letter | certStudio)
-  const [docStudioSubTab, setDocStudioSubTabState] = useState(() => {
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      const sub = sp.get('subtab');
-      if (sub) return sub;
-      return sessionStorage.getItem('hss_doc_studio_subtab') || 'roster';
-    } catch {
-      return 'roster';
-    }
-  });
-
-  const setDocStudioSubTab = useCallback((sub) => {
-    setDocStudioSubTabState(sub);
-    try {
-      sessionStorage.setItem('hss_doc_studio_subtab', sub);
-      const url = new URL(window.location.href);
-      url.searchParams.set('subtab', sub);
-      window.history.replaceState(null, '', url.toString());
-    } catch (_) {}
-  }, []);
 
   const [isStudioSetupOpen, setIsStudioSetupOpen] = useState(false);
 
@@ -272,11 +262,12 @@ export default function AdminDashboard() {
     const role = String(user.role || '').toLowerCase().trim();
     const email = String(user.email || '').toLowerCase().trim();
     
-    // Only genuine SuperAdmins have unconditional access to all modules
+    // Genuine SuperAdmins have unconditional access to all modules
     if (
       role === 'superadmin' || 
       email === 'adm.exam.hss.shangus@gmail.com' ||
-      email === 'socialshiftz@gmail.com'
+      email === 'socialshiftz@gmail.com' ||
+      email === 'e.educational.24@gmail.com'
     ) {
       return true;
     }
@@ -285,6 +276,9 @@ export default function AdminDashboard() {
     const perms = Array.isArray(user.perms) ? user.perms : [];
     if (perms.includes('*')) return true;
     if (perms.length > 0) {
+      if (tabId === 'customRoster' || tabId === 'officialLetter' || tabId === 'certStudio' || tabId === 'docStudio') {
+        return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter') || perms.includes('certStudio') || perms.includes('certificate');
+      }
       return perms.includes(tabId);
     }
 
@@ -309,13 +303,16 @@ export default function AdminDashboard() {
   const TOOL_MODULES = [
     { id: 'reports', label: 'Student Records & Reports', icon: BarChart2 },
     { id: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', icon: BookOpen },
-    { id: 'docStudio', label: 'Official Documents Studio', icon: FileSpreadsheet },
+    { id: 'customRoster', label: 'Student Roster & Registers', icon: FileSpreadsheet },
+    { id: 'officialLetter', label: 'Official Letterhead Writer', icon: FileText },
+    { id: 'certStudio', label: 'Student Bonafides & Certificates', icon: Award },
     { id: 'idCards', label: 'Student ID Cards', icon: Contact },
     { id: 'gkTest', label: 'Competitive Exams', icon: ShieldCheck },
     { id: 'controls', label: 'Academic Controls & Subjects', icon: Settings },
     { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
     { id: 'attendanceMgmt', label: 'Student Attendance', icon: CalendarCheck },
     { id: 'rollNo', label: 'Roll Number Manager', icon: Hash },
+    { id: 'mergeStudio', label: 'Application Merger & Deduplication', icon: GitMerge },
     { id: 'automations', label: 'Messages & Automations', icon: Mail },
     { id: 'funds', label: 'Funds & Fee Accounts', icon: CreditCard },
     { id: 'cms', label: 'Website CMS & Administration', icon: PanelsTopLeft },
@@ -365,15 +362,15 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Center Slot: Official Documents Studio Sub-Tabs (In Between on Desktop, Full Row on Mobile) */}
-                {(activeTab === 'docStudio' || activeTab === 'customRoster' || activeTab === 'officialLetter') && (
+                {/* Center Slot: Quick Studio Sibling Switcher (When on Roster, Letterhead, or Certificates) */}
+                {(activeTab === 'docStudio' || activeTab === 'customRoster' || activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
                   <div className="w-full md:w-auto order-3 md:order-2 inline-flex items-center gap-1.5 mx-auto justify-between sm:justify-center">
                     <div className="inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-slate-700 text-[10.5px] sm:text-[11px] font-black shadow-2xs">
                       <button
                         type="button"
-                        onClick={() => setDocStudioSubTab('roster')}
+                        onClick={() => setActiveTab('customRoster')}
                         className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                          docStudioSubTab === 'roster'
+                          activeTab === 'customRoster' || activeTab === 'docStudio'
                             ? 'bg-amber-600 text-white shadow-xs font-black'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                         }`}
@@ -385,9 +382,9 @@ export default function AdminDashboard() {
 
                       <button
                         type="button"
-                        onClick={() => setDocStudioSubTab('letter')}
+                        onClick={() => setActiveTab('officialLetter')}
                         className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                          docStudioSubTab === 'letter'
+                          activeTab === 'officialLetter'
                             ? 'bg-rose-700 text-white shadow-xs font-black'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                         }`}
@@ -399,9 +396,9 @@ export default function AdminDashboard() {
 
                       <button
                         type="button"
-                        onClick={() => setDocStudioSubTab('certStudio')}
+                        onClick={() => setActiveTab('certStudio')}
                         className={`flex-1 md:flex-initial px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer transition-all ${
-                          docStudioSubTab === 'certStudio' || docStudioSubTab === 'certificate'
+                          activeTab === 'certStudio' || activeTab === 'certificate'
                             ? 'bg-gradient-to-r from-teal-700 to-indigo-700 text-white shadow-xs font-black'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold'
                         }`}
@@ -413,22 +410,24 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Setup / Configuration Button (Positioned here per user request) */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsStudioSetupOpen(prev => !prev);
-                        window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup'));
-                      }}
-                      className={`h-7 sm:h-7.5 px-2.5 rounded-lg border font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 shrink-0 ${
-                        isStudioSetupOpen
-                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
-                      title="Configure Official Letterhead, Signatories, Ref No & Margins"
-                    >
-                      <Sliders size={12} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
-                      <span>Setup</span>
-                    </button>
+                    {(activeTab === 'officialLetter' || activeTab === 'certStudio' || activeTab === 'certificate') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStudioSetupOpen(prev => !prev);
+                          window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup'));
+                        }}
+                        className={`h-7 sm:h-7.5 px-2.5 rounded-lg border font-black text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 shrink-0 ${
+                          isStudioSetupOpen
+                            ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                        title="Configure Official Letterhead, Signatories, Ref No & Margins"
+                      >
+                        <Sliders size={12} className={isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'} />
+                        <span>Setup</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -550,16 +549,37 @@ export default function AdminDashboard() {
                     />
                   )}
 
-                  {/* TAB: Official Documents & Registers Studio (Houses Student Roster, Official Letterhead & Certificates) */}
-                  {(activeTab === 'customRoster' || activeTab === 'officialLetter' || activeTab === 'docStudio') && (
-                    <OfficialDocumentsStudioView
+                  {/* TAB: Student Roster & Registers Studio */}
+                  {(activeTab === 'customRoster' || activeTab === 'docStudio') && (
+                    <CustomRosterDocumentBuilderView
                       allStudents={applications}
-                      initialSubTab={docStudioSubTab}
-                      activeSubTab={docStudioSubTab}
-                      onSwitchSubTab={setDocStudioSubTab}
-                      showSettingsDrawer={isStudioSetupOpen}
-                      onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
                       onClose={() => setActiveTab('reports')}
+                      activeSubTab="roster"
+                      onSwitchSubTab={(sub) => setActiveTab(sub === 'letter' ? 'officialLetter' : (sub === 'certStudio' || sub === 'certificate') ? 'certStudio' : 'customRoster')}
+                    />
+                  )}
+
+                  {/* TAB: Official Letterhead Writer (Ultra-fast standalone loading, zero student data overhead) */}
+                  {activeTab === 'officialLetter' && (
+                    <OfficialLetterWriterView
+                      onClose={() => setActiveTab('reports')}
+                      activeSubTab="letter"
+                      onSwitchSubTab={(sub) => setActiveTab(sub === 'roster' ? 'customRoster' : (sub === 'certStudio' || sub === 'certificate') ? 'certStudio' : 'officialLetter')}
+                      showSettingsDrawerProp={isStudioSetupOpen}
+                      onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
+                    />
+                  )}
+
+                  {/* TAB: Student Bonafides & Certificates Studio */}
+                  {(activeTab === 'certStudio' || activeTab === 'certificate') && (
+                    <StudentCertificateStudioView
+                      allStudents={applications}
+                      identityStudents={[...(applications || []), ...(getCachedCollectionSync('masterRegisters') || [])]}
+                      onClose={() => setActiveTab('reports')}
+                      activeSubTab="certStudio"
+                      onSwitchSubTab={(sub) => setActiveTab(sub === 'roster' ? 'customRoster' : sub === 'letter' ? 'officialLetter' : 'certStudio')}
+                      showSettingsDrawerProp={isStudioSetupOpen}
+                      onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
                     />
                   )}
 
