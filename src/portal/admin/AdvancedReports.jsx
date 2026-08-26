@@ -1039,9 +1039,10 @@ const SUBJECT_ABBR_MAP = {
   'Chemistry': 'CH',
   'Biology (Botany/Zoology)': 'BI',
   'Biology': 'BI',
-  'Science': 'BI',
-  'Science (Physics, Chemistry, Biology)': 'BI',
-  'Science (Phy/Chem/Bio)': 'BI',
+  'Science': 'SCI',
+  'General Science': 'SCI',
+  'Science (Physics, Chemistry, Biology)': 'SCI',
+  'Science (Phy/Chem/Bio)': 'SCI',
   'Social Science (Hist/Civ/Geog)': 'SST',
   'Social Science': 'SST',
   'Social Studies': 'SST',
@@ -1095,7 +1096,7 @@ const abbreviateSubjects = (str) => {
     if (/general english|functional english|english/i.test(part)) return 'GE';
     if (/math/i.test(part)) return 'MA';
     if (/social science|social studies|sst/i.test(part)) return 'SST';
-    if (/science/i.test(part) && !/environmental|political|social|food|home/i.test(part)) return 'BI';
+    if (/^science$|general science|sci/i.test(part)) return 'SCI';
     if (/environmental|evs/i.test(part)) return 'ES';
     if (/physics/i.test(part)) return 'PH';
     if (/chemistry/i.test(part)) return 'CH';
