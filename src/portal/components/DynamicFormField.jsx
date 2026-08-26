@@ -810,24 +810,45 @@ export default function DynamicFormField({
         </div>
       )}
 
+      {/* Year Field — Select Dropdown */}
+      {!isDateField && type !== 'list' && (lowerName.includes('year of passing') || lowerName.includes('year of appearing') || lowerName.includes('passing year') || lowerName === 'prevyear' || lowerName.includes('passing_year')) && (
+        <div className="space-y-1">
+          <select
+            id={inputId}
+            value={value || ''}
+            onChange={(e) => onChange(name, e.target.value)}
+            disabled={disabled}
+            required={required}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
+            className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+            style={inputStyle}
+          >
+            <option value="">-- Select {mainLabel} --</option>
+            {SUGGESTED_PASSING_YEARS.map((yr) => (
+              <option key={yr} value={yr}>
+                {yr}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Default Input (text, number, text_numeric) */}
-      {!isDateField && (type === 'text' || type === 'number' || type === 'number_range' || type === 'text_numeric') && (
+      {!isDateField && !lowerName.includes('year of passing') && !lowerName.includes('year of appearing') && !lowerName.includes('passing year') && lowerName !== 'prevyear' && !lowerName.includes('passing_year') && (type === 'text' || type === 'number' || type === 'number_range' || type === 'text_numeric') && (
         <>
           {(() => {
             const isSchoolInput = (lowerName.includes('previous school') || lowerName.includes('name of previous school') || lowerName.includes('last school')) && !lowerName.includes('record');
             const isIfsc = lowerName.includes('ifsc');
             const isEmail = lowerName.includes('email');
             const isNameField = lowerName.includes('name') && !isSchoolInput && !lowerName.includes('bank');
-            const isYearField = lowerName.includes('year of passing') || lowerName.includes('year of appearing') || lowerName.includes('passing year') || lowerName === 'prevyear' || lowerName.includes('passing_year');
             const isMaxMarksField = lowerName.includes('max. marks') || lowerName.includes('max marks') || (lowerName.includes('total max') && !lowerName.includes('percentage'));
             const isMarksObtainedField = lowerName.includes('marks obtained') || lowerName.includes('total marks obtained');
             const isComplexHead = lowerName.includes('complex head') || (lowerName.includes('complex') && !lowerName.includes('building'));
             const isBoardField = (lowerName.includes('board') || lowerName.includes('exam board')) && !lowerName.includes('registration') && !lowerName.includes('reg');
 
             let defaultMax = 80;
-            if (isYearField) {
-              defaultMax = 4;
-            } else if (type === 'text_numeric') {
+            if (type === 'text_numeric') {
               if (lowerName.includes('mobile')) defaultMax = 10;
               else if (lowerName.includes('aadhar')) defaultMax = 12;
               else if (lowerName.includes('pin')) defaultMax = 6;
@@ -841,34 +862,31 @@ export default function DynamicFormField({
               defaultMax = 80;
             }
 
-            const effectiveMaxLength = isYearField ? 4 : (length ? parseInt(length, 10) : defaultMax);
+            const effectiveMaxLength = length ? parseInt(length, 10) : defaultMax;
 
             // Numeric bounds
-            let computedMin = min;
-            let computedMax = max;
-            if (isYearField) {
-              computedMin = 1990;
-              computedMax = CURRENT_YEAR + 1;
-            } else if (type === 'number' || type === 'number_range') {
+            let computedMin = (min !== '' && min !== undefined && !isNaN(Number(min))) ? Number(min) : undefined;
+            let computedMax = (max !== '' && max !== undefined && !isNaN(Number(max))) ? Number(max) : undefined;
+
+            if (type === 'number' || type === 'number_range') {
               if (lowerName.includes('height')) {
-                computedMin = computedMin !== undefined ? computedMin : 50;
-                computedMax = computedMax !== undefined ? computedMax : 250;
+                computedMin = computedMin ?? 50;
+                computedMax = computedMax ?? 250;
               } else if (lowerName.includes('weight')) {
-                computedMin = computedMin !== undefined ? computedMin : 15;
-                computedMax = computedMax !== undefined ? computedMax : 200;
+                computedMin = computedMin ?? 15;
+                computedMax = computedMax ?? 200;
               } else if (lowerName.includes('marks')) {
-                computedMin = computedMin !== undefined ? computedMin : 0;
-                computedMax = computedMax !== undefined ? computedMax : 2000;
+                computedMin = computedMin ?? 0;
+                computedMax = computedMax ?? 2000;
               } else {
-                computedMin = computedMin !== undefined ? computedMin : 0;
+                computedMin = computedMin ?? 0;
+                computedMax = computedMax ?? 999999;
               }
             }
 
             const handleInputChange = (e) => {
               let raw = e.target.value;
-              if (isYearField) {
-                raw = raw.replace(/\D/g, '').slice(0, 4);
-              } else if (type === 'text_numeric') {
+              if (type === 'text_numeric') {
                 raw = raw.replace(/\D/g, '').slice(0, effectiveMaxLength);
               } else if (isIfsc) {
                 raw = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11);
@@ -876,7 +894,9 @@ export default function DynamicFormField({
                 if (raw !== '') {
                   raw = raw.replace(/-/g, '');
                   const num = Number(raw);
-                  if (computedMax !== undefined && num > computedMax) raw = String(computedMax);
+                  if (computedMax !== undefined && !isNaN(num) && num > computedMax) {
+                    raw = String(computedMax);
+                  }
                 }
               } else {
                 raw = raw.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, effectiveMaxLength);
@@ -886,8 +906,6 @@ export default function DynamicFormField({
 
             const datalistId = isSchoolInput
               ? `${inputId}-schools`
-              : isYearField
-              ? `${inputId}-years`
               : isMaxMarksField
               ? `${inputId}-maxmarks`
               : isComplexHead
@@ -909,10 +927,10 @@ export default function DynamicFormField({
                   max={computedMax}
                   maxLength={effectiveMaxLength}
                   list={datalistId}
-                  inputMode={isYearField ? 'numeric' : type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
+                  inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? errorId : undefined}
-                  placeholder={placeholder || (isYearField ? 'e.g. 2025' : isMaxMarksField ? 'e.g. 500' : '')}
+                  placeholder={placeholder || (isMaxMarksField ? 'e.g. 500' : isMarksObtainedField ? 'e.g. 420' : '')}
                   className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                   style={inputStyle}
                 />
@@ -957,43 +975,11 @@ export default function DynamicFormField({
                   </div>
                 )}
 
-                {/* Quick Selection Chips for Year of Passing / Appearing */}
-                {isYearField && (
-                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
-                    <span className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500">Recent Years:</span>
-                    {QUICK_SELECT_YEARS.map((yr) => {
-                      const isSelected = String(value || '').trim() === yr;
-                      return (
-                        <button
-                          key={yr}
-                          type="button"
-                          onClick={() => onChange(name, yr)}
-                          disabled={disabled}
-                          className={`px-1.5 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-teal-600 text-white shadow-xs scale-102 ring-1 ring-teal-400'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-600 border border-slate-200 dark:border-slate-700'
-                          }`}
-                        >
-                          {yr}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
                 {/* Datalists for Autocomplete Suggestions */}
                 {isSchoolInput && (
                   <datalist id={`${inputId}-schools`}>
                     {PREVIOUS_SCHOOLS.map((school, i) => (
                       <option key={i} value={school} />
-                    ))}
-                  </datalist>
-                )}
-                {isYearField && (
-                  <datalist id={`${inputId}-years`}>
-                    {SUGGESTED_PASSING_YEARS.map((yr) => (
-                      <option key={yr} value={yr} />
                     ))}
                   </datalist>
                 )}
