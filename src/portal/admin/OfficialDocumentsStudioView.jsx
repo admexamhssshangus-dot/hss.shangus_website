@@ -308,6 +308,13 @@ export default function OfficialDocumentsStudioView({
     });
   }, [allStudents, masterHistoricalRecords, selectedGlobalSession]);
 
+  // Certificate identity fields can belong to an earlier admission/master row
+  // even when the selected result belongs to the current archive session.
+  const certificateIdentityStudents = useMemo(
+    () => [...(allStudents || []), ...(masterHistoricalRecords || [])],
+    [allStudents, masterHistoricalRecords]
+  );
+
   return (
     <div className="space-y-1 text-xs sm:text-sm animate-fadeIn relative text-slate-900 dark:text-slate-100">
       
@@ -378,6 +385,7 @@ export default function OfficialDocumentsStudioView({
       {(activeSubTab === 'certStudio' || activeSubTab === 'certificate') && (
         <StudentCertificateStudioView
           allStudents={currentSessionStudents}
+          identityStudents={certificateIdentityStudents}
           onClose={onClose}
           activeSubTab={activeSubTab}
           onSwitchSubTab={setActiveSubTab}

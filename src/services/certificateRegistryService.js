@@ -7,6 +7,16 @@ const REGISTRY_DOC_PATH = 'systemSettings';
 const REGISTRY_DOC_ID = 'certificateRegistry';
 const DEFAULT_INITIAL_CERT_NO = 1367;
 
+/** Return the official numeric serial from stored values such as
+ * "1368 (26-08-2026)" or "HSS/SHG/TC-DC/1368/2026". */
+export function extractCertificateSerial(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).trim();
+  if (!text || /^(—|-|n\/?a|null|undefined)$/i.test(text)) return '';
+  const match = text.match(/(?:^|\D)(\d{3,6})(?=\D|$)/);
+  return match ? String(parseInt(match[1], 10)) : '';
+}
+
 /**
  * Fetch current highest issued Certificate Number from Firestore
  */
@@ -31,9 +41,9 @@ export async function fetchLastIssuedCertificateNumber() {
       const d = docSnap.data();
       const rawCert = d.ccDcNo || d.certificateNo || d['No. & Date of CC/DC Issued (This Institution)'];
       if (rawCert) {
-        const numMatch = String(rawCert).match(/\b(\d{3,6})\b/);
-        if (numMatch) {
-          const val = parseInt(numMatch[1], 10);
+        const serial = extractCertificateSerial(rawCert);
+        if (serial) {
+          const val = parseInt(serial, 10);
           if (val > maxFound && val < 999999) {
             maxFound = val;
           }
