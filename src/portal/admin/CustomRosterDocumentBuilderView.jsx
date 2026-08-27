@@ -1323,19 +1323,15 @@ export default function CustomRosterDocumentBuilderView({
   globalSession,
   onSelectGlobalSession
 }) {
-  const [isReady, setIsReady] = useState(false);
+  const [isReady, setIsReady] = useState(true);
 
   useEffect(() => {
     getStudentRegIndex().catch(() => {});
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, 40);
-    return () => clearTimeout(timer);
   }, []);
 
   // ─── Direct High-Performance Pre-Indexed Student Pool (Runs Extraction Only Once) ───
   const unifiedStudentPool = useMemo(() => {
-    if (!isReady || !Array.isArray(allStudents) || allStudents.length === 0) return [];
+    if (!Array.isArray(allStudents) || allStudents.length === 0) return [];
     return allStudents.map((rawSt, idx) => {
       const st = rawSt || {};
       const session = extractSession(st) || '—';

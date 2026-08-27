@@ -229,13 +229,10 @@ export default function StudentCertificateStudioView({
   showSettingsDrawerProp,
   onToggleSettingsDrawer
 }) {
-  const [isReady, setIsReady] = useState(false);
+  const [isReady, setIsReady] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, 40);
-    return () => clearTimeout(timer);
+    preloadCentralStudentPhotos().catch(() => {});
   }, []);
 
   // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session ───
