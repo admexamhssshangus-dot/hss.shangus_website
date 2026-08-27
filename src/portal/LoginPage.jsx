@@ -97,6 +97,21 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, user, navigate, window2VerifiedState]);
 
+  // Pre-warm dashboard bundle chunks in background during idle time for 0ms instant dashboard mounting
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const preloadDashboards = () => {
+      import('./admin/AdminDashboard').catch(() => {});
+      import('./teacher/TeacherDashboard').catch(() => {});
+      import('./student/StudentDashboard').catch(() => {});
+    };
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(preloadDashboards, { timeout: 1200 });
+    } else {
+      setTimeout(preloadDashboards, 400);
+    }
+  }, []);
+
   // Cooldown countdown timer for resend verification link
   useEffect(() => {
     if (resendCooldown <= 0) return;

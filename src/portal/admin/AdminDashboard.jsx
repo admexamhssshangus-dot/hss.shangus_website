@@ -435,17 +435,8 @@ export default function AdminDashboard() {
             );
           })()}
 
-          {/* Loading Indicator — Only show parent loader on initial global fetch before applications are loaded */}
-          {loading && applications.length === 0 ? (
-            <ModernLoader
-              moduleKey={activeTab}
-              text={`Fetching ${TOOL_MODULES.find(m => m.id === activeTab)?.label || 'System Data'}`}
-              totalRecords={applications.length > 0 ? applications.length : undefined}
-            />
-          ) : (
-            <>
-              {/* Permission Guard: Check if active tab is permitted */}
-              {!isTabPermitted(activeTab) ? (
+          {/* Permission Guard: Check if active tab is permitted */}
+          {!isTabPermitted(activeTab) ? (
                 <div className="p-12 text-center space-y-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                   <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 border border-amber-500/30 flex items-center justify-center mx-auto font-black">
                     <Lock size={24} />
@@ -569,8 +560,6 @@ export default function AdminDashboard() {
                   )}
                 </React.Suspense>
               )}
-            </>
-          )}
         </div>
 
         {/* Application Review Modal Popup */}
