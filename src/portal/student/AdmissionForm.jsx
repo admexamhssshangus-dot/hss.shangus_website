@@ -11,7 +11,7 @@ import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { saveAdmissionDraft } from '../../services/admissionWorkflowApi';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
-import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
+import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
 
 export const SUBJECT_CANONICAL_SYNONYMS = {
   'social studies': 'Social Science',
@@ -581,8 +581,14 @@ export default function AdmissionForm() {
       setIsSetupCollapsed(true);
     }
 
+    // Strip numbers and strange symbols from person names
+    let cleanValue = value;
+    if (isPersonNameField(fieldName) && typeof cleanValue === 'string') {
+      cleanValue = sanitizePersonName(cleanValue);
+    }
+
     setFormData((prev) => {
-      const next = { ...prev, [fieldName]: value };
+      const next = { ...prev, [fieldName]: cleanValue };
 
       // ── Dependent field auto-clearing ──
 
@@ -1384,8 +1390,16 @@ export default function AdmissionForm() {
     if (!photoVal)
       addError("Student Photo", "Recent passport-size photograph is required");
 
-    if (!formData["Student's Name (as per school records)"]?.trim())
+    const studentNameVal = String(formData["Student's Name (as per school records)"] || '').trim();
+    if (!studentNameVal) {
       addError("Student's Name (as per school records)", "Student's full name is required");
+    } else {
+      const nameCheck = validatePersonName(studentNameVal, "Student's Name");
+      if (!nameCheck.valid) {
+        addError("Student's Name (as per school records)", nameCheck.error);
+      }
+    }
+
     const dobRaw = formData["DoB (as per school records)"] || formData["DoB"] || formData['dob'] || formData['date of birth'] || '';
     const dobIso = normalizeDobToIso(dobRaw);
     if (dobIso && dobIso !== formData["DoB (as per school records)"]) {
@@ -1403,10 +1417,26 @@ export default function AdmissionForm() {
     }
     if (!formData["Gender"])
       addError("Gender", "Gender is required");
-    if (!formData["Father's/Guardian's Name (as per school records)"]?.trim())
+
+    const fatherNameVal = String(formData["Father's/Guardian's Name (as per school records)"] || '').trim();
+    if (!fatherNameVal) {
       addError("Father's/Guardian's Name (as per school records)", "Father's / Guardian's name is required");
-    if (!formData["Mother's Name (as per school records)"]?.trim())
+    } else {
+      const fatherCheck = validatePersonName(fatherNameVal, "Father's / Guardian's Name");
+      if (!fatherCheck.valid) {
+        addError("Father's/Guardian's Name (as per school records)", fatherCheck.error);
+      }
+    }
+
+    const motherNameVal = String(formData["Mother's Name (as per school records)"] || '').trim();
+    if (!motherNameVal) {
       addError("Mother's Name (as per school records)", "Mother's name is required");
+    } else {
+      const motherCheck = validatePersonName(motherNameVal, "Mother's Name");
+      if (!motherCheck.valid) {
+        addError("Mother's Name (as per school records)", motherCheck.error);
+      }
+    }
 
     // Mobile validation
     const mobile = String(formData["Mobile No. (with working WhatsApp)"] || '').replace(/[^0-9]/g, '');
@@ -1645,6 +1675,13 @@ export default function AdmissionForm() {
       if (typeof val === 'string' && (val.trim().toLowerCase() === 'other' || val.trim().toLowerCase() === 'others')) {
         addError(name, `Please specify your custom ${name}`);
         return;
+      }
+      if (isPersonNameField(name) && val && typeof val === 'string' && val.trim()) {
+        const nameCheck = validatePersonName(val, name);
+        if (!nameCheck.valid) {
+          addError(name, nameCheck.error);
+          return;
+        }
       }
       if (!required) return;
       if (HARDCODED_FIELDS.has(name)) return; // already validated above

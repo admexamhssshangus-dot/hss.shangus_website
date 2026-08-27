@@ -135,3 +135,88 @@ export function validateMinimumAge(dobIso, targetClass, targetDate = new Date())
   }
   return { valid: true, age, minRequired };
 }
+
+/**
+ * Checks if a given field name represents an individual person's name
+ * (e.g. Student's Name, Father's Name, Mother's Name, Guardian's Name, Candidate Name).
+ */
+export function isPersonNameField(name = '') {
+  if (!name || typeof name !== 'string') return false;
+  const clean = name.toLowerCase().trim();
+  // Exclude non-person entities that have "name" in them
+  if (
+    clean.includes('school') ||
+    clean.includes('bank') ||
+    clean.includes('subject') ||
+    clean.includes('board') ||
+    clean.includes('complex') ||
+    clean.includes('village') ||
+    clean.includes('tehsil') ||
+    clean.includes('district') ||
+    clean.includes('occupation') ||
+    clean.includes('mark') ||
+    clean.includes('tongue') ||
+    clean.includes('stream') ||
+    clean.includes('fee') ||
+    clean.includes('file') ||
+    clean.includes('photo')
+  ) {
+    return false;
+  }
+  return (
+    clean.includes("student's name") ||
+    clean.includes("father's/guardian's name") ||
+    clean.includes("father's name") ||
+    clean.includes("mother's name") ||
+    clean.includes("guardian's name") ||
+    clean.includes("candidate's name") ||
+    clean.includes("student name") ||
+    clean.includes("father name") ||
+    clean.includes("mother name") ||
+    clean.includes("guardian name") ||
+    clean.includes("candidate name") ||
+    clean.includes("full name") ||
+    clean === 'name' ||
+    clean === 'studentname' ||
+    clean === 'fathername' ||
+    clean === 'mothername'
+  );
+}
+
+/**
+ * Sanitizes a person's name by stripping numbers, strange characters, and symbols.
+ * Only allows English alphabets, spaces, dots (for abbreviations/initials), hyphens, and apostrophes.
+ */
+export function sanitizePersonName(value = '') {
+  if (typeof value !== 'string') return '';
+  // 1. Remove all characters except English letters, spaces, dots, hyphens, apostrophes
+  let cleaned = value.replace(/[^a-zA-Z\s.'-]/g, '');
+  // 2. Remove leading dots, hyphens, apostrophes, or spaces
+  cleaned = cleaned.replace(/^[.'-\s]+/, '');
+  // 3. Collapse multiple consecutive spaces into a single space
+  cleaned = cleaned.replace(/\s{2,}/g, ' ');
+  // 4. Collapse multiple consecutive dots into a single dot
+  cleaned = cleaned.replace(/\.{2,}/g, '.');
+  return cleaned;
+}
+
+/**
+ * Validates a person's name string.
+ * Returns { valid: boolean, error?: string }
+ */
+export function validatePersonName(value = '', fieldLabel = 'Name') {
+  const str = String(value || '').trim();
+  if (!str) {
+    return { valid: false, error: `${fieldLabel} is required` };
+  }
+  if (/\d/.test(str)) {
+    return { valid: false, error: `Numbers are not allowed in ${fieldLabel.toLowerCase()}. Please use letters only.` };
+  }
+  if (!/^[a-zA-Z\s.'-]+$/.test(str)) {
+    return { valid: false, error: `${fieldLabel} contains invalid characters. Only letters, spaces, and dots are permitted.` };
+  }
+  if (str.replace(/[^a-zA-Z]/g, '').length < 2) {
+    return { valid: false, error: `${fieldLabel} must contain at least 2 alphabetic letters.` };
+  }
+  return { valid: true };
+}
