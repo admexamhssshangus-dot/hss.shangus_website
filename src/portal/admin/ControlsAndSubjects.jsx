@@ -123,26 +123,26 @@ const INITIAL_SUBJECT_MAP = {
   },
   '11th_Science': {
     groupA: ['General English', 'Physics', 'Chemistry'],
-    groupB: ['Biology', 'Mathematics', 'Environmental Science'],
-    groupC: ['IT and ITES', 'Healthcare', 'Physical Education & Sports', 'Retail', 'Tourism and Hospitality'],
-    minSubjects: 5, maxSubjects: 6, g1Min: 1, g1Max: 1, g2Min: 0, g2Max: 1
+    groupB: ['Biology', 'Mathematics'],
+    groupC: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'],
+    minSubjects: 5, maxSubjects: 6, g1Min: 1, g1Max: 2, g2Min: 0, g2Max: 1
   },
   '12th_Science': {
     groupA: ['General English', 'Physics', 'Chemistry'],
-    groupB: ['Biology', 'Mathematics', 'Environmental Science'],
-    groupC: ['IT and ITES', 'Healthcare', 'Physical Education & Sports', 'Retail', 'Tourism and Hospitality'],
-    minSubjects: 5, maxSubjects: 6, g1Min: 1, g1Max: 1, g2Min: 0, g2Max: 1
+    groupB: ['Biology', 'Mathematics'],
+    groupC: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'],
+    minSubjects: 5, maxSubjects: 6, g1Min: 1, g1Max: 2, g2Min: 0, g2Max: 1
   },
   '11th_Humanities': {
     groupA: ['General English'],
-    groupB: ['Political Science', 'History', 'Sociology', 'Economics', 'Education', 'Geography', 'Urdu', 'Kashmiri', 'Islamic Studies'],
-    groupC: ['Environmental Science', 'Physical Education & Sports', 'IT and ITES', 'Healthcare', 'Public Administration'],
+    groupB: ['Urdu', 'Education', 'Economics', 'History', 'Political Science', 'Mathematics'],
+    groupC: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'],
     minSubjects: 5, maxSubjects: 6, g1Min: 3, g1Max: 4, g2Min: 0, g2Max: 1
   },
   '12th_Humanities': {
     groupA: ['General English'],
-    groupB: ['Political Science', 'History', 'Sociology', 'Economics', 'Education', 'Geography', 'Urdu', 'Kashmiri', 'Islamic Studies'],
-    groupC: ['Environmental Science', 'Physical Education & Sports', 'IT and ITES', 'Healthcare', 'Public Administration'],
+    groupB: ['Urdu', 'Education', 'Economics', 'History', 'Political Science', 'Mathematics'],
+    groupC: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'],
     minSubjects: 5, maxSubjects: 6, g1Min: 3, g1Max: 4, g2Min: 0, g2Max: 1
   },
   '11th_Commerce': {

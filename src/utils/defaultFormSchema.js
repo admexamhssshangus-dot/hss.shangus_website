@@ -114,80 +114,61 @@ export const DEFAULT_SUBJECTS_CONFIG = {
   "11th": {
     "Science": {
       "compulsory": ["General English", "Physics", "Chemistry"],
-      "group1": ["Biology", "Mathematics", "Environmental Science"],
-      "group2": ["Information Practices", "Computer Science", "Physical Education", "Urdu", "Psychology"]
-    },
-    "Medical": {
-      "compulsory": ["General English", "Physics", "Chemistry", "Biology"],
-      "group1": ["Environmental Science", "Mathematics", "Information Practices", "Urdu", "Computer Science"],
-      "group2": ["Physical Education", "Public Administration", "Sociology", "Psychology"]
-    },
-    "Non-Medical": {
-      "compulsory": ["General English", "Physics", "Chemistry", "Mathematics"],
-      "group1": ["Environmental Science", "Information Practices", "Computer Science", "Urdu"],
-      "group2": ["Physical Education", "Statistics", "Geology"]
+      "group1": ["Biology", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     },
     "Humanities": {
       "compulsory": ["General English"],
-      "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
-      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration", "Psychology"]
+      "group1": ["Urdu", "Education", "Economics", "History", "Political Science", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     },
     "Arts": {
       "compulsory": ["General English"],
-      "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
-      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration", "Psychology"]
+      "group1": ["Urdu", "Education", "Economics", "History", "Political Science", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     },
     "Commerce": {
       "compulsory": ["General English", "Accountancy", "Business Studies"],
-      "group1": ["Entrepreneurship", "Economics", "Mathematics"],
-      "group2": ["Environmental Science", "Information Practices", "Physical Education"]
+      "group1": ["Economics", "Entrepreneurship", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     }
   },
   "12th": {
     "Science": {
       "compulsory": ["General English", "Physics", "Chemistry"],
-      "group1": ["Biology", "Mathematics", "Environmental Science"],
-      "group2": ["Information Practices", "Computer Science", "Physical Education", "Urdu"]
-    },
-    "Medical": {
-      "compulsory": ["General English", "Physics", "Chemistry", "Biology"],
-      "group1": ["Environmental Science", "Mathematics", "Information Practices", "Urdu", "Computer Science"],
-      "group2": ["Physical Education", "Public Administration", "Sociology"]
-    },
-    "Non-Medical": {
-      "compulsory": ["General English", "Physics", "Chemistry", "Mathematics"],
-      "group1": ["Environmental Science", "Information Practices", "Computer Science", "Urdu"],
-      "group2": ["Physical Education", "Statistics"]
+      "group1": ["Biology", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     },
     "Humanities": {
       "compulsory": ["General English"],
-      "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
-      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science", "Public Administration"]
+      "group1": ["Urdu", "Education", "Economics", "History", "Political Science", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     },
     "Arts": {
       "compulsory": ["General English"],
-      "group1": ["Political Science", "History", "Sociology", "Economics", "Education", "Geography", "Urdu", "Kashmiri", "Islamic Studies"],
-      "group2": ["Environmental Science", "Physical Education", "Mathematics", "Computer Science"]
+      "group1": ["Urdu", "Education", "Economics", "History", "Political Science", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     },
     "Commerce": {
       "compulsory": ["General English", "Accountancy", "Business Studies"],
-      "group1": ["Entrepreneurship", "Economics", "Mathematics"],
-      "group2": ["Environmental Science", "Information Practices", "Physical Education"]
+      "group1": ["Economics", "Entrepreneurship", "Mathematics"],
+      "group2": ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"]
     }
   },
   "9th": {
     "General": {
       "compulsory": ["English", "Mathematics", "Science", "Social Science"],
-      "languages": ["Urdu", "Kashmiri", "Hindi"],
-      "vocational": ["IT & ITES", "Healthcare", "Computer Applications", "Retail", "Tourism"]
+      "group1": ["Urdu", "Arabic", "Hindi", "Kashmiri"],
+      "group2": ["Healthcare", "IT and ITES"]
     }
   },
   "10th": {
     "General": {
       "compulsory": ["English", "Mathematics", "Science", "Social Science"],
-      "languages": ["Urdu", "Kashmiri", "Hindi"],
-      "vocational": ["IT & ITES", "Healthcare", "Computer Applications", "Retail", "Tourism"]
+      "group1": ["Urdu", "Arabic", "Hindi", "Kashmiri"],
+      "group2": ["Healthcare", "IT and ITES"]
     }
   }
 };
+
 
